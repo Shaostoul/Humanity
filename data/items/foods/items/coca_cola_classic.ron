@@ -1,0 +1,70 @@
+// Coca-Cola Classic — pure ingredient list with version history.
+// Toxicology DERIVED from current ingredients via aggregator. Per-ingredient
+// tox lives in data/items/foods/ingredients/<id>.ron.
+
+(
+    id: "coca_cola_classic",
+    name: "Coca-Cola Classic",
+    brand: "The Coca-Cola Company",
+    category: "beverage/cola",
+    description: "Carbonated cola soft drink. The original 1886 formulation has been modified many times; current US recipe uses HFCS (cane sugar in some markets and the 'Mexican Coke' variant).",
+    serving_size_g: 240.0,
+    sources: [
+        "https://www.coca-colacompany.com/brands/coca-cola",
+        "USDA FoodData Central FDC ID 174833",
+    ],
+
+    history: [
+        (
+            as_of: "1886-05-08",
+            note: "Original Pemberton formulation. Contained cocaine extract from coca leaves and caffeine from kola nuts.",
+            ingredients: [
+                ( id: "carbon_dioxide",          note: "" ),
+                ( id: "sugar",                   note: "cane sugar" ),
+                ( id: "caramel_color",           note: "" ),
+                ( id: "phosphoric_acid",         note: "" ),
+                ( id: "natural_flavors",         note: "Merchandise 7X" ),
+                ( id: "caffeine_natural",        note: "from kola nuts" ),
+                ( id: "coca_leaf_extract",       note: "removed by 1929" ),
+            ],
+        ),
+        (
+            as_of: "1929-01-01",
+            note: "Cocaine fully removed; remained caffeinated.",
+            ingredients: [
+                ( id: "carbon_dioxide",          note: "" ),
+                ( id: "sugar",                   note: "cane sugar" ),
+                ( id: "caramel_color",           note: "" ),
+                ( id: "phosphoric_acid",         note: "" ),
+                ( id: "natural_flavors",         note: "" ),
+                ( id: "caffeine_natural",        note: "" ),
+            ],
+        ),
+        (
+            as_of: "1980-01-01",
+            note: "Switched US formulation from cane sugar to high fructose corn syrup (cost savings).",
+            ingredients: [
+                ( id: "carbon_dioxide",          note: "" ),
+                ( id: "high_fructose_corn_syrup", note: "primary sweetener" ),
+                ( id: "caramel_color",           note: "" ),
+                ( id: "phosphoric_acid",         note: "" ),
+                ( id: "natural_flavors",         note: "" ),
+                ( id: "caffeine_natural",        note: "" ),
+            ],
+        ),
+        (
+            as_of: "2024-03-01",
+            note: "Current US formulation. 'Mexican Coke' variant retains cane sugar.",
+            ingredients: [
+                ( id: "carbon_dioxide",          note: "carbonation" ),
+                ( id: "high_fructose_corn_syrup", note: "primary sweetener (~26g per 240ml)" ),
+                ( id: "caramel_color",           note: "Class IV; trace 4-MEI" ),
+                ( id: "phosphoric_acid",         note: "tartness; bone density concerns at chronic high intake" ),
+                ( id: "natural_flavors",         note: "proprietary blend" ),
+                ( id: "caffeine_natural",        note: "~34mg per 240ml; toxic to dogs and cats" ),
+            ],
+        ),
+    ],
+
+    accord_constraints: ["transparency", "epistemic_integrity", "harm_minimization"],
+)

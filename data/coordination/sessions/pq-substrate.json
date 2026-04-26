@@ -1,0 +1,22 @@
+{
+  "scope_id": "pq-substrate",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-A",
+  "owned_files": [
+    {"path": "src/relay/storage/signed_objects.rs", "exists": true, "loc": 287, "test_count": 6, "notes": "Generic substrate; auto-indexes derivatives on insert"},
+    {"path": "src/relay/core/pq_crypto.rs", "exists": true, "loc": 396, "test_count": 13, "notes": "Dilithium3 + Kyber768 + BIP39 derivation"},
+    {"path": "src/relay/core/encoding.rs", "exists": true, "loc": 0, "test_count": 4, "notes": "Canonical CBOR (was mis-named canonical.rs in registry — fixed v0.117.0)"},
+    {"path": "src/relay/core/object.rs", "exists": true, "loc": 0, "test_count": 5, "notes": "Object + ObjectBuilder with PQ signing"},
+    {"path": "src/relay/core/did.rs", "exists": true, "loc": 0, "test_count": 10, "notes": "did:hum:<base58> resolver"},
+    {"path": "src/relay/core/hash.rs", "exists": true, "loc": 0, "test_count": 4, "notes": "BLAKE3 wrapper"},
+    {"path": "src/relay/core/kdf.rs", "exists": true, "loc": 0, "test_count": 7, "notes": "Argon2id KDF"},
+    {"path": "src/relay/core/merkle_disclosure.rs", "exists": true, "loc": 0, "test_count": 0, "notes": "Phase 6b Merkle path verifier"},
+    {"path": "src/relay/core/error.rs", "exists": true, "loc": 0, "test_count": 0, "notes": "thiserror enum for substrate"}
+  ],
+  "implementation_status": "complete",
+  "completion_check_holds": true,
+  "todos_found": [],
+  "gaps": [],
+  "recommended_status": "passive",
+  "summary": "Substrate fully wired. Registry was missing 4 owned files (encoding/hash/kdf/merkle_disclosure) and had a stale reference to non-existent canonical.rs — fixed in registry update v0.117.0. 49 unit tests across the 9 files."
+}

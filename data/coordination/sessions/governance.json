@@ -1,0 +1,34 @@
+{
+  "scope_id": "governance",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-B",
+  "owned_files": [
+    {
+      "path": "src/relay/storage/governance.rs",
+      "exists": true,
+      "loc": 469,
+      "test_count": 5,
+      "notes": "Complete implementation of proposal indexing, voting with weight snapshot, vote tally computation. All tests pass (proposal_indexes_after_storage, votes_tally_correctly, duplicate_vote_from_same_voter_is_ignored, ai_agent_vote_is_excluded, list_filters_by_scope). AI agents silently excluded per Accord (v0.116.0)."
+    },
+    {
+      "path": "src/relay/api_v2_governance.rs",
+      "exists": true,
+      "loc": 104,
+      "test_count": 0,
+      "notes": "HTTP API endpoints: GET /api/v2/proposals (list with filters), GET /api/v2/proposals/{id} (fetch), GET /api/v2/proposals/{id}/tally. Straightforward Axum handlers with error responses. Fully implemented."
+    },
+    {
+      "path": "data/governance/proposal_types.ron",
+      "exists": true,
+      "loc": 92,
+      "test_count": 0,
+      "notes": "9 proposal types defined: 5 local (parameter_change, schema_add, treasury_grant, juror_pool_lottery, local_rule), 4 civilization (accord_amendment, accord_interpretation, federation_floor_policy, schema_civilization_register). Thresholds, quorum fractions, durations all specified. Hot-reloadable."
+    }
+  ],
+  "implementation_status": "complete",
+  "completion_check_holds": true,
+  "todos_found": [],
+  "gaps": [],
+  "recommended_status": "passive",
+  "summary": "Governance scope fully operational: 9 proposal types, indexing + tally shipped, AI exclusion enforced. Ready for Phase 3 civilization-scope federation if new dispute arbitration required."
+}

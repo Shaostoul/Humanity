@@ -1,0 +1,31 @@
+{
+  "scope_id": "items-foods",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-haiku",
+  "owned_files": [
+    {
+      "path": "data/items/foods/ingredients.csv",
+      "exists": true,
+      "row_count": 34,
+      "notes": "34 food ingredients catalogued. Schema: id, name, category (sweetener, seasoning, additive, etc.), chemistry_compound_id (cross-reference), common_use, allergen_class, description. Includes sugar, HFCS, honey, salt, citric_acid, caramel_color."
+    },
+    {
+      "path": "data/items/foods/coca_cola_classic.ron",
+      "exists": true,
+      "row_count": 73,
+      "notes": "RON format sample food item (73 lines). Structured item with ingredients list, nutrition facts, allergens, preparation method."
+    },
+    {
+      "path": "data/items/foods/oreos_original.ron",
+      "exists": true,
+      "row_count": 85,
+      "notes": "RON format sample food item (85 lines). Structured with ingredient breakdown, nutrition, allergen mappings."
+    }
+  ],
+  "implementation_status": "scaffold",
+  "completion_check_holds": false,
+  "data_coverage_estimate": "0.2%",
+  "gaps": ["Bulk of top-1000 grocery items (only 2 sample food products present)", "Nutritional completeness for sampled items (need vitamin/mineral/macro data)", "Cross-reference validation to chemistry/compounds.csv", "Allergen completeness for all ingredients", "Brand variants and product lines (multiple versions of common items)"],
+  "recommended_status": "active",
+  "summary": "Scaffold in place (2 RON products, 34 ingredients). Active: expand to hundreds of real-world grocery items with full ingredient & nutrition traceability."
+}

@@ -1,0 +1,19 @@
+{
+  "scope_id": "toxins",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-haiku",
+  "owned_files": [
+    {
+      "path": "data/chemistry/toxins.csv",
+      "exists": true,
+      "row_count": 52,
+      "notes": "52 toxins currently recorded. Schema: id, name, source (biological/animal/chemical/mineral), category, lethal_dose_mg_kg, onset_time_minutes, symptoms (pipe-delimited), antidote, description. Samples: botulinum toxin (0.000001 LD50), tetrodotoxin, cyanide, ricin, palytoxin, batrachotoxin, saxitoxin."
+    }
+  ],
+  "implementation_status": "partial",
+  "completion_check_holds": false,
+  "data_coverage_estimate": "10.4%",
+  "gaps": ["Heavy metal toxins (lead, mercury, arsenic, cadmium, chromium)", "Pesticide/herbicide classes (organophosphates, pyrethroids, neonicotinoids)", "Industrial chemicals (benzene, formaldehyde, asbestos, PCBs)", "Biological toxins from bacteria (staphylococcal enterotoxins, Shiga toxins)", "Plant alkaloids (strychnine, nicotine, atropine, tropane alkaloids)", "Venom toxins (snake, spider, wasp)", "Mycotoxins (aflatoxins, ergotamine, deoxynivalenol)"],
+  "recommended_status": "active",
+  "summary": "52 of ~500-target toxins covered (10.4%). Major gaps in heavy metals, pesticides, industrial chemicals, fungal & bacterial toxins."
+}

@@ -1,0 +1,19 @@
+{
+  "scope_id": "plants",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-haiku",
+  "owned_files": [
+    {
+      "path": "data/plants.csv",
+      "exists": true,
+      "row_count": 161,
+      "notes": "161 plant species catalogued. Schema: id, common_name, description, type (fruit/herb/vegetable/tree/flowering/vine/etc.), yield_kg_per_season, growth_multiplier, water_consumption, nutrient_uptake_n_p_k, ph_min/max, growth_temp_min/max_c, days_to_harvest, growth_stages (pipe-delimited), seasonal_growth, days_in_season, rotation_years, vendor_class, companion_plants. Heavy agriculture focus (crop plants, herbs, specialty crops like coffee/cacao/tea)."
+    }
+  ],
+  "implementation_status": "partial",
+  "completion_check_holds": false,
+  "data_coverage_estimate": "15-20%",
+  "gaps": ["Medicinal/pharmaceutical plants (ginseng, turmeric, echinacea, St. John's wort)", "Ornamental/decorative plants (roses, lilies, succulents, shrubs)", "Forest canopy species (oak, pine, cedar, birch, maple)", "Grasses and turf species (lawn grasses, pasture grasses)", "Aquatic & wetland plants (water lilies, cattails, reeds)", "Edible wild plants & forageables (mushrooms, berries, greens)", "Spice plants (pepper, cinnamon, nutmeg, vanilla, saffron)", "Fiber plants (cotton, hemp, flax)"],
+  "recommended_status": "active",
+  "summary": "161 mostly-crop plants present (15-20% of major species). Active: add medicinal, ornamental, forest, and forageable plants for wider ecosystem."
+}

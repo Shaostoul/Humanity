@@ -1,0 +1,27 @@
+{
+  "scope_id": "recovery",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-B",
+  "owned_files": [
+    {
+      "path": "src/relay/storage/recovery.rs",
+      "exists": true,
+      "loc": 516,
+      "test_count": 4,
+      "notes": "Complete storage + indexing for Shamir share recovery (Phase 4 PR 1). Implements recovery_share_v1 indexing (opaque ciphertext), recovery_request_v1 (flow initiation), recovery_approval_v1 (threshold tracking). Tests: shares_index_after_storage, guardian_can_list_their_shares, malformed_share_is_not_indexed, no_recovery_setup_returns_none. Guardian validation, threshold checking built in."
+    },
+    {
+      "path": "src/relay/api_v2_recovery.rs",
+      "exists": true,
+      "loc": 108,
+      "test_count": 0,
+      "notes": "HTTP API endpoints: GET /api/v2/recovery/setup/{holder_did}, GET /api/v2/recovery/shares-held-by/{guardian_did}, GET /api/v2/recovery/request/{request_object_id}. Routes return setup config, shares held, and request status with approval list. Client-side Shamir lib deferred to Phase 4 PR 2."
+    }
+  ],
+  "implementation_status": "complete",
+  "completion_check_holds": true,
+  "todos_found": [],
+  "gaps": [],
+  "recommended_status": "passive",
+  "summary": "Recovery scope complete: share storage, request/approval flow, threshold mechanics all shipped. Awaiting Phase 4 PR 2 for client-side Shamir + automatic key rotation (next gap per completion_check)."
+}

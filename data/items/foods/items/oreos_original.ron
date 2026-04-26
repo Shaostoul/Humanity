@@ -1,0 +1,88 @@
+// Oreo Original — pure ingredient list with version history.
+// Toxicology is DERIVED from the current ingredient list at query time;
+// not stored on the item itself. Per-ingredient tox lives in
+// data/items/foods/ingredients/<id>.ron.
+//
+// History array is sorted oldest-first. The current formulation is the entry
+// with the latest `as_of` date. Older entries stay queryable for historical
+// exposure inquiries ("I ate Oreos as a kid in 1985 — what was in them?").
+
+(
+    id: "oreos_original",
+    name: "Oreo Original Sandwich Cookies",
+    brand: "Mondelēz International (Nabisco)",
+    category: "food/cookies",
+    description: "Chocolate sandwich cookies with cream filling. Iconic American snack since 1912.",
+    serving_size_g: 34.0,
+    sources: [
+        "https://www.oreo.com/products/original",
+        "https://www.mondelezinternational.com/",
+        "USDA FoodData Central FDC ID 392880",
+    ],
+
+    history: [
+        (
+            as_of: "1912-03-06",
+            note: "Original launch by National Biscuit Company.",
+            ingredients: [
+                ( id: "wheat_flour_unbleached", note: "" ),
+                ( id: "lard",                   note: "original shortening before vegetable oils" ),
+                ( id: "sugar",                  note: "" ),
+                ( id: "cocoa_alkalized",        note: "Dutch process" ),
+                ( id: "salt",                   note: "" ),
+                ( id: "leavening_baking_soda",  note: "" ),
+                ( id: "vanilla_extract_natural", note: "" ),
+            ],
+        ),
+        (
+            as_of: "1990-01-01",
+            note: "Switched lard to partially hydrogenated vegetable oil (added trans fats).",
+            ingredients: [
+                ( id: "wheat_flour_unbleached",  note: "" ),
+                ( id: "sugar",                   note: "" ),
+                ( id: "partially_hydrogenated_oil", note: "trans fat era" ),
+                ( id: "cocoa_alkalized",         note: "" ),
+                ( id: "high_fructose_corn_syrup", note: "" ),
+                ( id: "leavening_baking_soda",   note: "" ),
+                ( id: "salt",                    note: "" ),
+                ( id: "soy_lecithin",            note: "" ),
+                ( id: "vanillin_artificial",     note: "" ),
+                ( id: "chocolate",               note: "" ),
+            ],
+        ),
+        (
+            as_of: "2006-01-01",
+            note: "Removed trans fats per FDA labeling guidance.",
+            ingredients: [
+                ( id: "wheat_flour_unbleached",  note: "" ),
+                ( id: "sugar",                   note: "" ),
+                ( id: "palm_and_canola_oil",     note: "replaced PHO" ),
+                ( id: "cocoa_alkalized",         note: "" ),
+                ( id: "high_fructose_corn_syrup", note: "" ),
+                ( id: "leavening_baking_soda",   note: "" ),
+                ( id: "salt",                    note: "" ),
+                ( id: "soy_lecithin",            note: "" ),
+                ( id: "vanillin_artificial",     note: "" ),
+                ( id: "chocolate",               note: "" ),
+            ],
+        ),
+        (
+            as_of: "2024-03-01",
+            note: "Current US formulation.",
+            ingredients: [
+                ( id: "sugar",                       note: "primary sweetener; ~14g per 3-cookie serving" ),
+                ( id: "wheat_flour_unbleached",      note: "primary structural ingredient" ),
+                ( id: "palm_and_canola_oil",         note: "shortening blend" ),
+                ( id: "cocoa_alkalized",             note: "Dutch process; source of theobromine — toxic to dogs/cats" ),
+                ( id: "high_fructose_corn_syrup",    note: "" ),
+                ( id: "leavening_baking_soda",       note: "" ),
+                ( id: "salt",                        note: "" ),
+                ( id: "soy_lecithin",                note: "emulsifier" ),
+                ( id: "vanillin_artificial",         note: "synthetic vanilla flavor" ),
+                ( id: "chocolate",                   note: "" ),
+            ],
+        ),
+    ],
+
+    accord_constraints: ["transparency", "epistemic_integrity", "harm_minimization"],
+)

@@ -1,0 +1,16 @@
+{
+  "scope_id": "trust-score",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-A",
+  "owned_files": [
+    {"path": "src/relay/storage/trust_score.rs", "exists": true, "loc": 522, "test_count": 7, "notes": "6 sub-scores: vcs, vouching_graph, activity_diversity, age, economic_stake, reputation"},
+    {"path": "src/relay/api_v2_trust.rs", "exists": true, "loc": 0, "test_count": 0, "notes": "GET /api/v2/trust/{did}"},
+    {"path": "data/identity/trust_weights.ron", "exists": true, "loc": 0, "test_count": 0, "notes": "Hot-reloadable weights"}
+  ],
+  "implementation_status": "complete",
+  "completion_check_holds": true,
+  "todos_found": [],
+  "gaps": [],
+  "recommended_status": "passive",
+  "summary": "Trust score complete. 6 sub-scores wired, 5-min cache, signed total, inputs always exposed (Accord transparency)."
+}

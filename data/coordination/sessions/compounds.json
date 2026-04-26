@@ -1,0 +1,19 @@
+{
+  "scope_id": "compounds",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-haiku",
+  "owned_files": [
+    {
+      "path": "data/chemistry/compounds.csv",
+      "exists": true,
+      "row_count": 166,
+      "notes": "166 common compounds present. Schema: id, formula, name, category (oxide, gas, organic, mineral), molecular_weight, density, melting/boiling points, solubility_water, ph, flammable/explosive/toxic flags, lethal_dose_mg_kg, state_at_stp, description. Includes water, CO2, sucrose, activated charcoal, salts."
+    }
+  ],
+  "implementation_status": "partial",
+  "completion_check_holds": false,
+  "data_coverage_estimate": "3.3%",
+  "gaps": ["Major organic compound classes (alcohols, aldehydes, ketones, carboxylic acids — ~200+ common)", "Polymers and plastics (polyethylene, PET, acrylic, etc.)", "Pharmaceuticals (aspirin, ibuprofen, etc.)", "Food additives (colorants, preservatives, emulsifiers)", "Common household chemicals (bleach compounds, detergents)"],
+  "recommended_status": "active",
+  "summary": "166 of ~5000-target compounds present (3.3% coverage). Active: expand organic chemistry, pharmaceuticals, food additives, industrial chemicals."
+}

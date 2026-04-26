@@ -1,0 +1,67 @@
+(
+    id: "cocoa_alkalized",
+    name: "Cocoa (Dutch-processed)",
+    category: "flavoring",
+    chemistry_compound_id: None,
+    common_use: "Dark cocoa powder treated with alkali; source of theobromine.",
+    allergen_class: "",
+    description: "Cacao solids treated with potassium carbonate to reduce bitterness and darken color. Contains theobromine + caffeine + small amounts of phenethylamine. ~1-2% theobromine by mass typical.",
+    composed_of_compounds: ["theobromine", "caffeine"],
+    sources: [
+        "https://www.fda.gov/",
+        "https://en.wikipedia.org/wiki/Theobromine",
+        "Veterinary Toxicology — Theobromine in dogs",
+    ],
+    last_verified: "2026-04-25",
+
+    toxicology: {
+        "human_adult": {
+            "ingested": (
+                verdict: "safe_in_moderation",
+                details: "Methylxanthines in cocoa are mood-altering at high dose. 1g/kg of pure theobromine can cause headaches, insomnia, sweating; cocoa powder is ~1-2% theobromine so equivalent dose is ~50g/kg of pure cocoa — never reached in food.",
+                lethal_dose_mg_kg: Some(1000.0),
+                notes: ["acute lethality requires kilogram-scale ingestion"],
+            ),
+        },
+        "human_pregnant": {
+            "ingested": (
+                verdict: "caution",
+                details: "Caffeine content matters; ACOG limit 200mg/day total caffeine. Cocoa contributes a small fraction.",
+                lethal_dose_mg_kg: None,
+                notes: [],
+            ),
+        },
+        "dog": {
+            "ingested": (
+                verdict: "toxic",
+                details: "Theobromine is metabolized 4× slower in dogs than humans. ~10g cocoa powder is mildly toxic to a 10kg dog (vomiting, restlessness, panting). Larger doses or smaller dogs face cardiac arrhythmia, seizures, death.",
+                lethal_dose_mg_kg: Some(100.0),
+                notes: [
+                    "theobromine LD50 in dogs ~100-200 mg/kg body weight",
+                    "darker chocolate = higher theobromine concentration = more dangerous",
+                    "ASPCA Animal Poison Control: 1-888-426-4435",
+                    "Get pet to vet within 6 hours of suspected ingestion",
+                ],
+            ),
+        },
+        "cat": {
+            "ingested": (
+                verdict: "toxic",
+                details: "Cats are MORE sensitive than dogs due to slower hepatic glucuronyl transferase. Even one chocolate cookie can be dangerous for a 4kg cat.",
+                lethal_dose_mg_kg: Some(80.0),
+                notes: [
+                    "cats also lack sweet taste so are less likely to seek out chocolate",
+                    "ASPCA Animal Poison Control: 1-888-426-4435",
+                ],
+            ),
+        },
+        "bird_pet": {
+            "ingested": (
+                verdict: "toxic",
+                details: "Well-documented theobromine toxicity in pet birds. Even a small piece is dangerous.",
+                lethal_dose_mg_kg: Some(50.0),
+                notes: ["parrots, cockatiels, budgies all at risk"],
+            ),
+        },
+    },
+)

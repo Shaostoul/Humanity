@@ -29,7 +29,17 @@
         // ── Identity / trust / governance substrate ──────────────────────
         (
             id: "pq-substrate",
-            owns: ["src/relay/storage/signed_objects.rs", "src/relay/core/pq_crypto.rs", "src/relay/core/canonical.rs", "src/relay/core/object.rs", "src/relay/core/did.rs"],
+            owns: [
+                "src/relay/storage/signed_objects.rs",
+                "src/relay/core/pq_crypto.rs",
+                "src/relay/core/encoding.rs",      // canonical CBOR + helpers
+                "src/relay/core/object.rs",        // signed Object + ObjectBuilder
+                "src/relay/core/did.rs",
+                "src/relay/core/hash.rs",          // BLAKE3 wrapper
+                "src/relay/core/kdf.rs",           // Argon2id KDF
+                "src/relay/core/merkle_disclosure.rs", // Merkle ZK paths (Phase 6b)
+                "src/relay/core/error.rs",
+            ],
             must_not_touch: ["src/gui/", "src/systems/", "data/"],
             completion_check: "Substrate stable since v0.98.0. Only resume if a new schema needs auto-indexing or a crypto primitive needs adding.",
             default_status: "passive",

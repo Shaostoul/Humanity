@@ -1,0 +1,19 @@
+{
+  "scope_id": "elements",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-haiku",
+  "owned_files": [
+    {
+      "path": "data/chemistry/elements.csv",
+      "exists": true,
+      "row_count": 118,
+      "notes": "All 118 periodic table elements present (H through Og). Complete schema: atomic_number, symbol, name, category, atomic_mass, density, melting/boiling points, thermal/electrical conductivity, specific heat, electronegativity, ionization energy, crustal abundance, state_at_stp, radioactive/flammable/toxic flags, description."
+    }
+  ],
+  "implementation_status": "complete",
+  "completion_check_holds": true,
+  "data_coverage_estimate": "100%",
+  "gaps": [],
+  "recommended_status": "passive",
+  "summary": "Periodic table fully populated with all known elements. No new elements expected; passive until discovery occurs."
+}

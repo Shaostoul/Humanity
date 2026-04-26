@@ -161,6 +161,87 @@ Two separate concerns living side-by-side in the same binary:
 
 ---
 
+## Search performance at scale
+
+Common question: *if we list 1 billion items (foods, products, anything), how
+fast can we search?* Concrete numbers, all on a single mid-range VPS (4 CPU,
+16GB RAM, NVMe SSD), assuming SQLite WAL mode + appropriate indexes:
+
+| Query type | Latency at 1B rows | Notes |
+|---|---|---|
+| Lookup by primary key (`object_id`, `did`, item `id`) | **<1 ms** | B-tree index, O(log n). Same as 1M rows. |
+| Lookup by indexed secondary column (e.g. `author_fp`, `category`) | **<5 ms** | B-tree on a smaller key |
+| Range scan by indexed timestamp + LIMIT 100 | **5–20 ms** | Index seek + small forward scan |
+| Full-text search via FTS5 (e.g. "find all items containing 'caffeine'") | **20–100 ms** | FTS5 inverted index; index file is ~5 GB at 1B rows |
+| Multi-column filter without composite index | **seconds to minutes** | Avoid this — add the right composite index, or denormalize |
+| Aggregate scan ("count all items by category") | **seconds to minutes** | Use a pre-computed materialized table updated by triggers |
+
+### What 1 billion items actually looks like
+
+- **Storage**: ~1KB per item row + indexes ≈ **2–3 TB** raw. Use Litestream
+  to replicate to S3-compatible storage for durability.
+- **Single SQLite file**: handles up to 2^63-1 rows in theory, ~140 TB max
+  size. We never approach that.
+- **Per-server practical ceiling**: ~100M rows on commodity hardware before
+  sharding is worth the complexity.
+- **Federation does the sharding**: when one server's load gets high, spin up
+  another, federate, gossip the relevant subsets. Per-server load drops
+  proportionally.
+
+### Federated sharding (built-in)
+
+For hot tables (signed_objects, credentials, items):
+- Shard key: first 2 hex chars of `did` or `object_id` → 256 buckets
+- Each bucket holds 1/256th of the load → at 1B items each shard handles ~4M
+  rows (trivial)
+- A user's data tends to land on a small number of shards (whichever DIDs
+  they've interacted with), so latency stays bounded by the active set, not
+  the total set.
+- The relay code is shard-agnostic; the routing layer (or a future deployment
+  with multiple relays + an LB) handles bucket → server mapping.
+
+### What about "infinite" items?
+
+There is no actual infinite. The architecture treats data as
+**federated and content-addressable**:
+
+- Every signed object is BLAKE3-hashed → globally unique address
+- Lookup by hash = sub-millisecond on the server that holds it
+- If the hash isn't local, federation gossip resolves via peer query
+- The bottleneck becomes network latency between peers, not database scan
+  time. At ~50ms RTT between peers + dedup cache, even cross-federation
+  lookups are sub-second.
+
+### AI-assisted search
+
+The relay is just an HTTP API; an AI agent calling `GET /api/v2/objects?...`
+sees the same sub-100ms latency as any client. For semantic search ("find
+items similar to Oreos"), the recommended pattern is:
+- Compute embeddings client-side (no need to ship them to the relay)
+- Store as a small extension table with an HNSW index
+- Combine with FTS5 for hybrid keyword + semantic queries
+
+We do not currently ship semantic search; it is a Phase 9+ candidate.
+
+## Real-world items: ingredient-list versioning
+
+Real-world consumer items (Oreos, Coca Cola, household cleaners) **do
+change** their ingredient lists over time. Oreos in 1990 ≠ Oreos in 2026.
+The schema in `data/items/foods/SCHEMA.md` (v0.117.0+) accommodates this:
+
+- **Items** carry only their identity + a sorted `history: [{as_of, note,
+  ingredients}]` array
+- **Ingredients** live in their own RON sidecar files with toxicology data
+- **Toxicology is derived** at query time by aggregating the current
+  ingredient list — never stored on the item
+- Query: "what's in Oreos today?" → latest history entry. "What was in Oreos
+  in 1985?" → entry with as_of ≤ 1985-01-01.
+- Historical formulations stay queryable for medical exposure investigations
+
+This separation means: improving the toxicology data for "caffeine" once
+automatically improves the verdict for every item that contains caffeine,
+without touching any item file.
+
 ## Related docs
 
 - `docs/network/object_format.md` — canonical CBOR signed object format

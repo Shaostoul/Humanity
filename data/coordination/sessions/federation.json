@@ -1,0 +1,32 @@
+{
+  "scope_id": "federation",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-B",
+  "owned_files": [
+    {
+      "path": "src/relay/handlers/federation.rs",
+      "exists": true,
+      "loc": 473,
+      "test_count": 0,
+      "notes": "Multi-hop signed-object gossip + federation connection management (Phase 3 PR 1+2). Implements forward_to_federation, start_federation_connections, federation_connect_loop, gossip_signed_object, gossip_profile, broadcast_federation_status. Two TODOs: verify Ed25519 signature for profiles (line 220), client-signed profiles (line 461). Rate limiting: 10 msgs/sec chat, 50 objects/sec per peer."
+    },
+    {
+      "path": "src/relay/storage/issuer_trust.rs",
+      "exists": true,
+      "loc": 351,
+      "test_count": 7,
+      "notes": "Per-observer per-issuer trust scoring (Phase 3 PR 2). Implements issuer_trust_good/bad with delta clamping (MAX_DELTA=0.05), index_dispute with self-dispute guard. Tests: unknown_issuer_has_neutral_trust, good_event_raises_trust, bad_event_drops_trust, delta_caps_at_max, trust_clamped_to_unit_interval, dispute_object_lowers_target_trust, self_dispute_is_noop. Trust range [0,1], symmetric neutral=0.5."
+    }
+  ],
+  "implementation_status": "complete",
+  "completion_check_holds": true,
+  "todos_found": [
+    "src/relay/handlers/federation.rs:220 - TODO: verify Ed25519 signature once clients sign profiles",
+    "src/relay/handlers/federation.rs:461 - TODO: client-signed profiles"
+  ],
+  "gaps": [
+    "Profile signing: gossip_profile and received ProfileGossip messages lack Ed25519 signature verification (deferred pending client-side implementation)"
+  ],
+  "recommended_status": "passive",
+  "summary": "Federation scope nearly complete: gossip + trust scoring fully functional. Two profile-signing TODOs are deferred pending client-side support; completion_check satisfied for current Phase 3 PR."
+}

@@ -1,0 +1,40 @@
+(
+    id: "sugar",
+    name: "Sugar (Sucrose)",
+    category: "sweetener",
+    chemistry_compound_id: Some("sucrose"),
+    common_use: "Primary sweetener in processed foods.",
+    allergen_class: "",
+    description: "Sucrose disaccharide (glucose + fructose). Refined from cane or beet.",
+    composed_of_compounds: ["sucrose"],
+    sources: ["USDA FoodData Central"],
+    last_verified: "2026-04-25",
+
+    toxicology: {
+        "human_adult": {
+            "ingested": (
+                verdict: "safe_in_moderation",
+                details: "Caloric sweetener. Long-term overconsumption contributes to dental caries, obesity, type-2 diabetes. WHO recommends free sugars under 10% of daily energy intake.",
+                lethal_dose_mg_kg: Some(29700.0),
+                notes: ["LD50 oral rat ~29.7 g/kg — practically harmless acutely"],
+            ),
+            "topical": ( verdict: "safe", details: "", lethal_dose_mg_kg: None, notes: [] ),
+        },
+        "dog": {
+            "ingested": (
+                verdict: "caution",
+                details: "Not acutely toxic but contributes to obesity, dental disease, and pancreatitis in chronic overfeeding. Avoid as a regular treat.",
+                lethal_dose_mg_kg: None,
+                notes: [],
+            ),
+        },
+        "cat": {
+            "ingested": (
+                verdict: "caution",
+                details: "Cats lack sweet taste receptors so are unlikely to seek out sugar. Same chronic risks as dogs if chronically fed.",
+                lethal_dose_mg_kg: None,
+                notes: [],
+            ),
+        },
+    },
+)
