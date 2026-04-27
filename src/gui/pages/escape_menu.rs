@@ -64,6 +64,9 @@ pub fn draw_nav_bar(ctx: &egui::Context, state: &mut GuiState) {
                 // Green group: context-sensitive
                 let green_items = [
                     NavItem { label: "Profile", page: GuiPage::Profile },
+                    NavItem { label: "Identity", page: GuiPage::Identity },
+                    NavItem { label: "Governance", page: GuiPage::Governance },
+                    NavItem { label: "Recovery", page: GuiPage::Recovery },
                     NavItem { label: "Tasks", page: GuiPage::Tasks },
                     NavItem { label: "Inventory", page: GuiPage::Inventory },
                     NavItem { label: "Maps", page: GuiPage::Maps },
@@ -81,6 +84,8 @@ pub fn draw_nav_bar(ctx: &egui::Context, state: &mut GuiState) {
                 // Blue group: system
                 let blue_items = [
                     NavItem { label: "Onboarding", page: GuiPage::Onboarding },
+                    NavItem { label: "Agents", page: GuiPage::Agents },
+                    NavItem { label: "AI Usage", page: GuiPage::AiUsage },
                     NavItem { label: "Settings", page: GuiPage::Settings },
                     NavItem { label: "Tools", page: GuiPage::Tools },
                     NavItem { label: "Bugs", page: GuiPage::BugReport },

@@ -102,6 +102,12 @@ pub enum GuiPage {
     /// Social key recovery setup + active recovery requests.
     /// Mirrors the web `/recovery` page.
     Recovery,
+    /// Multi-AI agent coordination dashboard: scope registry + status + overrides.
+    /// Mirrors the web `/agents` page.
+    Agents,
+    /// AI subscription quota tracker + usage event log.
+    /// Mirrors the web `/ai-usage` page.
+    AiUsage,
 }
 
 /// Item slot data bridged from ECS Inventory for GUI display.

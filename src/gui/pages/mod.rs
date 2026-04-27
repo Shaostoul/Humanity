@@ -33,3 +33,5 @@ pub mod server_settings;
 pub mod identity;
 pub mod governance;
 pub mod recovery;
+pub mod agents;
+pub mod ai_usage;
