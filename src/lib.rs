@@ -621,6 +621,26 @@ mod native_app {
             gui_state.help_registry = help_modal::load_help_registry(&data_dir);
             gui_state.onboarding_quest_chains = onboarding::load_quest_chains(&data_dir);
             gui_state.map_planets = crate::gui::load_planets(&data_dir);
+            gui_state.equipment_slots = crate::gui::load_equipment_slots(&data_dir);
+            let (sevs, cats) = crate::gui::load_bug_taxonomy(&data_dir);
+            gui_state.bug_severities = sevs;
+            gui_state.bug_categories = cats;
+            gui_state.crafting_categories = crate::gui::load_crafting_categories(&data_dir);
+            gui_state.market_categories = crate::gui::load_market_categories(&data_dir);
+            gui_state.resource_categories = crate::gui::load_resource_categories(&data_dir);
+            gui_state.studio_scene_presets = crate::gui::load_studio_scenes(&data_dir);
+            gui_state.studio_source_presets = crate::gui::load_studio_sources(&data_dir);
+            // Populate the live studio state from the loaded presets.
+            gui_state.studio.sources = gui_state
+                .studio_source_presets
+                .iter()
+                .map(crate::gui::studio_source_from_preset)
+                .collect();
+            gui_state.studio.scenes = gui_state
+                .studio_scene_presets
+                .iter()
+                .map(crate::gui::studio_scene_from_preset)
+                .collect();
             // Default to Earth if present.
             gui_state.map_selected_planet = gui_state
                 .map_planets

@@ -43,10 +43,12 @@ ship msg="chore: update":
     @just _commit "{{msg}}"
     @just sync
 
-# Regenerate web/shared/theme.css from data/gui/theme.ron (one-source theme rule).
+# Regenerate web/shared/theme.css + web/shared/settings.js theme-preset block
+# from data/gui/theme.ron + data/themes/presets.json (one-source theme rule).
 # Idempotent — running twice produces no diff. Wired into `just ship`.
 theme:
     node scripts/gen-theme-css.js
+    node scripts/gen-theme-presets-js.js
 
 # Commit + push only — waits for CI to deploy (~5 min)
 deploy msg="chore: update":

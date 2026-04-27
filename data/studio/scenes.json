@@ -1,0 +1,13 @@
+{
+  "_comment": "Default streaming-studio scene presets. Each scene's source_visibility array indexes the matching default sources in data/studio/sources.json (same order). is_default=true marks shipped presets that should not be deletable from the UI.",
+  "scenes": [
+    { "name": "Main",           "is_default": true, "source_visibility": [true,  true,  true,  true]  },
+    { "name": "Starting Soon",  "is_default": true, "source_visibility": [false, false, false, true]  },
+    { "name": "BRB",            "is_default": true, "source_visibility": [false, false, false, true]  },
+    { "name": "Intermission",   "is_default": true, "source_visibility": [false, false, false, true]  },
+    { "name": "Ending",         "is_default": true, "source_visibility": [false, false, false, true]  },
+    { "name": "Screen Share",   "is_default": true, "source_visibility": [false, true,  true,  false] },
+    { "name": "Camera Only",    "is_default": true, "source_visibility": [true,  false, true,  false] },
+    { "name": "Chat Only",      "is_default": true, "source_visibility": [false, false, false, true]  }
+  ]
+}

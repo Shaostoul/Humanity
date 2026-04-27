@@ -9,10 +9,8 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use std::cell::RefCell;
 
-const CATEGORIES: &[&str] = &[
-    "All", "Tools", "Materials", "Food", "Equipment",
-    "Vehicles", "Electronics", "Services", "Other",
-];
+// Marketplace categories are loaded from `data/market/categories.json` into
+// `GuiState.market_categories` at startup.
 
 /// Sort options for listings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,12 +83,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.separator();
             ui.add_space(theme.spacing_xs);
 
-            let active_idx = CATEGORIES.iter().position(|&c| {
-                (c == "All" && state.listing_filter_category.is_empty())
-                    || state.listing_filter_category == c
+            let cat_strs: Vec<&str> = state.market_categories.iter().map(String::as_str).collect();
+            let active_idx = cat_strs.iter().position(|c| {
+                (*c == "All" && state.listing_filter_category.is_empty())
+                    || state.listing_filter_category == *c
             }).unwrap_or(0);
-            if let Some(new_idx) = widgets::sidebar_nav(ui, theme, CATEGORIES, active_idx) {
-                state.listing_filter_category = if new_idx == 0 { String::new() } else { CATEGORIES[new_idx].to_string() };
+            if let Some(new_idx) = widgets::sidebar_nav(ui, theme, &cat_strs, active_idx) {
+                state.listing_filter_category = if new_idx == 0 {
+                    String::new()
+                } else {
+                    cat_strs.get(new_idx).map(|s| s.to_string()).unwrap_or_default()
+                };
             }
         });
 
@@ -229,12 +232,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.add(egui::TextEdit::singleline(&mut state.listing_new_price).desired_width(100.0));
                             ui.add_space(theme.spacing_md);
                             ui.label(RichText::new("Category:").color(theme.text_secondary()));
+                            // Skip the leading catch-all category ("All") in the create form.
+                            let create_cats: Vec<String> = state.market_categories.iter().skip(1).cloned().collect();
                             egui::ComboBox::from_id_salt("new_listing_category")
                                 .selected_text(if state.listing_new_category.is_empty() { "Select..." } else { &state.listing_new_category })
                                 .show_ui(ui, |ui| {
-                                    for &cat in &CATEGORIES[1..] {
-                                        if ui.selectable_label(state.listing_new_category == cat, cat).clicked() {
-                                            state.listing_new_category = cat.to_string();
+                                    for cat in &create_cats {
+                                        if ui.selectable_label(state.listing_new_category == *cat, cat.as_str()).clicked() {
+                                            state.listing_new_category = cat.clone();
                                         }
                                     }
                                 });

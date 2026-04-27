@@ -1,0 +1,17 @@
+{
+  "_comment": "Crafting category filters for the crafting page. The first entry should be the catch-all (e.g., 'All'). Categories are matched case-insensitively against recipe.category.",
+  "categories": [
+    "All",
+    "Smelting",
+    "Refining",
+    "Tools",
+    "Weapons",
+    "Furniture",
+    "Cooking",
+    "Textile",
+    "Electronics",
+    "Machines",
+    "Vehicles",
+    "Medical"
+  ]
+}

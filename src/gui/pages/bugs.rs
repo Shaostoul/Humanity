@@ -5,8 +5,8 @@ use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
-const SEVERITIES: &[&str] = &["Low", "Medium", "High", "Critical"];
-const CATEGORIES: &[&str] = &["UI", "Gameplay", "Network", "Performance", "Crash", "Other"];
+// Severity and category lists are loaded from `data/bugs/taxonomy.json` into
+// `GuiState.bug_severities` / `GuiState.bug_categories` at startup.
 
 /// A submitted bug report.
 #[derive(Debug, Clone)]
@@ -126,14 +126,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         );
                         ui.add_space(theme.spacing_xs);
 
-                        // Severity + Category dropdowns
+                        // Severity + Category dropdowns (lists from data/bugs/taxonomy.json)
+                        let severities = &state.bug_severities;
+                        let categories = &state.bug_categories;
+                        let sev_label = severities.get(bs.severity_idx).map(String::as_str).unwrap_or("");
+                        let cat_label = categories.get(bs.category_idx).map(String::as_str).unwrap_or("");
                         ui.horizontal(|ui| {
                             ui.label(RichText::new("Severity:").color(theme.text_secondary()));
                             egui::ComboBox::from_id_salt("severity")
-                                .selected_text(SEVERITIES[bs.severity_idx])
+                                .selected_text(sev_label)
                                 .show_ui(ui, |ui| {
-                                    for (i, sev) in SEVERITIES.iter().enumerate() {
-                                        ui.selectable_value(&mut bs.severity_idx, i, *sev);
+                                    for (i, sev) in severities.iter().enumerate() {
+                                        ui.selectable_value(&mut bs.severity_idx, i, sev.as_str());
                                     }
                                 });
 
@@ -141,10 +145,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                             ui.label(RichText::new("Category:").color(theme.text_secondary()));
                             egui::ComboBox::from_id_salt("category")
-                                .selected_text(CATEGORIES[bs.category_idx])
+                                .selected_text(cat_label)
                                 .show_ui(ui, |ui| {
-                                    for (i, cat) in CATEGORIES.iter().enumerate() {
-                                        ui.selectable_value(&mut bs.category_idx, i, *cat);
+                                    for (i, cat) in categories.iter().enumerate() {
+                                        ui.selectable_value(&mut bs.category_idx, i, cat.as_str());
                                     }
                                 });
                         });
@@ -159,8 +163,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         BugReport {
                                             title: bs.title.trim().to_string(),
                                             description: bs.description.trim().to_string(),
-                                            severity: SEVERITIES[bs.severity_idx].to_string(),
-                                            category: CATEGORIES[bs.category_idx].to_string(),
+                                            severity: severities.get(bs.severity_idx).cloned().unwrap_or_default(),
+                                            category: categories.get(bs.category_idx).cloned().unwrap_or_default(),
                                             version: env!("CARGO_PKG_VERSION").to_string(),
                                             status: "Open",
                                         },

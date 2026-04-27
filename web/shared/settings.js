@@ -7,57 +7,59 @@
   const DEFAULTS = window.HOS_DEFAULTS || {};
   const STORAGE_KEY = window.HOS_STORAGE_KEY || 'humanity_settings';
 
+  // AUTO-GENERATED FROM data/themes/presets.json — do not edit by hand.
   const ACCENT_PRESETS = [
-    { name: 'Orange', color: '#FF8811' },
-    { name: 'Blue', color: '#4488ff' },
-    { name: 'Green', color: '#44cc66' },
-    { name: 'Purple', color: '#9944ff' },
-    { name: 'Red', color: '#ee4444' },
-    { name: 'Pink', color: '#ee44aa' }
+    { name: "Orange", color: "#FF8811" },
+    { name: "Blue", color: "#4488ff" },
+    { name: "Green", color: "#44cc66" },
+    { name: "Purple", color: "#9944ff" },
+    { name: "Red", color: "#ee4444" },
+    { name: "Pink", color: "#ee44aa" }
   ];
 
   const FONT_SIZES = [
-    { label: 'Small', value: 'small', size: '14px' },
-    { label: 'Medium', value: 'medium', size: '16px' },
-    { label: 'Large', value: 'large', size: '18px' },
-    { label: 'XL', value: 'xl', size: '20px' }
+    { label: "Small", value: "small", size: "14px" },
+    { label: "Medium", value: "medium", size: "16px" },
+    { label: "Large", value: "large", size: "18px" },
+    { label: "XL", value: "xl", size: "20px" }
   ];
 
   const THEMES = {
     dark: {
-      '--bg': '#0d0d0d',
-      '--bg-secondary': '#1a1a1a',
-      '--bg-card': '#161616',
-      '--bg-card-hover': '#1c1c1c',
-      '--bg-input': '#222',
-      '--bg-hover': '#252525',
-      '--text': '#e0e0e0',
-      '--text-muted': '#888',
-      '--border': '#333'
+      "--bg": "#0d0d0d",
+      "--bg-secondary": "#1a1a1a",
+      "--bg-card": "#161616",
+      "--bg-card-hover": "#1c1c1c",
+      "--bg-input": "#222",
+      "--bg-hover": "#252525",
+      "--text": "#e0e0e0",
+      "--text-muted": "#888",
+      "--border": "#333"
     },
     midnight: {
-      '--bg': '#080812',
-      '--bg-secondary': '#10101e',
-      '--bg-card': '#0c0c18',
-      '--bg-card-hover': '#14142a',
-      '--bg-input': '#16162a',
-      '--bg-hover': '#1a1a30',
-      '--text': '#d0d0e0',
-      '--text-muted': '#777',
-      '--border': '#252540'
+      "--bg": "#080812",
+      "--bg-secondary": "#10101e",
+      "--bg-card": "#0c0c18",
+      "--bg-card-hover": "#14142a",
+      "--bg-input": "#16162a",
+      "--bg-hover": "#1a1a30",
+      "--text": "#d0d0e0",
+      "--text-muted": "#777",
+      "--border": "#252540"
     },
     oled: {
-      '--bg': '#000000',
-      '--bg-secondary': '#0a0a0a',
-      '--bg-card': '#050505',
-      '--bg-card-hover': '#111111',
-      '--bg-input': '#111111',
-      '--bg-hover': '#161616',
-      '--text': '#e0e0e0',
-      '--text-muted': '#777',
-      '--border': '#222222'
+      "--bg": "#000000",
+      "--bg-secondary": "#0a0a0a",
+      "--bg-card": "#050505",
+      "--bg-card-hover": "#111111",
+      "--bg-input": "#111111",
+      "--bg-hover": "#161616",
+      "--text": "#e0e0e0",
+      "--text-muted": "#777",
+      "--border": "#222222"
     }
   };
+  // END AUTO-GENERATED.
 
   function load() {
     try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(STORAGE_KEY))); }

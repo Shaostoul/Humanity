@@ -1,95 +1,13 @@
 //! Curated Resources page — context-aware (Real/Sim) resource directory.
+//!
+//! Categories load from `data/resources/catalog.json` into
+//! `GuiState.resource_categories` at startup. To add or change a resource,
+//! edit the JSON — no code change required.
 
 use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-
-/// A single resource entry.
-struct Resource {
-    title: &'static str,
-    description: &'static str,
-    url: &'static str,
-}
-
-/// A category of resources.
-struct ResourceCategory {
-    name: &'static str,
-    real_resources: &'static [Resource],
-    sim_resources: &'static [Resource],
-}
-
-const CATEGORIES: &[ResourceCategory] = &[
-    ResourceCategory {
-        name: "Education",
-        real_resources: &[
-            Resource { title: "Khan Academy", description: "Free courses in math, science, computing, and more.", url: "https://khanacademy.org" },
-            Resource { title: "MIT OpenCourseWare", description: "Free lecture notes, exams, and videos from MIT.", url: "https://ocw.mit.edu" },
-            Resource { title: "Coursera", description: "Online courses from top universities worldwide.", url: "https://coursera.org" },
-        ],
-        sim_resources: &[
-            Resource { title: "Farming Guide", description: "Learn crop rotation, soil types, and seasonal planting.", url: "#farming" },
-            Resource { title: "Crafting Handbook", description: "Recipes, materials, and crafting station requirements.", url: "#crafting" },
-            Resource { title: "Survival Basics", description: "Water, shelter, food — the essentials for new players.", url: "#survival" },
-        ],
-    },
-    ResourceCategory {
-        name: "Health",
-        real_resources: &[
-            Resource { title: "WHO Resources", description: "World Health Organization health topics and data.", url: "https://who.int" },
-            Resource { title: "Medline Plus", description: "Health information from the National Library of Medicine.", url: "https://medlineplus.gov" },
-            Resource { title: "Crisis Text Line", description: "Text HOME to 741741 for free crisis counseling.", url: "https://crisistextline.org" },
-        ],
-        sim_resources: &[
-            Resource { title: "Health System", description: "How hunger, thirst, and injury affect your character.", url: "#health" },
-            Resource { title: "Medicine Crafting", description: "Recipes for bandages, potions, and medical supplies.", url: "#medicine" },
-        ],
-    },
-    ResourceCategory {
-        name: "Legal",
-        real_resources: &[
-            Resource { title: "Legal Aid", description: "Find free legal help in your area.", url: "https://lawhelp.org" },
-            Resource { title: "Know Your Rights", description: "ACLU guide to your constitutional rights.", url: "https://aclu.org/know-your-rights" },
-        ],
-        sim_resources: &[
-            Resource { title: "Guild Laws", description: "Rules and governance within player guilds.", url: "#guilds" },
-            Resource { title: "Trade Regulations", description: "Fair trading rules and dispute resolution.", url: "#trade-rules" },
-        ],
-    },
-    ResourceCategory {
-        name: "Housing",
-        real_resources: &[
-            Resource { title: "HUD Resources", description: "US Dept of Housing: rental assistance, fair housing.", url: "https://hud.gov" },
-            Resource { title: "Habitat for Humanity", description: "Affordable housing and home repair assistance.", url: "https://habitat.org" },
-        ],
-        sim_resources: &[
-            Resource { title: "Building Guide", description: "How to construct shelters, bases, and advanced structures.", url: "#building" },
-            Resource { title: "Base Defense", description: "Fortification and perimeter security for your base.", url: "#defense" },
-        ],
-    },
-    ResourceCategory {
-        name: "Food",
-        real_resources: &[
-            Resource { title: "Feeding America", description: "Find local food banks and meal programs.", url: "https://feedingamerica.org" },
-            Resource { title: "SNAP Benefits", description: "Apply for food assistance (SNAP/EBT).", url: "https://fns.usda.gov/snap" },
-        ],
-        sim_resources: &[
-            Resource { title: "Farming System", description: "Crop growth, irrigation, and harvest mechanics.", url: "#farming-sys" },
-            Resource { title: "Cooking Recipes", description: "Food recipes with buff effects and nutrition values.", url: "#cooking" },
-        ],
-    },
-    ResourceCategory {
-        name: "Technology",
-        real_resources: &[
-            Resource { title: "FreeCodeCamp", description: "Learn to code for free with interactive lessons.", url: "https://freecodecamp.org" },
-            Resource { title: "Open Source Guides", description: "How to contribute to and maintain open source projects.", url: "https://opensource.guide" },
-        ],
-        sim_resources: &[
-            Resource { title: "Tech Tree", description: "Research progression and technology unlocks.", url: "#tech-tree" },
-            Resource { title: "Automation", description: "Setting up conveyor belts, sorters, and auto-crafters.", url: "#automation" },
-        ],
-    },
-];
 
 /// Local page state.
 pub struct ResourcesPageState {
@@ -153,7 +71,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 cols[0].add_space(theme.spacing_xs);
 
                 with_state(|rs| {
-                    for (i, cat) in CATEGORIES.iter().enumerate() {
+                    // Clamp selection in case the loaded catalog has fewer categories
+                    // than a previously persisted index.
+                    if rs.selected_category >= state.resource_categories.len() {
+                        rs.selected_category = 0;
+                    }
+                    for (i, cat) in state.resource_categories.iter().enumerate() {
                         let selected = rs.selected_category == i;
                         let fill = if selected {
                             theme.bg_card()
@@ -172,7 +95,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 };
                                 let resp = ui.selectable_label(
                                     false,
-                                    RichText::new(cat.name).color(text_color),
+                                    RichText::new(cat.name.as_str()).color(text_color),
                                 );
                                 if resp.clicked() {
                                     rs.selected_category = i;
@@ -183,15 +106,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 // Right: resource cards
                 with_state(|rs| {
-                    let cat = &CATEGORIES[rs.selected_category];
-                    let resources = if is_real {
-                        cat.real_resources
+                    let Some(cat) = state.resource_categories.get(rs.selected_category) else {
+                        cols[1].label(RichText::new("No resources loaded.").color(theme.text_muted()));
+                        return;
+                    };
+                    let resources: &[crate::gui::ResourceEntry] = if is_real {
+                        &cat.real_resources
                     } else {
-                        cat.sim_resources
+                        &cat.sim_resources
                     };
 
                     cols[1].label(
-                        RichText::new(cat.name)
+                        RichText::new(cat.name.as_str())
                             .size(theme.font_size_body)
                             .color(theme.accent()),
                     );
@@ -203,18 +129,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             for res in resources {
                                 widgets::card(ui, theme, |ui| {
                                     ui.label(
-                                        RichText::new(res.title)
+                                        RichText::new(res.title.as_str())
                                             .size(theme.font_size_body)
                                             .color(theme.text_primary())
                                             .strong(),
                                     );
                                     ui.label(
-                                        RichText::new(res.description)
+                                        RichText::new(res.description.as_str())
                                             .size(theme.font_size_small)
                                             .color(theme.text_secondary()),
                                     );
                                     ui.label(
-                                        RichText::new(res.url)
+                                        RichText::new(res.url.as_str())
                                             .size(theme.font_size_small)
                                             .color(Theme::c32(&theme.info)),
                                     );

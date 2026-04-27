@@ -1,0 +1,5 @@
+{
+  "_comment": "Bug-report taxonomy for the in-app bug reporter. Edit lists here to add severities/categories — no code change required.",
+  "severities": ["Low", "Medium", "High", "Critical"],
+  "categories": ["UI", "Gameplay", "Network", "Performance", "Crash", "Other"]
+}

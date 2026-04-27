@@ -1,0 +1,74 @@
+{
+  "_comment": "Curated resource directory shown on the Resources page (native + web). Each category has parallel real_resources (Real mode) and sim_resources (Sim mode) lists. Extend by appending categories — no code change required. URLs starting with '#' are in-app anchors, not external links.",
+  "categories": [
+    {
+      "name": "Education",
+      "real_resources": [
+        { "title": "Khan Academy",        "description": "Free courses in math, science, computing, and more.",          "url": "https://khanacademy.org" },
+        { "title": "MIT OpenCourseWare",  "description": "Free lecture notes, exams, and videos from MIT.",              "url": "https://ocw.mit.edu" },
+        { "title": "Coursera",            "description": "Online courses from top universities worldwide.",              "url": "https://coursera.org" }
+      ],
+      "sim_resources": [
+        { "title": "Farming Guide",       "description": "Learn crop rotation, soil types, and seasonal planting.",      "url": "#farming" },
+        { "title": "Crafting Handbook",   "description": "Recipes, materials, and crafting station requirements.",       "url": "#crafting" },
+        { "title": "Survival Basics",     "description": "Water, shelter, food — the essentials for new players.",       "url": "#survival" }
+      ]
+    },
+    {
+      "name": "Health",
+      "real_resources": [
+        { "title": "WHO Resources",       "description": "World Health Organization health topics and data.",            "url": "https://who.int" },
+        { "title": "Medline Plus",        "description": "Health information from the National Library of Medicine.",    "url": "https://medlineplus.gov" },
+        { "title": "Crisis Text Line",    "description": "Text HOME to 741741 for free crisis counseling.",              "url": "https://crisistextline.org" }
+      ],
+      "sim_resources": [
+        { "title": "Health System",       "description": "How hunger, thirst, and injury affect your character.",        "url": "#health" },
+        { "title": "Medicine Crafting",   "description": "Recipes for bandages, potions, and medical supplies.",         "url": "#medicine" }
+      ]
+    },
+    {
+      "name": "Legal",
+      "real_resources": [
+        { "title": "Legal Aid",           "description": "Find free legal help in your area.",                            "url": "https://lawhelp.org" },
+        { "title": "Know Your Rights",    "description": "ACLU guide to your constitutional rights.",                     "url": "https://aclu.org/know-your-rights" }
+      ],
+      "sim_resources": [
+        { "title": "Guild Laws",          "description": "Rules and governance within player guilds.",                    "url": "#guilds" },
+        { "title": "Trade Regulations",   "description": "Fair trading rules and dispute resolution.",                    "url": "#trade-rules" }
+      ]
+    },
+    {
+      "name": "Housing",
+      "real_resources": [
+        { "title": "HUD Resources",       "description": "US Dept of Housing: rental assistance, fair housing.",         "url": "https://hud.gov" },
+        { "title": "Habitat for Humanity","description": "Affordable housing and home repair assistance.",                "url": "https://habitat.org" }
+      ],
+      "sim_resources": [
+        { "title": "Building Guide",      "description": "How to construct shelters, bases, and advanced structures.",   "url": "#building" },
+        { "title": "Base Defense",        "description": "Fortification and perimeter security for your base.",           "url": "#defense" }
+      ]
+    },
+    {
+      "name": "Food",
+      "real_resources": [
+        { "title": "Feeding America",     "description": "Find local food banks and meal programs.",                     "url": "https://feedingamerica.org" },
+        { "title": "SNAP Benefits",       "description": "Apply for food assistance (SNAP/EBT).",                         "url": "https://fns.usda.gov/snap" }
+      ],
+      "sim_resources": [
+        { "title": "Farming System",      "description": "Crop growth, irrigation, and harvest mechanics.",               "url": "#farming-sys" },
+        { "title": "Cooking Recipes",     "description": "Food recipes with buff effects and nutrition values.",          "url": "#cooking" }
+      ]
+    },
+    {
+      "name": "Technology",
+      "real_resources": [
+        { "title": "FreeCodeCamp",        "description": "Learn to code for free with interactive lessons.",              "url": "https://freecodecamp.org" },
+        { "title": "Open Source Guides",  "description": "How to contribute to and maintain open source projects.",       "url": "https://opensource.guide" }
+      ],
+      "sim_resources": [
+        { "title": "Tech Tree",           "description": "Research progression and technology unlocks.",                   "url": "#tech-tree" },
+        { "title": "Automation",          "description": "Setting up conveyor belts, sorters, and auto-crafters.",       "url": "#automation" }
+      ]
+    }
+  ]
+}

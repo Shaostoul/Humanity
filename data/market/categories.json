@@ -1,0 +1,14 @@
+{
+  "_comment": "Marketplace category filters. The first entry should be the catch-all (e.g., 'All').",
+  "categories": [
+    "All",
+    "Tools",
+    "Materials",
+    "Food",
+    "Equipment",
+    "Vehicles",
+    "Electronics",
+    "Services",
+    "Other"
+  ]
+}

@@ -414,26 +414,13 @@ pub struct StudioState {
 #[cfg(feature = "native")]
 impl Default for StudioState {
     fn default() -> Self {
-        let default_scenes = vec![
-            StudioScene { name: "Main".into(), is_default: true, source_visibility: vec![true, true, true, true] },
-            StudioScene { name: "Starting Soon".into(), is_default: true, source_visibility: vec![false, false, false, true] },
-            StudioScene { name: "BRB".into(), is_default: true, source_visibility: vec![false, false, false, true] },
-            StudioScene { name: "Intermission".into(), is_default: true, source_visibility: vec![false, false, false, true] },
-            StudioScene { name: "Ending".into(), is_default: true, source_visibility: vec![false, false, false, true] },
-            StudioScene { name: "Screen Share".into(), is_default: true, source_visibility: vec![false, true, true, false] },
-            StudioScene { name: "Camera Only".into(), is_default: true, source_visibility: vec![true, false, true, false] },
-            StudioScene { name: "Chat Only".into(), is_default: true, source_visibility: vec![false, false, false, true] },
-        ];
-        let default_sources = vec![
-            StudioSource { name: "Camera 1".into(), source_type: StudioSourceType::Camera(0), visible: true, position: (0.0, 0.0), size: (0.7, 0.7), opacity: 1.0, z_order: 0 },
-            StudioSource { name: "Screen Capture".into(), source_type: StudioSourceType::Screen(0), visible: true, position: (0.0, 0.0), size: (1.0, 1.0), opacity: 1.0, z_order: 1 },
-            StudioSource { name: "Microphone".into(), source_type: StudioSourceType::Microphone(0), visible: true, position: (0.0, 0.0), size: (0.0, 0.0), opacity: 1.0, z_order: 2 },
-            StudioSource { name: "Chat Overlay".into(), source_type: StudioSourceType::ChatOverlay, visible: true, position: (0.7, 0.05), size: (0.28, 0.9), opacity: 0.8, z_order: 3 },
-        ];
+        // Scenes and sources are populated at startup from data/studio/{scenes,sources}.json
+        // by `apply_studio_presets` in lib.rs. Default starts empty — if the data files are
+        // missing, the studio page renders a blank scene list rather than crashing.
         Self {
-            scenes: default_scenes,
+            scenes: Vec::new(),
             active_scene_index: 0,
-            sources: default_sources,
+            sources: Vec::new(),
             selected_source_index: None,
             is_live: false,
             is_paused: false,
@@ -755,6 +742,24 @@ pub struct GuiState {
     // ── Tools catalog (loaded from data/tools/catalog.json) ──
     pub tools_catalog: Vec<ToolEntry>,
 
+    // ── Page taxonomies (Infinite-of-X migrations, v0.123.0) ──
+    /// Equipment slots for the inventory page (`data/inventory/equipment_slots.json`).
+    pub equipment_slots: Vec<(String, String)>,
+    /// Bug-report severity labels (`data/bugs/taxonomy.json`).
+    pub bug_severities: Vec<String>,
+    /// Bug-report category labels (`data/bugs/taxonomy.json`).
+    pub bug_categories: Vec<String>,
+    /// Crafting category filters (`data/crafting/categories.json`).
+    pub crafting_categories: Vec<String>,
+    /// Marketplace category filters (`data/market/categories.json`).
+    pub market_categories: Vec<String>,
+    /// Curated resources by category (`data/resources/catalog.json`).
+    pub resource_categories: Vec<ResourceCategory>,
+    /// Studio scene presets (`data/studio/scenes.json`).
+    pub studio_scene_presets: Vec<StudioScenePreset>,
+    /// Studio source presets (`data/studio/sources.json`).
+    pub studio_source_presets: Vec<StudioSourcePreset>,
+
     // ── Universal help modal (loaded from data/help/topics.json) ──
     /// Registry of help topics. Populated at startup from data/help/topics.json.
     pub help_registry: crate::gui::widgets::help_modal::HelpRegistry,
@@ -1047,6 +1052,14 @@ impl Default for GuiState {
             debug_console_visible: false,
             debug_log: Vec::new(),
             tools_catalog: Vec::new(),
+            equipment_slots: Vec::new(),
+            bug_severities: Vec::new(),
+            bug_categories: Vec::new(),
+            crafting_categories: Vec::new(),
+            market_categories: Vec::new(),
+            resource_categories: Vec::new(),
+            studio_scene_presets: Vec::new(),
+            studio_source_presets: Vec::new(),
             help_registry: crate::gui::widgets::help_modal::HelpRegistry::new(),
             active_help_topic: None,
             onboarding_quest_chains: Vec::new(),
@@ -1257,6 +1270,203 @@ pub fn load_planets(data_dir: &std::path::Path) -> Vec<GuiPlanet> {
             }
         })
         .collect()
+}
+
+// ─── Infinite-of-X data loaders (v0.123.0) ─────────────────────────────────
+//
+// One small JSON file per page taxonomy. All loaders share the same shape:
+// graceful fallback to an empty Vec on missing/malformed input so the GUI still
+// boots — pages render an empty filter row instead of crashing. The empty-vec
+// path is also what the page sees during the brief window before lib.rs wires
+// the loaders into GuiState at startup.
+
+/// One curated resource entry shown on the Resources page.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ResourceEntry {
+    pub title: String,
+    pub description: String,
+    pub url: String,
+}
+
+/// A category of resources with parallel Real-mode and Sim-mode lists.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ResourceCategory {
+    pub name: String,
+    #[serde(default)]
+    pub real_resources: Vec<ResourceEntry>,
+    #[serde(default)]
+    pub sim_resources: Vec<ResourceEntry>,
+}
+
+/// A streaming-studio scene preset.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct StudioScenePreset {
+    pub name: String,
+    #[serde(default)]
+    pub is_default: bool,
+    #[serde(default)]
+    pub source_visibility: Vec<bool>,
+}
+
+/// A streaming-studio source preset. Kinds: `camera|screen|microphone|chat_overlay|image|text|timer`.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct StudioSourcePreset {
+    pub name: String,
+    pub kind: String,
+    #[serde(default)]
+    pub device: u32,
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub visible: bool,
+    #[serde(default)]
+    pub position: (f32, f32),
+    #[serde(default)]
+    pub size: (f32, f32),
+    #[serde(default = "one")]
+    pub opacity: f32,
+    #[serde(default)]
+    pub z_order: u32,
+}
+#[cfg(feature = "native")]
+fn one() -> f32 { 1.0 }
+
+/// Convert a deserialised preset into the runtime [`StudioSource`].
+/// Unknown `kind` values fall back to `Camera(0)` — the most benign default.
+#[cfg(feature = "native")]
+pub fn studio_source_from_preset(p: &StudioSourcePreset) -> StudioSource {
+    let source_type = match p.kind.as_str() {
+        "camera" => StudioSourceType::Camera(p.device),
+        "screen" => StudioSourceType::Screen(p.device),
+        "microphone" => StudioSourceType::Microphone(p.device),
+        "chat_overlay" => StudioSourceType::ChatOverlay,
+        "image" => StudioSourceType::Image(p.text.clone()),
+        "text" => StudioSourceType::Text(p.text.clone()),
+        "timer" => StudioSourceType::Timer,
+        _ => StudioSourceType::Camera(p.device),
+    };
+    StudioSource {
+        name: p.name.clone(),
+        source_type,
+        visible: p.visible,
+        position: p.position,
+        size: p.size,
+        opacity: p.opacity,
+        z_order: p.z_order,
+    }
+}
+
+/// Convert a deserialised preset into the runtime [`StudioScene`].
+#[cfg(feature = "native")]
+pub fn studio_scene_from_preset(p: &StudioScenePreset) -> StudioScene {
+    StudioScene {
+        name: p.name.clone(),
+        is_default: p.is_default,
+        source_visibility: p.source_visibility.clone(),
+    }
+}
+
+/// Read a JSON file under `data/` and deserialise into `T`. Logs and returns
+/// `None` on any error so callers can fall back gracefully.
+#[cfg(feature = "native")]
+fn read_data_json<T: serde::de::DeserializeOwned>(
+    data_dir: &std::path::Path,
+    relative: &str,
+) -> Option<T> {
+    let path = data_dir.join(relative);
+    let bytes = match std::fs::read_to_string(&path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("[data] failed to read {}: {}", path.display(), e);
+            return None;
+        }
+    };
+    match serde_json::from_str::<T>(&bytes) {
+        Ok(v) => Some(v),
+        Err(e) => {
+            eprintln!("[data] failed to parse {}: {}", path.display(), e);
+            None
+        }
+    }
+}
+
+/// Load equipment slot definitions from `data/inventory/equipment_slots.json`.
+#[cfg(feature = "native")]
+pub fn load_equipment_slots(data_dir: &std::path::Path) -> Vec<(String, String)> {
+    #[derive(serde::Deserialize)]
+    struct Slot { id: String, label: String }
+    #[derive(serde::Deserialize)]
+    struct File { slots: Vec<Slot> }
+    read_data_json::<File>(data_dir, "inventory/equipment_slots.json")
+        .map(|f| f.slots.into_iter().map(|s| (s.id, s.label)).collect())
+        .unwrap_or_default()
+}
+
+/// Load `(severities, categories)` for the bug reporter from `data/bugs/taxonomy.json`.
+#[cfg(feature = "native")]
+pub fn load_bug_taxonomy(data_dir: &std::path::Path) -> (Vec<String>, Vec<String>) {
+    #[derive(serde::Deserialize)]
+    struct File {
+        #[serde(default)] severities: Vec<String>,
+        #[serde(default)] categories: Vec<String>,
+    }
+    read_data_json::<File>(data_dir, "bugs/taxonomy.json")
+        .map(|f| (f.severities, f.categories))
+        .unwrap_or_default()
+}
+
+/// Load crafting category filters from `data/crafting/categories.json`.
+#[cfg(feature = "native")]
+pub fn load_crafting_categories(data_dir: &std::path::Path) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct File { categories: Vec<String> }
+    read_data_json::<File>(data_dir, "crafting/categories.json")
+        .map(|f| f.categories)
+        .unwrap_or_default()
+}
+
+/// Load marketplace category filters from `data/market/categories.json`.
+#[cfg(feature = "native")]
+pub fn load_market_categories(data_dir: &std::path::Path) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct File { categories: Vec<String> }
+    read_data_json::<File>(data_dir, "market/categories.json")
+        .map(|f| f.categories)
+        .unwrap_or_default()
+}
+
+/// Load curated resource categories from `data/resources/catalog.json`.
+#[cfg(feature = "native")]
+pub fn load_resource_categories(data_dir: &std::path::Path) -> Vec<ResourceCategory> {
+    #[derive(serde::Deserialize)]
+    struct File { categories: Vec<ResourceCategory> }
+    read_data_json::<File>(data_dir, "resources/catalog.json")
+        .map(|f| f.categories)
+        .unwrap_or_default()
+}
+
+/// Load streaming-studio scene presets from `data/studio/scenes.json`.
+#[cfg(feature = "native")]
+pub fn load_studio_scenes(data_dir: &std::path::Path) -> Vec<StudioScenePreset> {
+    #[derive(serde::Deserialize)]
+    struct File { scenes: Vec<StudioScenePreset> }
+    read_data_json::<File>(data_dir, "studio/scenes.json")
+        .map(|f| f.scenes)
+        .unwrap_or_default()
+}
+
+/// Load streaming-studio source presets from `data/studio/sources.json`.
+#[cfg(feature = "native")]
+pub fn load_studio_sources(data_dir: &std::path::Path) -> Vec<StudioSourcePreset> {
+    #[derive(serde::Deserialize)]
+    struct File { sources: Vec<StudioSourcePreset> }
+    read_data_json::<File>(data_dir, "studio/sources.json")
+        .map(|f| f.sources)
+        .unwrap_or_default()
 }
 
 #[cfg(feature = "native")]

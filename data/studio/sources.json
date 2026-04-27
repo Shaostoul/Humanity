@@ -1,0 +1,9 @@
+{
+  "_comment": "Default streaming-studio sources. `kind` determines the source type: camera|screen|microphone|chat_overlay|image|text|timer. `device` is the index for camera/screen/microphone (0 = primary). `text` carries the path or string for image/text kinds. position and size are normalized 0.0..1.0 within the preview area.",
+  "sources": [
+    { "name": "Camera 1",       "kind": "camera",       "device": 0, "text": "", "visible": true, "position": [0.0, 0.0],  "size": [0.7, 0.7], "opacity": 1.0, "z_order": 0 },
+    { "name": "Screen Capture", "kind": "screen",       "device": 0, "text": "", "visible": true, "position": [0.0, 0.0],  "size": [1.0, 1.0], "opacity": 1.0, "z_order": 1 },
+    { "name": "Microphone",     "kind": "microphone",   "device": 0, "text": "", "visible": true, "position": [0.0, 0.0],  "size": [0.0, 0.0], "opacity": 1.0, "z_order": 2 },
+    { "name": "Chat Overlay",   "kind": "chat_overlay", "device": 0, "text": "", "visible": true, "position": [0.7, 0.05], "size": [0.28, 0.9],"opacity": 0.8, "z_order": 3 }
+  ]
+}

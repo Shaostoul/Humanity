@@ -7,11 +7,8 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use std::cell::RefCell;
 
-/// Categories for filtering recipes.
-const CATEGORIES: &[&str] = &[
-    "All", "Smelting", "Refining", "Tools", "Weapons", "Furniture",
-    "Cooking", "Textile", "Electronics", "Machines", "Vehicles", "Medical",
-];
+// Crafting categories are loaded from `data/crafting/categories.json` into
+// `GuiState.crafting_categories` at startup.
 
 /// Map display categories to data categories for matching.
 fn category_matches(filter: &str, recipe_cat: &str) -> bool {
@@ -80,7 +77,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_sm);
 
             ScrollArea::vertical().show(ui, |ui| {
-                if let Some(new_idx) = widgets::sidebar_nav(ui, theme, CATEGORIES, state.craft_category) {
+                let cat_strs: Vec<&str> = state.crafting_categories.iter().map(String::as_str).collect();
+                if let Some(new_idx) = widgets::sidebar_nav(ui, theme, &cat_strs, state.craft_category) {
                     state.craft_category = new_idx;
                     state.craft_selected = None;
                 }
@@ -113,10 +111,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.set_min_width(260.0);
                     ui.set_max_width(260.0);
 
-                    let filter_cat = if state.craft_category == 0 {
+                    // Owned to avoid an immutable borrow of `state` straddling the
+                    // mutable closure capture below.
+                    let filter_cat: Option<String> = if state.craft_category == 0 {
                         None
                     } else {
-                        Some(CATEGORIES[state.craft_category])
+                        state.crafting_categories.get(state.craft_category).cloned()
                     };
 
                     let search_term = with_local(|local| local.search.to_lowercase());
@@ -130,7 +130,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .iter()
                                 .enumerate()
                                 .filter(|(_, r)| {
-                                    filter_cat.map_or(true, |f| category_matches(f, &r.category))
+                                    filter_cat.as_deref().map_or(true, |f| category_matches(f, &r.category))
                                 })
                                 .filter(|(_, r)| {
                                     search_term.is_empty()

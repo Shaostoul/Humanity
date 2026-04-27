@@ -9,15 +9,9 @@ use std::cell::RefCell;
 
 const COLS: usize = 8;
 
-/// Equipment slot types.
-const EQUIPMENT_SLOTS: &[(&str, &str)] = &[
-    ("head", "Head"),
-    ("chest", "Chest"),
-    ("legs", "Legs"),
-    ("feet", "Feet"),
-    ("hands", "Hands"),
-    ("back", "Back"),
-];
+// Equipment slot definitions are loaded from `data/inventory/equipment_slots.json`
+// into `GuiState.equipment_slots` at startup (see `lib.rs`). The equipped Vec is
+// populated lazily on the first draw where slots are available.
 
 /// Page-local state for the inventory.
 struct InventoryPageState {
@@ -34,9 +28,8 @@ struct InventoryPageState {
 impl Default for InventoryPageState {
     fn default() -> Self {
         Self {
-            equipped: EQUIPMENT_SLOTS.iter()
-                .map(|(id, _)| (id.to_string(), None))
-                .collect(),
+            // Populated from gui_state.equipment_slots on first draw.
+            equipped: Vec::new(),
             carry_weight: 0.0,
             max_carry_weight: 50.0,
             initialized: false,
@@ -105,10 +98,16 @@ struct ItemDetails {
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let total_slots = state.inventory_max_slots.max(1);
 
-    // Calculate carry weight from inventory items
+    // Calculate carry weight from inventory items + populate equipped slots from
+    // the loaded `data/inventory/equipment_slots.json` (lazily — guards against
+    // the GUI rendering before lib.rs has wired the loaded data into GuiState).
     with_state(|ps| {
+        if ps.equipped.is_empty() && !state.equipment_slots.is_empty() {
+            ps.equipped = state.equipment_slots.iter()
+                .map(|(id, _)| (id.clone(), None))
+                .collect();
+        }
         if !ps.initialized {
-            // Recalculate weight
             let mut weight = 0.0f32;
             for slot in &state.inventory_items {
                 if let Some(item) = slot {
@@ -271,9 +270,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.horizontal_wrapped(|ui| {
                     with_state(|ps| {
                         for (slot_id, equipped_item) in &ps.equipped {
-                            let label = EQUIPMENT_SLOTS.iter()
-                                .find(|(id, _)| *id == slot_id.as_str())
-                                .map(|(_, name)| *name)
+                            let label = state.equipment_slots.iter()
+                                .find(|(id, _)| id == slot_id)
+                                .map(|(_, name)| name.as_str())
                                 .unwrap_or(slot_id.as_str());
 
                             let slot_size = 64.0;
