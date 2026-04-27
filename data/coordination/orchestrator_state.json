@@ -1,0 +1,77 @@
+{
+  "_purpose": "Orchestrator continuity across Claude Code sessions. The HUMAN talks to ONE AI (the orchestrator); that AI dispatches scope-specific work via the Agent tool. When the human starts a fresh Claude Code session, the new orchestrator MUST read this file early in startup so it knows: what was last being worked on, what's pending, what decisions were just made, what scopes are currently claimed, what to NOT re-do.",
+  "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
+
+  "current_orchestrator_session": {
+    "started_at": "2026-04-26",
+    "model": "claude-opus-4.7-1m",
+    "primary_focus": "Multi-AI coordination dashboard, AI usage tracking, orchestrator continuity between sessions"
+  },
+
+  "current_focus": "Building the agent dashboard (/agents) + ai usage page (/ai-usage) + this orchestrator_state file. Just finished items refactor (versioned + derived toxicology) and fixed CI breakage caused by un-staged issuer_trust.rs.",
+
+  "open_questions_for_human": [],
+
+  "recent_decisions": [
+    {
+      "at": "2026-04-26",
+      "decision": "Split items toxicology: ingredients hold their own tox in sidecar RON files; items are pure ingredient lists with versioned `history` array. Toxicology derived at query time from the current ingredient list.",
+      "rationale": "User asked: 'wouldn't it be better to just list the item and ingredients and then from that list of ingredients determines toxicology' + 'we also want to make sure we accommodate the fact that the ingredients list might change for something like Oreos.' Both improvements landed in v0.116.1."
+    },
+    {
+      "at": "2026-04-26",
+      "decision": "Multi-AI coordination = static registry (data/coordination/agent_registry.ron) + runtime claim table (agent_sessions SQLite) + audit JSON files (data/coordination/sessions/*.json) + aggregator (node scripts/agent-status.js).",
+      "rationale": "User wanted a way for fresh AI sessions to check if a scope already has work in progress, see completion estimates, and know if their assigned scope is at a stop state."
+    },
+    {
+      "at": "2026-04-26",
+      "decision": "Going forward, ALWAYS git-add untracked .rs/.ron/.csv before pushing. Saved as feedback_untracked_files.md.",
+      "rationale": "v0.108 created issuer_trust.rs but never staged it. CI broke 8 releases later when desktop-build CI tried fresh checkout."
+    }
+  ],
+
+  "active_scopes_to_avoid": [
+    "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
+  ],
+
+  "version_state": {
+    "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
+    "latest_pushed_tag": "see `git describe --tags --abbrev=0`",
+    "last_release_summary": "v0.117.1 — version sync (Cargo.toml drift fix); v0.117.0 — committed missing issuer_trust.rs; v0.116.1 — items refactor + multi-agent coordination + audit run; v0.116.0 — storage architecture doc + items+toxicology DB"
+  },
+
+  "files_in_flight_or_recently_changed": [
+    "src/relay/api_v2_agents.rs (new, v0.118.0) — registry/sessions/runtime aggregator endpoint",
+    "web/pages/agents.html (new, v0.118.0) — dashboard",
+    "web/pages/ai-usage.html (new, v0.118.0) — usage tracker",
+    "data/coordination/orchestrator_state.json (new, v0.118.0) — this file",
+    "data/items/foods/* (refactored v0.116.1 — items now versioned, ingredients hold tox)"
+  ],
+
+  "things_a_fresh_orchestrator_should_NOT_redo": [
+    "Items toxicology architecture — already separated into ingredients/ + items/ with history arrays. Don't put tox back on items.",
+    "Page parity audit — done in v0.115.0. Native + web pages aligned. Only add new pages if truly needed.",
+    "Outdated content sweep for Ed25519/Solana=identity — done in v0.116.0. New stale references would only appear in newly-added content.",
+    "Universal Button widget — built v0.113.0 + v0.114.0. Use widgets::Button, don't roll your own egui::Button.",
+    "Phase 0–8 strategic plan items — all shipped or scaffolded. See docs/STATUS.md 'Civilization Trust Layer' section."
+  ],
+
+  "things_pending_or_known_gaps": [
+    "Phase 6a Solana RPC: only read-only balance proxy ships; no transaction signing in relay (intentional).",
+    "Phase 6b STARK selective disclosure: scaffold + Merkle wired; full STARK verifier circuit design deferred.",
+    "Phase 7a Litestream: ops doc shipped but actually deploying replication is operator action on the VPS.",
+    "Phase 7b LoRa hardware: real radio integration deferred until hardware in hand.",
+    "PQ JS keygen: noble-PQ dynamic import landed in pq-identity.js v0.117.0; chat client rewrite still pending.",
+    "10 of 21 agent scopes still unaudited — check `node scripts/agent-status.js` for current list under 'Unaudited scopes'."
+  ],
+
+  "how_to_resume": [
+    "1. Read CLAUDE.md (auto-loaded) — covers project rules.",
+    "2. Run `git status` and `git log --oneline -10` to see recent state.",
+    "3. Read this file (orchestrator_state.json) — the running journal.",
+    "4. Run `node scripts/agent-status.js` for per-scope coordinator-friendly summary.",
+    "5. Read docs/STATUS.md and docs/FEATURES.md for the static feature inventory.",
+    "6. Check data/coordination/agent_registry.ron for the canonical scope list.",
+    "7. THEN start work."
+  ]
+}

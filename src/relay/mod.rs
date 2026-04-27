@@ -6,6 +6,7 @@
 
 pub mod relay;
 pub mod api;
+pub mod api_v2_agents;
 pub mod api_v2_ai;
 pub mod api_v2_credentials;
 pub mod api_v2_did;
@@ -426,6 +427,10 @@ pub async fn run_relay() {
         // === API v2: zk-STARK selective disclosure (Phase 6b) ===
         .route("/api/v2/zk/schema", get(api_v2_zk::get_zk_schema))
         .route("/api/v2/zk/verify", post(api_v2_zk::verify_presentation))
+        // === API v2: agent coordination dashboard (v0.118.0) ===
+        .route("/api/v2/agents/status", get(api_v2_agents::get_agents_status))
+        .route("/api/v2/agents/sessions", get(api_v2_agents::list_agent_sessions))
+        .route("/api/v2/agents/override", post(api_v2_agents::set_agent_override))
         .route("/api/me/system",
             get(api::system_profile_get)
             .put(api::system_profile_put)

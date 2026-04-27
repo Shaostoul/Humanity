@@ -6,14 +6,21 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 
 > **⚠️ START HERE (mandatory, every session):**
 > 0. Run `just clean-worktrees` to kill stale AI context before it corrupts new work
-> 1. Read `docs/FEATURES.md` for complete feature inventory with file paths (never rebuild what exists)
-> 2. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
-> 3. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
-> 4. Read `docs/SOP.md` for version sync, deploy, and development procedures
-> 5. Read `docs/design/ui-system.md` before touching any widget, page, or visual code
-> 6. Read `docs/design/infinite-of-x.md` before writing any list-shaped literal in code
-> 7. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
-> 8. If agents report editing files under `native/src/`, `server/src/`, or `crates/`, those paths don't exist anymore. Run `just clean-worktrees` and redo the work against the real `src/` tree.
+> 1. **READ `data/coordination/orchestrator_state.json`** — running session journal. Tells you what the previous orchestrator was doing, what decisions were made, what scopes have active claims, what NOT to redo.
+> 2. **Run `node scripts/agent-status.js`** — per-scope coordinator-friendly summary aggregating `data/coordination/sessions/*.json`.
+> 3. Read `docs/FEATURES.md` for complete feature inventory with file paths (never rebuild what exists)
+> 4. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
+> 5. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
+> 6. Read `docs/SOP.md` for version sync, deploy, and development procedures
+> 7. Read `docs/design/ui-system.md` before touching any widget, page, or visual code
+> 8. Read `docs/design/infinite-of-x.md` before writing any list-shaped literal in code
+> 9. Read `docs/design/storage-architecture.md` before touching any storage / signed object / federation code
+> 10. **Before pushing a release**: `git status --short` and stage any untracked .rs/.ron/.csv. Local builds pass with untracked files; CI fails on fresh checkout.
+> 11. **After pushing a Rust release**: run `just build-game` to produce a versioned local exe — CI doesn't build Windows.
+> 12. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
+> 13. If agents report editing files under `native/src/`, `server/src/`, or `crates/`, those paths don't exist anymore. Run `just clean-worktrees` and redo against the real `src/` tree.
+> 14. **Before claiming a multi-AI scope**, check `data/coordination/agent_registry.ron` for ownership rules and the `agent_sessions` SQLite table for active claims.
+> 15. **Before ending the session** with significant changes, update `data/coordination/orchestrator_state.json` so the next orchestrator picks up cleanly.
 
 ## Non-negotiable design rules
 

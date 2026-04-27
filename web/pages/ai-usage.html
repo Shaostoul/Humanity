@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HumanityOS — AI Usage Tracker</title>
+  <meta name="description" content="Manual log of AI subscription usage across providers (Claude, GPT, Gemini, etc.). Helps you stay under quotas and budget.">
+  <link rel="manifest" href="/shared/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { line-height: 1.5; min-height: 100vh; padding-bottom: 80px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+    .au-hero { padding: 24px 0 12px; }
+    .au-hero h1 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 800; margin-bottom: 4px; }
+    .au-hero h1 em { font-style: normal; color: var(--accent); }
+    .au-hero p { color: var(--text-muted); font-size: 0.85rem; margin: 0; max-width: 700px; }
+
+    .form-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 20px;
+      margin: 16px 0;
+    }
+    .form-card h3 { margin: 0 0 8px; font-size: 0.95rem; color: var(--accent); }
+    .form-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px;
+    }
+    .form-grid label { display: flex; flex-direction: column; font-size: 0.78rem; color: var(--text-muted); gap: 3px; }
+    .form-grid input, .form-grid select, .form-grid textarea {
+      padding: 6px 10px; border-radius: var(--radius);
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      font-size: 0.85rem; font-family: inherit;
+    }
+    .form-grid textarea { min-height: 50px; resize: vertical; }
+    .form-card button {
+      margin-top: 10px; padding: 7px 18px; border-radius: var(--radius);
+      background: var(--accent); color: #000; border: none;
+      font-weight: 700; cursor: pointer;
+    }
+
+    .quota-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;
+      margin-bottom: 16px;
+    }
+    .quota-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 16px;
+    }
+    .quota-card h4 { margin: 0 0 4px; font-size: 0.82rem; color: var(--text); }
+    .quota-card .pct { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+    .quota-card .meter { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; margin: 4px 0; }
+    .quota-card .meter .fill { height: 100%; background: var(--accent); }
+    .quota-card .meter .fill.high { background: #f5b83b; }
+    .quota-card .meter .fill.crit { background: #ef4f4f; }
+    .quota-card .label { font-size: 0.74rem; color: var(--text-muted); }
+
+    .events-table {
+      width: 100%; border-collapse: collapse; font-size: 0.82rem;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .events-table th, .events-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    .events-table th { background: rgba(255,136,17,0.06); color: var(--accent); font-size: 0.7rem; text-transform: uppercase; }
+    .events-table .right { text-align: right; }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js"></script>
+
+  <div class="container">
+    <header class="au-hero">
+      <h1>AI Usage <em>Tracker</em></h1>
+      <p>Stays in your browser only — nothing posted to the relay. Claude Code's context-window panel only shows you its own state; this lets you log usage across every provider you use, see weekly totals, and avoid surprise quota hits.</p>
+    </header>
+
+    <div class="quota-grid" id="quota-grid"></div>
+
+    <div class="form-card">
+      <h3>Set / update a quota</h3>
+      <div class="form-grid">
+        <label>Provider
+          <select id="quota-provider">
+            <option value="claude">Claude</option>
+            <option value="claude-code">Claude Code</option>
+            <option value="gpt">OpenAI / GPT</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="grok">xAI Grok</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label>Window
+          <select id="quota-window">
+            <option value="hourly">Hourly</option>
+            <option value="5h" selected>5-hour</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </label>
+        <label>Used this window
+          <input type="number" id="quota-used" min="0" step="1" placeholder="e.g. 23">
+        </label>
+        <label>Quota limit
+          <input type="number" id="quota-limit" min="1" step="1" placeholder="e.g. 100">
+        </label>
+        <label>Resets in
+          <input type="text" id="quota-resets" placeholder="e.g. 2h, 4d, 30m">
+        </label>
+      </div>
+      <button id="set-quota">Save quota</button>
+    </div>
+
+    <div class="form-card">
+      <h3>Log a usage event</h3>
+      <div class="form-grid">
+        <label>Provider
+          <select id="ev-provider">
+            <option value="claude">Claude</option>
+            <option value="claude-code">Claude Code</option>
+            <option value="gpt">OpenAI / GPT</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="grok">xAI Grok</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label>Model
+          <input type="text" id="ev-model" placeholder="e.g. opus-4.7, gpt-5">
+        </label>
+        <label>Input tokens
+          <input type="number" id="ev-input" min="0" step="1" placeholder="0">
+        </label>
+        <label>Output tokens
+          <input type="number" id="ev-output" min="0" step="1" placeholder="0">
+        </label>
+        <label style="grid-column: 1 / -1;">Notes
+          <textarea id="ev-notes" placeholder="What was the session for? e.g. v0.118 dashboard build"></textarea>
+        </label>
+      </div>
+      <button id="log-event">Log event</button>
+    </div>
+
+    <h3 style="margin-top: 24px; font-size: 0.95rem;">Recent events (last 50)</h3>
+    <table class="events-table" id="events-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Provider</th>
+          <th>Model</th>
+          <th class="right">In tokens</th>
+          <th class="right">Out tokens</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="events-tbody"><tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-muted);">No events logged yet.</td></tr></tbody>
+    </table>
+  </div>
+
+  <script>
+    'use strict';
+    const QUOTA_KEY = 'humanity_ai_quotas_v1';
+    const EVENT_KEY = 'humanity_ai_events_v1';
+
+    function readQuotas() {
+      try { return JSON.parse(localStorage.getItem(QUOTA_KEY) || '[]'); } catch { return []; }
+    }
+    function writeQuotas(q) { localStorage.setItem(QUOTA_KEY, JSON.stringify(q)); }
+    function readEvents() {
+      try { return JSON.parse(localStorage.getItem(EVENT_KEY) || '[]'); } catch { return []; }
+    }
+    function writeEvents(e) { localStorage.setItem(EVENT_KEY, JSON.stringify(e)); }
+
+    function renderQuotas() {
+      const grid = document.getElementById('quota-grid');
+      const quotas = readQuotas();
+      if (!quotas.length) {
+        grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--text-muted);font-size:0.85rem;">No quotas set yet. Add one below to track your subscription windows.</div>';
+        return;
+      }
+      grid.innerHTML = quotas.map((q, i) => {
+        const pct = Math.min(100, (q.used / q.limit) * 100);
+        const cls = pct >= 90 ? 'crit' : pct >= 70 ? 'high' : '';
+        return '<div class="quota-card">' +
+          '<h4>' + escapeHtml(q.provider) + ' · ' + escapeHtml(q.window) + '</h4>' +
+          '<div class="pct">' + pct.toFixed(0) + '%</div>' +
+          '<div class="meter"><div class="fill ' + cls + '" style="width:' + pct + '%"></div></div>' +
+          '<div class="label">' + q.used + ' / ' + q.limit + (q.resets ? ' · resets ' + escapeHtml(q.resets) : '') +
+            ' · <a href="#" data-i="' + i + '" class="del-quota">remove</a>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+      grid.querySelectorAll('.del-quota').forEach(a => {
+        a.addEventListener('click', e => {
+          e.preventDefault();
+          const i = +a.dataset.i;
+          const q = readQuotas();
+          q.splice(i, 1);
+          writeQuotas(q);
+          renderQuotas();
+        });
+      });
+    }
+
+    function renderEvents() {
+      const tbody = document.getElementById('events-tbody');
+      const events = readEvents().slice(-50).reverse();
+      if (!events.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-muted);">No events logged yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = events.map(e => '<tr>' +
+        '<td>' + new Date(e.t).toLocaleString() + '</td>' +
+        '<td>' + escapeHtml(e.provider) + '</td>' +
+        '<td>' + escapeHtml(e.model || '') + '</td>' +
+        '<td class="right">' + (e.input || 0).toLocaleString() + '</td>' +
+        '<td class="right">' + (e.output || 0).toLocaleString() + '</td>' +
+        '<td>' + escapeHtml(e.notes || '') + '</td>' +
+      '</tr>').join('');
+    }
+
+    document.getElementById('set-quota').addEventListener('click', () => {
+      const q = readQuotas();
+      const provider = document.getElementById('quota-provider').value;
+      const window = document.getElementById('quota-window').value;
+      const used = parseInt(document.getElementById('quota-used').value || '0', 10);
+      const limit = parseInt(document.getElementById('quota-limit').value || '0', 10);
+      const resets = document.getElementById('quota-resets').value || '';
+      if (!limit) { alert('Limit is required.'); return; }
+      // Replace existing (provider, window) pair
+      const filtered = q.filter(x => !(x.provider === provider && x.window === window));
+      filtered.push({ provider, window, used, limit, resets, updated_at: Date.now() });
+      writeQuotas(filtered);
+      renderQuotas();
+    });
+
+    document.getElementById('log-event').addEventListener('click', () => {
+      const e = readEvents();
+      e.push({
+        t: Date.now(),
+        provider: document.getElementById('ev-provider').value,
+        model: document.getElementById('ev-model').value,
+        input: parseInt(document.getElementById('ev-input').value || '0', 10),
+        output: parseInt(document.getElementById('ev-output').value || '0', 10),
+        notes: document.getElementById('ev-notes').value,
+      });
+      writeEvents(e);
+      // Clear form
+      document.getElementById('ev-input').value = '';
+      document.getElementById('ev-output').value = '';
+      document.getElementById('ev-notes').value = '';
+      renderEvents();
+    });
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+    }
+
+    renderQuotas();
+    renderEvents();
+  </script>
+</body>
+</html>

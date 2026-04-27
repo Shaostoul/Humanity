@@ -157,6 +157,8 @@
     else if (p.startsWith('/identity'))   active = 'identity';
     else if (p.startsWith('/governance')) active = 'governance';
     else if (p.startsWith('/recovery'))   active = 'recovery';
+    else if (p.startsWith('/agents'))     active = 'agents';
+    else if (p.startsWith('/ai-usage'))   active = 'ai-usage';
     else if (p.startsWith('/home'))      active = 'home';
     else if (p.startsWith('/inventory')) active = 'gear';
     else if (p.startsWith('/tasks'))     active = 'tasks';
@@ -675,6 +677,8 @@
       mobileLink('/market',    'Market') +
     '</div>' +
     '<div class="mobile-hub-group group-blue"><h4>System</h4>' +
+      mobileLink('/agents',               'Agents') +
+      mobileLink('/ai-usage',             'AI Usage') +
       mobileLink('/settings',             'Settings') +
       mobileLink('/bugs',                  'Bug Reports') +
       mobileLink('/download',   'Download') +
@@ -1247,7 +1251,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.117.1';
+    var CURRENT_VERSION = '0.118.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
