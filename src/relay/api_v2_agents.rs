@@ -93,7 +93,7 @@ pub async fn list_agent_sessions(
 /// Writes to data/coordination/overrides.ron. The dashboard reflects this
 /// immediately on the next /api/v2/agents/status read.
 pub async fn set_agent_override(
-    State(_state): State<Arc<RelayState>>,
+    State(state): State<Arc<RelayState>>,
     Json(req): Json<OverrideRequest>,
 ) -> impl IntoResponse {
     if !["active", "passive", "blocked", "off"].contains(&req.status.as_str()) {
@@ -125,6 +125,18 @@ pub async fn set_agent_override(
         )
             .into_response();
     }
+
+    // Announce the override on the announcements channel. Best-effort —
+    // never blocks or fails the override.
+    let msg = format!(
+        "Agent override: scope `{}` → `{}`",
+        req.scope_id, req.status
+    );
+    crate::relay::handlers::announce::announce_async(
+        state.clone(),
+        crate::relay::handlers::announce::DEFAULT_ANNOUNCEMENT_CHANNEL.to_string(),
+        msg,
+    );
 
     (StatusCode::OK, Json(serde_json::json!({"ok": true, "scope_id": req.scope_id, "status": req.status}))).into_response()
 }

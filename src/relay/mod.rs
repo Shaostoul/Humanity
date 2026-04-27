@@ -8,6 +8,7 @@ pub mod relay;
 pub mod api;
 pub mod api_v2_agents;
 pub mod api_v2_ai;
+pub mod api_v2_announce;
 pub mod api_v2_credentials;
 pub mod api_v2_did;
 pub mod api_v2_governance;
@@ -431,6 +432,8 @@ pub async fn run_relay() {
         .route("/api/v2/agents/status", get(api_v2_agents::get_agents_status))
         .route("/api/v2/agents/sessions", get(api_v2_agents::list_agent_sessions))
         .route("/api/v2/agents/override", post(api_v2_agents::set_agent_override))
+        // === API v2: announcements (v0.119.0) — admin-auth, posts a server-signed message ===
+        .route("/api/v2/announce", post(api_v2_announce::post_announce))
         .route("/api/me/system",
             get(api::system_profile_get)
             .put(api::system_profile_put)
