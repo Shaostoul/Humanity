@@ -1,0 +1,30 @@
+{
+  "scope_id": "pages-native",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-E",
+  "owned_files": [
+    {"path": "src/gui/pages/", "exists": true, "loc": 13529, "notes": "33 .rs files total. 27 user-facing page modules + mod.rs (37 LOC), placeholder.rs (32 LOC, 'coming soon' template), hud.rs (179 LOC), escape_menu.rs (263 LOC), main_menu.rs (366 LOC), ai_usage (79, doc-first stub)"},
+    {"path": "src/gui/pages/chat.rs", "exists": true, "loc": 3018, "notes": "Largest page — full server/DM/group view; 26 raw egui::Button calls (top migration target)"},
+    {"path": "src/gui/pages/settings.rs", "exists": true, "loc": 1314, "notes": "Theme editor + preferences"},
+    {"path": "src/gui/pages/studio.rs", "exists": true, "loc": 749, "notes": "Streaming/content tools"},
+    {"path": "src/gui/pages/maps.rs", "exists": true, "loc": 583},
+    {"path": "src/gui/pages/onboarding.rs", "exists": true, "loc": 506},
+    {"path": "src/gui/pages/tasks.rs", "exists": true, "loc": 497},
+    {"path": "src/gui/pages/governance.rs", "exists": true, "loc": 80, "notes": "Thin — describes scope + tabs but no live proposal feed yet (web side same)"},
+    {"path": "src/gui/pages/ai_usage.rs", "exists": true, "loc": 79, "notes": "Documentation-first stub — points user at web page for the form"},
+    {"path": "src/gui/pages/recovery.rs", "exists": true, "loc": 106, "notes": "Read-only explainer; guardian flow lives elsewhere"},
+    {"path": "src/gui/pages/identity.rs", "exists": true, "loc": 150, "notes": "Read-only DID viewer per file header"},
+    {"path": "src/gui/pages/placeholder.rs", "exists": true, "loc": 32, "notes": "'Coming to native app' fallback template"}
+  ],
+  "implementation_status": "partial",
+  "completion_check_holds": true,
+  "gaps": [
+    "Parity gap vs web: native is missing dashboard, data, dev, download, home, index, ops, projects, roadmap, wallet-guide, web, admin (12 web-only pages)",
+    "Stub-tier pages (under ~200 LOC, mostly documentation): governance (80), ai_usage (79), recovery (106), identity (150), agents (138), placeholder (32) — these are real but thin compared to chat (3018) / settings (1314) / studio (749)",
+    "Active TODOs in chat.rs: 7 (DM mute toggle, group mute, sort, group voice routing, add-server modal, per-group admin role, mute action)",
+    "main_menu.rs:133 TODO — WebSocket connect not actually wired",
+    "Migration debt: 49 raw egui::Button usages across 11 page files (see widgets scope)"
+  ],
+  "recommended_status": "active",
+  "summary": "27 native pages registered, 13529 LOC. Strong on chat/settings/studio/maps; thin on governance/ai_usage/recovery/identity (treated as read-only viewers per design). Web has 12 pages with no native counterpart — the biggest parity gaps are projects, dashboard, ops, and admin."
+}

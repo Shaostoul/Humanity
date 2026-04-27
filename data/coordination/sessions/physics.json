@@ -1,0 +1,24 @@
+{
+  "scope_id": "physics",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-F",
+  "owned_files": [
+    {"path": "src/physics/", "exists": true, "loc": 193, "notes": "3 .rs files: mod.rs (167 LOC, fully wired), collision.rs (12 LOC, scaffold), fluid.rs (14 LOC, explicit stub). mod.rs wraps complete rapier3d pipeline (RigidBodySet, ColliderSet, IslandManager, BroadPhase, NarrowPhase, joint sets, CCDSolver, PhysicsPipeline, QueryPipeline). Helpers: step, add_rigid_body, add_collider, cast_ray, get/set position/rotation/velocity, apply_impulse, remove."}
+  ],
+  "implementation_status": "partial",
+  "completion_check_holds": false,
+  "gaps": [
+    "Fluid simulation is a 14-line stub — no particle or grid solver",
+    "Collision events module is a 12-line scaffold — no event queue or callback registry",
+    "No soft-body support",
+    "No joint helpers exposed at PhysicsWorld level (raw rapier3d sets accessible but no convenience API)",
+    "No continuous collision detection (CCD) wiring for fast-moving bodies"
+  ],
+  "todos_found": [
+    "src/physics/collision.rs:5 — TODO: event queue, callback registry",
+    "src/physics/fluid.rs:1 — Pressure-based fluid simulation (stub)",
+    "src/physics/fluid.rs:7 — TODO: particle-based or grid-based fluid sim"
+  ],
+  "recommended_status": "active",
+  "summary": "Core rapier3d wrapper is solid and complete. Fluid sim, collision events, and soft-body remain stubs/missing — registry's active completion check confirms work is needed."
+}

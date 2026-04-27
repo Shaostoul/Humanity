@@ -1,0 +1,39 @@
+{
+  "scope_id": "game-systems",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-F",
+  "owned_files": [
+    {"path": "src/systems/", "exists": true, "loc": 7388, "notes": "67 .rs files across 41 modules. Top-level: aging, astronomy, atmosphere (470), creative_arts, disasters (455), docking, ecology (259), electrical, fire, food (189), genetics, geology, governance, hvac, hydrology (420), interaction, manufacturing, medical, oceanography, offline, player (140), plumbing, psychology (144), time (186), transportation, waste, weather (353). Sub-dirs: ai/, combat/, construction/, crafting/, economy/, farming/, inventory/, logistics/, navigation/, quests/, skills/, vehicles/."},
+    {"path": "src/ecs/", "exists": true, "loc": 255, "notes": "3 .rs files: components.rs (191 LOC, 20 components), systems.rs (47 LOC, System trait + SystemRunner), mod.rs (17 LOC, GameWorld wrapper around hecs::World)."}
+  ],
+  "implementation_status": "partial",
+  "completion_check_holds": false,
+  "gaps": [
+    "About 20 systems are 47-52 LOC scaffolds with TODO bodies (aging, astronomy, creative_arts, docking, fire, genetics, geology, governance, hvac, manufacturing, medical, oceanography, offline, plumbing, transportation, waste)",
+    "Combat: damage type / armor / resistance not applied; death (loot drop, animation, respawn) not triggered",
+    "Economy: passive_income_per_day not credited to player wallets",
+    "Electrical: lacks dedicated PowerGenerator / PowerConsumer ECS components — falls back to Interactable scan",
+    "Food: FoodSpoilage component missing; spoiled-food substitution not implemented",
+    "Psychology: needs a Needs ECS component instead of side state",
+    "Inventory containers, navigation orbital (Kepler solver), skills learning curve, farming automation, ai/autonomy snapshot, construction CSG all carry TODOs",
+    "Several systems referenced by mod.rs with implementations of substance: weather, hydrology, atmosphere, disasters, ecology, food, time, player, interaction, psychology"
+  ],
+  "todos_found": [
+    "src/systems/aging.rs:47, astronomy.rs:47, creative_arts.rs:47, docking.rs:47, fire.rs:49, genetics.rs:46, geology.rs:47, governance.rs:49, hvac.rs:50, manufacturing.rs:46, medical.rs:49, oceanography.rs:46, offline.rs:45, plumbing.rs:50, transportation.rs:46, waste.rs:46 — 16 system tick bodies are TODO-only",
+    "src/systems/electrical.rs:22,24,68 — PowerGenerator/PowerConsumer components missing",
+    "src/systems/food.rs:24,172 — FoodSpoilage component + spoiled item replacement",
+    "src/systems/combat/mod.rs:53,61 — armor/resistance + death trigger",
+    "src/systems/economy/mod.rs:86 — credit passive income",
+    "src/systems/psychology.rs:22,54 — needs ECS Needs component",
+    "src/systems/ai/autonomy.rs:7 — NPC state snapshots / tick queue",
+    "src/systems/farming/automation.rs:7 — queued growth ticks / harvest results",
+    "src/systems/construction/blueprint.rs:12, csg.rs:14 — hierarchical part list, vertex data",
+    "src/systems/inventory/containers.rs:10 — Vec of item stacks",
+    "src/systems/navigation/mod.rs:10 — view level, camera target",
+    "src/systems/navigation/orbital.rs:25,27 — Kepler equation solver",
+    "src/systems/logistics/mod.rs:10 — active shipments, route graph",
+    "src/systems/skills/learning.rs:26,29 — learning curve CSV"
+  ],
+  "recommended_status": "active",
+  "summary": "ECS framework + System trait shipped; 41 system modules registered. Roughly half (especially the recently-added domain systems) are scaffolds with TODO tick bodies. Combat, economy, logistics, electrical, food, psychology all flagged for fill-in — registry active status is accurate."
+}

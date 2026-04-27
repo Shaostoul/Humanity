@@ -186,19 +186,24 @@ fn draw_concepts(ui: &mut egui::Ui, theme: &Theme) {
                     .rounding(Rounding::same(theme.border_radius as u8))
                     .inner_margin(theme.card_padding * 1.5)
                     .show(ui, |ui| {
+                        // Force vertical layout inside the card; the parent
+                        // horizontal_wrapped would otherwise render title and
+                        // body inline (broken visual on v0.120.x).
                         ui.set_width(col_w);
-                        ui.label(
-                            RichText::new(concept.title)
-                                .size(theme.font_size_body)
-                                .color(theme.text_primary())
-                                .strong(),
-                        );
-                        ui.add_space(theme.spacing_sm);
-                        ui.label(
-                            RichText::new(concept.body)
-                                .size(theme.font_size_small)
-                                .color(theme.text_secondary()),
-                        );
+                        ui.vertical(|ui| {
+                            ui.label(
+                                RichText::new(concept.title)
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary())
+                                    .strong(),
+                            );
+                            ui.add_space(theme.spacing_sm);
+                            ui.label(
+                                RichText::new(concept.body)
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_secondary()),
+                            );
+                        });
                     });
             }
         });
@@ -239,20 +244,24 @@ fn draw_core_pages(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .rounding(Rounding::same(theme.border_radius as u8))
                     .inner_margin(theme.card_padding)
                     .show(ui, |ui| {
+                        // Same fix as concepts grid: force vertical inside card
+                        // so label + description don't render side-by-side.
                         ui.set_width(col_w);
                         ui.set_height(70.0);
-                        ui.label(
-                            RichText::new(page.label)
-                                .size(theme.font_size_body)
-                                .color(theme.text_primary())
-                                .strong(),
-                        );
-                        ui.add_space(2.0);
-                        ui.label(
-                            RichText::new(page.description)
-                                .size(theme.font_size_small)
-                                .color(theme.text_secondary()),
-                        );
+                        ui.vertical(|ui| {
+                            ui.label(
+                                RichText::new(page.label)
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary())
+                                    .strong(),
+                            );
+                            ui.add_space(2.0);
+                            ui.label(
+                                RichText::new(page.description)
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_secondary()),
+                            );
+                        });
                     })
                     .response
                     .interact(egui::Sense::click());

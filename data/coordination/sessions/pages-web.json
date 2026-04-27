@@ -1,0 +1,36 @@
+{
+  "scope_id": "pages-web",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-E",
+  "owned_files": [
+    {"path": "web/pages/", "exists": true, "loc": 30277, "notes": "37 .html files + 14 paired *-app.js modules"},
+    {"path": "web/shared/", "exists": true, "loc": 7041, "notes": "14 modules: shell.js (1388), settings.js (518), wallet.js (1025), pq-identity.js (370), onboarding-tour.js (344), glossary.js (310), accessibility.js (176), icons.js (154), sw.js (129), i18n.js (121), defaults.js (88), eli5.js (67), events.js (54), qrcode.js (2297 vendored)"},
+    {"path": "web/pages/settings.html", "exists": true, "loc": 2136, "notes": "Largest page; settings-app.js adds 2061 more"},
+    {"path": "web/pages/maps.html", "exists": true, "loc": 1660},
+    {"path": "web/pages/profile.html", "exists": true, "loc": 1530},
+    {"path": "web/pages/home.html", "exists": true, "loc": 1478},
+    {"path": "web/pages/tasks.html", "exists": true, "loc": 974, "notes": "+ tasks-app.js 1300 LOC"},
+    {"path": "web/pages/inventory.html", "exists": true, "loc": 1292},
+    {"path": "web/pages/dev.html", "exists": true, "loc": 1234, "notes": "Web-only (no native counterpart)"},
+    {"path": "web/pages/data.html", "exists": true, "loc": 1187, "notes": "Web-only — saves/backups/sync tiers/USB"},
+    {"path": "web/pages/calendar.html", "exists": true, "loc": 1026},
+    {"path": "web/pages/wallet.html", "exists": true, "loc": 481, "notes": "+ wallet-app.js 995 LOC"},
+    {"path": "web/pages/crafting.html", "exists": true, "loc": 48, "notes": "Stub — minimal HTML, no app.js"},
+    {"path": "web/pages/resources.html", "exists": true, "loc": 59, "notes": "Stub — minimal shell, defers to resources-app.js (321)"},
+    {"path": "web/pages/tools.html", "exists": true, "loc": 61, "notes": "Stub — defers to tools-app.js (124)"},
+    {"path": "web/pages/civilization.html", "exists": true, "loc": 108, "notes": "Thin — civilization-app.js (203) does the work"},
+    {"path": "web/pages/wallet-guide.html", "exists": true, "loc": 104, "notes": "Web-only — paired wallet-guide-app.js (255)"}
+  ],
+  "implementation_status": "partial",
+  "completion_check_holds": true,
+  "gaps": [
+    "Web-only with no native counterpart: dashboard, data, dev, download, home, index, ops, projects, roadmap, wallet-guide, web, admin (12 pages)",
+    "Native-only with no web counterpart: hud, escape_menu, main_menu (3 in-game UIs — design-correct, not a parity bug)",
+    "Modified-but-unstaged on disk per git status: download.html, ops.html, settings-app.js, shell.js, sw.js — pending commit",
+    "Thin/stub HTML shells (still functional, work happens in paired *-app.js): crafting (48), resources (59), tools (61), civilization (108)",
+    "shell.js has grown to 1388 LOC — candidate for splitting (nav, theme, update-check, keyboard-shortcuts modules)",
+    "settings.html + settings-app.js together = ~4200 LOC — biggest single feature surface; matches native settings.rs (1314) but on a much larger scale"
+  ],
+  "recommended_status": "active",
+  "summary": "37 web pages, 30277 LOC of HTML + ~7000 LOC of shared shell. Strong on settings/maps/profile/home; 12 pages have no native counterpart (biggest parity gaps: projects, dashboard, ops, admin, dev, data). Five files modified-uncommitted per git status."
+}

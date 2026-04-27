@@ -1,0 +1,46 @@
+{
+  "scope_id": "quests",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-D",
+  "owned_files": [
+    {
+      "path": "data/quests/tutorial.ron",
+      "exists": true,
+      "row_count": 3,
+      "notes": "3 tutorial quests: first_habitat, farming_basics, power_grid. Solid onboarding spine. Uses Build/Harvest/Gather/Craft objectives with prerequisite chaining."
+    },
+    {
+      "path": "data/quests/farming.ron",
+      "exists": true,
+      "row_count": 2,
+      "notes": "2 advanced farming quests (greenhouse, automation). Chains off tutorial_farming_basics."
+    },
+    {
+      "path": "data/quests/construction.ron",
+      "exists": true,
+      "row_count": 2,
+      "notes": "2 construction quests (advanced_habitat, multi_level). Chains off tutorial_first_habitat."
+    },
+    {
+      "path": "data/quests/exploration.ron",
+      "exists": true,
+      "row_count": 2,
+      "notes": "2 exploration quests (first_survey, distant_lands) using Travel + Gather objectives."
+    }
+  ],
+  "implementation_status": "scaffold",
+  "completion_check_holds": true,
+  "data_coverage_estimate": "10%",
+  "gaps": [
+    "Only 9 quests total across 4 chains — minimal content",
+    "No civic onboarding chain (governance, voting, federation, identity)",
+    "No skill progression chains for crafting, combat, engineering, science, social skills",
+    "No Humanity Accord or AI-onboarding tutorials referenced in CLAUDE.md",
+    "No quest chains for chemistry, electronics, mining, trading, cooking, medical",
+    "No procedurally-generated quest templates",
+    "All quest dates frozen at 2026-03-21 — no recent additions",
+    "References blueprint_ids (e.g. greenhouse, climate_controller, irrigation_system) — unverified these exist"
+  ],
+  "recommended_status": "active",
+  "summary": "Scope is correctly flagged active — only a scaffold of 9 quests covers four chains. Major missing surfaces include civic/governance onboarding and skill progression past tutorials. High-leverage area for content authoring."
+}

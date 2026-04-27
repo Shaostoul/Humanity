@@ -1,0 +1,42 @@
+{
+  "scope_id": "solar-system",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-D",
+  "owned_files": [
+    {
+      "path": "data/solar_system/bodies.json",
+      "exists": true,
+      "row_count": 64,
+      "notes": "64 top-level bodies + 40 nested moons = 104 total objects. Sourced from NASA/JPL Horizons + Planetary Fact Sheets, J2000.0 epoch. Covers Sun, all 8 planets, Pluto + dwarf planets (Eris, Haumea, Makemake, Ceres), major moon systems (Jovian, Saturnian, Uranian, Neptunian), and notable asteroids (Vesta, Pallas, Hygiea, Bennu, Ryugu, Itokawa, Psyche). Schema includes orbit, physical, atmosphere, rings, moons, discovery."
+    },
+    {
+      "path": "data/solar_system/sun.ron",
+      "exists": true,
+      "row_count": 1,
+      "notes": "Detailed Sun entry — duplicates bodies.json with extended Planet() RON schema (physical/core/atmosphere/etc)."
+    },
+    {
+      "path": "data/solar_system/earth.ron",
+      "exists": true,
+      "row_count": 1,
+      "notes": "Detailed Earth entry — full Planet() RON with hydrosphere, habitability, resources, gameplay sections."
+    },
+    {
+      "path": "data/solar_system/mars.ron",
+      "exists": true,
+      "row_count": 1,
+      "notes": "Detailed Mars entry — same Planet() RON schema as Earth."
+    }
+  ],
+  "implementation_status": "complete",
+  "completion_check_holds": true,
+  "data_coverage_estimate": "95%",
+  "gaps": [
+    "Detailed RON files only exist for Sun, Earth, Mars — Mercury, Venus, Jupiter, Saturn, Uranus, Neptune, Pluto lack the rich Planet() RON treatment",
+    "Two-format coexistence (bodies.json vs *.ron) is uneven; either bodies.json should be canonical or all bodies need .ron parity",
+    "Some recently-discovered TNOs (Sedna, Quaoar, Orcus, Gonggong) absent",
+    "No comet entries (Halley, Hale-Bopp, etc.)"
+  ],
+  "recommended_status": "passive",
+  "summary": "Named-body coverage is met (104 objects across all major categories per NASA data). completion_check holds; scope is correctly passive. Only resume if richer per-body Planet() RON parity is requested or new TNOs/comets are added."
+}

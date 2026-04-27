@@ -812,6 +812,18 @@ pub struct GuiState {
     pub recovery_guardian_did: String,
     /// Set to true when the Recovery page wants to fetch held shares.
     pub recovery_guardian_pending: bool,
+
+    // ── AI Usage page form state (v0.121.0) ──
+    pub ai_usage_quota_provider: String,
+    pub ai_usage_quota_window: String,
+    pub ai_usage_quota_used: String,
+    pub ai_usage_quota_limit: String,
+    pub ai_usage_quota_resets: String,
+    pub ai_usage_event_provider: String,
+    pub ai_usage_event_model: String,
+    pub ai_usage_event_input: String,
+    pub ai_usage_event_output: String,
+    pub ai_usage_event_notes: String,
 }
 
 #[cfg(feature = "native")]
@@ -1068,6 +1080,18 @@ impl Default for GuiState {
             recovery_lookup_pending: false,
             recovery_guardian_did: String::new(),
             recovery_guardian_pending: false,
+
+            // AI Usage page form state (v0.121.0)
+            ai_usage_quota_provider: "claude".to_string(),
+            ai_usage_quota_window: "5h".to_string(),
+            ai_usage_quota_used: String::new(),
+            ai_usage_quota_limit: String::new(),
+            ai_usage_quota_resets: String::new(),
+            ai_usage_event_provider: "claude".to_string(),
+            ai_usage_event_model: String::new(),
+            ai_usage_event_input: String::new(),
+            ai_usage_event_output: String::new(),
+            ai_usage_event_notes: String::new(),
         }
     }
 }

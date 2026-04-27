@@ -1,0 +1,24 @@
+{
+  "scope_id": "renderer",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-F",
+  "owned_files": [
+    {"path": "src/renderer/", "exists": true, "loc": 4084, "notes": "12 .rs files: bloom, camera, floating_origin, hologram, mesh, mod, multi_scale, particles, pipeline, shader_loader, sky, stars. Largest: mod.rs (833), camera.rs (773), hologram.rs (576), stars.rs (366), bloom.rs (353), sky.rs (345), particles.rs (331)."},
+    {"path": "assets/shaders/", "exists": true, "loc": 0, "notes": "36 WGSL shaders + procedural/ subdirectory. Includes pbr.wgsl, bloom.wgsl, particle.wgsl, planet shaders (earth/mars/moon/sun/etc.), procedural materials (steel, drywall, granite, plank_wood, polished_concrete, rubber_flooring, carpet_tile)."}
+  ],
+  "implementation_status": "complete",
+  "completion_check_holds": false,
+  "gaps": [
+    "Shadow mapping not implemented (depth pass exists for camera depth buffer only)",
+    "Frustum culling absent — all objects iterate every frame in render loop",
+    "Sun direction not auto-wired to renderer.set_sun_light() from sky.rs",
+    "Camera collision with ship floors disabled (commented out)",
+    "Instanced rendering inside batch still uses per-draw uniform writes (no true GPU instancing)"
+  ],
+  "todos_found": [
+    "src/renderer/camera.rs:657 — TODO: re-enable when we have proper collision with ship floors",
+    "src/renderer/sky.rs:63 — TODO: Wire sun direction to renderer.set_sun_light()"
+  ],
+  "recommended_status": "active",
+  "summary": "Renderer is feature-complete for PBR + bloom + particles + hologram + sky + stars. Shadow mapping, frustum culling, true GPU instancing, and post-processing improvements remain as documented active gaps."
+}

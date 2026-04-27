@@ -1,0 +1,20 @@
+{
+  "scope_id": "widgets",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-E",
+  "owned_files": [
+    {"path": "src/gui/widgets/", "exists": true, "loc": 3192, "notes": "14 files: button, data_table, help_modal, icons, image_cache, image_cache_view, item_list, mod, modal, passphrase_modal, row, search_bar, stat_display, toolbar"},
+    {"path": "src/gui/widgets/button.rs", "exists": true, "loc": 355, "notes": "Universal Button widget (v0.113), source of truth for tabs/nav (v0.114)"},
+    {"path": "src/gui/widgets/mod.rs", "exists": true, "loc": 459, "notes": "Re-exports + section_header, card, card_with_header, page_frame, tab_bar helpers"},
+    {"path": "data/gui/theme.ron", "exists": true, "loc": 0, "notes": "Theme tokens — single source for colors/spacing/radii/fonts; native reads, web regenerates theme.css from it"}
+  ],
+  "implementation_status": "partial",
+  "completion_check_holds": false,
+  "gaps": [
+    "Migration debt: 49 raw egui::Button::new usages across 11 page files (registry expected 18). Hotspots: chat.rs (26), studio.rs (4), escape_menu.rs (4), server_settings.rs (3), calculator/guilds/onboarding/settings/tools (2 each), profile/wallet (1 each)",
+    "11 self-references inside widgets/ (button.rs, modal.rs, search_bar.rs, toolbar.rs, image_cache_view.rs, help_modal.rs) — these are legitimate primitives, not migration debt",
+    "Total raw usages: 60 (49 in pages + 11 in widgets)"
+  ],
+  "recommended_status": "active",
+  "summary": "Widget primitives complete and well-factored (3192 LOC across 14 modules). Migration debt is higher than the registry estimate (49 raw egui::Button calls in pages vs the recorded 18); chat.rs alone holds 26 of those and is the highest-value migration target."
+}

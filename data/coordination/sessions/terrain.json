@@ -1,0 +1,21 @@
+{
+  "scope_id": "terrain",
+  "audited_at": "2026-04-26",
+  "agent_id": "audit-claude-F",
+  "owned_files": [
+    {"path": "src/terrain/", "exists": true, "loc": 1520, "notes": "6 .rs files: asteroid.rs (670 LOC, voxel sparse octree + ore veins), heightmap.rs (335 LOC, 16-biome heightmap terrain), planet.rs (205 LOC, planet definition + LOD), planet_registry.rs (141 LOC, registry from data/), icosphere.rs (158 LOC, recursive subdivision), mod.rs (11 LOC, module list)."},
+    {"path": "src/ship/", "exists": true, "loc": 1165, "notes": "4 .rs files: fibonacci.rs (768 LOC, fibonacci spiral deck generation), rooms.rs (204 LOC, room mesh generation), layout.rs (185 LOC, RON layout parser), mod.rs (8 LOC). Loads from data/ships/."}
+  ],
+  "implementation_status": "complete",
+  "completion_check_holds": false,
+  "gaps": [
+    "No streaming/chunk loading for large planet surfaces (LOD exists but no on-demand mesh swap with worker threads)",
+    "Material/texture variety per biome relies on a small set of procedural shaders — no per-biome material assignment beyond color",
+    "Biome variety: 16 heightmap biomes exist, but blending and transitions are basic",
+    "No erosion or geological simulation feedback into terrain meshes",
+    "Asteroid/planet greedy mesher not yet shared with ship rooms (potential dedup opportunity)"
+  ],
+  "todos_found": [],
+  "recommended_status": "active",
+  "summary": "Terrain (icosphere planets + heightmaps + voxel asteroids) and ship interiors (fibonacci layouts + rooms) are all wired and shipping. No TODO/FIXME markers found, but registry's active gaps (streaming, materials, biome variety) remain real."
+}
