@@ -403,3 +403,103 @@ flag_0,Flag,decoration,banner,cotton,0.3,5,30,Cloth standard on a pole
 fountain_0,Fountain,decoration,water_feature,stone,150.0,1,500,Ornamental water display
 planter_0,Planter,decoration,garden,ceramic,5.0,1,100,Ornamental plant container
 trophy_0,Trophy,decoration,display,gold,0.5,1,100,Achievement award display
+#
+# === JEWELRY ===
+ring_gold_0,Gold Ring,decoration,jewelry,gold,0.02,5,100,Polished gold finger band
+ring_silver_0,Silver Ring,decoration,jewelry,silver,0.02,5,80,Polished silver finger band
+necklace_gold_0,Gold Necklace,decoration,jewelry,gold,0.05,3,100,Linked gold neck chain
+pendant_gem_0,Gemstone Pendant,decoration,jewelry,silver,0.04,5,90,Set gemstone hanging ornament
+bracelet_silver_0,Silver Bracelet,decoration,jewelry,silver,0.03,5,80,Linked silver wrist band
+earrings_pearl_0,Pearl Earrings,decoration,jewelry,silver,0.02,5,60,Pair of mounted pearl studs
+brooch_0,Brooch,decoration,jewelry,silver,0.04,5,90,Pinned decorative chest ornament
+crown_simple_0,Simple Crown,decoration,jewelry,gold,0.6,1,200,Banded ceremonial headpiece
+amulet_protective_0,Protective Amulet,decoration,jewelry,silver,0.05,5,100,Engraved warding charm
+#
+# === BOOKS / SCROLLS ===
+book_blank_0,Blank Book,tool,writing,plant_fiber,0.4,5,40,Empty notebook for handwritten records
+book_journal_0,Personal Journal,tool,writing,plant_fiber,0.4,5,40,Bound diary with lined pages
+book_field_guide_0,Field Guide,tool,reference,plant_fiber,0.5,5,50,Illustrated species and terrain handbook
+book_recipes_0,Recipe Book,tool,reference,plant_fiber,0.5,5,50,Cooking and preservation manual
+book_medical_0,Medical Manual,tool,reference,plant_fiber,0.6,5,60,First aid and treatment reference
+book_engineering_0,Engineering Manual,tool,reference,plant_fiber,0.7,5,60,Mechanical and structural reference
+scroll_blank_0,Blank Scroll,tool,writing,plant_fiber,0.1,20,20,Rolled blank parchment sheet
+map_paper_0,Paper Map,tool,navigation,plant_fiber,0.1,10,30,Folded geographic chart
+pen_quill_0,Quill Pen,tool,writing,plant_fiber,0.02,10,40,Feather and reservoir writing instrument
+ink_bottle_0,Ink Bottle,tool,writing,glass,0.2,10,50,Glass-stoppered writing fluid
+pencil_0,Pencil,tool,writing,pine,0.01,50,30,Graphite-core wooden writing stick
+notebook_0,Notebook,tool,writing,plant_fiber,0.3,5,40,Spiral-bound lined paper book
+#
+# === MUSICAL INSTRUMENTS ===
+guitar_acoustic_0,Acoustic Guitar,decoration,instrument,oak,2.0,1,150,Six-string fretted wooden guitar
+guitar_electric_0,Electric Guitar,decoration,instrument,oak,3.5,1,180,Magnetic pickup six-string guitar
+violin_0,Violin,decoration,instrument,oak,0.5,1,120,Four-string bowed wooden instrument
+flute_wood_0,Wooden Flute,decoration,instrument,oak,0.3,1,100,Hollow keyed wind instrument
+drum_hand_0,Hand Drum,decoration,instrument,leather,1.5,1,150,Stretched skin percussion drum
+drum_kit_0,Drum Kit,decoration,instrument,oak,40.0,1,200,Multi-piece percussion ensemble
+piano_upright_0,Upright Piano,decoration,instrument,oak,180.0,1,400,Vertical-string keyed instrument
+keyboard_electronic_0,Electronic Keyboard,decoration,instrument,abs_plastic,8.0,1,150,Powered synthesizer keyboard
+harmonica_0,Harmonica,decoration,instrument,brass,0.1,5,80,Free-reed mouth-blown instrument
+#
+# === ART SUPPLIES ===
+paintbrush_set_0,Paintbrush Set,tool,art,plant_fiber,0.3,5,80,Assorted bristle painting brushes
+canvas_blank_0,Blank Canvas,tool,art,canvas,0.6,10,50,Stretched primed painting surface
+easel_0,Easel,tool,art,pine,5.0,1,150,Tripod canvas-holding stand
+palette_painters_0,Painter's Palette,tool,art,oak,0.4,5,80,Thumbhole color-mixing board
+charcoal_stick_0,Charcoal Stick,tool,art,charcoal,0.05,30,20,Compressed drawing carbon stick
+clay_sculpting_0,Sculpting Clay,tool,art,clay,1.5,5,40,Workable modeling earth block
+pottery_wheel_0,Pottery Wheel,machine,crafting,oak,40.0,1,300,Foot-pedal clay-throwing turntable
+chisel_set_carving_0,Carving Chisel Set,tool,art,steel,1.2,1,200,Assorted woodcarving blades
+sketchbook_0,Sketchbook,tool,art,plant_fiber,0.4,5,40,Bound drawing paper book
+#
+# === LIGHTING ===
+candle_0,Candle,decoration,lighting,wax,0.1,20,30,Wax taper with cotton wick
+candle_holder_0,Candle Holder,decoration,lighting,brass,0.5,5,100,Stable taper-supporting base
+torch_handheld_0,Handheld Torch,decoration,lighting,oak,0.6,5,40,Pitch-soaked stick light
+lantern_oil_0,Oil Lantern,decoration,lighting,brass,1.0,5,150,Wick-fed glass-shielded oil lamp
+lantern_battery_0,Battery Lantern,electronics,lighting,abs_plastic,0.8,5,150,Portable LED light box
+flashlight_0,Flashlight,electronics,lighting,aluminum,0.3,5,100,Handheld battery torch
+headlamp_0,Headlamp,electronics,lighting,abs_plastic,0.2,5,100,Strap-mounted hands-free light
+streetlight_0,Streetlight,furniture,lighting,steel,80.0,1,400,Tall pole-mounted public light
+#
+# === COOKED FOODS ===
+soup_vegetable_0,Vegetable Soup,food,cooked,plant_fiber,0.6,10,0,Hot mixed vegetable broth bowl
+stew_meat_0,Meat Stew,food,cooked,plant_fiber,0.7,10,0,Slow-simmered meat and vegetable pot
+sandwich_0,Sandwich,food,cooked,plant_fiber,0.3,10,0,Filled bread two-slice meal
+pasta_cooked_0,Cooked Pasta,food,cooked,plant_fiber,0.4,10,0,Boiled noodles with sauce bowl
+pizza_slice_0,Pizza Slice,food,cooked,plant_fiber,0.25,10,0,Baked cheese and topping wedge
+roast_chicken_0,Roast Chicken,food,cooked,plant_fiber,1.5,5,0,Whole oven-roasted poultry
+fish_grilled_0,Grilled Fish,food,cooked,plant_fiber,0.4,10,0,Open-flame cooked fish fillet
+omelette_0,Omelette,food,cooked,plant_fiber,0.3,10,0,Folded egg and filling pan dish
+porridge_0,Porridge,food,cooked,plant_fiber,0.4,10,0,Hot oat or grain breakfast bowl
+salad_0,Salad,food,cooked,plant_fiber,0.4,10,0,Mixed raw vegetable bowl
+cake_0,Cake,food,baked,plant_fiber,1.0,5,0,Sweet layered baked dessert
+pie_0,Pie,food,baked,plant_fiber,0.8,5,0,Filled pastry-crust baked dish
+cookies_batch_0,Cookies,food,baked,plant_fiber,0.3,10,0,Sweet baked dough discs batch
+#
+# === FISHING / OUTDOOR ===
+fishing_rod_0,Fishing Rod,tool,fishing,bamboo,0.6,1,150,Reel-and-line fish capture pole
+fishing_net_0,Fishing Net,tool,fishing,nylon,2.0,1,180,Weighted mesh fish trap
+tackle_box_0,Tackle Box,tool,fishing,abs_plastic,1.5,1,150,Compartmented lure storage
+tent_2person_0,Two-Person Tent,furniture,shelter,nylon,3.0,1,200,Compact backpack camping shelter
+sleeping_bag_0,Sleeping Bag,furniture,sleeping,nylon,2.0,1,150,Insulated portable bedroll
+campfire_kit_0,Campfire Kit,tool,outdoor,steel,0.8,1,120,Tinder flint and starter bundle
+binoculars_0,Binoculars,tool,observation,abs_plastic,0.7,1,150,Twin-tube long-range optic
+compass_0,Compass,tool,navigation,brass,0.1,5,200,Magnetic direction indicator
+#
+# === PLUMBING / SANITATION ===
+pipe_metal_0,Metal Pipe,material,plumbing,steel,3.0,20,0,Threaded steel pipe segment
+pipe_pvc_0,PVC Pipe,material,plumbing,pvc,0.8,20,0,Plastic water pipe segment
+faucet_0,Faucet,furniture,plumbing,brass,0.6,5,150,Threaded water tap with handles
+toilet_0,Toilet,furniture,plumbing,ceramic,40.0,1,400,Porcelain waste fixture with tank
+sink_0,Sink,furniture,plumbing,ceramic,18.0,1,300,Wall or counter-mounted basin
+shower_head_0,Shower Head,furniture,plumbing,brass,0.4,5,200,Wall-mounted spray nozzle
+soap_bar_0,Soap Bar,tool,hygiene,plant_fiber,0.1,20,30,Pressed cleaning lather bar
+shampoo_bottle_0,Shampoo,tool,hygiene,hdpe,0.4,10,30,Liquid hair cleaning bottle
+toothbrush_0,Toothbrush,tool,hygiene,abs_plastic,0.02,10,40,Bristled dental cleaning stick
+towel_0,Towel,tool,hygiene,cotton,0.4,5,80,Absorbent body-drying cloth
+#
+# === SPECIALTY MATERIALS ===
+beeswax_0,Beeswax,material,raw,plant_fiber,0.3,20,0,Natural hive wax block
+animal_fat_0,Animal Fat,material,raw,plant_fiber,0.5,20,0,Rendered tallow chunk
+charcoal_lump_0,Charcoal Lump,material,fuel,charcoal,0.6,30,0,Pyrolyzed wood fuel
+salt_block_0,Salt Block,material,mineral,salt,2.0,10,0,Compressed mineral salt slab

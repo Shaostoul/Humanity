@@ -370,3 +370,60 @@ craft_wall_wood,Build Wood Wall Panel,construction,wood_plank_0:6|nail_box_0:2,d
 craft_wall_reinforced,Build Reinforced Wall,construction,steel_ingot_0:4|concrete_block_0:4|bolt_box_0:2,concrete_block_0:2,40,workbench_0,construction,4,Construct a steel-reinforced concrete wall panel
 craft_floor_tile,Lay Floor Tiles,construction,clay_raw_0:4|cement_0:1,stone_brick_0:6,25,kiln_0,construction,2,Fire and set ceramic floor tiles
 craft_roof_panel,Build Roof Panel,construction,wood_plank_0:4|steel_ingot_0:1|rubber_sheet_0:1,wood_plank_0:1,20,workbench_0,construction,2,Frame and weatherproof a roof section
+#
+# === JEWELRY CRAFTING ===
+craft_ring_gold,Forge Gold Ring,crafting,gold_ingot_0:1,ring_gold_0:1,30,anvil_station_0,smithing,3,Hammer a polished gold finger band
+craft_ring_silver,Forge Silver Ring,crafting,silver_ingot_0:1,ring_silver_0:1,25,anvil_station_0,smithing,2,Hammer a polished silver finger band
+craft_necklace_gold,Forge Gold Necklace,crafting,gold_ingot_0:2,necklace_gold_0:1,60,anvil_station_0,smithing,4,Link gold rings into a neck chain
+craft_bracelet_silver,Forge Silver Bracelet,crafting,silver_ingot_0:1,bracelet_silver_0:1,40,anvil_station_0,smithing,3,Link silver into a wrist band
+craft_amulet,Carve Amulet,crafting,silver_ingot_0:1,amulet_protective_0:1,45,anvil_station_0,smithing,3,Engrave a protective silver charm
+#
+# === BOOK / WRITING CRAFTING ===
+craft_book_blank,Bind Blank Book,crafting,plant_fiber_0:5|leather_hide_0:1|glue_0:1,book_blank_0:1,60,workbench_0,crafting,2,Sew and bind paper into a blank book
+craft_pencil,Make Pencil,crafting,wood_plank_0:1|coal_0:1,pencil_0:5,15,workbench_0,crafting,1,Glue graphite core into wooden sticks
+craft_ink,Brew Ink,chemistry,charcoal_lump_0:1|water_purified_0:1,ink_bottle_0:1,30,chemistry_set_0,chemistry,2,Combine carbon and binder into writing fluid
+craft_notebook,Bind Notebook,crafting,plant_fiber_0:3|wire_0:1,notebook_0:1,30,workbench_0,crafting,1,Spiral-bind paper into a notebook
+#
+# === LIGHTING CRAFTING ===
+craft_candle,Pour Candle,crafting,beeswax_0:1|cloth_bolt_0:1,candle_0:5,20,workbench_0,crafting,1,Pour wax around cotton wicks
+craft_lantern_oil,Assemble Oil Lantern,crafting,brass_ingot_0:1|glass_pane_0:1|cloth_bolt_0:1,lantern_oil_0:1,40,workbench_0,crafting,2,Build a glass-shielded oil lamp
+craft_flashlight,Assemble Flashlight,electronics,aluminum_ingot_0:1|battery_small_0:2|wire_0:1|led_panel_0:1,flashlight_0:1,30,electronics_bench_0,electronics,2,Assemble a handheld battery torch
+craft_headlamp,Assemble Headlamp,electronics,plastic_sheet_0:1|battery_small_0:1|wire_0:1|led_panel_0:1|cloth_bolt_0:1,headlamp_0:1,35,electronics_bench_0,electronics,2,Build a strap-mounted hands-free light
+#
+# === COOKED FOOD ===
+cook_soup_vegetable,Cook Vegetable Soup,cooking,vegetable_carrot_0:1|vegetable_potato_0:1|vegetable_onion_0:1|water_purified_0:1,soup_vegetable_0:1,15,stove_0,cooking,1,Simmer vegetables into a hot broth
+cook_stew_meat,Cook Meat Stew,cooking,jerky_0:2|vegetable_carrot_0:1|vegetable_potato_0:1|water_purified_0:1,stew_meat_0:1,30,stove_0,cooking,2,Slow-simmer meat and vegetables
+cook_sandwich,Make Sandwich,cooking,bread_0:1|cheese_0:1|vegetable_lettuce_0:1,sandwich_0:1,5,workbench_0,cooking,1,Layer bread cheese and greens
+cook_pasta,Cook Pasta,cooking,flour_0:1|egg_0:1|salt_food_0:1|water_purified_0:1,pasta_cooked_0:1,15,stove_0,cooking,2,Boil noodles and toss with sauce
+cook_pizza,Bake Pizza,cooking,flour_0:1|cheese_0:1|vegetable_tomato_0:1,pizza_slice_0:4,25,oven_0,cooking,3,Bake topped flatbread into pizza
+cook_omelette,Cook Omelette,cooking,egg_0:3|cheese_0:1|butter_0:1,omelette_0:1,8,stove_0,cooking,1,Fold eggs and filling in a pan
+cook_porridge,Cook Porridge,cooking,rice_0:1|milk_0:1|sugar_0:1,porridge_0:1,15,stove_0,cooking,1,Simmer grain in milk
+bake_cake,Bake Cake,cooking,flour_0:2|sugar_0:1|egg_0:2|butter_0:1|milk_0:1,cake_0:1,45,oven_0,cooking,3,Bake a sweet layered dessert
+bake_pie,Bake Pie,cooking,flour_0:2|butter_0:1|fruit_apple_0:3|sugar_0:1,pie_0:1,40,oven_0,cooking,3,Bake a fruit-filled pastry
+bake_cookies,Bake Cookies,cooking,flour_0:1|sugar_0:1|butter_0:1|egg_0:1,cookies_batch_0:1,20,oven_0,cooking,2,Bake sweet dough discs
+cook_salad,Make Salad,cooking,vegetable_lettuce_0:1|vegetable_tomato_0:1|vegetable_carrot_0:1,salad_0:1,5,workbench_0,cooking,1,Combine raw vegetables in a bowl
+#
+# === HYGIENE / PLUMBING ===
+craft_soap_bar,Make Soap Bar,chemistry,animal_fat_0:1|salt_block_0:1,soap_bar_0:5,30,chemistry_set_0,chemistry,2,Saponify fat into cleaning bars
+craft_pipe_metal,Forge Metal Pipe,crafting,steel_ingot_0:2,pipe_metal_0:4,25,forge_0,smithing,2,Form threaded steel pipe segments
+craft_faucet,Forge Faucet,crafting,brass_ingot_0:1|rubber_sheet_0:1,faucet_0:1,40,workbench_0,smithing,3,Assemble a threaded water tap
+craft_toilet,Cast Toilet,crafting,clay_raw_0:8|water_purified_0:1,toilet_0:1,90,kiln_0,crafting,3,Fire a porcelain waste fixture
+craft_sink,Cast Sink,crafting,clay_raw_0:5,sink_0:1,60,kiln_0,crafting,2,Fire a porcelain wash basin
+#
+# === ART / INSTRUMENTS ===
+craft_paintbrush_set,Make Paintbrush Set,crafting,wood_plank_0:1|cloth_bolt_0:1|fiber_bundle_0:1,paintbrush_set_0:1,20,workbench_0,crafting,1,Bind bristles to wooden handles
+craft_canvas_blank,Stretch Canvas,textile,cloth_bolt_0:2|wood_plank_0:1,canvas_blank_0:1,25,workbench_0,crafting,2,Stretch primed cloth on a frame
+craft_easel,Build Easel,crafting,wood_plank_0:4|nail_box_0:1,easel_0:1,30,workbench_0,crafting,2,Construct a tripod canvas stand
+craft_guitar_acoustic,Build Acoustic Guitar,crafting,wood_plank_0:5|wire_0:2|glue_0:1,guitar_acoustic_0:1,300,workbench_0,crafting,4,Hand-build a six-string fretted guitar
+craft_violin,Build Violin,crafting,wood_plank_0:3|wire_0:2|glue_0:1,violin_0:1,360,workbench_0,crafting,5,Hand-build a four-string bowed instrument
+craft_flute_wood,Carve Wooden Flute,crafting,wood_plank_0:1,flute_wood_0:1,90,workbench_0,crafting,3,Carve a hollow keyed wind instrument
+craft_drum_hand,Build Hand Drum,crafting,wood_plank_0:2|leather_hide_0:1,drum_hand_0:1,60,workbench_0,crafting,2,Stretch hide over a wooden frame
+craft_harmonica,Forge Harmonica,crafting,copper_ingot_0:1,harmonica_0:1,45,workbench_0,smithing,3,Cut and tune brass reed plates
+#
+# === OUTDOOR / CAMPING ===
+craft_tent_2person,Sew Two-Person Tent,textile,cloth_bolt_0:4|rope_0:2|aluminum_ingot_0:1,tent_2person_0:1,90,sewing_machine_0,textile,3,Sew a backpack camping shelter
+craft_sleeping_bag,Sew Sleeping Bag,textile,cloth_bolt_0:3|fiber_bundle_0:2,sleeping_bag_0:1,60,sewing_machine_0,textile,2,Sew an insulated portable bedroll
+craft_fishing_rod,Carve Fishing Rod,crafting,wood_plank_0:1|wire_0:1,fishing_rod_0:1,30,workbench_0,crafting,1,Carve a reel-and-line fish capture pole
+craft_fishing_net,Weave Fishing Net,textile,cloth_bolt_0:3|rope_0:1,fishing_net_0:1,45,sewing_machine_0,textile,2,Weave a weighted mesh fish trap
+craft_compass,Assemble Compass,crafting,copper_ingot_0:1|glass_pane_0:1,compass_0:1,40,workbench_0,crafting,3,Build a magnetic direction indicator
+craft_binoculars,Assemble Binoculars,crafting,plastic_sheet_0:2|glass_pane_0:2,binoculars_0:1,60,workbench_0,crafting,3,Build a twin-tube long-range optic
