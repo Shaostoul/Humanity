@@ -13,17 +13,21 @@ Thank you for your interest. This guide gets you from zero to making real contri
 git clone https://github.com/Shaostoul/Humanity.git
 cd Humanity
 
-# 2. Build and run the server
-cargo build --release -p humanity-relay
-./target/release/humanity-relay
-# Server starts at http://localhost:3210
+# 2. Build and run the relay (headless mode — backend only)
+cargo build --release --features relay --no-default-features
+./target/release/HumanityOS --headless
+# Relay starts at http://localhost:3210
 
 # 3. Open the chat
 # Visit http://localhost:3210 in your browser — that's it.
 # No npm install, no build step, no Docker.
+
+# 4. Or build the full desktop client (renderer + relay + game)
+cargo build --release --features native
+./target/release/HumanityOS
 ```
 
-The HTML/CSS/JS client needs no build step. Edit a `.js` or `.html` file, refresh the browser — done.
+The HTML/CSS/JS web client needs no build step. Edit a `.js` or `.html` file, refresh the browser — done.
 
 ---
 
@@ -45,39 +49,52 @@ Broad areas that always need help:
 
 ## Project Structure
 
+Single Rust crate at the repo root since v0.90.0. Feature flags `native`,
+`relay`, and `wasm` select what gets compiled in.
+
 ```
 Humanity/
-├── web/
+├── src/                    ← Single Rust crate. Feature-gated.
+│   ├── main.rs             ← Entry point. Picks --headless (relay) or full desktop.
+│   ├── lib.rs              ← Engine init, main loop.
+│   ├── relay/              ← Backend (was server/src/ pre-v0.90.0).
+│   │   ├── relay.rs        ← WebSocket routing (~5800 LOC).
+│   │   ├── api.rs          ← REST API (~2800 LOC).
+│   │   ├── core/           ← Crypto, encoding, identity, signing.
+│   │   ├── handlers/       ← broadcast, federation, game_state, msg_handlers.
+│   │   └── storage/        ← SQLite domain modules (~30 files).
+│   ├── gui/                ← egui native UI: theme, widgets, pages.
+│   ├── renderer/           ← wgpu PBR pipeline, particles, bloom, sky.
+│   ├── ecs/                ← hecs ECS, components, System trait, SystemRunner.
+│   ├── systems/            ← Game systems (farming, AI, vehicles, weather, etc.).
+│   ├── terrain/            ← Icosphere planets, voxel asteroids, heightmaps.
+│   ├── ship/               ← Ship layouts, room mesh generation.
+│   ├── physics/            ← rapier3d wrapper.
+│   ├── audio/              ← kira spatial audio.
+│   ├── assets/             ← AssetManager, FileWatcher, hot-reload.
+│   ├── net/                ← Multiplayer client + protocol.
+│   └── mods/               ← Mod manifest, load order, data overrides.
+├── web/                    ← Website frontend (HTML/JS/CSS, served by nginx).
 │   ├── shared/
-│   │   ├── shell.js        ← Nav bar shared by every page — edit here to add nav items
-│   │   ├── settings.js     ← Theme/font persistence
-│   │   └── theme.css       ← CSS variables (colors, fonts, spacing)
-│   ├── chat/               ← Chat page + all chat JS/CSS
-│   │   ├── index.html
-│   │   ├── app.js          ← Core: state, connect, handleMessage, sendMessage
-│   │   ├── chat-*.js       ← Feature modules (messages, dms, social, ui, voice, profile, p2p)
-│   │   ├── crypto.js       ← Ed25519/ECDH/AES
-│   │   └── *.css           ← 7 component CSS files (base, layout, sidebar, messages, etc.)
-│   ├── pages/              ← Standalone pages (tasks, maps, settings, etc.)
-│   └── activities/         ← Game + real-world tools (gardening, download, etc.)
-│       ├── js/             ← Game JS modules (core, reality, fantasy, celestial, streams, browse, map)
-├── server/                 ← Rust relay server
-│   └── src/
-│       ├── main.rs         ← Router, startup, axum
-│       ├── relay.rs        ← WebSocket message handling (~5600 lines)
-│       ├── handlers/       ← Extracted relay helpers
-│       │   ├── broadcast.rs
-│       │   ├── federation.rs
-│       │   └── utils.rs
-│       ├── storage/        ← SQLite domain modules (14 files)
-│       └── api.rs          ← HTTP REST API
-├── native/                 ← Game engine (renderer, ECS, physics, etc.)
-├── data/                   ← Static JSON data (solar system, stars, cities, etc.)
-├── assets/                 ← All shared media (icons, shaders, models, textures, audio)
-└── docs/
-    └── accord/             ← Humanity Accord — civilizational principles (highest authority)
-    └── design/             ← Architecture and design docs
+│   │   ├── shell.js        ← Nav bar shared by every page — edit here to add nav items.
+│   │   ├── settings.js     ← Theme/font persistence.
+│   │   └── theme.css       ← Auto-generated from data/gui/theme.ron — do not hand-edit colors.
+│   ├── chat/               ← Chat client (app.js, crypto.js, chat-*.js).
+│   ├── pages/              ← Standalone pages (tasks, maps, settings, etc.).
+│   └── activities/         ← Game + real-world tools (gardening, download, etc.).
+├── data/                   ← Hot-reloadable game/config data (CSV/TOML/RON/JSON, ~108 files).
+├── schemas/                ← TOML schema definitions for data files.
+├── assets/                 ← Shared media (icons, shaders, models, textures, audio).
+├── docs/
+│   ├── accord/             ← Humanity Accord — civilizational principles (highest authority).
+│   ├── design/             ← Architecture and design docs.
+│   └── history/            ← Session journals (archival).
+├── scripts/                ← Build/deploy/version tooling.
+└── Cargo.toml              ← Single root manifest. No workspace.
 ```
+
+Binary output is `target/release/HumanityOS.exe`. Run with `--headless` for
+relay-only mode (VPS, Raspberry Pi); default mode loads the full desktop client.
 
 ---
 
@@ -155,25 +172,35 @@ handleMessage = function(msg) {
 
 ## Working on the Rust Server
 
-The relay server lives at `server/`.
+The relay server is feature-gated inside the single root crate, at `src/relay/`.
 
 ```bash
 # Check (fast)
-cargo check -p humanity-relay
+cargo check --features relay --no-default-features
 
-# Build
-cargo build -p humanity-relay
+# Build relay only (headless server, no GPU dependencies)
+cargo build --release --features relay --no-default-features
 
-# Run
-cargo run -p humanity-relay
+# Run relay locally
+cargo run --features relay --no-default-features -- --headless
 ```
 
-**relay.rs** is the WebSocket handler. It's one large `handle_connection()` function with a match statement routing message types. When you add a new message type:
-1. Add the variant to the `RelayMessage` enum at the top of the file
-2. Add the match arm in `handle_connection()`
-3. Add any storage operations to the appropriate `storage/` module
+For the full desktop client (renderer + relay + game) use `--features native`
+instead. The desktop binary still serves the relay; `--headless` just skips the
+GPU/window subsystem.
 
-**storage/** is split by domain. Add new SQL queries to the module that matches the domain (e.g., social features → `storage/social.rs`).
+**`src/relay/relay.rs`** is the WebSocket handler. The `RelayMessage` enum at
+the top defines every message type, with the dispatch loop matching on it.
+When you add a new message type:
+1. Add the variant to `RelayMessage`
+2. Add the match arm in the dispatch loop
+3. Add any storage operations to the appropriate `src/relay/storage/` module
+4. Add a handler function under `src/relay/handlers/` if logic grows past a
+   few lines (`msg_handlers.rs` is the catch-all)
+
+**`src/relay/storage/`** is split by domain (~30 modules). Add new SQL queries
+to the module that matches the domain (e.g., social features → `storage/social.rs`)
+and use parameterised `params![]` macros — never string-format SQL.
 
 ---
 
@@ -205,7 +232,7 @@ In practice: if you're adding a feature, check `docs/design/` for relevant specs
 2. Create a branch: `git checkout -b feature/your-thing`
 3. Make your changes
 4. Test it (load the page, verify the feature works)
-5. `cargo check -p humanity-relay` passes with no new errors
+5. `cargo check --features relay --no-default-features` (or `--features native`) passes with no new errors
 6. Submit a PR with a clear description of what changed and why
 
 If you're unsure whether a change is the right approach, open an issue or ask in the chat first. Small PRs are easier to review than large ones.

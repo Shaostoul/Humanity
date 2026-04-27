@@ -1,11 +1,15 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-04-25 | **Version:** v0.109.x
+> **Last updated:** 2026-04-26 | **Version:** v0.121.3 (+ doc-sweep landing in v0.122.0)
 >
 > This is the **single source of truth** for what is built, partial, or planned.
 > Update this file every time features are added or status changes.
 
 **Legend:** ✅ Built/working | ⚠️ Partial/needs work | ❌ Not yet built | 🔜 Next priority
+
+> **Truthfulness rule:** A feature is ✅ only when its behaviour runs end-to-end.
+> "Module exists and ticks" without behaviour is ⚠️, not ✅. Lying to STATUS.md
+> means future agents skip work that wasn't done.
 
 ---
 
@@ -41,11 +45,37 @@ purely additive (existing chat untouched). See
 ### Still in flight:
 
 - ⚠️ Phase 6c liveness: schemas wired, no signaling integration yet
-- ❌ Phase 6a Solana RPC: address-only currently; no transaction signing in relay
-- ❌ Phase 6b STARK selective disclosure: deferred (see plan trade-off 6)
-- ❌ Phase 7a Litestream replication: SQLite still single-node
-- ❌ Phase 7b LoRa mesh: feature-flagged stub
-- ❌ PQ-native chat client rewrite: existing Ed25519 chat still in use
+- ⚠️ Phase 6a Solana RPC: read-only balance proxy ships (v0.110.0); no transaction signing in relay (intentional — client-side per BIP39 path)
+- ⚠️ Phase 6b STARK selective disclosure: scaffold + Merkle disclosure verifier wired (v0.111.0–v0.112.0); full STARK verifier circuit deferred
+- ⚠️ Phase 7a Litestream replication: ops doc shipped (v0.110.0), VPS deployment is operator action
+- ⚠️ Phase 7b LoRa mesh: serial driver landed (v0.112.0), real radio integration deferred
+- ⚠️ PQ-native chat client rewrite: noble-PQ JS bridge in place (v0.111.0–v0.112.0, v0.117.0); chat client rewrite still pending
+
+---
+
+## Releases v0.110.0 – v0.121.3
+
+| Version | Theme | Highlights |
+|---------|-------|------------|
+| v0.110.0 | Solana RPC + Liveness + Litestream + FEATURES sync | Balance proxy, liveness schema docs, Litestream ops guide |
+| v0.111.0 | STARK ZK scaffold + LoRa stub + PQ JS bridge | Pieces in place for selective disclosure + mesh radios |
+| v0.112.0 | Final TODO closeout | Merkle disclosure verifier, LoRa serial driver, JS PQ crypto |
+| v0.113.0 | Universal Button widget | Single source of truth for every button (`src/gui/widgets/button.rs`) |
+| v0.114.0 | Tab/nav buttons converge on Button + theme color editor | In-app theme editing |
+| v0.115.0 | Page audit | Filled governance/identity/recovery gap, modal cleanup |
+| v0.116.0 | Storage architecture doc + content sweep + multi-AI coordination + items/toxicology DB | Coordination layer for multiple AI agents working in parallel |
+| v0.116.1 | Items refactor + 1B-item performance section | Items hold pure ingredient lists; toxicology derived from ingredients sidecar |
+| v0.117.0 | Commit `src/relay/storage/issuer_trust.rs` (was untracked, breaking CI) | Fix CI breakage from un-staged file |
+| v0.117.1 | Cargo.toml drift fix | Local 0.116.5 vs git tag v0.117.0 |
+| v0.118.0 | Agent dashboard (`/agents`) + AI usage tracker (`/ai-usage`) + orchestrator continuity | Multi-AI coordination tooling lands |
+| v0.119.0 | Server-signed announcements channel | Agent overrides + external triggers |
+| v0.120.0 | Wire 5 missing pages into native escape-menu nav | Reduce dual-UI parity gap |
+| v0.121.0 | 21/21 scopes audited + native onboarding styling fix + native AI Usage form | Full agent-coordination audit pass |
+| v0.121.2 | README rewrite | Current architecture, accessible language |
+| v0.121.3 | Worker agent expands items-game scope | 500-item milestone hit |
+
+See `git log --oneline` for the per-commit detail; the rows above call out
+the user-facing theme.
 
 ---
 
@@ -219,7 +249,9 @@ Everything in this section is **built and working**.
 | Data-driven sounds | ✅ | sounds.rs loads from data/sounds.toml, not hardcoded (v0.90.7) |
 | Chat tint colors in theme | ✅ | Moved from hardcoded to theme.ron (v0.90.7) |
 | Server config externalized | ✅ | Constants moved to data/server-config.json (v0.90.7) |
-| 8 game system modules | ✅ | Scaffolded system modules for gameplay (v0.90.7) |
+| 16 scaffolded system modules | ⚠️ | `aging`, `astronomy`, `creative_arts`, `docking`, `fire`, `genetics`, `geology`, `governance` (system, not the trust-layer governance), `hvac`, `manufacturing`, `medical`, `oceanography`, `offline`, `plumbing`, `transportation`, `waste` — registered and ticking but bodies are 47–52 LOC scaffolds with `TODO` markers, no behaviour yet (v0.90.7). |
+| Electrical system | ⚠️ | `src/systems/electrical.rs` (~120 LOC) — partial; needs `PowerGenerator` / `PowerConsumer` ECS components (currently falls back to scanning `Interactable`). |
+| Psychology system | ⚠️ | `src/systems/psychology.rs` (~144 LOC) — partial; `Needs` lives as side state instead of a proper ECS component. |
 | Emissive materials | ✅ | PBR shader emissive support (params.w = emissive_strength) (v0.90.0) |
 | 12 procedural materials | ✅ | Glass, ice, water, leather, crystal, rust, moss, lava + original brick, metal, wood, concrete (v0.90.0) |
 | Particle system | ✅ | particles.rs + particle.wgsl, 12 data-driven emitter types from particles.ron (v0.90.0) |

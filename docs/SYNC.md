@@ -4,14 +4,17 @@ Everything that must stay in sync when making changes. Run through this before e
 
 ## Version Strings (automated)
 
-Run `node scripts/bump-version.js patch|minor` to update all 7 locations:
-- [ ] `Cargo.toml` version
+Run `node scripts/bump-version.js patch|minor|major` to update all 6 active locations:
+- [ ] `Cargo.toml` version (root)
 - [ ] `web/shared/sw.js` CACHE_NAME
 - [ ] `web/pages/settings-app.js` version tag
 - [ ] `web/pages/ops.html` debug version
 - [ ] `web/shared/shell.js` version string
-- [ ] `app/Cargo.toml` (legacy)
-- [ ] `app/tauri.conf.json` (legacy)
+- [ ] `web/pages/download.html` version badge
+
+(The script also touches `web/activities/download.html` if it still exists — a
+fallback for the old layout. Don't add new locations without also updating the
+script.)
 
 ## Documentation (manual)
 
@@ -38,11 +41,11 @@ When adding a new web page:
 - [ ] Add to `docs/FEATURES.md`
 
 When adding a new API endpoint:
-- [ ] Add handler in `server/src/api.rs`
-- [ ] Wire route in `server/src/main.rs`
-- [ ] Add storage module in `server/src/storage/` if needed
-- [ ] Add `mod NAME;` to `server/src/storage/mod.rs`
-- [ ] Run `cargo check` in server/
+- [ ] Add handler in `src/relay/api.rs` (or a new `src/relay/api_v2_*.rs` for `/api/v2/` endpoints)
+- [ ] Wire route in `src/relay/mod.rs` (`router()`)
+- [ ] Add storage module in `src/relay/storage/` if needed
+- [ ] Add `mod NAME;` to `src/relay/storage/mod.rs`
+- [ ] Run `cargo check --features relay --no-default-features`
 - [ ] Document in `CLAUDE.md` REST routes section
 
 When adding a new game system:
@@ -78,7 +81,7 @@ After creating a release tag:
 ## Files That Reference Paths
 
 If renaming directories, update ALL of these:
-- [ ] `server/src/api.rs` (asset/web manifest paths)
+- [ ] `src/relay/api.rs` (asset/web manifest paths)
 - [ ] `Justfile` (sync recipes)
 - [ ] `scripts/bundle-web.js`
 - [ ] `scripts/generate-asset-manifest.js`
@@ -87,3 +90,5 @@ If renaming directories, update ALL of these:
 - [ ] `.github/workflows/build-desktop.yml`
 - [ ] `CLAUDE.md` (file map, REST routes)
 - [ ] `docs/FEATURES.md` (all file paths)
+- [ ] `CONTRIBUTING.md` (project structure)
+- [ ] `docs/SOP.md` (code structure)

@@ -4685,6 +4685,14 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             // Profile gossip from a federated server connecting to us.
                             RelayMessage::ProfileGossip { public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature } => {
+                                if !crate::relay::handlers::federation::should_accept_profile_gossip(
+                                    &public_key, &name, &bio, &avatar_url, &banner_url,
+                                    &socials, &pronouns, &location, &website,
+                                    timestamp, &signature,
+                                ) {
+                                    tracing::warn!("Profile gossip rejected for {} via direct WS — signature did not verify", &name);
+                                    continue;
+                                }
                                 tracing::debug!("Profile gossip received for {} via direct WS", &name);
                                 let _ = state_clone.db.store_signed_profile(
                                     &public_key, &name, &bio, &avatar_url, &banner_url, &socials, &pronouns, &location, &website, timestamp, &signature,

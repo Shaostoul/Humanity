@@ -101,7 +101,7 @@ If `project` is omitted on GET, return tasks across all visible projects. If omi
 
 ## Storage (Rust)
 
-Add `server/src/storage/projects.rs`:
+Add `src/relay/storage/projects.rs`:
 
 ```rust
 impl Storage {

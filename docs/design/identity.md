@@ -131,7 +131,7 @@ Works without any server:
 
 - `web/chat/crypto.js` — Ed25519 key generation, signing, BIP39 seed phrase
 - `web/shared/wallet.js` — Solana address derivation from same keys
-- `server/src/relay.rs` — Profile handling, key rotation
-- `server/src/handlers/federation.rs` — Server-to-server communication
+- `src/relay/relay.rs` — Profile handling, key rotation
+- `src/relay/handlers/federation.rs` — Server-to-server communication
 - `docs/network/server_federation.md` — Federation protocol
 - `docs/design/wallet.md` — Wallet integration (same keys)

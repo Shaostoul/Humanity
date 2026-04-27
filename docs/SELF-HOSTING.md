@@ -21,11 +21,11 @@ Run your own Humanity Network server in under 10 minutes. Single binary, zero ex
 git clone https://github.com/Shaostoul/Humanity.git
 cd Humanity
 
-# Build the relay
-cargo build --release -p humanity-relay
+# Build the relay (headless mode — no GPU dependencies)
+cargo build --release --features relay --no-default-features
 
 # Run it
-./target/release/humanity-relay
+./target/release/HumanityOS --headless
 ```
 
 That's it. The relay starts on `http://localhost:3210` with:
@@ -79,7 +79,7 @@ sudo chown humanity:humanity /opt/Humanity
 ```bash
 cd /opt/Humanity
 git clone https://github.com/Shaostoul/Humanity.git .
-cargo build --release -p humanity-relay
+cargo build --release --features relay --no-default-features
 ```
 
 ### 3. Create systemd service
@@ -94,8 +94,8 @@ After=network.target
 Type=simple
 User=humanity
 Group=humanity
-WorkingDirectory=/opt/Humanity/crates/humanity-relay
-ExecStart=/opt/Humanity/target/release/humanity-relay
+WorkingDirectory=/opt/Humanity
+ExecStart=/opt/Humanity/target/release/HumanityOS --headless
 EnvironmentFile=/opt/Humanity/.env
 Restart=always
 RestartSec=5
@@ -103,7 +103,7 @@ RestartSec=5
 # Security hardening
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/Humanity/crates/humanity-relay/data
+ReadWritePaths=/opt/Humanity/data
 NoNewPrivileges=true
 PrivateTmp=true
 
@@ -268,7 +268,7 @@ Once connected with your admin key, you have access to:
 ```bash
 cd /opt/Humanity
 git pull
-cargo build --release -p humanity-relay
+cargo build --release --features relay --no-default-features
 sudo systemctl restart humanity-relay
 ```
 

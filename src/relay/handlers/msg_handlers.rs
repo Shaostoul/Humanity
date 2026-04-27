@@ -520,25 +520,22 @@ pub async fn handle_profile_update(
                 });
 
                 // Also cache as a signed profile (key-based, for federation replication).
-                // The signature here is just a placeholder — real Ed25519 verification
-                // will be added when clients send signed profile objects.
+                // The signature is empty until clients sign profiles client-side; peers
+                // accept empty-signature gossip under the trust-by-source model.
+                // See `federation::should_accept_profile_gossip`.
                 let ts = crate::relay::storage::now_millis();
                 let _ = state.db.store_signed_profile(
-                    my_key,
-                    name,
-                    &clean_bio,
-                    &avatar,
-                    &banner,
-                    &socials,
-                    &pronoun,
-                    &loc,
-                    &w_site,
-                    ts,
-                    "", // signature — populated when client signs profiles
+                    my_key, name, &clean_bio, &avatar, &banner, &socials,
+                    &pronoun, &loc, &w_site, ts, "",
                 );
 
-                // Gossip the profile update to federated servers.
-                crate::relay::handlers::federation::gossip_profile(state, my_key, name, &clean_bio, &avatar, &banner, &socials, &pronoun, &loc, &w_site, ts).await;
+                // Gossip the profile update to federated servers. Forward the empty
+                // signature today; once clients sign over `canonical_profile_message`,
+                // pass the stored sig here and peers will verify it.
+                crate::relay::handlers::federation::gossip_profile(
+                    state, my_key, name, &clean_bio, &avatar, &banner,
+                    &socials, &pronoun, &loc, &w_site, ts, "",
+                ).await;
             }
             Err(e) => {
                 tracing::error!("Failed to save profile: {e}");

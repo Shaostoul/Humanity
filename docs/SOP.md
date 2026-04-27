@@ -117,26 +117,38 @@ Format:
 
 Before building anything:
 1. Read `docs/STATUS.md` feature list
-2. Search the codebase: `grep -r "feature_name" src/ web/ server/src/`
+2. Search the codebase: `grep -r "feature_name" src/ web/`
 3. Check the changelog: `grep -i "feature_name" CHANGELOG.md`
 
 If it exists, enhance it. Don't rebuild it.
 
 ## Code Structure
 
+Single Rust crate at the repo root since v0.90.0. No workspace, no sub-crates.
+Feature flags `native`, `relay`, and `wasm` select what gets compiled in.
+
 ```
 Humanity/
-  server/     Rust backend (axum, SQLite, WebSocket relay)
-  src/        Desktop application (Rust, wgpu, egui, rapier3d)
-  crates/     19 sub-crates (core, modules, persistence)
-  web/        Website frontend (HTML, JS, CSS)
-  data/       Shared game/config data (CSV, TOML, RON, JSON)
-  assets/     Shared media (icons, shaders, models, textures)
-  docs/       All documentation
-  scripts/    Build and deploy tooling
+  src/        Single Rust crate. Subdirs: relay/ (backend), gui/ (egui native UI),
+              renderer/ (wgpu), ecs/, systems/ (game), terrain/, ship/, physics/,
+              audio/, assets/ (loader), net/, mods/. main.rs picks --headless or
+              full desktop based on the runtime flag.
+  web/        Website frontend (HTML, JS, CSS) served by nginx.
+              chat/ (WS client), pages/ (standalone), shared/ (shell, theme).
+  data/       Hot-reloadable game and config data (CSV, TOML, RON, JSON).
+  assets/     Shared media (icons, shaders, models, textures, audio).
+  schemas/    TOML schema definitions for data files.
+  docs/       All documentation, including design specs and the Humanity Accord.
+  scripts/    Build/deploy/version tooling.
+  Cargo.toml  Single root manifest. No workspace.
 ```
 
-**Never rename these directories without updating ALL references.** Past restructures (engine/ to native/ in v0.37.0, native/ eliminated in v0.88.0) required updating 26+ files.
+Binary output is `target/release/HumanityOS.exe`. Run with `--headless` for VPS
+relay-only mode; default mode loads the full desktop client.
+
+**Never rename these directories without updating ALL references.** Past restructures
+(engine/ → native/ in v0.37.0, native/ eliminated and folded into src/ in v0.88.0,
+server/ + crates/ folded into src/relay/ in v0.90.0) each required updating 20+ files.
 
 ## Desktop Build & Deploy (CRITICAL)
 
@@ -167,7 +179,7 @@ Do NOT use `taskkill /F /IM` from bash (the `/F` flag gets mangled). Always use 
 `target/` is Cargo's build cache. It contains:
 - **Compiled dependencies** (~14GB): Every crate in the dependency tree compiled to `.rlib`/`.d` files, BOTH debug and release profiles, plus build script outputs. This is the bulk.
 - **Incremental compilation data** (~1-3GB): Intermediate artifacts Cargo keeps to speed up recompilation. Only the changed code recompiles instead of everything.
-- **Final binaries** (~18MB each): `HumanityOS.exe`, `humanity-relay.exe`, plus sub-crate binaries.
+- **Final binary** (~18MB): `HumanityOS.exe` — single binary. Run with `--headless` for relay-only mode.
 - **Build metadata**: `.fingerprint` dirs, dep-info files, examples, tests.
 
 A clean build produces ~1.4GB. After many builds with both debug and release profiles, it balloons to 15GB+ because Cargo never garbage-collects old incremental artifacts.
@@ -213,7 +225,7 @@ Every time a UI button or context menu action is added, verify ALL of the follow
 
 1. **Click handler exists**: The `.clicked()` check (or pointer release check) is present and reachable
 2. **Action is dispatched**: The handler actually does something (sends WS message, modifies state, etc.)
-3. **Server supports it**: If the action sends a WebSocket message, confirm the server's relay.rs has a matching handler for that exact message type. Search `server/src/relay.rs` and `server/src/handlers/` for the message type string. If the server uses slash commands (e.g., `/kick`, `/ban`, `/deletechannel`), send as a chat message with the slash command, not a custom message type.
+3. **Server supports it**: If the action sends a WebSocket message, confirm the server's relay.rs has a matching handler for that exact message type. Search `src/relay/relay.rs` and `src/relay/handlers/` for the message type string. If the server uses slash commands (e.g., `/kick`, `/ban`, `/deletechannel`), send as a chat message with the slash command, not a custom message type.
 4. **Borrow checker safe**: In egui, ensure the click handler doesn't try to mutate state that's borrowed elsewhere in the same frame. Use deferred action patterns (collect actions in Phase 1, process in Phase 2) when rendering borrows state immutably.
 5. **State updates propagate**: If the action modifies local state (e.g., removing a message), verify the UI will reflect the change on the next frame.
 6. **Edge cases**: Test with the button's target in different states (e.g., Pin vs Unpin, own message vs others', connected vs disconnected).

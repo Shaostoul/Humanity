@@ -135,7 +135,7 @@ Server name displayed at top of sidebar (like the current channel list header). 
 
 ## Implementation Order
 
-1. **`server_members` table** — add to `server/src/storage/` as new module
+1. **`server_members` table** — add to `src/relay/storage/` as new module
 2. **`/api/join`, `/api/leave`, `/api/members`** — add to `api.rs`
 3. **WebSocket handlers** — add `server_join`/`server_leave` to `msg_handlers.rs`
 4. **Role checks** — gate task creation, moderation actions on role

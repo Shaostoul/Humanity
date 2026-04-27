@@ -158,7 +158,7 @@ Reuse existing `qrcode.js` (already loaded for chat identity). Generate QR on pa
 |------|--------|
 | `web/pages/donate.html` | New — donation page |
 | `web/pages/donate-app.js` | New — balance queries, progress bar, QR generation |
-| `server/src/api.rs` | Extend `/api/server-info` to include `funding` from config |
+| `src/relay/api.rs` | Extend `/api/server-info` to include `funding` from config |
 | `data/server-config.json` | New — server owner editable funding config |
 | `web/shared/shell.js` | Add conditional "Donate" nav link |
 | `web/chat/chat-profile.js` | Add funding section to owner's profile card |

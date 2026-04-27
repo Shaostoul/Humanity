@@ -23,6 +23,101 @@ pub fn sign_with_server_key(db: &Storage, message: &str) -> Option<String> {
     Some(hex::encode(sig.to_bytes()))
 }
 
+/// Canonical message bytes that a profile signature commits to.
+///
+/// Format (newline-separated, type-tagged for forward versioning):
+///   profile_v1\n{public_key}\n{name}\n{bio}\n{avatar_url}\n{banner_url}\n{socials}\n{pronouns}\n{location}\n{website}\n{timestamp}
+///
+/// Any field change invalidates the signature; the version tag lets us
+/// rotate the format without ambiguity if profile shape evolves.
+#[allow(clippy::too_many_arguments)]
+pub fn canonical_profile_message(
+    public_key: &str,
+    name: &str,
+    bio: &str,
+    avatar_url: &str,
+    banner_url: &str,
+    socials: &str,
+    pronouns: &str,
+    location: &str,
+    website: &str,
+    timestamp: u64,
+) -> String {
+    format!(
+        "profile_v1\n{public_key}\n{name}\n{bio}\n{avatar_url}\n{banner_url}\n{socials}\n{pronouns}\n{location}\n{website}\n{timestamp}"
+    )
+}
+
+/// Verify an Ed25519 signature over a profile gossip payload.
+/// Returns true only when both the public key and signature decode and the
+/// signature commits to the canonical message bytes.
+#[allow(clippy::too_many_arguments)]
+pub fn verify_profile_signature(
+    public_key_hex: &str,
+    name: &str,
+    bio: &str,
+    avatar_url: &str,
+    banner_url: &str,
+    socials: &str,
+    pronouns: &str,
+    location: &str,
+    website: &str,
+    timestamp: u64,
+    signature_hex: &str,
+) -> bool {
+    use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+
+    let Ok(pk_bytes) = hex::decode(public_key_hex) else { return false };
+    if pk_bytes.len() != 32 { return false; }
+    let pk_array: [u8; 32] = match pk_bytes.try_into() { Ok(a) => a, Err(_) => return false };
+    let Ok(verifying_key) = VerifyingKey::from_bytes(&pk_array) else { return false };
+
+    let Ok(sig_bytes) = hex::decode(signature_hex) else { return false };
+    if sig_bytes.len() != 64 { return false; }
+    let sig_array: [u8; 64] = match sig_bytes.try_into() { Ok(a) => a, Err(_) => return false };
+    let signature = Signature::from_bytes(&sig_array);
+
+    let message = canonical_profile_message(
+        public_key_hex, name, bio, avatar_url, banner_url, socials,
+        pronouns, location, website, timestamp,
+    );
+    verifying_key.verify(message.as_bytes(), &signature).is_ok()
+}
+
+/// Decide whether to accept an inbound `ProfileGossip` payload.
+/// Returns true when the gossip should be stored.
+///
+/// Signed clients (non-empty `signature_hex`) MUST verify. A bad signature
+/// from a signed client is treated as forgery and rejected.
+///
+/// Unsigned clients (empty `signature_hex`) are accepted under the
+/// trust-by-source model: the gossip arrived over an authenticated
+/// federation link, so we trust the peer server's vetting until clients
+/// gain their own profile-signing path. When that lands, this gate flips
+/// to a hard reject for unsigned profiles.
+#[allow(clippy::too_many_arguments)]
+pub fn should_accept_profile_gossip(
+    public_key_hex: &str,
+    name: &str,
+    bio: &str,
+    avatar_url: &str,
+    banner_url: &str,
+    socials: &str,
+    pronouns: &str,
+    location: &str,
+    website: &str,
+    timestamp: u64,
+    signature_hex: &str,
+) -> bool {
+    if signature_hex.is_empty() {
+        return true;
+    }
+    verify_profile_signature(
+        public_key_hex, name, bio, avatar_url, banner_url, socials,
+        pronouns, location, website, timestamp, signature_hex,
+    )
+}
+
 /// Forward a chat message to all connected federated servers.
 pub async fn forward_to_federation(state: &Arc<RelayState>, channel: &str, from_name: &str, content: &str, timestamp: u64) {
     let (server_id, _) = match state.db.get_or_create_server_keypair() {
@@ -216,8 +311,15 @@ pub async fn federation_connect_loop(
                                     }
                                     // Profile gossip from federated server — cache if newer.
                                     RelayMessage::ProfileGossip { public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature } => {
+                                        if !should_accept_profile_gossip(
+                                            &public_key, &name, &bio, &avatar_url, &banner_url,
+                                            &socials, &pronouns, &location, &website,
+                                            timestamp, &signature,
+                                        ) {
+                                            tracing::warn!("Federation: rejecting profile gossip for {} — signature did not verify", &name);
+                                            continue;
+                                        }
                                         tracing::debug!("Federation: received profile gossip for {}", &name);
-                                        // TODO: verify Ed25519 signature once clients sign profiles
                                         let _ = state_for_read.db.store_signed_profile(
                                             &public_key,
                                             &name,
@@ -433,7 +535,11 @@ pub async fn gossip_signed_object(
 }
 
 /// Gossip a profile update to all connected federated servers.
-/// Called after a local user updates their profile.
+/// Called after a local user updates their profile. The `signature` is the
+/// client-supplied Ed25519 signature over `canonical_profile_message(...)`;
+/// pass an empty string when the client did not sign (peers will then accept
+/// under the trust-by-source model — see `should_accept_profile_gossip`).
+#[allow(clippy::too_many_arguments)]
 pub async fn gossip_profile(
     state: &Arc<RelayState>,
     public_key: &str,
@@ -446,6 +552,7 @@ pub async fn gossip_profile(
     location: &str,
     website: &str,
     timestamp: u64,
+    signature: &str,
 ) {
     let gossip_msg = RelayMessage::ProfileGossip {
         public_key: public_key.to_string(),
@@ -458,7 +565,7 @@ pub async fn gossip_profile(
         location: location.to_string(),
         website: website.to_string(),
         timestamp,
-        signature: String::new(), // TODO: client-signed profiles
+        signature: signature.to_string(),
     };
 
     let json = match serde_json::to_string(&gossip_msg) {
@@ -469,5 +576,139 @@ pub async fn gossip_profile(
     let connections = state.federation_connections.read().await;
     for conn in connections.values() {
         let _ = conn.tx.send(json.clone());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ed25519_dalek::{Signer, SigningKey};
+
+    fn fixture() -> (SigningKey, String) {
+        let seed = [7u8; 32];
+        let sk = SigningKey::from_bytes(&seed);
+        let pk_hex = hex::encode(sk.verifying_key().to_bytes());
+        (sk, pk_hex)
+    }
+
+    fn sign_profile(sk: &SigningKey, msg: &str) -> String {
+        hex::encode(sk.sign(msg.as_bytes()).to_bytes())
+    }
+
+    #[test]
+    fn verify_accepts_valid_signature() {
+        let (sk, pk_hex) = fixture();
+        let timestamp = 1_700_000_000_000u64;
+        let msg = canonical_profile_message(
+            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", timestamp,
+        );
+        let sig_hex = sign_profile(&sk, &msg);
+
+        assert!(verify_profile_signature(
+            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", timestamp, &sig_hex,
+        ));
+    }
+
+    #[test]
+    fn verify_rejects_forged_signature() {
+        let (_sk, pk_hex) = fixture();
+        let forged = "0".repeat(128); // 64 zero bytes hex-encoded
+        assert!(!verify_profile_signature(
+            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", 1_700_000_000_000, &forged,
+        ));
+    }
+
+    #[test]
+    fn verify_rejects_tampered_field() {
+        let (sk, pk_hex) = fixture();
+        let timestamp = 1_700_000_000_000u64;
+        let msg = canonical_profile_message(
+            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", timestamp,
+        );
+        let sig_hex = sign_profile(&sk, &msg);
+
+        // Same signature, different name — should fail.
+        assert!(!verify_profile_signature(
+            &pk_hex, "Mallory", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", timestamp, &sig_hex,
+        ));
+    }
+
+    #[test]
+    fn verify_rejects_wrong_key() {
+        let (sk, _pk_hex) = fixture();
+        let timestamp = 1_700_000_000_000u64;
+        let other_seed = [9u8; 32];
+        let other_sk = SigningKey::from_bytes(&other_seed);
+        let other_pk_hex = hex::encode(other_sk.verifying_key().to_bytes());
+
+        // Sign with one key, claim another's public key — should fail.
+        let msg = canonical_profile_message(
+            &other_pk_hex, "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", timestamp,
+        );
+        let sig_hex = sign_profile(&sk, &msg);
+        assert!(!verify_profile_signature(
+            &other_pk_hex, "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", timestamp, &sig_hex,
+        ));
+    }
+
+    #[test]
+    fn verify_rejects_malformed_inputs() {
+        // Bad public key length.
+        assert!(!verify_profile_signature(
+            "deadbeef", "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", 1, &"0".repeat(128),
+        ));
+        // Bad signature length.
+        assert!(!verify_profile_signature(
+            &"a".repeat(64), "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", 1, "deadbeef",
+        ));
+        // Non-hex public key.
+        assert!(!verify_profile_signature(
+            "zz", "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", 1, &"0".repeat(128),
+        ));
+    }
+
+    #[test]
+    fn accept_admits_empty_signature() {
+        // Trust-by-source model: empty signature is admitted today.
+        let (_sk, pk_hex) = fixture();
+        assert!(should_accept_profile_gossip(
+            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", 1_700_000_000_000, "",
+        ));
+    }
+
+    #[test]
+    fn accept_admits_valid_signature() {
+        let (sk, pk_hex) = fixture();
+        let timestamp = 1_700_000_000_000u64;
+        let msg = canonical_profile_message(
+            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", timestamp,
+        );
+        let sig_hex = sign_profile(&sk, &msg);
+        assert!(should_accept_profile_gossip(
+            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", timestamp, &sig_hex,
+        ));
+    }
+
+    #[test]
+    fn accept_rejects_invalid_non_empty_signature() {
+        let (_sk, pk_hex) = fixture();
+        let forged = "0".repeat(128);
+        assert!(!should_accept_profile_gossip(
+            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
+            "pronouns", "location", "website", 1_700_000_000_000, &forged,
+        ));
     }
 }

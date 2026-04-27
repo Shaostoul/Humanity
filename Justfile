@@ -35,12 +35,18 @@ bump kind="patch":
 # DEPLOY — getting code to production
 # ══════════════════════════════════════════════════════════════════════════════
 
-# THE ONE COMMAND: bump version + bundle web + commit + push + immediately force-sync VPS
+# THE ONE COMMAND: bump + regen theme + bundle web + commit + push + force-sync VPS
 ship msg="chore: update":
     @just bump
+    @just theme
     @just bundle-web
     @just _commit "{{msg}}"
     @just sync
+
+# Regenerate web/shared/theme.css from data/gui/theme.ron (one-source theme rule).
+# Idempotent — running twice produces no diff. Wired into `just ship`.
+theme:
+    node scripts/gen-theme-css.js
 
 # Commit + push only — waits for CI to deploy (~5 min)
 deploy msg="chore: update":
@@ -314,7 +320,7 @@ install-hooks:
     #!/usr/bin/env bash
     # Auto-installed by: just install-hooks
     echo "→ pre-commit: cargo check..."
-    if ! cargo check -p humanity-relay -q 2>&1; then
+    if ! cargo check --features relay --no-default-features -q 2>&1; then
         echo "✗ Rust errors found. Fix before committing. (bypass with git commit --no-verify)"
         exit 1
     fi
@@ -334,7 +340,7 @@ watch-web:
 
 # Watch Rust files and auto-check on save (shows errors without building)
 watch-check:
-    watchexec --exts rs --on-busy-update restart -- cargo check -p humanity-relay 2>&1
+    watchexec --exts rs --on-busy-update restart -- cargo check --features relay --no-default-features 2>&1
 
 # ══════════════════════════════════════════════════════════════════════════════
 # NEW PAGE — scaffold a new standalone HTML page

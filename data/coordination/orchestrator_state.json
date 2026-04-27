@@ -5,10 +5,10 @@
   "current_orchestrator_session": {
     "started_at": "2026-04-26",
     "model": "claude-opus-4.7-1m",
-    "primary_focus": "Multi-AI coordination dashboard, AI usage tracking, orchestrator continuity between sessions"
+    "primary_focus": "Repo audit (5-tier punch list) — Session 1 of 4: security fix + doc truthfulness + theme build wiring"
   },
 
-  "current_focus": "Building the agent dashboard (/agents) + ai usage page (/ai-usage) + this orchestrator_state file. Just finished items refactor (versioned + derived toxicology) and fixed CI breakage caused by un-staged issuer_trust.rs.",
+  "current_focus": "Session 1 of audit punch list landed in v0.122.0. Ready to start Session 2 (Tier 3 Infinite-of-X migration) when next session opens.",
 
   "open_questions_for_human": [],
 
@@ -27,6 +27,21 @@
       "at": "2026-04-26",
       "decision": "Going forward, ALWAYS git-add untracked .rs/.ron/.csv before pushing. Saved as feedback_untracked_files.md.",
       "rationale": "v0.108 created issuer_trust.rs but never staged it. CI broke 8 releases later when desktop-build CI tried fresh checkout."
+    },
+    {
+      "at": "2026-04-26",
+      "decision": "Profile gossip now verifies Ed25519 signatures when present (`should_accept_profile_gossip` in src/relay/handlers/federation.rs). Empty signatures still admitted under trust-by-source — clients don't sign profiles yet. Once they do, this gate flips to a hard reject for unsigned profiles. Canonical signing format is `profile_v1\\n{public_key}\\n{name}\\n...\\n{timestamp}`. 8 unit tests added.",
+      "rationale": "Audit found federation.rs:220 + federation.rs:461 had open TODOs for client signature verification. Forward-compatible verifier landed without breaking current unsigned-client federation. Closes Tier 1.1 of the audit punch list."
+    },
+    {
+      "at": "2026-04-26",
+      "decision": "Doc sweep landed in v0.122.0: SOP.md/STATUS.md/CONTRIBUTING.md/SYNC.md/SELF-HOSTING.md/ONBOARDING.md/Justfile/4 design docs all rewritten to drop dead `server/`, `crates/`, `native/`, `app/` paths and the dead `humanity-relay` package name.",
+      "rationale": "Audit Tier 2 — these docs were misleading future contributors and AI agents who'd grep for paths that no longer exist. CLAUDE.md/README/FEATURES were already correct; the rest had drifted. STATUS.md flipped 16 scaffolded systems + electrical + psychology from ✅ to ⚠️ — the 'truthfulness rule' is now stated explicitly in the header."
+    },
+    {
+      "at": "2026-04-26",
+      "decision": "`just theme` recipe added; runs `node scripts/gen-theme-css.js` to regenerate `web/shared/theme.css` from `data/gui/theme.ron`. Wired into `just ship` so push-time always regenerates. Idempotent.",
+      "rationale": "Audit Tier 5 — script existed but wasn't wired into any build step, so theme.css drift was inevitable. Closes that gap."
     }
   ],
 
@@ -37,15 +52,16 @@
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
     "latest_pushed_tag": "see `git describe --tags --abbrev=0`",
-    "last_release_summary": "v0.117.1 — version sync (Cargo.toml drift fix); v0.117.0 — committed missing issuer_trust.rs; v0.116.1 — items refactor + multi-agent coordination + audit run; v0.116.0 — storage architecture doc + items+toxicology DB"
+    "last_release_summary": "v0.122.0 — audit Session 1 (Tier 1.1 federation profile-signature verification + Tier 2 doc sweep + Tier 5 theme build wiring); v0.121.3 — items-game 500-item milestone; v0.121.2 — README rewrite; v0.121.0 — 21/21 scopes audited"
   },
 
   "files_in_flight_or_recently_changed": [
-    "src/relay/api_v2_agents.rs (new, v0.118.0) — registry/sessions/runtime aggregator endpoint",
-    "web/pages/agents.html (new, v0.118.0) — dashboard",
-    "web/pages/ai-usage.html (new, v0.118.0) — usage tracker",
-    "data/coordination/orchestrator_state.json (new, v0.118.0) — this file",
-    "data/items/foods/* (refactored v0.116.1 — items now versioned, ingredients hold tox)"
+    "src/relay/handlers/federation.rs (v0.122.0) — added verify_profile_signature + canonical_profile_message + should_accept_profile_gossip + 8 unit tests",
+    "src/relay/relay.rs (v0.122.0) — direct-WS ProfileGossip path now calls should_accept_profile_gossip",
+    "src/relay/handlers/msg_handlers.rs (v0.122.0) — gossip_profile caller plumbed to forward signature parameter",
+    "docs/STATUS.md (v0.122.0) — header v0.121.3 -> v0.122.0, added v0.110-v0.121 release table, flipped 16 scaffolds + electrical + psychology to ⚠️",
+    "Justfile (v0.122.0) — added `just theme` recipe wired into `just ship`; fixed install-hooks + watch-check pre-commit recipes that referenced dead `cargo check -p humanity-relay`",
+    "docs/SOP.md, CONTRIBUTING.md, docs/SYNC.md, docs/SELF-HOSTING.md, docs/ONBOARDING.md, 4 design docs (v0.122.0) — dropped dead server/, crates/, native/, app/ paths and the dead `humanity-relay` package name"
   ],
 
   "things_a_fresh_orchestrator_should_NOT_redo": [
@@ -53,7 +69,9 @@
     "Page parity audit — done in v0.115.0. Native + web pages aligned. Only add new pages if truly needed.",
     "Outdated content sweep for Ed25519/Solana=identity — done in v0.116.0. New stale references would only appear in newly-added content.",
     "Universal Button widget — built v0.113.0 + v0.114.0. Use widgets::Button, don't roll your own egui::Button.",
-    "Phase 0–8 strategic plan items — all shipped or scaffolded. See docs/STATUS.md 'Civilization Trust Layer' section."
+    "Phase 0–8 strategic plan items — all shipped or scaffolded. See docs/STATUS.md 'Civilization Trust Layer' section.",
+    "Federation profile-signature verifier — landed in v0.122.0. Don't re-add the TODO; instead implement client-side signing when ready, then flip should_accept_profile_gossip to reject empty signatures.",
+    "Doc drift in SOP/STATUS/CONTRIBUTING/SYNC/SELF-HOSTING/ONBOARDING + 4 design docs — fixed in v0.122.0. New drift can only come from new content."
   ],
 
   "things_pending_or_known_gaps": [
@@ -62,6 +80,10 @@
     "Phase 7a Litestream: ops doc shipped but actually deploying replication is operator action on the VPS.",
     "Phase 7b LoRa hardware: real radio integration deferred until hardware in hand.",
     "PQ JS keygen: noble-PQ dynamic import landed in pq-identity.js v0.117.0; chat client rewrite still pending.",
+    "Audit Session 2 (Tier 3 Infinite-of-X migration): hardcoded studio scenes/sources, resources/crafting/market/inventory/bugs categories, JS theme/font/accent presets — see ~/.claude/plans/do-an-audit-of-proud-acorn.md",
+    "Audit Session 3 (Tier 1.2 + Tier 4): integration tests for src/relay/handlers/msg_handlers.rs (DM roundtrip, trade escrow, federation accept/reject) + dual-UI parity triage doc",
+    "Audit Session 4+ (Tier 2.7 follow-through): implement OR document the 16 scaffolded game systems + electrical/psychology partials",
+    "Lower-priority doc drift: docs/02-ARCHITECTURE.md, docs/06-SOURCE-OF-TRUTH-MAP.md, docs/reference/ECOSYSTEM_RELEASE_CHECKLIST.md, docs/design/{camera-system,engine-architecture,engine-wasm,architecture}.md, docs/index.md, docs/README.md still reference dead paths but aren't on the hot path. Sweep when convenient.",
     "10 of 21 agent scopes still unaudited — check `node scripts/agent-status.js` for current list under 'Unaudited scopes'."
   ],
 

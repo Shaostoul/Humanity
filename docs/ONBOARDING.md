@@ -64,16 +64,25 @@ What just happened (this session):
 
 ### The server (Rust)
 
+Lives at `src/relay/` inside the single root crate (since v0.90.0 there is no
+separate `server/` crate). Build with `--features relay --no-default-features`
+for headless mode.
+
 ```
-server/src/
-├── main.rs       ← Start here. Axum router, startup, static file serving.
-├── relay.rs      ← The heart. One big handle_connection() function that routes
-│                    WebSocket messages by type. Add a new message type here.
+src/relay/
+├── mod.rs        ← Router setup, CSP middleware, axum config.
+├── relay.rs      ← The heart. The dispatch loop routes WebSocket messages
+│                    by type. Add a new RelayMessage variant + arm here.
+├── api.rs        ← HTTP REST API handlers (~2800 LOC).
+├── core/         ← Crypto primitives — encoding, identity, signing, kdf,
+│                    pq_crypto, did, merkle_disclosure, object.
 ├── handlers/     ← Pure functions extracted from relay.rs
 │   ├── broadcast.rs    broadcast_peer_list, build_channel_list, etc.
-│   ├── federation.rs   server-to-server connection logic
+│   ├── federation.rs   server-to-server connection logic + profile gossip
+│   ├── game_state.rs   server-authoritative game world handlers
+│   ├── msg_handlers.rs catch-all for client-originated message handlers
 │   └── utils.rs        is_private_ip, fetch_link_preview, html_decode, etc.
-├── storage/      ← SQLite — each file = one domain
+├── storage/      ← SQLite — each file = one domain (~30 modules)
 │   ├── mod.rs          Storage struct, open(), schema migrations
 │   ├── messages.rs     store/load messages
 │   ├── channels.rs     channel CRUD
@@ -150,7 +159,7 @@ Every message is signed with the private key. The server verifies the signature 
 
 For encrypted DMs, a second **ECDH P-256 keypair** handles key exchange. The actual message encryption uses AES-256-GCM. The server never sees DM content.
 
-This is implemented in `web/chat/crypto.js` and verified in `server/src/relay.rs`.
+This is implemented in `web/chat/crypto.js` and verified in `src/relay/relay.rs`.
 
 ---
 
