@@ -1,215 +1,277 @@
-# Humanity
+# HumanityOS
 
-**Wholesomely aiding humanity's betterment.**
+**Own your tools. Own your life. Own your future.**
 
-An open-source cooperative project to end poverty through education and technology. Not charity — capability. Public domain. Built by volunteers. For everyone.
+A free app where people chat, plan, trade, and build together. No accounts, no owner, no ads, public domain. The infrastructure for cooperation, made for everyone.
 
-🌐 [united-humanity.us](https://united-humanity.us) · 💬 [Chat](https://united-humanity.us/chat) · 📦 [GitHub](https://github.com/Shaostoul/Humanity) · 💜 [Discord](https://discord.gg/9XxmmeQnWC)
-
----
-
-## What It Is
-
-Humanity is two things built together:
-
-1. **HumanityOS** — a real-world platform for communication, collaboration, and life management. Chat, DMs, voice calls, project boards, marketplace, skill tracking, inventory, maps. Think of it as an operating system for your life that you actually own.
-
-2. **Project Universe** — a free game that teaches practical skills (homesteading, agriculture, building, health) by using the same underlying data layer as the real platform. Your in-game skills reflect real-world capability.
-
-Both share the same server, identity system, and data layer. The game is how people learn to use the tools for real.
+🌐 **[united-humanity.us](https://united-humanity.us)** &nbsp; · &nbsp; 💬 **[Chat](https://united-humanity.us/chat)** &nbsp; · &nbsp; 📥 **[Download](https://united-humanity.us/download)** &nbsp; · &nbsp; 💜 **[Discord](https://discord.gg/9XxmmeQnWC)**
 
 ---
 
-## What's Live
+## 💡 What you can do today
 
-### Pages (18 standalone pages at `/`)
+| | What | How it helps |
+|---|---|---|
+| 💬 | **Talk to anyone, privately** | Text, voice, video calls. Every message is locked with math only the people in the conversation can read. Threads, search, reactions, screen share. |
+| 📋 | **Organize anything** | Kanban boards, calendars, shared notes, skill tracking. Run a team, a club, or your whole life from one place. |
+| 🛒 | **Buy, sell, and trade** | Built-in marketplace with listings, reviews, and a multi-layer trust score that catches bots and fake reviews without surveillance. |
+| 🆔 | **Prove who you are** | Schools, employers, and communities can issue Verifiable Credentials. You hold them. You choose when to share. |
+| 🗳️ | **Help decide things** | Local server proposals or civilization-wide votes. Vote weight comes from your reputation, capped so no single person can dominate. |
 
-| URL | Page | What it does |
-|-----|------|--------------|
-| `/chat` | Network | Chat, DMs, voice, video, streaming |
-| `/home` | Home | Multi-location manager (real, digital, fleet homes) |
-| `/profile` | Profile | Your identity, bio, links, streaming platforms |
-| `/skills` | Skills | Browse and manage skills by domain |
-| `/dashboard` | Dashboard | 10 customizable widget types |
-| `/inventory` | Inventory | Track what you own |
-| `/equipment` | Equipment | Gear and loadout management |
-| `/quests` | Quests | Mission and goal tracker |
-| `/calendar` | Calendar | Events and planning |
-| `/logbook` | Logbook | Personal journal |
-| `/systems` | Systems | Kanban project board with task IDs |
-| `/maps` | Maps | World map, earth view, sky view |
-| `/market` | Market | Peer-to-peer listings for goods, services, skills |
-| `/learn` | Learn | Web directory — 52 curated sites |
-| `/knowledge` | Knowledge | Knowledge base and wiki |
-| `/streams` | Streams | Live streaming interface |
-| `/settings` | Settings | Themes, fonts, account management |
-| `/ops` | Ops | Server admin and debug tools |
-
-### Communication (the core, fully working)
-- **Channels** — admin-created rooms with descriptions and categories
-- **E2E encrypted DMs** — ECDH P-256 + AES-256-GCM, server never sees plaintext
-- **Threaded replies** — reply to any message with collapsible threads
-- **Voice channels** — persistent, always-on WebRTC mesh rooms
-- **1-on-1 video calls** — WebRTC peer-to-peer with audio, video, screen share, PiP
-- **@mentions**, emoji reactions, message editing, message search
-- **Image sharing** with lazy-loaded placeholders
-- **Browser push notifications** and 6 notification sound options
-- **Typing indicators** and unread markers
-
-### Identity & Privacy
-- **Ed25519 cryptographic identity** — keys stored in your browser, never on server
-- **Multi-device key linking** — same identity across devices
-- **Device management** — list, label, and revoke linked keys
-- **Key backup, export, and import**
-- **Encrypted user data sync** — settings, follows, profile encrypted at rest
-- **No IP logging, no analytics, no tracking**
-
-### Social
-- **Follow/friend system** — mutual follow = friends, friends unlock DMs
-- **Friend codes** — 8-character codes with 24-hour expiry, auto-mutual-follow
-- **User profiles** with bio, pronouns, location, website, privacy controls
-- **Unique pixel-art identicons** per user
-- **Groups** — private group conversations
-- **Client-side user blocking** and report system
-
-### Productivity Tools
-- **Project board** — kanban-style with visible task IDs
-- **Marketplace** — peer-to-peer listings, kiosks, donation pricing presets
-- **Asset library** — file upload, browse, tag, preview
-- **118-element catalog**, 44 materials, processing chains
-- **Browse directory** — 52 curated sites with uptime pings and domain info
-- **Dashboard** — 10 widget types, customizable layout
-- **Notes**, **Todos**, **Garden tracker**
-
-### Platform
-- **PWA installable** — works on mobile, add to homescreen
-- **Desktop app** — Native Rust/wgpu/egui binary for Windows, macOS, Linux
-- **Command palette** — quick navigation
-- **Dark/light themes**, accent colors, font size controls
-- **Auto-reload on deploy** — no manual refresh needed
-
-### Moderation & Federation
-- Role-based: admin 👑, mod 🛡️, verified ✦, donor 💎
-- Kick/ban, invite codes, auto-lockdown when no mods online
-- **Phase 1 federation** — anyone can host; servers discover each other
-- Single binary, zero dependencies, under 10 minutes to self-host
-- Verified servers that adopt the [Humanity Accord](accord/humanity_accord.md) earn highest trust
+Add the desktop app and **everything works offline**. Reconnect → it syncs.
 
 ---
 
-## Architecture
+## 🛡️ Three things that make HumanityOS different
 
-| Component | Technology |
-|-----------|-----------|
-| Server | Rust (axum + tokio) |
-| Storage | SQLite (rusqlite) |
-| Transport | WebSocket + WebRTC |
-| Client | Plain HTML/CSS/JS — no build step |
-| Identity | Ed25519 (signing) + ECDH P-256 (encryption) |
-| Desktop | Native binary (Rust/wgpu + egui GUI) |
-| Hosting | nginx + systemd |
-| Layout | Cargo workspace |
+### 1. Your identity is yours, forever
 
-### Codebase Structure
+When you sign up, your phone or computer creates a **post-quantum cryptographic key** — math so strong it will still be secure when quantum computers arrive. No username, no password. Your 24-word backup phrase recovers everything if you lose your device. Forgot your phrase? Trusted friends can recover it for you (Shamir secret sharing — no single friend can do it alone).
+
+### 2. Nobody can deplatform you
+
+There's no central server. Anyone can run a copy. **Your identity works on every server**, your credentials follow you, your messages and contacts come with you. If one server goes down, you keep going. A government can't shut down the network because there is no center.
+
+### 3. Public domain — really
+
+Every line of code, every design doc, every commit is in the public domain ([CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)). Copy it, fork it, sell it, teach from it. **No attribution required.** Built by volunteers, owned by humanity.
+
+---
+
+## ✅ What's working right now
+
+<table>
+<tr>
+<td valign="top" width="33%">
+
+### Communication
+- Text, voice, video chat
+- End-to-end encrypted DMs
+- Threaded replies & reactions
+- Screen share & PiP video
+- Pinned messages, mentions
+- Group conversations
+- Voice channels (always-on)
+- File and image sharing
+- Push notifications
+
+</td>
+<td valign="top" width="33%">
+
+### Organize your life
+- Kanban project boards
+- Calendar & event planning
+- Encrypted notes
+- Skills & XP tracking
+- Inventory tracker
+- Maps (real + simulation)
+- Marketplace listings
+- Trade history & reviews
+- Civilization dashboard
+
+</td>
+<td valign="top" width="33%">
+
+### Trust & governance
+- DID identity (`did:hum:`)
+- Verifiable Credentials
+- Multi-layer trust score
+- Vouching from trusted people
+- Local + civilization voting
+- Social key recovery
+- AI-as-citizen rules
+- Server federation
+- Anti-Sybil math built in
+
+</td>
+</tr>
+</table>
+
+### What's still cooking
+- Native mobile apps (web works on phones today)
+- 3D multiplayer game world (planets render, no persistence yet)
+- Mesh radio support for off-grid use
+- Real Solana transaction signing in the desktop app
+
+---
+
+## 🚀 Get started
+
+<table>
+<tr>
+<td valign="top" width="33%">
+
+### 👋 Just try it
+1. Visit **[united-humanity.us/chat](https://united-humanity.us/chat)**
+2. Pick a display name
+3. Say hi in `#welcome`
+4. Take the **[5-minute tour](https://united-humanity.us/onboarding)**
+
+No signup. No email. No credit card.
+
+</td>
+<td valign="top" width="33%">
+
+### 💻 Desktop app
+1. Visit **[united-humanity.us/download](https://united-humanity.us/download)**
+2. Pick your platform (Win/Mac/Linux)
+3. Run the binary
+4. Same identity as the web
+
+Works **fully offline**. Native 3D world bundled.
+
+</td>
+<td valign="top" width="33%">
+
+### 🏠 Run your own server
+1. `git clone …/Humanity.git`
+2. `cargo build --release --features relay --no-default-features`
+3. `./target/release/HumanityOS --headless`
+4. nginx + systemd in front
+
+Under 10 minutes from zero to live. **[Full guide →](docs/SELF-HOSTING.md)**
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🔐 Security & privacy
+
+| | |
+|---|---|
+| **Identity signing** | ML-DSA-65 (Dilithium3) — post-quantum, FIPS 204 |
+| **Key exchange** | ML-KEM-768 (Kyber768) — post-quantum, FIPS 203 |
+| **Symmetric encryption** | AES-256-GCM and XChaCha20-Poly1305 |
+| **Password KDF** | Argon2id — memory-hard against GPU attacks |
+| **Hashing** | BLAKE3 — fast and quantum-resistant |
+| **Transport** | WebSocket over TLS 1.2+, HSTS, strict CSP |
+| **Storage** | Encrypted vaults — server stores only ciphertext |
+| **Logs** | No IP logging, no analytics, no tracking pixels |
+| **Privilege** | Non-root systemd service with hardened sandboxing |
+| **Audit** | Full report → [SECURITY_AUDIT.md](SECURITY_AUDIT.md) |
+
+Solana wallet support is **optional** and decoupled from your identity. Using HumanityOS doesn't require any blockchain. If you opt in, the wallet derives from the same 24-word seed via a separate path (`hum/solana/v1`).
+
+---
+
+## 🤖 Transparent AI development
+
+This project is built with open AI participation. Multiple specialized AI agents work on different parts of the codebase, coordinated through:
+
+- **[Agent dashboard](https://united-humanity.us/agents)** — live status of every AI scope (active / passive / blocked, last audit, gaps)
+- **[Agent registry](data/coordination/agent_registry.ron)** — who owns what; rules for claiming a scope
+- **[Orchestrator state](data/coordination/orchestrator_state.json)** — running session journal that survives across chat sessions
+- **[Multi-agent design doc](docs/design/multi-agent-development.md)** — how it all fits together
+
+Every AI decision is documented. AI agents are **first-class citizens** with the same rules as humans (no extra authority), mandatory transparency, and humans always retain the right to refuse AI interaction.
+
+→ Every line of AI work is visible in the [git history](https://github.com/Shaostoul/Humanity/commits/main).
+
+---
+
+## 🧠 How it works under the hood
+
+<details>
+<summary><strong>Click to expand technical details</strong></summary>
+
+### Stack
+
+| Layer | Technology |
+|---|---|
+| Server (relay) | Rust · axum · tokio · SQLite (WAL mode, Litestream-replicable) |
+| Native client | Rust · wgpu · egui · hecs ECS · rapier3d physics · kira audio |
+| Web client | Plain HTML/JS/CSS — **no build step** |
+| Identity | ML-DSA-65 (Dilithium3) post-quantum signatures |
+| Key exchange | ML-KEM-768 (Kyber768) post-quantum KEM |
+| Object format | Canonical CBOR + BLAKE3 + signed substrate |
+| Federation | WebSocket multi-hop gossip with cycle-breaking via dedup |
+| Web realtime | WebSocket + WebRTC for voice/video/data channels |
+| Hosting | nginx + systemd + Litestream replication to S3-compatible storage |
+
+### Layout
 
 ```
 Humanity/
-├── server/                    ← Rust relay server (axum/tokio, SQLite)
-│   └── src/
-│       ├── main.rs            ← Entry point, routing, axum setup
-│       ├── relay.rs           ← WebSocket handler (~5800 lines, message routing)
-│       ├── handlers/          ← Extracted relay helpers
-│       ├── storage/           ← SQLite domain modules (17 files)
-│       └── api.rs             ← HTTP REST API endpoints
-├── src/                       ← Rust desktop client engine source (gui, renderer, terrain, ship, assets, systems)
-├── crates/                    ← 19 sub-crates (core, modules, persistence)
-├── web/                       ← Web interface (browser + WebView)
-│   ├── chat/                  ← Chat client (app.js, crypto.js, chat-*.js)
-│   ├── pages/                 ← Standalone pages (tasks, maps, settings, etc.)
-│   ├── activities/            ← Game + real-world tools (gardening, download, etc.)
-│   └── shared/                ← shell.js, events.js, theme.css
-├── data/                      ← Hot-reloadable game data (CSV, TOML, RON, JSON)
-├── assets/                    ← All shared media (icons, shaders, models, textures, audio)
-├── docs/                      ← All documentation (design, accord, history, website)
-│   └── accord/                ← Humanity Accord (civilizational principles)
-└── SELF-HOSTING.md            ← Production server setup guide
+├── src/                     ← Single Rust crate. Feature flags: native, relay, wasm.
+│   ├── main.rs              ← --headless for relay-only, default for desktop
+│   ├── relay/               ← Server (axum WebSocket + REST API + SQLite)
+│   │   ├── core/            ← PQ crypto, signed objects, DIDs
+│   │   ├── storage/         ← 38 SQLite domain modules
+│   │   ├── handlers/        ← Federation, message routing, announcements
+│   │   └── api_v2_*.rs      ← REST endpoints (DID, VC, trust, governance, recovery, …)
+│   ├── gui/                 ← egui native UI (theme, widgets, 30+ pages)
+│   ├── renderer/            ← wgpu PBR + bloom + particles + hologram
+│   ├── ecs/                 ← hecs World + System trait + 41 game systems
+│   ├── physics/             ← rapier3d wrapper
+│   └── terrain/             ← Icosphere planets, voxel asteroids, ship interiors
+├── web/                     ← Plain JS/HTML/CSS site (served by nginx)
+│   ├── chat/                ← Chat client modules
+│   ├── pages/               ← Standalone pages (37 of them)
+│   └── shared/              ← shell.js, theme.css, pq-identity.js bridge
+├── data/                    ← Hot-reloadable game + identity + coordination data
+│   ├── chemistry/           ← 462 elements, compounds, alloys, gases, toxins
+│   ├── items/foods/         ← Real-world items with ingredient tox profiles
+│   ├── coordination/        ← Multi-AI agent registry + session state
+│   ├── governance/          ← Proposal type schemas
+│   └── identity/            ← VC schema registry + trust score weights
+├── assets/                  ← Shaders, models, icons, audio
+└── docs/                    ← All design documents and operations guides
 ```
 
-The client uses **no build step** — plain `<script src="">` tags load modules in dependency order. All modules share global scope (no ES modules). When in doubt about a function's location, `grep` the web/ directory.
+### Architecture documents to read
 
-### Adding a New Page
+- **[Storage architecture](docs/design/storage-architecture.md)** — 3-layer model (server / web / native), authority via signed objects, scaling story, P2P paths
+- **[Identity](docs/design/identity.md)** — DID resolution, key rotation, signed profile replication
+- **[UI system](docs/design/ui-system.md)** — Theme tokens, universal Button widget, design tokens
+- **[Federation](docs/network/server_federation.md)** — Federation protocol, signed-object gossip, peer trust
+- **[Humanity Accord](docs/accord/humanity_accord.md)** — Voluntary constitution every server may adopt
+- **[Litestream replication](docs/operations/litestream.md)** — Disaster recovery for self-hosters
 
-1. Create `yourpage.html` at the repo root (copy any existing page as template)
-2. Add `<script src="/shared/shell.js" data-active="yourkey"></script>` in `<head>`
-3. Add `navTab('/yourpage', 'icon.png', 'Label', 'yourkey')` to `shared/shell.js`
-4. Add a mobile drawer entry to `shared/shell.js`
-5. Add nginx route: `location = /yourpage { try_files /yourpage.html =404; }` on the server
-6. Deploy: `scp yourpage.html server:/var/www/humanity/`
-
----
-
-## Security
-
-- Server-side Ed25519 signature verification on every message
-- E2E encrypted DMs (ECDH P-256 + AES-256-GCM) — server never sees plaintext
-- Encrypted user data sync — profile, settings, follows encrypted at rest
-- Fibonacci rate limiting + new-account slow mode
-- Content Security Policy, HSTS, TLS 1.2+ only
-- No IP logging
-- Per-session upload tokens with magic-byte validation
-- HMAC-SHA256 webhook verification
-- Non-root systemd service with hardened sandboxing
-- Full audit: [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md)
-
----
-
-## Transparent AI Development
-
-This project is pioneering **fully transparent AI development**. Our AI assistant Heron 🪶 (named after Hero of Alexandria) operates with complete openness — public memory files, no black box, every decision documented.
-
-→ [See live AI memory](memory/) · [AI workspace rules](AGENTS.md)
-
----
-
-## Host Your Own Server
-
-Anyone can run a Humanity relay. No permission needed.
+### Tests
 
 ```bash
-git clone https://github.com/Shaostoul/Humanity.git
-cd Humanity
-cargo build --release -p humanity-relay
-./target/release/humanity-relay
+cargo test --features relay --no-default-features --lib
+# 165/165 tests passing across 38 storage modules + crypto + signing + federation
 ```
 
-Put it behind nginx with TLS (Let's Encrypt is free). People connect with their existing keypair — no migration needed.
-
-→ **[Full self-hosting guide](SELF-HOSTING.md)** — nginx config, systemd, federation, admin commands
-
-Want verified federation status? Publicly adopt the [Humanity Accord](accord/humanity_accord.md) and contact [@Shaostoul](https://x.com/Shaostoul).
+</details>
 
 ---
 
-## Get Involved
+## 🌍 Federated server registry
 
-- 💬 **Chat first** — [united-humanity.us/chat](https://united-humanity.us/chat) — no account needed, just a username
-- 💜 **Discord** — [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC)
-- 📦 **GitHub** — [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
-- 📖 **New contributors** — start with [ONBOARDING.md](ONBOARDING.md)
+The Humanity Accord is a voluntary set of principles every server may adopt. Servers that publicly adopt it earn the highest trust tier in federation. Reach out to [@Shaostoul](https://x.com/Shaostoul) to register.
 
-**Writers, designers, developers, educators, translators** — or just someone who cares. Show up and ask what needs doing.
-
-**Donate** — Every dollar goes toward development and hosting.
-→ [GitHub Sponsors](https://github.com/sponsors/Shaostoul)
+→ [Read the Accord](docs/accord/humanity_accord.md)
 
 ---
 
-## Links
+## 🤝 Get involved
 
-🎥 [YouTube](https://youtube.com/@Shaostoul) · 📺 [Twitch](https://twitch.tv/Shaostoul) · 🟢 [Rumble](https://rumble.com/user/Shaostoul) · 𝕏 [X/Twitter](https://x.com/Shaostoul) · 📷 [Instagram](https://instagram.com/shaostoul)
+| | |
+|---|---|
+| 💬 **Show up** | [united-humanity.us/chat](https://united-humanity.us/chat) — no account needed |
+| 💜 **Discord** | [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC) |
+| 🐛 **Report bugs** | [united-humanity.us/bugs](https://united-humanity.us/bugs) or open a GitHub issue |
+| 📖 **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) — start here if you want to write code |
+| 💸 **Donate** | [GitHub Sponsors](https://github.com/sponsors/Shaostoul) — every dollar goes to development & hosting |
+
+**We need writers, designers, developers, educators, translators, testers — and just anyone who cares.** Show up in chat and ask what needs doing.
 
 ---
 
-## License
+## 🔗 Find Michael (project lead)
 
-Public domain — [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). No permission required. No attribution required. This belongs to humanity.
+🎥 [YouTube](https://youtube.com/@Shaostoul) · 📺 [Twitch](https://twitch.tv/Shaostoul) · 𝕏 [X / Twitter](https://x.com/Shaostoul) · ☁️ [Bluesky](https://bsky.app/profile/shaostoul.bsky.social) · 🎮 [Steam](https://steamcommunity.com/id/Shaostoul)
+
+---
+
+## 📜 License
+
+[**CC0 1.0 Universal**](https://creativecommons.org/publicdomain/zero/1.0/) — public domain. No permission required, no attribution required. This belongs to everyone.
+
+---
+
+<sub>Built since 2019 (originally Project Universe). 7 years of work, hundreds of features, all free, all yours.</sub>
