@@ -240,7 +240,9 @@ fn draw_scratchpad_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         );
     }
 
-    if resp.clicked() {
+    if resp.clicked() && state.chat_active_channel != "scratchpad" {
+        // Only clear+refetch when actually switching contexts. Re-clicking the
+        // active row is a no-op (BUG-035 — used to nuke local-echoed unsent text).
         state.chat_active_channel = "scratchpad".to_string();
         state.chat_messages.clear();
         state.history_fetched = false;
@@ -368,7 +370,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         );
                     }
 
-                    if response.clicked() {
+                    if response.clicked() && state.chat_active_channel != dm_channel {
                         state.chat_active_channel = dm_channel;
                         state.chat_messages.clear();
                         state.history_fetched = false;
@@ -719,7 +721,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     state.edit_channel_id = ch.id.clone();
                                     state.edit_channel_name = ch.name.clone();
                                     state.edit_channel_description = ch.description.clone();
-                                } else {
+                                } else if state.chat_active_channel != ch.id {
                                     state.chat_active_channel = ch.id.clone();
                                     state.chat_messages.clear();
                                     state.history_fetched = false;
@@ -1084,7 +1086,11 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 voice_toggle_idx = Some((idx, !ch.voice_joined));
                             } else if gear_icon_rect.contains(click_pos) && is_channel_admin {
                                 gear_click_id = Some(ch.id.clone());
-                            } else {
+                            } else if state.chat_active_channel != ch.id {
+                                // Only swap channel context when the click actually changes
+                                // channels. Re-clicking the active channel used to clear
+                                // chat_messages and re-fetch history, which nuked any
+                                // local-echoed unsent reply (BUG-035). Now it's a no-op.
                                 state.chat_active_channel = ch.id.clone();
                                 state.chat_messages.clear();
                                 state.history_fetched = false;
@@ -1981,16 +1987,18 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 unread: false,
                             });
                         }
-                        state.chat_active_channel = dm_channel;
-                        state.chat_messages.clear();
-                        state.history_fetched = false;
-                        if let Some(ref client) = state.ws_client {
-                            if client.is_connected() {
-                                let msg = serde_json::json!({
-                                    "type": "dm_open",
-                                    "partner": key,
-                                });
-                                client.send(&msg.to_string());
+                        if state.chat_active_channel != dm_channel {
+                            state.chat_active_channel = dm_channel;
+                            state.chat_messages.clear();
+                            state.history_fetched = false;
+                            if let Some(ref client) = state.ws_client {
+                                if client.is_connected() {
+                                    let msg = serde_json::json!({
+                                        "type": "dm_open",
+                                        "partner": key,
+                                    });
+                                    client.send(&msg.to_string());
+                                }
                             }
                         }
                         close_modal = true;

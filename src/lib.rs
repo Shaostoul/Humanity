@@ -1841,6 +1841,9 @@ mod native_app {
                                 if let Ok(body) = resp.into_string() {
                                     if let Ok(data) = serde_json::from_str::<serde_json::Value>(&body) {
                                         if let Some(messages) = data.get("messages").and_then(|v| v.as_array()) {
+                                            let my_key = state.gui_state.profile_public_key.clone();
+                                            let mut fetched = 0usize;
+                                            let mut skipped = 0usize;
                                             for msg in messages {
                                                 let sender_name = msg.get("sender_name")
                                                     .or_else(|| msg.get("from_name"))
@@ -1863,6 +1866,17 @@ mod native_app {
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("general")
                                                     .to_string();
+                                                // Dedup: if this is a message WE sent that we already
+                                                // local-echoed, skip the server's copy (BUG-035 part 2).
+                                                // Match logic mirrors the WS broadcast dedup at line ~1139.
+                                                if !my_key.is_empty()
+                                                    && sender_key == my_key
+                                                    && state.gui_state.chat_sent_timestamps.contains(&timestamp)
+                                                {
+                                                    state.gui_state.chat_sent_timestamps.retain(|&t| t != timestamp);
+                                                    skipped += 1;
+                                                    continue;
+                                                }
                                                 state.gui_state.chat_messages.push(
                                                     crate::gui::ChatMessage {
                                                         sender_name,
@@ -1872,8 +1886,12 @@ mod native_app {
                                                         channel: ch,
                                                     },
                                                 );
+                                                fetched += 1;
                                             }
-                                            log::info!("Fetched {} history messages for #{}", messages.len(), channel);
+                                            log::info!(
+                                                "Fetched {} history messages for #{} (skipped {} local-echo dedup)",
+                                                fetched, channel, skipped
+                                            );
                                         }
                                     }
                                 }

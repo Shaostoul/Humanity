@@ -189,6 +189,24 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 - **Description**: Stale git worktrees from previous AI agent sessions contained old file paths (e.g., `native/src/`, `server/src/`) that no longer exist after the v0.90.0 unified binary restructure. Agents working in stale worktrees would write edits to nonexistent paths, losing all work.
 - **Fix**: Added `just clean-worktrees` recipe that removes all worktrees except main and current. Added to CLAUDE.md mandatory session start checklist. Automated hygiene prevents context rot.
 
+### BUG-035: Native chat reply disappears after a brief WebSocket reconnect
+- **Status**: Fixed
+- **Version Found**: long-standing (since the chat page existed)
+- **Version Fixed**: v0.125.0
+- **Description**: User sends a message in #general; text appears in their chat (local echo). WebSocket has a transient drop/reconnect. After reconnect, the user's message is gone from their own view. The server *did* receive and store the message — on a later session it shows up in history. Net effect: user thinks their message was lost, sends it again, ends up double-posting.
+- **Root cause(s)**: Two bugs compounded:
+  1. **Same-channel-click clears chat_messages** — Every click on a channel/DM/group/scratchpad row in the sidebar called `chat_messages.clear()` and `history_fetched = false` unconditionally, even if the click was on the *active* row. After a connection blip the user often clicks the channel they're already in (to "refresh"), which nuked any local-echoed unsent text.
+  2. **HTTP history fetch on reconnect doesn't dedup** against `chat_sent_timestamps`. The WS broadcast handler at `lib.rs:1139` already dedups server echoes of locally-sent messages by matching `(sender_key == my_key) && timestamp ∈ chat_sent_timestamps`. The HTTP `/api/messages` history fetch in the same file (`lib.rs:1830`) ran no such check, so the user's own message reappeared as a duplicate when it came back from history — and since the local echo was likely cleared by (1), the only visible copy was the server's at the bottom of a freshly-fetched 50-message window.
+- **Fix**: `src/gui/pages/chat.rs` — every channel-switch site now no-ops when the click target equals `state.chat_active_channel`. `src/lib.rs` — the HTTP history-fetch loop dedups against `chat_sent_timestamps` mirroring the WS broadcast dedup logic.
+
+### BUG-036: Deleted system channels resurrect on every relay restart
+- **Status**: Fixed
+- **Version Found**: long-standing (since the seed list landed)
+- **Version Fixed**: v0.125.0
+- **Description**: An admin opens the cog menu on a system channel (welcome/announcements/rules/stream/dev), confirms delete. The channel disappears for the rest of that session. After the next relay restart — which happens automatically on every git push to main via the deploy CI — the deleted channel is back.
+- **Root cause**: `src/relay/mod.rs:170-175` re-ran `create_channel("welcome", ...)` etc. on every boot. `INSERT OR IGNORE` only suppresses on conflict; once a channel was deleted the row was gone, so the next restart's INSERT succeeded and resurrected it. The 6 system channels (welcome, announcements, rules, general, stream, dev) were re-seeded every restart with `created_by = "system"`.
+- **Fix**: The seed list now runs **once on first boot** and is gated by a `default_channels_seeded` row in the existing `server_state` key/value table. Subsequent boots skip the seed. The catch-all `general` channel is still always ensured (it's protected from deletion server-side anyway). For pre-v0.125.0 deployments, a one-shot migration sets the seeded flag if the messages table already has rows — so existing operators inherit their current channel set rather than re-seeding deleted channels one last time. To deliberately re-seed (e.g. after wiping the database), delete the `default_channels_seeded` row from `server_state`.
+
 ### BUG-034: In-app updater corrupted the local exe ("Unsupported 16-Bit Application")
 - **Status**: Fixed
 - **Version Found**: v0.122.0 (long-standing — every release of build-desktop.yml since the bundle change)

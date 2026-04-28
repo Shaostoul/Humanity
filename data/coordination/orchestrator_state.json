@@ -57,6 +57,11 @@
       "at": "2026-04-27",
       "decision": "Audit Session 3 (Tier 1.2 + Tier 4) lands alongside the BUG-034 fix in v0.124.0. Storage tests added: 7 for `dms.rs` (DM persistence, E2EE ciphertext preservation, direction-symmetric load, conversation isolation, mark-read, ECDH requires registered name, limit returns recent N) and 10 for `trading.rs` (escrow happy-path, complete requires both confirms, complete idempotent, item changes reset confirmations, cancelled cannot complete, third-party cannot confirm, cannot confirm pending, rejected→cancelled, unknown side rejected, list filters by party). Total lib tests: 173 → 190. Tier 4 dual-UI parity table added to `docs/design/ui-system.md`.",
       "rationale": "Audit Tier 1.2 — msg_handlers.rs et al had 0 tests over 3081 LOC. Storage-layer tests are the right scope (handler tests would need a heavy RelayState fixture). The new tests cover the load-bearing escrow correctness invariants the audit flagged."
+    },
+    {
+      "at": "2026-04-28",
+      "decision": "BUG-035 + BUG-036 fixed in v0.125.0. (035) Native chat reply disappears after WS blip — fixed by no-op'ing channel-switch when the click target equals the active channel (chat.rs, 5 sites) and adding chat_sent_timestamps dedup to the HTTP history fetch (lib.rs). (036) Deleted system channels resurrect on every relay restart — fixed by gating the seed list with a `default_channels_seeded` row in server_state, with a one-shot migration that respects existing operators' channel sets when message_count > 0.",
+      "rationale": "User reported a reply going missing in #general after a connection blip, plus channel-deletes via the cog modal coming back. Investigation: chat_messages.clear() ran on every click (even same-channel re-clicks); the HTTP history fetch had no dedup; src/relay/mod.rs re-seeded 6 system channels on every restart and INSERT OR IGNORE happily re-inserted previously-deleted rows. Both bugs documented in docs/BUGS.md as BUG-035 and BUG-036 with full root-cause traces."
     }
   ],
 
@@ -67,7 +72,7 @@
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
     "latest_pushed_tag": "see `git describe --tags --abbrev=0`",
-    "last_release_summary": "v0.124.0 — BUG-034 fix (updater asset selection + workflow ships raw binaries) + audit Session 3 (17 new storage tests + dual-UI parity doc); v0.123.0 — audit Session 2 (Tier 3 Infinite-of-X: 7 hardcoded arrays migrated to data files); v0.122.0 — audit Session 1 (Tier 1.1 federation sig verify + Tier 2 doc sweep + Tier 5 theme build wiring)"
+    "last_release_summary": "v0.125.0 — BUG-035 (native chat reply disappears on reconnect) + BUG-036 (deleted system channels resurrect on restart) fixes; v0.124.0 — BUG-034 fix (updater asset selection + workflow ships raw binaries) + audit Session 3 (17 new storage tests + dual-UI parity doc); v0.123.0 — audit Session 2 (Tier 3 Infinite-of-X: 7 hardcoded arrays migrated to data files); v0.122.0 — audit Session 1 (Tier 1.1 federation sig verify + Tier 2 doc sweep + Tier 5 theme build wiring)"
   },
 
   "files_in_flight_or_recently_changed": [
