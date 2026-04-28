@@ -1,0 +1,102 @@
+{
+  "_comment": "Snapshot of the legacy welcome/rules/stream/dev channels at v0.126.0. The channel set is being reduced to just general + announcements; this preserves the existing message text so it can seed the future dedicated /welcome and /rules pages (BUG-036 follow-up). Operators with custom content in these channels should migrate it before deleting via the cog modal — the fixed delete (BUG-036, v0.125.0) makes deletes stick across restarts.",
+  "snapshotted_at": "2026-04-28",
+  "snapshotted_from": "united-humanity.us VPS relay.db",
+  "channels": {
+    "welcome": {
+      "intent": "First-touch onboarding for new server members. Migrate to /welcome page (server-customizable from data/server/welcome.json).",
+      "messages": [
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899387,
+          "content": "🌍 **Welcome to Humanity Network!**\n\nThis is a cooperative, open-source platform built by and for humanity. We believe in individual sovereignty, collective action, and building a better world together."
+        },
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899401,
+          "content": "**What is this place?**\n\nHumanityOS is a decentralized hub connecting people across skills, projects, quests, and goals. Every person here is a node in a network working toward shared flourishing."
+        },
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899413,
+          "content": "**Getting started:**\n• Set up your profile at /profile\n• Browse your skills at /skills\n• Track personal goals at /quests\n• Connect with others in #general\n• Watch or broadcast at /streams"
+        },
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899426,
+          "content": "**How to connect with people:**\nLeft-click or right-click any username in the user list to follow, message, or view their profile. Mutual follows unlock direct messages."
+        },
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899439,
+          "content": "**The project is open-source.**\nContribute at: https://github.com/Shaostoul/Humanity\nLive at: https://united-humanity.us\n\nWe're glad you're here. 💚"
+        }
+      ]
+    },
+    "rules": {
+      "intent": "Per-server community guidelines. Migrate to /rules page that renders data/server/rules.json + active local_rule governance proposals layered on top of the Humanity Accord.",
+      "messages": [
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899451,
+          "content": "📋 **Community Guidelines**\n\nBy participating in Humanity Network, you agree to uphold these principles. This is a space for genuine human connection — treat it accordingly."
+        },
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899464,
+          "content": "**1. Respect Every Person**\nEvery participant is a human being deserving dignity. No harassment, hate speech, doxxing, or targeted attacks. Disagreement is fine; contempt is not."
+        },
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899477,
+          "content": "**2. Act in Good Faith**\nCommunicate honestly. No deception, manipulation, or bad-faith arguments. If you made a mistake, own it. We're all learning."
+        },
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899491,
+          "content": "**3. Protect Privacy**\nDo not share others' personal information without consent. Your identity here is yours. Respect the same for others."
+        },
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899503,
+          "content": "**4. Keep It Legal**\nNo illegal content, piracy, threats, or fraud. Content that harms children in any way results in immediate permanent ban and reporting to authorities."
+        },
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899515,
+          "content": "**5. Stay On Topic**\nChannels exist for a reason. Keep conversations relevant. Use #general for broad discussion, and dedicated channels for their purpose."
+        },
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899528,
+          "content": "**6. Build, Don't Burn**\nThis platform is about creating something meaningful. Constructive criticism is welcome. Nihilism and chaos are not."
+        },
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899540,
+          "content": "**Enforcement:**\nViolations are handled by mods and admins. Progressive: warning → mute → kick → ban. Severe violations skip straight to ban.\n\n👇 Use the button below to acknowledge these rules and unlock full access."
+        }
+      ]
+    },
+    "stream": {
+      "intent": "Originally a placeholder for stream chat. Streaming functionality is server-side; this channel was redundant. Dropped at v0.126.0; no migration target.",
+      "messages": [
+        {
+          "from_name": "HumanityOS",
+          "timestamp_ms": 1773368899552,
+          "content": "📡 **#stream** — This channel is for stream chat, stream announcements, and discussing live content. You can read and participate here without having a stream open. When you're live, your viewers' messages appear here too."
+        }
+      ]
+    },
+    "dev": {
+      "intent": "Originally a placeholder for dev discussion. Dropped at v0.126.0; no migration target.",
+      "messages": [
+        {
+          "from_name": "Shaostoul",
+          "timestamp_ms": 1772673277205,
+          "content": "test"
+        }
+      ]
+    }
+  }
+}

@@ -168,16 +168,23 @@ pub async fn run_relay() {
     db.ensure_default_channel().expect("Failed to create default channel");
     let _ = db.set_channel_position("general", 10);
 
-    // Other system channels (welcome, announcements, rules, stream, dev) are
-    // seeded **once on first boot** and then respected. Re-running the seed on
-    // every restart resurrected channels operators had explicitly deleted
-    // (BUG-036). The `default_channels_seeded` row in `server_state` records that
-    // the seed has run; remove that row in the database to re-seed.
+    // The default channel set is `general` (chat) + `announcements` (broadcast
+    // channel for the Deploy Bot, security notices, and operator news).
     //
-    // Migration for pre-v0.125.0 deployments: if the database already has chat
-    // messages, assume the seed ran on a prior boot and adopt the operator's
-    // current channel set (deleted channels stay deleted). Brand-new databases
-    // have zero messages → fall through to the seed below.
+    // The `default_channels_seeded` row in `server_state` records that the seed
+    // has run; subsequent boots skip the seed entirely so deleted channels stay
+    // deleted (BUG-036). Remove that row in the database to re-seed.
+    //
+    // Pre-v0.125.0 databases have already-existing channel rows but no
+    // seeded-flag yet; the migration below treats those as "seed has run" so
+    // operators inherit their current channel set rather than getting
+    // surprises. Brand-new databases have zero messages → fall through to seed.
+    //
+    // Welcome and Rules used to be channels; v0.126.0 retires them in favour of
+    // dedicated /welcome and /rules pages backed by data files (operator-
+    // editable, layered on top of the Humanity Accord). The legacy text is
+    // preserved at `data/server/legacy_channel_content.json` for that
+    // migration. `stream` and `dev` were placeholders and are dropped outright.
     if db.get_state("default_channels_seeded").ok().flatten().is_none() {
         let prior_use = db.message_count().unwrap_or(0) > 0;
         if prior_use {
@@ -192,18 +199,10 @@ pub async fn run_relay() {
         .as_deref()
         == Some("true");
     if !already_seeded {
-        let _ = db.create_channel("welcome", "welcome", Some("Welcome to Humanity Network"), "system", true);
         let _ = db.create_channel("announcements", "announcements", Some("Project updates and news"), "system", true);
-        let _ = db.create_channel("rules", "rules", Some("Community guidelines"), "system", true);
-        let _ = db.create_channel("stream", "stream", Some("Live streams and stream chat -- visible without opening a stream"), "system", false);
-        let _ = db.create_channel("dev", "dev", Some("Development discussion"), "system", false);
-        let _ = db.set_channel_position("welcome", 0);
-        let _ = db.set_channel_position("rules", 1);
         let _ = db.set_channel_position("announcements", 2);
-        let _ = db.set_channel_position("stream", 15);
-        let _ = db.set_channel_position("dev", 20);
         let _ = db.set_state("default_channels_seeded", "true");
-        tracing::info!("Default channels seeded (first boot)");
+        tracing::info!("Default channels seeded (first boot): general + announcements");
     }
 
     let mut relay_state = RelayState::new(db);

@@ -62,6 +62,16 @@
       "at": "2026-04-28",
       "decision": "BUG-035 + BUG-036 fixed in v0.125.0. (035) Native chat reply disappears after WS blip — fixed by no-op'ing channel-switch when the click target equals the active channel (chat.rs, 5 sites) and adding chat_sent_timestamps dedup to the HTTP history fetch (lib.rs). (036) Deleted system channels resurrect on every relay restart — fixed by gating the seed list with a `default_channels_seeded` row in server_state, with a one-shot migration that respects existing operators' channel sets when message_count > 0.",
       "rationale": "User reported a reply going missing in #general after a connection blip, plus channel-deletes via the cog modal coming back. Investigation: chat_messages.clear() ran on every click (even same-channel re-clicks); the HTTP history fetch had no dedup; src/relay/mod.rs re-seeded 6 system channels on every restart and INSERT OR IGNORE happily re-inserted previously-deleted rows. Both bugs documented in docs/BUGS.md as BUG-035 and BUG-036 with full root-cause traces."
+    },
+    {
+      "at": "2026-04-28",
+      "decision": "v0.126.0 reduces the default channel seed to `general` + `announcements` only. Welcome/Rules content snapshotted into `data/server/legacy_channel_content.json` for the future /welcome and /rules page migration. The `stream` and `dev` channels are dropped outright. Live VPS legacy channels (welcome/rules/stream/dev) deleted via SQL.",
+      "rationale": "User feedback: 'welcome and rules channels should be handled by HOS, not channels. Like proper pages dedicated to this stuff that we can easily update'. Channels are the wrong shape for static reference content; pages backed by data files are correct. v0.127.0 will build the actual /welcome /rules /accord pages."
+    },
+    {
+      "at": "2026-04-28",
+      "decision": "Distribution-sovereignty plan documented in `docs/distribution-mirrors.md`. Recommended adoption order: (1) self-hosted Forgejo on VPS, (2) Codeberg mirror, (3) VPS release-binary mirror, (4) self-hosted BitTorrent tracker + seeder for data/asset payload, (5) Internet Archive seeder, (6) Software Heritage archival, (7) WinGet manifest. Steps 8+ scope-driven (IPFS, F-Droid/Flathub/Snap, Homebrew, Radicle, paid IPFS pinning).",
+      "rationale": "User wants HOS independent of GitHub, prefers self-hosting + torrent/magnet links to fit the P2P federation ethos. Vision: small exe is the entry point; on first run it pulls data/+assets/ from the torrent network with VPS as always-on seeder; client devices become seeders too. The doc is curated — only platforms that are good fits are listed. GitLab, SourceForge, Bitbucket, NotABug, Chocolatey were considered and dropped."
     }
   ],
 
@@ -72,7 +82,7 @@
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
     "latest_pushed_tag": "see `git describe --tags --abbrev=0`",
-    "last_release_summary": "v0.125.0 — BUG-035 (native chat reply disappears on reconnect) + BUG-036 (deleted system channels resurrect on restart) fixes; v0.124.0 — BUG-034 fix (updater asset selection + workflow ships raw binaries) + audit Session 3 (17 new storage tests + dual-UI parity doc); v0.123.0 — audit Session 2 (Tier 3 Infinite-of-X: 7 hardcoded arrays migrated to data files); v0.122.0 — audit Session 1 (Tier 1.1 federation sig verify + Tier 2 doc sweep + Tier 5 theme build wiring)"
+    "last_release_summary": "v0.126.0 — channel seed reduced to general+announcements; legacy welcome/rules content snapshotted; distribution-mirrors plan doc; v0.125.0 — BUG-035 + BUG-036 fixes; v0.124.0 — BUG-034 fix + audit Session 3; v0.123.0 — audit Session 2 (Tier 3 Infinite-of-X); v0.122.0 — audit Session 1"
   },
 
   "files_in_flight_or_recently_changed": [
