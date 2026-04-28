@@ -440,3 +440,195 @@ impl Storage {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fresh_db() -> Storage {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_trading_{pid}_{nanos}.db"));
+        Storage::open(&path).expect("open test db")
+    }
+
+    /// Happy path: pending → active (accepted) → both confirm → complete.
+    /// Verifies the canonical trade lifecycle.
+    #[test]
+    fn escrow_happy_path() {
+        let db = fresh_db();
+        db.create_trade("t1", "alice", "bob", Some("hi")).unwrap();
+        let t = db.get_trade("t1").unwrap().unwrap();
+        assert_eq!(t.status, "pending");
+        assert!(!t.initiator_confirmed && !t.recipient_confirmed);
+
+        // Recipient accepts → active.
+        assert!(db.respond_to_trade("t1", true).unwrap());
+        assert_eq!(db.get_trade("t1").unwrap().unwrap().status, "active");
+
+        // Items locked in by both sides.
+        assert!(db.update_trade_items("t1", "initiator", r#"[{"id":"sword","qty":1}]"#).unwrap());
+        assert!(db.update_trade_items("t1", "recipient", r#"[{"id":"gold","qty":50}]"#).unwrap());
+
+        // First confirm by initiator → updated true, both false.
+        let (ok, both) = db.confirm_trade("t1", "alice").unwrap();
+        assert!(ok && !both);
+
+        // Second confirm by recipient → both true now.
+        let (ok, both) = db.confirm_trade("t1", "bob").unwrap();
+        assert!(ok && both);
+
+        // Complete succeeds, status flips to completed.
+        assert!(db.complete_trade("t1").unwrap());
+        let t = db.get_trade("t1").unwrap().unwrap();
+        assert_eq!(t.status, "completed");
+        assert!(t.completed_at.is_some());
+    }
+
+    /// Cannot complete a trade until BOTH sides have confirmed.
+    /// Prevents one party committing the swap unilaterally.
+    #[test]
+    fn complete_requires_both_confirms() {
+        let db = fresh_db();
+        db.create_trade("t1", "alice", "bob", None).unwrap();
+        db.respond_to_trade("t1", true).unwrap();
+
+        // Only initiator confirmed.
+        let (_, both) = db.confirm_trade("t1", "alice").unwrap();
+        assert!(!both);
+
+        // complete should refuse — both confirms not yet present.
+        assert!(!db.complete_trade("t1").unwrap());
+        assert_eq!(db.get_trade("t1").unwrap().unwrap().status, "active");
+    }
+
+    /// Double-complete is a no-op: you cannot complete a trade twice.
+    /// Defends against replayed completion messages from a flaky network.
+    #[test]
+    fn complete_is_idempotent() {
+        let db = fresh_db();
+        db.create_trade("t1", "alice", "bob", None).unwrap();
+        db.respond_to_trade("t1", true).unwrap();
+        db.confirm_trade("t1", "alice").unwrap();
+        db.confirm_trade("t1", "bob").unwrap();
+        assert!(db.complete_trade("t1").unwrap(), "first complete returns true");
+        assert!(!db.complete_trade("t1").unwrap(), "second complete returns false (status is now 'completed')");
+    }
+
+    /// Updating items AFTER both sides have confirmed resets BOTH confirmations.
+    /// This is the lock-and-swap defence — Alice cannot pivot to a different
+    /// item bundle after Bob has already signed off on the previous one.
+    #[test]
+    fn updating_items_resets_confirmations() {
+        let db = fresh_db();
+        db.create_trade("t1", "alice", "bob", None).unwrap();
+        db.respond_to_trade("t1", true).unwrap();
+        db.update_trade_items("t1", "initiator", r#"[{"id":"sword","qty":1}]"#).unwrap();
+        db.update_trade_items("t1", "recipient", r#"[{"id":"gold","qty":50}]"#).unwrap();
+        db.confirm_trade("t1", "alice").unwrap();
+        db.confirm_trade("t1", "bob").unwrap();
+        let t = db.get_trade("t1").unwrap().unwrap();
+        assert!(t.initiator_confirmed && t.recipient_confirmed);
+
+        // Alice swaps her offered items at the last moment.
+        db.update_trade_items("t1", "initiator", r#"[{"id":"stick","qty":1}]"#).unwrap();
+        let t = db.get_trade("t1").unwrap().unwrap();
+        assert!(!t.initiator_confirmed && !t.recipient_confirmed,
+            "any item change clears BOTH confirmations — protects the counterparty");
+
+        // Bob now must re-confirm; complete is rejected until he does.
+        assert!(!db.complete_trade("t1").unwrap());
+    }
+
+    /// Cancelled trades cannot be resurrected via complete — the cancel
+    /// is final and prevents zombie completions racing in late.
+    #[test]
+    fn cancelled_trade_cannot_be_completed() {
+        let db = fresh_db();
+        db.create_trade("t1", "alice", "bob", None).unwrap();
+        db.respond_to_trade("t1", true).unwrap();
+        db.confirm_trade("t1", "alice").unwrap();
+        db.confirm_trade("t1", "bob").unwrap();
+
+        // Either party cancels.
+        assert!(db.cancel_trade("t1", "alice").unwrap());
+        assert_eq!(db.get_trade("t1").unwrap().unwrap().status, "cancelled");
+
+        // Complete refuses — status is no longer 'active'.
+        assert!(!db.complete_trade("t1").unwrap());
+        assert_eq!(db.get_trade("t1").unwrap().unwrap().status, "cancelled");
+    }
+
+    /// A third party cannot confirm a trade they are not part of.
+    /// Prevents an attacker from forcing a swap between two unrelated users.
+    #[test]
+    fn third_party_cannot_confirm() {
+        let db = fresh_db();
+        db.create_trade("t1", "alice", "bob", None).unwrap();
+        db.respond_to_trade("t1", true).unwrap();
+
+        let (ok, both) = db.confirm_trade("t1", "mallory").unwrap();
+        assert!(!ok && !both, "non-party confirm is a no-op");
+
+        // Status unchanged.
+        let t = db.get_trade("t1").unwrap().unwrap();
+        assert!(!t.initiator_confirmed && !t.recipient_confirmed);
+        assert_eq!(t.status, "active");
+    }
+
+    /// You cannot confirm a trade that's still pending (recipient hasn't
+    /// accepted yet) — confirmations only apply to active trades.
+    #[test]
+    fn cannot_confirm_pending_trade() {
+        let db = fresh_db();
+        db.create_trade("t1", "alice", "bob", None).unwrap();
+        // Status is 'pending' — recipient hasn't accepted.
+        let (ok, _) = db.confirm_trade("t1", "alice").unwrap();
+        assert!(!ok, "pending trades reject confirmation until accepted");
+    }
+
+    /// Rejected trades go to 'cancelled' and can't be completed afterward.
+    #[test]
+    fn rejected_trade_is_cancelled() {
+        let db = fresh_db();
+        db.create_trade("t1", "alice", "bob", None).unwrap();
+        // Recipient rejects.
+        assert!(db.respond_to_trade("t1", false).unwrap());
+        assert_eq!(db.get_trade("t1").unwrap().unwrap().status, "cancelled");
+
+        // Subsequent operations are no-ops.
+        assert!(!db.respond_to_trade("t1", true).unwrap());
+        assert!(!db.complete_trade("t1").unwrap());
+    }
+
+    /// `update_trade_items` rejects an unknown side string and reports false.
+    #[test]
+    fn update_items_rejects_unknown_side() {
+        let db = fresh_db();
+        db.create_trade("t1", "alice", "bob", None).unwrap();
+        db.respond_to_trade("t1", true).unwrap();
+        assert!(!db.update_trade_items("t1", "spectator", "[]").unwrap());
+    }
+
+    /// `get_trades_for_user` lists trades for either initiator or recipient,
+    /// not for unrelated users.
+    #[test]
+    fn list_trades_filters_by_party() {
+        let db = fresh_db();
+        db.create_trade("t1", "alice", "bob",   None).unwrap();
+        db.create_trade("t2", "alice", "carol", None).unwrap();
+        db.create_trade("t3", "carol", "dave",  None).unwrap();
+
+        let alice = db.get_trades_for_user("alice").unwrap();
+        let alice_ids: Vec<&str> = alice.iter().map(|t| t.id.as_str()).collect();
+        assert!(alice_ids.contains(&"t1") && alice_ids.contains(&"t2"));
+        assert!(!alice_ids.contains(&"t3"));
+
+        let dave = db.get_trades_for_user("dave").unwrap();
+        let dave_ids: Vec<&str> = dave.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(dave_ids, vec!["t3"]);
+    }
+}

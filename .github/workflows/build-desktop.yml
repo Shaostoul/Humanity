@@ -71,20 +71,25 @@ jobs:
         run: |
           mkdir -p dist/HumanityOS/assets
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/HumanityOS/${{ matrix.asset_name }}
+          # Also stage the raw binary at dist/ root for the in-app updater to grab
+          # without needing tar.gz extraction (BUG-034 fix, v0.124.0).
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
           # Copy game data and assets
           cp -r data/ dist/HumanityOS/data/
           cp -r assets/icons/ dist/HumanityOS/assets/icons/
           cp -r assets/shaders/ dist/HumanityOS/assets/shaders/
           # Remove large audio placeholders if they exist
           rm -rf dist/HumanityOS/data/audio/sfx/* dist/HumanityOS/data/audio/music/* dist/HumanityOS/data/audio/ambient/* 2>/dev/null || true
-          # Create zip
+          # Create the bundle archive (binary + data + assets) for fresh installs
           cd dist && tar czf HumanityOS-${{ matrix.label }}.tar.gz HumanityOS/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: humanity-${{ matrix.label }}
-          path: dist/HumanityOS-${{ matrix.label }}.tar.gz
+          path: |
+            dist/HumanityOS-${{ matrix.label }}.tar.gz
+            dist/${{ matrix.asset_name }}
 
       - name: Publish to Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -92,7 +97,9 @@ jobs:
         with:
           draft: false
           generate_release_notes: false
-          files: dist/HumanityOS-${{ matrix.label }}.tar.gz
+          files: |
+            dist/HumanityOS-${{ matrix.label }}.tar.gz
+            dist/${{ matrix.asset_name }}
 
   # Bundle data files alongside the binary
   bundle-data:

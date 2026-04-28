@@ -384,6 +384,14 @@ fn fetch_releases() -> Result<Vec<ReleaseInfo>, String> {
 }
 
 /// Find the correct binary asset for the current platform.
+///
+/// Prefers a **raw** binary (e.g. `HumanityOS-windows-x64.exe`) over an
+/// archive (`.tar.gz`, `.zip`). The updater writes whatever it downloads
+/// straight to disk and renames into place — if it grabs an archive it
+/// produces a corrupt "binary" that Windows reports as a 16-bit application
+/// (see BUG-034). Releases starting at v0.124.0 ship both formats; older
+/// releases only ship archives, which the updater now refuses with a
+/// helpful error rather than silently corrupting the install.
 #[cfg(feature = "native")]
 fn find_platform_asset(assets: &[ReleaseAsset]) -> Option<&ReleaseAsset> {
     let platform_pattern = if cfg!(target_os = "windows") {
@@ -398,9 +406,24 @@ fn find_platform_asset(assets: &[ReleaseAsset]) -> Option<&ReleaseAsset> {
         "linux-x64"
     };
 
-    assets
-        .iter()
-        .find(|a| a.name.to_lowercase().contains(platform_pattern))
+    let is_archive = |name: &str| -> bool {
+        let n = name.to_lowercase();
+        n.ends_with(".tar.gz") || n.ends_with(".tgz") || n.ends_with(".gz")
+            || n.ends_with(".zip")
+    };
+
+    // First pass: a raw binary for this platform.
+    if let Some(raw) = assets.iter().find(|a| {
+        a.name.to_lowercase().contains(platform_pattern) && !is_archive(&a.name)
+    }) {
+        return Some(raw);
+    }
+
+    // No raw asset present — this is a pre-v0.124.0 release. Returning the
+    // archive would corrupt the install (the bytes downloaded are gzipped tar
+    // contents but get written straight to disk as the new exe). Refusing
+    // here surfaces a clear error in the UI.
+    None
 }
 
 /// Minimum acceptable binary size (1 MB). Anything smaller is almost certainly

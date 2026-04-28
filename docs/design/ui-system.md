@@ -275,3 +275,58 @@ To add a help button next to any UI element:
 - [ ] Context menu with role-colored sections (both).
 
 When a checkbox flips to `[x]`, bump its status and the version in the "Last updated" line above.
+
+## Page parity (web ↔ native)
+
+The dual-UI rule from CLAUDE.md: every UI pattern must be implementable in
+native egui first; web mirrors. Pages that don't have parity must be documented
+here with the reason.
+
+Inventory at v0.124.0:
+
+### Both (true parity)
+
+These pages exist in both `web/pages/<name>.html` and `src/gui/pages/<name>.rs`
+and surface the same data. Changes to one should land in the other.
+
+`agents`, `ai_usage`, `bugs`, `calculator`, `calendar`, `civilization`,
+`crafting`, `donate`, `files`, `governance`, `guilds`, `identity`, `inventory`,
+`maps`, `market`, `notes`, `onboarding`, `profile`, `recovery`, `resources`,
+`settings`, `tasks`, `tools`, `trade`, `wallet`.
+
+### Web-only (documented exception)
+
+| Page | Reason for exception |
+|------|----------------------|
+| `index.html`, `home.html` | Landing pages — entry points before identity, render server-name + onboarding CTA. Not meaningful in the native client (which jumps straight to chat). |
+| `dashboard.html` | Operator-facing live metrics view, web-rendered for at-a-glance check-ins. The native equivalent is the in-game HUD. |
+| `download.html` | Install links for the desktop binary. Trivially redundant inside the desktop binary. |
+| `web.html` | About-the-web-version explainer. Native users don't need it. |
+| `roadmap.html` | Public-facing roadmap, marketing-shaped. Could port if a native version is desired. |
+| `projects.html` | Project Universe historical timeline. Marketing-shaped; not gameplay. |
+| `data.html` | Local-storage management for the browser tab (saves, USB import/export). Native has its own data flow via `%APPDATA%\HumanityOS\`. |
+
+### Web-only (parity gap — port to native if a native admin emerges)
+
+| Page | Notes |
+|------|-------|
+| `admin.html` | Server admin dashboard. Operators today run this from the web. A native equivalent would let admins drive the relay from the desktop client. Open question; not blocking. |
+| `ops.html` | Operations console (build info, debug controls). Same situation as `admin.html`. |
+| `dev.html` | Developer tools (debug logs, perf overlay). Could absorb into the native `escape_menu` debug section instead of a standalone page. |
+| `wallet-guide.html` | 9-section beginner crypto guide. Long-form text; suits a web reading experience. Low priority for native port. |
+
+### Native-only (documented exception)
+
+| Page | Reason for exception |
+|------|----------------------|
+| `main_menu.rs`, `escape_menu.rs`, `hud.rs` | In-game overlays. The web client doesn't have a 3D world to overlay onto. |
+| `chat.rs` | Desktop 3-panel chat. The web version is the multi-page client at `web/chat/` (different shape — split across `app.js`, `chat-*.js` modules). Both surface the same relay API; the native version is not a 1:1 mirror of any single web HTML page. |
+| `studio.rs` | Streaming/broadcasting studio. Bound to local OS capture devices (camera, screen, microphone) which the browser sandbox cannot access in the same way. Not portable as-is. |
+| `server_settings.rs` | Local relay configuration for self-hosters running the desktop binary in `--headless` mode on the same machine. Duplicates `/admin` for the local operator. |
+| `placeholder.rs` | Template for new pages — not user-visible. |
+
+### Maintenance rule
+
+When a new page lands in either UI, update this table. If the page is
+intentionally one-sided, it must appear under "documented exception" with the
+reason. Empty boxes in the parity audit are a dual-UI bug.

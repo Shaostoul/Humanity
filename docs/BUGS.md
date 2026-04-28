@@ -189,6 +189,15 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 - **Description**: Stale git worktrees from previous AI agent sessions contained old file paths (e.g., `native/src/`, `server/src/`) that no longer exist after the v0.90.0 unified binary restructure. Agents working in stale worktrees would write edits to nonexistent paths, losing all work.
 - **Fix**: Added `just clean-worktrees` recipe that removes all worktrees except main and current. Added to CLAUDE.md mandatory session start checklist. Automated hygiene prevents context rot.
 
+### BUG-034: In-app updater corrupted the local exe ("Unsupported 16-Bit Application")
+- **Status**: Fixed
+- **Version Found**: v0.122.0 (long-standing — every release of build-desktop.yml since the bundle change)
+- **Version Fixed**: v0.124.0
+- **Description**: The Build Desktop App workflow only published a single asset per platform — `HumanityOS-<platform>.tar.gz` containing the binary plus `data/` and `assets/`. The in-app updater downloaded that asset, wrote the bytes straight to disk, and renamed it to the exe path. The result was a gzipped tar archive masquerading as `HumanityOS.exe`. Windows refused to load it with `Unsupported 16-Bit Application` because the gzip magic bytes look nothing like a PE header.
+- **Fix**: Two changes:
+  1. `.github/workflows/build-desktop.yml` now also publishes the raw binary (`HumanityOS-windows-x64.exe`, `HumanityOS-linux-x64`, `HumanityOS-macos-arm64`, `HumanityOS-macos-x64`) alongside the existing `.tar.gz` bundle. Bundles still ship for fresh installs that need the data/assets too.
+  2. `src/updater.rs::find_platform_asset` now prefers a raw binary asset and **refuses** archive-only releases instead of silently corrupting the install. Pre-v0.124.0 releases will surface "No binary for this platform" — operators must wait for the next tag (which will ship with raw binaries).
+
 ## Open Bugs
 
 None currently tracked. Report bugs at https://github.com/Shaostoul/Humanity/issues
