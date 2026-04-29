@@ -72,6 +72,11 @@
       "at": "2026-04-28",
       "decision": "Distribution-sovereignty plan documented in `docs/distribution-mirrors.md`. Recommended adoption order: (1) self-hosted Forgejo on VPS, (2) Codeberg mirror, (3) VPS release-binary mirror, (4) self-hosted BitTorrent tracker + seeder for data/asset payload, (5) Internet Archive seeder, (6) Software Heritage archival, (7) WinGet manifest. Steps 8+ scope-driven (IPFS, F-Droid/Flathub/Snap, Homebrew, Radicle, paid IPFS pinning).",
       "rationale": "User wants HOS independent of GitHub, prefers self-hosting + torrent/magnet links to fit the P2P federation ethos. Vision: small exe is the entry point; on first run it pulls data/+assets/ from the torrent network with VPS as always-on seeder; client devices become seeders too. The doc is curated — only platforms that are good fits are listed. GitLab, SourceForge, Bitbucket, NotABug, Chocolatey were considered and dropped."
+    },
+    {
+      "at": "2026-04-29",
+      "decision": "Step 1 of distribution-sovereignty plan landed in v0.127.0: self-hosted Forgejo at https://git.united-humanity.us/shaostoul/humanity. Forgejo v15.0.0 binary at /usr/local/bin/forgejo; user `forgejo`; data at /var/lib/forgejo; SQLite3; nginx reverse proxy 127.0.0.1:3000; Let's Encrypt TLS auto-renewing; self-registration disabled. Justfile `_commit` recipe now pushes to BOTH `origin` (GitHub) and `forge` (Forgejo); forge push is best-effort (`-` prefix in just) so a transient Forgejo outage doesn't block ship. Tags pushed to both remotes too (GitHub Actions Build Desktop App still keys off origin tag). Initial mirror: 12386 objects, 50 tags (v0.1.0 → v0.126.0), 2 branches (main + claude/happy-panini), 51 MB. `docs/forgejo-setup.md` documents the install + reproduce steps.",
+      "rationale": "Sovereignty layer is the keystone of the distribution-mirrors plan. Once forge holds the source, subsequent steps (release-binary mirror, BitTorrent seeder, Internet Archive backup, etc.) build on it. Two issues hit during install: Debian 11's git 2.30.2 too old for Forgejo (needed ≥2.34.1) — fixed by building 2.45.2 from source at /usr/local/bin/git; app.ini owned root:forgejo prevented the installer from saving config — fixed by chown forgejo:forgejo. Both documented in forgejo-setup.md so future operators don't repeat them."
     }
   ],
 
@@ -82,7 +87,7 @@
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
     "latest_pushed_tag": "see `git describe --tags --abbrev=0`",
-    "last_release_summary": "v0.126.0 — channel seed reduced to general+announcements; legacy welcome/rules content snapshotted; distribution-mirrors plan doc; v0.125.0 — BUG-035 + BUG-036 fixes; v0.124.0 — BUG-034 fix + audit Session 3; v0.123.0 — audit Session 2 (Tier 3 Infinite-of-X); v0.122.0 — audit Session 1"
+    "last_release_summary": "v0.127.0 — self-hosted Forgejo at git.united-humanity.us live; Justfile multi-remote push (origin GitHub + forge Forgejo); docs/forgejo-setup.md; v0.126.0 — channel seed reduced; v0.125.0 — BUG-035 + BUG-036 fixes; v0.124.0 — BUG-034 fix + audit Session 3"
   },
 
   "files_in_flight_or_recently_changed": [

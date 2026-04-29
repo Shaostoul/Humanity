@@ -57,13 +57,17 @@ deploy msg="chore: update":
     @echo "✓ Pushed. CI deploy triggered — watch with: just ci"
 
 # Internal: stage everything, commit, and push (skips if nothing staged).
-# Also creates and pushes a git tag matching the Cargo.toml version so
-# the Build Desktop App workflow triggers a GitHub release with binaries.
+# Pushes to BOTH `origin` (GitHub — visibility, CI, releases API) and `forge`
+# (git.united-humanity.us — sovereignty mirror). Forge push uses `-` so a
+# transient outage on the sovereignty mirror doesn't block a GitHub-driven
+# ship; same for the tag push. Tags trigger the Build Desktop App workflow
+# on GitHub which produces the platform binaries linked from download.html.
 _commit msg:
     git add -A
     git diff --cached --quiet || git commit -m "{{msg}}"
     git push origin main
-    @node -e "const fs=require('fs'),{execSync}=require('child_process');const v=fs.readFileSync('Cargo.toml','utf8').match(/^version = \"(.+)\"/m)[1];const tag='v'+v;try{execSync('git rev-parse '+tag,{stdio:'ignore'});console.log('Tag '+tag+' already exists');}catch(e){try{execSync('git tag '+tag,{stdio:'inherit'});execSync('git push origin '+tag,{stdio:'inherit'});console.log('Tagged and pushed '+tag);}catch(err){console.warn('Tag failed: '+err.message);}}"
+    -git push forge main
+    @node -e "const fs=require('fs'),{execSync}=require('child_process');const v=fs.readFileSync('Cargo.toml','utf8').match(/^version = \"(.+)\"/m)[1];const tag='v'+v;try{execSync('git rev-parse '+tag,{stdio:'ignore'});console.log('Tag '+tag+' already exists');}catch(e){try{execSync('git tag '+tag,{stdio:'inherit'});execSync('git push origin '+tag,{stdio:'inherit'});try{execSync('git push forge '+tag,{stdio:'inherit'});console.log('Tagged and pushed '+tag+' to origin + forge');}catch(fe){console.warn('Forge tag push failed: '+fe.message);}}catch(err){console.warn('Tag failed: '+err.message);}}"
 
 # Force-sync VPS with current origin/main right now (full rebuild)
 # Use when: CI fails, server is out of sync, or you need it live immediately
