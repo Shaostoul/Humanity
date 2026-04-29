@@ -77,6 +77,11 @@
       "at": "2026-04-29",
       "decision": "Step 1 of distribution-sovereignty plan landed in v0.127.0: self-hosted Forgejo at https://git.united-humanity.us/shaostoul/humanity. Forgejo v15.0.0 binary at /usr/local/bin/forgejo; user `forgejo`; data at /var/lib/forgejo; SQLite3; nginx reverse proxy 127.0.0.1:3000; Let's Encrypt TLS auto-renewing; self-registration disabled. Justfile `_commit` recipe now pushes to BOTH `origin` (GitHub) and `forge` (Forgejo); forge push is best-effort (`-` prefix in just) so a transient Forgejo outage doesn't block ship. Tags pushed to both remotes too (GitHub Actions Build Desktop App still keys off origin tag). Initial mirror: 12386 objects, 50 tags (v0.1.0 → v0.126.0), 2 branches (main + claude/happy-panini), 51 MB. `docs/forgejo-setup.md` documents the install + reproduce steps.",
       "rationale": "Sovereignty layer is the keystone of the distribution-mirrors plan. Once forge holds the source, subsequent steps (release-binary mirror, BitTorrent seeder, Internet Archive backup, etc.) build on it. Two issues hit during install: Debian 11's git 2.30.2 too old for Forgejo (needed ≥2.34.1) — fixed by building 2.45.2 from source at /usr/local/bin/git; app.ini owned root:forgejo prevented the installer from saving config — fixed by chown forgejo:forgejo. Both documented in forgejo-setup.md so future operators don't repeat them."
+    },
+    {
+      "at": "2026-04-29",
+      "decision": "Step 3 of distribution-sovereignty plan landed in v0.128.0: self-hosted release-binary mirror at https://united-humanity.us/releases/. nginx /releases/ location with autoindex; backfilled v0.122.0–v0.127.0; build-desktop.yml CI scp's binaries to VPS on every tag push via appleboy/scp-action; mirror-manifest job regenerates manifest.json + latest symlink via /usr/local/bin/regen-releases-manifest. Step 2 (Codeberg) skipped temporarily — operator awaiting signup confirmation email; will land in a follow-up release.",
+      "rationale": "The auto-updater (BUG-034 fix in v0.124.0) will gain this as a fallback URL later — for now the mirror is a working independent download path, anyone can wget from it without GitHub. The manifest at /releases/manifest.json + the latest symlink mean operators don't need to know specific version numbers; clients can fetch latest deterministically. nginx sites-enabled/humanity was a regular file (not a symlink to sites-available) — edits had to go directly to sites-enabled. Documented inline in the orchestrator notes."
     }
   ],
 
@@ -87,7 +92,7 @@
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
     "latest_pushed_tag": "see `git describe --tags --abbrev=0`",
-    "last_release_summary": "v0.127.0 — self-hosted Forgejo at git.united-humanity.us live; Justfile multi-remote push (origin GitHub + forge Forgejo); docs/forgejo-setup.md; v0.126.0 — channel seed reduced; v0.125.0 — BUG-035 + BUG-036 fixes; v0.124.0 — BUG-034 fix + audit Session 3"
+    "last_release_summary": "v0.128.0 — Step 3: self-hosted release mirror at united-humanity.us/releases/ with manifest + latest symlink; CI auto-mirrors on tag push; v0.127.0 — Step 1: Forgejo at git.united-humanity.us; v0.126.0 — channel seed reduced; v0.125.0 — BUG-035 + BUG-036; v0.124.0 — BUG-034 fix"
   },
 
   "files_in_flight_or_recently_changed": [

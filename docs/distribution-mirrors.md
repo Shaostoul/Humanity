@@ -325,14 +325,19 @@ small-scale usage.
 
 The path that gets the most decoupling per unit of effort:
 
-1. **Self-hosted Forgejo on the VPS** — single source of truth you own.
-   ~1 hour to deploy.
+1. **Self-hosted Forgejo on the VPS** ✅ shipped v0.127.0 — see
+   [`forgejo-setup.md`](forgejo-setup.md).
 2. **Codeberg mirror** — non-profit external mirror, signup +
    `git remote add`. ~30 min.
-3. **VPS release mirror** at `united-humanity.us/releases/v.X.Y/` —
-   CI rsyncs raw binaries on every release. The auto-updater (already
-   shipped in v0.124.0 with raw-binary preference) gets a fallback URL.
-   ~1 hour.
+3. **VPS release mirror** ✅ shipped v0.128.0 — live at
+   <https://united-humanity.us/releases/>. Backfilled v0.122.0–v0.127.0;
+   CI mirrors every future tagged release via `appleboy/scp-action`,
+   and the manifest at `/releases/manifest.json` is regenerated
+   automatically by `/usr/local/bin/regen-releases-manifest` on the VPS.
+   `latest` is a symlink to the newest `vX.Y.Z` directory. The
+   auto-updater (BUG-034 fix in v0.124.0) will gain this as a fallback
+   URL in a follow-up — for now it's a working mirror that anyone can
+   `wget` from independently of GitHub.
 4. **Self-hosted BitTorrent tracker + seeder** for the data/asset
    payload — opentracker + transmission-daemon. Ship a `.torrent` and
    magnet URI in the release manifest. The auto-updater downloads code
