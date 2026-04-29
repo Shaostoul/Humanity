@@ -122,22 +122,36 @@ jobs:
       - name: List downloaded files
         run: ls -la dist/ && echo '---' && du -h dist/* | head
 
+      # appleboy/scp-action sometimes returns a false-positive
+      # `drone-scp error: dial tcp ...: i/o timeout` AFTER the upload has
+      # actually completed (files arrive on the VPS just fine). We mark
+      # the step as continue-on-error so a known-noisy success isn't
+      # treated as a job failure, and the regen step below runs
+      # regardless via `if: always()`. The regen script is idempotent
+      # and only lists release directories whose files are actually
+      # present on disk — so a real upload failure produces an
+      # internally-consistent manifest that omits the bad release.
       - name: Upload binaries to VPS
+        continue-on-error: true
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 15m
           source: "dist/*"
           target: "/var/www/humanity/releases/${{ github.ref_name }}/"
           strip_components: 1
 
       - name: Regenerate manifest + latest symlink
+        if: always()
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 60s
           script: /usr/local/bin/regen-releases-manifest
 
   # Bundle data files alongside the binary
