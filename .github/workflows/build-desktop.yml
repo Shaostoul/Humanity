@@ -101,30 +101,38 @@ jobs:
             dist/HumanityOS-${{ matrix.label }}.tar.gz
             dist/${{ matrix.asset_name }}
 
-      # Mirror to VPS release-binary archive (Step 3 of distribution-sovereignty plan).
-      # Each platform job uploads its own raw binary + tar.gz; the manifest
-      # is regenerated once across the run by the `mirror-manifest` job below.
-      - name: Mirror binaries to VPS
-        if: startsWith(github.ref, 'refs/tags/')
+  # Mirror every platform's binaries to the VPS release archive in one batch
+  # and regenerate the manifest. Runs on Linux (required for the container
+  # action — appleboy/scp-action is Docker-based and won't execute on macOS
+  # or Windows runners). Pulls every platform's artifacts via
+  # actions/download-artifact, then uploads as a single payload.
+  mirror-to-vps:
+    name: Mirror binaries to VPS + regen manifest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: humanity-*
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: ls -la dist/ && echo '---' && du -h dist/* | head
+
+      - name: Upload binaries to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "dist/${{ matrix.asset_name }},dist/HumanityOS-${{ matrix.label }}.tar.gz"
+          source: "dist/*"
           target: "/var/www/humanity/releases/${{ github.ref_name }}/"
           strip_components: 1
 
-  # Regenerate the manifest at /var/www/humanity/releases/manifest.json
-  # and update the `latest` symlink. Runs once per release, after all
-  # platform binaries have been uploaded by the `build` matrix.
-  mirror-manifest:
-    name: Regenerate VPS releases manifest
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Run regen-releases-manifest on VPS
+      - name: Regenerate manifest + latest symlink
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
