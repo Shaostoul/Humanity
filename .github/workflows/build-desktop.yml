@@ -108,16 +108,18 @@ jobs:
   # actions/download-artifact, then uploads as a single payload.
   mirror-to-vps:
     name: Mirror binaries to VPS + regen manifest
-    needs: build
+    needs: [build, bundle-data]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
-      - name: Download all platform artifacts
+      - name: Download all platform + data artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
           pattern: humanity-*
           merge-multiple: true
+        # `humanity-*` matches both per-platform bundles and `humanity-data`,
+        # so dist/ ends up with binaries + data archive + data manifest.
 
       - name: List downloaded files
         run: ls -la dist/ && echo '---' && du -h dist/* | head
@@ -154,7 +156,7 @@ jobs:
           timeout: 60s
           script: /usr/local/bin/regen-releases-manifest
 
-  # Bundle data files alongside the binary
+  # Bundle data files alongside the binary + generate per-file manifest
   bundle-data:
     name: Bundle data files
     needs: build
@@ -175,10 +177,27 @@ jobs:
             assets/icons/ \
             assets/shaders/
 
-      - name: Upload data bundle to release
+      - name: Generate per-file data manifest
+        run: node scripts/gen-data-manifest.js ${{ github.ref_name }}
+        # Writes data-manifest-${tag}.json in repo root.
+
+      - name: Upload data bundle + manifest to GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: HumanityOS-data-${{ github.ref_name }}.tar.gz
+          files: |
+            HumanityOS-data-${{ github.ref_name }}.tar.gz
+            data-manifest-${{ github.ref_name }}.json
+
+      # Upload as workflow artifact so mirror-to-vps can scp these to the
+      # sovereignty mirror alongside the platform binaries (one batched upload,
+      # one manifest regen).
+      - name: Upload data artifact for VPS mirror
+        uses: actions/upload-artifact@v4
+        with:
+          name: humanity-data
+          path: |
+            HumanityOS-data-${{ github.ref_name }}.tar.gz
+            data-manifest-${{ github.ref_name }}.json
 
   # Notify chat
   notify:

@@ -340,12 +340,18 @@ The path that gets the most decoupling per unit of effort:
    `wget` from independently of GitHub.
 4. **BitTorrent seeder + magnet URIs** ✅ shipped v0.129.0 — see
    [`torrent-infrastructure.md`](torrent-infrastructure.md). Live on the
-   VPS via transmission-daemon, seeding 36 release bundles
-   (v0.122.0–v0.128.3). Magnet URIs in `/releases/manifest.json`. Public
-   trackers (opentrackr, demonii, etc.) for coordination + WebSeed back
-   at `united-humanity.us/releases/` so the critical path is
-   tracker-independent. Self-hosted tracker is a follow-up (not blocking
-   because of the WebSeed). Auto-updater integration follows.
+   VPS via transmission-daemon, magnet URIs in
+   `/releases/manifest.json`. WebSeed makes the critical path
+   tracker-independent.
+
+4.5. **Layered packages + file-level manifest** ✅ shipped v0.130.0 —
+   see [`torrent-infrastructure.md#layered-architecture`](torrent-infrastructure.md).
+   Each release now ships a separate `HumanityOS-data-<version>.tar.gz`
+   (data + assets, no binary) and a `data-manifest-<version>.json` with
+   per-file SHA-256 hash + Forgejo per-file URL. Enables file-level
+   delta sync: a 4 KB recipe edit becomes a 4 KB update, not 38 MB.
+   50 torrents now seeding (~3.6 GB) covering both whole-bundle and
+   data-only archives across v0.122.0–v0.129.0.
 5. **Internet Archive uploads** — manual at first; automated later. Adds
    a permanent free seeder to every torrent.
 6. **Software Heritage Save Code Now** — one form, then it's automatic
