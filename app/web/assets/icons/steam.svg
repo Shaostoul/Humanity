@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Steam piston/joystick logo -->
+  <circle cx="24" cy="24" r="21"/>
+  <circle cx="28" cy="18" r="5.5"/>
+  <circle cx="28" cy="18" r="2" fill="currentColor" stroke="none"/>
+  <line x1="10" y1="38" x2="19" y2="28"/>
+  <circle cx="19" cy="28" r="4"/>
+  <line x1="22.5" y1="26.5" x2="28" y2="23.5"/>
+</svg>

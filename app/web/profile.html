@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    /* ── Layout ── */
+    /* shell.js nav is position:sticky so no padding-top needed on body */
+    body { padding-top: 0; padding-bottom: var(--space-3xl); }
+    #profile-app {
+      display: flex;
+      height: calc(100vh - 42px); /* nav 40px + separator 1px + 1px gap */
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: var(--space-xl);
+      gap: var(--space-xl);
+    }
+
+    /* ── Left Sidebar ── */
+    #profile-sidebar {
+      width: 220px;
+      min-width: 180px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+    .prof-section-btn {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md) var(--space-lg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      transition: background 0.15s;
+    }
+    .prof-section-btn:hover { background: var(--bg-hover); }
+    .prof-section-btn.active { background: var(--bg-hover); border-color: var(--accent); }
+    .prof-section-btn .dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot-private  { background: #c44; }
+    .dot-personal { background: #4a9; }
+    .dot-public   { background: #48f; }
+
+    .sidebar-divider {
+      height: 1px;
+      background: var(--border);
+      margin: var(--space-md) 0;
+    }
+    .sidebar-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: var(--space-xs) var(--space-md);
+    }
+    #save-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-align: center;
+      padding: var(--space-sm);
+    }
+    #save-status.saved { color: var(--success); }
+
+    /* ── Main Content ── */
+    #profile-main {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xl);
+    }
+
+    /* ── Section Header ── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: var(--space-lg) var(--space-xl);
+      border-radius: var(--radius);
+      margin-bottom: var(--space-sm);
+    }
+    .section-header.private  { background: rgba(204,68,68,0.12); border: 1px solid rgba(204,68,68,0.3); }
+    .section-header.personal { background: rgba(68,170,136,0.12); border: 1px solid rgba(68,170,136,0.3); }
+    .section-header.public   { background: rgba(68,136,255,0.12); border: 1px solid rgba(68,136,255,0.3); }
+    .section-header h2 { font-size: 1rem; margin: 0; }
+    .section-header p  { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
+
+    /* ── Cards ── */
+    .prof-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+    }
+    .prof-card h3 {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: var(--space-lg);
+    }
+
+    /* ── Form Grid ── */
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: var(--space-lg);
+    }
+    .field-grid.two-col { grid-template-columns: 1fr 1fr; }
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+    .field-group label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .field-group input,
+    .field-group select,
+    .field-group textarea {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      padding: var(--space-sm) var(--space-md);
+      outline: none;
+      width: 100%;
+      transition: border-color 0.15s;
+    }
+    .field-group input:focus,
+    .field-group select:focus,
+    .field-group textarea:focus { border-color: var(--accent); }
+
+    /* ── Color-coded borders for section types ── */
+    .private-field  input, .private-field  select, .private-field  textarea { border-color: rgba(204,68,68,0.4); }
+    .personal-field input, .personal-field select, .personal-field textarea { border-color: rgba(68,170,136,0.4); }
+    .public-field   input, .public-field   select, .public-field   textarea { border-color: rgba(68,136,255,0.4); }
+
+    /* ── Social row ── */
+    .social-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      margin-bottom: var(--space-md);
+    }
+    .social-icon { width: 20px; text-align: center; font-size: 1rem; flex-shrink: 0; }
+    .social-row input {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid rgba(68,136,255,0.4);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 0.85rem;
+      padding: var(--space-sm) var(--space-md);
+      outline: none;
+    }
+    .social-row input:focus { border-color: #48f; }
+
+    /* ── Stream config ── */
+    .stream-platform {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+    }
+    .stream-platform h4 {
+      font-size: 0.8rem;
+      margin-bottom: var(--space-md);
+      color: var(--text);
+    }
+
+    /* ── Save button ── */
+    .save-btn {
+      background: var(--accent);
+      color: var(--text);
+      border: none;
+      border-radius: var(--radius);
+      padding: var(--space-md) var(--space-2xl);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .save-btn:hover { background: var(--accent-hover); }
+
+    /* ── Privacy badge ── */
+    .privacy-note {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-top: var(--space-sm);
+    }
+
+    /* ── Hidden sections ── */
+    .prof-tab { display: none; }
+    .prof-tab.active { display: block; }
+
+    @media (max-width: 700px) {
+      #profile-app { flex-direction: column; height: auto; }
+      #profile-sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; }
+      .prof-section-btn { flex: 1; min-width: 120px; }
+    }
+
+    /* ── Skills tab styles ── */
+    #tab-skills #skills-app {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      min-height: 500px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+    }
+
+    #tab-skills #domain-sidebar {
+      width: 220px;
+      min-width: 180px;
+      background: var(--bg-card, #111);
+      border-right: 1px solid var(--border, #222);
+      overflow-y: auto;
+      padding: var(--space-xl) 0;
+      flex-shrink: 0;
+    }
+    #tab-skills #domain-sidebar h2 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted, #555);
+      padding: 0 var(--space-xl) var(--space-md);
+    }
+    #tab-skills .domain-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: var(--space-md) var(--space-xl);
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    #tab-skills .domain-item:hover { background: var(--bg-hover, #1a1a1a); }
+    #tab-skills .domain-item.active {
+      background: var(--bg-hover, #181818);
+      border-left-color: var(--domain-color);
+    }
+    #tab-skills .domain-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--domain-color); flex-shrink: 0;
+    }
+    #tab-skills .domain-name { flex: 1; font-size: 0.85rem; font-weight: 500; }
+    #tab-skills .domain-avg { font-size: 0.7rem; color: var(--text-muted, #666); min-width: 24px; text-align: right; }
+    #tab-skills .domain-bar-wrap { height: 2px; background: var(--border, #222); border-radius: 1px; margin-top: 2px; }
+    #tab-skills .domain-bar-fill { height: 100%; border-radius: 1px; background: var(--domain-color); transition: width 0.4s; }
+
+    #tab-skills #skill-panel { flex: 1; overflow-y: auto; padding: var(--space-2xl); }
+    #tab-skills #skill-panel-header {
+      display: flex; align-items: center; gap: var(--space-xl);
+      margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border, #222);
+    }
+    #tab-skills #panel-domain-icon { font-size: 2rem; line-height: 1; }
+    #tab-skills #panel-domain-title { font-size: 1.4rem; font-weight: 700; }
+    #tab-skills #panel-domain-desc { font-size: 0.8rem; color: var(--text-muted, #888); margin-top: var(--space-xs); }
+    #tab-skills #panel-domain-overall { margin-left: auto; text-align: right; }
+    #tab-skills #panel-domain-overall .big-level { font-size: 2rem; font-weight: 800; color: var(--skill-active-color, #FF8811); line-height: 1; }
+    #tab-skills #panel-domain-overall .big-label { font-size: 0.65rem; color: var(--text-muted, #666); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    #tab-skills .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-xl); }
+    #tab-skills .skill-card {
+      background: var(--bg-card, #141414); border: 1px solid var(--border, #222);
+      border-radius: var(--radius); padding: var(--space-xl); transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    #tab-skills .skill-card:hover { border-color: var(--border-hover, #333); box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+    #tab-skills .skill-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-lg); }
+    #tab-skills .skill-name { font-size: 0.95rem; font-weight: 600; }
+    #tab-skills .skill-tags { font-size: 0.65rem; color: var(--text-muted, #666); margin-top: var(--space-xs); }
+    #tab-skills .skill-level-badge { font-size: 1.4rem; font-weight: 800; color: var(--skill-active-color, #FF8811); line-height: 1; min-width: 32px; text-align: right; }
+    #tab-skills .skill-level-label { font-size: 0.6rem; color: var(--text-muted, #555); text-align: right; text-transform: uppercase; }
+    #tab-skills .skill-desc { font-size: 0.75rem; color: var(--text-muted, #777); margin-bottom: var(--space-xl); line-height: 1.4; }
+
+    #tab-skills .xp-bar-wrap { height: 6px; background: var(--bg-secondary, #1e1e1e); border-radius: var(--radius-sm); margin-bottom: var(--space-xl); position: relative; }
+    #tab-skills .xp-bar-fill { height: 100%; border-radius: var(--radius-sm); background: var(--skill-active-color, #FF8811); transition: width 0.5s cubic-bezier(0.4,0,0.2,1); }
+    #tab-skills .xp-bar-text { position: absolute; right: 0; top: 8px; font-size: 0.6rem; color: var(--text-muted, #555); }
+
+    #tab-skills .level-steps { display: flex; gap: 3px; margin-bottom: var(--space-xl); }
+    #tab-skills .level-pip { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-secondary, #1e1e1e); cursor: pointer; transition: background 0.2s; }
+    #tab-skills .level-pip.filled { background: var(--skill-active-color, #FF8811); }
+    #tab-skills .level-pip:hover { opacity: 0.8; }
+
+    #tab-skills .xp-actions { display: flex; gap: var(--space-md); align-items: center; }
+    #tab-skills .xp-btn {
+      background: var(--bg-secondary, #1a1a1a); border: 1px solid var(--border, #2a2a2a);
+      color: var(--text-muted, #aaa); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md);
+      font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
+    }
+    #tab-skills .xp-btn:hover { background: var(--bg-hover, #222); border-color: var(--border-hover, #444); color: var(--text, #fff); }
+    #tab-skills .xp-btn.primary {
+      background: color-mix(in srgb, var(--skill-active-color, #FF8811) 15%, transparent);
+      border-color: color-mix(in srgb, var(--skill-active-color, #FF8811) 40%, transparent);
+      color: var(--skill-active-color, #FF8811);
+    }
+    #tab-skills .xp-btn.primary:hover { background: color-mix(in srgb, var(--skill-active-color, #FF8811) 25%, transparent); }
+    #tab-skills .xp-current { margin-left: auto; font-size: 0.7rem; color: var(--text-muted, #555); }
+
+    @keyframes skill-levelup-flash {
+      0%   { box-shadow: 0 0 0 0 var(--skill-active-color); }
+      50%  { box-shadow: 0 0 0 8px transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    #tab-skills .skill-card.levelup { animation: skill-levelup-flash 0.6s ease-out; }
+
+    #skill-toast {
+      position: fixed; bottom: 60px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--bg-card, #1a1a1a); border: 1px solid var(--border, #333);
+      border-radius: var(--radius); padding: var(--space-md) var(--space-xl); font-size: 0.82rem;
+      color: var(--text, #eee); opacity: 0; pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s; z-index: 9999;
+    }
+    #skill-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    #tab-skills #empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 60%; color: var(--text-muted, #444); gap: var(--space-md);
+    }
+    #tab-skills #empty-state .big { font-size: 3rem; }
+    #tab-skills #empty-state p { font-size: 0.85rem; }
+
+    @media (max-width: 600px) {
+      #tab-skills #domain-sidebar { width: 160px; min-width: 140px; }
+      #tab-skills #skill-panel { padding: var(--space-xl); }
+      #tab-skills .skill-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js" data-active="profile"></script>
+  <script src="/shared/defaults.js"></script>
+  <script src="/shared/settings.js"></script>
+  <script src="/shared/eli5.js"></script>
+  <div class="eli5-block">
+    <div class="eli5-simple">This is you! Set your name, picture, bio, and show off your skills.</div>
+    <div class="eli5-expert">Ed25519 identity with profile data synced via WebSocket. Skills tab has 9 domains with 49 skills tracked by XP/level (10 pips per level, 50 max). Endorsements from other users. Profile data broadcasts to connected peers on save.</div>
+  </div>
+  <p class="page-hint">Your profile. Tell the world about yourself — your name, bio, skills, and how to reach you. Choose what's public and what stays private.</p>
+  <div id="profile-app">
+    <!-- ── Left sidebar ── -->
+    <div id="profile-sidebar">
+      <div class="sidebar-label">My Profile</div>
+
+      <div class="sidebar-label" style="color:#c44;"><span data-icon="dot-red" data-size="12"></span> Private</div>
+      <button class="prof-section-btn active" onclick="showTab('body')" data-tab="body">
+        <span class="dot dot-private"></span>Body & Measurements
+      </button>
+      <button class="prof-section-btn" onclick="showTab('identity')" data-tab="identity">
+        <span class="dot dot-private"></span>Identity
+      </button>
+      <button class="prof-section-btn" onclick="showTab('notes')" data-tab="notes">
+        <span class="dot dot-private"></span>Private Notes
+      </button>
+
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-label" style="color:#4a9;"><span data-icon="dot-green" data-size="12"></span> Personal</div>
+      <button class="prof-section-btn" onclick="showTab('profile')" data-tab="profile">
+        <span class="dot dot-personal"></span>Network Profile
+      </button>
+      <button class="prof-section-btn" onclick="showTab('interests')" data-tab="interests">
+        <span class="dot dot-personal"></span>Interests
+      </button>
+      <button class="prof-section-btn" onclick="showTab('skills')" data-tab="skills">
+        <span class="dot dot-personal"></span>Skills
+      </button>
+
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-label" style="color:#48f;">🔵 Public</div>
+      <button class="prof-section-btn" onclick="showTab('social')" data-tab="social">
+        <span class="dot dot-public"></span>Social Links
+      </button>
+      <button class="prof-section-btn" onclick="showTab('streaming')" data-tab="streaming">
+        <span class="dot dot-public"></span>Streaming
+      </button>
+
+      <div class="sidebar-divider"></div>
+      <button class="save-btn" onclick="saveAll()" style="width:100%;margin-top:var(--space-sm);"><span data-icon="save" data-size="16"></span> Save All</button>
+      <div id="save-status"></div>
+    </div>
+
+    <!-- ── Main content ── -->
+    <div id="profile-main">
+
+      <!-- ── Body & Measurements (Private) ── -->
+      <div class="prof-tab active" id="tab-body">
+        <div class="section-header private">
+          <div>
+            <h2><span data-icon="dot-red" data-size="16"></span> Body &amp; Measurements</h2>
+            <p>Stored locally only — never transmitted without your explicit consent.</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Physical</h3>
+          <div class="field-grid">
+            <div class="field-group private-field">
+              <label>Height</label>
+              <input type="text" id="f-height" placeholder='e.g. 5\'10" or 178 cm'>
+            </div>
+            <div class="field-group private-field">
+              <label>Weight</label>
+              <input type="text" id="f-weight" placeholder="e.g. 170 lbs or 77 kg">
+            </div>
+            <div class="field-group private-field">
+              <label>Eye Color</label>
+              <input type="text" id="f-eye-color" placeholder="e.g. Brown">
+            </div>
+            <div class="field-group private-field">
+              <label>Blood Type</label>
+              <select id="f-blood-type">
+                <option value="">Unknown</option>
+                <option>A+</option><option>A−</option>
+                <option>B+</option><option>B−</option>
+                <option>AB+</option><option>AB−</option>
+                <option>O+</option><option>O−</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Hair</h3>
+          <div class="field-grid">
+            <div class="field-group private-field">
+              <label>Color</label>
+              <input type="text" id="f-hair-color" placeholder="e.g. Dark brown">
+            </div>
+            <div class="field-group private-field">
+              <label>Length</label>
+              <select id="f-hair-length">
+                <option value="">— select —</option>
+                <option>Buzz / Shaved</option>
+                <option>Very Short (&lt;2 in)</option>
+                <option>Short (2–4 in)</option>
+                <option>Medium (4–8 in)</option>
+                <option>Long (8–16 in)</option>
+                <option>Very Long (&gt;16 in)</option>
+              </select>
+            </div>
+            <div class="field-group private-field">
+              <label>Style</label>
+              <input type="text" id="f-hair-style" placeholder="e.g. Wavy, side-part">
+            </div>
+            <div class="field-group private-field">
+              <label>Texture</label>
+              <select id="f-hair-texture">
+                <option value="">— select —</option>
+                <option>Straight</option>
+                <option>Wavy</option>
+                <option>Curly</option>
+                <option>Coily / Kinky</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Clothing Measurements</h3>
+          <div class="field-grid">
+            <div class="field-group private-field">
+              <label>Neck</label>
+              <input type="text" id="f-neck" placeholder='e.g. 15.5"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Shoulders</label>
+              <input type="text" id="f-shoulders" placeholder='e.g. 18"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Chest / Bust</label>
+              <input type="text" id="f-chest" placeholder='e.g. 40"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Waist</label>
+              <input type="text" id="f-waist" placeholder='e.g. 32"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Hips</label>
+              <input type="text" id="f-hips" placeholder='e.g. 38"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Thighs</label>
+              <input type="text" id="f-thighs" placeholder='e.g. 22"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Inseam</label>
+              <input type="text" id="f-inseam" placeholder='e.g. 32"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Shoe Size</label>
+              <input type="text" id="f-shoe-size" placeholder="e.g. US 10 / EU 44">
+            </div>
+            <div class="field-group private-field">
+              <label>Shirt Size</label>
+              <select id="f-shirt-size">
+                <option value="">— select —</option>
+                <option>XS</option><option>S</option><option>M</option>
+                <option>L</option><option>XL</option><option>2XL</option><option>3XL+</option>
+              </select>
+            </div>
+            <div class="field-group private-field">
+              <label>Pants Size</label>
+              <input type="text" id="f-pants-size" placeholder="e.g. 32×30">
+            </div>
+          </div>
+          <p class="privacy-note"><span data-icon="lock" data-size="14"></span> These measurements are stored only on your device and never shared without your consent.</p>
+        </div>
+      </div>
+
+      <!-- ── Identity (Private) ── -->
+      <div class="prof-tab" id="tab-identity">
+        <div class="section-header private">
+          <div>
+            <h2><span data-icon="dot-red" data-size="16"></span> Identity</h2>
+            <p>Real-world identity details stored only on your device.</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Personal Details</h3>
+          <div class="field-grid">
+            <div class="field-group private-field">
+              <label>Legal First Name</label>
+              <input type="text" id="f-first-name" placeholder="Optional">
+            </div>
+            <div class="field-group private-field">
+              <label>Legal Last Name</label>
+              <input type="text" id="f-last-name" placeholder="Optional">
+            </div>
+            <div class="field-group private-field">
+              <label>Date of Birth</label>
+              <input type="date" id="f-dob">
+            </div>
+            <div class="field-group private-field">
+              <label>Timezone</label>
+              <input type="text" id="f-timezone" placeholder="e.g. America/New_York">
+            </div>
+            <div class="field-group private-field">
+              <label>City / Region</label>
+              <input type="text" id="f-city" placeholder="Private location">
+            </div>
+            <div class="field-group private-field">
+              <label>Country</label>
+              <input type="text" id="f-country" placeholder="e.g. United States">
+            </div>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Emergency Contact</h3>
+          <div class="field-grid">
+            <div class="field-group private-field">
+              <label>Contact Name</label>
+              <input type="text" id="f-emergency-name" placeholder="Name">
+            </div>
+            <div class="field-group private-field">
+              <label>Relationship</label>
+              <input type="text" id="f-emergency-rel" placeholder="e.g. Spouse, Parent">
+            </div>
+            <div class="field-group private-field">
+              <label>Phone</label>
+              <input type="tel" id="f-emergency-phone" placeholder="+1 555-000-0000">
+            </div>
+          </div>
+          <p class="privacy-note"><span data-icon="lock" data-size="14"></span> Emergency contact is never transmitted or shared.</p>
+        </div>
+
+        <div class="prof-card">
+          <h3>Medical Notes (Private)</h3>
+          <div class="field-group private-field">
+            <label>Allergies</label>
+            <textarea id="f-allergies" rows="2" placeholder="Food, medication, environmental..."></textarea>
+          </div>
+          <div class="field-group private-field" style="margin-top:var(--space-md);">
+            <label>Medications / Conditions</label>
+            <textarea id="f-medical" rows="3" placeholder="Personal notes only — never transmitted"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Private Notes ── -->
+      <div class="prof-tab" id="tab-notes">
+        <div class="section-header private">
+          <div>
+            <h2><span data-icon="dot-red" data-size="16"></span> Private Notes</h2>
+            <p>Freeform notes stored locally. Never transmitted.</p>
+          </div>
+        </div>
+        <div class="prof-card">
+          <div class="field-group private-field">
+            <label>Notes</label>
+            <textarea id="f-private-notes" rows="18" placeholder="Anything you want to remember..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Network Profile (Personal) ── -->
+      <div class="prof-tab" id="tab-profile">
+        <div class="section-header personal">
+          <div>
+            <h2><span data-icon="dot-green" data-size="16"></span> Network Profile</h2>
+            <p>Visible to people you follow and who follow you back (friends).</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Identity on the Network</h3>
+          <div class="field-grid">
+            <div class="field-group personal-field">
+              <label>Display Name</label>
+              <input type="text" id="f-display-name" placeholder="How others see you">
+            </div>
+            <div class="field-group personal-field">
+              <label>Pronouns</label>
+              <input type="text" id="f-pronouns" placeholder="e.g. he/him, she/her, they/them">
+            </div>
+            <div class="field-group personal-field" style="grid-column: 1/-1;">
+              <label>Bio</label>
+              <textarea id="f-bio" rows="4" placeholder="Tell people about yourself..."></textarea>
+            </div>
+            <div class="field-group personal-field">
+              <label>Public Location</label>
+              <input type="text" id="f-location" placeholder="e.g. Pacific Northwest, USA">
+            </div>
+            <div class="field-group personal-field">
+              <label>Website</label>
+              <input type="url" id="f-website" placeholder="https://yoursite.com">
+            </div>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Avatar &amp; Banner</h3>
+          <div class="field-grid two-col">
+            <div class="field-group personal-field">
+              <label>Avatar URL</label>
+              <input type="url" id="f-avatar-url" placeholder="https://...">
+            </div>
+            <div class="field-group personal-field">
+              <label>Banner URL</label>
+              <input type="url" id="f-banner-url" placeholder="https://...">
+            </div>
+          </div>
+          <p class="privacy-note" style="margin-top:var(--space-md);"><span data-icon="dot-green" data-size="14"></span> Avatar and banner are shared with friends and visible on your public profile card.</p>
+        </div>
+
+        <div class="prof-card" id="sync-card">
+          <h3>Sync to Network</h3>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:var(--space-lg);">
+            Sync your network profile to the relay so friends can view it. Requires an active Network connection.
+          </p>
+          <button class="save-btn" onclick="syncNetworkProfile()">🔄 Sync to Network</button>
+          <span id="sync-status" style="font-size:0.78rem;color:var(--text-muted);margin-left:var(--space-lg);"></span>
+        </div>
+      </div>
+
+      <!-- ── Interests & Skills (Personal) ── -->
+      <div class="prof-tab" id="tab-interests">
+        <div class="section-header personal">
+          <div>
+            <h2><span data-icon="dot-green" data-size="16"></span> Interests</h2>
+            <p>Shared with friends to help match you with others who have similar interests.</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Interests</h3>
+          <div class="field-group personal-field">
+            <label>Topics you're passionate about (comma-separated)</label>
+            <textarea id="f-interests" rows="3" placeholder="e.g. sustainable farming, open source, space exploration, music production..."></textarea>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Skills</h3>
+          <div class="field-group personal-field">
+            <label>Things you can teach or help with (comma-separated)</label>
+            <textarea id="f-skills" rows="3" placeholder="e.g. Python, carpentry, cooking, graphic design..."></textarea>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Looking For</h3>
+          <div class="field-group personal-field">
+            <label>Things you want to learn or collaborate on</label>
+            <textarea id="f-looking-for" rows="3" placeholder="e.g. learning Rust, finding a hiking buddy, collaborators for a music project..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Skills (Personal) ── -->
+      <div class="prof-tab" id="tab-skills">
+        <div class="section-header personal">
+          <div>
+            <h2><span data-icon="dot-green" data-size="16"></span> Skills</h2>
+            <p>Track what you're learning, see how far you've come, and discover new things to get better at.</p>
+          </div>
+        </div>
+        <div id="skills-app">
+          <nav id="domain-sidebar">
+            <h2>Domains</h2>
+            <div id="domain-list"></div>
+          </nav>
+          <main id="skill-panel">
+            <div id="empty-state">
+              <div class="big">🧠</div>
+              <p>Select a domain to view skills</p>
+            </div>
+            <div id="domain-content" style="display:none">
+              <div id="skill-panel-header">
+                <div id="panel-domain-icon"></div>
+                <div>
+                  <div id="panel-domain-title"></div>
+                  <div id="panel-domain-desc"></div>
+                </div>
+                <div id="panel-domain-overall">
+                  <div class="big-level" id="panel-avg-level">0</div>
+                  <div class="big-label">Domain Avg</div>
+                </div>
+              </div>
+              <div class="skill-grid" id="skill-grid"></div>
+            </div>
+          </main>
+        </div>
+        <div id="skill-toast"></div>
+      </div>
+
+      <!-- ── Social Links (Public) ── -->
+      <div class="prof-tab" id="tab-social">
+        <div class="section-header public">
+          <div>
+            <h2>🔵 Social Links</h2>
+            <p>Visible to everyone — links to your public social media profiles.</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Social Media</h3>
+          <div class="social-row"><span class="social-icon">🐦</span><input type="url" id="f-twitter" placeholder="https://x.com/yourhandle"></div>
+          <div class="social-row"><span class="social-icon">▶️</span><input type="url" id="f-youtube" placeholder="https://youtube.com/@yourchannel"></div>
+          <div class="social-row"><span class="social-icon">🎮</span><input type="url" id="f-twitch" placeholder="https://twitch.tv/yourname"></div>
+          <div class="social-row"><span class="social-icon">🐙</span><input type="url" id="f-github" placeholder="https://github.com/yourname"></div>
+          <div class="social-row"><span class="social-icon">💬</span><input type="text" id="f-discord" placeholder="YourName#0001 or discord.gg/invite"></div>
+          <div class="social-row"><span class="social-icon">📸</span><input type="url" id="f-instagram" placeholder="https://instagram.com/yourname"></div>
+          <div class="social-row"><span class="social-icon">🎵</span><input type="url" id="f-tiktok" placeholder="https://tiktok.com/@yourname"></div>
+          <div class="social-row"><span class="social-icon">🦣</span><input type="url" id="f-mastodon" placeholder="https://mastodon.social/@yourname"></div>
+          <div class="social-row"><span class="social-icon">🔗</span><input type="url" id="f-linkedin" placeholder="https://linkedin.com/in/yourname"></div>
+          <div class="social-row"><span class="social-icon">🌐</span><input type="url" id="f-portfolio" placeholder="https://yourportfolio.com"></div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Support / Funding</h3>
+          <div class="social-row"><span class="social-icon">☕</span><input type="url" id="f-kofi" placeholder="https://ko-fi.com/yourname"></div>
+          <div class="social-row"><span class="social-icon">🎭</span><input type="url" id="f-patreon" placeholder="https://patreon.com/yourname"></div>
+        </div>
+      </div>
+
+      <!-- ── Streaming (Public) ── -->
+      <div class="prof-tab" id="tab-streaming">
+        <div class="section-header public">
+          <div>
+            <h2>🔵 Streaming Configuration</h2>
+            <p>Configure multistream destinations for broadcasting via OBS or similar software.</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>OBS / Multistream Setup</h3>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:var(--space-lg);">
+            Enter your RTMP stream keys for each platform. Stored locally only — never synced to the relay.
+            Enable the toggle to include a platform in your multistream output.
+          </p>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-yt-enabled" style="width:auto;"> ▶️ YouTube Live
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-yt-key" placeholder="xxxx-xxxx-xxxx-xxxx" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-yt-rtmp" value="rtmp://a.rtmp.youtube.com/live2" readonly style="opacity:0.6;">
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-twitch-enabled" style="width:auto;"> 🎮 Twitch
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-twitch-key" placeholder="live_xxxxxxxxxxxx" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-twitch-rtmp" value="rtmp://live.twitch.tv/live" readonly style="opacity:0.6;">
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-rumble-enabled" checked style="width:auto;"> 🟠 Rumble
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-rumble-key" placeholder="Your Rumble stream key" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-rumble-rtmp" value="rtmp://live.rumble.com/live" readonly style="opacity:0.6;">
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-facebook-enabled" style="width:auto;"> 📘 Facebook / Instagram Live
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-facebook-key" placeholder="Persistent stream key from Meta" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-facebook-rtmp" value="rtmps://live-api-s.facebook.com:443/rtmp/" readonly style="opacity:0.6;">
+              </div>
+            </div>
+            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:var(--space-sm);">Get your key from Meta Business Suite → Live → Create Live Video.</p>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-x-enabled" style="width:auto;"> 🐦 X (Twitter)
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-x-key" placeholder="Stream key from X Media Studio" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-x-rtmp" value="rtmps://ingest.pscp.tv:443/x/" readonly style="opacity:0.6;">
+              </div>
+            </div>
+            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:var(--space-sm);">Get your key from X Media Studio → Producer → Broadcast.</p>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-kick-enabled" style="width:auto;"> 🟩 Kick
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-kick-key" placeholder="Your Kick stream key" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-kick-rtmp" value="rtmps://fa723fc1b171.global-contribute.live-video.net:443/app/" readonly style="opacity:0.6;">
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-tiktok-enabled" style="width:auto;"> 🎵 TikTok Live
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-tiktok-key" placeholder="TikTok stream key" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-tiktok-rtmp" placeholder="rtmp:// (varies by region)" autocomplete="off">
+              </div>
+            </div>
+            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:var(--space-sm);">TikTok RTMP server varies — get it from TikTok LIVE Studio.</p>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-linkedin-enabled" style="width:auto;"> 💼 LinkedIn Live
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-linkedin-key" placeholder="LinkedIn stream key" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-linkedin-rtmp" value="rtmps://seamless.linkedin.com:443/live/" readonly style="opacity:0.6;">
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-custom-enabled" style="width:auto;"> 🌐 Custom RTMP
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-custom-key" placeholder="Stream key" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-custom-rtmp" placeholder="rtmp://your-server/live" autocomplete="off">
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:var(--space-lg);">
+            <button class="save-btn" onclick="copyObsConfig()"><span data-icon="copy" data-size="16"></span> Copy OBS Multistream Config</button>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin-top:var(--space-sm);">
+              Copies config for all enabled platforms. Paste into the
+              <a href="https://obsproject.com/forum/resources/obs-multi-rtmp.964/" target="_blank">obs-multi-rtmp</a> plugin
+              or use with a multistream service like Restream.
+            </p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Stream Identity</h3>
+          <div class="field-grid">
+            <div class="field-group public-field">
+              <label>Stream Title Template</label>
+              <input type="text" id="f-stream-title" placeholder="Humanity Dev Stream | {date}">
+            </div>
+            <div class="field-group public-field">
+              <label>Default Category / Game</label>
+              <input type="text" id="f-stream-category" placeholder="e.g. Software &amp; Game Development">
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /#profile-main -->
+  </div><!-- /#profile-app -->
+
+  <script>
+    var STORE_KEY = 'humanity_profile_full_v1';
+
+    // ── Tab navigation ──
+    function showTab(id) {
+      document.querySelectorAll('.prof-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.prof-section-btn').forEach(function(b) { b.classList.remove('active'); });
+      var tab = document.getElementById('tab-' + id);
+      if (tab) tab.classList.add('active');
+      var btn = document.querySelector('[data-tab="' + id + '"]');
+      if (btn) btn.classList.add('active');
+    }
+
+    // ── Field map: id → key ──
+    var FIELDS = [
+      'height','weight','eye-color','blood-type',
+      'hair-color','hair-length','hair-style','hair-texture',
+      'neck','shoulders','chest','waist','hips','thighs','inseam','shoe-size','shirt-size','pants-size',
+      'first-name','last-name','dob','timezone','city','country',
+      'emergency-name','emergency-rel','emergency-phone',
+      'allergies','medical','private-notes',
+      'display-name','pronouns','bio','location','website','avatar-url','banner-url',
+      'interests','skills','looking-for',
+      'twitter','youtube','twitch','github','discord','instagram','tiktok','mastodon','linkedin','portfolio',
+      'kofi','patreon',
+      'yt-enabled','yt-key','yt-rtmp',
+      'twitch-enabled','twitch-key','twitch-rtmp',
+      'rumble-enabled','rumble-key','rumble-rtmp',
+      'facebook-enabled','facebook-key','facebook-rtmp',
+      'x-enabled','x-key','x-rtmp',
+      'kick-enabled','kick-key','kick-rtmp',
+      'tiktok-enabled','tiktok-key','tiktok-rtmp',
+      'linkedin-enabled','linkedin-key','linkedin-rtmp',
+      'custom-enabled','custom-key','custom-rtmp',
+      'stream-title','stream-category'
+    ];
+
+    // Checkbox fields that use .checked instead of .value
+    var CHECKBOX_FIELDS = ['yt-enabled','twitch-enabled','rumble-enabled','facebook-enabled',
+      'x-enabled','kick-enabled','tiktok-enabled','linkedin-enabled','custom-enabled'];
+
+    // ── Load from localStorage ──
+    function loadProfile() {
+      var data = {};
+      try { data = JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; } catch (_) {}
+      FIELDS.forEach(function(f) {
+        var el = document.getElementById('f-' + f);
+        if (!el) return;
+        if (CHECKBOX_FIELDS.indexOf(f) >= 0) {
+          // Rumble defaults to enabled; others default to false if not yet saved
+          if (data[f] !== undefined) el.checked = !!data[f];
+        } else {
+          if (data[f] !== undefined) el.value = data[f];
+        }
+      });
+    }
+
+    // ── Save all to localStorage ──
+    function saveAll() {
+      var data = {};
+      FIELDS.forEach(function(f) {
+        var el = document.getElementById('f-' + f);
+        if (!el) return;
+        data[f] = CHECKBOX_FIELDS.indexOf(f) >= 0 ? el.checked : el.value;
+      });
+      localStorage.setItem(STORE_KEY, JSON.stringify(data));
+      var st = document.getElementById('save-status');
+      st.textContent = '✓ Saved';
+      st.className = 'saved';
+      setTimeout(function() { st.textContent = ''; st.className = ''; }, 2500);
+    }
+
+    // Auto-save on field change
+    var saveTimer = null;
+    document.getElementById('profile-main').addEventListener('input', function() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveAll, 800);
+    });
+
+    // ── Sync network profile to relay via postMessage (if network page is open) ──
+    function syncNetworkProfile() {
+      var data = {};
+      FIELDS.forEach(function(f) { var el = document.getElementById('f-' + f); if (el) data[f] = el.value; });
+      // Try to communicate with an open /chat tab
+      var status = document.getElementById('sync-status');
+      status.textContent = 'Opening Network…';
+      // Store pending sync in localStorage; /chat will pick it up on load
+      localStorage.setItem('humanity_profile_pending_sync', JSON.stringify({
+        display_name: data['display-name'],
+        bio: data['bio'],
+        pronouns: data['pronouns'],
+        location: data['location'],
+        website: data['website'],
+        avatar_url: data['avatar-url'],
+        banner_url: data['banner-url'],
+      }));
+      status.textContent = '✓ Queued — open Network to sync';
+      setTimeout(function() { status.textContent = ''; }, 4000);
+    }
+
+    // ── Copy OBS multistream config ──
+    function copyObsConfig() {
+      var allPlatforms = [
+        { id: 'yt',       name: 'YouTube' },
+        { id: 'twitch',   name: 'Twitch' },
+        { id: 'rumble',   name: 'Rumble' },
+        { id: 'facebook', name: 'Facebook/Instagram' },
+        { id: 'x',        name: 'X (Twitter)' },
+        { id: 'kick',     name: 'Kick' },
+        { id: 'tiktok',   name: 'TikTok' },
+        { id: 'linkedin', name: 'LinkedIn' },
+        { id: 'custom',   name: 'Custom' },
+      ];
+      var platforms = allPlatforms.map(function(p) {
+        var enabled = document.getElementById('f-' + p.id + '-enabled');
+        var key  = document.getElementById('f-' + p.id + '-key');
+        var rtmp = document.getElementById('f-' + p.id + '-rtmp');
+        return { name: p.name, enabled: enabled && enabled.checked, key: key && key.value, rtmp: rtmp && rtmp.value };
+      }).filter(function(p) { return p.enabled && p.key && p.rtmp; });
+      if (platforms.length === 0) {
+        alert('Enter at least one stream key + RTMP server first.');
+        return;
+      }
+      var config = platforms.map(function(p) {
+        return '# ' + p.name + '\n[rtmp]\nServer=' + p.rtmp + '\nKey=' + p.key + '\n';
+      }).join('\n');
+      navigator.clipboard.writeText(config).then(function() {
+        alert('OBS multistream config copied to clipboard!\n\nPaste into OBS → Tools → obs-multi-rtmp or your multistream plugin config.');
+      }).catch(function() {
+        var textarea = document.createElement('textarea');
+        textarea.value = config;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('Copied!');
+      });
+    }
+
+    // ── Init ──
+    loadProfile();
+
+    // ═══════════════════════════════════════════════════════
+    // Skills tab — domains, XP, endorsements
+    // ═══════════════════════════════════════════════════════
+
+    var SKILL_DOMAINS = [
+      {
+        id: 'life', icon: '🧬', label: 'Life Sciences', color: '#2ecc71',
+        desc: 'Biology, health, medicine, ecology, and agriculture',
+        skills: [
+          { id: 'health',      name: 'Health & Wellness',  tags: 'anatomy, physiology, first aid',     desc: 'Understanding and maintaining the human body — nutrition basics, first aid, physical wellness habits.' },
+          { id: 'medicine',    name: 'Medicine',            tags: 'diagnosis, pharmacology, surgery',   desc: 'Clinical knowledge: identifying illness, medications, procedures, and patient care.' },
+          { id: 'biology',     name: 'Biology',             tags: 'cells, genetics, evolution',         desc: 'Living systems from cellular biology and genetics to evolution and ecological relationships.' },
+          { id: 'agriculture', name: 'Agriculture',         tags: 'farming, horticulture, soil',        desc: 'Growing food and managing land — soil science, crop cycles, livestock, and permaculture.' },
+          { id: 'ecology',     name: 'Ecology',             tags: 'ecosystems, conservation, climate',  desc: 'Interactions between organisms and environments, biodiversity, and conservation practice.' },
+        ]
+      },
+      {
+        id: 'science', icon: '🔭', label: 'Physical Science', color: '#3498db',
+        desc: 'Physics, chemistry, earth science, and astronomy',
+        skills: [
+          { id: 'physics',    name: 'Physics',        tags: 'mechanics, energy, electromagnetism',  desc: 'Laws governing motion, forces, energy, waves, and electromagnetism — from Newtonian to quantum.' },
+          { id: 'chemistry',  name: 'Chemistry',      tags: 'reactions, materials, thermodynamics', desc: 'Atomic structure, chemical reactions, bonding, and materials science.' },
+          { id: 'earth',      name: 'Earth Science',  tags: 'geology, meteorology, hydrology',      desc: 'Geologic processes, weather systems, oceans, and the dynamic Earth.' },
+          { id: 'astronomy',  name: 'Astronomy',      tags: 'cosmology, astrophysics, navigation',  desc: 'Stars, galaxies, celestial mechanics, cosmology, and observational astronomy.' },
+          { id: 'research',   name: 'Research',       tags: 'scientific method, data, peer review', desc: 'Designing experiments, gathering evidence, statistical analysis, and writing scientific findings.' },
+        ]
+      },
+      {
+        id: 'math', icon: '📐', label: 'Mathematics', color: '#9b59b6',
+        desc: 'From arithmetic to calculus and statistics',
+        skills: [
+          { id: 'arithmetic',  name: 'Arithmetic',    tags: 'numbers, fractions, percentages',     desc: 'Foundational number sense: operations, fractions, ratios, percentages, and mental math.' },
+          { id: 'algebra',     name: 'Algebra',       tags: 'equations, functions, variables',     desc: 'Symbolic reasoning — solving equations, graphing functions, and working with variables.' },
+          { id: 'geometry',    name: 'Geometry',      tags: 'shapes, proofs, trigonometry',        desc: 'Spatial reasoning, coordinate geometry, trigonometry, and geometric proofs.' },
+          { id: 'calculus',    name: 'Calculus',      tags: 'derivatives, integrals, limits',      desc: 'Rates of change and accumulation — differentiation, integration, and their applications.' },
+          { id: 'statistics',  name: 'Statistics',    tags: 'probability, data analysis, models',  desc: 'Probability theory, statistical inference, distributions, and data-driven decision making.' },
+        ]
+      },
+      {
+        id: 'technology', icon: '💻', label: 'Technology', color: '#1abc9c',
+        desc: 'Computing, programming, networks, and AI',
+        skills: [
+          { id: 'computing',     name: 'Computing',      tags: 'OS, hardware, security',           desc: 'How computers work — hardware, operating systems, file systems, and cybersecurity basics.' },
+          { id: 'programming',   name: 'Programming',    tags: 'code, algorithms, data structures', desc: 'Writing software: logic, algorithms, data structures, debugging, and multiple languages.' },
+          { id: 'electronics',   name: 'Electronics',    tags: 'circuits, sensors, microcontrollers', desc: 'Electronic circuits, component reading, microcontrollers (Arduino/Pi), and PCB basics.' },
+          { id: 'networks',      name: 'Networks',       tags: 'TCP/IP, protocols, infrastructure',  desc: 'How data moves: protocols, routing, wireless, and building/maintaining networks.' },
+          { id: 'ai',            name: 'AI & Data',      tags: 'machine learning, models, analytics', desc: 'Foundations of machine learning, neural networks, data pipelines, and AI ethics.' },
+        ]
+      },
+      {
+        id: 'engineering', icon: hosIcon('settings', 16), label: 'Engineering', color: '#e67e22',
+        desc: 'Designing and building systems that work',
+        skills: [
+          { id: 'mechanical',   name: 'Mechanical Eng.',  tags: 'machines, thermodynamics, CAD',    desc: 'Designing mechanical systems: statics, dynamics, thermodynamics, and CAD modeling.' },
+          { id: 'electrical',   name: 'Electrical Eng.',  tags: 'power, control, signals',          desc: 'Power systems, control engineering, signal processing, and electrical design.' },
+          { id: 'civil',        name: 'Civil Eng.',        tags: 'structures, infrastructure, GIS',  desc: 'Bridges, buildings, roads, water systems — load analysis and structural design.' },
+          { id: 'chemical',     name: 'Chemical Eng.',     tags: 'processes, materials, reactions',  desc: 'Industrial chemical processes, reactor design, separation techniques, and safety.' },
+          { id: 'systems',      name: 'Systems Eng.',      tags: 'design, integration, lifecycle',   desc: 'Holistic design thinking — requirements, architecture, integration, and lifecycle management.' },
+        ]
+      },
+      {
+        id: 'trades', icon: '🔨', label: 'Trades & Making', color: '#e74c3c',
+        desc: 'Hands-on crafts, construction, and fabrication',
+        skills: [
+          { id: 'construction', name: 'Construction',    tags: 'framing, masonry, roofing',           desc: 'Building structures from framing and foundations to masonry, roofing, and finishing.' },
+          { id: 'plumbing',     name: 'Plumbing',        tags: 'pipes, fixtures, water systems',      desc: 'Installing and repairing water supply, drainage, and fixture systems.' },
+          { id: 'electrical_t', name: 'Electrical Trade', tags: 'wiring, panels, codes',             desc: 'Residential and commercial wiring, panel work, conduit, and NEC code compliance.' },
+          { id: 'metalwork',    name: 'Metalworking',    tags: 'welding, machining, fabrication',     desc: 'Shaping metal via welding, cutting, turning, milling, and casting.' },
+          { id: 'woodwork',     name: 'Woodworking',     tags: 'joinery, furniture, finishing',       desc: 'Hand tools and power tools for furniture making, joinery, and wood finishing.' },
+          { id: 'textiles',     name: 'Textiles',        tags: 'sewing, knitting, weaving, repair',   desc: 'Fabric arts: sewing garments, knitting, weaving, embroidery, and clothing repair.' },
+        ]
+      },
+      {
+        id: 'arts', icon: '🎨', label: 'Arts & Expression', color: '#e91e8c',
+        desc: 'Visual arts, music, writing, design, and performance',
+        skills: [
+          { id: 'visual_art',  name: 'Visual Art',    tags: 'drawing, painting, sculpture',         desc: 'Drawing, painting, printmaking, and sculpture — form, color, composition, and technique.' },
+          { id: 'music',       name: 'Music',         tags: 'theory, instruments, production',      desc: 'Music theory, playing instruments, ear training, composition, and audio production.' },
+          { id: 'writing',     name: 'Writing',       tags: 'prose, poetry, journalism, storytelling', desc: 'Crafting clear, compelling text — fiction, non-fiction, poetry, and technical writing.' },
+          { id: 'design',      name: 'Design',        tags: 'UX, graphic, typography, branding',    desc: 'Visual communication: graphic design, UI/UX, typography, and branding principles.' },
+          { id: 'photo_video', name: 'Photo & Video', tags: 'composition, lighting, editing',       desc: 'Photography composition, camera settings, lighting, and video production/editing.' },
+          { id: 'performance', name: 'Performance',   tags: 'acting, dance, public speaking',       desc: 'Expressing through the body and voice: acting, dance, comedy, and public speaking.' },
+        ]
+      },
+      {
+        id: 'mind', icon: '🧠', label: 'Mind & Communication', color: '#ff9800',
+        desc: 'Thinking, communicating, leading, and understanding',
+        skills: [
+          { id: 'critical',    name: 'Critical Thinking', tags: 'logic, reasoning, argumentation',   desc: 'Evaluating evidence, identifying fallacies, building sound arguments, and problem solving.' },
+          { id: 'languages',   name: 'Languages',          tags: 'linguistics, foreign language',     desc: 'Learning additional languages, linguistics, translation, and intercultural communication.' },
+          { id: 'teaching',    name: 'Teaching',            tags: 'pedagogy, curriculum, coaching',   desc: 'Designing learning experiences, explaining concepts clearly, and mentoring others.' },
+          { id: 'leadership',  name: 'Leadership',          tags: 'management, strategy, teams',      desc: 'Guiding groups toward goals: decision-making, delegation, conflict resolution, and strategy.' },
+          { id: 'economics',   name: 'Economics',           tags: 'markets, finance, policy',         desc: 'How resources are allocated: micro/macroeconomics, personal finance, and economic policy.' },
+          { id: 'philosophy',  name: 'Philosophy',          tags: 'ethics, epistemology, logic',      desc: 'Big questions about existence, knowledge, values, and ethics — both Western and non-Western.' },
+        ]
+      },
+      {
+        id: 'body', icon: '💪', label: 'Body & Fitness', color: '#4caf50',
+        desc: 'Physical capability, nutrition, and survival',
+        skills: [
+          { id: 'strength',    name: 'Strength',      tags: 'weightlifting, calisthenics, power',    desc: 'Building muscular strength and power through resistance training and progressive overload.' },
+          { id: 'endurance',   name: 'Endurance',     tags: 'cardio, running, cycling, stamina',     desc: 'Cardiovascular fitness — running, cycling, swimming, and sustained effort over time.' },
+          { id: 'agility',     name: 'Agility',       tags: 'flexibility, balance, coordination',    desc: 'Mobility, flexibility, balance, reaction speed, and body coordination.' },
+          { id: 'nutrition',   name: 'Nutrition',     tags: 'macros, diet, cooking',                 desc: 'Food science, macronutrients, meal planning, cooking skills, and dietary strategy.' },
+          { id: 'survival',    name: 'Survival',      tags: 'wilderness, navigation, preparedness',  desc: 'Wilderness skills, navigation, shelter, fire-making, first aid, and emergency preparedness.' },
+        ]
+      },
+    ];
+
+    var SKILL_XP_PER_LEVEL = [100, 150, 225, 338, 507, 760, 1140, 1710, 2565, 3848];
+    var SKILL_MAX_LEVEL = 10;
+    var SKILL_STORAGE_KEY = 'hos_skills_v1';
+
+    var skillData = {};
+    var skillEndorsements = {};
+    var skill_activeDomain = null;
+
+    function skill_loadData() {
+      try {
+        var raw = localStorage.getItem(SKILL_STORAGE_KEY);
+        if (raw) skillData = JSON.parse(raw);
+      } catch (e) { skillData = {}; }
+    }
+
+    function skill_saveData() {
+      localStorage.setItem(SKILL_STORAGE_KEY, JSON.stringify(skillData));
+    }
+
+    function skill_get(id) {
+      if (!skillData[id]) skillData[id] = { level: 0, xp: 0 };
+      return skillData[id];
+    }
+
+    function skill_xpForLevel(level) {
+      if (level >= SKILL_MAX_LEVEL) return Infinity;
+      return SKILL_XP_PER_LEVEL[level] || 100;
+    }
+
+    function skill_addXp(skillId, amount, cardEl) {
+      var s = skill_get(skillId);
+      if (s.level >= SKILL_MAX_LEVEL) { skill_showToast('Max level reached!'); return; }
+      s.xp += amount;
+      var leveled = false;
+      while (s.level < SKILL_MAX_LEVEL && s.xp >= skill_xpForLevel(s.level)) {
+        s.xp -= skill_xpForLevel(s.level);
+        s.level++;
+        leveled = true;
+      }
+      skill_saveData();
+      skill_refreshCard(skillId, cardEl);
+      if (leveled) {
+        cardEl.classList.remove('levelup');
+        void cardEl.offsetWidth;
+        cardEl.classList.add('levelup');
+        skill_showToast('Level up! ' + skill_getById(skillId).name + ' → Lv ' + s.level);
+      }
+      skill_renderSidebar();
+    }
+
+    function skill_setLevel(skillId, level, cardEl) {
+      var s = skill_get(skillId);
+      s.level = Math.max(0, Math.min(SKILL_MAX_LEVEL, level));
+      s.xp = 0;
+      skill_saveData();
+      skill_refreshCard(skillId, cardEl);
+      skill_renderSidebar();
+    }
+
+    function skill_getById(id) {
+      for (var i = 0; i < SKILL_DOMAINS.length; i++) {
+        for (var j = 0; j < SKILL_DOMAINS[i].skills.length; j++) {
+          if (SKILL_DOMAINS[i].skills[j].id === id) return SKILL_DOMAINS[i].skills[j];
+        }
+      }
+      return null;
+    }
+
+    function skill_domainAvg(domain) {
+      var total = 0;
+      for (var i = 0; i < domain.skills.length; i++) total += skill_get(domain.skills[i].id).level;
+      return total / domain.skills.length;
+    }
+
+    function skill_renderSidebar() {
+      var list = document.getElementById('domain-list');
+      if (!list) return;
+      list.innerHTML = SKILL_DOMAINS.map(function(d) {
+        var avg = skill_domainAvg(d);
+        var pct = (avg / SKILL_MAX_LEVEL * 100).toFixed(1);
+        var isActive = skill_activeDomain && skill_activeDomain.id === d.id;
+        return '<div class="domain-item' + (isActive ? ' active' : '') + '" style="--domain-color:' + d.color + '" data-id="' + d.id + '" onclick="skill_selectDomain(\'' + d.id + '\')">' +
+          '<div class="domain-dot"></div>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div class="domain-name">' + d.label + '</div>' +
+            '<div class="domain-bar-wrap"><div class="domain-bar-fill" style="width:' + pct + '%"></div></div>' +
+          '</div>' +
+          '<div class="domain-avg">' + avg.toFixed(1) + '</div>' +
+        '</div>';
+      }).join('');
+      if (skill_activeDomain) {
+        var avgEl = document.getElementById('panel-avg-level');
+        if (avgEl) avgEl.textContent = skill_domainAvg(skill_activeDomain).toFixed(1);
+      }
+    }
+
+    function skill_selectDomain(id) {
+      skill_activeDomain = SKILL_DOMAINS.find(function(d) { return d.id === id; });
+      var emptyEl = document.getElementById('empty-state');
+      var contentEl = document.getElementById('domain-content');
+      if (emptyEl) emptyEl.style.display = 'none';
+      if (contentEl) contentEl.style.display = 'block';
+      document.getElementById('tab-skills').style.setProperty('--skill-active-color', skill_activeDomain.color);
+
+      document.getElementById('panel-domain-icon').textContent = skill_activeDomain.icon;
+      document.getElementById('panel-domain-title').textContent = skill_activeDomain.label;
+      document.getElementById('panel-domain-desc').textContent = skill_activeDomain.desc;
+
+      var avg = skill_domainAvg(skill_activeDomain);
+      document.getElementById('panel-avg-level').textContent = avg.toFixed(1);
+
+      skill_renderGrid(skill_activeDomain);
+      skill_renderSidebar();
+      localStorage.setItem('hos_skills_last_domain', id);
+    }
+
+    function skill_renderGrid(domain) {
+      var grid = document.getElementById('skill-grid');
+      if (!grid) return;
+      grid.innerHTML = domain.skills.map(function(sk) { return skill_buildCard(sk, domain.color); }).join('');
+    }
+
+    function skill_buildCard(skill, color) {
+      var s = skill_get(skill.id);
+      var needed = skill_xpForLevel(s.level);
+      var xpPct = s.level >= SKILL_MAX_LEVEL ? 100 : Math.min(100, (s.xp / needed * 100));
+      var pips = '';
+      for (var i = 0; i < SKILL_MAX_LEVEL; i++) {
+        pips += '<div class="level-pip' + (i < s.level ? ' filled' : '') + '" onclick="skill_pipClick(\'' + skill.id + '\', ' + (i+1) + ', this)"></div>';
+      }
+
+      var endorsement = skillEndorsements[skill.id.toLowerCase()];
+      var endorseBadge = endorsement && endorsement.count > 0
+        ? '<span style="font-size:0.7rem;color:#ffd700;margin-top:var(--space-xs);display:block;" title="Endorsed by ' + (endorsement.last_endorser || 'a peer') + '">🏅 ' + endorsement.count + '</span>'
+        : '';
+
+      return '<div class="skill-card" id="card-' + skill.id + '">' +
+        '<div class="skill-card-header">' +
+          '<div>' +
+            '<div class="skill-name">' + skill.name + '</div>' +
+            '<div class="skill-tags">' + skill.tags + '</div>' +
+          '</div>' +
+          '<div style="text-align:center">' +
+            '<div class="skill-level-badge">' + s.level + '</div>' +
+            '<div class="skill-level-label">Level</div>' +
+            endorseBadge +
+          '</div>' +
+        '</div>' +
+        '<div class="skill-desc">' + skill.desc + '</div>' +
+        '<div class="level-steps">' + pips + '</div>' +
+        '<div class="xp-bar-wrap">' +
+          '<div class="xp-bar-fill" style="width:' + xpPct + '%"></div>' +
+          '<div class="xp-bar-text">' + (s.level >= SKILL_MAX_LEVEL ? 'MAX' : s.xp + '/' + needed + ' XP') + '</div>' +
+        '</div>' +
+        '<div class="xp-actions">' +
+          '<button class="xp-btn" onclick="skill_addXp(\'' + skill.id + '\', 10, document.getElementById(\'card-' + skill.id + '\'))">+10 XP</button>' +
+          '<button class="xp-btn primary" onclick="skill_addXp(\'' + skill.id + '\', 50, document.getElementById(\'card-' + skill.id + '\'))">+50 XP</button>' +
+          '<button class="xp-btn" onclick="skill_addXp(\'' + skill.id + '\', 100, document.getElementById(\'card-' + skill.id + '\'))">+100 XP</button>' +
+          '<span class="xp-current">' + (s.level >= SKILL_MAX_LEVEL ? '✓ Mastered' : 'Total XP: ' + skill_totalXp(skill.id)) + '</span>' +
+          '<button class="xp-btn" style="margin-left:auto;font-size:0.65rem" title="Find community members with this skill" onclick="skill_findUsers(\'' + skill.id + '\', \'' + skill.name.replace(/'/g, "\\'") + '\')">' + hosIcon('users', 14) + ' Find</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function skill_pipClick(skillId, level, pipEl) {
+      var cardEl = document.getElementById('card-' + skillId);
+      var s = skill_get(skillId);
+      var newLevel = s.level === level ? level - 1 : level;
+      skill_setLevel(skillId, newLevel, cardEl);
+    }
+
+    function skill_refreshCard(skillId, cardEl) {
+      var skill = skill_getById(skillId);
+      if (!skill) return;
+      var color = skill_activeDomain ? skill_activeDomain.color : '#FF8811';
+      cardEl.outerHTML = skill_buildCard(skill, color);
+    }
+
+    function skill_totalXp(skillId) {
+      var s = skill_get(skillId);
+      var total = s.xp;
+      for (var i = 0; i < s.level; i++) total += SKILL_XP_PER_LEVEL[i] || 0;
+      return total;
+    }
+
+    var skillToastTimer = null;
+    function skill_showToast(msg) {
+      var t = document.getElementById('skill-toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(skillToastTimer);
+      skillToastTimer = setTimeout(function() { t.classList.remove('show'); }, 2500);
+    }
+
+    /** Show a modal listing community members who have this skill */
+    function skill_findUsers(skillId, skillName) {
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
+      overlay.innerHTML =
+        '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:var(--space-2xl);width:100%;max-width:420px;max-height:80vh;overflow-y:auto;font-family:\'Segoe UI\',system-ui,sans-serif;color:#e0e0e0;">' +
+          '<h2 style="font-size:0.95rem;font-weight:700;color:#FF8811;margin-bottom:var(--space-sm)">' + hosIcon('users', 16) + ' ' + skillName + '</h2>' +
+          '<p style="font-size:0.73rem;color:#666;margin-bottom:var(--space-xl)">Community members with this skill (from relay database):</p>' +
+          '<div id="skill-find-results" style="font-size:0.82rem;">Loading…</div>' +
+          '<div style="display:flex;justify-content:flex-end;margin-top:var(--space-xl);">' +
+            '<button onclick="this.closest(\'[style*=fixed]\').remove()" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:0.82rem;cursor:pointer;">Close</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+      var resultsEl = document.getElementById('skill-find-results');
+      fetch('/api/skills/search?skill=' + encodeURIComponent(skillId) + '&min_level=1&limit=20')
+        .then(function(res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+        .then(function(users) {
+          if (!users || users.length === 0) {
+            resultsEl.innerHTML = '<span style="color:#555">No community members found with this skill yet. Be the first to level it up!</span>';
+            return;
+          }
+          var lvColors = ['#555','#888','#aaa','#6ab0f5','#4ec87a','#f0c040','#f0a500','#e57c00','#e53935','#c62828','#9c27b0'];
+          resultsEl.innerHTML = users.map(function(u) {
+            var lv = u.level || 0;
+            var c = lvColors[Math.min(lv, lvColors.length-1)];
+            return '<div style="display:flex;align-items:center;gap:var(--space-md);padding:var(--space-sm) 0;border-bottom:1px solid #1e1e1e;">' +
+              '<div style="width:28px;height:28px;border-radius:50%;background:#222;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:' + c + '">' + lv + '</div>' +
+              '<span style="flex:1;font-weight:600">' + (u.display_name || u.public_key.slice(0,12) + '…') + '</span>' +
+              '<span style="font-size:0.68rem;color:#555">' + (u.reality_xp|0) + ' XP</span>' +
+            '</div>';
+          }).join('');
+        })
+        .catch(function(e) {
+          resultsEl.innerHTML = '<span style="color:#e55">Error: ' + e.message + '</span>';
+        });
+    }
+
+    /** Hook called by app.js when relay sends back endorsement counts */
+    window.onSkillEndorsementsReceived = function(data) {
+      if (!data || !Array.isArray(data.endorsements)) return;
+      skillEndorsements = {};
+      for (var i = 0; i < data.endorsements.length; i++) {
+        var e = data.endorsements[i];
+        skillEndorsements[e.skill_id.toLowerCase()] = { count: e.count, last_endorser: e.last_endorser };
+      }
+      if (skill_activeDomain) skill_renderGrid(skill_activeDomain);
+    };
+
+    /** Request endorsement counts from relay if connected */
+    function skill_loadEndorsements() {
+      if (typeof requestSkillEndorsements === 'function') {
+        requestSkillEndorsements();
+      }
+    }
+
+    // ── Relay sync — push skill levels to server when user is signed in ──
+    (function initSkillRelaySync() {
+      var raw = localStorage.getItem('humanity_key_backup');
+      if (!raw) return;
+      var pub, name;
+      try { var b = JSON.parse(raw); pub = b.publicKeyHex; name = localStorage.getItem('humanity_name') || 'user'; }
+      catch(e) { return; }
+      if (!pub) return;
+
+      var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      var ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+      ws.addEventListener('open', function() {
+        ws.send(JSON.stringify({ type: 'identify', public_key: pub, display_name: name }));
+      });
+
+      ws.addEventListener('message', function(e) {
+        try {
+          var m = JSON.parse(e.data);
+          if (m.type === 'peer_list') {
+            var data = skillData || {};
+            var entries = Object.entries(data);
+            for (var i = 0; i < entries.length; i++) {
+              var sid = entries[i][0], sk = entries[i][1];
+              if (!sk || !sk.level) continue;
+              ws.send(JSON.stringify({
+                type: 'skill_update',
+                skill_id: sid,
+                reality_xp: sk.xp || 0,
+                fantasy_xp: 0,
+                level: sk.level,
+              }));
+            }
+            setTimeout(function() { ws.close(); }, 500);
+          }
+        } catch(err) {}
+      });
+
+      ws.addEventListener('error', function() { ws.close(); });
+    })();
+
+    // ── Skills init ──
+    skill_loadData();
+    skill_renderSidebar();
+
+    // Auto-select last used domain
+    var lastSkillDomain = localStorage.getItem('hos_skills_last_domain');
+    if (lastSkillDomain && SKILL_DOMAINS.find(function(d) { return d.id === lastSkillDomain; })) {
+      skill_selectDomain(lastSkillDomain);
+    }
+
+    // Try loading endorsements after connection delay
+    setTimeout(skill_loadEndorsements, 3000);
+  </script>
+</body>
+</html>

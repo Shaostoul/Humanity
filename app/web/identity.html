@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HumanityOS — Identity & Credentials</title>
+  <meta name="description" content="Your DID, Verifiable Credentials, multi-layer trust score, and AI-status declaration. Everything that proves who you are without revealing more than you choose.">
+  <link rel="manifest" href="/shared/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { line-height: 1.6; min-height: 100vh; padding-bottom: 80px; }
+    .container { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+
+    .id-hero { padding: 36px 0 18px; }
+    .id-hero h1 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 800; margin-bottom: 8px; }
+    .id-hero h1 em { font-style: normal; color: var(--accent); }
+
+    .did-input-row { display: flex; gap: 8px; margin-bottom: 24px; }
+    .did-input-row input {
+      flex: 1; padding: 10px 14px; border-radius: var(--radius);
+      background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
+      font-family: ui-monospace, monospace; font-size: 0.85rem;
+    }
+    .did-input-row button {
+      padding: 10px 22px; border-radius: var(--radius);
+      background: var(--accent); color: #000; border: none;
+      font-weight: 700; cursor: pointer;
+    }
+
+    .grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 22px;
+    }
+    .card h3 { font-size: 1rem; font-weight: 700; margin: 0 0 12px; color: var(--accent); }
+    .kv { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 0.88rem; }
+    .kv .k { color: var(--text-muted); }
+    .kv .v { color: var(--text); font-family: ui-monospace, monospace; word-break: break-all; text-align: right; }
+
+    .trust-meter {
+      height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden;
+      margin: 12px 0 6px;
+    }
+    .trust-meter .fill { height: 100%; background: linear-gradient(to right, #ef4f4f, #f5b83b, #2ab870); }
+    .sub-scores { display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 0.8rem; margin-top: 8px; }
+    .sub-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .sub-row .label { color: var(--text-muted); width: 140px; flex-shrink: 0; }
+    .sub-row .bar { flex: 1; height: 4px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+    .sub-row .bar .fill { height: 100%; background: var(--accent); }
+    .sub-row .pct { color: var(--text); width: 40px; text-align: right; font-family: ui-monospace, monospace; }
+
+    .vc-list { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+    .vc-row {
+      padding: 10px 12px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); font-size: 0.82rem;
+    }
+    .vc-row .schema { color: var(--accent); font-weight: 700; }
+    .vc-row .from { color: var(--text-muted); margin-top: 2px; font-family: ui-monospace, monospace; }
+    .vc-row.revoked { opacity: 0.5; text-decoration: line-through; }
+
+    .ai-flag {
+      display: inline-block; padding: 4px 10px; border-radius: 12px;
+      font-size: 0.78rem; font-weight: 700;
+    }
+    .ai-flag.human { background: rgba(42,184,112,0.2); color: #2ab870; }
+    .ai-flag.ai_agent { background: rgba(74,158,255,0.2); color: #4a9eff; }
+    .ai-flag.unknown { background: var(--bg); color: var(--text-muted); }
+
+    .empty { color: var(--text-muted); text-align: center; padding: 16px; font-size: 0.88rem; }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js"></script>
+  <script src="/shared/pq-identity.js"></script>
+
+  <div class="container">
+    <header class="id-hero">
+      <h1>Identity &amp; <em>Credentials</em></h1>
+      <p style="color: var(--text-muted);">Look up any DID. See its current key, trust score breakdown, every Verifiable Credential issued to it, and its AI-status declaration. Inputs always exposed \u2014 no black-box reputation.</p>
+    </header>
+
+    <div class="did-input-row">
+      <input type="text" id="did-input" placeholder="did:hum:ABC...XYZ" />
+      <button id="lookup-btn">Look up</button>
+    </div>
+
+    <div id="result-area">
+      <div class="empty">Enter a DID above to see its identity card.</div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+    document.getElementById('lookup-btn').addEventListener('click', doLookup);
+    document.getElementById('did-input').addEventListener('keydown', function(e){
+      if (e.key === 'Enter') doLookup();
+    });
+
+    async function doLookup() {
+      var did = document.getElementById('did-input').value.trim();
+      if (!did) return;
+      var area = document.getElementById('result-area');
+      area.innerHTML = '<div class="empty">Resolving \u2026</div>';
+      try {
+        var data = await window.HumOS.pq.enrichDid(did);
+        renderResult(area, did, data);
+      } catch (err) {
+        area.innerHTML = '<div class="empty">Lookup failed: ' + escapeHtml(String(err && err.message || err)) + '</div>';
+      }
+    }
+
+    function renderResult(area, did, data) {
+      var res = data.resolution;
+      var trust = data.trust;
+      var ai = data.aiStatus;
+      var creds = data.credentials || [];
+
+      var didCard = '' +
+        '<div class="card">' +
+          '<h3>DID Resolution</h3>' +
+          '<div class="kv"><span class="k">DID</span><span class="v">' + escapeHtml(did) + '</span></div>' +
+          (res && !res.error
+            ? '<div class="kv"><span class="k">Crypto suite</span><span class="v">' + escapeHtml(res.crypto_suite || '\u2014') + '</span></div>' +
+              '<div class="kv"><span class="k">Public key (b64, head)</span><span class="v">' + escapeHtml((res.current_pubkey_b64 || '').slice(0, 32)) + '\u2026</span></div>' +
+              '<div class="kv"><span class="k">First seen</span><span class="v">' + (res.first_seen ? new Date(res.first_seen).toLocaleString() : '\u2014') + '</span></div>' +
+              '<div class="kv"><span class="k">Last seen</span><span class="v">' + (res.last_seen ? new Date(res.last_seen).toLocaleString() : '\u2014') + '</span></div>' +
+              '<div class="kv"><span class="k">Object count</span><span class="v">' + (res.object_count || 0) + '</span></div>'
+            : '<div class="empty">Not yet observed by this server.</div>') +
+        '</div>';
+
+      var trustCard = '' +
+        '<div class="card">' +
+          '<h3>Trust Score</h3>' +
+          (trust && !trust.error
+            ? '<div style="font-size:2rem;font-weight:700;color:var(--accent);text-align:center;">' + (trust.total != null ? trust.total.toFixed(2) : '0.00') + '</div>' +
+              '<div class="trust-meter"><div class="fill" style="width:' + ((trust.total || 0) * 100) + '%"></div></div>' +
+              '<div class="sub-scores">' + renderSubScores(trust.sub_scores || {}) + '</div>' +
+              '<div style="margin-top:12px;font-size:0.78rem;color:var(--text-muted);">Inputs: ' + (trust.inputs ? JSON.stringify(trust.inputs) : '\u2014') + '</div>'
+            : '<div class="empty">No trust data.</div>') +
+        '</div>';
+
+      var aiClass = (ai && !ai.error) ? (ai.subject_class || 'unknown') : 'unknown';
+      var aiCard = '' +
+        '<div class="card">' +
+          '<h3>Subject Class</h3>' +
+          '<div style="text-align:center;margin:8px 0;"><span class="ai-flag ' + aiClass + '">' + aiClass + '</span></div>' +
+          (ai && !ai.error
+            ? (ai.operator_did
+                ? '<div class="kv"><span class="k">Controlled by</span><span class="v">' + escapeHtml(ai.operator_did) + '</span></div>'
+                : (aiClass === 'ai_agent'
+                    ? '<div class="empty" style="color:#ef4f4f;">AI without controlled_by_v1 binding \u2014 not compliant</div>'
+                    : '<div class="empty">No operator binding</div>')) +
+              '<div class="kv"><span class="k">Compliant</span><span class="v">' + (ai.compliant ? 'yes' : 'no') + '</span></div>'
+            : '<div class="empty">No declaration.</div>') +
+        '</div>';
+
+      var credsCard = '' +
+        '<div class="card">' +
+          '<h3>Verifiable Credentials (' + creds.length + ')</h3>' +
+          (creds.length
+            ? '<div class="vc-list">' + creds.map(renderVcRow).join('') + '</div>'
+            : '<div class="empty">No credentials issued to this DID yet.</div>') +
+        '</div>';
+
+      area.innerHTML = '<div class="grid">' + didCard + trustCard + aiCard + credsCard + '</div>';
+    }
+
+    function renderSubScores(sub) {
+      return Object.entries(sub).map(function(entry){
+        var label = entry[0].replace(/_/g, ' ');
+        var v = entry[1] || 0;
+        return '<div class="sub-row">' +
+          '<span class="label">' + escapeHtml(label) + '</span>' +
+          '<span class="bar"><span class="fill" style="width:' + (v * 100) + '%"></span></span>' +
+          '<span class="pct">' + v.toFixed(2) + '</span>' +
+        '</div>';
+      }).join('');
+    }
+
+    function renderVcRow(c) {
+      var cls = (c.revoked || c.withdrawn) ? 'vc-row revoked' : 'vc-row';
+      return '<div class="' + cls + '">' +
+        '<div class="schema">' + escapeHtml(c.schema_id) + '</div>' +
+        '<div class="from">From: ' + escapeHtml(c.issuer_did) + '</div>' +
+      '</div>';
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function(c){
+        return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+      });
+    }
+  </script>
+</body>
+</html>

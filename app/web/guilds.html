@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content="width=device-width, initial-scale=1.0">
+  <title>Guilds — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+body { background: var(--bg); color: var(--text); min-height: 100vh; }
+button { font-family: inherit; cursor: pointer; }
+#page-app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* Header */
+.guilds-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.guilds-header h1 { font-size: 1.4rem; margin: 0; }
+.search-row {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+  max-width: 400px;
+}
+.search-row input {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+.btn-primary {
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.btn-primary:hover { background: var(--accent); color: #fff; }
+.btn-danger {
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  border: 1px solid #c44;
+  background: transparent;
+  color: #c44;
+  font-size: 12px;
+}
+.btn-danger:hover { background: #c44; color: #fff; }
+
+/* Guild cards grid */
+.guilds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.guild-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.guild-card:hover { border-color: var(--accent); }
+.guild-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.guild-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.guild-name { font-weight: 600; font-size: var(--text-base); }
+.guild-desc {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.guild-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Detail view */
+.guild-detail {
+  display: none;
+}
+.guild-detail.open { display: block; }
+.guild-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.guild-detail-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+.back-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  padding: 4px 8px;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+.back-btn:hover { text-decoration: underline; }
+.member-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+.member-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+.member-role {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.member-role.owner { background: #553300; color: #ffaa33; }
+.member-role.officer { background: #333355; color: #8888ff; }
+
+/* Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: 400px;
+  max-width: 90vw;
+}
+.modal h2 { margin: 0 0 16px; font-size: 1.1rem; }
+.modal label {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  margin-top: 10px;
+}
+.modal input, .modal textarea {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: var(--text-sm);
+  box-sizing: border-box;
+}
+.modal textarea { height: 60px; resize: vertical; }
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.modal-actions button {
+  padding: 6px 16px;
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+}
+
+/* Invite section */
+.invite-section {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-top: 12px;
+}
+.invite-code {
+  font-family: monospace;
+  font-size: 1.1rem;
+  background: var(--bg-input);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  user-select: all;
+  display: inline-block;
+  margin: 8px 0;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+}
+.empty-state h3 { color: var(--text); margin-bottom: 8px; }
+
+@media (max-width: 600px) {
+  .guilds-grid { grid-template-columns: 1fr; }
+  .guilds-header { flex-direction: column; align-items: stretch; }
+  .search-row { max-width: none; }
+}
+  </style>
+</head>
+<body>
+<script src=/shared/shell.js data-active=guilds></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+
+<div id="page-app">
+  <!-- Browse view -->
+  <div id="browse-view">
+    <div class="guilds-header">
+      <h1>Guilds</h1>
+      <div class="search-row">
+        <input type="text" id="search-input" placeholder="Search guilds...">
+      </div>
+      <button class="btn-primary" onclick="showCreateModal()">+ Create Guild</button>
+    </div>
+    <div id="guilds-grid" class="guilds-grid"></div>
+    <div id="empty-state" class="empty-state" style="display:none">
+      <h3>No guilds found</h3>
+      <p>Create the first guild or adjust your search.</p>
+    </div>
+  </div>
+
+  <!-- Detail view -->
+  <div id="detail-view" class="guild-detail">
+    <button class="back-btn" onclick="showBrowse()">&larr; Back to Guilds</button>
+    <div class="guild-detail-header">
+      <div id="detail-icon" class="guild-detail-icon"></div>
+      <div>
+        <div id="detail-name" style="font-size:1.2rem;font-weight:600"></div>
+        <div id="detail-meta" style="font-size:12px;color:var(--text-muted)"></div>
+      </div>
+    </div>
+    <div id="detail-desc" style="color:var(--text-muted);margin-bottom:16px"></div>
+    <div id="detail-actions" style="display:flex;gap:8px;margin-bottom:16px"></div>
+
+    <h3 style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:8px">Members</h3>
+    <ul id="detail-members" class="member-list"></ul>
+
+    <div id="invite-section" class="invite-section" style="display:none">
+      <h4 style="margin:0 0 8px;font-size:var(--text-sm)">Invite Link</h4>
+      <div id="invite-code" class="invite-code"></div>
+      <button class="btn-primary" onclick="generateInvite()" style="margin-left:8px">Generate New</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Guild Modal -->
+<div id="create-modal" class="modal-overlay" onclick="if(event.target===this)closeCreateModal()">
+  <div class="modal">
+    <h2>Create Guild</h2>
+    <label>Name</label>
+    <input type="text" id="guild-name" maxlength="100" placeholder="My Guild">
+    <label>Description</label>
+    <textarea id="guild-desc" maxlength="2000" placeholder="What is this guild about?"></textarea>
+    <label>Color</label>
+    <input type="color" id="guild-color" value="#4488ff" style="width:48px;height:32px;padding:2px">
+    <label>Icon (emoji)</label>
+    <input type="text" id="guild-icon" maxlength="4" value="" placeholder="optional emoji">
+    <div class="modal-actions">
+      <button onclick="closeCreateModal()" style="background:transparent;border:1px solid var(--border);color:var(--text)">Cancel</button>
+      <button class="btn-primary" onclick="submitCreateGuild()">Create</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+const API = window.location.origin;
+let allGuilds = [];
+let currentGuild = null;
+let searchTimeout = null;
+
+// Get user identity from localStorage (same pattern as chat)
+function getMyKey() {
+  try {
+    const stored = localStorage.getItem('hos_identity');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.publicKeyHex || parsed.public_key || '';
+    }
+  } catch(e) {}
+  return '';
+}
+
+// ---- API calls ----
+
+async function fetchGuilds(search) {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  params.set('limit', '100');
+  const res = await fetch(`${API}/api/guilds?${params}`);
+  if (!res.ok) return [];
+  return await res.json();
+}
+
+async function fetchGuild(id) {
+  const res = await fetch(`${API}/api/guilds/${id}`);
+  if (!res.ok) return null;
+  return await res.json();
+}
+
+async function fetchMembers(id) {
+  const res = await fetch(`${API}/api/guilds/${id}/members?limit=200`);
+  if (!res.ok) return [];
+  return await res.json();
+}
+
+async function apiCreateGuild(data) {
+  const res = await fetch(`${API}/api/guilds`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return await res.json();
+}
+
+async function apiJoinGuild(guildId, publicKey, inviteCode) {
+  const body = { public_key: publicKey };
+  if (inviteCode) body.invite_code = inviteCode;
+  const res = await fetch(`${API}/api/guilds/${guildId}/members`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return res.ok;
+}
+
+async function apiLeaveGuild(guildId, publicKey) {
+  const res = await fetch(`${API}/api/guilds/${guildId}/leave`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ public_key: publicKey }),
+  });
+  return res.ok;
+}
+
+async function apiCreateInvite(guildId, createdBy) {
+  const res = await fetch(`${API}/api/guilds/${guildId}/invite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ created_by: createdBy }),
+  });
+  if (!res.ok) return null;
+  return await res.json();
+}
+
+// ---- Rendering ----
+
+function renderGuilds(guilds) {
+  const grid = document.getElementById('guilds-grid');
+  const empty = document.getElementById('empty-state');
+
+  if (!guilds.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  grid.innerHTML = guilds.map(g => `
+    <div class="guild-card" onclick="showDetail('${g.id}')">
+      <div class="guild-card-header">
+        <div class="guild-icon" style="background:${g.color || '#4488ff'}22;color:${g.color || '#4488ff'}">
+          ${g.icon || g.name.charAt(0).toUpperCase()}
+        </div>
+        <div class="guild-name">${escHtml(g.name)}</div>
+      </div>
+      <div class="guild-desc">${escHtml(g.description || 'No description')}</div>
+      <div class="guild-meta">
+        <span>${g.member_count || 0} member${g.member_count === 1 ? '' : 's'}</span>
+        <span>Created ${g.created_at ? g.created_at.split('T')[0] : 'recently'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function showDetail(id) {
+  const guild = await fetchGuild(id);
+  if (!guild) return;
+  currentGuild = guild;
+
+  document.getElementById('browse-view').style.display = 'none';
+  const detail = document.getElementById('detail-view');
+  detail.classList.add('open');
+
+  document.getElementById('detail-icon').innerHTML = guild.icon || guild.name.charAt(0).toUpperCase();
+  document.getElementById('detail-icon').style.background = (guild.color || '#4488ff') + '22';
+  document.getElementById('detail-icon').style.color = guild.color || '#4488ff';
+  document.getElementById('detail-name').textContent = guild.name;
+  document.getElementById('detail-meta').textContent = `${guild.member_count} members`;
+  document.getElementById('detail-desc').textContent = guild.description || 'No description.';
+
+  // Actions
+  const myKey = getMyKey();
+  const actions = document.getElementById('detail-actions');
+  let actionsHtml = '';
+
+  const members = await fetchMembers(id);
+  const isMember = members.some(m => m.public_key === myKey);
+  const isOwner = guild.owner_key === myKey;
+
+  if (myKey && !isMember) {
+    actionsHtml += `<button class="btn-primary" onclick="joinCurrentGuild()">Join Guild</button>`;
+  } else if (myKey && isMember && !isOwner) {
+    actionsHtml += `<button class="btn-danger" onclick="leaveCurrentGuild()">Leave Guild</button>`;
+  }
+  if (isMember) {
+    actionsHtml += `<button class="btn-primary" onclick="toggleInviteSection()">Invite</button>`;
+  }
+  actions.innerHTML = actionsHtml;
+
+  // Members list
+  const memberList = document.getElementById('detail-members');
+  memberList.innerHTML = members.map(m => `
+    <li>
+      <span>${escHtml(m.name || m.public_key.substring(0, 12) + '...')}</span>
+      <span class="member-role ${m.role}">${m.role}</span>
+    </li>
+  `).join('');
+
+  // Hide invite section by default
+  document.getElementById('invite-section').style.display = 'none';
+}
+
+function showBrowse() {
+  document.getElementById('browse-view').style.display = 'block';
+  document.getElementById('detail-view').classList.remove('open');
+  currentGuild = null;
+  loadGuilds();
+}
+
+async function joinCurrentGuild() {
+  if (!currentGuild) return;
+  const myKey = getMyKey();
+  if (!myKey) { alert('Please sign in first.'); return; }
+  if (await apiJoinGuild(currentGuild.id, myKey)) {
+    showDetail(currentGuild.id);
+  }
+}
+
+async function leaveCurrentGuild() {
+  if (!currentGuild) return;
+  const myKey = getMyKey();
+  if (!myKey) return;
+  if (await apiLeaveGuild(currentGuild.id, myKey)) {
+    showBrowse();
+  }
+}
+
+function toggleInviteSection() {
+  const section = document.getElementById('invite-section');
+  section.style.display = section.style.display === 'none' ? 'block' : 'none';
+}
+
+async function generateInvite() {
+  if (!currentGuild) return;
+  const myKey = getMyKey();
+  if (!myKey) return;
+  const result = await apiCreateInvite(currentGuild.id, myKey);
+  if (result && result.code) {
+    document.getElementById('invite-code').textContent = result.code;
+  }
+}
+
+// ---- Create modal ----
+
+function showCreateModal() {
+  document.getElementById('create-modal').classList.add('open');
+  document.getElementById('guild-name').value = '';
+  document.getElementById('guild-desc').value = '';
+  document.getElementById('guild-color').value = '#4488ff';
+  document.getElementById('guild-icon').value = '';
+  document.getElementById('guild-name').focus();
+}
+
+function closeCreateModal() {
+  document.getElementById('create-modal').classList.remove('open');
+}
+
+async function submitCreateGuild() {
+  const myKey = getMyKey();
+  if (!myKey) { alert('Please sign in first.'); return; }
+
+  const name = document.getElementById('guild-name').value.trim();
+  if (!name) { alert('Guild name is required.'); return; }
+
+  const data = {
+    name,
+    description: document.getElementById('guild-desc').value.trim(),
+    color: document.getElementById('guild-color').value,
+    icon: document.getElementById('guild-icon').value.trim(),
+    owner_key: myKey,
+  };
+
+  const result = await apiCreateGuild(data);
+  if (result && result.id) {
+    closeCreateModal();
+    await loadGuilds();
+    showDetail(result.id);
+  } else {
+    alert('Failed to create guild.');
+  }
+}
+
+// ---- Search ----
+
+document.getElementById('search-input').addEventListener('input', e => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => loadGuilds(e.target.value), 300);
+});
+
+// ---- Init ----
+
+async function loadGuilds(search) {
+  allGuilds = await fetchGuilds(search);
+  renderGuilds(allGuilds);
+}
+
+function escHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+loadGuilds();
+</script>
+</body>
+</html>

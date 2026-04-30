@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HumanityOS — Agent Dashboard</title>
+  <meta name="description" content="Live spreadsheet of every AI agent scope: status, recommendation, last audit, runtime claim, user override.">
+  <link rel="manifest" href="/shared/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { line-height: 1.5; min-height: 100vh; padding-bottom: 80px; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 0 16px; }
+
+    .ag-hero { padding: 24px 0 12px; }
+    .ag-hero h1 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 800; margin-bottom: 4px; }
+    .ag-hero h1 em { font-style: normal; color: var(--accent); }
+    .ag-hero p { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
+
+    .stats-row {
+      display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0;
+    }
+    .stat {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 8px 14px;
+      font-size: 0.78rem; color: var(--text-muted);
+    }
+    .stat strong { color: var(--text); font-size: 1rem; margin-right: 4px; }
+
+    .toolbar {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+    }
+    .toolbar input {
+      flex: 1; min-width: 200px;
+      padding: 6px 12px; border-radius: var(--radius);
+      background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
+      font-size: 0.85rem;
+    }
+    .toolbar button {
+      padding: 6px 14px; border-radius: var(--radius);
+      background: var(--accent); color: #000; border: none;
+      font-weight: 600; font-size: 0.82rem; cursor: pointer;
+    }
+
+    .agents-table {
+      width: 100%; border-collapse: collapse;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      font-size: 0.84rem;
+    }
+    .agents-table th, .agents-table td {
+      padding: 8px 10px; text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .agents-table th {
+      background: rgba(255,136,17,0.06);
+      color: var(--accent); font-weight: 700;
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .agents-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+    .agents-table .scope-id { font-family: ui-monospace, monospace; font-weight: 700; color: var(--text); }
+    .agents-table .files { color: var(--text-muted); font-size: 0.78rem; font-family: ui-monospace, monospace; }
+    .agents-table .summary { color: var(--text-muted); font-size: 0.78rem; max-width: 360px; }
+
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 0.7rem; font-weight: 700;
+    }
+    .badge.complete { background: rgba(42,184,112,0.2); color: #2ab870; }
+    .badge.partial  { background: rgba(245,184,59,0.2); color: #f5b83b; }
+    .badge.scaffold { background: rgba(255,136,17,0.2); color: var(--accent); }
+    .badge.missing  { background: rgba(239,79,79,0.2); color: #ef4f4f; }
+    .badge.unknown  { background: var(--bg); color: var(--text-muted); }
+
+    .badge.active   { background: rgba(74,158,255,0.2); color: #4a9eff; }
+    .badge.passive  { background: rgba(120,120,140,0.2); color: var(--text-muted); }
+    .badge.blocked  { background: rgba(239,79,79,0.2); color: #ef4f4f; }
+    .badge.off      { background: rgba(120,120,140,0.4); color: var(--text-muted); text-decoration: line-through; }
+
+    .runtime-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 10px;
+      font-size: 0.72rem;
+      background: var(--bg);
+    }
+    .runtime-pill.fresh { background: rgba(42,184,112,0.15); color: #2ab870; }
+    .runtime-pill.stale { background: rgba(120,120,140,0.15); color: var(--text-muted); }
+    .runtime-pill.empty { color: var(--text-muted); }
+
+    select.override-select {
+      padding: 3px 8px; border-radius: 6px;
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      font-size: 0.78rem; cursor: pointer;
+    }
+
+    .empty-state { padding: 40px; text-align: center; color: var(--text-muted); }
+    .error-banner {
+      background: rgba(239,79,79,0.1); border: 1px solid rgba(239,79,79,0.3);
+      color: #ef4f4f; padding: 10px 14px; border-radius: var(--radius);
+      font-size: 0.85rem; margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js"></script>
+  <script src="/shared/pq-identity.js"></script>
+
+  <div class="container">
+    <header class="ag-hero">
+      <h1>Agent <em>Dashboard</em></h1>
+      <p>Live spreadsheet of every scope. Status comes from the most recent audit (data/coordination/sessions/*.json). Runtime activity from the agent_sessions SQLite table. Override the effective status per-scope to claim, pause, or disable an agent.</p>
+    </header>
+
+    <div class="stats-row" id="stats-row">
+      <div class="stat"><strong>—</strong> total scopes</div>
+    </div>
+
+    <div class="toolbar">
+      <input type="text" id="filter" placeholder="Filter by scope_id, file path, or summary..." />
+      <button id="refresh-btn">Refresh</button>
+    </div>
+
+    <div id="error-area"></div>
+
+    <table class="agents-table" id="agents-table">
+      <thead>
+        <tr>
+          <th>Scope</th>
+          <th>Status</th>
+          <th>Recommendation</th>
+          <th>Owns</th>
+          <th>Runtime</th>
+          <th>Last Audit</th>
+          <th>Override</th>
+          <th>Summary</th>
+        </tr>
+      </thead>
+      <tbody id="agents-tbody">
+        <tr><td colspan="8" class="empty-state">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    'use strict';
+    let lastData = null;
+
+    document.getElementById('refresh-btn').addEventListener('click', loadAgents);
+    document.getElementById('filter').addEventListener('input', renderTable);
+
+    async function loadAgents() {
+      try {
+        const res = await fetch('/api/v2/agents/status');
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+        lastData = await res.json();
+        document.getElementById('error-area').innerHTML = '';
+        renderTable();
+      } catch (err) {
+        document.getElementById('error-area').innerHTML =
+          '<div class="error-banner">Could not load /api/v2/agents/status: ' + escapeHtml(String(err.message || err)) + '<br><small>If you\'re running offline, the dashboard reads agent_registry.ron + sessions/*.json directly via the relay endpoint. Make sure the relay is running.</small></div>';
+        document.getElementById('agents-tbody').innerHTML =
+          '<tr><td colspan="8" class="empty-state">Endpoint unreachable.</td></tr>';
+      }
+    }
+
+    function renderTable() {
+      if (!lastData) return;
+      const filter = (document.getElementById('filter').value || '').toLowerCase();
+
+      // Index sessions by scope_id
+      const sessionsByScope = {};
+      for (const s of (lastData.sessions || [])) {
+        if (s && s.scope_id) sessionsByScope[s.scope_id] = s;
+      }
+
+      // Index runtime claims by scope_id
+      const runtimeByScope = {};
+      for (const r of (lastData.runtime || [])) {
+        if (r && r.scope_id) runtimeByScope[r.scope_id] = r;
+      }
+
+      // Index overrides
+      const overrideMap = {};
+      for (const [scope, status] of (lastData.overrides || [])) {
+        overrideMap[scope] = status;
+      }
+
+      const scopes = (lastData.registry || []).filter(s => {
+        if (!filter) return true;
+        const hay = [
+          s.id || '',
+          (s.owns || []).join(' '),
+          (sessionsByScope[s.id] || {}).summary || ''
+        ].join(' ').toLowerCase();
+        return hay.includes(filter);
+      });
+
+      // Stats row
+      const totals = {
+        total: scopes.length,
+        complete: 0, partial: 0, scaffold: 0, missing: 0, unaudited: 0,
+        runtime_active: 0,
+      };
+      for (const s of scopes) {
+        const sess = sessionsByScope[s.id];
+        if (!sess) totals.unaudited++;
+        else if (totals[sess.implementation_status] != null) totals[sess.implementation_status]++;
+        const rt = runtimeByScope[s.id];
+        if (rt && rt.state === 'working') totals.runtime_active++;
+      }
+      const statRow = document.getElementById('stats-row');
+      statRow.innerHTML = '' +
+        '<div class="stat"><strong>' + totals.total + '</strong> scopes</div>' +
+        '<div class="stat"><strong>' + totals.complete + '</strong> complete</div>' +
+        '<div class="stat"><strong>' + totals.partial + '</strong> partial</div>' +
+        '<div class="stat"><strong>' + totals.scaffold + '</strong> scaffold</div>' +
+        '<div class="stat"><strong>' + totals.missing + '</strong> missing</div>' +
+        '<div class="stat"><strong>' + totals.unaudited + '</strong> unaudited</div>' +
+        '<div class="stat"><strong>' + totals.runtime_active + '</strong> agent claims</div>';
+
+      const tbody = document.getElementById('agents-tbody');
+      if (!scopes.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No scopes match filter.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = scopes.map(s => {
+        const sess = sessionsByScope[s.id] || {};
+        const rt = runtimeByScope[s.id];
+        const statusBadge = sess.implementation_status
+          ? '<span class="badge ' + sess.implementation_status + '">' + sess.implementation_status + '</span>'
+          : '<span class="badge unknown">unaudited</span>';
+        const recBadge = sess.recommended_status
+          ? '<span class="badge ' + sess.recommended_status + '">' + sess.recommended_status + '</span>'
+          : '<span class="badge unknown">' + (s.default_status || '?') + '</span>';
+
+        let runtimePill = '<span class="runtime-pill empty">no claim</span>';
+        if (rt) {
+          const ageSec = Math.floor((Date.now() - rt.last_heartbeat) / 1000);
+          const fresh = ageSec < 1800;  // 30 min
+          runtimePill = '<span class="runtime-pill ' + (fresh ? 'fresh' : 'stale') + '" title="' +
+            escapeHtml(rt.last_state_notes || '') + '">' +
+            escapeHtml(rt.agent_id) + ' · ' + escapeHtml(rt.state) + ' · ' + fmtAge(ageSec) +
+          '</span>';
+        }
+
+        const owns = (s.owns || []).slice(0, 2).join(', ') +
+          (s.owns && s.owns.length > 2 ? ' (+' + (s.owns.length - 2) + ')' : '');
+
+        const currentOverride = overrideMap[s.id] || '';
+        const overrideSelect =
+          '<select class="override-select" data-scope="' + escapeHtml(s.id) + '">' +
+            '<option value="">' + (currentOverride ? '— clear —' : 'no override') + '</option>' +
+            ['active', 'passive', 'blocked', 'off'].map(opt =>
+              '<option value="' + opt + '"' + (currentOverride === opt ? ' selected' : '') + '>' + opt + '</option>'
+            ).join('') +
+          '</select>';
+
+        return '<tr>' +
+          '<td><span class="scope-id">' + escapeHtml(s.id) + '</span></td>' +
+          '<td>' + statusBadge + '</td>' +
+          '<td>' + recBadge + '</td>' +
+          '<td><span class="files" title="' + escapeHtml((s.owns || []).join('\n')) + '">' + escapeHtml(owns) + '</span></td>' +
+          '<td>' + runtimePill + '</td>' +
+          '<td>' + (sess.audited_at || '—') + '</td>' +
+          '<td>' + overrideSelect + '</td>' +
+          '<td><span class="summary">' + escapeHtml((sess.summary || '').slice(0, 200)) + '</span></td>' +
+        '</tr>';
+      }).join('');
+
+      // Wire override dropdowns
+      tbody.querySelectorAll('select.override-select').forEach(sel => {
+        sel.addEventListener('change', async (e) => {
+          const scope = sel.dataset.scope;
+          const status = sel.value;
+          if (!status) return;  // 'no override' = no-op
+          try {
+            const res = await fetch('/api/v2/agents/override', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ scope_id: scope, status }),
+            });
+            if (!res.ok) throw new Error(await res.text());
+            await loadAgents();
+          } catch (err) {
+            alert('Override failed: ' + err.message);
+          }
+        });
+      });
+    }
+
+    function fmtAge(sec) {
+      if (sec < 60) return sec + 's';
+      if (sec < 3600) return Math.floor(sec / 60) + 'm';
+      if (sec < 86400) return Math.floor(sec / 3600) + 'h';
+      return Math.floor(sec / 86400) + 'd';
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+    }
+
+    loadAgents();
+  </script>
+</body>
+</html>

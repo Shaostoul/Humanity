@@ -3076,3 +3076,285 @@ pub async fn handle_game_disconnect(
         tracing::info!("Game: player {} left (entity {})", player_key, entity_id);
     }
 }
+
+// ── Perception API handlers ──
+
+/// Handle a perception query. Returns the player's surroundings as structured JSON:
+/// current room, nearby entities, environment state, and player stats.
+pub async fn handle_game_perceive(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    raw: &serde_json::Value,
+) {
+    let radius = raw.get("radius")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(20.0)
+        .min(100.0) as f32;
+
+    let world = state.game_world.read().await;
+
+    let player_id = match world.find_player_entity(my_key) {
+        Some(id) => id,
+        None => {
+            send_game_private(state, my_key, &serde_json::json!({
+                "type": "game_error",
+                "error": "not_in_game",
+                "message": "Send game_join first",
+            })).await;
+            return;
+        }
+    };
+
+    let player = &world.entities[&player_id];
+    let position = player.position;
+
+    let location = world.room_for_position(position);
+    let nearby = world.entities_near(position, radius);
+
+    // Filter out self from nearby list.
+    let nearby_filtered: Vec<_> = nearby.into_iter()
+        .filter(|e| e.entity_id != player_id)
+        .collect();
+
+    let response = serde_json::json!({
+        "type": "game_perception",
+        "position": position,
+        "location": location,
+        "nearby_entities": nearby_filtered,
+        "environment": {
+            "game_time": world.game_time,
+            "ship": world.ship_name,
+            "orbit": "Earth LEO, 400km altitude",
+        },
+        "player": {
+            "entity_id": player_id,
+            "health": player.components.get("health"),
+            "stamina": player.components.get("stamina"),
+        },
+    });
+
+    drop(world);
+    send_game_private(state, my_key, &response).await;
+}
+
+/// Handle an interaction with a game entity. Validates distance and returns
+/// entity component data as the interaction result.
+pub async fn handle_game_interact(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    raw: &serde_json::Value,
+) {
+    let entity_id = match raw.get("entity_id").and_then(|v| v.as_u64()) {
+        Some(id) => id,
+        None => return,
+    };
+    let action = raw.get("action")
+        .and_then(|v| v.as_str())
+        .unwrap_or("inspect")
+        .to_string();
+
+    let world = state.game_world.read().await;
+
+    let player_id = match world.find_player_entity(my_key) {
+        Some(id) => id,
+        None => {
+            send_game_private(state, my_key, &serde_json::json!({
+                "type": "game_error",
+                "error": "not_in_game",
+                "message": "Send game_join first",
+            })).await;
+            return;
+        }
+    };
+
+    let player_pos = world.entities[&player_id].position;
+
+    let target = match world.entities.get(&entity_id) {
+        Some(e) => e,
+        None => {
+            drop(world);
+            send_game_private(state, my_key, &serde_json::json!({
+                "type": "game_interact_result",
+                "entity_id": entity_id,
+                "action": action,
+                "success": false,
+                "error": "entity_not_found",
+            })).await;
+            return;
+        }
+    };
+
+    let dx = target.position[0] - player_pos[0];
+    let dy = target.position[1] - player_pos[1];
+    let dz = target.position[2] - player_pos[2];
+    let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+
+    if dist > 5.0 {
+        drop(world);
+        send_game_private(state, my_key, &serde_json::json!({
+            "type": "game_interact_result",
+            "entity_id": entity_id,
+            "action": action,
+            "success": false,
+            "error": "too_far",
+            "distance": dist,
+        })).await;
+        return;
+    }
+
+    let interactable = target.components.get("interactable")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if !interactable {
+        drop(world);
+        send_game_private(state, my_key, &serde_json::json!({
+            "type": "game_interact_result",
+            "entity_id": entity_id,
+            "action": action,
+            "success": false,
+            "error": "not_interactable",
+        })).await;
+        return;
+    }
+
+    let response = serde_json::json!({
+        "type": "game_interact_result",
+        "entity_id": entity_id,
+        "entity_type": target.entity_type,
+        "action": action,
+        "success": true,
+        "components": target.components,
+        "position": target.position,
+    });
+
+    drop(world);
+    send_game_private(state, my_key, &response).await;
+
+    // Broadcast the interaction to other clients.
+    let broadcast = serde_json::json!({
+        "type": "game_entity_interacted",
+        "entity_id": entity_id,
+        "player_key": my_key,
+        "action": action,
+    });
+    let _ = state.broadcast_tx.send(RelayMessage::System {
+        message: format!("__game__:{}", broadcast),
+    });
+}
+
+/// Handle an inventory query. Returns the player's inventory component.
+pub async fn handle_game_query_inventory(
+    state: &Arc<RelayState>,
+    my_key: &str,
+) {
+    let world = state.game_world.read().await;
+
+    let player_id = match world.find_player_entity(my_key) {
+        Some(id) => id,
+        None => {
+            send_game_private(state, my_key, &serde_json::json!({
+                "type": "game_error",
+                "error": "not_in_game",
+                "message": "Send game_join first",
+            })).await;
+            return;
+        }
+    };
+
+    let player = &world.entities[&player_id];
+    let inventory = player.components.get("inventory")
+        .cloned()
+        .unwrap_or(serde_json::json!([]));
+
+    let response = serde_json::json!({
+        "type": "game_inventory",
+        "player_id": player_id,
+        "inventory": inventory,
+    });
+
+    drop(world);
+    send_game_private(state, my_key, &response).await;
+}
+
+/// Handle an entity detail query. Returns full entity snapshot if within
+/// perception range (20m).
+pub async fn handle_game_query_entity(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    raw: &serde_json::Value,
+) {
+    let entity_id = match raw.get("entity_id").and_then(|v| v.as_u64()) {
+        Some(id) => id,
+        None => return,
+    };
+
+    let world = state.game_world.read().await;
+
+    let player_id = match world.find_player_entity(my_key) {
+        Some(id) => id,
+        None => {
+            send_game_private(state, my_key, &serde_json::json!({
+                "type": "game_error",
+                "error": "not_in_game",
+                "message": "Send game_join first",
+            })).await;
+            return;
+        }
+    };
+
+    let player_pos = world.entities[&player_id].position;
+
+    let target = match world.entities.get(&entity_id) {
+        Some(e) => e,
+        None => {
+            drop(world);
+            send_game_private(state, my_key, &serde_json::json!({
+                "type": "game_entity_detail",
+                "entity_id": entity_id,
+                "found": false,
+            })).await;
+            return;
+        }
+    };
+
+    let dx = target.position[0] - player_pos[0];
+    let dy = target.position[1] - player_pos[1];
+    let dz = target.position[2] - player_pos[2];
+    let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+
+    if dist > 20.0 {
+        drop(world);
+        send_game_private(state, my_key, &serde_json::json!({
+            "type": "game_entity_detail",
+            "entity_id": entity_id,
+            "found": false,
+            "error": "out_of_range",
+        })).await;
+        return;
+    }
+
+    let response = serde_json::json!({
+        "type": "game_entity_detail",
+        "entity_id": entity_id,
+        "found": true,
+        "entity_type": target.entity_type,
+        "position": target.position,
+        "rotation": target.rotation,
+        "distance": dist,
+        "components": target.components,
+        "owner": target.owner,
+    });
+
+    drop(world);
+    send_game_private(state, my_key, &response).await;
+}
+
+/// Send a game message privately to one player.
+async fn send_game_private(state: &Arc<RelayState>, to_key: &str, msg: &serde_json::Value) {
+    let private = RelayMessage::Private {
+        to: to_key.to_string(),
+        message: format!("__game__:{}", msg),
+    };
+    let _ = state.broadcast_tx.send(private);
+}

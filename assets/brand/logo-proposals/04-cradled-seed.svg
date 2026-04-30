@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HumanityOS logo proposal 4 of 4: "Cradled Seed"
+
+  Concept: Capability over charity. The mission is "end poverty
+  through capability" — not giving people fish but helping them
+  grow their own. Two curved arms cradle a luminous seed; from the
+  top of the seed, a small sprout emerges and opens into two
+  leaves. The whole shape reads like a held flame at a glance and
+  like a held seed up close. The sprout tilts slightly to the
+  right: growing, not static.
+
+  It captures identity (self-custody — the seed is held, not
+  given), potential (seed = latent capability), nurture (cradle =
+  the commons, the platform, the community), and growth (sprout).
+-->
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HumanityOS logo proposal — Cradled Seed">
+  <defs>
+    <radialGradient id="seedGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFE3A8"/>
+      <stop offset="45%" stop-color="#ED8C24"/>
+      <stop offset="100%" stop-color="#6b3400" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cradleStroke" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e8e8ea"/>
+      <stop offset="100%" stop-color="#8a8a94"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="80" ry="80" fill="#0a0a0c"/>
+
+  <!-- Subtle radiance behind the seed -->
+  <circle cx="256" cy="300" r="140" fill="url(#seedGlow)" opacity="0.35"/>
+
+  <!-- Left cradle arm: sweeping up from below-left, curling inward.
+       A tapered path that narrows as it arcs over the seed. -->
+  <path d="
+    M 96 420
+    C 80 340, 120 240, 200 220
+    C 160 238, 138 270, 140 320
+  "
+    fill="none" stroke="url(#cradleStroke)" stroke-width="22" stroke-linecap="round"/>
+
+  <!-- Right cradle arm: mirror -->
+  <path d="
+    M 416 420
+    C 432 340, 392 240, 312 220
+    C 352 238, 374 270, 372 320
+  "
+    fill="none" stroke="url(#cradleStroke)" stroke-width="22" stroke-linecap="round"/>
+
+  <!-- Bowl / shared floor that the arms spring from -->
+  <path d="
+    M 120 430
+    Q 256 475 392 430
+  "
+    fill="none" stroke="url(#cradleStroke)" stroke-width="18" stroke-linecap="round"/>
+
+  <!-- The seed itself — slightly ovoid, luminous -->
+  <ellipse cx="256" cy="310" rx="46" ry="56" fill="#ED8C24"/>
+  <ellipse cx="244" cy="292" rx="14" ry="18" fill="#FFE3A8" opacity="0.7"/>
+
+  <!-- Sprout stem emerging from seed top, tilted slightly right -->
+  <path d="
+    M 256 254
+    C 260 230, 272 210, 290 196
+  "
+    fill="none" stroke="#5EC46A" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Two leaves on the sprout -->
+  <path d="
+    M 276 224
+    C 288 218, 306 222, 308 238
+    C 298 242, 284 238, 276 224 Z
+  " fill="#5EC46A"/>
+  <path d="
+    M 262 210
+    C 250 202, 234 206, 232 220
+    C 244 226, 258 224, 262 210 Z
+  " fill="#7FDE8B"/>
+</svg>

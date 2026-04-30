@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HumanityOS logo proposal 9: "Infinity Loop"
+
+  Concept: everyone's software, forever. The lemniscate (∞) is the
+  mathematical shorthand for "no upper bound". The project explicitly
+  designs for infinite users, infinite planets, infinite items — the
+  infinite-of-X principle is a non-negotiable rule. This is the
+  symbol of that rule.
+
+  The ribbon is a true lemniscate approximated with four cubic Bézier
+  segments, drawn as a thick orange stroke. The two outer extremes
+  carry small accent dots (the "poles" of each loop). The crossover
+  at the centre is a glowing node — the place where the infinite
+  becomes a single unified thing.
+-->
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HumanityOS logo proposal — Infinity Loop">
+  <defs>
+    <radialGradient id="infCenter" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFE8BB"/>
+      <stop offset="55%"  stop-color="#ED8C24"/>
+      <stop offset="100%" stop-color="#5a2f00" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="infStroke" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#ED8C24"/>
+      <stop offset="50%"  stop-color="#FFE8BB"/>
+      <stop offset="100%" stop-color="#ED8C24"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="80" fill="#0a0a0c"/>
+
+  <!-- The infinity ribbon.
+       Path trace:
+         M 136 256                   (left extreme)
+         C 136 168 196 168 256 256   (top-left arc, up and over to centre)
+         C 316 344 376 344 376 256   (bottom-right arc, down and out to right extreme)
+         C 376 168 316 168 256 256   (top-right arc, up and back to centre)
+         C 196 344 136 344 136 256   (bottom-left arc, down and back to start)
+         Z -->
+  <path d="M 136 256
+           C 136 168 196 168 256 256
+           C 316 344 376 344 376 256
+           C 376 168 316 168 256 256
+           C 196 344 136 344 136 256
+           Z"
+        fill="none"
+        stroke="url(#infStroke)"
+        stroke-width="16"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- Outer pole markers: the two extremes of the loop -->
+  <circle cx="136" cy="256" r="9" fill="#FFE8BB"/>
+  <circle cx="376" cy="256" r="9" fill="#FFE8BB"/>
+
+  <!-- Crossover glow in the middle -->
+  <circle cx="256" cy="256" r="30" fill="url(#infCenter)"/>
+  <circle cx="256" cy="256" r="10" fill="#FFF1D4"/>
+</svg>

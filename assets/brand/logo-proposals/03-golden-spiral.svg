@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HumanityOS logo proposal 3 of 4: "Golden Spiral" (corrected)
+
+  Concept: Infinite scale. The project explicitly uses Fibonacci
+  proportions in the homestead layout and its philosophy is
+  "infinite-of-X" — anything that can exist more than once must be
+  data, not code. The golden spiral is the natural-world expression
+  of that: shells, galaxies, cyclones, florets.
+
+  Geometry (math coordinates, y-up, origin at bottom-right of the
+  two 1×1 seed squares):
+    S1: (0, 0)    size 1        (seed square A)
+    S2: (1, 0)    size 1        (seed square B — right of S1)
+    S3: (0, 1)    size 2        (above S1+S2)
+    S4: (-3, 0)   size 3        (left of S1+S3)
+    S5: (-3, -5)  size 5        (below everything so far)
+    S6: (2, -5)   size 8        (right of everything)
+    S7: (-3, 3)   size 13       (above everything)
+    S8: (-24, -5) size 21       (left of everything)
+
+  Each arc is a quarter circle whose centre sits on the corner of
+  its square that touches the next arc's square, and whose radius
+  equals the square's side. That is the construction rule; any
+  deviation breaks the spiral.
+
+  Mapping to SVG coordinates (y-down):
+    scale = 12 px per unit
+    svg_x = (math_x + 24) * 12 + 52
+    svg_y = (16 - math_y) * 12 + 130
+
+  Arc endpoints (verified to chain end-to-end):
+    Start (340, 310) →
+      S1 arc r=12  → (352, 322)
+      S2 arc r=12  → (364, 310)
+      S3 arc r=24  → (340, 286)
+      S4 arc r=36  → (304, 322)
+      S5 arc r=60  → (364, 382)
+      S6 arc r=96  → (460, 286)
+      S7 arc r=156 → (304, 130)
+      S8 arc r=252 → ( 52, 382)   End.
+-->
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HumanityOS logo proposal — Golden Spiral">
+  <defs>
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFE3A8"/>
+      <stop offset="55%"  stop-color="#ED8C24"/>
+      <stop offset="100%" stop-color="#5a2f00" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="spiralStroke" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%"  stop-color="#FFD37A"/>
+      <stop offset="55%" stop-color="#ED8C24"/>
+      <stop offset="100%" stop-color="#e8e8ea"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App-tile rounded-square background -->
+  <rect x="0" y="0" width="512" height="512" rx="80" ry="80" fill="#0a0a0c"/>
+
+  <!-- Fibonacci square outlines (faint, constructive scaffolding) -->
+  <g stroke="#2a2a35" stroke-width="1" fill="none" opacity="0.7">
+    <rect x="340" y="310" width="12"  height="12" />  <!-- S1   -->
+    <rect x="352" y="310" width="12"  height="12" />  <!-- S2   -->
+    <rect x="340" y="286" width="24"  height="24" />  <!-- S3   -->
+    <rect x="304" y="286" width="36"  height="36" />  <!-- S4   -->
+    <rect x="304" y="322" width="60"  height="60" />  <!-- S5   -->
+    <rect x="364" y="286" width="96"  height="96" />  <!-- S6   -->
+    <rect x="304" y="130" width="156" height="156"/>  <!-- S7   -->
+    <rect x="52"  y="130" width="252" height="252"/>  <!-- S8   -->
+  </g>
+
+  <!-- The spiral: chained quarter-arcs through the Fibonacci squares.
+       All arcs use SVG sweep-flag = 0 (counterclockwise in screen
+       space) to produce the canonical golden spiral. -->
+  <path d="
+      M 340 310
+      A  12  12 0 0 0 352 322
+      A  12  12 0 0 0 364 310
+      A  24  24 0 0 0 340 286
+      A  36  36 0 0 0 304 322
+      A  60  60 0 0 0 364 382
+      A  96  96 0 0 0 460 286
+      A 156 156 0 0 0 304 130
+      A 252 252 0 0 0  52 382
+    "
+    fill="none"
+    stroke="url(#spiralStroke)"
+    stroke-width="6"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+
+  <!-- Glowing seed at the inner endpoint of the spiral -->
+  <circle cx="340" cy="310" r="22" fill="url(#coreGlow)"/>
+  <circle cx="340" cy="310" r="5"  fill="#FFF1D4" opacity="0.95"/>
+</svg>

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HumanityOS logo proposals</title>
+  <style>
+    :root {
+      --bg: #0a0a0c;
+      --bg-card: #1a1a22;
+      --border: #2a2a35;
+      --text: #e8e8ea;
+      --text-muted: #888894;
+      --accent: #ED8C24;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 40px;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+    }
+    .sub {
+      color: var(--text-muted);
+      margin-bottom: 36px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 24px;
+      max-width: 1280px;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 8px;
+      background: var(--bg);
+    }
+    .strip {
+      display: flex;
+      gap: 10px;
+      margin: 14px 0 12px;
+    }
+    .strip img {
+      width: 64px;
+      height: 64px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .strip img.sm { width: 32px; height: 32px; border-radius: 6px; }
+    .strip img.xs { width: 16px; height: 16px; border-radius: 3px; }
+    .card h2 {
+      font-size: 1.1rem;
+      margin-bottom: 4px;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .card p {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+    .path {
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      margin-top: 10px;
+      word-break: break-all;
+    }
+    footer {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 40px;
+      max-width: 720px;
+    }
+  </style>
+</head>
+<body>
+  <h1>HumanityOS logo proposals</h1>
+  <p class="sub">Nine directions, same palette. Each tile is the full icon; the strip below shows how it reads at favicon sizes (64, 32, 16 px).</p>
+
+  <div class="grid">
+    <div class="card">
+      <img src="01-ring-of-hands.svg" alt="Ring of Hands">
+      <div class="strip">
+        <img src="01-ring-of-hands.svg" alt="" aria-hidden="true">
+        <img src="01-ring-of-hands.svg" class="sm" alt="" aria-hidden="true">
+        <img src="01-ring-of-hands.svg" class="xs" alt="" aria-hidden="true">
+      </div>
+      <span class="tag">Unity</span>
+      <h2>Ring of Hands</h2>
+      <p>Ten identical figures circle a shared hearth. No one above, no one below. The warmth at the centre is the platform itself — what the community is built around.</p>
+      <div class="path">assets/brand/logo-proposals/01-ring-of-hands.svg</div>
+    </div>
+
+    <div class="card">
+      <img src="02-federation-mesh.svg" alt="Federation Mesh">
+      <div class="strip">
+        <img src="02-federation-mesh.svg" alt="" aria-hidden="true">
+        <img src="02-federation-mesh.svg" class="sm" alt="" aria-hidden="true">
+        <img src="02-federation-mesh.svg" class="xs" alt="" aria-hidden="true">
+      </div>
+      <span class="tag">Decentralisation</span>
+      <h2>Federation Mesh</h2>
+      <p>A hexagonal peer-to-peer web. The centre is a node like any other; outer peers connect in by thin reach-lines, showing the mesh is open — any new server can join.</p>
+      <div class="path">assets/brand/logo-proposals/02-federation-mesh.svg</div>
+    </div>
+
+    <div class="card">
+      <img src="03-golden-spiral.svg" alt="Golden Spiral">
+      <div class="strip">
+        <img src="03-golden-spiral.svg" alt="" aria-hidden="true">
+        <img src="03-golden-spiral.svg" class="sm" alt="" aria-hidden="true">
+        <img src="03-golden-spiral.svg" class="xs" alt="" aria-hidden="true">
+      </div>
+      <span class="tag">Infinite scale</span>
+      <h2>Golden Spiral</h2>
+      <p>The natural-world expression of "grows forever, stays in proportion to itself." Ties directly to the Fibonacci homestead layout and the infinite-of-X principle. Glowing seed at the origin.</p>
+      <div class="path">assets/brand/logo-proposals/03-golden-spiral.svg</div>
+    </div>
+
+    <div class="card">
+      <img src="04-cradled-seed.svg" alt="Cradled Seed">
+      <div class="strip">
+        <img src="04-cradled-seed.svg" alt="" aria-hidden="true">
+        <img src="04-cradled-seed.svg" class="sm" alt="" aria-hidden="true">
+        <img src="04-cradled-seed.svg" class="xs" alt="" aria-hidden="true">
+      </div>
+      <span class="tag">Capability</span>
+      <h2>Cradled Seed</h2>
+      <p>Two curved arms cradle a luminous seed from which a small sprout emerges. Captures the core mission in one glyph: identity held, potential nurtured, capability growing.</p>
+      <div class="path">assets/brand/logo-proposals/04-cradled-seed.svg</div>
+    </div>
+
+    <div class="card">
+      <img src="05-mycelium-network.svg" alt="Mycelium Network">
+      <div class="strip">
+        <img src="05-mycelium-network.svg" alt="" aria-hidden="true">
+        <img src="05-mycelium-network.svg" class="sm" alt="" aria-hidden="true">
+        <img src="05-mycelium-network.svg" class="xs" alt="" aria-hidden="true">
+      </div>
+      <span class="tag">Organic federation</span>
+      <h2>Mycelium Network</h2>
+      <p>The hidden root system that ties forests together underground. Each person is a node, messages flow invisibly beneath the surface, the network nourishes every member. The soft, biological version of the Federation Mesh.</p>
+      <div class="path">assets/brand/logo-proposals/05-mycelium-network.svg</div>
+    </div>
+
+    <div class="card">
+      <img src="06-compass-rose.svg" alt="Compass Rose">
+      <div class="strip">
+        <img src="06-compass-rose.svg" alt="" aria-hidden="true">
+        <img src="06-compass-rose.svg" class="sm" alt="" aria-hidden="true">
+        <img src="06-compass-rose.svg" class="xs" alt="" aria-hidden="true">
+      </div>
+      <span class="tag">Orientation</span>
+      <h2>Compass Rose</h2>
+      <p>The universal symbol of "you are not lost." The north point is accent orange — the project's forward vector toward coordination and shared capability. Other cardinals are quiet neutrals so the direction reads immediately.</p>
+      <div class="path">assets/brand/logo-proposals/06-compass-rose.svg</div>
+    </div>
+
+    <div class="card">
+      <img src="07-sprout.svg" alt="Sprout">
+      <div class="strip">
+        <img src="07-sprout.svg" alt="" aria-hidden="true">
+        <img src="07-sprout.svg" class="sm" alt="" aria-hidden="true">
+        <img src="07-sprout.svg" class="xs" alt="" aria-hidden="true">
+      </div>
+      <span class="tag">Emergence</span>
+      <h2>Sprout</h2>
+      <p>A seed unfolds into a structure that did not exist before, reaches up, starts photosynthesising. End poverty through capability, not charity. Two opposed leaves at different heights so it reads as alive rather than symmetrical.</p>
+      <div class="path">assets/brand/logo-proposals/07-sprout.svg</div>
+    </div>
+
+    <div class="card">
+      <img src="08-open-hand.svg" alt="Open Hand">
+      <div class="strip">
+        <img src="08-open-hand.svg" alt="" aria-hidden="true">
+        <img src="08-open-hand.svg" class="sm" alt="" aria-hidden="true">
+        <img src="08-open-hand.svg" class="xs" alt="" aria-hidden="true">
+      </div>
+      <span class="tag">Public domain</span>
+      <h2>Open Hand</h2>
+      <p>Everything here is CC0: no permission needed, belongs to everyone forever. A cupped palm with fingers rising, a glowing gift resting in the centre. The universal gesture of "here, take this" with nothing expected in return.</p>
+      <div class="path">assets/brand/logo-proposals/08-open-hand.svg</div>
+    </div>
+
+    <div class="card">
+      <img src="09-infinity-loop.svg" alt="Infinity Loop">
+      <div class="strip">
+        <img src="09-infinity-loop.svg" alt="" aria-hidden="true">
+        <img src="09-infinity-loop.svg" class="sm" alt="" aria-hidden="true">
+        <img src="09-infinity-loop.svg" class="xs" alt="" aria-hidden="true">
+      </div>
+      <span class="tag">Infinite of X</span>
+      <h2>Infinity Loop</h2>
+      <p>The mathematical shorthand for "no upper bound." HumanityOS designs explicitly for infinite users, infinite planets, infinite items — the infinite-of-X rule is non-negotiable. The crossover at the centre is where the infinite becomes one thing.</p>
+      <div class="path">assets/brand/logo-proposals/09-infinity-loop.svg</div>
+    </div>
+  </div>
+
+  <footer>
+    Open any SVG directly to see the full-resolution vector, or right-click → "Open image in new tab" on the favicon-size strips to zoom in. All four use the canonical palette tokens from <code>data/gui/theme.ron</code>, so they match the app's existing theme without further work.
+  </footer>
+</body>
+</html>

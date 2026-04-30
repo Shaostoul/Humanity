@@ -3,7 +3,8 @@
     "allow": [
       "Bash(just clean-worktrees *)",
       "Bash(node -p \"require\\('fs'\\).readFileSync\\('Cargo.toml','utf8'\\).match\\(/^version\\\\s*=\\\\s*\\\\\"\\(.+?\\)\\\\\"/m\\)[1]\")",
-      "Bash(gh release *)"
+      "Bash(gh release *)",
+      "Bash(cargo check *)"
     ],
     "deny": [
       "mcp__Claude_Preview__preview_start",

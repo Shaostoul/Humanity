@@ -1,0 +1,2443 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Humanity</title>
+ <link rel="manifest" href="/shared/manifest.json">
+ <meta name="mobile-web-app-capable" content="yes">
+ <meta name="apple-mobile-web-app-capable" content="yes">
+ <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+ <meta name="apple-mobile-web-app-title" content="Humanity">
+ <link rel="apple-touch-icon" href="/shared/icons/icon-192.png">
+ <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231a1a2e'/%3E%3Ctext x='32' y='46' font-family='Arial,Helvetica,sans-serif' font-weight='bold' font-size='42' fill='%23FF8811' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E">
+ <link rel="stylesheet" href="/shared/theme.css">
+ <style>
+  :root {
+   --bg-panel: var(--bg-secondary);
+   --error: var(--danger);
+
+   /* Button state colors */
+   --btn-clickable: #44cc66;
+   --btn-hover: #4488ff;
+   --btn-activated: #ee3333;
+   --btn-disabled: var(--bg-input);
+   --btn-cooldown: #8844cc;
+  }
+
+  body {
+   height: 100vh;
+   display: flex;
+   flex-direction: column;
+   overflow: hidden;
+  }
+
+  /* ── Tab Content ── */
+  .tab-content {
+   flex: 1;
+   display: none;
+   padding: var(--space-2xl);
+   padding-bottom: 80px;
+   overflow-y: auto;
+  }
+  .tab-content.active { display: block; }
+  #tab-browse.active { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+  #tab-map.active { display: flex; flex-direction: column; height: 100%; overflow: hidden; padding: 0; }
+  #systems-layout { display:grid; grid-template-columns:260px minmax(0,1fr) 260px; gap: var(--space-xl); align-items:start; }
+  @media (max-width: 1100px) {
+   #systems-layout { grid-template-columns: 1fr; }
+   #systems-tree, #systems-right { position:static !important; max-height:none !important; }
+  }
+
+  .panel {
+   background: var(--bg-card);
+   border: 1px solid var(--border);
+   border-radius: var(--radius-lg);
+   padding: var(--space-2xl);
+   margin-bottom: var(--space-2xl);
+  }
+
+  .panel h2 {
+   font-size: 1.1rem;
+   color: var(--accent);
+   margin-bottom: var(--space-xl);
+   border-bottom: 1px solid var(--border);
+   padding-bottom: var(--space-md);
+  }
+
+  .panel h3 {
+   font-size: 0.9rem;
+   color: var(--text);
+   margin: var(--space-xl) 0 var(--space-md);
+  }
+
+  .panel p {
+   font-size: 0.85rem;
+   color: var(--text-muted);
+   line-height: 1.6;
+   margin-bottom: var(--space-md);
+  }
+
+  .placeholder-text {
+   color: var(--text-muted);
+   font-style: italic;
+   font-size: 0.9rem;
+   text-align: center;
+   padding: var(--space-3xl) var(--space-xl);
+  }
+
+  .card-grid {
+   display: grid;
+   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+   gap: var(--space-xl);
+  }
+
+  .card-grid .panel {
+   transition: border-color 0.2s;
+  }
+  .card-grid .panel:hover {
+   border-color: rgba(255, 136, 17, 0.3);
+  }
+
+  /* ══════════════════════════════════════════
+    BUTTON DESIGN SYSTEM
+    ══════════════════════════════════════════ */
+
+  .btn {
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   min-width: 120px;
+   min-height: 44px;
+   padding: var(--space-md) 1.2rem;
+   font-size: 0.85rem;
+   font-weight: 600;
+   color: var(--text);
+   background: var(--bg-panel);
+   border: none;
+   border-radius: var(--radius);
+   cursor: pointer;
+   transition: box-shadow 0.15s ease;
+   position: relative;
+   user-select: none;
+   font-family: inherit;
+   box-shadow: inset 0 0 0 1px var(--btn-clickable);
+  }
+
+  .btn.btn-clickable,
+  .btn:not(.btn-disabled):not(.btn-cooldown):not(.btn-channeling):not(.btn-activated) {
+   box-shadow: inset 0 0 0 1px var(--btn-clickable);
+  }
+
+  .btn:not(.btn-disabled):not(.btn-cooldown):not(.btn-activated):hover {
+   box-shadow: inset 0 0 0 3px var(--btn-hover), 0 0 12px rgba(68, 136, 255, 0.4) !important;
+   animation: none;
+  }
+
+  .btn.btn-activated {
+   box-shadow: inset 0 0 0 5px var(--btn-activated), 0 0 12px rgba(238, 51, 51, 0.4) !important;
+   animation: none;
+  }
+
+  .btn.btn-channeling {
+   animation: rainbow-shadow 3s linear infinite;
+  }
+
+  @keyframes rainbow-shadow {
+   0%  { box-shadow: inset 0 0 0 1px #ff0000, 0 0 8px rgba(255,0,0,0.3); }
+   16% { box-shadow: inset 0 0 0 1px #ff8800, 0 0 8px rgba(255,136,0,0.3); }
+   33% { box-shadow: inset 0 0 0 1px #ffff00, 0 0 8px rgba(255,255,0,0.3); }
+   50% { box-shadow: inset 0 0 0 1px #00ff44, 0 0 8px rgba(0,255,68,0.3); }
+   66% { box-shadow: inset 0 0 0 1px #0088ff, 0 0 8px rgba(0,136,255,0.3); }
+   83% { box-shadow: inset 0 0 0 1px #8800ff, 0 0 8px rgba(136,0,255,0.3); }
+   100% { box-shadow: inset 0 0 0 1px #ff0000, 0 0 8px rgba(255,0,0,0.3); }
+  }
+
+  .btn.btn-disabled {
+   box-shadow: inset 0 0 0 2px var(--btn-disabled);
+   color: var(--text-muted);
+   opacity: 0.5;
+   cursor: not-allowed;
+  }
+  .btn.btn-disabled:hover {
+   box-shadow: inset 0 0 0 2px var(--btn-disabled) !important;
+  }
+
+  .btn.btn-cooldown {
+   box-shadow: inset 0 0 0 7px var(--btn-cooldown);
+   cursor: wait;
+   color: var(--text-muted);
+  }
+  .btn.btn-cooldown:hover {
+   box-shadow: inset 0 0 0 7px var(--btn-cooldown) !important;
+  }
+
+  .btn-cooldown-timer {
+   position: absolute;
+   font-size: 0.6rem;
+   font-weight: 700;
+   color: var(--btn-cooldown);
+   background: var(--bg-panel);
+   padding: 0 var(--space-sm);
+   letter-spacing: 0.05em;
+  }
+  .btn-cooldown-timer.top {
+   top: -2px;
+   left: 50%;
+   transform: translateX(-50%);
+  }
+  .btn-cooldown-timer.bottom {
+   bottom: -2px;
+   left: 50%;
+   transform: translateX(-50%);
+  }
+
+  .btn-grid {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 1.2rem;
+   margin: var(--space-md) 0;
+   align-items: center;
+  }
+
+  .btn-demo {
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   gap: var(--space-md);
+  }
+
+  .btn-demo .btn-label {
+   font-size: 0.65rem;
+   color: var(--text-muted);
+   text-transform: uppercase;
+   letter-spacing: 0.08em;
+  }
+
+  /* ── Settings Panel (inline) ── */
+  #tab-settings .panel { max-width: 600px; }
+
+  /* ── Debug info items ── */
+  .debug-info {
+   display: grid;
+   grid-template-columns: 140px 1fr;
+   gap: var(--space-sm) var(--space-xl);
+   font-size: 0.82rem;
+   margin: var(--space-md) 0;
+  }
+  .debug-info dt {
+   color: var(--text-muted);
+   font-weight: 600;
+  }
+  .debug-info dd {
+   color: var(--text);
+   font-family: monospace;
+   font-size: 0.78rem;
+  }
+
+  /* ── Skill DNA ── */
+  .skill-dna { display:flex; gap:0; border:1px solid var(--border); border-radius:10px; overflow:hidden; min-height:420px; background:var(--bg-card); }
+  .skill-dna-sidebar { width:180px; min-width:150px; border-right:1px solid var(--border); display:flex; flex-direction:column; background:rgba(0,0,0,0.15); }
+  .skill-dna-sidebar .sd-cat { padding: var(--space-md) var(--space-lg); font-size:0.8rem; cursor:pointer; border-bottom:1px solid rgba(255,255,255,0.04); display:flex; align-items:center; gap: var(--space-md); color:var(--text-muted); transition:background 0.15s; }
+  .skill-dna-sidebar .sd-cat:hover, .skill-dna-sidebar .sd-cat.active { background:rgba(255,255,255,0.06); color:var(--text); }
+  .skill-dna-sidebar .sd-cat.active { border-left:3px solid var(--accent); }
+  .skill-dna-main { flex:1; overflow-y:auto; padding: var(--space-xl); }
+  .skill-dna-header { display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-lg); }
+  .skill-dna-header h3 { margin:0; font-size:0.95rem; }
+  .sd-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap: var(--space-md); }
+  .sd-tile { background:var(--bg-input); border:1px solid var(--border); border-radius:8px; padding: var(--space-md); text-align:center; cursor:pointer; transition:all 0.15s; position:relative; }
+  .sd-tile:hover { border-color:var(--accent); transform:translateY(-1px); }
+  .sd-tile .sd-icon { font-size:1.3rem; }
+  .sd-tile .sd-name { font-size:0.72rem; color:var(--text); margin: var(--space-xs) 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sd-tile .sd-level { font-size:0.65rem; font-weight:700; }
+  .sd-tile .sd-bar { height:3px; background:rgba(255,255,255,0.08); border-radius:2px; margin-top: var(--space-sm); overflow:hidden; }
+  .sd-tile .sd-bar-fill { height:100%; border-radius:2px; transition:width 0.3s; }
+  .sd-tile.locked { opacity:0.5; }
+  .sd-tile.locked::after { content:''; position:absolute; top: var(--space-sm); right: var(--space-sm); width:12px; height:12px; background:currentColor; -webkit-mask:url("data:image/svg+xml,%3Csvg viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='10' y='22' width='28' height='22' rx='3' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Cpath d='M16,22 V14 A8,8 0 0 1 32,14 V22' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Ccircle cx='24' cy='33' r='3' fill='%23fff'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='10' y='22' width='28' height='22' rx='3' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Cpath d='M16,22 V14 A8,8 0 0 1 32,14 V22' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Ccircle cx='24' cy='33' r='3' fill='%23fff'/%3E%3C/svg%3E") center/contain no-repeat; }
+  .sd-stats { margin-top: var(--space-xl); padding: var(--space-lg); background:rgba(255,255,255,0.03); border-radius:8px; font-size:0.78rem; color:var(--text-muted); }
+  .sd-stats div { margin: var(--space-xs) 0; }
+  .sd-stats span { color:var(--text); font-weight:600; }
+  /* Skill Card Modal */
+  .sd-card-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:1000; display:flex; align-items:center; justify-content:center; }
+  .sd-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1.2rem; max-width:420px; width:90%; max-height:80vh; overflow-y:auto; }
+  .sd-card h3 { margin: 0 0 var(--space-md); display:flex; align-items:center; justify-content:space-between; }
+  .sd-card .sd-xp-bars { margin: var(--space-lg) 0; }
+  .sd-card .sd-xp-row { display:flex; align-items:center; gap: var(--space-md); margin: var(--space-sm) 0; font-size:0.8rem; }
+  .sd-card .sd-xp-row .bar { flex:1; height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden; }
+  .sd-card .sd-xp-row .bar-fill { height:100%; border-radius:4px; }
+  .sd-card .sd-subskills { margin: var(--space-lg) 0; }
+  .sd-card .sd-subskill { display:flex; align-items:center; gap: var(--space-md); margin: var(--space-sm) 0; font-size:0.78rem; }
+  .sd-card .sd-verifications, .sd-card .sd-activity { margin: var(--space-md) 0; font-size:0.78rem; }
+  .sd-card .sd-actions { display:flex; gap: var(--space-md); margin-top: var(--space-xl); }
+  .sd-card .sd-actions button { flex:1; padding: var(--space-md); border-radius:6px; border:1px solid var(--border); background:var(--bg-input); color:var(--text); font-size:0.8rem; cursor:pointer; font-family:inherit; }
+  .sd-card .sd-actions button:hover { border-color:var(--accent); }
+  /* Log Modal */
+  .sd-log-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:1001; display:flex; align-items:center; justify-content:center; }
+  .sd-log-modal { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1.2rem; max-width:380px; width:90%; }
+  .sd-log-modal h3 { margin: 0 0 var(--space-xl); }
+  .sd-log-modal label { display:block; font-size:0.78rem; color:var(--text-muted); margin: var(--space-md) 0 var(--space-xs); }
+  .sd-log-modal input, .sd-log-modal select, .sd-log-modal textarea { width:100%; background:var(--bg-input); border:1px solid var(--border); color:var(--text); padding: var(--space-sm) var(--space-md); border-radius:6px; font-size:0.82rem; font-family:inherit; box-sizing:border-box; }
+  .sd-log-modal .sd-type-toggle { display:flex; gap: var(--space-md); margin: var(--space-sm) 0; }
+  .sd-log-modal .sd-type-toggle label { display:flex; align-items:center; gap: var(--space-sm); cursor:pointer; color:var(--text); }
+  .sd-log-modal .sd-log-actions { display:flex; gap: var(--space-md); margin-top: var(--space-xl); }
+  .sd-log-modal .sd-log-actions button { flex:1; padding: var(--space-md); border-radius:6px; font-size:0.82rem; cursor:pointer; font-family:inherit; border:none; }
+  /* Find People */
+  .sd-find-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:1001; display:flex; align-items:center; justify-content:center; }
+  .sd-find-modal { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1.2rem; max-width:500px; width:90%; max-height:80vh; overflow-y:auto; }
+  .sd-find-modal h3 { margin: 0 0 var(--space-lg); }
+  .sd-find-result { padding: var(--space-md); border:1px solid var(--border); border-radius:8px; margin: var(--space-md) 0; display:flex; align-items:center; gap: var(--space-lg); }
+  .sd-find-result .sd-fr-skills { font-size:0.75rem; color:var(--text-muted); }
+  @media (max-width:600px) { .skill-dna { flex-direction:column; } .skill-dna-sidebar { width:100%; min-width:auto; border-right:none; border-bottom:1px solid var(--border); flex-direction:row; overflow-x:auto; } .skill-dna-sidebar .sd-cat { white-space:nowrap; border-bottom:none; } .skill-dna-sidebar .sd-cat.active { border-left:none; border-bottom:3px solid var(--accent); } }
+
+  /* ── Reality Cards ── */
+  .reality-card-header {
+   cursor: pointer;
+   user-select: none;
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+  }
+  .reality-card-header .collapse-icon {
+   font-size: 0.7rem;
+   color: var(--text-muted);
+   transition: transform 0.2s;
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   width: 0.9rem;
+   min-width: 0.9rem;
+  }
+  .reality-card-header .collapse-icon::before {
+   content: '▼';
+   line-height: 1;
+  }
+  .reality-card.collapsed .reality-card-body { display: none; }
+  .reality-card.collapsed .collapse-icon { transform: rotate(-90deg); }
+
+  /* Todo */
+  .todo-item {
+   display: flex;
+   align-items: center;
+   gap: var(--space-md);
+   padding: var(--space-sm) var(--space-md);
+   border-radius: var(--radius-sm);
+   font-size: 0.85rem;
+  }
+  .todo-item:hover { background: var(--bg-hover); }
+  .todo-item.completed { opacity: 0.5; }
+  .todo-item.completed .todo-text { text-decoration: line-through; }
+  .todo-item input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+  .todo-text { flex: 1; color: var(--text); }
+  .todo-delete {
+   background: none; border: none; color: var(--text-muted); cursor: pointer;
+   font-size: 0.75rem; padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-sm); opacity: 0;
+  }
+  .todo-item:hover .todo-delete { opacity: 1; }
+  .todo-delete:hover { color: var(--danger, #c44); }
+
+  /* Notes */
+  .note-item {
+   display: flex;
+   align-items: center;
+   gap: var(--space-md);
+   padding: var(--space-sm) var(--space-md);
+   border-radius: var(--radius-sm);
+   font-size: 0.82rem;
+   cursor: pointer;
+   color: var(--text-muted);
+  }
+  .note-item:hover { background: var(--bg-hover); color: var(--text); }
+  .note-item.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+  .note-delete {
+   background: none; border: none; color: var(--text-muted); cursor: pointer;
+   font-size: 0.7rem; padding: var(--space-xs) var(--space-sm); opacity: 0; margin-left: auto;
+  }
+  .note-item:hover .note-delete { opacity: 1; }
+  .note-delete:hover { color: var(--danger, #c44); }
+
+  /* Garden Manager */
+  #garden-manager { font-size: 0.85rem; }
+  @media (max-width: 600px) {
+   #garden-manager { flex-direction: column !important; }
+   #garden-left { width: 100% !important; min-width: 0 !important; border-right: none !important; border-bottom: 1px solid var(--border); max-height: 200px; }
+  }
+
+  /* ── Catalog System ── */
+  .catalog-search-bar {
+   display: flex; gap: var(--space-md); margin-bottom: 1.2rem; position: sticky; top: 0; z-index: 10;
+   background: var(--bg); padding: var(--space-md) 0;
+  }
+  .catalog-search-bar input {
+   flex: 1; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+   padding: var(--space-lg) var(--space-xl); border-radius: var(--radius); font-size: 0.9rem; outline: none; font-family: inherit;
+  }
+  .catalog-search-bar input:focus { border-color: var(--accent); }
+  .catalog-search-results {
+   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+   margin-bottom: var(--space-xl); max-height: 300px; overflow-y: auto;
+  }
+  .catalog-search-results:empty { display: none; }
+  .catalog-result-item {
+   display: flex; align-items: center; gap: var(--space-lg); padding: var(--space-md) var(--space-xl);
+   cursor: pointer; font-size: 0.82rem; border-bottom: 1px solid var(--border);
+  }
+  .catalog-result-item:last-child { border-bottom: none; }
+  .catalog-result-item:hover { background: var(--bg-hover); }
+  .catalog-result-badge {
+   font-size: 0.6rem; font-weight: 700; padding: var(--space-xs) var(--space-md); border-radius: var(--radius-sm);
+   text-transform: uppercase; flex-shrink: 0;
+  }
+
+  /* Reference Sources Grid */
+  .ref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-md); }
+  .ref-card {
+   display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md) var(--space-lg);
+   background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+   text-decoration: none; color: var(--text); font-size: 0.78rem; transition: border-color 0.15s;
+  }
+  .ref-card:hover { border-color: var(--accent); }
+  .ref-card .ref-icon { font-size: 1.1rem; flex-shrink: 0; }
+  .ref-card .ref-name { font-weight: 600; color: var(--text); }
+  .ref-card .ref-desc { font-size: 0.7rem; color: var(--text-muted); }
+
+  /* Element Cards */
+  .element-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: var(--space-md); }
+  .element-card {
+   background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+   padding: var(--space-md); text-align: center; cursor: pointer; transition: border-color 0.15s, transform 0.1s;
+   position: relative;
+  }
+  .element-card:hover { transform: scale(1.05); z-index: 1; }
+  .element-card .el-number { font-size: 0.6rem; color: var(--text-muted); position: absolute; top: 3px; left: 5px; }
+  .element-card .el-symbol { font-size: 1.3rem; font-weight: 700; margin: var(--space-xs) 0; }
+  .element-card .el-name { font-size: 0.6rem; color: var(--text-muted); }
+  .element-card .el-mass { font-size: 0.55rem; color: var(--text-muted); opacity: 0.6; }
+  .el-cat-nonmetal { border-color: rgba(76,175,80,0.4); } .el-cat-nonmetal .el-symbol { color: #4caf50; }
+  .el-cat-metal { border-color: rgba(66,165,245,0.4); } .el-cat-metal .el-symbol { color: #42a5f5; }
+  .el-cat-metalloid { border-color: rgba(255,167,38,0.4); } .el-cat-metalloid .el-symbol { color: #ffa726; }
+  .el-cat-noble-gas { border-color: rgba(171,71,188,0.4); } .el-cat-noble-gas .el-symbol { color: #ab47bc; }
+  .el-cat-transition-metal { border-color: rgba(66,165,245,0.4); } .el-cat-transition-metal .el-symbol { color: #42a5f5; }
+  .el-cat-actinide { border-color: rgba(239,83,80,0.4); } .el-cat-actinide .el-symbol { color: #ef5350; }
+
+  /* Element Detail */
+  .element-detail {
+   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+   padding: 1.2rem; margin-bottom: var(--space-xl); animation: fadeIn 0.15s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .element-detail h3 { margin: 0 0 var(--space-lg); font-size: 1.1rem; }
+  .element-detail .el-props { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-md); margin: var(--space-lg) 0; }
+  .element-detail .el-prop { background: var(--bg-input); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md); font-size: 0.78rem; }
+  .element-detail .el-prop dt { color: var(--text-muted); font-size: 0.65rem; text-transform: uppercase; }
+  .element-detail .el-prop dd { color: var(--text); font-weight: 600; margin: 0; }
+
+  /* Materials */
+  .material-card {
+   background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+   padding: var(--space-lg); cursor: pointer; transition: border-color 0.15s;
+  }
+  .material-card:hover { border-color: var(--accent); }
+  .material-type-badge {
+   display: inline-block; font-size: 0.6rem; font-weight: 700; padding: var(--space-xs) var(--space-md);
+   border-radius: var(--radius-sm); text-transform: uppercase;
+  }
+  .mat-raw { background: rgba(139,195,74,0.2); color: #8bc34a; }
+  .mat-processed { background: rgba(66,165,245,0.2); color: #42a5f5; }
+  .mat-composite { background: rgba(255,167,38,0.2); color: #ffa726; }
+  .processing-chain {
+   display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap;
+   font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-md);
+  }
+  .processing-chain .chain-arrow { color: var(--accent); font-weight: 700; }
+
+  /* Inventory */
+  .inv-privacy-banner {
+   background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.3); border-radius: var(--radius);
+   padding: var(--space-md) var(--space-xl); font-size: 0.78rem; color: #4caf50; text-align: center; margin-bottom: var(--space-xl);
+  }
+  .inv-toolbar { display: flex; gap: var(--space-md); flex-wrap: wrap; margin-bottom: var(--space-xl); align-items: center; }
+  .inv-toolbar select, .inv-toolbar input {
+   background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+   padding: var(--space-sm) var(--space-lg); border-radius: var(--radius); font-size: 0.8rem; font-family: inherit; outline: none;
+  }
+  .inv-item {
+   background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+   padding: var(--space-lg); transition: border-color 0.15s;
+  }
+  .inv-item:hover { border-color: var(--accent); }
+
+  /* Modal */
+  .catalog-modal-overlay {
+   display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+   background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;
+  }
+  .catalog-modal-overlay.open { display: flex; }
+  .catalog-modal {
+   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+   padding: var(--space-2xl); max-width: 550px; width: 92%; max-height: 85vh; overflow-y: auto; position: relative;
+  }
+  .catalog-modal .modal-close {
+   position: absolute; top: var(--space-md); right: var(--space-xl); background: none; border: none;
+   color: var(--text-muted); font-size: 1.3rem; cursor: pointer;
+  }
+  .catalog-modal label { font-size: 0.75rem; color: var(--text-muted); display: block; margin: var(--space-md) 0 var(--space-xs); }
+  .catalog-modal input, .catalog-modal select, .catalog-modal textarea {
+   width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+   padding: var(--space-md) var(--space-lg); border-radius: var(--radius); font-size: 0.82rem; outline: none; font-family: inherit;
+   box-sizing: border-box;
+  }
+  .catalog-modal textarea { resize: vertical; }
+  .catalog-modal .modal-actions { display: flex; gap: var(--space-md); margin-top: var(--space-xl); }
+  .catalog-modal .modal-actions button {
+   flex: 1; padding: var(--space-md); border: none; border-radius: var(--radius); font-size: 0.85rem;
+   font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+
+  .filter-pills { display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-bottom: var(--space-lg); }
+  .filter-pill {
+   background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted);
+   padding: var(--space-xs) var(--space-lg); border-radius: var(--radius-lg); font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
+  }
+  .filter-pill.active { background: var(--accent); color: var(--text); border-color: var(--accent); }
+  .filter-pill:hover { border-color: var(--accent); }
+
+  /* ── Mobile ── */
+  @media (max-width: 600px) {
+   .tab-content {
+    padding: var(--space-xl);
+   }
+   .card-grid {
+    grid-template-columns: 1fr;
+   }
+   .element-grid { grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); }
+   .ref-grid { grid-template-columns: 1fr; }
+  }
+ </style>
+</head>
+<body>
+ <script src="/shared/shell.js"></script>
+ <script src="/shared/defaults.js"></script>
+ <script src="/shared/settings.js"></script>
+ <script>
+  document.querySelectorAll('.hub-nav .tab[href^="/map"]').forEach(el => el.setAttribute('data-tab', 'map'));
+  document.querySelectorAll('.hub-nav .tab[href^="/board"]').forEach(el => el.setAttribute('data-tab', 'board'));
+  document.querySelectorAll('.hub-nav .tab[href^="/reality"]').forEach(el => el.setAttribute('data-tab', 'reality'));
+  document.querySelectorAll('.hub-nav .tab[href^="/fantasy"]').forEach(el => el.setAttribute('data-tab', 'fantasy'));
+  document.querySelectorAll('.hub-nav .tab[href^="/streams"]').forEach(el => el.setAttribute('data-tab', 'streams'));
+  document.querySelectorAll('.hub-nav .tab[href^="/info"]').forEach(el => el.setAttribute('data-tab', 'info'));
+  document.querySelectorAll('.hub-nav .tab[href^="/market"]').forEach(el => el.setAttribute('data-tab', 'market'));
+  document.querySelectorAll('.hub-nav .tab[href^="/browse"]').forEach(el => el.setAttribute('data-tab', 'browse'));
+  document.querySelectorAll('.hub-nav .tab[href^="/dashboard"]').forEach(el => el.setAttribute('data-tab', 'dashboard'));
+  document.querySelectorAll('.hub-nav .tab[href^="/debug"]').forEach(el => el.setAttribute('data-tab', 'debug'));
+ </script>
+
+ <!-- Map Tab -->
+ <div id="tab-map" class="tab-content" style="display:none;flex-direction:column;height:100%;overflow:hidden;padding:0;">
+  <!-- Mode bar -->
+  <div id="map-modes" style="display:flex;gap:0.5rem;padding:0.5rem 1rem;border-bottom:1px solid var(--border);align-items:center;flex-shrink:0;flex-wrap:wrap;">
+   <span style="font-size:0.8rem;color:var(--text-muted);">🧘 Astral Projection:</span>
+   <button onclick="mapSetView('surface')" class="map-mode-btn active" data-mode="surface" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,200,150,0.4);color:#6cc;border-radius:4px;cursor:pointer;"><span class="pg-ico" data-icon="globe" data-size="14"></span> Surface</button>
+   <button onclick="mapSetView('system')" class="map-mode-btn" data-mode="system" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">☀️ Solar System</button>
+   <button onclick="mapSetView('sector')" class="map-mode-btn" data-mode="sector" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">⭐ Stellar Neighborhood</button>
+   <button onclick="mapSetView('galaxy')" class="map-mode-btn" data-mode="galaxy" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">🌌 Galaxy</button>
+   <button onclick="mapSetView('skyview')" class="map-mode-btn" data-mode="skyview" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(180,140,255,0.3);color:#b48cff;border-radius:4px;cursor:pointer;">🔭 Sky View</button>
+   <span style="flex:1;"></span>
+   <span id="map-coords" style="font-size:0.7rem;color:var(--text-muted);font-family:monospace;"></span>
+  </div>
+  <div style="display:flex;flex:1;min-height:0;">
+   <!-- Map canvas area -->
+   <div id="map-canvas-container" style="flex:1;position:relative;background:#0a0a1a;overflow:hidden;">
+    <canvas id="map-canvas" style="width:100%;height:100%;display:block;"></canvas>
+    <!-- Overlay controls -->
+    <div id="map-overlay-controls" style="position:absolute;top:0.5rem;right:0.5rem;display:flex;flex-direction:column;gap:0.3rem;z-index:10;">
+     <button onclick="mapZoomIn()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">+</button>
+     <button onclick="mapZoomOut()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">−</button>
+     <button onclick="mapGoHome()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" title="Go to home location"><span class="pg-ico" data-icon="home" data-size="18"></span></button>
+     <button onclick="mapLocateMe()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" title="My location (GPS)"><span class="pg-ico" data-icon="mappin" data-size="18"></span></button>
+     <button onclick="mapToggleWeather()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle weather overlay">🌤️</button>
+     <button onclick="mapToggleGrid()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle icosphere grid">📐</button>
+    </div>
+    <!-- Search bar overlay -->
+    <div style="position:absolute;top:0.5rem;left:0.5rem;right:3.5rem;z-index:10;">
+     <input type="text" id="map-search" placeholder="Search location, star, planet..." style="width:100%;max-width:350px;background:rgba(26,26,46,0.9);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.8rem;border-radius:8px;font-size:0.8rem;backdrop-filter:blur(4px);outline:none;font-family:inherit;" onkeydown="if(event.key==='Enter')mapDoSearch()">
+    </div>
+   </div>
+   <!-- Info sidebar -->
+   <div id="map-sidebar" style="width:320px;border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;background:var(--bg-card);">
+    <div id="map-info-panel" style="padding:0.8rem;font-size:0.82rem;"></div>
+   </div>
+  </div>
+ </div>
+
+ <!-- Board Tab -->
+ <div id="tab-board" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+   <h2 style="color:var(--accent);margin:0;font-size:1.1rem;">🧩 Systems</h2>
+   <button class="btn btn-clickable" id="board-create-btn" style="display:none;min-width:auto;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;" onclick="showCreateTaskModal()">+ New Task</button>
+  </div>
+  <div id="systems-clean" style="margin-bottom:0.9rem;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.75rem;">
+   <div style="display:grid;grid-template-columns:240px minmax(0,1fr) 240px;gap:0.7rem;align-items:start;">
+    <aside style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;max-height:320px;overflow:auto;">
+     <div style="font-size:0.74rem;color:var(--text-muted);margin-bottom:0.35rem;">Systems Tree</div>
+     <details open><summary>Project</summary><div style="padding-left:0.5rem;display:flex;flex-direction:column;gap:0.2rem;"><button onclick="featureWebFocusByTitle('PU Mission')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Mission</button><button onclick="featureWebFocusByTitle('Act I-V Roadmap')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Roadmap</button></div></details>
+     <details><summary>Utilities</summary><div style="padding-left:0.5rem;display:flex;flex-direction:column;gap:0.2rem;"><button onclick="featureWebFocusByTitle('Main Power Grid')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Power</button><button onclick="featureWebFocusByTitle('Water & Waste Loop')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Water</button><button onclick="featureWebFocusByTitle('Network Backbone')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Network</button></div></details>
+     <details><summary>Twin</summary><div style="padding-left:0.5rem;display:flex;flex-direction:column;gap:0.2rem;"><button onclick="featureWebFocusByTitle('Earth Twin Home Planner')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Earth Twin</button><button onclick="featureWebFocusByTitle('PU Mission')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Fleet Twin</button></div></details>
+    </aside>
+    <main style="border:1px solid var(--border);border-radius:8px;padding:0.55rem;min-height:220px;">
+     <h3 style="margin:0 0 0.4rem;font-size:0.9rem;color:var(--text);">System View</h3>
+     <p style="margin:0;font-size:0.78rem;color:var(--text-muted);line-height:1.5;">Kanban and node-mesh have been removed from active view. This panel is now the clean systems workspace. Select from the left tree and inspect data on the right.</p>
+     <div style="margin-top:0.55rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.45rem;">
+      <div style="border:1px solid var(--border);border-radius:6px;padding:0.4rem;"><div style="font-size:0.68rem;color:var(--text-muted);">Power</div><div style="font-weight:700;color:#9fe69a;">86%</div></div>
+      <div style="border:1px solid var(--border);border-radius:6px;padding:0.4rem;"><div style="font-size:0.68rem;color:var(--text-muted);">Water</div><div style="font-weight:700;color:#9fd1ff;">91%</div></div>
+      <div style="border:1px solid var(--border);border-radius:6px;padding:0.4rem;"><div style="font-size:0.68rem;color:var(--text-muted);">Network</div><div style="font-weight:700;color:#f4d68a;">97%</div></div>
+     </div>
+    </main>
+    <aside style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;">
+     <div style="font-size:0.74rem;color:var(--text-muted);margin-bottom:0.35rem;">Data</div>
+     <div style="font-size:0.75rem;color:var(--text);line-height:1.45;">
+      <div><strong>Inventory/Stock</strong></div>
+      <div style="opacity:0.8;">Power reserve: 86%</div>
+      <div style="opacity:0.8;">Water reserve: 91%</div>
+      <div style="opacity:0.8;">Food reserve: 63</div>
+      <div style="opacity:0.8;">Network uptime: 97%</div>
+     </div>
+    </aside>
+   </div>
+  </div>
+  <script>
+  (function(){
+    const hideOld = function(){
+      const fw=document.getElementById('feature-web');
+      const bc=document.getElementById('board-columns');
+      const bl=document.getElementById('board-loading');
+      const sl=document.getElementById('systems-layout');
+      if(fw) fw.style.display='none';
+      if(bc) bc.style.display='none';
+      if(bl) bl.style.display='none';
+      if(sl) sl.style.display='none';
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', hideOld, { once: true });
+    } else {
+      hideOld();
+    }
+  })();
+  </script>
+
+  <div id="systems-layout" style="display:grid;grid-template-columns:260px minmax(0,1fr) 260px;gap:0.8rem;align-items:start;">
+   <aside id="systems-tree" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.6rem;position:sticky;top:52px;max-height:calc(100vh - 120px);overflow:auto;">
+    <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:0.45rem;">Folders</div>
+    <details open><summary style="cursor:pointer;">Project</summary><div style="padding:0.25rem 0 0.25rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;"><button onclick="featureWebFocusByTitle('PU Mission')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Mission</button><button onclick="featureWebFocusByTitle('Act I-V Roadmap')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Roadmap</button></div></details>
+    <details><summary style="cursor:pointer;">Utilities</summary><div style="padding:0.25rem 0 0.25rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;"><button onclick="featureWebFocusByTitle('Main Power Grid')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Power</button><button onclick="featureWebFocusByTitle('Water & Waste Loop')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Water</button><button onclick="featureWebFocusByTitle('Network Backbone')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Network</button></div></details>
+    <details><summary style="cursor:pointer;">Home Modules</summary><div style="padding:0.25rem 0 0.25rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;"><button onclick="featureWebFocusByTitle('Bedroom')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Bedroom</button><button onclick="featureWebFocusByTitle('Garden')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Garden</button><button onclick="featureWebFocusByTitle('Workshop')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Workshop</button></div></details>
+    <details><summary style="cursor:pointer;">Earth Twin</summary><div style="padding:0.25rem 0 0.25rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;"><button onclick="featureWebFocusByTitle('Earth Twin Home Planner')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Home Planner</button><button onclick="featureWebFocusByTitle('Earth/Fleet Mode Switch')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Mode Switch</button></div></details>
+   </aside>
+   <div>
+  <div id="feature-web" role="region" aria-labelledby="feature-web-title" style="margin-bottom:1rem;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.8rem;">
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+    <h3 id="feature-web-title" style="margin:0;font-size:0.95rem;color:var(--text);">✨ Feature Showcase</h3>
+    <div id="feature-web-meta" aria-live="polite" aria-atomic="true" aria-label="Feature Web node and link counts" style="font-size:0.72rem;color:var(--text-muted);">0 nodes · 0 links</div>
+   </div>
+   <div id="fw-notice" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true" style="display:none;margin-bottom:0.45rem;font-size:0.7rem;color:#e8b35a;"></div>
+   <div role="group" aria-label="Feature Web filters and view controls" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;">
+    <input id="fw-filter-search" type="text" maxlength="200" aria-label="Search Feature Web nodes" aria-describedby="fw-search-meta" aria-keyshortcuts="/,Enter,Shift+Enter,Home,End,ArrowDown,ArrowUp,Ctrl+Shift+Q" placeholder="Search nodes…" oninput="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.23rem 0.42rem;border-radius:6px;font-size:0.72rem;min-width:150px;">
+    <button id="fw-clear-search-btn" aria-label="Clear Feature Web search" aria-controls="fw-filter-search fw-search-meta" aria-keyshortcuts="Ctrl+Shift+Q" aria-hidden="true" onclick="featureWebClearSearch()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Search</button>
+    <span id="fw-search-meta" role="button" tabindex="-1" aria-live="polite" aria-atomic="true" aria-keyshortcuts="Enter,Space,Escape,Ctrl+Shift+Q" aria-hidden="true" onclick="featureWebClearSearch({ quiet: true })" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();featureWebClearSearch({ quiet: true });}else if(event.key==='Escape'){event.preventDefault();this.blur();}" style="font-size:0.68rem;color:var(--text-muted);opacity:0.8;display:none;cursor:pointer;"></span>
+    <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-linked-only" aria-label="Show only linked nodes" aria-keyshortcuts="L" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Linked only</label>
+    <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-owned-only" aria-label="Show only owned nodes" aria-keyshortcuts="Y" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Owned only</label>
+    <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-focus-selected" aria-label="Focus selected node and neighbors" aria-keyshortcuts="X" type="checkbox" checked onchange="featureWebSaveFilters();featureWebRender()">Focus selected</label>
+    <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-simple-ui" aria-label="Use simple Feature Web interface" aria-keyshortcuts="U" type="checkbox" checked onchange="featureWebSaveFilters();featureWebRender()">Simple UI</label>
+    <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-show-edge-labels" aria-label="Show edge labels" aria-keyshortcuts="E" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Edge labels</label>
+    <label style="font-size:0.7rem;color:var(--text-muted);">View</label>
+    <select id="fw-view-mode" aria-label="Feature Web view mode" aria-keyshortcuts="Ctrl+Shift+V,Ctrl+Shift+1,Ctrl+Shift+2,Ctrl+Shift+3,V,1,2,3" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+     <option value="cards">Card Web</option><option value="constellation">Constellation</option><option value="orbit">Orbit System</option>
+    </select>
+    <label style="font-size:0.7rem;color:var(--text-muted);">Type</label>
+    <select id="fw-filter-type" aria-label="Filter Feature Web by type" aria-keyshortcuts="Ctrl+Shift+F" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+     <option value="all">All</option><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option>
+    </select>
+    <label style="font-size:0.7rem;color:var(--text-muted);">Status</label>
+    <select id="fw-filter-status" aria-label="Filter Feature Web by status" aria-keyshortcuts="Ctrl+Shift+P" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+     <option value="all">All</option><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option>
+    </select>
+    <label style="font-size:0.7rem;color:var(--text-muted);">Domain</label>
+    <select id="fw-filter-domain" aria-label="Filter Feature Web by domain" aria-keyshortcuts="Ctrl+Shift+D" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+     <option value="all">All</option><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option>
+    </select>
+    <button id="fw-clear-filters-btn" aria-label="Reset Feature Web filters to defaults" aria-controls="fw-filter-search fw-linked-only fw-owned-only fw-focus-selected fw-simple-ui fw-show-edge-labels fw-view-mode fw-filter-type fw-filter-status fw-filter-domain" aria-keyshortcuts="Ctrl+Shift+0" aria-hidden="true" onclick="featureWebClearFilters()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Filters</button>
+   </div>
+   <div id="fw-legend" role="note" aria-live="polite" aria-atomic="true" aria-label="Feature Web legend" style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;color:var(--text-muted);"></div>
+   <div id="fw-status-summary" role="status" aria-live="polite" aria-atomic="true" aria-label="Feature Web status summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
+   <div id="fw-link-summary" role="status" aria-live="polite" aria-atomic="true" aria-label="Feature Web link summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
+   <div id="fw-owner-summary" role="status" aria-live="polite" aria-atomic="true" aria-label="Feature Web ownership summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
+   <div style="display:flex;justify-content:flex-end;margin:-0.15rem 0 0.25rem 0;"><button id="fw-toggle-shortcuts-btn" aria-label="Toggle Feature Web shortcuts help" aria-controls="fw-shortcuts-hint" aria-expanded="true" aria-keyshortcuts="Ctrl+Shift+H,?" aria-pressed="true" onclick="featureWebToggleShortcutHint()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.16rem 0.45rem;border-radius:6px;font-size:0.68rem;cursor:pointer;">Hide Shortcuts</button></div>
+   <div id="fw-shortcuts-hint" role="note" aria-label="Feature Web keyboard shortcuts reference" aria-hidden="false" style="font-size:0.64rem;color:var(--text-muted);opacity:0.8;margin-bottom:0.6rem;">Shortcuts: <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">/</kbd> search · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+/</kbd> search · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+Q</kbd> clear search · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Enter</kbd> focus first result (when searching) · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Shift+Enter</kbd> teach first result · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Home/↓</kbd> focus first result · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">End/↑</kbd> focus last result · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">S</kbd> clear search · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">K</kbd> add title · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+K</kbd> add owner · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+N</kbd> add type · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+B</kbd> add domain · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+M</kbd> add status · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+A</kbd> add node · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+H</kbd> toggle shortcuts · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+R</kbd> auto layout · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+C</kbd> constellation layout · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+Y</kbd> orbit layout · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">A</kbd> edit title · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Y</kbd> edit owner · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Esc</kbd> clear/blur · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Enter</kbd> save/add-link · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+S</kbd> save node · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+S</kbd> save+sync · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+I</kbd> copy node id · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+E</kbd> focus edit node · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+E</kbd> focus domain · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+P</kbd> focus priority · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+P</kbd> focus status filter · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+D</kbd> focus domain filter · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+F</kbd> focus type filter · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+V</kbd> focus view mode · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+O</kbd> focus owned-only · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+J</kbd> focus linked-only · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+W</kbd> toggle owned+linked · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+X</kbd> focus selected-only · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+U</kbd> focus simple-ui · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+G</kbd> focus edge-labels · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+0</kbd> clear filters · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+T</kbd> focus link-type · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+T</kbd> focus status · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+L</kbd> focus link-from · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+L</kbd> focus link-to · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Q</kbd> clear selection · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Del</kbd> delete node · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Del</kbd> delete links · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+Del</kbd> del in · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Alt+Del</kbd> del out · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Arrows</kbd> nudge · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">C</kbd> center · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">D</kbd> duplicate · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">G</kbd> snap · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">[ ]</kbd> status ± · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Alt+1..4</kbd> status set · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">; '</kbd> type ± · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Alt+5..0</kbd> type set · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">, .</kbd> link type ± · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Y</kbd> owned-only · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">L</kbd> linked-only · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">W</kbd> owned+linked · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">E</kbd> edge labels · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">X</kbd> focus selected · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">U</kbd> simple UI · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">V</kbd> cycle view · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">1/2/3</kbd> set view · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Ctrl+Shift+1..3</kbd> set view · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">B</kbd> toggle details · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">M</kbd> sync nodes/tasks · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Z</kbd> reset web · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">0</kbd> clear filters · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">J</kbd> copy JSON · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">I</kbd> import JSON · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">P</kbd> paste JSON · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">N</kbd> copy node JSON · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">O</kbd> open task · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">T</kbd> copy title · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">R</kbd> auto layout · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">F</kbd> fit · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">H</kbd> teach · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">?</kbd> toggle this help</div>
+   <div role="group" aria-label="Feature Web add-node form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.5rem;margin-bottom:0.6rem;">
+    <input id="fw-node-title" type="text" maxlength="140" aria-label="Feature Web node title" placeholder="Feature / subfeature" onkeydown="if(event.key==='Enter')featureWebAddNode()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
+    <input id="fw-node-owner" type="text" maxlength="120" aria-label="Feature Web node owner" placeholder="Owner/team (optional)" onkeydown="if(event.key==='Enter')featureWebAddNode()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
+    <select id="fw-node-type" aria-label="Feature Web node type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
+     <option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option><option value="org">Org</option><option value="lore">Lore</option>
+    </select>
+    <select id="fw-node-domain" aria-label="Feature Web node domain" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
+     <option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game" selected>Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option>
+    </select>
+    <select id="fw-node-status" aria-label="Feature Web node status" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
+     <option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option>
+    </select>
+    <button aria-label="Add Feature Web node" aria-keyshortcuts="Ctrl+Shift+A" onclick="featureWebAddNode()" style="background:var(--accent);color:var(--text);border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Add Node</button>
+    <button aria-label="Seed Feature Web with Project Universe map" onclick="featureWebSeedPU()" style="background:#6f49d8;color:var(--text);border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Seed PU Map</button>
+   </div>
+   <div class="fw-pro" role="group" aria-label="Feature Web link creation form" style="display:grid;grid-template-columns:1fr 1fr 0.9fr auto;gap:0.5rem;margin-bottom:0.4rem;">
+    <select id="fw-link-from" aria-label="Feature Web link from node" aria-keyshortcuts="Ctrl+L" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('fw-link-to')?.focus();}" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
+    <select id="fw-link-to" aria-label="Feature Web link to node" aria-keyshortcuts="Ctrl+Shift+L" onkeydown="if(event.key==='Enter')featureWebAddEdge()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
+    <select id="fw-link-type" aria-label="Feature Web link relationship type" aria-keyshortcuts="Ctrl+T" onkeydown="if(event.key==='Enter')featureWebAddEdge()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="depends_on">Depends on</option><option value="blocks">Blocks</option><option value="relates_to">Relates to</option><option value="teaches">Teaches</option><option value="enables">Enables</option></select>
+    <button aria-label="Create Feature Web link" aria-keyshortcuts="Ctrl+Enter" onclick="featureWebAddEdge()" style="background:#2f6fed;color:var(--text);border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Link</button>
+   </div>
+   <div id="fw-quick-list" role="list" aria-live="polite" aria-atomic="true" aria-hidden="false" aria-label="Feature Web quick focus nodes" aria-description="Top ranked visible nodes for quick focus and centering." style="margin-bottom:0.5rem;display:flex;flex-wrap:wrap;gap:0.35rem;"></div>
+   <div id="fw-edge-list" class="fw-pro" role="list" aria-live="polite" aria-atomic="true" aria-label="Feature Web visible links" aria-description="Links visible under current search and filter settings." style="margin-bottom:0.6rem;font-size:0.7rem;color:var(--text-muted);"></div>
+   <div class="fw-pro" role="group" aria-label="Feature Web basic node edit form" style="display:grid;grid-template-columns:1fr 1.3fr 0.8fr 0.8fr 0.9fr auto auto;gap:0.5rem;align-items:center;margin-bottom:0.45rem;">
+    <select id="fw-edit-node" aria-label="Select Feature Web node to edit" aria-keyshortcuts="Ctrl+E" onchange="featureWebRenderEditor()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
+    <input id="fw-edit-title" type="text" maxlength="140" aria-label="Edit Feature Web node title" placeholder="Edit title" onkeydown="if(event.key==='Enter')featureWebSaveNodeEdits()" onblur="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
+    <select id="fw-edit-type" aria-label="Edit Feature Web node type" aria-keyshortcuts=";,'" onchange="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option><option value="org">Org</option><option value="lore">Lore</option></select>
+    <select id="fw-edit-status" aria-label="Edit Feature Web node status" aria-keyshortcuts="Ctrl+Shift+T,[,],Alt+1,Alt+2,Alt+3,Alt+4" onchange="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option></select>
+    <select id="fw-edit-domain" aria-label="Edit Feature Web node domain" aria-keyshortcuts="Ctrl+Shift+E" onchange="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option></select>
+    <button aria-label="Save Feature Web node edits" aria-keyshortcuts="Ctrl+S" onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:var(--text);border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
+    <button aria-label="Copy selected Feature Web node title" aria-keyshortcuts="T" onclick="featureWebCopySelectedTitle()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Title</button>
+    <button aria-label="Copy selected Feature Web node ID" aria-keyshortcuts="Ctrl+I" onclick="featureWebCopySelectedId()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Node ID</button>
+    <button aria-label="Copy selected Feature Web node JSON" aria-keyshortcuts="N" onclick="featureWebCopySelectedJson()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Node JSON</button>
+    <button id="fw-unlink-btn" aria-label="Unlink selected Feature Web node from task" aria-hidden="true" onclick="featureWebUnlinkSelected()" style="display:none;background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Unlink Task</button>
+   </div>
+   <div class="fw-pro" role="group" aria-label="Feature Web task linking actions" style="display:grid;grid-template-columns:1fr auto auto;gap:0.5rem;align-items:center;margin-bottom:0.2rem;">
+    <select id="fw-link-task" aria-label="Select board task to link with Feature Web node" onkeydown="if(event.key==='Enter')featureWebLinkSelectedToTask()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.74rem;"></select>
+    <button aria-label="Link selected Feature Web node to selected board task" aria-keyshortcuts="Enter" onclick="featureWebLinkSelectedToTask()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.32rem 0.55rem;border-radius:6px;font-size:0.73rem;cursor:pointer;">Link Task</button>
+    <button aria-label="Sync Feature Web nodes to board tasks" aria-keyshortcuts="M,Ctrl+Shift+S" onclick="featureWebSyncNodesToBoard()" style="background:none;border:1px solid rgba(122,214,97,0.45);color:#9fe69a;padding:0.32rem 0.55rem;border-radius:6px;font-size:0.73rem;cursor:pointer;">Sync Nodes→Tasks</button>
+   </div>
+   <div style="display:flex;gap:0.45rem;align-items:center;justify-content:space-between;margin-bottom:0.2rem;">
+    <div id="fw-linked-task-info" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true" aria-label="Linked board task info" style="display:none;font-size:0.67rem;color:var(--text-muted);"></div>
+    <button id="fw-open-task-btn" aria-label="Open task linked to selected Feature Web node" aria-keyshortcuts="O" aria-hidden="true" onclick="featureWebOpenLinkedTask()" style="display:none;background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.22rem 0.5rem;border-radius:6px;font-size:0.7rem;cursor:pointer;">Open Task</button>
+   </div>
+   <div id="fw-selected-metrics" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true" aria-label="Selected Feature Web node metrics" style="display:none;font-size:0.66rem;color:var(--text-muted);margin-bottom:0.45rem;"></div>
+   <div style="display:flex;justify-content:flex-end;margin-bottom:0.35rem;"><button id="fw-toggle-details-btn" aria-label="Toggle Feature Web advanced details" aria-controls="fw-edit-owner fw-edit-priority fw-edit-summary fw-edit-teach fw-edit-details" aria-expanded="true" aria-keyshortcuts="B" aria-pressed="true" onclick="featureWebToggleAdvanced()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.5rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Hide Details</button></div>
+   <div class="fw-advanced" role="group" aria-label="Feature Web advanced node edit fields" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.45rem;">
+    <input id="fw-edit-owner" type="text" maxlength="120" aria-label="Edit Feature Web node owner" placeholder="Owner/team" onkeydown="if(event.key==='Enter')featureWebSaveNodeEdits()" onblur="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;">
+    <select id="fw-edit-priority" aria-label="Edit Feature Web node priority" aria-keyshortcuts="Ctrl+P" onchange="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.74rem;"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select>
+   </div>
+   <textarea class="fw-advanced" id="fw-edit-summary" maxlength="400" aria-label="Feature Web node short summary" rows="2" placeholder="Short summary (what it is)" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter')featureWebSaveNodeEdits()" onblur="featureWebSaveNodeEdits()" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.35rem;"></textarea>
+   <textarea class="fw-advanced" id="fw-edit-teach" maxlength="1200" aria-label="Feature Web node teaching summary" rows="2" placeholder="Teach summary (how you'd explain to a newcomer)" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter')featureWebSaveNodeEdits()" onblur="featureWebSaveNodeEdits()" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.35rem;"></textarea>
+   <textarea class="fw-advanced" id="fw-edit-details" maxlength="6000" aria-label="Feature Web node implementation details" rows="3" placeholder="Details / implementation notes" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter')featureWebSaveNodeEdits()" onblur="featureWebSaveNodeEdits()" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.6rem;"></textarea>
+   <div id="fw-teach-panel" role="note" aria-live="polite" aria-atomic="true" aria-hidden="true" aria-label="Feature Web teaching summary" style="display:none;white-space:pre-wrap;background:rgba(255,136,17,0.08);border:1px solid rgba(255,136,17,0.35);border-radius:8px;padding:0.45rem 0.55rem;font-size:0.73rem;color:var(--text-muted);margin-bottom:0.55rem;"></div>
+   <div class="fw-pro" role="group" aria-label="Feature Web layout and utility actions" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+    <button aria-label="Apply automatic grid layout to Feature Web" aria-keyshortcuts="Ctrl+Shift+R" onclick="featureWebAutoLayout()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Auto Layout</button>
+    <button aria-label="Apply constellation layout to Feature Web" aria-keyshortcuts="Ctrl+Shift+C" onclick="featureWebConstellationLayout()" style="background:none;border:1px solid rgba(122,214,97,0.45);color:#9fe69a;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Constellation Layout</button>
+    <button aria-label="Apply orbit layout to Feature Web" aria-keyshortcuts="Ctrl+Shift+Y" onclick="featureWebOrbitLayout()" style="background:none;border:1px solid rgba(120,170,255,0.55);color:#a9c8ff;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Orbit Layout</button>
+    <button aria-label="Fit Feature Web nodes to current canvas" aria-keyshortcuts="F" onclick="featureWebFitToView()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Fit to View</button>
+    <button aria-label="Center selected Feature Web node" aria-keyshortcuts="C" onclick="featureWebCenterSelected()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Center Selected</button>
+    <button aria-label="Duplicate selected Feature Web node" aria-keyshortcuts="D" onclick="featureWebDuplicateSelected()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Duplicate Selected</button>
+    <button aria-label="Delete all links connected to selected Feature Web node" aria-keyshortcuts="Ctrl+Delete" onclick="featureWebDeleteSelectedLinks()" style="background:none;border:1px solid rgba(229,85,85,0.35);color:#e8a7a7;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Delete Links</button>
+    <button aria-label="Delete outgoing links from selected Feature Web node" aria-keyshortcuts="Ctrl+Alt+Delete" onclick="featureWebDeleteOutgoingLinks()" style="background:none;border:1px solid rgba(229,85,85,0.28);color:#d59a9a;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Del Out</button>
+    <button aria-label="Delete incoming links to selected Feature Web node" aria-keyshortcuts="Ctrl+Shift+Delete" onclick="featureWebDeleteIncomingLinks()" style="background:none;border:1px solid rgba(229,85,85,0.28);color:#d59a9a;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Del In</button>
+    <button aria-label="Clear current Feature Web node selection" aria-keyshortcuts="Q,Escape" onclick="featureWebClearSelection()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Clear Selection</button>
+    <button aria-label="Nudge selected node up" aria-keyshortcuts="ArrowUp" onclick="featureWebNudgeSelected(0,-12)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">↑</button>
+    <button aria-label="Nudge selected node left" aria-keyshortcuts="ArrowLeft" onclick="featureWebNudgeSelected(-12,0)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">←</button>
+    <button aria-label="Nudge selected node right" aria-keyshortcuts="ArrowRight" onclick="featureWebNudgeSelected(12,0)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">→</button>
+    <button aria-label="Nudge selected node down" aria-keyshortcuts="ArrowDown" onclick="featureWebNudgeSelected(0,12)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">↓</button>
+    <button aria-label="Snap selected node to grid" aria-keyshortcuts="G" onclick="featureWebNudgeToGrid(12)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Snap Grid</button>
+    <button id="fw-teach-btn" aria-label="Open teaching summary for selected node" aria-controls="fw-teach-panel" aria-expanded="false" aria-keyshortcuts="H" onclick="featureWebTeachMode()" style="background:#2f6fed;color:var(--text);border:none;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Teach Mode</button>
+    <button aria-label="Export Feature Web as JSON" onclick="featureWebExport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Export JSON</button>
+    <button aria-label="Import Feature Web from JSON file" aria-keyshortcuts="I" onclick="featureWebImport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Import JSON</button>
+    <button aria-label="Reset Feature Web nodes and links" aria-keyshortcuts="Z" onclick="featureWebReset()" style="background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Reset Web</button>
+    <button aria-label="Copy entire Feature Web JSON" aria-keyshortcuts="J" onclick="featureWebCopyShare()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy JSON</button>
+    <button aria-label="Paste Feature Web JSON" aria-keyshortcuts="P" onclick="featureWebPasteJson()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Paste JSON</button>
+   </div>
+   <div id="feature-web-canvas" role="region" tabindex="0" aria-label="Feature Web node graph canvas" aria-describedby="fw-shortcuts-hint" aria-keyshortcuts="Enter,Shift+Enter,Escape" aria-description="Double-click the canvas to place a node using the current add-node fields." ondblclick="featureWebCanvasAdd(event)" onkeydown="featureWebCanvasKeydown(event)" style="position:relative;height:540px;border:1px dashed var(--border);border-radius:8px;background:radial-gradient(circle at 20% 20%, rgba(255,136,17,0.08), transparent 35%),var(--bg-input);overflow:hidden;">
+    <svg id="feature-web-edges" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></svg>
+    <div id="feature-web-nodes" role="list" aria-label="Feature Web nodes" style="position:absolute;inset:0;"></div>
+   </div>
+  </div>
+
+  <div id="board-columns" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.8rem;min-height:300px;">
+   <div class="board-column" data-status="backlog">
+    <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:var(--text-muted);padding:0.4rem 0.5rem;border-bottom:2px solid var(--text-muted);margin-bottom:0.5rem;">📥 Backlog <span class="board-col-count" data-status="backlog">0</span></div>
+    <div class="board-col-cards" data-status="backlog"></div>
+   </div>
+   <div class="board-column" data-status="in_progress">
+    <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:#4488ff;padding:0.4rem 0.5rem;border-bottom:2px solid #4488ff;margin-bottom:0.5rem;">🔧 In Progress <span class="board-col-count" data-status="in_progress">0</span></div>
+    <div class="board-col-cards" data-status="in_progress"></div>
+   </div>
+   <div class="board-column" data-status="testing">
+    <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:var(--warning);padding:0.4rem 0.5rem;border-bottom:2px solid var(--warning);margin-bottom:0.5rem;">🧪 Testing <span class="board-col-count" data-status="testing">0</span></div>
+    <div class="board-col-cards" data-status="testing"></div>
+   </div>
+   <div class="board-column" data-status="done">
+    <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:var(--success);padding:0.4rem 0.5rem;border-bottom:2px solid var(--success);margin-bottom:0.5rem;">✅ Done <span class="board-col-count" data-status="done">0</span></div>
+    <div class="board-col-cards" data-status="done"></div>
+   </div>
+  </div>
+  <div id="board-loading" style="text-align:center;color:var(--text-muted);padding:2rem;font-size:0.85rem;">Loading tasks…</div>
+   </div>
+   <aside id="systems-right" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.6rem;position:sticky;top:52px;max-height:calc(100vh - 120px);overflow:auto;">
+    <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:0.45rem;">Status</div>
+    <div style="font-size:0.74rem;line-height:1.45;color:var(--text);">
+     <div><strong>Inventory/Stock</strong></div>
+     <div style="opacity:0.8;">Power reserve: <span id="sys-stock-power">--</span></div>
+     <div style="opacity:0.8;">Water reserve: <span id="sys-stock-water">--</span></div>
+     <div style="opacity:0.8;">Food reserve: <span id="sys-stock-food">--</span></div>
+     <div style="opacity:0.8;">Network uptime: <span id="sys-stock-net">--</span></div>
+     <hr style="border:none;border-top:1px solid var(--border);margin:0.55rem 0;">
+     <div><strong>Selected Node</strong></div>
+     <div id="sys-selected-title" style="opacity:0.9;">None</div>
+     <div id="sys-selected-summary" style="opacity:0.7;font-size:0.7rem;margin-top:0.25rem;">Select a node to inspect.</div>
+    </div>
+   </aside>
+  </div>
+
+  <!-- Task Modal -->
+  <div id="task-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;display:none;align-items:center;justify-content:center;">
+   <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;position:relative;">
+    <button onclick="closeTaskModal()" style="position:absolute;top:0.8rem;right:0.8rem;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;">Close</button>
+    <div id="task-modal-content"></div>
+   </div>
+  </div>
+ </div>
+
+ 
+ <!-- Quests Tab -->
+ <div id="tab-quests" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <h2 style="margin:0 0 0.6rem;color:var(--accent);font-size:1.05rem;"><span class="pg-ico" data-icon="map" data-size="18"></span> Quests</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem;margin-bottom:0.7rem;">
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><strong>Daily</strong><div id="q-count-daily" style="color:var(--text-muted);font-size:0.8rem;">0 active</div></div>
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><strong>Weekly</strong><div id="q-count-weekly" style="color:var(--text-muted);font-size:0.8rem;">0 active</div></div>
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><strong>Milestone</strong><div id="q-count-milestone" style="color:var(--text-muted);font-size:0.8rem;">0 active</div></div>
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><strong>Legacy</strong><div id="q-count-legacy" style="color:var(--text-muted);font-size:0.8rem;">0 active</div></div>
+  </div>
+  <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem;flex-wrap:wrap;">
+   <input id="quests-new-title" placeholder="Add quest goal (e.g., Build utility car)" style="flex:1;min-width:220px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.55rem;border-radius:6px;">
+   <select id="quests-new-track" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;">
+    <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="milestone">Milestone</option><option value="legacy">Legacy</option>
+   </select>
+   <button onclick="questsAdd()" class="btn btn-clickable" style="min-width:auto;min-height:34px;padding:0.3rem 0.75rem;">Add</button>
+  </div>
+  <div id="quests-list" style="display:grid;gap:0.45rem;"></div>
+ </div>
+
+ <!-- Calendar Tab -->
+ <div id="tab-calendar" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <h2 style="margin:0 0 0.6rem;color:var(--accent);font-size:1.05rem;">📅 Calendar</h2>
+  <div style="display:flex;gap:0.45rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+   <input id="cal-title" placeholder="Event title" style="flex:1;min-width:220px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.55rem;border-radius:6px;">
+   <input id="cal-date" type="date" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;">
+   <button onclick="calendarAdd()" class="btn btn-clickable" style="min-width:auto;min-height:34px;padding:0.3rem 0.75rem;">Schedule</button>
+  </div>
+  <div id="calendar-list" style="display:grid;gap:0.45rem;"></div>
+ </div>
+
+ <!-- Logbook Tab -->
+ <div id="tab-logbook" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <h2 style="margin:0 0 0.6rem;color:var(--accent);font-size:1.05rem;">📓 Logbook</h2>
+  <div style="display:flex;gap:0.45rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+   <select id="logbook-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;">
+    <option value="journal">Journal</option><option value="field">Field Note</option><option value="proof">Proof</option>
+   </select>
+   <input id="logbook-title" placeholder="Entry title" style="flex:1;min-width:180px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.55rem;border-radius:6px;">
+   <button onclick="logbookAdd()" class="btn btn-clickable" style="min-width:auto;min-height:34px;padding:0.3rem 0.75rem;">Add Entry</button>
+  </div>
+  <textarea id="logbook-body" rows="4" placeholder="Write your note/proof details..." style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.45rem 0.55rem;border-radius:6px;resize:vertical;margin-bottom:0.6rem;"></textarea>
+  <div id="logbook-list" style="display:grid;gap:0.45rem;"></div>
+ </div>
+
+ <!-- Learn Tab -->
+ <div id="tab-learn" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <h2 style="margin:0 0 0.6rem;color:var(--accent);font-size:1.05rem;">🎓 Learn</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.6rem;">
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;"><strong>Onboarding Path</strong><div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem;">Start here: Profile → Systems → Quests → Logbook.</div><button onclick="switchTab('reality')" style="margin-top:0.45rem;background:none;border:1px solid var(--border);color:var(--text);padding:0.25rem 0.5rem;border-radius:6px;cursor:pointer;">Open Profile</button></div>
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;"><strong>Skill Paths</strong><div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem;">Certification-based progression with proof-driven quests.</div><button onclick="switchTab('fantasy')" style="margin-top:0.45rem;background:none;border:1px solid var(--border);color:var(--text);padding:0.25rem 0.5rem;border-radius:6px;cursor:pointer;">Open Skills</button></div>
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;"><strong>Knowledge Base</strong><div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem;">Embedded markdown/codex for hard data and architecture.</div><button onclick="switchTab('info')" style="margin-top:0.45rem;background:none;border:1px solid var(--border);color:var(--text);padding:0.25rem 0.5rem;border-radius:6px;cursor:pointer;">Open Knowledge</button></div>
+  </div>
+ </div>
+
+<!-- Reality Tab -->
+ <div id="tab-reality" class="tab-content">
+  <!-- Universal Search -->
+  <div class="catalog-search-bar">
+   <input type="text" id="universal-search" placeholder="🔍 Search elements, materials, inventory…" oninput="universalSearch(this.value)">
+  </div>
+  <div class="catalog-search-results" id="universal-search-results"></div>
+
+  <div class="panel" style="margin-bottom:1rem;">
+   <h2>🟢 Reality</h2>
+   <p>Your real-world dashboard. Knowledge base, catalogs, and personal tools — all local-first.</p>
+  </div>
+
+  <!-- ── Skill DNA ── -->
+  <div class="panel reality-card" id="reality-skills">
+   <h2 class="reality-card-header" onclick="toggleRealityCard('skills')">🧬 Skill DNA <span class="collapse-icon" id="skills-collapse">▼</span></h2>
+   <div class="reality-card-body" id="skills-body">
+    <div id="skill-dna-reality"></div>
+   </div>
+  </div>
+
+  <!-- ── Todo List ── -->
+  <div class="panel reality-card" id="reality-todo">
+   <h2 class="reality-card-header" onclick="toggleRealityCard('todo')">✅ Todo List <span class="collapse-icon" id="todo-collapse">▼</span></h2>
+   <div class="reality-card-body" id="todo-body">
+    <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
+     <input type="text" id="todo-input" placeholder="Add a task…" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;" onkeydown="if(event.key==='Enter')addTodo()">
+     <button onclick="addTodo()" style="background:var(--accent);color:var(--text);border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">Add</button>
+    </div>
+    <div id="todo-list"></div>
+   </div>
+  </div>
+
+  <!-- ── Notes ── -->
+  <div class="panel reality-card" id="reality-notes">
+   <h2 class="reality-card-header" onclick="toggleRealityCard('notes')"><span class="pg-ico" data-icon="edit" data-size="18"></span> Notes <span class="collapse-icon" id="notes-collapse">▼</span></h2>
+   <div class="reality-card-body" id="notes-body">
+    <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
+     <button onclick="addNote()" style="background:var(--accent);color:var(--text);border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">+ New Note</button>
+    </div>
+    <div id="notes-list" style="margin-bottom:0.6rem;"></div>
+    <div id="notes-editor" style="display:none;">
+     <input type="text" id="note-title" placeholder="Note title" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:0.4rem;" oninput="saveCurrentNote()">
+     <textarea id="note-content" placeholder="Write your note…" rows="8" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.5rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;resize:vertical;line-height:1.5;" oninput="saveCurrentNote()"></textarea>
+    </div>
+   </div>
+  </div>
+
+  <!-- ── Garden Manager ── -->
+  <div class="panel reality-card" id="reality-garden">
+   <h2 class="reality-card-header" onclick="toggleRealityCard('garden')">🌱 Garden Manager <span class="collapse-icon" id="garden-collapse">▼</span></h2>
+   <div class="reality-card-body" id="garden-body">
+    <div id="garden-manager" style="display:flex;gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;min-height:500px;background:var(--bg-card);">
+     <!-- Left: Zone Tree -->
+     <div id="garden-left" style="width:220px;min-width:180px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:rgba(0,0,0,0.15);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.6rem;border-bottom:1px solid var(--border);">
+       <span style="font-weight:700;font-size:0.8rem;color:var(--text);">ZONES</span>
+       <button onclick="gardenAddZone()" style="background:var(--accent);color:var(--text);border:none;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;font-weight:600;">+ New</button>
+      </div>
+      <div id="garden-zone-tree" style="flex:1;overflow-y:auto;padding:0.3rem;font-size:0.8rem;"></div>
+     </div>
+     <!-- Right: Zone Detail -->
+     <div id="garden-right" style="flex:1;overflow-y:auto;padding:1rem;">
+      <div id="garden-empty" style="text-align:center;color:var(--text-muted);padding:3rem 1rem;">
+       <div style="font-size:2.5rem;margin-bottom:0.5rem;">🌱</div>
+       <div style="font-size:0.9rem;">No zones yet. Click <strong>+ New</strong> to create your first growing zone.</div>
+      </div>
+      <div id="garden-zone-detail" style="display:none;"></div>
+     </div>
+    </div>
+    <!-- Recommended Hardware (expandable) -->
+    <details style="margin-top:1rem;">
+     <summary style="cursor:pointer;font-size:0.85rem;font-weight:600;color:var(--accent);padding:0.4rem 0;">📡 Recommended Monitoring Hardware</summary>
+     <div style="font-size:0.78rem;color:var(--text-muted);line-height:1.8;padding:0.5rem 0;">
+      <strong>pH Meters:</strong> Apera PH20, Bluelab pH Pen (~$50-100) — manual dip readings<br>
+      <strong>EC/TDS Meters:</strong> Apera EC20, HM Digital (~$20-50) — nutrient concentration<br>
+      <strong>Temp/Humidity:</strong> Govee H5075 (Bluetooth, ~$12) — ambient monitoring<br>
+      <strong>Soil Moisture:</strong> Xiaomi Flora (~$15) or capacitive probes<br>
+      <strong>Light Meter (PAR):</strong> Photone app (free) or Apogee MQ-500 (~$500)<br>
+      <strong>Water Level:</strong> Ultrasonic HC-SR04 (~$3) with Arduino/ESP32<br>
+      <strong>DO Meter:</strong> Milwaukee MW600 (~$80) — dissolved oxygen for hydro/aqua<br>
+      <strong>CO2 Sensor:</strong> SCD30/SCD40 (~$30-50) with ESP32<br>
+      <strong>All-in-one:</strong> Ecowitt weather station (~$80) — temp, humidity, soil moisture, rainfall<br>
+      <strong>Camera:</strong> ESP32-CAM (~$5) for timelapse/visual monitoring<br>
+      <strong>Smart Plugs:</strong> Kasa/Wemo (~$10) — automate pumps, lights, fans
+     </div>
+    </details>
+   </div>
+  </div>
+
+  <!-- Garden Plant Detail Modal -->
+  <div id="garden-plant-modal" class="catalog-modal-overlay">
+   <div class="catalog-modal" style="max-width:620px;">
+    <button class="modal-close" onclick="gardenClosePlantModal()">Close</button>
+    <div id="garden-plant-modal-content"></div>
+   </div>
+  </div>
+
+  <!-- Garden Zone Edit Modal -->
+  <div id="garden-zone-modal" class="catalog-modal-overlay">
+   <div class="catalog-modal" style="max-width:500px;">
+    <button class="modal-close" onclick="gardenCloseZoneModal()">Close</button>
+    <h3 style="color:var(--text);margin:0 0 0.8rem;" id="garden-zone-modal-title">New Zone</h3>
+    <label>Name *</label><input type="text" id="gz-name" maxlength="60">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+     <div><label>Type</label><select id="gz-type">
+      <option value="field">Field</option><option value="raised_bed">Raised Bed</option>
+      <option value="container">Container/Pot</option><option value="hydro_dwc">Hydro — DWC</option>
+      <option value="hydro_nft">Hydro — NFT</option><option value="hydro_drip">Hydro — Drip</option>
+      <option value="hydro_ebb_flow">Hydro — Ebb &amp; Flow</option>
+      <option value="aeroponic">Aeroponic</option><option value="aquaponic">Aquaponic</option>
+     </select></div>
+     <div><label>Location</label><select id="gz-location">
+      <option value="outdoor">Outdoor</option><option value="indoor">Indoor</option><option value="greenhouse">Greenhouse</option>
+     </select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;">
+     <div><label>Length</label><input type="number" id="gz-length" min="0" step="0.5"></div>
+     <div><label>Width</label><input type="number" id="gz-width" min="0" step="0.5"></div>
+     <div><label>Unit</label><select id="gz-unit"><option value="ft">ft</option><option value="m">m</option><option value="in">in</option></select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+     <div><label>Medium</label><select id="gz-medium">
+      <option value="soil">Soil</option><option value="coco_coir">Coco Coir</option><option value="perlite">Perlite</option>
+      <option value="clay_pebbles">Clay Pebbles</option><option value="rockwool">Rockwool</option>
+      <option value="water">Water</option><option value="air">Air</option>
+     </select></div>
+     <div><label>Light Source</label><select id="gz-light">
+      <option value="natural">Natural</option><option value="led">LED</option><option value="hps">HPS</option>
+      <option value="fluorescent">Fluorescent</option><option value="mixed">Mixed</option>
+     </select></div>
+    </div>
+    <label>Light Schedule (hours on/off)</label><input type="text" id="gz-schedule" placeholder="14/10" maxlength="10">
+    <label>Notes</label><textarea id="gz-notes" rows="2"></textarea>
+    <input type="hidden" id="gz-edit-id">
+    <div class="modal-actions">
+     <button onclick="gardenCloseZoneModal()" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
+     <button onclick="gardenSaveZone()" style="background:var(--accent);color:var(--text);">Save</button>
+    </div>
+   </div>
+  </div>
+
+  <!-- Garden Add Plant Modal -->
+  <div id="garden-add-plant-modal" class="catalog-modal-overlay">
+   <div class="catalog-modal" style="max-width:500px;">
+    <button class="modal-close" onclick="gardenCloseAddPlantModal()">Close</button>
+    <h3 style="color:var(--text);margin:0 0 0.8rem;" id="garden-plant-modal-title2">Add Plant</h3>
+    <input type="hidden" id="gp-edit-id">
+    <input type="hidden" id="gp-zone-id">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+     <div><label>Species *</label><input type="text" id="gp-species" maxlength="50" placeholder="Tomato"></div>
+     <div><label>Variety</label><input type="text" id="gp-variety" maxlength="50" placeholder="Roma"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+     <div><label>Stage</label><select id="gp-stage">
+      <option value="seed">Seed</option><option value="germination">Germination</option><option value="seedling">Seedling</option>
+      <option value="vegetative" selected>Vegetative</option><option value="flowering">Flowering</option>
+      <option value="fruiting">Fruiting</option><option value="harvest">Harvest</option><option value="dormant">Dormant</option>
+     </select></div>
+     <div><label>Health</label><select id="gp-health">
+      <option value="healthy" selected>Healthy</option><option value="stressed">Stressed</option><option value="diseased">Diseased</option>
+      <option value="pest">Pest</option><option value="nutrient_deficiency">Nutrient Deficiency</option>
+      <option value="overwatered">Overwatered</option><option value="underwatered">Underwatered</option>
+     </select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+     <div><label>Planted Date</label><input type="date" id="gp-planted"></div>
+     <div><label>Expected Harvest</label><input type="date" id="gp-harvest"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;">
+     <div><label>Row</label><input type="number" id="gp-row" min="1" placeholder="1"></div>
+     <div><label>Col</label><input type="number" id="gp-col" min="1" placeholder="1"></div>
+     <div><label>Slot (aero)</label><input type="number" id="gp-slot" min="1" placeholder=""></div>
+    </div>
+    <label>Notes</label><textarea id="gp-notes" rows="2"></textarea>
+    <div class="modal-actions">
+     <button onclick="gardenCloseAddPlantModal()" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
+     <button onclick="gardenSavePlant()" style="background:var(--accent);color:var(--text);">Save</button>
+    </div>
+   </div>
+  </div>
+
+  <!-- Garden Log Reading Modal -->
+  <div id="garden-reading-modal" class="catalog-modal-overlay">
+   <div class="catalog-modal" style="max-width:480px;">
+    <button class="modal-close" onclick="document.getElementById('garden-reading-modal').classList.remove('open')">Close</button>
+    <h3 style="color:var(--text);margin:0 0 0.8rem;">Log Reading</h3>
+    <input type="hidden" id="gr-zone-id">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+     <div><label>pH</label><input type="number" id="gr-ph" step="0.1" min="0" max="14"></div>
+     <div><label>EC (mS/cm)</label><input type="number" id="gr-ec" step="0.1" min="0"></div>
+     <div><label>TDS (ppm)</label><input type="number" id="gr-tds" step="1" min="0"></div>
+     <div><label>Water Temp (°F)</label><input type="number" id="gr-watertemp" step="0.1"></div>
+     <div><label>Air Temp (°F)</label><input type="number" id="gr-airtemp" step="0.1"></div>
+     <div><label>Humidity (%)</label><input type="number" id="gr-humidity" step="1" min="0" max="100"></div>
+     <div><label>Soil Moisture (%)</label><input type="number" id="gr-moisture" step="1" min="0" max="100"></div>
+     <div><label>Light PPFD</label><input type="number" id="gr-par" step="1" min="0"></div>
+     <div><label>CO2 (ppm)</label><input type="number" id="gr-co2" step="1" min="0"></div>
+     <div><label>Dissolved O2 (mg/L)</label><input type="number" id="gr-do" step="0.1" min="0"></div>
+     <div><label>Water Level (%)</label><input type="number" id="gr-waterlevel" step="1" min="0" max="100"></div>
+     <div><label>DLI (mol/m²/day)</label><input type="number" id="gr-dli" step="0.1" min="0"></div>
+    </div>
+    <div class="modal-actions">
+     <button onclick="document.getElementById('garden-reading-modal').classList.remove('open')" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
+     <button onclick="gardenSaveReading()" style="background:var(--accent);color:var(--text);">Save</button>
+    </div>
+   </div>
+  </div>
+
+  <!-- ── Reference Sources ── -->
+  <div class="panel reality-card" id="reality-references">
+   <h2 class="reality-card-header" onclick="toggleRealityCard('references')">📚 Reference Sources <span class="collapse-icon" id="references-collapse">▼</span></h2>
+   <div class="reality-card-body" id="references-body">
+    <div class="ref-grid" id="ref-sources-grid"></div>
+   </div>
+  </div>
+
+  <!-- ── World Dashboard ── -->
+  <div class="panel reality-card" id="reality-worlddash">
+   <h2 class="reality-card-header" onclick="toggleRealityCard('worlddash')"><span class="pg-ico" data-icon="globe" data-size="18"></span> World Dashboard <span class="collapse-icon" id="worlddash-collapse">▼</span></h2>
+   <div class="reality-card-body" id="worlddash-body">
+    <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;">Humanity's aggregate resource status — real data from USGS 2024, World Bank, FAO.</div>
+    <div id="world-dash-content" style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+     <div style="background:var(--bg-input);border-radius:8px;padding:0.6rem;">
+      <div style="font-weight:700;font-size:0.8rem;margin-bottom:0.3rem;">⛏️ Mining Output</div>
+      <div style="font-size:0.72rem;line-height:1.7;">
+       <div>Iron Ore: <strong>2.5B tonnes/yr</strong></div>
+       <div>Aluminum: <strong>69M tonnes/yr</strong></div>
+       <div>Copper: <strong>22M tonnes/yr</strong></div>
+       <div>Gold: <strong>3,300 tonnes/yr</strong></div>
+       <div>Lithium: <strong>130,000 tonnes/yr</strong></div>
+       <div>Rare Earths: <strong>350,000 tonnes/yr</strong></div>
+      </div>
+     </div>
+     <div style="background:var(--bg-input);border-radius:8px;padding:0.6rem;">
+      <div style="font-weight:700;font-size:0.8rem;margin-bottom:0.3rem;">âš¡ Energy Production</div>
+      <div style="font-size:0.72rem;line-height:1.7;">
+       <div>Total: <strong>29,165 TWh/yr</strong></div>
+       <div>Coal: 35% · Gas: 23% · Oil: 3%</div>
+       <div>Hydro: 15% · Nuclear: 10%</div>
+       <div>Wind: 8% · Solar: 5% · Other: 1%</div>
+       <div style="color:#0c6;margin-top:0.2rem;">☀️ Renewables now cheapest new power in 90% of world</div>
+      </div>
+     </div>
+     <div style="background:var(--bg-input);border-radius:8px;padding:0.6rem;">
+      <div style="font-weight:700;font-size:0.8rem;margin-bottom:0.3rem;">🌾 Food Production</div>
+      <div style="font-size:0.72rem;line-height:1.7;">
+       <div>Cereals: <strong>2.8B tonnes/yr</strong></div>
+       <div>Meat: <strong>350M tonnes/yr</strong></div>
+       <div>Fish: <strong>180M tonnes/yr</strong></div>
+       <div>Calories produced: <strong>enough for 10B+ people</strong></div>
+       <div style="color:#f90;">⚠️ ~30% of food is wasted globally</div>
+      </div>
+     </div>
+     <div style="background:var(--bg-input);border-radius:8px;padding:0.6rem;">
+      <div style="font-weight:700;font-size:0.8rem;margin-bottom:0.3rem;">👥 Population & Progress</div>
+      <div style="font-size:0.72rem;line-height:1.7;">
+       <div>Population: <strong>8.1 billion</strong> (2024)</div>
+       <div>Literacy: <strong>87%</strong> and rising</div>
+       <div>Extreme poverty: <strong>9%</strong> (was 36% in 1990)</div>
+       <div>Life expectancy: <strong>73.4 years</strong> (global avg)</div>
+       <div>Internet access: <strong>67%</strong> of world population</div>
+      </div>
+     </div>
+    </div>
+    <canvas id="world-dash-chart" width="600" height="200" style="width:100%;margin-top:0.8rem;border-radius:8px;background:var(--bg-input);"></canvas>
+    <div id="world-dash-fact" style="margin-top:0.6rem;padding:0.5rem 0.7rem;border-radius:8px;background:rgba(255,136,17,0.08);font-size:0.75rem;color:var(--accent);font-style:italic;"></div>
+   </div>
+  </div>
+
+  <!-- ── Element Catalog ── -->
+  <div class="panel reality-card" id="reality-elements">
+   <h2 class="reality-card-header" onclick="toggleRealityCard('elements')">🧪 Element Catalog <span class="collapse-icon" id="elements-collapse">▼</span></h2>
+   <div class="reality-card-body" id="elements-body">
+    <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;flex-wrap:wrap;align-items:center;">
+     <input type="text" id="element-filter" placeholder="Filter elements…" oninput="renderElements()" style="flex:1;min-width:140px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.8rem;outline:none;font-family:inherit;">
+    </div>
+    <div class="filter-pills" id="element-cat-pills"></div>
+    <div id="element-detail-slot"></div>
+    <div class="element-grid" id="element-grid"></div>
+   </div>
+  </div>
+
+  <!-- ── Materials Catalog ── -->
+  <div class="panel reality-card" id="reality-materials">
+   <h2 class="reality-card-header" onclick="toggleRealityCard('materials')">🏗️ Materials Catalog <span class="collapse-icon" id="materials-collapse">▼</span></h2>
+   <div class="reality-card-body" id="materials-body">
+    <div class="filter-pills" id="material-type-pills"></div>
+    <div id="material-detail-slot"></div>
+    <div id="materials-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.5rem;"></div>
+   </div>
+  </div>
+
+  <!-- ── Personal Inventory ── -->
+  <div class="panel reality-card" id="reality-inventory">
+   <h2 class="reality-card-header" onclick="toggleRealityCard('inventory')">📦 Personal Inventory <span class="collapse-icon" id="inventory-collapse">▼</span></h2>
+   <div class="reality-card-body" id="inventory-body">
+    <div class="inv-privacy-banner"><span class="pg-ico" data-icon="lock" data-size="14"></span> Private — stored only on this device, never uploaded</div>
+    <div class="inv-toolbar">
+     <button onclick="openInventoryModal()" style="background:var(--accent);color:var(--text);border:none;padding:0.35rem 0.8rem;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">+ Add Item</button>
+     <select id="inv-category-filter" onchange="renderInventory()" style="min-width:100px;">
+      <option value="">All Categories</option>
+     </select>
+     <input type="text" id="inv-search" placeholder="Search…" oninput="renderInventory()" style="flex:1;min-width:100px;">
+     <button onclick="exportInventory()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.75rem;cursor:pointer;" title="Export JSON">📤</button>
+     <button onclick="document.getElementById('inv-import-file').click()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.75rem;cursor:pointer;" title="Import JSON">📥</button>
+     <input type="file" id="inv-import-file" accept=".json" style="display:none" onchange="importInventory(event)">
+    </div>
+    <div id="inventory-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.5rem;"></div>
+   </div>
+  </div>
+
+  <!-- Inventory Modal -->
+  <div class="catalog-modal-overlay" id="inv-modal">
+   <div class="catalog-modal">
+    <button class="modal-close" onclick="closeInventoryModal()">Close</button>
+    <h3 style="color:var(--text);margin:0 0 0.8rem;" id="inv-modal-title">Add Item</h3>
+    <input type="hidden" id="inv-edit-id">
+    <label>Name *</label><input type="text" id="inv-name" maxlength="100">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+     <div><label>Category</label><select id="inv-category"></select></div>
+     <div><label>Subcategory</label><input type="text" id="inv-subcategory" maxlength="50"></div>
+    </div>
+    <label>Description</label><textarea id="inv-description" rows="2"></textarea>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;">
+     <div><label>Quantity</label><input type="number" id="inv-quantity" min="1" value="1"></div>
+     <div><label>Condition</label><select id="inv-condition"><option>New</option><option selected>Good</option><option>Fair</option><option>Poor</option></select></div>
+     <div><label>Acquired</label><input type="text" id="inv-acquired" placeholder="2024" maxlength="20"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+     <div><label>Location</label><input type="text" id="inv-location" maxlength="50"></div>
+     <div><label>Est. Value</label><input type="text" id="inv-value" maxlength="20"></div>
+    </div>
+    <label>Notes</label><textarea id="inv-notes" rows="2"></textarea>
+    <label>Tags (comma-separated)</label><input type="text" id="inv-tags" placeholder="daily-use, important">
+    <div class="modal-actions">
+     <button onclick="closeInventoryModal()" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
+     <button onclick="saveInventoryItem()" style="background:var(--accent);color:var(--text);">Save</button>
+    </div>
+   </div>
+  </div>
+
+  <!-- ── Asset Library ── -->
+  <div class="panel reality-card" id="reality-assets">
+   <h2 class="reality-card-header" onclick="toggleRealityCard('assets')">📁 Asset Library <span class="collapse-icon" id="assets-collapse">▼</span></h2>
+   <div class="reality-card-body" id="assets-body">
+    <!-- Upload area -->
+    <div id="asset-dropzone" style="border:2px dashed var(--border);border-radius:10px;padding:1.5rem;text-align:center;margin-bottom:0.8rem;transition:border-color 0.2s,background 0.2s;cursor:pointer;" onclick="document.getElementById('asset-file-input').click()">
+     <div style="font-size:1.5rem;margin-bottom:0.3rem;">📤</div>
+     <div style="font-size:0.85rem;color:var(--text-muted);">Drag &amp; drop files here or click to browse</div>
+     <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.3rem;">Images, 3D Models, Audio, Documents</div>
+     <input type="file" id="asset-file-input" multiple accept=".png,.jpg,.jpeg,.gif,.webp,.svg,.blend,.stl,.obj,.gltf,.glb,.mp3,.wav,.ogg,.pdf,.txt,.md" style="display:none" onchange="handleAssetFiles(this.files)">
+    </div>
+    <div id="asset-upload-progress" style="display:none;margin-bottom:0.8rem;">
+     <div style="background:var(--bg-input);border-radius:6px;overflow:hidden;height:6px;">
+      <div id="asset-upload-bar" style="height:100%;background:var(--accent);width:0%;transition:width 0.3s;"></div>
+     </div>
+     <div id="asset-upload-status" style="font-size:0.7rem;color:var(--text-muted);margin-top:0.2rem;"></div>
+    </div>
+
+    <!-- Toolbar -->
+    <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;flex-wrap:wrap;align-items:center;">
+     <input type="text" id="asset-search" placeholder="🔍 Search assets…" oninput="renderAssets()" style="flex:1;min-width:120px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.8rem;outline:none;">
+     <button onclick="toggleAssetView()" id="asset-view-toggle" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.75rem;cursor:pointer;" title="Toggle grid/list view">☰</button>
+     <select id="asset-tag-filter" onchange="renderAssets()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.75rem;">
+      <option value="">All Tags</option>
+     </select>
+    </div>
+
+    <!-- Category pills -->
+    <div style="display:flex;gap:0.3rem;margin-bottom:0.8rem;flex-wrap:wrap;">
+     <span class="filter-pill active" onclick="setAssetCategory('')" id="asset-cat-all" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">All</span>
+     <span class="filter-pill" onclick="setAssetCategory('image')" id="asset-cat-image" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;"><span class="pg-ico" data-icon="image" data-size="14"></span> Images</span>
+     <span class="filter-pill" onclick="setAssetCategory('3d_model')" id="asset-cat-3d_model" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">🧊 3D Models</span>
+     <span class="filter-pill" onclick="setAssetCategory('audio')" id="asset-cat-audio" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">🎵 Audio</span>
+     <span class="filter-pill" onclick="setAssetCategory('document')" id="asset-cat-document" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">📄 Documents</span>
+    </div>
+
+    <!-- Asset grid/list -->
+    <div id="asset-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.6rem;"></div>
+    <div id="asset-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:2rem;font-size:0.85rem;display:none;">No assets yet. Upload some files to get started!</div>
+   </div>
+  </div>
+
+  <!-- Asset Preview Modal -->
+  <div id="asset-preview-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.8);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeAssetPreview()">
+   <div style="max-width:700px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+     <h3 id="asset-preview-title" style="color:var(--text);margin:0;font-size:1rem;"></h3>
+     <button onclick="closeAssetPreview()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;">Close</button>
+    </div>
+    <div id="asset-preview-content" style="margin-bottom:1rem;"></div>
+    <div id="asset-preview-meta" style="font-size:0.78rem;color:var(--text-muted);margin-bottom:1rem;"></div>
+    <div id="asset-preview-tags" style="margin-bottom:0.8rem;"></div>
+    <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+     <button onclick="editAssetTags()" class="btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.75rem;">🏷️ Edit Tags</button>
+     <button onclick="shareAsset()" class="btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.75rem;">🔗 Share</button>
+     <button onclick="listAssetOnMarket()" class="btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.75rem;">🏪 List on Marketplace</button>
+     <button onclick="deleteCurrentAsset()" class="btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.75rem;color:var(--error);">🗑️ Delete</button>
+    </div>
+   </div>
+  </div>
+
+  <!-- Asset Tag Edit Modal -->
+  <div id="asset-tag-modal" style="display:none;position:fixed;inset:0;z-index:1001;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);" onclick="if(event.target===this)closeAssetTagModal()">
+   <div style="max-width:400px;margin:5rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+    <h3 style="color:var(--text);margin:0 0 0.8rem;font-size:0.95rem;">Edit Tags</h3>
+    <input type="text" id="asset-tag-input" placeholder="Comma-separated tags" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;margin-bottom:0.8rem;">
+    <div style="display:flex;gap:0.4rem;justify-content:flex-end;">
+     <button onclick="closeAssetTagModal()" class="btn" style="min-width:60px;min-height:32px;padding:0.25rem 0.6rem;font-size:0.8rem;">Cancel</button>
+     <button onclick="saveAssetTags()" class="btn btn-clickable" style="min-width:60px;min-height:32px;padding:0.25rem 0.6rem;font-size:0.8rem;">Save</button>
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <!-- Fantasy Tab -->
+ <div id="tab-fantasy" class="tab-content">
+  <div class="panel" style="border-color:rgba(120,80,200,0.3);">
+   <h2 style="color:var(--fantasy-accent,#9966ff);">✨ Fantasy</h2>
+   <p>The game side of Humanity. Your character, the world lore, and achievements — all stored locally. The adventure begins here.</p>
+  </div>
+  <div class="card-grid">
+
+   <!-- ── World Map ── -->
+   <div class="panel reality-card" id="fantasy-worldmap" style="border-color:rgba(120,80,200,0.2);">
+    <h2 class="reality-card-header" onclick="toggleFantasyCard('worldmap')" style="color:var(--fantasy-accent,#9966ff);"><span class="pg-ico" data-icon="map" data-size="18"></span> World Map <span class="collapse-icon" id="worldmap-collapse">▼</span></h2>
+    <div class="reality-card-body" id="worldmap-body">
+     <canvas id="world-map-canvas" width="560" height="280" style="width:100%;border-radius:8px;background:#0a0a1a;cursor:crosshair;"></canvas>
+     <p style="text-align:center;margin-top:0.6rem;color:var(--fantasy-accent,#9966ff);font-style:italic;font-size:0.85rem;">
+      "The world is being built…"
+     </p>
+     <p style="font-size:0.8rem;color:var(--text-muted);text-align:center;line-height:1.6;">
+      In the age before networks, humanity was scattered — isolated villages of thought, unable to share their fire.<br>
+      Now the map fills itself, one connection at a time.
+     </p>
+    </div>
+   </div>
+
+   <!-- ── Character Sheet ── -->
+   <div class="panel reality-card" id="fantasy-character" style="border-color:rgba(120,80,200,0.2);">
+    <h2 class="reality-card-header" onclick="toggleFantasyCard('character')" style="color:var(--fantasy-accent,#9966ff);">⚔️ Character Sheet <span class="collapse-icon" id="character-collapse">▼</span></h2>
+    <div class="reality-card-body" id="character-body">
+     <div id="char-create" style="display:none;">
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.6rem;">Create your character to begin.</p>
+      <input type="text" id="char-name-input" placeholder="Character name" maxlength="24" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:0.4rem;">
+      <select id="char-class-input" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;font-family:inherit;margin-bottom:0.6rem;">
+       <option value="Explorer">🧭 Explorer</option>
+       <option value="Builder">🔨 Builder</option>
+       <option value="Scholar">📚 Scholar</option>
+       <option value="Guardian">🛡️ Guardian</option>
+      </select>
+      <button onclick="createCharacter()" style="background:var(--fantasy-accent,#9966ff);color:var(--text);border:none;padding:0.5rem 1.2rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;width:100%;">Create Character</button>
+     </div>
+     <div id="char-display" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+       <div>
+        <span id="char-d-name" style="font-weight:700;font-size:1rem;color:var(--text);"></span>
+        <span id="char-d-class" style="font-size:0.8rem;color:var(--fantasy-accent,#9966ff);margin-left:0.4rem;"></span>
+       </div>
+       <span id="char-d-level" style="font-size:0.75rem;color:var(--text-muted);background:var(--bg-input);padding:0.15rem 0.5rem;border-radius:10px;"></span>
+      </div>
+      <div id="char-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.6rem;"></div>
+      <div style="display:flex;gap:0.4rem;">
+       <button onclick="rerollStats()" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;font-size:0.8rem;cursor:pointer;font-family:inherit;">🎲 Reroll Stats</button>
+       <button onclick="deleteCharacter()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.4rem 0.8rem;border-radius:6px;font-size:0.8rem;cursor:pointer;font-family:inherit;">🗑️</button>
+      </div>
+     </div>
+    </div>
+   </div>
+
+   <!-- ── Lore / Codex ── -->
+   <div class="panel reality-card" id="fantasy-lore" style="border-color:rgba(120,80,200,0.2);">
+    <h2 class="reality-card-header" onclick="toggleFantasyCard('lore')" style="color:var(--fantasy-accent,#9966ff);">📜 Lore / Codex <span class="collapse-icon" id="lore-collapse">▼</span></h2>
+    <div class="reality-card-body" id="lore-body">
+     <div id="lore-entries" style="display:flex;flex-direction:column;gap:0.4rem;"></div>
+    </div>
+   </div>
+
+   <!-- ── Achievements ── -->
+   <div class="panel reality-card" id="fantasy-achievements" style="border-color:rgba(120,80,200,0.2);">
+    <h2 class="reality-card-header" onclick="toggleFantasyCard('achievements')" style="color:var(--fantasy-accent,#9966ff);">🏆 Achievements <span class="collapse-icon" id="achievements-collapse">▼</span></h2>
+    <div class="reality-card-body" id="achievements-body">
+     <div id="achievement-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.5rem;"></div>
+    </div>
+   </div>
+
+   <!-- ── Skill DNA (Fantasy) ── -->
+   <div class="panel reality-card" id="fantasy-skills" style="border-color:rgba(120,80,200,0.2);">
+    <h2 class="reality-card-header" onclick="toggleFantasyCard('fskills')" style="color:var(--fantasy-accent,#9966ff);">🧬 Skill DNA (Fantasy) <span class="collapse-icon" id="fskills-collapse">▼</span></h2>
+    <div class="reality-card-body" id="fskills-body">
+     <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem;font-style:italic;">🎮 Game activities will auto-track Fantasy XP in the future. For now, log activities manually.</p>
+     <div id="skill-dna-fantasy"></div>
+    </div>
+   </div>
+
+  </div>
+
+  <!-- ── Celestial Map (full-width, outside card-grid) ── -->
+  <div class="panel reality-card" id="fantasy-celestial" style="border-color:rgba(80,120,220,0.3);">
+   <h2 class="reality-card-header" onclick="toggleFantasyCard('celestial')" style="color:#6699ff;">🌌 Celestial Map <span class="collapse-icon" id="celestial-collapse">▼</span></h2>
+   <div class="reality-card-body" id="celestial-body">
+    <!-- Breadcrumb -->
+    <div id="cel-breadcrumb" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;display:flex;align-items:center;gap:0.3rem;flex-wrap:wrap;"></div>
+    <!-- Canvas -->
+    <div style="position:relative;">
+     <canvas id="celestial-canvas" width="900" height="500" style="width:100%;border-radius:8px;background:#05050f;cursor:crosshair;display:block;"></canvas>
+     <!-- Zoom controls -->
+     <div style="position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;">
+      <button onclick="celZoomIn()" style="width:28px;height:28px;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;font-size:1rem;line-height:1;">+</button>
+      <button onclick="celZoomOut()" style="width:28px;height:28px;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;font-size:1rem;line-height:1;">−</button>
+     </div>
+     <!-- Mode toggle -->
+     <div style="position:absolute;top:8px;left:8px;display:flex;gap:4px;">
+      <button id="cel-mode-reality" onclick="celSetMode('reality')" style="padding:2px 8px;font-size:0.7rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">Reality</button>
+      <button id="cel-mode-fantasy" onclick="celSetMode('fantasy')" style="padding:2px 8px;font-size:0.7rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">Fantasy</button>
+     </div>
+    </div>
+    <!-- Info panel -->
+    <div id="cel-info" style="display:none;margin-top:0.8rem;background:rgba(10,10,30,0.6);border:1px solid rgba(100,150,255,0.2);border-radius:8px;padding:1rem;"></div>
+    <!-- Nearby stars (shown in system view) -->
+    <div id="cel-nearby" style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-muted);"></div>
+    <p style="text-align:center;margin-top:0.6rem;font-size:0.7rem;color:var(--text-muted);">Click stars/planets to inspect · Scroll to zoom · Drag to pan · Double-click to enter system</p>
+    <p style="text-align:center;margin-top:0.3rem;font-size:0.75rem;color:#6cc;">🧘 For the full astral projection experience with Earth maps, weather, and GPS — open the <a href="/map" onclick="if(typeof switchTab==='function'){switchTab('map');return false;}" style="color:var(--accent);text-decoration:underline;cursor:pointer;"><span class="pg-ico" data-icon="map" data-size="14"></span> Map tab</a></p>
+   </div>
+  </div>
+
+ </div>
+
+ <!-- Streams Tab -->
+ <div id="tab-streams" class="tab-content">
+ <style>
+ #tab-streams .stream-grid { display:grid; grid-template-columns:1fr 360px; gap:1rem; }
+ @media (max-width:768px) { #tab-streams .stream-grid { grid-template-columns:1fr; } }
+ #tab-streams .stream-panel { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:1rem; }
+ #tab-streams .stream-preview { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; }
+ #tab-streams .stream-preview canvas,
+ #tab-streams .stream-preview video { width:100%; height:100%; object-fit:contain; }
+ #tab-streams .pip-overlay { position:absolute; left:-9999px; top:-9999px; width:240px; height:180px; pointer-events:none; }
+ #tab-streams .pip-overlay video { width:100%; height:100%; object-fit:cover; }
+ #tab-streams .stream-stats { display:flex; gap:1rem; flex-wrap:wrap; font-size:0.8rem; color:var(--text-muted); margin:0.6rem 0; }
+ #tab-streams .stream-stats span { display:flex; align-items:center; gap:0.3rem; }
+ #tab-streams .stream-setting { display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0; font-size:0.82rem; }
+ #tab-streams .stream-setting label { color:var(--text-muted); min-width:90px; }
+ #tab-streams .stream-setting input[type="text"],
+ #tab-streams .stream-setting select { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; flex:1; font-size:0.8rem; min-width:0; max-width:100%; }
+ #tab-streams .stream-setting input[type="checkbox"] { accent-color:var(--accent); }
+ #tab-streams .stream-setting input[type="range"] { flex:1; accent-color:var(--accent); }
+ #tab-streams .corner-picker { display:grid; grid-template-columns:1fr 1fr; gap:2px; width:36px; }
+ #tab-streams .corner-picker span { width:16px; height:16px; border:1px solid var(--border); border-radius:3px; cursor:pointer; background:rgba(255,255,255,0.03); }
+ #tab-streams .corner-picker span.active { background:var(--accent); border-color:var(--accent); }
+ #tab-streams .stream-chat-panel { display:flex; flex-direction:column; height:400px; }
+ #tab-streams .stream-chat-tabs { display:flex; gap:0.3rem; margin-bottom:0.5rem; flex-wrap:wrap; }
+ #tab-streams .stream-chat-tabs button { font-size:0.72rem; padding:0.2rem 0.5rem; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; }
+ #tab-streams .stream-chat-tabs button.active { background:var(--accent); color:var(--text); border-color:var(--accent); }
+ #tab-streams .stream-chat-messages { flex:1; overflow-y:auto; font-size:0.8rem; padding:0.3rem; background:rgba(0,0,0,0.2); border-radius:6px; }
+ #tab-streams .stream-chat-msg { padding:0.15rem 0; }
+ #tab-streams .stream-chat-msg .src-humanity { color:#f90; }
+ #tab-streams .stream-chat-msg .src-twitch { color:#9146ff; }
+ #tab-streams .stream-chat-msg .src-youtube { color:var(--danger); }
+ #tab-streams .stream-chat-msg .src-rumble { color:#6c5; }
+ #tab-streams .stream-chat-input { display:flex; gap:0.3rem; margin-top:0.4rem; }
+ #tab-streams .stream-chat-input input { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; font-size:0.8rem; }
+ #tab-streams .stream-chat-input button { padding:0.3rem 0.7rem; }
+ #tab-streams #stream-live-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:0.8rem; }
+ #tab-streams .viewer-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:0; overflow:hidden; cursor:pointer; transition:border-color 0.2s; max-width:300px; }
+ #tab-streams .viewer-card:hover { border-color:var(--accent); }
+ #tab-streams .viewer-card .thumb { width:100%; aspect-ratio:16/9; background:#000; display:flex; align-items:center; justify-content:center; font-size:1.5rem; }
+ #tab-streams .viewer-card .meta { padding:0.4rem 0.6rem; }
+ #tab-streams .viewer-card .meta h3 { font-size:0.8rem; margin:0 0 0.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+ #tab-streams .viewer-card .meta .sub { font-size:0.7rem; color:var(--text-muted); }
+ #tab-streams .stream-section { margin-bottom:1rem; }
+ #tab-streams #stream-viewer-panel { display:none; }
+ #tab-streams #stream-viewer-panel.active { display:flex; flex-direction:column; max-height:60vh; }
+ #tab-streams .streams-layout { display:flex; flex-direction:column; gap:1rem; padding:1rem; }
+ #tab-streams .streams-layout > .panel { width:100%; }
+ #tab-streams .settings-section { margin-bottom:0.8rem; }
+ #tab-streams .settings-section-title { font-weight:600; font-size:0.82rem; color:var(--accent); margin-bottom:0.4rem; border-bottom:1px solid var(--border); padding-bottom:0.2rem; }
+ #tab-streams .metrics-panel { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; margin-top:0.8rem; overflow:hidden; }
+ #tab-streams .metrics-header { padding:0.5rem 1rem; cursor:pointer; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:0.4rem; user-select:none; }
+ #tab-streams .metrics-header:hover { background:rgba(255,255,255,0.03); }
+ #tab-streams .metrics-body { padding:0 1rem 0.8rem; display:none; }
+ #tab-streams .metrics-body.open { display:block; }
+ #tab-streams .metrics-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.2rem 1rem; font-size:0.78rem; }
+ #tab-streams .metrics-grid .metric-label { color:var(--text-muted); }
+ #tab-streams .metrics-grid .metric-value { color:var(--text); font-variant-numeric:tabular-nums; text-align:right; }
+ #tab-streams .mic-toggle { width:32px; height:32px; border-radius:50%; border:1px solid var(--border); background:transparent; color:var(--text); cursor:pointer; font-size:0.9rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+ #tab-streams .mic-toggle.muted { background:rgba(255,50,50,0.2); border-color:#f55; }
+ #tab-streams #stream-mic-status { font-size:0.74rem; color:var(--text-muted); margin-top:0.35rem; }
+ @media (max-width: 640px) {
+ #tab-streams .streams-layout { padding:0.55rem; gap:0.55rem; }
+ #tab-streams .stream-panel { padding:0.65rem; border-radius:8px; }
+ #tab-streams .stream-grid { gap:0.55rem; }
+ #tab-streams .stream-setting { flex-wrap: wrap; align-items:flex-start; gap:0.35rem; margin:0.32rem 0; }
+ #tab-streams .stream-setting label { min-width:auto; width:100%; font-size:0.74rem; }
+ #tab-streams .stream-setting input[type="text"],
+ #tab-streams .stream-setting select { width:100%; min-width:0; max-width:100%; font-size:0.78rem; }
+ #tab-streams .stream-setting input[type="range"] { width:100%; }
+ #tab-streams .stream-setting > span { width:100%; text-align:left !important; min-width:0 !important; }
+ #tab-streams .stream-stats { gap:0.45rem; font-size:0.72rem; }
+ #tab-streams .stream-stats span { white-space:nowrap; }
+ #tab-streams .stream-chat-panel { height:320px; }
+ #tab-streams #stream-live-list { grid-template-columns: 1fr; }
+ #tab-streams .viewer-card { max-width:none; }
+ }
+ </style>
+
+ <div class="streams-layout">
+
+ <!-- "€"€ Streamer Dashboard (collapsible) "€"€ -->
+ <div class="panel reality-card" id="streams-dashboard">
+ <h2 class="reality-card-header" onclick="toggleStreamsCard('dashboard')">Ÿ"¡ Stream Control <span class="collapse-icon" id="dashboard-collapse">▼</span></h2>
+ <div class="reality-card-body" id="dashboard-body">
+ <div class="stream-grid">
+ <!-- Left: Preview -->
+ <div>
+ <div class="stream-preview" id="stream-preview-container">
+ <canvas id="stream-composite-canvas" width="1920" height="1080"></canvas>
+ <div class="pip-overlay" id="pip-overlay" style="display:none;width:240px;height:180px;bottom:10px;right:10px;">
+ <video id="pip-webcam-video" autoplay muted playsinline></video>
+ </div>
+ <div id="stream-preview-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--text-muted);font-size:0.85rem;">
+ <div style="font-size:1.1rem;margin-bottom:0.5rem;letter-spacing:0.08em;">PREVIEW</div>
+ <div>Start screen capture to preview</div>
+ </div>
+ </div>
+ <div class="stream-stats" id="stream-stats-bar">
+ <span id="stream-stat-viewers">Viewers: 0</span>
+ <span id="stream-stat-duration">Duration: --:--</span>
+ <span id="stream-stat-quality">Quality: --</span>
+ <span id="stream-stat-bitrate">Bitrate: --</span>
+ </div>
+ <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+ <button class="btn btn-clickable" id="stream-go-live-btn" onclick="streamGoLive()">GO LIVE</button>
+ <button class="btn btn-disabled" id="stream-stop-btn" onclick="streamStop()" style="display:none;">END</button>
+ <button class="btn" id="stream-brb-btn" onclick="streamToggleBrb()" style="display:none;">BRB</button>
+ </div>
+
+ <!-- Streamer Metrics -->
+ <div class="metrics-panel" id="streamer-metrics-panel">
+ <div class="metrics-header" onclick="document.getElementById('streamer-metrics-body').classList.toggle('open'); this.querySelector('.mi').textContent = document.getElementById('streamer-metrics-body').classList.contains('open') ? '▲' : '▼';">Stream Metrics <span class="mi" style="margin-left:auto;">▼</span></div>
+ <div class="metrics-body" id="streamer-metrics-body">
+ <div class="metrics-grid" id="streamer-metrics-grid">
+ <span class="metric-label">Upload</span><span class="metric-value" id="sm-upload">--</span>
+ <span class="metric-label">Packets sent</span><span class="metric-value" id="sm-pkts-sent">--</span>
+ <span class="metric-label">Packets lost</span><span class="metric-value" id="sm-pkts-lost">--</span>
+ <span class="metric-label">Frame rate</span><span class="metric-value" id="sm-fps">--</span>
+ <span class="metric-label">Resolution</span><span class="metric-value" id="sm-resolution">--</span>
+ <span class="metric-label">Codec</span><span class="metric-value" id="sm-codec">--</span>
+ <span class="metric-label">RTT</span><span class="metric-value" id="sm-rtt">--</span>
+ <span class="metric-label">Jitter</span><span class="metric-value" id="sm-jitter">--</span>
+ <span class="metric-label">Total sent</span><span class="metric-value" id="sm-total">--</span>
+ <span class="metric-label">Connections</span><span class="metric-value" id="sm-connections">--</span>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Right: Settings -->
+ <div>
+ <!-- Stream Info -->
+ <div class="stream-panel" style="margin-bottom:0.8rem;">
+ <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">Stream Info</div>
+ <div class="stream-setting">
+ <label>Title</label>
+ <input type="text" id="stream-title" placeholder="My Stream" maxlength="100">
+ </div>
+ <div class="stream-setting">
+ <label>Category</label>
+ <input type="text" id="stream-category" placeholder="Just Chatting" maxlength="50">
+ </div>
+ </div>
+
+ <!-- Scenes v1 -->
+ <div class="stream-panel" style="margin-bottom:0.8rem;">
+ <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">PREVIEW Scenes</div>
+ <div class="stream-setting">
+ <label>Scene</label>
+ <select id="stream-scene-select"></select>
+ </div>
+ <div class="stream-setting" style="gap:0.35rem;flex-wrap:wrap;">
+ <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamApplySelectedScene()">Apply</button>
+ <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamSaveCurrentScene()">Save Current</button>
+ <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamCreateScene()">+ New</button>
+ <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamDeleteScene()">Delete</button>
+ </div>
+ <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;">Scenes store stream layout/settings presets locally.</div>
+ </div>
+
+ <!-- Video Settings -->
+ <div class="stream-panel" style="margin-bottom:0.8rem;">
+ <div class="settings-section">
+ <div class="settings-section-title">Ÿ–¥ï¸ Video</div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-screen-cb" checked onchange="streamToggleScreen()">
+ <label for="stream-screen-cb" style="min-width:auto;">Screen Capture</label>
+ <button class="btn btn-clickable" style="font-size:0.7rem;padding:0.15rem 0.4rem;margin-left:auto;" onclick="streamStartScreen()">Select</button>
+ </div>
+ <div class="stream-setting">
+ <label>Resolution</label>
+ <select id="stream-resolution" onchange="streamSaveSetting('resolution', this.value)">
+ <option value="source">Match Source</option>
+ <option value="720">720p</option>
+ <option value="1080" selected>1080p</option>
+ <option value="1440">1440p</option>
+ <option value="2160">4K</option>
+ </select>
+ </div>
+ <div class="stream-setting">
+ <label>Frame Rate</label>
+ <select id="stream-fps" onchange="streamSaveSetting('fps', this.value)">
+ <option value="30" selected>30 fps</option>
+ <option value="60">60 fps</option>
+ <option value="120">120 fps</option>
+ </select>
+ </div>
+ <div class="stream-setting">
+ <label>Bitrate</label>
+ <input type="range" id="stream-bitrate" min="1" max="20" value="6" step="0.5" oninput="document.getElementById('stream-bitrate-val').textContent=this.value+'Mbps'; streamSaveSetting('bitrate', this.value); streamApplyBitrate();">
+ <span id="stream-bitrate-val" style="font-size:0.75rem;min-width:50px;text-align:right;">6Mbps</span>
+ </div>
+ </div>
+
+ <!-- Audio Settings -->
+ <div class="settings-section">
+ <div class="settings-section-title">Mic On Audio</div>
+ <div class="stream-setting">
+ <label>Microphone</label>
+ <select id="stream-mic-device" onchange="streamSwitchMic()"></select>
+ <button class="mic-toggle" id="stream-mic-mute-btn" onclick="streamToggleMicMute()" title="Toggle mic mute">Mic</button>
+ </div>
+ <div class="stream-setting" style="margin-top:0.2rem;">
+ <input type="checkbox" id="stream-advanced-devices" onchange="streamSaveSetting('advancedDevices', this.checked); streamEnumerateDevices();">
+ <label for="stream-advanced-devices" style="min-width:auto;">Show advanced devices</label>
+ </div>
+ <div id="stream-mic-status">Mic status: idle</div>
+ <div class="stream-setting">
+ <label>Mic Volume</label>
+ <input type="range" id="stream-mic-volume" min="0" max="200" value="100" step="5" oninput="streamSetMicVolume(this.value); document.getElementById('stream-mic-vol-val').textContent=this.value+'%';">
+ <span id="stream-mic-vol-val" style="font-size:0.75rem;min-width:35px;text-align:right;">100%</span>
+ </div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-desktop-audio-cb" checked onchange="streamToggleDesktopAudio()">
+ <label for="stream-desktop-audio-cb" style="min-width:auto;">Desktop Audio</label>
+ </div>
+ </div>
+
+ <!-- Camera Settings -->
+ <div class="settings-section">
+ <div class="settings-section-title">Ÿ"· Camera</div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-webcam-cb" onchange="streamToggleWebcam()">
+ <label for="stream-webcam-cb" style="min-width:auto;">Webcam Overlay</label>
+ </div>
+ <div class="stream-setting" style="margin-left:1.4rem;">
+ <label>Device</label>
+ <select id="stream-webcam-device" onchange="streamSwitchWebcam()"></select>
+ </div>
+ <div class="stream-setting" style="margin-left:1.4rem;">
+ <label>Size</label>
+ <select id="stream-webcam-size" onchange="streamUpdatePipSize(); streamSaveSetting('webcamSize', this.value)">
+ <option value="small">Small</option>
+ <option value="medium" selected>Medium</option>
+ <option value="large">Large</option>
+ </select>
+ </div>
+ <div class="stream-setting" style="margin-left:1.4rem;">
+ <label>Quality</label>
+ <select id="stream-webcam-quality" onchange="streamSwitchWebcam(); streamSaveSetting('webcamQuality', this.value)">
+ <option value="low">Low (480p)</option>
+ <option value="medium" selected>Medium (720p)</option>
+ <option value="high">High (1080p)</option>
+ </select>
+ </div>
+ <div class="stream-setting" style="margin-left:1.4rem;">
+ <label style="min-width:auto;font-size:0.75rem;">Position:</label>
+ <div class="corner-picker" id="pip-corner-picker">
+ <span data-corner="tl" onclick="streamSetPipCorner('tl')"></span>
+ <span data-corner="tr" onclick="streamSetPipCorner('tr')"></span>
+ <span data-corner="bl" onclick="streamSetPipCorner('bl')"></span>
+ <span data-corner="br" class="active" onclick="streamSetPipCorner('br')"></span>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Restream -->
+ <div class="stream-panel">
+ <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">Restream To</div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-relay-cb" checked>
+ <label for="stream-relay-cb" style="min-width:auto;">Relay (direct)</label>
+ <span style="font-size:0.7rem;color:var(--text-muted);margin-left:auto;">Admin only</span>
+ </div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-twitch-cb">
+ <label for="stream-twitch-cb" style="min-width:auto;">Twitch</label>
+ <input type="text" id="stream-twitch-url" placeholder="twitch.tv/username" style="flex:1;">
+ </div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-youtube-cb">
+ <label for="stream-youtube-cb" style="min-width:auto;">YouTube</label>
+ <input type="text" id="stream-youtube-url" placeholder="youtube.com/live/..." style="flex:1;">
+ </div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-rumble-cb">
+ <label for="stream-rumble-cb" style="min-width:auto;">Rumble</label>
+ <input type="text" id="stream-rumble-url" placeholder="rumble.com/user/..." style="flex:1;">
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Stream Chat -->
+ <div class="stream-panel stream-chat-panel" style="margin-top:1rem;" id="stream-chat-section">
+ <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.4rem;">Stream Chat</div>
+ <div class="stream-chat-tabs" id="stream-chat-tabs">
+ <button class="active" onclick="streamChatFilter('all')">All</button>
+ <button onclick="streamChatFilter('humanity')">Humanity</button>
+ <button onclick="streamChatFilter('twitch')">Twitch</button>
+ <button onclick="streamChatFilter('youtube')">YouTube</button>
+ <button onclick="streamChatFilter('rumble')">Rumble</button>
+ </div>
+ <div class="stream-chat-messages" id="stream-chat-messages"></div>
+ <div class="stream-chat-input">
+ <input type="text" id="stream-chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')streamChatSend()">
+ <button class="btn btn-clickable" onclick="streamChatSend()">Send</button>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- "€"€ Live Streams (viewer) "€"€ -->
+ <div class="panel reality-card" id="streams-live">
+ <h2 class="reality-card-header" onclick="toggleStreamsCard('live')">LIVE Live Now <span class="collapse-icon" id="live-collapse">▼</span></h2>
+ <div class="reality-card-body" id="live-body">
+ <div id="stream-live-list">
+ <div id="stream-live-empty" style="text-align:center;padding:2rem 1rem;">
+ <div style="font-size:2rem;margin-bottom:0.5rem;">LIVE</div>
+ <div style="color:var(--text-muted);font-size:0.85rem;">No one is live right now</div>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- "€"€ Viewer Panel (shown when watching) "€"€ -->
+ <div class="panel reality-card" id="stream-viewer-panel">
+ <h2 class="reality-card-header">
+ <span id="viewer-stream-title">LIVE Watching Stream</span>
+ <button class="btn btn-clickable" style="font-size:0.7rem;padding:0.15rem 0.5rem;margin-left:auto;" onclick="streamViewerLeave()">Close Close</button>
+ </h2>
+ <div class="reality-card-body">
+ <div class="stream-preview" id="viewer-video-container">
+ <video id="viewer-video" autoplay playsinline style="width:100%;height:100%;"></video>
+ <div id="viewer-embed-container" style="display:none;width:100%;height:100%;"></div>
+ </div>
+ <div class="stream-stats" id="viewer-stats-bar">
+ <span id="viewer-stat-viewers">Viewers 0</span>
+ <span id="viewer-stat-duration">Duration --:--</span>
+ </div>
+ <!-- Viewer Metrics -->
+ <div class="metrics-panel" id="viewer-metrics-panel">
+ <div class="metrics-header" onclick="document.getElementById('viewer-metrics-body').classList.toggle('open'); this.querySelector('.mi').textContent = document.getElementById('viewer-metrics-body').classList.contains('open') ? '▲' : '▼';">Quality Stream Metrics <span class="mi" style="margin-left:auto;">▼</span></div>
+ <div class="metrics-body" id="viewer-metrics-body">
+ <div class="metrics-grid" id="viewer-metrics-grid">
+ <span class="metric-label">Download</span><span class="metric-value" id="vm-download">--</span>
+ <span class="metric-label">Packets recv</span><span class="metric-value" id="vm-pkts-recv">--</span>
+ <span class="metric-label">Packets lost</span><span class="metric-value" id="vm-pkts-lost">--</span>
+ <span class="metric-label">Frame rate</span><span class="metric-value" id="vm-fps">--</span>
+ <span class="metric-label">Resolution</span><span class="metric-value" id="vm-resolution">--</span>
+ <span class="metric-label">Codec</span><span class="metric-value" id="vm-codec">--</span>
+ <span class="metric-label">Jitter buffer</span><span class="metric-value" id="vm-jitter">--</span>
+ </div>
+ </div>
+ </div>
+ <!-- Viewer chat -->
+ <div class="stream-panel stream-chat-panel" style="margin-top:0.6rem;height:300px;">
+ <div class="stream-chat-tabs" id="viewer-chat-tabs">
+ <button class="active" onclick="streamChatFilter('all','viewer')">All</button>
+ <button onclick="streamChatFilter('humanity','viewer')">Humanity</button>
+ <button onclick="streamChatFilter('twitch','viewer')">Twitch</button>
+ <button onclick="streamChatFilter('youtube','viewer')">YouTube</button>
+ <button onclick="streamChatFilter('rumble','viewer')">Rumble</button>
+ </div>
+ <div class="stream-chat-messages" id="viewer-chat-messages"></div>
+ <div class="stream-chat-input">
+ <input type="text" id="viewer-chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')streamChatSend('viewer')">
+ <button class="btn btn-clickable" onclick="streamChatSend('viewer')">Send</button>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- "€"€ Server List "€"€ -->
+ <div class="panel reality-card" id="streams-servers">
+ <h2 class="reality-card-header" onclick="toggleStreamsCard('servers')">Ÿ–¥ï¸ Servers <span class="collapse-icon" id="servers-collapse">▼</span></h2>
+ <div class="reality-card-body" id="servers-body">
+ <div id="stream-servers-list">
+ <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:0.4rem;">
+ <span style="font-size:1.1rem;" id="server-status-dot">ŸŸ¢</span>
+ <div>
+ <div style="font-weight:600;font-size:0.85rem;">Humanity HQ</div>
+ <div style="font-size:0.7rem;color:var(--text-muted);">united-humanity.us · Verified + Accord</div>
+ </div>
+ <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);" id="server-live-count">0 live</span>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ </div>
+ </div>
+
+ <!-- Info Tab -->
+ <!-- NOTE: Add /info to the nginx hub route regex, e.g. location ~ ^/(board|reality|fantasy|streams|info|debug) -->
+ <div id="tab-info" class="tab-content" style="padding:1.5rem;">
+  <style>
+   #tab-info .info-section { margin-bottom:1.5rem; }
+   #tab-info .info-section h2 { font-size:1.1rem; color:var(--accent); margin-bottom:0.8rem; border-bottom:1px solid var(--border); padding-bottom:0.4rem; cursor:pointer; user-select:none; }
+   #tab-info .info-section h2::after { content:' â–¾'; font-size:0.7rem; opacity:0.5; }
+   #tab-info .info-section.collapsed h2::after { content:' â–¸'; }
+   #tab-info .info-section.collapsed .info-body { display:none; }
+   #tab-info .role-card { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:1rem; margin-bottom:0.75rem; }
+   #tab-info .role-card h3 { margin:0 0 0.4rem; font-size:0.95rem; }
+   #tab-info .role-card .perms { font-size:0.8rem; color:var(--text-muted); line-height:1.6; }
+   #tab-info .role-card .perms .yes { color:var(--success); }
+   #tab-info .role-card .perms .no { color:var(--danger); }
+   #tab-info .cmd-group { margin-bottom:1rem; }
+   #tab-info .cmd-group h4 { font-size:0.85rem; color:var(--text); margin:0.6rem 0 0.3rem; }
+   #tab-info .cmd-row { font-size:0.8rem; color:var(--text-muted); padding:0.15rem 0; }
+   #tab-info .cmd-row code { background:rgba(255,255,255,0.06); padding:0.1rem 0.4rem; border-radius:3px; color:var(--accent); font-size:0.78rem; }
+   #tab-info .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:0.8rem; }
+   #tab-info .stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:0.8rem; text-align:center; }
+   #tab-info .stat-card .stat-val { font-size:1.4rem; font-weight:700; color:var(--accent); }
+   #tab-info .stat-card .stat-label { font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem; }
+  </style>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;gap:0.6rem;flex-wrap:wrap;">
+   <h2 style="margin:0;color:var(--accent);font-size:1.05rem;">📚 Knowledge</h2>
+   <div style="font-size:0.72rem;color:var(--text-muted);">Markdown explorer (allowlisted)</div>
+  </div>
+  <div id="knowledge-layout" style="display:grid;grid-template-columns:240px minmax(0,1fr) 240px;gap:0.7rem;margin-bottom:1rem;">
+   <aside style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.55rem;max-height:420px;overflow:auto;">
+    <input id="knowledge-search" type="text" placeholder="Search docs" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.32rem 0.45rem;border-radius:6px;font-size:0.72rem;margin-bottom:0.45rem;" oninput="knowledgeRenderList()">
+    <div id="knowledge-tree" style="display:flex;flex-direction:column;gap:0.2rem;"></div>
+   </aside>
+   <main style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.7rem;min-height:420px;">
+    <h3 id="knowledge-title" style="margin:0 0 0.45rem;font-size:0.9rem;color:var(--text);">Select a document</h3>
+    <div id="knowledge-body" style="font-size:0.8rem;color:var(--text-muted);line-height:1.6;white-space:pre-wrap;">Pick a file on the left to view quick context.</div>
+   </main>
+   <aside style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.55rem;max-height:420px;overflow:auto;">
+    <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:0.35rem;">Doc Info</div>
+    <div id="knowledge-meta" style="font-size:0.72rem;color:var(--text);line-height:1.5;">No file selected.</div>
+   </aside>
+  </div>
+  <script src="/activities/info-market.js"></script>
+
+  <!-- Server Info -->
+  <div class="info-section" id="info-server">
+   <h2>🖥️ Server Info</h2>
+   <div class="info-body">
+    <div class="stat-grid" id="info-stats">
+     <div class="stat-card"><div class="stat-val" id="info-online">—</div><div class="stat-label">Online</div></div>
+     <div class="stat-card"><div class="stat-val" id="info-registered">—</div><div class="stat-label">Registered</div></div>
+     <div class="stat-card"><div class="stat-val" id="info-uptime">—</div><div class="stat-label">Uptime</div></div>
+     <div class="stat-card"><div class="stat-val" id="info-version">—</div><div class="stat-label">Version</div></div>
+    </div>
+   </div>
+  </div>
+
+  <!-- Roles & Permissions -->
+  <div class="info-section">
+   <h2>🛡️ Roles & Permissions</h2>
+   <div class="info-body">
+    <div class="role-card">
+     <h3><span class="pg-ico" data-icon="user" data-size="16"></span> Unverified</h3>
+     <div class="perms">
+      <span class="yes">✓</span> Chat (rate limited) · Voice · View channels<br>
+      <span class="no">✗</span> Upload files · DM · Create channels · Follow/unfollow
+     </div>
+    </div>
+    <div class="role-card">
+     <h3>✦ Verified</h3>
+     <div class="perms">
+      <span class="yes">✓</span> All above + Upload files · DM friends · Follow/unfollow
+     </div>
+    </div>
+    <div class="role-card">
+     <h3>💎 Donor</h3>
+     <div class="perms">
+      <span class="yes">✓</span> Same as Verified + 💎 badge · Priority support
+     </div>
+    </div>
+    <div class="role-card">
+     <h3>🛡️ Moderator</h3>
+     <div class="perms">
+      <span class="yes">✓</span> All above + DM anyone · Kick/mute/ban · Create/edit channels · Manage reports
+     </div>
+    </div>
+    <div class="role-card">
+     <h3>👑 Admin</h3>
+     <div class="perms">
+      <span class="yes">✓</span> All above + Verify/unverify · Promote/demote · Lockdown · Wipe · Server config
+     </div>
+    </div>
+   </div>
+  </div>
+
+  <!-- Social System -->
+  <div class="info-section">
+   <h2>🤝 Social System</h2>
+   <div class="info-body">
+    <div class="role-card">
+     <h3>Viewers️ Follow</h3>
+     <div class="perms">One-way — shows you care. Use <code>/follow &lt;name&gt;</code>. Right-click a user for quick follow.</div>
+    </div>
+    <div class="role-card">
+     <h3>🤝 Friends (Mutual Follow)</h3>
+     <div class="perms">When both users follow each other, they become friends. This unlocks DMs and shows the 🤝 badge.</div>
+    </div>
+    <div class="role-card">
+     <h3>🚫 Block</h3>
+     <div class="perms">Client-side — hides their messages from your view. Use <code>/block &lt;name&gt;</code>.</div>
+    </div>
+   </div>
+  </div>
+
+  <!-- Rate Limits -->
+  <div class="info-section">
+   <h2>Duration️ Rate Limits</h2>
+   <div class="info-body">
+    <div class="role-card">
+     <div class="perms">
+      <strong>Messages:</strong> Fibonacci rate limiting (1,1,2,3,5,8… second delays on rapid posting)<br>
+      <strong>New accounts:</strong> 5s minimum delay for first 10 minutes<br>
+      <strong>Uploads:</strong> 2/minute, 4 image max per user (FIFO — oldest replaced)<br>
+      <strong>API:</strong> 10 req/s general, 5 req/s for read endpoints
+     </div>
+    </div>
+   </div>
+  </div>
+
+  <!-- Commands Reference -->
+  <div class="info-section">
+   <h2>📜 Commands Reference</h2>
+   <div class="info-body">
+    <div class="cmd-group">
+     <h4>👥 Social</h4>
+     <div class="cmd-row"><code>/follow &lt;name&gt;</code> — Follow a user</div>
+     <div class="cmd-row"><code>/unfollow &lt;name&gt;</code> — Unfollow a user</div>
+     <div class="cmd-row"><code>/block &lt;name&gt;</code> — Block a user</div>
+     <div class="cmd-row"><code>/unblock &lt;name&gt;</code> — Unblock a user</div>
+     <div class="cmd-row"><code>/blocklist</code> — Show blocked users</div>
+    </div>
+    <div class="cmd-group">
+     <h4><span class="pg-ico" data-icon="chat" data-size="16"></span> DMs & Groups</h4>
+     <div class="cmd-row"><code>/dm &lt;name&gt; &lt;msg&gt;</code> — Send a direct message</div>
+     <div class="cmd-row"><code>/dms</code> — List DM conversations</div>
+     <div class="cmd-row"><code>/group-create &lt;name&gt;</code> — Create a group chat</div>
+     <div class="cmd-row"><code>/group-join &lt;code&gt;</code> — Join group by invite code</div>
+     <div class="cmd-row"><code>/group-invite</code> — Copy current group's invite code</div>
+     <div class="cmd-row"><code>/group-leave</code> — Leave current group</div>
+    </div>
+    <div class="cmd-group">
+     <h4>✏️ Profile</h4>
+     <div class="cmd-row"><code>/bio &lt;text&gt;</code> — Set your bio</div>
+     <div class="cmd-row"><code>/social &lt;platform&gt; &lt;handle&gt;</code> — Set social link</div>
+     <div class="cmd-row"><code>/profile</code> — Edit profile</div>
+     <div class="cmd-row"><code>/name &lt;name&gt;</code> — Change display name</div>
+    </div>
+    <div class="cmd-group">
+     <h4>📌 Pins</h4>
+     <div class="cmd-row"><code>/pin</code> — Pin the last message (mod/admin)</div>
+     <div class="cmd-row"><code>/unpin &lt;N&gt;</code> — Unpin by index (mod/admin)</div>
+     <div class="cmd-row"><code>/mypin</code> — Pin your last message (for yourself)</div>
+     <div class="cmd-row"><code>/unmypin &lt;N&gt;</code> — Unpin your pin by index</div>
+     <div class="cmd-row"><code>/pins</code> — View pins</div>
+    </div>
+    <div class="cmd-group">
+     <h4>📞 Voice</h4>
+     <div class="cmd-row"><code>/call</code> — Start a voice call (or use 📞 button)</div>
+    </div>
+    <div class="cmd-group">
+     <h4>🛡️ Moderation</h4>
+     <div class="cmd-row"><code>/kick &lt;name&gt;</code> — Disconnect a user</div>
+     <div class="cmd-row"><code>/mute &lt;name&gt;</code> — Mute a user</div>
+     <div class="cmd-row"><code>/ban &lt;name&gt;</code> — Ban a user</div>
+     <div class="cmd-row"><code>/report &lt;name&gt; [reason]</code> — Report a user</div>
+    </div>
+    <div class="cmd-group">
+     <h4>👑 Admin</h4>
+     <div class="cmd-row"><code>/verify &lt;name&gt;</code> — Verify a user</div>
+     <div class="cmd-row"><code>/unverify &lt;name&gt;</code> — Remove verified</div>
+     <div class="cmd-row"><code>/mod &lt;name&gt;</code> — Promote to moderator</div>
+     <div class="cmd-row"><code>/unmod &lt;name&gt;</code> — Remove moderator</div>
+     <div class="cmd-row"><code>/donor &lt;name&gt;</code> — Set donor role</div>
+     <div class="cmd-row"><code>/lockdown</code> — Toggle registration lock</div>
+     <div class="cmd-row"><code>/channel-create &lt;name&gt; [desc]</code> — Create channel</div>
+     <div class="cmd-row"><code>/channel-delete &lt;name&gt;</code> — Delete channel</div>
+     <div class="cmd-row"><code>/wipe</code> — Delete all chat history</div>
+    </div>
+    <div class="cmd-group">
+     <h4>🔧 Utility</h4>
+     <div class="cmd-row"><code>/help</code> — Show help</div>
+     <div class="cmd-row"><code>/export</code> — Download identity backup</div>
+     <div class="cmd-row"><code>/link</code> — Link another device</div>
+     <div class="cmd-row"><code>/revoke &lt;key&gt;</code> — Remove a device</div>
+     <div class="cmd-row"><code>/users</code> — List all users</div>
+    </div>
+   </div>
+  </div>
+
+ </div>
+
+ <!-- Source Tab — NOTE: add /source to nginx hub regex for routing -->
+ <div id="tab-source" class="tab-content" style="padding:1.5rem;">
+  <style>
+   #tab-source .info-section { margin-bottom:1.5rem; }
+   #tab-source .info-section h2 { font-size:1.1rem; color:var(--accent); margin-bottom:0.8rem; border-bottom:1px solid var(--border); padding-bottom:0.4rem; cursor:pointer; user-select:none; }
+   #tab-source .info-section h2::after { content:' â–¾'; font-size:0.7rem; opacity:0.5; }
+   #tab-source .info-section.collapsed h2::after { content:' â–¸'; }
+   #tab-source .info-section.collapsed .info-body { display:none; }
+   #tab-source .src-card { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:1.2rem; margin-bottom:0.75rem; }
+   #tab-source .src-card p { font-size:0.85rem; color:var(--text-muted); line-height:1.6; margin:0.4rem 0; }
+   #tab-source .src-card ul { list-style:none; padding:0; margin:0.5rem 0; }
+   #tab-source .src-card li { font-size:0.85rem; color:var(--text-muted); padding:0.25rem 0; line-height:1.5; }
+   #tab-source .src-card li::before { margin-right:0.4rem; }
+   #tab-source .big-statement { font-size:1.2rem; color:var(--text); font-weight:700; text-align:center; margin:1rem 0; }
+   #tab-source .sub-statement { font-size:0.9rem; color:var(--text-muted); text-align:center; margin-bottom:1rem; line-height:1.6; }
+   #tab-source .btn-row { display:flex; gap:0.8rem; flex-wrap:wrap; justify-content:center; margin:1rem 0; }
+   #tab-source .src-btn { display:inline-flex; align-items:center; gap:0.5rem; padding:0.7rem 1.4rem; border-radius:8px; font-size:0.9rem; font-weight:600; text-decoration:none; color:var(--text); transition:opacity 0.15s; }
+   #tab-source .src-btn:hover { opacity:0.85; }
+   #tab-source .src-btn.gh { background:var(--border); }
+   #tab-source .src-btn.donate { background:var(--accent); }
+   #tab-source .arch-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0.8rem; margin:0.8rem 0; }
+   #tab-source .arch-box { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:0.8rem; }
+   #tab-source .arch-box h4 { font-size:0.85rem; color:var(--accent); margin:0 0 0.3rem; }
+   #tab-source .arch-box p { font-size:0.78rem; margin:0; }
+   #tab-source .tech-tags { display:flex; flex-wrap:wrap; gap:0.4rem; margin:0.6rem 0; }
+   #tab-source .tech-tag { background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:4px; padding:0.2rem 0.6rem; font-size:0.75rem; color:var(--text-muted); }
+   #tab-source .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:0.8rem; margin:0.8rem 0; }
+   #tab-source .stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:0.8rem; text-align:center; }
+   #tab-source .stat-card .stat-val { font-size:1.4rem; font-weight:700; color:var(--accent); }
+   #tab-source .stat-card .stat-label { font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem; }
+  </style>
+
+  <!-- Open Source -->
+  <div class="info-section">
+   <h2><span class="pg-ico" data-icon="unlock" data-size="18"></span> Open Source</h2>
+   <div class="info-body">
+    <div class="src-card">
+     <div class="big-statement">Humanity is 100% open source and public domain (CC0-1.0)</div>
+     <div class="sub-statement">Anyone can use, modify, and distribute this code for any purpose.<br>No permission needed. No strings attached.</div>
+     <div class="btn-row">
+      <a href="https://github.com/Shaostoul/Humanity" target="_blank" class="src-btn gh">⭐ GitHub — Shaostoul/Humanity</a>
+      <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" class="src-btn" style="background:var(--text-muted);">📄 CC0 1.0 License</a>
+     </div>
+    </div>
+   </div>
+  </div>
+
+  <!-- The Accord -->
+  <div class="info-section">
+   <h2>📜 The Accord</h2>
+   <div class="info-body">
+    <div class="src-card">
+     <div class="big-statement" style="font-size:1rem;">Wholesomely aiding humanity's betterment</div>
+     <ul>
+      <li><span class="pg-ico" data-icon="lock" data-size="14"></span> <strong>Privacy first</strong> — No tracking, no accounts. Your identity is your keys.</li>
+      <li>🗣️ <strong>Free speech</strong> — No censorship. Line drawn at genuine threats and predatory harassment.</li>
+      <li>🔞 <strong>18+ community</strong> — Mature, responsible communication.</li>
+      <li>💛 <strong>Unconditional love</strong> — For all life.</li>
+      <li>✨ <strong>The 7 heavenly virtues</strong> — Chastity, temperance, charity, diligence, patience, kindness, humility.</li>
+     </ul>
+     <div class="btn-row">
+      <a href="https://shaostoul.github.io/Humanity" target="_blank" class="src-btn" style="background:var(--text-muted);">📖 Read the Full Accord</a>
+     </div>
+    </div>
+   </div>
+  </div>
+
+  <!-- Architecture -->
+  <div class="info-section">
+   <h2>🏗️ Architecture</h2>
+   <div class="info-body">
+    <div class="src-card">
+     <div class="arch-grid">
+      <div class="arch-box"><h4>🔑 Identity</h4><p>Ed25519 key pairs stored in your browser — no accounts, no passwords</p></div>
+      <div class="arch-box"><h4>🔏 Encryption</h4><p>Messages signed cryptographically — tamper-proof</p></div>
+      <div class="arch-box"><h4>📡 Communication</h4><p>WebSocket relay for group chat, WebRTC P2P for voice/video</p></div>
+      <div class="arch-box"><h4>💾 Storage</h4><p>SQLite on server, localStorage + IndexedDB on client</p></div>
+      <div class="arch-box"><h4>🌐 Federation</h4><p>Servers can link together — your identity works everywhere</p></div>
+     </div>
+     <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.8rem;"><strong>Tech stack:</strong></p>
+     <div class="tech-tags">
+      <span class="tech-tag">Rust</span><span class="tech-tag">Axum</span><span class="tech-tag">Tokio</span>
+      <span class="tech-tag">SQLite</span><span class="tech-tag">Ed25519</span><span class="tech-tag">BLAKE3</span>
+      <span class="tech-tag">WebRTC</span><span class="tech-tag">Vanilla JS</span>
+     </div>
+     <p style="font-size:0.82rem;color:var(--text-muted);margin-top:0.6rem;"><strong>Future:</strong> CBOR signed objects, P2P direct messaging, peer-assisted streaming</p>
+    </div>
+   </div>
+  </div>
+
+  <!-- Contributing -->
+  <div class="info-section">
+   <h2>🤝 Contributing</h2>
+   <div class="info-body">
+    <div class="src-card">
+     <p style="font-size:0.95rem;color:var(--text);font-weight:600;">Everyone can help, not just programmers</p>
+     <ul>
+      <li>🐛 <strong>Report bugs</strong> — Use <code style="background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:3px;color:var(--accent);">/report</code> in chat or <a href="https://github.com/Shaostoul/Humanity/issues" target="_blank" style="color:var(--accent);">GitHub Issues</a></li>
+      <li>💡 <strong>Suggest features</strong> — Chat in #dev or <a href="https://github.com/Shaostoul/Humanity/discussions" target="_blank" style="color:var(--accent);">GitHub Discussions</a></li>
+      <li>🔧 <strong>Write code</strong> — Fork, hack, PR — it's CC0, go wild</li>
+      <li>📖 <strong>Improve docs</strong> — Website at <a href="https://shaostoul.github.io/Humanity" target="_blank" style="color:var(--accent);">shaostoul.github.io/Humanity</a></li>
+      <li>🧪 <strong>Test features</strong> — Just use the app and tell us what breaks</li>
+      <li>💰 <strong>Donate</strong> — Support development directly</li>
+     </ul>
+     <div class="btn-row">
+      <a href="https://github.com/sponsors/Shaostoul" target="_blank" class="src-btn donate">❤️ GitHub Sponsors</a>
+     </div>
+     <p style="font-size:0.82rem;color:var(--text-muted);margin-top:0.8rem;"><strong>Self-hosting:</strong> <code style="background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:3px;font-size:0.78rem;color:var(--text-muted);">git clone → install Rust → cargo build --release → ./target/release/humanity-relay</code></p>
+     <p style="font-size:0.78rem;"><a href="https://github.com/Shaostoul/Humanity#readme" target="_blank" style="color:var(--accent);">Full build instructions on GitHub README →</a></p>
+    </div>
+   </div>
+  </div>
+
+  <!-- Project Stats -->
+  <div class="info-section" id="source-stats-section">
+   <h2>Quality Project Stats</h2>
+   <div class="info-body">
+    <div class="stat-grid">
+     <div class="stat-card"><div class="stat-val" id="src-online">—</div><div class="stat-label">Online Now</div></div>
+     <div class="stat-card"><div class="stat-val" id="src-registered">—</div><div class="stat-label">Registered</div></div>
+     <div class="stat-card"><div class="stat-val" id="src-version">—</div><div class="stat-label">Version</div></div>
+     <div class="stat-card"><div class="stat-val" id="src-uptime">—</div><div class="stat-label">Uptime</div></div>
+     <div class="stat-card"><div class="stat-val">Rust</div><div class="stat-label">Language</div></div>
+     <div class="stat-card"><div class="stat-val">CC0-1.0</div><div class="stat-label">License</div></div>
+     <div class="stat-card"><div class="stat-val">Jan 2019</div><div class="stat-label">Started</div></div>
+    </div>
+    <div class="btn-row" style="margin-top:1rem;">
+     <a href="https://github.com/Shaostoul/Humanity/commits" target="_blank" class="src-btn gh">📈 Commit History on GitHub</a>
+    </div>
+   </div>
+  </div>
+
+  <script>
+  // Collapsible sections
+  document.querySelectorAll('#tab-source .info-section h2').forEach(h2 => {
+   h2.addEventListener('click', () => h2.parentElement.classList.toggle('collapsed'));
+  });
+  // Fetch stats
+  (async function loadSourceStats() {
+   try {
+    const [statsRes, infoRes] = await Promise.all([
+     fetch('/api/stats').then(r => r.ok ? r.json() : null).catch(() => null),
+     fetch('/api/server-info').then(r => r.ok ? r.json() : null).catch(() => null)
+    ]);
+    if (statsRes) {
+     if (statsRes.online !== undefined) document.getElementById('src-online').textContent = statsRes.online;
+     if (statsRes.registered !== undefined) document.getElementById('src-registered').textContent = statsRes.registered;
+     if (statsRes.uptime) {
+      const s = statsRes.uptime;
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      document.getElementById('src-uptime').textContent = h + 'h ' + m + 'm';
+     }
+    }
+    if (infoRes && infoRes.version) document.getElementById('src-version').textContent = infoRes.version;
+   } catch(e) { console.warn('Source stats fetch failed:', e); }
+  })();
+  </script>
+ </div>
+
+ <!-- Debug Tab -->
+ <div id="tab-debug" class="tab-content">
+  <div class="panel">
+   <h2>🔧 System Information</h2>
+   <p>Version, connection status, and system diagnostics.</p>
+   <dl class="debug-info">
+    <dt>Client Version</dt>
+    <dd id="debug-version">—</dd>
+    <dt>Server</dt>
+    <dd id="debug-server">—</dd>
+    <dt>Connection</dt>
+    <dd id="debug-connection">Checking…</dd>
+    <dt>User Agent</dt>
+    <dd id="debug-ua">—</dd>
+    <dt>Screen</dt>
+    <dd id="debug-screen">—</dd>
+    <dt>Page Loaded</dt>
+    <dd id="debug-loaded">—</dd>
+   </dl>
+  </div>
+
+  <div class="panel">
+   <h2>🎨 Button Design System</h2>
+   <p>Interactive preview of all button states. These are the standard interaction patterns for the entire game UI.</p>
+
+   <h3>All States (static preview)</h3>
+   <div class="btn-grid">
+    <div class="btn-demo">
+     <button class="btn btn-clickable">Clickable</button>
+     <span class="btn-label">Default · 1px green</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-channeling">Channeling</button>
+     <span class="btn-label">Active/looping · 1px rainbow</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-activated">Activated</button>
+     <span class="btn-label">Pressed · 5px red</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-disabled">Disabled</button>
+     <span class="btn-label">Unclickable · 2px black</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-cooldown">
+      Cooldown
+      <span class="btn-cooldown-timer top">3.2s</span>
+      <span class="btn-cooldown-timer bottom">3.2s</span>
+     </button>
+     <span class="btn-label">Waiting · 7px purple + timer</span>
+    </div>
+   </div>
+
+   <h3>Interactive Test — Hover &amp; Click</h3>
+   <p>Hover to see the blue border. Click and hold to see the red activated state.</p>
+   <div class="btn-grid">
+    <button class="btn" onclick="testBtnClick(this)">Hover / Click Me</button>
+    <button class="btn" onclick="testBtnClick(this)">Another Button</button>
+    <button class="btn" onclick="testBtnClick(this)">And Another</button>
+   </div>
+
+   <h3>Toggle Test — Click to Cycle States</h3>
+   <p>Click to cycle: clickable → channeling → activated → cooldown → clickable</p>
+   <div class="btn-grid">
+    <button class="btn btn-clickable" onclick="cycleState(this)">Cycle Me</button>
+    <button class="btn btn-clickable" onclick="cycleState(this)">Cycle Me Too</button>
+    <button class="btn btn-clickable" onclick="cycleState(this)">And Me</button>
+   </div>
+
+   <h3>Cooldown Test — Click to Start Cooldown</h3>
+   <div class="btn-grid">
+    <button class="btn btn-clickable" onclick="startCooldown(this, 5)">5s Cooldown</button>
+    <button class="btn btn-clickable" onclick="startCooldown(this, 10)">10s Cooldown</button>
+    <button class="btn btn-clickable" onclick="startCooldown(this, 3)">3s Cooldown</button>
+   </div>
+
+   <h3>Channeling Test — Click to Start/Stop</h3>
+   <div class="btn-grid">
+    <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel Me</button>
+    <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel This</button>
+   </div>
+  </div>
+
+  <div class="panel">
+   <h2>🎨 Color Reference</h2>
+   <p>The visual language for button borders:</p>
+   <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.8rem; margin-top: 0.5rem;">
+    <div style="padding:0.5rem;border-left:3px solid #44cc66;background:rgba(68,204,102,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#44cc66;">Green 1px</strong> — Clickable / ready
+    </div>
+    <div style="padding:0.5rem;border-left:3px solid #4488ff;background:rgba(68,136,255,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#4488ff;">Blue 3px</strong> — Hovered / focused
+    </div>
+    <div style="padding:0.5rem;border-left:3px solid #ee3333;background:rgba(238,51,51,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#ee3333;">Red 5px</strong> — Activated / pressed
+    </div>
+    <div style="padding:0.5rem;border-left:3px solid var(--bg-input);background:rgba(0,0,0,0.1);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:var(--text-muted);">Black 2px</strong> — Disabled / locked
+    </div>
+    <div style="padding:0.5rem;border-left:3px solid #8844cc;background:rgba(136,68,204,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#8844cc;">Purple 7px</strong> — Cooldown + timer
+    </div>
+    <div style="padding:0.5rem;border-left:3px solid;border-image:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00) 1;background:rgba(255,255,255,0.03);border-radius:0 4px 4px 0;font-size:0.8rem;">
+     <strong style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Rainbow 1px</strong> — Channeling / active
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <!-- ══════════════════════════════════════ -->
+ <!-- Market Tab -->
+ <!-- ══════════════════════════════════════ -->
+ <div id="tab-market" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <!-- Sub-navigation -->
+  <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center;">
+   <button class="btn btn-clickable" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">🏪 Marketplace</button>
+   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;"><span class="pg-ico" data-icon="storefront" data-size="16"></span> Stores</button>
+   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;"><span class="pg-ico" data-icon="tasklist" data-size="16"></span> My Listings</button>
+   <span style="flex:1;"></span>
+   <button class="btn btn-clickable" onclick="openListingModal()" id="market-create-btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:none;">+ Create Listing</button>
+  </div>
+
+  <!-- Marketplace Section -->
+  <div id="market-section-marketplace">
+   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center;position:sticky;top:0;z-index:10;background:var(--bg);padding:0.5rem 0;">
+    <input type="text" id="market-search" placeholder="🔍 Search listings…" oninput="renderMarketListings()" style="flex:1;min-width:150px;padding:0.4rem 0.6rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <select id="market-category-filter" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="">All Categories</option>
+     <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
+     <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
+     <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>3D Models</option><option>Other</option>
+    </select>
+    <select id="market-condition-filter" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="">Any Condition</option>
+     <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
+    </select>
+    <select id="market-sort" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="newest">Newest</option>
+     <option value="oldest">Oldest</option>
+     <option value="alpha">A-Z</option>
+    </select>
+   </div>
+   <div id="market-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;"></div>
+   <div id="market-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem 1rem;display:none;">No listings yet. Be the first to list something!</div>
+  </div>
+
+  <!-- Store Directory Section -->
+  <div id="market-section-stores" style="display:none;">
+   <div style="margin-bottom:1rem;">
+    <select id="store-category-filter" onchange="renderStoreDirectory()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="">All Categories</option>
+    </select>
+   </div>
+   <div id="store-directory-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;"></div>
+  </div>
+
+  <!-- My Listings Section -->
+  <div id="market-section-mylistings" style="display:none;">
+   <div id="my-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;"></div>
+   <div id="my-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem 1rem;display:none;">You haven't listed anything yet.</div>
+  </div>
+
+  <!-- Listing Detail Modal -->
+  <div id="listing-detail-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
+   <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+    <div id="listing-detail-content"></div>
+   </div>
+  </div>
+
+  <!-- Create/Edit Listing Modal -->
+  <div id="listing-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingModal()">
+   <div style="max-width:500px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+    <h2 style="color:var(--accent);margin-bottom:1rem;font-size:1rem;" id="listing-modal-title">Create Listing</h2>
+    <input type="hidden" id="listing-edit-id" value="">
+    <div style="display:flex;flex-direction:column;gap:0.6rem;">
+     <div>
+      <label style="font-size:0.75rem;color:var(--text-muted);">Title *</label>
+      <input type="text" id="listing-title" maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+     </div>
+     <div>
+      <label style="font-size:0.75rem;color:var(--text-muted);">Description</label>
+      <textarea id="listing-description" rows="3" maxlength="2000" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;resize:vertical;"></textarea>
+     </div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+      <div>
+       <label style="font-size:0.75rem;color:var(--text-muted);">Category *</label>
+       <select id="listing-category" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+        <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
+        <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
+        <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>3D Models</option><option>Other</option>
+       </select>
+      </div>
+      <div>
+       <label style="font-size:0.75rem;color:var(--text-muted);">Condition</label>
+       <select id="listing-condition" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+        <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
+       </select>
+      </div>
+     </div>
+     <div id="listing-3d-subcategory-wrap" style="display:none;">
+      <label style="font-size:0.75rem;color:var(--text-muted);">Model Subcategory</label>
+      <select id="listing-3d-subcategory" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+       <option value="">None</option>
+       <option>Vehicles</option><option>Architecture</option><option>Characters</option><option>Props</option>
+       <option>Weapons</option><option>Nature</option><option>Sci-Fi</option><option>Other</option>
+      </select>
+     </div>
+     <div>
+      <label style="font-size:0.75rem;color:var(--text-muted);">Price</label>
+      <input type="text" id="listing-price" placeholder='$50, Trade, Free, Best offer…' maxlength="50" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+      <div style="display:flex;gap:0.3rem;margin-top:0.3rem;flex-wrap:wrap;">
+       <button type="button" onclick="document.getElementById('listing-price').value='Free'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Free</button>
+       <button type="button" onclick="document.getElementById('listing-price').value='Free (donations welcome)'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Donations Welcome</button>
+       <button type="button" onclick="document.getElementById('listing-price').value='Pay what you want'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Pay What You Want</button>
+      </div>
+     </div>
+     <div>
+      <label style="font-size:0.75rem;color:var(--text-muted);">Payment Methods</label>
+      <input type="text" id="listing-payment" placeholder='Venmo, Cash, Crypto, Trade…' maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+     </div>
+     <div>
+      <label style="font-size:0.75rem;color:var(--text-muted);">Location</label>
+      <input type="text" id="listing-location" placeholder='Seattle area, Ships worldwide…' maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+     </div>
+     <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.5rem;">
+      <button class="btn" onclick="closeListingModal()" style="min-width:80px;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;">Cancel</button>
+      <button class="btn btn-clickable" onclick="submitListing()" style="min-width:80px;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;">Submit</button>
+     </div>
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <!-- Browse Tab -->
+ <div id="tab-browse" class="tab-content">
+  <div id="browse-quickbar" style="display:flex;gap:0.5rem;padding:0.5rem 1rem;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;align-items:center;">
+   <span style="font-size:0.75rem;color:var(--text-muted);white-space:nowrap;">âš¡ Quick:</span>
+   <div id="quickbar-sites" style="display:flex;gap:0.4rem;"></div>
+  </div>
+  <div style="display:flex;flex:1;min-height:0;">
+   <div id="browse-directory" style="width:350px;min-width:280px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+    <div style="padding:0.5rem;border-bottom:1px solid var(--border);display:flex;gap:0.4rem;">
+     <input type="text" id="browse-search" placeholder="Search sites..." oninput="filterBrowseSites()" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.6rem;border-radius:6px;font-size:0.8rem;">
+     <button onclick="showAddSiteModal()" style="background:var(--accent);border:none;border-radius:6px;color:var(--text);padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;" title="Add site">+</button>
+    </div>
+    <div id="browse-categories" style="padding:0.4rem 0.5rem;display:flex;flex-wrap:wrap;gap:0.3rem;border-bottom:1px solid var(--border);"></div>
+    <div id="browse-collections" style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);max-height:120px;overflow-y:auto;"></div>
+    <div id="browse-sort" style="padding:0.3rem 0.5rem;display:flex;gap:0.3rem;border-bottom:1px solid var(--border);align-items:center;">
+     <span style="font-size:0.7rem;color:var(--text-muted);">Sort:</span>
+     <span class="filter-pill active" onclick="setBrowseSort('popular')" id="sort-popular" style="font-size:0.68rem;padding:0.1rem 0.4rem;cursor:pointer;">🔥 Popular</span>
+     <span class="filter-pill" onclick="setBrowseSort('used')" id="sort-used" style="font-size:0.68rem;padding:0.1rem 0.4rem;cursor:pointer;">⭐ Most Used</span>
+     <span class="filter-pill" onclick="setBrowseSort('recent')" id="sort-recent" style="font-size:0.68rem;padding:0.1rem 0.4rem;cursor:pointer;">🕐 Recent</span>
+     <span class="filter-pill" onclick="setBrowseSort('az')" id="sort-az" style="font-size:0.68rem;padding:0.1rem 0.4rem;cursor:pointer;">🔤 A-Z</span>
+    </div>
+    <div id="browse-sites" style="flex:1;overflow-y:auto;padding:0.4rem;"></div>
+   </div>
+   <div id="browse-panel" style="flex:1;display:flex;flex-direction:column;">
+    <div id="browse-toolbar" style="display:flex;gap:0.4rem;padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);align-items:center;">
+     <button onclick="browsePanelBack()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;" title="Back to directory">←</button>
+     <input type="text" id="browse-url-bar" placeholder="Enter URL..." onkeydown="if(event.key==='Enter')browseNavigate(this.value)" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.6rem;border-radius:6px;font-size:0.8rem;">
+     <button onclick="browseNavigate(document.getElementById('browse-url-bar').value)" style="background:var(--accent);border:none;border-radius:6px;color:var(--text);padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;">Go</button>
+     <button onclick="browseOpenExternal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.9rem;" title="Open in new tab">↗</button>
+    </div>
+    <div id="browse-placeholder" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.9rem;">
+     Select a site or enter a URL to browse
+    </div>
+    <iframe id="browse-iframe" style="flex:1;border:none;display:none;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerpolicy="no-referrer"></iframe>
+   </div>
+  </div>
+ </div>
+
+ <!-- Dashboard Tab -->
+ <div id="tab-dashboard" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+   <h2 style="color:var(--accent);margin:0;font-size:1.1rem;">Quality Dashboard</h2>
+   <button onclick="showAddWidgetModal()" class="btn btn-clickable" style="min-width:auto;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;">+ Add Widget</button>
+  </div>
+  <div id="dashboard-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1rem;"></div>
+  <div id="dashboard-empty" style="text-align:center;color:var(--text-muted);padding:3rem;">
+   <p style="font-size:1.2rem;">Your dashboard is empty</p>
+   <p>Click "+ Add Widget" to customize your view</p>
+  </div>
+ </div>
+
+ <!-- Settings Panel (inline, replaces tab content) -->
+ <div id="tab-settings" class="tab-content" style="padding:1.5rem;">
+  <div class="panel">
+   <h2 id="settings-title">âš™ Settings</h2>
+   <div id="settings-body"></div>
+  </div>
+ </div>
+
+
+<script src="/activities/core.js"></script>
+<script src="/activities/reality.js"></script>
+<script src="/activities/fantasy.js"></script>
+<script src="/activities/celestial.js"></script>
+<script src="/activities/streams.js"></script>
+<script src="/activities/browse.js"></script>
+<script src="/activities/map.js"></script>
+<script>
+document.querySelectorAll('.pg-ico').forEach(function(el) {
+  el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
+});
+</script>
+</body>
+</html>
+
+
+
+
+

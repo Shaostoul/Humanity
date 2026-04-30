@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #home-app {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-2xl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2xl);
+      max-width: 1100px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* ── Room tab bar ── */
+    .room-tabs {
+      display: flex;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: var(--space-md);
+    }
+
+    .room-tab {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-md) 0.85rem;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+      font-family: inherit;
+    }
+    .room-tab:hover { background: var(--bg-secondary); color: var(--text); }
+    .room-tab.active {
+      background: var(--bg-card);
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .room-tab .tab-icon { font-size: 0.95rem; }
+
+    .room-tab-add {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-md) var(--space-lg);
+      border-radius: var(--radius);
+      border: 1px dashed var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .room-tab-add:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Room content panel ── */
+    .room-panel {
+      display: none;
+      flex-direction: column;
+      gap: var(--space-xl);
+    }
+    .room-panel.active { display: flex; }
+
+    .room-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-lg);
+    }
+
+    .room-title-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .room-title-icon { font-size: 1.5rem; }
+
+    .room-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .room-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .room-actions {
+      display: flex;
+      gap: var(--space-md);
+    }
+
+    .btn-sm {
+      padding: var(--space-sm) var(--space-lg);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.12s;
+      font-family: inherit;
+    }
+    .btn-sm:hover { background: var(--bg-hover); color: var(--text); border-color: var(--text-muted); }
+    .btn-sm.danger:hover { color: var(--danger); border-color: var(--danger); }
+
+    /* ── Card base ── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-lg) var(--space-xl);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-header h3 {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      flex: 1;
+      margin: 0;
+    }
+
+    .card-body { padding: var(--space-lg) var(--space-xl); }
+
+    /* ── Content grid (main + sidebar) ── */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: var(--space-2xl);
+      align-items: start;
+    }
+
+    /* ── Item list (furniture, items in rooms) ── */
+    .item-list { display: flex; flex-direction: column; gap: var(--space-sm); }
+
+    .item-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-sm) var(--space-md);
+      border-radius: var(--radius);
+      background: var(--bg-secondary);
+      font-size: 0.78rem;
+    }
+
+    .item-icon { font-size: 0.9rem; flex-shrink: 0; }
+    .item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .item-qty {
+      font-size: 0.62rem;
+      color: var(--text-muted);
+      background: var(--bg-input);
+      border-radius: var(--radius-sm);
+      padding: var(--space-xs) var(--space-md);
+      white-space: nowrap;
+    }
+
+    .item-status {
+      font-size: 0.6rem;
+      font-weight: 600;
+      padding: 0.12rem var(--space-md);
+      border-radius: var(--radius-sm);
+    }
+    .status-ok   { background: #0d2e14; color: #4caf50; }
+    .status-warn { background: #2e2a0d; color: #f4d68a; }
+    .status-off  { background: var(--bg-secondary); color: var(--text-muted); }
+
+    .item-del {
+      background: none;
+      border: none;
+      color: var(--border);
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 0 var(--space-xs);
+      line-height: 1;
+      transition: color 0.12s;
+    }
+    .item-del:hover { color: var(--danger); }
+
+    .item-add-btn {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      margin-top: var(--space-md);
+      background: none;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      padding: var(--space-sm) var(--space-lg);
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.12s;
+      font-family: inherit;
+    }
+    .item-add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-card); }
+
+    /* ── Notes area ── */
+    .notes-area {
+      width: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 0.78rem;
+      padding: var(--space-md) var(--space-lg);
+      resize: none;
+      min-height: 80px;
+      outline: none;
+      font-family: inherit;
+      line-height: 1.5;
+    }
+    .notes-area:focus { border-color: var(--accent); }
+    .notes-area::placeholder { color: var(--text-muted); opacity: 0.6; }
+
+    /* ── Systems meters (Power & Water room) ── */
+    .sys-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: var(--space-lg);
+    }
+
+    .sys-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.85rem;
+      transition: border-color 0.15s;
+    }
+    .sys-card:hover { border-color: var(--text-muted); }
+
+    .sys-card-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      margin-bottom: var(--space-lg);
+    }
+
+    .sys-card-icon { font-size: 1.3rem; flex-shrink: 0; }
+
+    .sys-card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .sys-card-desc {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: var(--space-xs);
+    }
+
+    .sys-meter {
+      height: 5px;
+      background: var(--bg-input);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      margin-bottom: var(--space-md);
+    }
+
+    .sys-meter-fill {
+      height: 100%;
+      border-radius: var(--radius-sm);
+      transition: width 0.6s ease;
+    }
+
+    .sys-stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      padding: var(--space-xs) 0;
+    }
+
+    .sys-stat-value { font-weight: 700; font-size: 0.75rem; }
+
+    .sys-status-badge {
+      display: inline-block;
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.12rem var(--space-md);
+      border-radius: var(--radius-sm);
+      margin-top: var(--space-sm);
+    }
+    .sys-ok   { background: #0d2e14; color: #4caf50; }
+    .sys-warn { background: #2e2a0d; color: #f4d68a; }
+    .sys-alert { background: #2e0d0d; color: var(--danger); }
+
+    /* ── Garden: Aeroponic Tower visualization ── */
+    .garden-layout {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: var(--space-2xl);
+      align-items: start;
+    }
+
+    .tower-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .tower-visual {
+      position: relative;
+      width: 80px;
+      min-height: 320px;
+      background: linear-gradient(180deg, #1a2a1a 0%, #0d1a0d 100%);
+      border: 2px solid #2a3a2a;
+      border-radius: var(--radius) 8px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 8px 4px;
+      overflow: visible;
+    }
+
+    .tower-label {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      margin-top: var(--space-sm);
+    }
+
+    .tower-plant {
+      position: absolute;
+      font-size: 0.85rem;
+      cursor: default;
+      transition: transform 0.2s;
+      line-height: 1;
+    }
+    .tower-plant:hover { transform: scale(1.4); }
+
+    .tower-slots {
+      font-size: 0.62rem;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: var(--space-sm);
+    }
+
+    /* ── Garden: Ground beds ── */
+    .ground-beds {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: var(--space-md);
+    }
+
+    .ground-bed {
+      background: linear-gradient(180deg, #1a1a0d 0%, #141210 100%);
+      border: 1px solid #2a2518;
+      border-radius: var(--radius);
+      padding: var(--space-md);
+      text-align: center;
+      font-size: 0.72rem;
+      min-height: 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-xs);
+    }
+
+    .ground-bed-icon { font-size: 1.2rem; }
+    .ground-bed-name { color: var(--text-muted); font-size: 0.68rem; }
+    .ground-bed-status { font-size: 0.58rem; color: var(--text-muted); }
+
+    .ground-bed-empty {
+      border-style: dashed;
+      color: var(--text-muted);
+      opacity: 0.5;
+      cursor: pointer;
+    }
+    .ground-bed-empty:hover { opacity: 0.8; border-color: var(--accent); }
+
+    /* ── Plant cards (shared by garden) ── */
+    .plant-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: var(--space-md);
+    }
+
+    .plant-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-md) var(--space-lg);
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      transition: border-color 0.15s;
+    }
+    .plant-card:hover { border-color: var(--text-muted); }
+
+    .plant-icon { font-size: 1.3rem; flex-shrink: 0; }
+    .plant-info { flex: 1; min-width: 0; }
+
+    .plant-name { font-size: 0.78rem; font-weight: 600; }
+
+    .plant-stage {
+      font-size: 0.62rem;
+      color: var(--text-muted);
+      margin-top: var(--space-xs);
+    }
+
+    .plant-harvest {
+      font-size: 0.58rem;
+      color: var(--success);
+      margin-top: var(--space-xs);
+    }
+
+    .plant-progress {
+      height: 3px;
+      background: var(--bg-input);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: var(--space-sm);
+    }
+
+    .plant-progress-fill {
+      height: 100%;
+      background: var(--success);
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    .plant-del {
+      background: none;
+      border: none;
+      color: var(--border);
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 0 var(--space-xs);
+      transition: color 0.12s;
+    }
+    .plant-del:hover { color: var(--danger); }
+
+    /* ── Garden mode cards ── */
+    .garden-modes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-xl);
+    }
+
+    .garden-mode-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.85rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .garden-mode-card .mode-bg {
+      position: absolute;
+      right: -var(--space-md);
+      bottom: -var(--space-md);
+      font-size: 4rem;
+      opacity: 0.06;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .mode-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      margin-bottom: var(--space-md);
+    }
+
+    .mode-icon { font-size: 1.2rem; }
+
+    .mode-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .mode-desc {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: var(--space-md);
+    }
+
+    .mode-specs { display: flex; flex-direction: column; gap: var(--space-xs); }
+
+    .mode-spec {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .spec-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Weather ── */
+    .weather-badge {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    /* ── Empty state ── */
+    .empty-msg {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      padding: var(--space-xl);
+      text-align: center;
+      font-style: italic;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-sm); }
+
+    /* ── Responsive ── */
+    @media (max-width: 720px) {
+      .content-grid { grid-template-columns: 1fr; }
+      .garden-modes { grid-template-columns: 1fr; }
+      .garden-layout { grid-template-columns: 1fr; }
+      .tower-container { flex-direction: row; }
+      .tower-visual { min-height: 200px; width: 60px; }
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="home"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<script src="/shared/eli5.js"></script>
+
+<div class="eli5-block">
+  <div class="eli5-simple">Your dwelling. Rooms you can furnish, manage, and expand. Each room serves a purpose -- from growing food to managing power.</div>
+  <div class="eli5-expert">Room-based home management with localStorage persistence (key: hos_home_v1). Seven default rooms covering living, sleep, food, growing, crafting, storage, and utilities. Garden room features aeroponic tower visualization (50 plant slots, spiral layout) plus traditional soil beds. Power &amp; Water room merges the old Systems page: solar, batteries, water filtration, network, and environmental sensors. Rooms can be added/removed/reordered by the user.</div>
+</div>
+
+<div id="home-app">
+  <!-- Room tab bar -->
+  <div class="room-tabs" id="room-tabs"></div>
+
+  <!-- Room panels rendered by JS -->
+  <div id="room-panels"></div>
+</div>
+
+<script>
+// ────────────────────────────────────────────────
+// Data model -- localStorage key: hos_home_v1
+// ────────────────────────────────────────────────
+
+const STORAGE_KEY = 'hos_home_v1';
+
+/** Room type definitions -- determines render behavior */
+const ROOM_TYPES = {
+  living:    { icon: '\u{1F6CB}\uFE0F', label: 'Living Room',   desc: 'Main space, decorations, status dashboard' },
+  bedroom:   { icon: '\u{1F6CF}\uFE0F', label: 'Bedroom',       desc: 'Rest, personal space, sleep tracking' },
+  kitchen:   { icon: '\u{1F373}',       label: 'Kitchen',        desc: 'Food prep, recipes, meal planning' },
+  garden:    { icon: '\u{1F331}',       label: 'Garden',          desc: 'Aeroponic tower + traditional soil farming' },
+  workshop:  { icon: '\u{1F6E0}\uFE0F', label: 'Workshop',      desc: 'Crafting, building, repairs' },
+  storage:   { icon: '\u{1F4E6}',       label: 'Storage',        desc: 'Overflow inventory, bulk materials' },
+  power:     { icon: '\u26A1',          label: 'Power & Water',   desc: 'Solar, batteries, water, network, sensors' },
+  custom:    { icon: '\u{1F3E0}',       label: 'Custom Room',    desc: 'User-defined room' }
+};
+
+/** Systems metadata for the Power & Water room */
+const SYSTEM_META = {
+  solar:      { icon: '\u2600\uFE0F',       label: 'Solar Panels',    color: '#f4d68a', desc: 'Photovoltaic generation capacity' },
+  battery:    { icon: '\u{1F50B}',           label: 'Batteries',       color: '#9fe69a', desc: 'Energy storage and backup' },
+  grid:       { icon: '\u26A1',              label: 'Grid / Wind',     color: '#ffc89a', desc: 'External power and wind generation' },
+  water:      { icon: '\u{1F4A7}',           label: 'Water Filtration', color: '#9fd1ff', desc: 'Purification, collection, and recycling' },
+  waterUsage: { icon: '\u{1F6B0}',           label: 'Water Usage',     color: '#b8e0ff', desc: 'Daily consumption and reserves' },
+  network:    { icon: '\u{1F4F6}',           label: 'Network',         color: '#e0b8ff', desc: 'Internet, mesh WiFi, connectivity' },
+  envTemp:    { icon: '\u{1F321}\uFE0F',     label: 'Temperature',     color: '#ffb8b8', desc: 'Indoor environmental sensors' },
+  envHumid:   { icon: '\u{1F4A8}',           label: 'Humidity',        color: '#b8d8ff', desc: 'Air moisture monitoring' }
+};
+
+/** Plant stage icons */
+const STAGE_ICONS = {
+  'Seedling':  '\u{1F331}',
+  'Growing':   '\u{1F33F}',
+  'Flowering': '\u{1F33C}',
+  'Fruiting':  '\u{1F352}',
+  'Ready':     '\u2705',
+  'Harvested': '\u{1F4E6}'
+};
+
+/** Default room data seeded on first visit */
+function defaultRooms() {
+  return [
+    {
+      id: 'living', type: 'living', name: 'Living Room',
+      notes: 'Main gathering space. Add furniture and decorations here.',
+      items: [
+        { name: 'Sofa', qty: '1', icon: '\u{1F6CB}\uFE0F' },
+        { name: 'Coffee Table', qty: '1', icon: '\u{1FA91}' },
+        { name: 'Bookshelf', qty: '1', icon: '\u{1F4DA}' }
+      ],
+      status: { mood: 'Cozy', temp: '72\u00B0F', lighting: 'Warm' }
+    },
+    {
+      id: 'bedroom', type: 'bedroom', name: 'Bedroom',
+      notes: '',
+      items: [
+        { name: 'Bed', qty: '1', icon: '\u{1F6CF}\uFE0F' },
+        { name: 'Nightstand', qty: '2', icon: '\u{1FA91}' },
+        { name: 'Lamp', qty: '1', icon: '\u{1F4A1}' }
+      ],
+      sleep: { lastSleep: null, avgHours: 7.5 }
+    },
+    {
+      id: 'kitchen', type: 'kitchen', name: 'Kitchen',
+      notes: '',
+      items: [
+        { name: 'Stove', qty: '1', icon: '\u{1F373}' },
+        { name: 'Refrigerator', qty: '1', icon: '\u{1F9CA}' },
+        { name: 'Pantry Shelves', qty: '1', icon: '\u{1F3DA}\uFE0F' }
+      ],
+      meals: []
+    },
+    {
+      id: 'garden', type: 'garden', name: 'Garden',
+      notes: '',
+      items: [],
+      garden: {
+        towerPlants: [
+          { id: 'p1', name: 'Lettuce',      icon: '\u{1F96C}', slot: 1,  stage: 'Growing',   progress: 65, harvestDate: '2026-04-10' },
+          { id: 'p2', name: 'Tomatoes',      icon: '\u{1F345}', slot: 5,  stage: 'Flowering', progress: 45, harvestDate: '2026-05-01' },
+          { id: 'p3', name: 'Basil',         icon: '\u{1F33F}', slot: 8,  stage: 'Ready',     progress: 100, harvestDate: '2026-03-20' },
+          { id: 'p4', name: 'Strawberries',  icon: '\u{1F353}', slot: 12, stage: 'Fruiting',  progress: 80, harvestDate: '2026-04-05' },
+          { id: 'p5', name: 'Mint',          icon: '\u{1F33F}', slot: 15, stage: 'Growing',   progress: 55, harvestDate: '2026-04-20' },
+          { id: 'p6', name: 'Cilantro',      icon: '\u{1F33F}', slot: 20, stage: 'Seedling',  progress: 15, harvestDate: '2026-05-10' },
+          { id: 'p7', name: 'Peppers',       icon: '\u{1F336}\uFE0F', slot: 25, stage: 'Growing', progress: 40, harvestDate: '2026-05-25' },
+          { id: 'p8', name: 'Spinach',       icon: '\u{1F96C}', slot: 30, stage: 'Growing',   progress: 50, harvestDate: '2026-04-15' }
+        ],
+        soilPlants: [
+          { id: 's1', name: 'Carrots',       icon: '\u{1F955}', stage: 'Seedling',  progress: 20, harvestDate: '2026-05-15' },
+          { id: 's2', name: 'Potatoes',      icon: '\u{1F954}', stage: 'Growing',   progress: 40, harvestDate: '2026-06-01' },
+          { id: 's3', name: 'Herbs (mixed)', icon: '\u{1F33F}', stage: 'Growing',   progress: 60, harvestDate: '2026-04-25' }
+        ]
+      }
+    },
+    {
+      id: 'workshop', type: 'workshop', name: 'Workshop',
+      notes: '',
+      items: [
+        { name: 'Workbench', qty: '1', icon: '\u{1F6E0}\uFE0F' },
+        { name: 'Tool Rack', qty: '1', icon: '\u{1F527}' }
+      ]
+    },
+    {
+      id: 'storage', type: 'storage', name: 'Storage',
+      notes: '',
+      items: []
+    },
+    {
+      id: 'power', type: 'power', name: 'Power & Water',
+      notes: '',
+      items: [],
+      systems: {
+        solar:      { level: 86, status: 'ok',   source: '12x 400W panels' },
+        battery:    { level: 74, status: 'ok',   source: '2x LFP 5kWh' },
+        grid:       { level: 100, status: 'ok',  source: 'Grid backup + 1kW wind' },
+        water:      { level: 91, status: 'ok',   source: '3-stage filter + UV' },
+        waterUsage: { level: 68, status: 'warn', source: '~45 gal/day' },
+        network:    { level: 97, status: 'ok',   source: 'Mesh WiFi + Starlink' },
+        envTemp:    { level: 72, status: 'ok',   source: 'Indoor: 72\u00B0F' },
+        envHumid:   { level: 45, status: 'ok',   source: 'Indoor: 45% RH' }
+      }
+    }
+  ];
+}
+
+// ── State ──
+let rooms = [];
+let activeRoomId = '';
+let noteTimers = {};
+
+// ────────────────────────────────────────────────
+// Persistence
+// ────────────────────────────────────────────────
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      rooms = JSON.parse(raw);
+      // Migrate: ensure every room has required fields
+      rooms.forEach(r => {
+        if (!r.items) r.items = [];
+        if (!r.notes && r.notes !== '') r.notes = '';
+        if (r.type === 'garden' && !r.garden) {
+          r.garden = { towerPlants: [], soilPlants: [] };
+        }
+        if (r.type === 'power' && !r.systems) {
+          r.systems = {};
+          Object.keys(SYSTEM_META).forEach(k => {
+            r.systems[k] = { level: 50, status: 'warn', source: 'Unknown' };
+          });
+        }
+      });
+    } else {
+      rooms = defaultRooms();
+    }
+  } catch (e) {
+    rooms = defaultRooms();
+  }
+  saveData();
+
+  const savedActive = localStorage.getItem('hos_home_active_room') || '';
+  activeRoomId = rooms.find(r => r.id === savedActive) ? savedActive : (rooms[0]?.id || '');
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
+}
+
+function activeRoom() {
+  return rooms.find(r => r.id === activeRoomId) || rooms[0];
+}
+
+// ────────────────────────────────────────────────
+// Tab switching
+// ────────────────────────────────────────────────
+
+function switchRoom(id) {
+  activeRoomId = id;
+  localStorage.setItem('hos_home_active_room', id);
+  renderTabs();
+  renderActiveRoom();
+}
+
+// ────────────────────────────────────────────────
+// Render: Tabs
+// ────────────────────────────────────────────────
+
+function renderTabs() {
+  const container = document.getElementById('room-tabs');
+  const html = rooms.map(r => {
+    const meta = ROOM_TYPES[r.type] || ROOM_TYPES.custom;
+    const isActive = r.id === activeRoomId;
+    return '<button class="room-tab' + (isActive ? ' active' : '') + '" onclick="switchRoom(\'' + esc(r.id) + '\')">'
+      + '<span class="tab-icon">' + (meta.icon) + '</span>'
+      + '<span>' + esc(r.name) + '</span>'
+      + '</button>';
+  }).join('');
+
+  container.innerHTML = html
+    + '<button class="room-tab-add" onclick="addRoom()" title="Add a new room">+ Room</button>';
+}
+
+// ────────────────────────────────────────────────
+// Render: Active room panel
+// ────────────────────────────────────────────────
+
+function renderActiveRoom() {
+  const room = activeRoom();
+  if (!room) return;
+
+  const container = document.getElementById('room-panels');
+  const meta = ROOM_TYPES[room.type] || ROOM_TYPES.custom;
+
+  let html = '<div class="room-panel active">';
+
+  // Header
+  html += '<div class="room-panel-header">'
+    + '<div>'
+    + '<div class="room-title-row">'
+    + '<span class="room-title-icon">' + meta.icon + '</span>'
+    + '<span class="room-title">' + esc(room.name) + '</span>'
+    + '</div>'
+    + '<div class="room-subtitle">' + esc(meta.desc) + '</div>'
+    + '</div>'
+    + '<div class="room-actions">'
+    + '<button class="btn-sm" onclick="renameRoom()">Rename</button>'
+    + '<button class="btn-sm danger" onclick="deleteRoom()">Remove</button>'
+    + '</div>'
+    + '</div>';
+
+  // ELI5 per room type
+  html += renderRoomEli5(room);
+
+  // Type-specific content
+  if (room.type === 'garden') {
+    html += renderGardenRoom(room);
+  } else if (room.type === 'power') {
+    html += renderPowerRoom(room);
+  } else if (room.type === 'living') {
+    html += renderLivingRoom(room);
+  } else if (room.type === 'bedroom') {
+    html += renderBedroomRoom(room);
+  } else if (room.type === 'kitchen') {
+    html += renderKitchenRoom(room);
+  } else {
+    html += renderGenericRoom(room);
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ────────────────────────────────────────────────
+// ELI5 blocks per room
+// ────────────────────────────────────────────────
+
+function renderRoomEli5(room) {
+  const eli5s = {
+    living: {
+      simple: 'Your main hangout space. Put furniture and decorations here to make it feel like home.',
+      expert: 'Status dashboard room. Tracks ambient conditions, furniture inventory, and overall home mood. Items stored here are rendered in a visual inventory list with quantities.'
+    },
+    bedroom: {
+      simple: 'Your place to rest. Track how well you sleep and keep your personal space cozy.',
+      expert: 'Sleep tracking concept room. Stores bed configuration, personal items, and optional sleep log data (hours, quality). Future: integration with wearable sleep data.'
+    },
+    kitchen: {
+      simple: 'Where you cook! Plan meals, save recipes, and keep track of what\'s in the fridge.',
+      expert: 'Meal planning hub. Stores kitchen equipment inventory and meal plan data. Future: recipe database, nutritional tracking, grocery list generation from planned meals.'
+    },
+    garden: {
+      simple: 'Grow food with a tall tower of plants (aeroponic) or plant in soil the old way. The tower spirals 50 plants upward, purifying air while producing fresh food.',
+      expert: 'Dual-mode food production. Aeroponic tower: 50 numbered slots, misted nutrient solution, 95% less water, year-round indoor growing, built-in air purification. Traditional: soil/sand substrate ground beds for manual farming. Each plant tracks type, stage (seedling/growing/flowering/fruiting/ready/harvested), progress %, and projected harvest date.'
+    },
+    workshop: {
+      simple: 'Your space for building, fixing, and making things. Store tools and track projects.',
+      expert: 'Crafting and repair workspace. Inventory tracks tools, materials, and works-in-progress. Future: project tracking with material requirements and skill prerequisites.'
+    },
+    storage: {
+      simple: 'Extra space for things that don\'t fit elsewhere. Bulk materials, seasonal items, overflow.',
+      expert: 'Overflow inventory room. No special rendering -- pure item list with quantities. Acts as a general-purpose container for bulk materials and items not assigned to specific rooms.'
+    },
+    power: {
+      simple: 'Your home\'s utilities -- solar panels, batteries, water filters, internet, and environmental sensors. See how everything is running at a glance.',
+      expert: 'Infrastructure monitoring dashboard. Tracks: solar PV generation, battery storage (LFP), grid/wind backup, water filtration (3-stage + UV), daily water consumption, mesh network status, indoor temperature, and humidity. Each subsystem has a level (0-100%), status (ok/warn/alert), and source description. Status thresholds: >=80 nominal, >=50 attention, <50 critical.'
+    }
+  };
+
+  const data = eli5s[room.type];
+  if (!data) return '';
+
+  return '<div class="eli5-block">'
+    + '<div class="eli5-simple">' + data.simple + '</div>'
+    + '<div class="eli5-expert">' + data.expert + '</div>'
+    + '</div>';
+}
+
+// ────────────────────────────────────────────────
+// Room renderers
+// ────────────────────────────────────────────────
+
+function renderGenericRoom(room) {
+  return '<div class="content-grid">'
+    + '<div>'
+    + renderItemsCard(room, 'Items')
+    + '</div>'
+    + '<div>' + renderNotesCard(room) + '</div>'
+    + '</div>';
+}
+
+function renderLivingRoom(room) {
+  const status = room.status || {};
+  let statusHtml = '<div class="card"><div class="card-header"><h3>Home Status</h3></div><div class="card-body">';
+  statusHtml += '<div style="display:flex;gap:var(--space-xl);flex-wrap:wrap;font-size:0.78rem;">';
+  if (status.mood) statusHtml += '<div><span style="color:var(--text-muted)">Mood:</span> ' + esc(status.mood) + '</div>';
+  if (status.temp) statusHtml += '<div><span style="color:var(--text-muted)">Temp:</span> ' + esc(status.temp) + '</div>';
+  if (status.lighting) statusHtml += '<div><span style="color:var(--text-muted)">Lighting:</span> ' + esc(status.lighting) + '</div>';
+  statusHtml += '<div class="weather-badge" id="weather-badge">\u{1F324} <span id="weather-text">Loading...</span></div>';
+  statusHtml += '</div></div></div>';
+
+  // Fetch weather
+  setTimeout(() => fetchWeather(), 0);
+
+  return '<div class="content-grid">'
+    + '<div>' + statusHtml + renderItemsCard(room, 'Furniture & Decorations') + '</div>'
+    + '<div>' + renderNotesCard(room) + '</div>'
+    + '</div>';
+}
+
+function renderBedroomRoom(room) {
+  const sleep = room.sleep || {};
+  let sleepHtml = '<div class="card"><div class="card-header"><h3>Sleep Tracking</h3></div><div class="card-body">';
+  sleepHtml += '<div style="font-size:0.78rem;color:var(--text-muted);">';
+  sleepHtml += '<div>Avg hours: <span style="color:var(--text);font-weight:600;">' + (sleep.avgHours || '--') + '</span></div>';
+  sleepHtml += '<div style="margin-top:var(--space-sm);">Last sleep: <span style="color:var(--text);">' + (sleep.lastSleep || 'Not tracked yet') + '</span></div>';
+  sleepHtml += '<button class="btn-sm" style="margin-top:var(--space-md);" onclick="logSleep()">Log Sleep</button>';
+  sleepHtml += '</div></div></div>';
+
+  return '<div class="content-grid">'
+    + '<div>' + sleepHtml + renderItemsCard(room, 'Furniture & Personal Items') + '</div>'
+    + '<div>' + renderNotesCard(room) + '</div>'
+    + '</div>';
+}
+
+function renderKitchenRoom(room) {
+  let mealsHtml = '<div class="card"><div class="card-header"><h3>Meal Planning</h3>'
+    + '<button class="btn-sm" onclick="addMeal()">+ Meal</button></div><div class="card-body">';
+  const meals = room.meals || [];
+  if (meals.length === 0) {
+    mealsHtml += '<div class="empty-msg">No meals planned yet. Add your first meal above.</div>';
+  } else {
+    mealsHtml += '<div class="item-list">';
+    meals.forEach((m, idx) => {
+      mealsHtml += '<div class="item-row">'
+        + '<span class="item-icon">\u{1F37D}\uFE0F</span>'
+        + '<span class="item-name">' + esc(m.name) + '</span>'
+        + (m.time ? '<span class="item-qty">' + esc(m.time) + '</span>' : '')
+        + '<button class="item-del" onclick="deleteMeal(' + idx + ')" title="Remove">\u00D7</button>'
+        + '</div>';
+    });
+    mealsHtml += '</div>';
+  }
+  mealsHtml += '</div></div>';
+
+  return '<div class="content-grid">'
+    + '<div>' + mealsHtml + renderItemsCard(room, 'Appliances & Cookware') + '</div>'
+    + '<div>' + renderNotesCard(room) + '</div>'
+    + '</div>';
+}
+
+// ────────────────────────────────────────────────
+// Garden room
+// ────────────────────────────────────────────────
+
+function renderGardenRoom(room) {
+  const g = room.garden || { towerPlants: [], soilPlants: [] };
+  let html = '';
+
+  // Mode description cards
+  html += '<div class="garden-modes">'
+    + '<div class="garden-mode-card"><span class="mode-bg">\u{1F331}</span>'
+    + '<div class="mode-header"><span class="mode-icon">\u{1F3ED}</span><span class="mode-title">Aeroponic Tower</span></div>'
+    + '<div class="mode-desc">A column in the center of the garden. Plants spiral up, roots misted with nutrient solution. Automated watering, lighting, and nutrients.</div>'
+    + '<div class="mode-specs">'
+    + '<div class="mode-spec"><span class="spec-dot" style="background:var(--success);"></span> 50 plant slots per tower</div>'
+    + '<div class="mode-spec"><span class="spec-dot" style="background:var(--success);"></span> 95% less water than soil</div>'
+    + '<div class="mode-spec"><span class="spec-dot" style="background:var(--success);"></span> Built-in air purification</div>'
+    + '<div class="mode-spec"><span class="spec-dot" style="background:var(--success);"></span> Year-round indoor growing</div>'
+    + '</div></div>'
+    + '<div class="garden-mode-card"><span class="mode-bg">\u{1F33E}</span>'
+    + '<div class="mode-header"><span class="mode-icon">\u{1F33E}</span><span class="mode-title">Traditional (Soil/Sand)</span></div>'
+    + '<div class="mode-desc">The garden floor is sand-equivalent soil for hands-on farming. Plant seeds, tend beds, harvest by hand. No tech required.</div>'
+    + '<div class="mode-specs">'
+    + '<div class="mode-spec"><span class="spec-dot" style="background:var(--accent);"></span> Natural soil-based growing</div>'
+    + '<div class="mode-spec"><span class="spec-dot" style="background:var(--accent);"></span> Manual watering and tending</div>'
+    + '<div class="mode-spec"><span class="spec-dot" style="background:var(--accent);"></span> Composting and crop rotation</div>'
+    + '<div class="mode-spec"><span class="spec-dot" style="background:var(--accent);"></span> No electricity needed</div>'
+    + '</div></div>'
+    + '</div>';
+
+  // Tower + plant list layout
+  html += '<div class="garden-layout">';
+
+  // Tower visualization
+  html += '<div class="tower-container">';
+  html += '<div class="tower-visual" id="tower-visual">';
+
+  // Render plants spiraling up the tower
+  const towerPlants = g.towerPlants || [];
+  const totalSlots = 50;
+  for (let i = 0; i < towerPlants.length; i++) {
+    const p = towerPlants[i];
+    const slot = p.slot || (i + 1);
+    // Spiral: alternate left/right, going up
+    const yPct = 95 - ((slot / totalSlots) * 90);
+    const side = slot % 2 === 0 ? -18 : 58;
+    html += '<span class="tower-plant" style="bottom:' + yPct + '%;left:' + side + 'px;" title="Slot ' + slot + ': ' + esc(p.name) + ' (' + esc(p.stage) + ')">'
+      + (p.icon || '\u{1F33F}')
+      + '</span>';
+  }
+
+  // Empty slot indicators
+  const usedSlots = new Set(towerPlants.map(p => p.slot || 0));
+  let emptyCount = 0;
+  for (let s = 1; s <= totalSlots; s++) {
+    if (!usedSlots.has(s)) emptyCount++;
+  }
+
+  html += '</div>'; // tower-visual
+  html += '<div class="tower-label">Aeroponic Tower</div>';
+  html += '<div class="tower-slots">' + towerPlants.length + '/' + totalSlots + ' slots</div>';
+  html += '</div>'; // tower-container
+
+  // Right side: Plant lists
+  html += '<div>';
+
+  // Tower plants
+  html += '<div class="card" style="margin-bottom:var(--space-lg);">'
+    + '<div class="card-header"><h3>Tower Plants</h3>'
+    + '<button class="btn-sm" onclick="addTowerPlant()">+ Plant</button></div>'
+    + '<div class="card-body">';
+
+  if (towerPlants.length === 0) {
+    html += '<div class="empty-msg">No tower plants yet.</div>';
+  } else {
+    html += '<div class="plant-grid">';
+    towerPlants.forEach((p, idx) => {
+      const stageIcon = STAGE_ICONS[p.stage] || '\u{1F331}';
+      html += '<div class="plant-card">'
+        + '<span class="plant-icon">' + (p.icon || '\u{1F33F}') + '</span>'
+        + '<div class="plant-info">'
+        + '<div class="plant-name">' + esc(p.name) + ' <span style="font-size:0.55rem;color:var(--text-muted);">Slot ' + (p.slot || '?') + '</span></div>'
+        + '<div class="plant-stage">' + stageIcon + ' ' + esc(p.stage) + '</div>'
+        + (p.harvestDate ? '<div class="plant-harvest">Harvest: ' + esc(p.harvestDate) + '</div>' : '')
+        + '<div class="plant-progress"><div class="plant-progress-fill" style="width:' + (p.progress || 0) + '%"></div></div>'
+        + '</div>'
+        + '<button class="plant-del" onclick="deleteTowerPlant(' + idx + ')" title="Remove">\u00D7</button>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  // Soil plants / ground beds
+  const soilPlants = g.soilPlants || [];
+  html += '<div class="card">'
+    + '<div class="card-header"><h3>Ground Beds (Soil)</h3>'
+    + '<button class="btn-sm" onclick="addSoilPlant()">+ Plant</button></div>'
+    + '<div class="card-body">';
+
+  if (soilPlants.length === 0) {
+    html += '<div class="empty-msg">No soil plants yet. Click + Plant to add one.</div>';
+  } else {
+    html += '<div class="ground-beds">';
+    soilPlants.forEach((p, idx) => {
+      const stageIcon = STAGE_ICONS[p.stage] || '\u{1F331}';
+      html += '<div class="ground-bed">'
+        + '<span class="ground-bed-icon">' + (p.icon || '\u{1F33F}') + '</span>'
+        + '<div class="ground-bed-name">' + esc(p.name) + '</div>'
+        + '<div class="ground-bed-status">' + stageIcon + ' ' + esc(p.stage) + ' ' + (p.progress || 0) + '%</div>'
+        + '<button class="plant-del" onclick="deleteSoilPlant(' + idx + ')" title="Remove" style="margin-top:var(--space-xs);">\u00D7</button>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  html += '</div>'; // right side
+  html += '</div>'; // garden-layout
+
+  return html;
+}
+
+// ────────────────────────────────────────────────
+// Power & Water room
+// ────────────────────────────────────────────────
+
+function renderPowerRoom(room) {
+  const sys = room.systems || {};
+
+  let html = '<div class="sys-grid">';
+  Object.entries(SYSTEM_META).forEach(([key, meta]) => {
+    const data = sys[key] || { level: 0, status: 'alert', source: 'Unknown' };
+    const statusClass = data.level >= 80 ? 'sys-ok' : data.level >= 50 ? 'sys-warn' : 'sys-alert';
+    const statusLabel = data.level >= 80 ? 'Nominal' : data.level >= 50 ? 'Attention' : 'Critical';
+
+    html += '<div class="sys-card">'
+      + '<div class="sys-card-header">'
+      + '<span class="sys-card-icon">' + meta.icon + '</span>'
+      + '<div>'
+      + '<div class="sys-card-title">' + meta.label + '</div>'
+      + '<div class="sys-card-desc">' + meta.desc + '</div>'
+      + '</div></div>'
+      + '<div class="sys-meter"><div class="sys-meter-fill" style="width:' + data.level + '%;background:' + meta.color + ';"></div></div>'
+      + '<div class="sys-stat-row"><span>Level</span><span class="sys-stat-value" style="color:' + meta.color + '">' + data.level + '%</span></div>'
+      + '<div class="sys-stat-row"><span>Source</span><span style="color:var(--text);">' + esc(data.source) + '</span></div>'
+      + '<div class="sys-status-badge ' + statusClass + '">' + statusLabel + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+
+  html += '<div style="margin-top:var(--space-xl);">' + renderNotesCard(room) + '</div>';
+
+  return html;
+}
+
+// ────────────────────────────────────────────────
+// Shared card builders
+// ────────────────────────────────────────────────
+
+function renderItemsCard(room, title) {
+  let html = '<div class="card" style="margin-top:var(--space-lg);">'
+    + '<div class="card-header"><h3>' + esc(title || 'Items') + '</h3>'
+    + '<button class="btn-sm" onclick="addItem()">+ Add</button></div>'
+    + '<div class="card-body">';
+
+  if (!room.items || room.items.length === 0) {
+    html += '<div class="empty-msg">No items yet.</div>';
+  } else {
+    html += '<div class="item-list">';
+    room.items.forEach((item, idx) => {
+      html += '<div class="item-row">'
+        + '<span class="item-icon">' + (item.icon || '\u{1F4E6}') + '</span>'
+        + '<span class="item-name">' + esc(item.name) + '</span>'
+        + (item.qty && item.qty !== '1' ? '<span class="item-qty">\u00D7' + esc(String(item.qty)) + '</span>' : '')
+        + '<button class="item-del" onclick="deleteItem(' + idx + ')" title="Remove">\u00D7</button>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderNotesCard(room) {
+  return '<div class="card">'
+    + '<div class="card-header"><h3>Notes</h3></div>'
+    + '<div class="card-body">'
+    + '<textarea class="notes-area" id="room-notes" placeholder="Add notes, plans, ideas..." oninput="scheduleNoteSave()">'
+    + esc(room.notes || '')
+    + '</textarea>'
+    + '</div></div>';
+}
+
+// ────────────────────────────────────────────────
+// Room CRUD
+// ────────────────────────────────────────────────
+
+function addRoom() {
+  const name = prompt('Room name:');
+  if (!name || !name.trim()) return;
+
+  const typeChoice = prompt(
+    'Room type:\n1) Living Room\n2) Bedroom\n3) Kitchen\n4) Garden\n5) Workshop\n6) Storage\n7) Power & Water\n8) Custom\n\nEnter number (1-8):',
+    '8'
+  );
+  const typeMap = { '1': 'living', '2': 'bedroom', '3': 'kitchen', '4': 'garden', '5': 'workshop', '6': 'storage', '7': 'power', '8': 'custom' };
+  const type = typeMap[typeChoice] || 'custom';
+
+  const id = 'r' + Date.now().toString(36);
+  const newRoom = { id, type, name: name.trim(), notes: '', items: [] };
+
+  // Add type-specific defaults
+  if (type === 'garden') newRoom.garden = { towerPlants: [], soilPlants: [] };
+  if (type === 'power') {
+    newRoom.systems = {};
+    Object.keys(SYSTEM_META).forEach(k => {
+      newRoom.systems[k] = { level: 50, status: 'warn', source: 'Not configured' };
+    });
+  }
+  if (type === 'bedroom') newRoom.sleep = { lastSleep: null, avgHours: null };
+  if (type === 'kitchen') newRoom.meals = [];
+
+  rooms.push(newRoom);
+  saveData();
+  switchRoom(id);
+}
+
+function renameRoom() {
+  const room = activeRoom();
+  if (!room) return;
+  const name = prompt('New room name:', room.name);
+  if (!name || !name.trim()) return;
+  room.name = name.trim();
+  saveData();
+  renderTabs();
+  renderActiveRoom();
+}
+
+function deleteRoom() {
+  const room = activeRoom();
+  if (!room) return;
+  if (rooms.length <= 1) { alert('Cannot remove the last room.'); return; }
+  if (!confirm('Remove "' + room.name + '" and all its contents?')) return;
+  rooms = rooms.filter(r => r.id !== room.id);
+  saveData();
+  activeRoomId = rooms[0]?.id || '';
+  localStorage.setItem('hos_home_active_room', activeRoomId);
+  renderTabs();
+  renderActiveRoom();
+}
+
+// ────────────────────────────────────────────────
+// Item CRUD
+// ────────────────────────────────────────────────
+
+function addItem() {
+  const room = activeRoom();
+  if (!room) return;
+  const name = prompt('Item name:');
+  if (!name || !name.trim()) return;
+  const qty = prompt('Quantity (leave blank for 1):', '1') || '1';
+  room.items.push({ name: name.trim(), qty: qty.trim() || '1', icon: '\u{1F4E6}' });
+  saveData();
+  renderActiveRoom();
+}
+
+function deleteItem(idx) {
+  const room = activeRoom();
+  if (!room || !room.items) return;
+  room.items.splice(idx, 1);
+  saveData();
+  renderActiveRoom();
+}
+
+// ────────────────────────────────────────────────
+// Garden plant CRUD
+// ────────────────────────────────────────────────
+
+function addTowerPlant() {
+  const room = activeRoom();
+  if (!room || room.type !== 'garden') return;
+  if (!room.garden) room.garden = { towerPlants: [], soilPlants: [] };
+
+  const name = prompt('Plant name:');
+  if (!name || !name.trim()) return;
+
+  const usedSlots = new Set((room.garden.towerPlants || []).map(p => p.slot));
+  let nextSlot = 1;
+  while (usedSlots.has(nextSlot) && nextSlot <= 50) nextSlot++;
+  if (nextSlot > 50) { alert('Tower is full (50/50 slots).'); return; }
+
+  const slotStr = prompt('Slot number (1-50):', String(nextSlot));
+  const slot = parseInt(slotStr, 10);
+  if (isNaN(slot) || slot < 1 || slot > 50) return;
+
+  const stage = prompt('Growth stage (Seedling, Growing, Flowering, Fruiting, Ready):', 'Seedling') || 'Seedling';
+  const harvestDate = prompt('Expected harvest date (YYYY-MM-DD, or leave blank):', '') || '';
+
+  room.garden.towerPlants.push({
+    id: 'p' + Date.now().toString(36),
+    name: name.trim(),
+    icon: '\u{1F33F}',
+    slot,
+    stage: stage.trim(),
+    progress: stage.trim() === 'Ready' ? 100 : 10,
+    harvestDate: harvestDate.trim()
+  });
+
+  saveData();
+  renderActiveRoom();
+}
+
+function deleteTowerPlant(idx) {
+  const room = activeRoom();
+  if (!room || !room.garden) return;
+  const plant = room.garden.towerPlants[idx];
+  if (!plant) return;
+  if (!confirm('Remove "' + plant.name + '" from tower?')) return;
+  room.garden.towerPlants.splice(idx, 1);
+  saveData();
+  renderActiveRoom();
+}
+
+function addSoilPlant() {
+  const room = activeRoom();
+  if (!room || room.type !== 'garden') return;
+  if (!room.garden) room.garden = { towerPlants: [], soilPlants: [] };
+
+  const name = prompt('Plant name:');
+  if (!name || !name.trim()) return;
+
+  const stage = prompt('Growth stage (Seedling, Growing, Flowering, Fruiting, Ready):', 'Seedling') || 'Seedling';
+  const harvestDate = prompt('Expected harvest date (YYYY-MM-DD, or leave blank):', '') || '';
+
+  room.garden.soilPlants.push({
+    id: 's' + Date.now().toString(36),
+    name: name.trim(),
+    icon: '\u{1F33F}',
+    stage: stage.trim(),
+    progress: stage.trim() === 'Ready' ? 100 : 10,
+    harvestDate: harvestDate.trim()
+  });
+
+  saveData();
+  renderActiveRoom();
+}
+
+function deleteSoilPlant(idx) {
+  const room = activeRoom();
+  if (!room || !room.garden) return;
+  const plant = room.garden.soilPlants[idx];
+  if (!plant) return;
+  if (!confirm('Remove "' + plant.name + '" from soil beds?')) return;
+  room.garden.soilPlants.splice(idx, 1);
+  saveData();
+  renderActiveRoom();
+}
+
+// ────────────────────────────────────────────────
+// Kitchen meal CRUD
+// ────────────────────────────────────────────────
+
+function addMeal() {
+  const room = activeRoom();
+  if (!room || room.type !== 'kitchen') return;
+  if (!room.meals) room.meals = [];
+
+  const name = prompt('Meal name:');
+  if (!name || !name.trim()) return;
+  const time = prompt('Time (e.g. "Breakfast", "12:00 PM"):', '') || '';
+
+  room.meals.push({ name: name.trim(), time: time.trim() });
+  saveData();
+  renderActiveRoom();
+}
+
+function deleteMeal(idx) {
+  const room = activeRoom();
+  if (!room || !room.meals) return;
+  room.meals.splice(idx, 1);
+  saveData();
+  renderActiveRoom();
+}
+
+// ────────────────────────────────────────────────
+// Bedroom sleep tracking
+// ────────────────────────────────────────────────
+
+function logSleep() {
+  const room = activeRoom();
+  if (!room || room.type !== 'bedroom') return;
+  if (!room.sleep) room.sleep = {};
+
+  const hours = prompt('How many hours did you sleep?', '8');
+  if (!hours) return;
+  const h = parseFloat(hours);
+  if (isNaN(h) || h < 0 || h > 24) return;
+
+  room.sleep.lastSleep = new Date().toLocaleDateString();
+  // Rolling average
+  if (room.sleep.avgHours) {
+    room.sleep.avgHours = Math.round(((room.sleep.avgHours + h) / 2) * 10) / 10;
+  } else {
+    room.sleep.avgHours = h;
+  }
+
+  saveData();
+  renderActiveRoom();
+}
+
+// ────────────────────────────────────────────────
+// Notes auto-save (debounced)
+// ────────────────────────────────────────────────
+
+function scheduleNoteSave() {
+  clearTimeout(noteTimers._room);
+  noteTimers._room = setTimeout(() => {
+    const room = activeRoom();
+    if (!room) return;
+    const el = document.getElementById('room-notes');
+    if (el) {
+      room.notes = el.value;
+      saveData();
+    }
+  }, 400);
+}
+
+// ────────────────────────────────────────────────
+// Weather via Open-Meteo (free, no API key)
+// ────────────────────────────────────────────────
+
+const WMO_CODE = {
+  0:'Clear', 1:'Mainly clear', 2:'Partly cloudy', 3:'Overcast',
+  45:'Foggy', 48:'Icy fog',
+  51:'Light drizzle', 53:'Drizzle', 55:'Heavy drizzle',
+  61:'Light rain', 63:'Rain', 65:'Heavy rain',
+  71:'Light snow', 73:'Snow', 75:'Heavy snow', 77:'Snow grains',
+  80:'Light showers', 81:'Showers', 82:'Heavy showers',
+  85:'Snow showers', 86:'Heavy snow showers',
+  95:'Thunderstorm', 96:'T-storm w/hail', 99:'T-storm w/heavy hail'
+};
+const WMO_ICON = {
+  0:'\u2600\uFE0F', 1:'\u{1F324}', 2:'\u26C5', 3:'\u2601\uFE0F',
+  45:'\u{1F32B}', 48:'\u{1F32B}',
+  51:'\u{1F326}', 53:'\u{1F327}', 55:'\u{1F327}',
+  61:'\u{1F327}', 63:'\u{1F327}', 65:'\u{1F327}',
+  71:'\u{1F328}', 73:'\u2744\uFE0F', 75:'\u2744\uFE0F', 77:'\u2744\uFE0F',
+  80:'\u{1F326}', 81:'\u{1F327}', 82:'\u26C8',
+  85:'\u{1F328}', 86:'\u{1F328}',
+  95:'\u26C8', 96:'\u26C8', 99:'\u26C8'
+};
+
+async function fetchWeather() {
+  const el = document.getElementById('weather-text');
+  if (!el) return;
+  // Default coords (Silverdale, WA)
+  const lat = 47.6476;
+  const lng = -122.6942;
+  try {
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat.toFixed(4) + '&longitude=' + lng.toFixed(4) + '&current=temperature_2m,weather_code,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const c = data.current;
+    if (!c) throw new Error('no data');
+    const code = c.weather_code;
+    const icon = WMO_ICON[code] || '\u{1F321}\uFE0F';
+    const desc = WMO_CODE[code] || 'Unknown';
+    el.textContent = icon + ' ' + Math.round(c.temperature_2m) + '\u00B0F \u2014 ' + desc + ' \u00B7 ' + Math.round(c.wind_speed_10m) + ' mph wind';
+  } catch (e) {
+    if (el) el.textContent = 'Weather unavailable';
+  }
+}
+
+// ────────────────────────────────────────────────
+// Utils
+// ────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ────────────────────────────────────────────────
+// Init
+// ────────────────────────────────────────────────
+loadData();
+renderTabs();
+renderActiveRoom();
+
+// Re-init ELI5 toggles after dynamic render
+if (typeof window.__eli5Init === 'function') {
+  window.__eli5Init();
+} else {
+  // eli5.js uses an IIFE that runs init on DOMContentLoaded or immediately
+  // We need to re-run init after dynamic content is injected
+  setTimeout(() => {
+    document.querySelectorAll('.eli5-block').forEach(block => {
+      if (block.querySelector('.eli5-toggle')) return;
+      const btn = document.createElement('button');
+      btn.className = 'eli5-toggle';
+      btn.textContent = 'Expert';
+      btn.setAttribute('aria-label', 'Toggle explanation depth');
+      btn.addEventListener('click', function () {
+        const isExpert = block.classList.toggle('expert');
+        btn.textContent = isExpert ? 'Simple' : 'Expert';
+      });
+      block.insertBefore(btn, block.firstChild);
+    });
+  }, 50);
+}
+</script>
+</body>
+</html>

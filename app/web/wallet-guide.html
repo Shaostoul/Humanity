@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content="width=device-width, initial-scale=1.0">
+  <title>Wallet Guide — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+    a{color:var(--accent)} button{cursor:pointer;font-family:inherit}
+    .panel{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);margin-bottom:var(--space-xl)}
+
+    #page-app{flex:1;overflow-y:auto;padding:var(--space-xl) var(--space-2xl);max-width:900px;width:100%;margin:0 auto}
+
+    /* Hero */
+    .guide-hero{text-align:center;margin-bottom:var(--space-2xl)}
+    .guide-hero h1{font-size:1.6rem;margin:0 0 var(--space-md)}
+    .guide-hero p{color:var(--text-muted);font-size:0.95rem;max-width:580px;margin:0 auto;line-height:1.5}
+
+    /* Table of contents */
+    .toc{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-xl) var(--space-2xl);margin-bottom:var(--space-2xl)}
+    .toc h2{font-size:1rem;margin:0 0 var(--space-md);color:var(--text)}
+    .toc-list{list-style:none;padding:0;margin:0}
+    .toc-list li{padding:var(--space-sm) 0}
+    .toc-list a{color:var(--accent);text-decoration:none;font-size:0.9rem}
+    .toc-list a:hover{text-decoration:underline}
+    .toc-list .toc-num{color:var(--text-muted);margin-right:var(--space-sm);font-size:0.8rem;min-width:24px;display:inline-block}
+
+    /* Section */
+    .guide-section{margin-bottom:var(--space-2xl)}
+    .guide-section h2{font-size:1.2rem;color:var(--accent);margin:0 0 var(--space-lg);padding-top:var(--space-md)}
+    .guide-section h3{font-size:1rem;color:var(--text);margin:var(--space-lg) 0 var(--space-md)}
+    .guide-section p{font-size:0.9rem;line-height:1.6;color:var(--text);margin:0 0 var(--space-md)}
+    .guide-section ul,.guide-section ol{font-size:0.9rem;line-height:1.6;padding-left:var(--space-2xl);margin:0 0 var(--space-md)}
+    .guide-section li{margin-bottom:var(--space-sm)}
+
+    /* Step list */
+    .steps{counter-reset:step;list-style:none;padding:0;margin:0 0 var(--space-lg)}
+    .steps li{counter-increment:step;position:relative;padding:var(--space-md) var(--space-md) var(--space-md) 48px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;margin-bottom:var(--space-sm);font-size:0.9rem;line-height:1.5}
+    .steps li::before{content:counter(step);position:absolute;left:12px;top:50%;transform:translateY(-50%);width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700}
+
+    /* Callout */
+    .callout{background:rgba(68,170,153,0.1);border:1px solid var(--success);border-radius:8px;padding:var(--space-md) var(--space-xl);margin:var(--space-md) 0 var(--space-lg);font-size:0.85rem;line-height:1.5;color:var(--text)}
+    .callout-warn{background:rgba(202,170,51,0.1);border-color:var(--warning)}
+    .callout-danger{background:rgba(204,68,68,0.1);border-color:var(--danger)}
+
+    /* Option cards */
+    .option-card{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:var(--space-lg) var(--space-xl);margin-bottom:var(--space-md)}
+    .option-card h4{margin:0 0 var(--space-sm);font-size:0.95rem;color:var(--text)}
+    .option-card p{margin:0;font-size:0.85rem;color:var(--text-muted)}
+
+    /* Glossary */
+    .glossary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--space-md)}
+    .glossary-term{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:var(--space-md) var(--space-lg)}
+    .glossary-term dt{font-weight:600;font-size:0.9rem;color:var(--accent);margin-bottom:var(--space-xs)}
+    .glossary-term dd{font-size:0.8rem;color:var(--text-muted);margin:0;line-height:1.4}
+
+    /* Back link */
+    .back-link{display:inline-flex;align-items:center;gap:var(--space-sm);font-size:0.85rem;margin-bottom:var(--space-xl);color:var(--accent);text-decoration:none}
+    .back-link:hover{text-decoration:underline}
+
+    @media(max-width:600px){
+      #page-app{padding:var(--space-md)}
+      .steps li{padding-left:40px}
+      .steps li::before{left:8px;width:22px;height:22px;font-size:0.7rem}
+      .glossary-grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="wallet"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<script src="/shared/eli5.js"></script>
+<div class="eli5-block">
+  <div class="eli5-simple">A beginner-friendly guide to everything about your crypto wallet.</div>
+  <div class="eli5-expert">Step-by-step wallet operations guide covering send, receive, buy, sell, swap, backup, and glossary. No external dependencies.</div>
+</div>
+<p class="page-hint">Complete wallet guide. Everything you need to know about sending, receiving, buying, and managing crypto.</p>
+
+<div id="page-app">
+  <a href="/wallet" class="back-link">&larr; Back to Wallet</a>
+
+  <div class="guide-hero">
+    <h1>Wallet Guide</h1>
+    <p>Everything you need to know about your HumanityOS wallet, explained in plain English. No crypto experience required.</p>
+  </div>
+
+  <!-- Table of Contents -->
+  <div class="toc">
+    <h2>Table of Contents</h2>
+    <ol class="toc-list" id="toc-list">
+      <!-- Populated by wallet-guide-app.js -->
+    </ol>
+  </div>
+
+  <!-- Guide sections rendered by JS -->
+  <div id="guide-sections"></div>
+</div>
+
+<script src="/pages/wallet-guide-app.js"></script>
+</body>
+</html>

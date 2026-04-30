@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width,initial-scale=1.0>
+  <title>Tasks — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    :root {
+  --bg: #0a0a0a;
+  --bg-panel: #131313;
+  --border: #1e1e1e;
+  --border-bright: #2a2a2a;
+  --text-muted: #666;
+  --text-dim: #444;
+  --accent: #f0a500;
+  --col-backlog: #333;
+  --col-progress: #0a3a6e;
+  --col-testing: #4a3500;
+  --col-done: #0a3a1a;
+  --col-backlog-h: #2a2a2a;
+  --col-progress-h: #0d4d8a;
+  --col-testing-h: #5a4200;
+  --col-done-h: #0d4d22;
+}
+
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    #page-app { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Scope bar ── */
+    .scope-bar {
+      background: linear-gradient(180deg, #0e0e0e 0%, #0a0a0a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: var(--space-lg) var(--space-xl) 0;
+      position: relative; overflow: hidden;
+    }
+    .scope-header { display: flex; align-items: center; gap: var(--space-lg); margin-bottom: var(--space-lg); }
+    .spiral-icon { width: 28px; height: 28px; flex-shrink: 0; }
+    .scope-title { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; color: var(--text-muted); text-transform: uppercase; }
+    .scope-tabs { display: flex; gap: var(--space-sm); overflow-x: auto; scrollbar-width: none; padding-bottom: var(--space-lg); }
+    .scope-tabs::-webkit-scrollbar { display: none; }
+    .scope-tab {
+      display: flex; flex-direction: column; align-items: center;
+      padding: var(--space-sm) var(--space-lg); border-radius: var(--radius) 8px 0 0; border: 1px solid transparent;
+      border-bottom: none; cursor: pointer; white-space: nowrap; transition: all 0.15s;
+      background: transparent; position: relative; flex-shrink: 0;
+      color: var(--text); font-family: inherit;
+    }
+    .scope-tab:hover { background: var(--bg-secondary); }
+    .scope-tab.active { background: var(--bg-panel); border-color: var(--border-bright); border-bottom-color: var(--bg-panel); }
+    .scope-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 1px; background: var(--bg-panel); }
+    .scope-fib { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.05em; margin-bottom: var(--space-xs); }
+    .scope-label { font-size: 0.72rem; font-weight: 600; }
+    .scope-tab-dot { width: 5px; height: 5px; border-radius: 50%; margin-top: var(--space-xs); }
+
+    /* ── Board controls ── */
+    .board-controls {
+      display: flex; align-items: center; gap: var(--space-xl); padding: var(--space-lg) var(--space-xl);
+      border-bottom: 1px solid var(--border); background: var(--bg-panel);
+      flex-shrink: 0;
+    }
+    .scope-desc { flex: 1; font-size: 0.78rem; color: var(--text-muted); }
+    .scope-desc strong { color: var(--text); }
+    .stats { display: flex; gap: var(--space-lg); font-size: 0.75rem; color: var(--text-muted); }
+    .stat-pill { background: var(--bg-input); border-radius: 20px; padding: var(--space-xs) var(--space-lg); }
+    .stat-pill span { color: var(--text); font-weight: 700; }
+    .btn-new {
+      display: flex; align-items: center; gap: var(--space-md);
+      background: var(--accent); color: #000; border: none;
+      border-radius: var(--radius); padding: var(--space-md) var(--space-xl); font-size: 0.8rem; font-weight: 700;
+      cursor: pointer; transition: opacity 0.15s; flex-shrink: 0;
+    }
+    .btn-new:hover { opacity: 0.85; }
+    .btn-refresh { background: transparent; border: 1px solid var(--border-bright); color: var(--text-muted); border-radius: var(--radius); padding: var(--space-md) var(--space-lg); font-size: 0.75rem; cursor: pointer; }
+    .btn-refresh:hover { color: var(--text); border-color: var(--text-muted); }
+
+    /* ── Kanban ── */
+    .kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; flex: 1; overflow: hidden; }
+    .col { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
+    .col:last-child { border-right: none; }
+    .col-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-lg) var(--space-lg); font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .col-count { background: var(--bg-input); border-radius: var(--radius-lg); padding: var(--space-xs) var(--space-md); font-size: 0.68rem; font-weight: 800; color: var(--text-muted); }
+    .col[data-status=backlog] .col-header  { color: var(--text-muted); background: var(--col-backlog); }
+    .col[data-status=in_progress] .col-header { color: #6ab0f5; background: var(--col-progress); }
+    .col[data-status=testing] .col-header { color: #f0c040; background: var(--col-testing); }
+    .col[data-status=done] .col-header { color: #4ec87a; background: var(--col-done); }
+    .col-body { flex: 1; overflow-y: auto; padding: var(--space-md); display: flex; flex-direction: column; gap: var(--space-sm); scrollbar-width: thin; scrollbar-transparent; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: var(--space-md) var(--space-lg); cursor: pointer; transition: border-color 0.15s, transform 0.1s;
+      border-left: 3px solid var(--border);
+    }
+    .card:hover { border-color: var(--border); transform: translateY(-1px); }
+    .card.priority-critical { border-left-color: #e53935; }
+    .card.priority-high     { border-left-color: var(--accent); }
+    .card.priority-medium   { border-left-color: #2196f3; }
+    .card.priority-low      { border-left-color: var(--text-muted); }
+    .card-title { font-size: 0.8rem; font-weight: 600; line-height: 1.3; color: var(--text); }
+    .card-info { display: flex; align-items: center; gap: 0.28rem; flex-wrap: wrap; margin-top: 0.22rem; font-size: 0.63rem; color: var(--text-dim); }
+    .card-prio { font-weight: 700; font-size: 0.62rem; }
+    .card-sep { color: var(--bg-hover); font-size: 0.55rem; }
+    .scope-badge { font-size: 0.65rem; font-weight: 700; padding: var(--space-xs) var(--space-md); border-radius: var(--radius-sm); background: rgba(255,255,255,0.05); }
+    .label-tag { font-size: 0.63rem; background: var(--bg-secondary); border: 1px solid var(--bg-hover); border-radius: var(--radius-sm); padding: var(--space-xs) var(--space-sm); color: var(--text-muted); }
+    .test-tally { margin-left: auto; font-size: 0.68rem; white-space: nowrap; }
+    .empty-col { color: var(--text-dim); font-size: 0.75rem; text-align: center; padding: var(--space-2xl) 0; }
+
+    /* ── Modal ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--bg-secondary); border: 1px solid var(--bg-hover); border-radius: 14px; padding: var(--space-2xl); width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+    .modal h2 { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: var(--space-xl); display: flex; align-items: center; gap: var(--space-md); }
+    .form-group { margin-bottom: var(--space-xl); }
+    .form-group label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: var(--space-sm); text-transform: uppercase; letter-spacing: 0.05em; }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%; background: var(--bg-input); border: 1px solid var(--border-bright);
+      border-radius: var(--radius); padding: var(--space-md) var(--space-lg); color: var(--text); font-size: 0.83rem;
+      font-family: inherit; outline: none; transition: border-color 0.15s;
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--accent); }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+    .modal-footer { display: flex; gap: var(--space-lg); justify-content: flex-end; margin-top: var(--space-xl); }
+    .btn-cancel { background: transparent; border: 1px solid var(--border-bright); color: var(--text-muted); border-radius: var(--radius); padding: var(--space-md) var(--space-xl); font-size: 0.82rem; cursor: pointer; }
+    .btn-cancel:hover { color: var(--text); }
+    .btn-submit { background: var(--accent); color: #000; border: none; border-radius: var(--radius); padding: var(--space-md) 1.2rem; font-size: 0.82rem; font-weight: 700; cursor: pointer; }
+    .btn-submit:hover { opacity: 0.85; }
+    .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+    .auth-note { font-size: 0.72rem; color: var(--text-dim); margin-top: var(--space-sm); }
+    .msg-error { color: var(--danger); font-size: 0.75rem; margin-top: var(--space-md); }
+    .msg-success { color: #4ec87a; font-size: 0.75rem; margin-top: var(--space-md); }
+
+    /* ── Loading ── */
+    .loading { text-align: center; padding: 3rem; color: var(--text-muted); font-size: 0.85rem; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: var(--space-md); vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Detail drawer ── */
+    .detail-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 800; }
+    .detail-overlay.open { display: block; }
+    #detail-drawer {
+      position: absolute; right: 0; top: 0; bottom: 0; width: 460px; max-width: 100%;
+      background: var(--bg-secondary); border-left: 1px solid var(--bg-hover);
+      display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform 0.22s ease;
+    }
+    .detail-overlay.open #detail-drawer { transform: translateX(0); }
+    .detail-header {
+      display: flex; align-items: center; gap: var(--space-lg);
+      padding: var(--space-xl) var(--space-xl); border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .detail-body { flex: 1; overflow-y: auto; padding: var(--space-2xl); }
+    .detail-title { font-size: 1.05rem; font-weight: 700; color: var(--text); line-height: 1.4; margin-bottom: var(--space-xl); }
+    .detail-badges { display: flex; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-xl); }
+    .detail-badge { font-size: 0.72rem; padding: var(--space-xs) var(--space-md); border-radius: var(--radius-sm); font-weight: 600; text-transform: capitalize; }
+    .badge-status-backlog { background: var(--bg-secondary); color: var(--text-muted); }
+    .badge-status-in_progress { background: #0a3a6e; color: #6ab0f5; }
+    .badge-status-testing { background: #4a3500; color: #f0c040; }
+    .badge-status-done { background: #0a3a1a; color: #4ec87a; }
+    .badge-priority-critical { background: rgba(229,57,53,.15); color: #e53935; }
+    .badge-priority-high { background: rgba(240,165,0,.15); color: var(--accent); }
+    .badge-priority-medium { background: rgba(33,150,243,.15); color: #2196f3; }
+    .badge-priority-low { background: rgba(80,80,80,.15); color: var(--text-muted); }
+    .detail-desc {
+      font-size: 0.85rem; color: #c0c0c0; line-height: 1.65;
+      margin-bottom: var(--space-2xl); white-space: pre-wrap; word-break: break-word;
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-lg) var(--space-xl);
+    }
+    .detail-meta { font-size: 0.73rem; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: var(--space-xl); display: flex; flex-direction: column; gap: var(--space-md); }
+    .detail-meta-row { display: flex; align-items: flex-start; gap: var(--space-md); }
+    .detail-meta-label { color: var(--text-dim); min-width: 75px; flex-shrink: 0; }
+    .btn-close-detail { background: none; border: none; color: var(--text-muted); font-size: 1.1rem; cursor: pointer; padding: var(--space-xs) var(--space-md); border-radius: var(--radius-sm); }
+    .btn-close-detail:hover { color: var(--text); background: var(--bg-secondary); }
+    .detail-id { font-size: 0.68rem; color: var(--text-dim); font-family: monospace; }
+    .detail-labels { margin-bottom: var(--space-xl); display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+
+    /* ── Test voting panel ── */
+    .test-panel { margin-top: var(--space-2xl); border-top: 1px solid var(--border); padding-top: 1.1rem; }
+    .test-panel-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: var(--space-lg); }
+    .test-vote-row { display: flex; gap: var(--space-md); margin-bottom: 0.85rem; }
+    .btn-test-vote {
+      flex: 1; padding: var(--space-md) var(--space-md); border-radius: var(--radius); font-size: 0.78rem; font-weight: 700;
+      border: 1px solid var(--bg-hover); background: var(--bg-secondary); color: var(--text-muted); cursor: pointer; transition: all 0.15s;
+    }
+    .btn-test-vote:hover { border-color: var(--text-muted); color: var(--text); }
+    .btn-test-vote.vote-pass { background: rgba(78,200,122,0.12); border-color: #4ec87a; color: #4ec87a; }
+    .btn-test-vote.vote-fail { background: rgba(229,57,53,0.12); border-color: #e53935; color: #e53935; }
+    .test-community { font-size: 0.72rem; color: var(--text-muted); }
+    .test-community-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-md); }
+    .test-community-header span { font-size: 0.68rem; color: var(--text-muted); }
+    .test-vote-item { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-sm) 0; border-bottom: 1px solid var(--bg-card); }
+    .test-vote-item:last-child { border-bottom: none; }
+    .test-vote-result { font-size: 0.8rem; }
+    .test-vote-name { flex: 1; font-size: 0.72rem; }
+    .test-vote-time { font-size: 0.65rem; color: var(--text-muted); }
+    .test-summary { display: flex; gap: var(--space-lg); margin-bottom: var(--space-lg); font-size: 0.75rem; }
+    .test-summary-pass { color: #4ec87a; font-weight: 700; }
+    .test-summary-fail { color: #e53935; font-weight: 700; }
+    .test-owner-label { font-size: 0.68rem; color: var(--text-muted); margin-bottom: var(--space-sm); }
+
+    /* ── Status action buttons ── */
+    .status-actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-bottom: 0.85rem; }
+    .btn-status {
+      padding: 0.28rem var(--space-lg); border-radius: var(--radius-sm); font-size: 0.7rem; font-weight: 700;
+      border: 1px solid var(--bg-hover); background: var(--bg-secondary); color: var(--text-muted);
+      cursor: pointer; transition: all 0.12s; text-transform: capitalize; letter-spacing: 0.03em;
+    }
+    .btn-status:hover { color: var(--text); border-color: var(--text-muted); }
+    .btn-status.current { cursor: default; }
+    .btn-status.current-backlog   { background: var(--bg-secondary); border-color: var(--text-muted); color: var(--text-muted); }
+    .btn-status.current-in_progress { background: var(--col-progress); border-color: #1a6ec7; color: #6ab0f5; }
+    .btn-status.current-testing  { background: var(--col-testing); border-color: #8a6200; color: #f0c040; }
+    .btn-status.current-done     { background: var(--col-done); border-color: #1a7a3a; color: #4ec87a; }
+    .status-move-label { font-size: 0.65rem; color: var(--text-dim); align-self: center; }
+    .btn-status.current-critical { background: rgba(229,57,53,.15); border-color: #e53935; color: #e53935; }
+    .btn-status.current-high     { background: rgba(240,165,0,.15); border-color: var(--accent); color: var(--accent); }
+    .btn-status.current-medium   { background: rgba(33,150,243,.15); border-color: #2196f3; color: #2196f3; }
+    .btn-status.current-low      { background: rgba(80,80,80,.1); border-color: var(--text-muted); color: var(--text-muted); }
+    .assignee-row { display: flex; align-items: center; gap: var(--space-md); }
+    .assignee-row input { flex: 1; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); padding: 0.28rem var(--space-md); font-size: 0.78rem; font-family: inherit; outline: none; }
+    .assignee-row input:focus { border-color: var(--accent); }
+    .assignee-row button { padding: 0.28rem var(--space-lg); border-radius: var(--radius-sm); border: 1px solid var(--border-bright); background: var(--bg-input); color: var(--text-muted); font-size: 0.72rem; cursor: pointer; }
+    .assignee-row button:hover { color: var(--text); }
+
+    /* ── Project selector ── */
+    .project-bar {
+      display: flex; align-items: center; gap: var(--space-lg);
+      padding: var(--space-md) var(--space-xl);
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #0e0e0e 0%, #0a0a0a 100%);
+      flex-shrink: 0;
+    }
+    .project-selector {
+      position: relative;
+    }
+    .project-selector-btn {
+      display: flex; align-items: center; gap: var(--space-md);
+      background: var(--bg-panel); border: 1px solid var(--border-bright);
+      border-radius: var(--radius); padding: var(--space-sm) var(--space-lg);
+      color: var(--text); font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; min-width: 180px; font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    .project-selector-btn:hover { border-color: var(--text-muted); }
+    .project-selector-btn .proj-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .project-selector-btn .proj-icon {
+      font-size: 0.9rem; flex-shrink: 0;
+    }
+    .project-selector-btn .proj-chevron {
+      margin-left: auto; font-size: 0.65rem; color: var(--text-muted);
+    }
+    .project-dropdown {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0;
+      min-width: 240px; background: var(--bg-panel); border: 1px solid var(--border-bright);
+      border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      z-index: 500; overflow: hidden;
+    }
+    .project-dropdown.open { display: block; }
+    .project-dropdown-item {
+      display: flex; align-items: center; gap: var(--space-md);
+      padding: var(--space-md) var(--space-lg); cursor: pointer;
+      font-size: 0.8rem; color: var(--text-muted);
+      transition: background 0.1s, color 0.1s; border: none;
+      background: transparent; width: 100%; text-align: left; font-family: inherit;
+    }
+    .project-dropdown-item:hover { background: var(--bg-secondary); color: var(--text); }
+    .project-dropdown-item.active { color: var(--accent); font-weight: 600; }
+    .project-dropdown-item .proj-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .project-dropdown-item .proj-icon {
+      font-size: 0.85rem; flex-shrink: 0;
+    }
+    .project-dropdown-item .proj-vis {
+      margin-left: auto; font-size: 0.65rem; color: var(--text-dim);
+    }
+    .project-dropdown-sep {
+      height: 1px; background: var(--border); margin: var(--space-xs) 0;
+    }
+    .project-dropdown-item.create-item {
+      color: var(--accent); font-weight: 600;
+      border-top: 1px solid var(--border);
+    }
+    .btn-new-project {
+      display: flex; align-items: center; gap: var(--space-sm);
+      background: transparent; border: 1px solid var(--border-bright);
+      border-radius: var(--radius); padding: var(--space-sm) var(--space-lg);
+      color: var(--text-muted); font-size: 0.78rem; cursor: pointer;
+      font-family: inherit; transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-new-project:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ── Project modal ── */
+    .project-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+    .project-modal-overlay.open { display: flex; }
+    .project-modal { background: var(--bg-secondary); border: 1px solid var(--bg-hover); border-radius: 14px; padding: var(--space-2xl); width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
+    .project-modal h2 { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: var(--space-xl); display: flex; align-items: center; gap: var(--space-md); }
+    .color-picker-row {
+      display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center;
+    }
+    .color-swatch {
+      width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent;
+      cursor: pointer; transition: border-color 0.15s, transform 0.1s;
+    }
+    .color-swatch:hover { transform: scale(1.15); }
+    .color-swatch.selected { border-color: var(--text); transform: scale(1.15); }
+    .icon-picker-row {
+      display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center;
+    }
+    .icon-option {
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      cursor: pointer; font-size: 1rem; background: var(--bg-input);
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .icon-option:hover { border-color: var(--text-muted); }
+    .icon-option.selected { border-color: var(--accent); background: var(--bg-secondary); }
+    .visibility-options { display: flex; flex-direction: column; gap: var(--space-sm); }
+    .visibility-option {
+      display: flex; align-items: center; gap: var(--space-md);
+      cursor: pointer; font-size: 0.82rem; color: var(--text-muted);
+    }
+    .visibility-option input[type=radio] { accent-color: var(--accent); }
+    .visibility-option .vis-label { font-weight: 600; color: var(--text); }
+    .visibility-option .vis-desc { font-size: 0.72rem; color: var(--text-dim); }
+    .project-task-count {
+      font-size: 0.68rem; color: var(--text-dim); margin-left: auto;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 800px) {
+      .kanban { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 500px) {
+      .kanban { grid-template-columns: 1fr; }
+      .stats { display: none; }
+      .project-bar { flex-wrap: wrap; }
+    }
+
+    /* ── Top-level view tabs (Kanban / Quests) ── */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      background: linear-gradient(180deg, var(--bg) 0%, #0a0a0a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 0 var(--space-xl);
+      flex-shrink: 0;
+    }
+    .view-tab {
+      padding: var(--space-md) 1.2rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      font-family: inherit;
+    }
+    .view-tab:hover { color: var(--text-muted); }
+    .view-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── Quests styles ── */
+    #quests-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #quests-app {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    #quest-sidebar {
+      width: 200px;
+      min-width: 160px;
+      background: var(--bg);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    #quest-sidebar h2 {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: var(--space-lg) var(--space-xl) var(--space-md);
+    }
+    .q-cat {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md) var(--space-xl);
+      cursor: pointer;
+      border-radius: var(--radius);
+      margin: 0 var(--space-md) var(--space-xs);
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      transition: background 0.12s, color 0.12s;
+      border: 1px solid transparent;
+    }
+    .q-cat:hover { background: var(--bg-secondary); color: var(--text); }
+    .q-cat.active {
+      background: var(--bg-card);
+      color: var(--text);
+      border-color: var(--success);
+    }
+    .q-cat .q-cat-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .q-cat .q-cat-count {
+      margin-left: auto;
+      font-size: 0.72rem;
+      background: var(--bg-input);
+      color: var(--text-muted);
+      padding: 1px 5px;
+      border-radius: var(--radius-lg);
+    }
+    #quest-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #quest-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: var(--space-lg) var(--space-xl);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+    #quest-header h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      flex: 1;
+    }
+    #quest-search {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: var(--space-sm) var(--space-lg);
+      font-size: 0.85rem;
+      width: 180px;
+      outline: none;
+    }
+    #quest-search:focus { border-color: var(--success); }
+    #add-quest-btn {
+      background: #1a4a2a;
+      border: 1px solid var(--success);
+      color: var(--success);
+      padding: var(--space-sm) var(--space-lg);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: background 0.12s;
+    }
+    #add-quest-btn:hover { background: #1f5a32; }
+    #quest-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+    .quest-card {
+      background: #131313;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-lg) 0.85rem;
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-lg);
+      cursor: pointer;
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .quest-card:hover { border-color: var(--border); background: var(--bg-card); }
+    .quest-card.done { opacity: 0.5; }
+    .quest-card.done .quest-title { text-decoration: line-through; color: var(--text-muted); }
+    .quest-check {
+      width: 18px; height: 18px;
+      border: 2px solid var(--text-muted);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+      transition: border-color 0.12s, background 0.12s;
+      cursor: pointer;
+    }
+    .quest-check:hover { border-color: var(--success); }
+    .quest-card.done .quest-check {
+      background: var(--success);
+      border-color: var(--success);
+      color: var(--text);
+      font-size: 0.7rem;
+    }
+    .quest-body { flex: 1; min-width: 0; }
+    .quest-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: var(--space-xs);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .quest-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .quest-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      margin-top: var(--space-sm);
+      flex-wrap: wrap;
+    }
+    .quest-xp {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #f80;
+      background: rgba(255,136,0,0.1);
+      border: 1px solid rgba(255,136,0,0.25);
+      border-radius: var(--radius-sm);
+      padding: 1px 6px;
+    }
+    .quest-type-badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .badge-daily   { color: #4cf; background: rgba(68,204,255,0.1); border: 1px solid rgba(68,204,255,0.25); }
+    .badge-story   { color: #c8f; background: rgba(200,136,255,0.1); border: 1px solid rgba(200,136,255,0.25); }
+    .badge-side    { color: #fa4; background: rgba(255,170,68,0.1); border: 1px solid rgba(255,170,68,0.25); }
+    .badge-personal{ color: #4d9; background: rgba(68,204,136,0.1); border: 1px solid rgba(68,204,136,0.25); }
+    .quest-due {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+    .quest-due.overdue { color: var(--danger); }
+    .quest-delete {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: var(--space-xs) var(--space-xs);
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+      transition: color 0.12s;
+    }
+    .quest-delete:hover { color: var(--danger); }
+    .quest-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: var(--space-lg);
+      color: var(--text-muted);
+      text-align: center;
+      padding: var(--space-3xl);
+    }
+    .quest-empty-state .empty-icon { font-size: 3rem; }
+    .quest-empty-state p { font-size: 0.9rem; }
+    .quest-modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 8000;
+      align-items: center;
+      justify-content: center;
+    }
+    .quest-modal-backdrop.open { display: flex; }
+    .quest-modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius-lg);
+      padding: var(--space-2xl);
+      width: min(480px, 95vw);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xl);
+    }
+    .quest-modal h2 { font-size: 1.1rem; color: var(--text); }
+    .quest-modal label { font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: var(--space-sm); }
+    .quest-modal input, .quest-modal textarea, .quest-modal select {
+      width: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: var(--space-md) var(--space-lg);
+      font-size: 0.88rem;
+      font-family: inherit;
+      outline: none;
+    }
+    .quest-modal input:focus, .quest-modal textarea:focus, .quest-modal select:focus { border-color: var(--success); }
+    .quest-modal textarea { resize: vertical; min-height: 70px; }
+    .quest-modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+    .quest-modal-actions { display: flex; gap: var(--space-md); justify-content: flex-end; }
+    .quest-btn-cancel {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: var(--space-md) var(--space-xl);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 0.88rem;
+    }
+    .quest-btn-save {
+      background: #1a4a2a;
+      border: 1px solid var(--success);
+      color: var(--success);
+      padding: var(--space-md) 1.2rem;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+    .quest-btn-cancel:hover { border-color: var(--text-muted); color: var(--text-muted); }
+    .quest-btn-save:hover { background: #1f5a32; }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src=/shared/shell.js data-active="tasks"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<script src="/shared/eli5.js"></script>
+<div class="eli5-block">
+  <div class="eli5-simple">Your to-do list! Make tasks, check them off, and earn XP from quests.</div>
+  <div class="eli5-expert">Kanban board with scope-filtered task management (Fibonacci tiers from self to cosmos). Quests tab adds RPG-style objectives with skill XP rewards. Tasks sync to the server via REST API. Drag cards between columns to update status.</div>
+</div>
+<p class="page-hint" id="hint-kanban">Your task board. Organize what needs to be done — from personal to-dos to big community projects. Drag tasks between columns as you make progress.</p>
+<p class="page-hint" id="hint-quests" style="display:none">Your quests and missions. Pick challenges to work on, track your progress, and earn recognition when you complete them.</p>
+<div id=page-app>
+
+  <!-- View tabs: Kanban / Quests -->
+  <div class="view-tabs">
+    <button class="view-tab active" data-view="kanban" onclick="switchView('kanban')">Kanban</button>
+    <button class="view-tab" data-view="quests" onclick="switchView('quests')">Quests</button>
+  </div>
+
+  <div id="kanban-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+
+  <!-- Project selector -->
+  <div class="project-bar" id="project-bar">
+    <div class="project-selector" id="project-selector">
+      <button class="project-selector-btn" id="project-selector-btn" onclick="toggleProjectDropdown()">
+        <span class="proj-icon" id="proj-btn-icon">📋</span>
+        <span class="proj-dot" id="proj-btn-dot" style="background:#4488ff"></span>
+        <span id="proj-btn-label">All Projects</span>
+        <span class="proj-chevron">▾</span>
+      </button>
+      <div class="project-dropdown" id="project-dropdown"></div>
+    </div>
+    <button class="btn-new-project" onclick="openProjectModal()">+ New Project</button>
+    <span id="project-task-count" class="project-task-count"></span>
+  </div>
+
+  <!-- Scope selector -->
+  <div class="scope-bar">
+    <div class="scope-header">
+      <!-- Golden spiral SVG icon -->
+      <svg class="spiral-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 14 Q14 8 19 9.5 Q24 11 22.5 16 Q21 21 16 20.5 Q11 20 10.5 15 Q10 10 14.5 8.5 Q19 7 22 11 Q25 15 23 19.5 Q21 24 16.5 24.5"
+              stroke="#f0a500" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.9"/>
+        <circle cx="14" cy="14" r="1.5" fill="#f0a500" opacity="0.6"/>
+      </svg>
+      <span class="scope-title">Mission Control — Fibonacci Scope</span>
+    </div>
+    <div class="scope-tabs" id="scope-tabs"></div>
+  </div>
+
+  <!-- Controls bar -->
+  <div class="board-controls">
+    <div class="scope-desc" id="scope-desc">Loading…</div>
+    <div class="stats" id="stats-bar"></div>
+    <input id="task-search" type="search" placeholder="Filter tasks…" oninput="renderBoard()"
+      style="background:var(--bg-input);border:1px solid var(--border-bright);border-radius:6px;padding:var(--space-sm) var(--space-lg);color:var(--text);font-size:0.78rem;font-family:inherit;outline:none;width:130px;flex-shrink:0;"
+      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    <button class="btn-refresh" onclick="loadTasks()" title="Refresh">↻</button>
+    <button class="btn-new" onclick="openModal()">+ New Task</button>
+  </div>
+
+  <!-- Kanban board -->
+  <div class="kanban">
+    <div class="col" data-status="backlog">
+      <div class="col-header">Backlog <span class="col-count" id="count-backlog">0</span></div>
+      <div class="col-body" id="col-backlog"><div class="loading"><span class="spinner"></span>Loading</div></div>
+    </div>
+    <div class="col" data-status="in_progress">
+      <div class="col-header">In Progress <span class="col-count" id="count-in_progress">0</span></div>
+      <div class="col-body" id="col-in_progress"></div>
+    </div>
+    <div class="col" data-status="testing">
+      <div class="col-header">Testing <span class="col-count" id="count-testing">0</span></div>
+      <div class="col-body" id="col-testing"></div>
+    </div>
+    <div class="col" data-status="done">
+      <div class="col-header">Done <span class="col-count" id="count-done">0</span></div>
+      <div class="col-body" id="col-done"></div>
+    </div>
+  </div>
+  </div><!-- /kanban-content -->
+
+  <!-- Quests content -->
+  <div id="quests-content" style="display:none">
+    <div id="quests-app">
+      <nav id="quest-sidebar">
+        <h2>Categories</h2>
+        <div class="q-cat active" data-filter="all" onclick="quest_setFilter('all')">
+          <span class="q-cat-dot" style="background:#aaa;"></span>
+          All Quests
+          <span class="q-cat-count" id="cnt-all">0</span>
+        </div>
+        <div class="q-cat" data-filter="daily" onclick="quest_setFilter('daily')">
+          <span class="q-cat-dot" style="background:#4cf;"></span>
+          Daily
+          <span class="q-cat-count" id="cnt-daily">0</span>
+        </div>
+        <div class="q-cat" data-filter="story" onclick="quest_setFilter('story')">
+          <span class="q-cat-dot" style="background:#c8f;"></span>
+          Story
+          <span class="q-cat-count" id="cnt-story">0</span>
+        </div>
+        <div class="q-cat" data-filter="side" onclick="quest_setFilter('side')">
+          <span class="q-cat-dot" style="background:#fa4;"></span>
+          Side
+          <span class="q-cat-count" id="cnt-side">0</span>
+        </div>
+        <div class="q-cat" data-filter="personal" onclick="quest_setFilter('personal')">
+          <span class="q-cat-dot" style="background:#4d9;"></span>
+          Personal
+          <span class="q-cat-count" id="cnt-personal">0</span>
+        </div>
+        <div class="q-cat" data-filter="done" onclick="quest_setFilter('done')">
+          <span class="q-cat-dot" style="background:#555;"></span>
+          Completed
+          <span class="q-cat-count" id="cnt-done">0</span>
+        </div>
+      </nav>
+      <div id="quest-main">
+        <div id="quest-header">
+          <h1 id="quest-heading">All Quests</h1>
+          <input id="quest-search" type="text" placeholder="Search quests…" oninput="quest_renderList()">
+          <button id="add-quest-btn" onclick="quest_openModal()">+ Add Quest</button>
+        </div>
+        <div id="quest-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page-app -->
+
+<!-- Quest Add/Edit Modal -->
+<div class="quest-modal-backdrop" id="quest-modal">
+  <div class="quest-modal">
+    <h2 id="quest-modal-title">New Quest</h2>
+    <div>
+      <label>Title *</label>
+      <input id="q-title" type="text" placeholder="What needs to be done?">
+    </div>
+    <div>
+      <label>Description</label>
+      <textarea id="q-desc" placeholder="Details, steps, notes…"></textarea>
+    </div>
+    <div class="quest-modal-row">
+      <div>
+        <label>Type</label>
+        <select id="q-type">
+          <option value="personal">Personal</option>
+          <option value="daily">Daily</option>
+          <option value="story">Story</option>
+          <option value="side">Side</option>
+        </select>
+      </div>
+      <div>
+        <label>XP Reward</label>
+        <input id="q-xp" type="number" min="0" step="10" placeholder="e.g. 50" value="25">
+      </div>
+    </div>
+    <div class="quest-modal-row">
+      <div>
+        <label>Due Date (optional)</label>
+        <input id="q-due" type="date">
+      </div>
+      <div>
+        <label>Award XP to Skill (optional)</label>
+        <input id="q-skill" type="text" placeholder="e.g. algebra, cooking, yoga" maxlength="50">
+      </div>
+    </div>
+    <div class="quest-modal-actions">
+      <button class="quest-btn-cancel" onclick="quest_closeModal()">Cancel</button>
+      <button class="quest-btn-save" onclick="quest_saveQuest()">Save Quest</button>
+    </div>
+  </div>
+</div>
+
+<!-- Task detail drawer -->
+<div class="detail-overlay" id="detail-overlay" onclick="if(event.target===this)closeDetail()">
+  <div id="detail-drawer">
+    <div class="detail-header">
+      <button class="btn-close-detail" onclick="closeDetail()" title="Close (Esc)">✕</button>
+      <span class="detail-id" id="detail-id"></span>
+      <div style="flex:1"></div>
+      <span id="detail-scope-badge" class="scope-badge"></span>
+    </div>
+    <div class="detail-body">
+      <div class="detail-title" id="detail-title"></div>
+      <div class="detail-badges" id="detail-badges"></div>
+      <div class="status-actions" id="detail-status-btns"></div>
+      <div class="detail-desc" id="detail-desc"></div>
+      <div class="status-actions" id="detail-priority-btns" style="margin-bottom:var(--space-md)"></div>
+      <div id="detail-assignee-row" style="margin-bottom:0.85rem"></div>
+      <div class="detail-labels" id="detail-labels"></div>
+      <div class="detail-meta" id="detail-meta"></div>
+      <div id="detail-test-panel"></div>
+      <div style="margin-top:var(--space-xl);border-top:1px solid var(--border);padding-top:var(--space-xl)">
+        <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:var(--space-md)"><span class="pg-ico" data-icon="chat" data-size="14"></span> Comments</div>
+        <div id="detail-comments"></div>
+        <div style="display:flex;gap:var(--space-md);margin-top:var(--space-md)">
+          <input id="comment-input" type="text" placeholder="Add a comment…" maxlength="2000" style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:var(--space-sm) var(--space-lg);font-size:0.8rem;font-family:inherit" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(openDetailId)}">
+          <button onclick="submitComment(openDetailId)" style="background:var(--accent);border:none;border-radius:6px;color:var(--text);padding:var(--space-sm) var(--space-xl);cursor:pointer;font-size:0.8rem">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create task modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2>🎯 New Task</h2>
+    <div class="form-group">
+      <label>Title *</label>
+      <input type=text id=f-title placeholder="What needs to be done?" maxlength=200>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id=f-desc placeholder="Context, acceptance criteria, links…"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Priority</label>
+        <select id=f-priority>
+          <option value=low>Low</option>
+          <option value=medium selected>Medium</option>
+          <option value=high>High</option>
+          <option value=critical>Critical</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Scope</label>
+        <select id=f-scope></select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Project</label>
+      <select id="f-project"></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Status</label>
+        <select id=f-status>
+          <option value=backlog selected>Backlog</option>
+          <option value=in_progress>In Progress</option>
+          <option value=testing>Testing</option>
+          <option value=done>Done</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Assignee (name or key)</label>
+        <input type=text id=f-assignee placeholder="Optional">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Labels (comma-separated)</label>
+      <input type=text id=f-labels placeholder="backend, relay, urgent">
+    </div>
+    <div class="form-group">
+      <label>Admin API Key <span style="font-weight:400;color:var(--text-muted)">(optional — or sign in at /chat)</span></label>
+      <input type=password id=f-apikey placeholder="Leave blank if signed into /chat">
+      <div class="auth-note">Signed-in relay users can create tasks without a key. Admins: <code>grep API_SECRET /opt/Humanity/.env</code></div>
+    </div>
+    <div id=form-msg></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-submit" id=btn-submit onclick="submitTask()">Create Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project create/edit modal -->
+<div class="project-modal-overlay" id="project-modal-overlay" onclick="if(event.target===this)closeProjectModal()">
+  <div class="project-modal">
+    <h2 id="project-modal-title">New Project</h2>
+    <div class="form-group">
+      <label>Name *</label>
+      <input type="text" id="pf-name" placeholder="Project name" maxlength="100">
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="pf-desc" placeholder="What is this project about?"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Color</label>
+      <div class="color-picker-row" id="pf-colors"></div>
+    </div>
+    <div class="form-group">
+      <label>Icon</label>
+      <div class="icon-picker-row" id="pf-icons"></div>
+    </div>
+    <div class="form-group">
+      <label>Visibility</label>
+      <div class="visibility-options">
+        <label class="visibility-option">
+          <input type="radio" name="pf-visibility" value="public" checked>
+          <div><div class="vis-label">Public</div><div class="vis-desc">Anyone on the server can see this project</div></div>
+        </label>
+        <label class="visibility-option">
+          <input type="radio" name="pf-visibility" value="private">
+          <div><div class="vis-label">Private</div><div class="vis-desc">Only you can see this project and its tasks</div></div>
+        </label>
+        <label class="visibility-option">
+          <input type="radio" name="pf-visibility" value="members-only">
+          <div><div class="vis-label">Members Only</div><div class="vis-desc">Only invited members can see this project</div></div>
+        </label>
+      </div>
+    </div>
+    <div id="project-form-msg"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeProjectModal()">Cancel</button>
+      <button class="btn-submit" id="btn-project-submit" onclick="submitProject()">Create Project</button>
+    </div>
+  </div>
+</div>
+
+<script src="/pages/tasks-app.js"></script>
+</body>
+</html>

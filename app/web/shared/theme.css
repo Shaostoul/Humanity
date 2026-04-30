@@ -1,0 +1,237 @@
+/* CSS Reset */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* CSS Variables */
+/* =========================================================================
+ * AUTO-GENERATED from data/gui/theme.ron — do not edit by hand.
+ * Regenerate with: node scripts/gen-theme-css.js
+ * ========================================================================= */
+:root {
+  /* Backgrounds */
+  --bg: #0a0a0c;
+  --bg-secondary: #141418;
+  --bg-tertiary: #252530;
+  --bg-card: #1a1a22;
+  --bg-card-hover: #252530;
+  --bg-input: #252530;
+  --bg-hover: #252530;
+  --bg-modal: rgba(0, 0, 0, 0.7);
+  --bg-panel: #141419;
+  --bg-sidebar: #16161c;
+  --bg-sidebar-dark: #1e1e24;
+
+  /* Text */
+  --text: #e8e8ea;
+  --text-secondary: #888894;
+  --text-muted: #6a6a75;
+  --text-on-accent: #0d0d0d;
+
+  /* Accent */
+  --accent: #ed8c24;
+  --accent-hover: #ffa63d;
+  --accent-pressed: #cc731a;
+  --accent-dim: rgba(237, 140, 36, 0.15);
+
+  /* Semantic */
+  --success: #33bf4d;
+  --warning: #f2bf1a;
+  --danger: #e64033;
+  --info: #3380e6;
+  --border: #2a2a35;
+  --border-focus: #ed8c24;
+
+  /* Badges */
+  --badge-admin: #e68021;
+  --badge-mod: #26ad61;
+  --badge-verified: #3394d9;
+  --badge-donor: #9c59b5;
+  --badge-live: #e64d3d;
+
+  /* Radii */
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-lg: 8px;
+  --badge-radius: 3px;
+
+  /* Spacing (derived from native tokens via x/16 rem conversion) */
+  --space-xs: 0.125rem;
+  --space-sm: 0.25rem;
+  --space-md: 0.5rem;
+  --space-lg: 0.75rem;
+  --space-xl: 1rem;
+  --space-2xl: 1.5rem;
+  --space-3xl: 2rem;
+
+  /* Typography */
+  --text-xs: 0.625rem;
+  --text-sm: 0.6875rem;
+  --text-base: 0.8125rem;
+  --text-lg: 0.9375rem;
+  --text-xl: 1rem;
+  --text-2xl: 1.125rem;
+  --text-3xl: 1.375rem;
+  --font-size-base: 0.8125rem;
+  --line-height: 1.6;
+
+  /* Icons */
+  --icon-size: 14px;
+  --icon-small: 12px;
+  --icon-weight: 3;
+
+  /* Widget sizing */
+  --button-height: 24px;
+  --input-height: 24px;
+  --sidebar-width: 240px;
+  --modal-width: 440px;
+  --row-height: 18px;
+  --header-height: 24px;
+  --content-width: none;
+}
+/* ======================== END AUTO-GENERATED ======================== */
+
+/* ── Light theme — toggled by adding data-theme="light" to <html> ── */
+[data-theme="light"] {
+  --bg: #f4f4f4;
+  --bg-secondary: #e8e8e8;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0f0f0;
+  --bg-input: #e8e8e8;
+  --bg-hover: #e0e0e0;
+  --text: #1a1a1a;
+  --text-muted: #555;
+  --accent: #d06600;
+  --accent-hover: #b35500;
+  --accent-dim: rgba(208,102,0,0.12);
+  --border: #ccc;
+  --success: #2a7;
+  --danger: #c33;
+  --warning: #a83;
+}
+
+/* Base Typography */
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); }
+
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-xl); }
+h4 { font-size: var(--text-base); }
+
+/* ── Content Width — constrains main page content ── */
+.page-content, #settings-main, #messages, main {
+  max-width: var(--content-width, none);
+}
+
+/* Page purpose hints — shown at the top of every page */
+.page-hint {
+  margin: var(--space-md) var(--space-xl);
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  line-height: 1.5;
+}
+
+/* ── Compact Mode — shrinks spacing scale when [data-compact] is on <html> ── */
+[data-compact] {
+  --space-xs: 0.1rem;
+  --space-sm: 0.15rem;
+  --space-md: 0.3rem;
+  --space-lg: 0.45rem;
+  --space-xl: 0.6rem;
+  --space-2xl: 0.9rem;
+  --space-3xl: 1.2rem;
+}
+
+/* ── Nav Group Color Indicators ── */
+/* Uses ::before so it doesn't conflict with ::after tooltips on hover */
+.nav-group-red .tab::before,
+.nav-group-green .tab::before,
+.nav-group-blue .tab::before {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  right: 2px;
+  height: 3px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.4;
+}
+.nav-group-red .tab::before { background: #e74c3c; }
+.nav-group-green .tab::before { background: #2ecc71; }
+.nav-group-blue .tab::before { background: #3498db; }
+.nav-group-red .tab.active::before { opacity: 1; }
+.nav-group-green .tab.active::before { opacity: 1; }
+.nav-group-blue .tab.active::before { opacity: 1; }
+
+/* ── Context Toggle (Real/Sim pill) ── */
+.context-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1px;
+  flex-shrink: 0;
+  height: 24px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  user-select: none;
+}
+.context-toggle .ctx-seg {
+  padding: 2px 10px;
+  border-radius: 12px;
+  color: var(--text-muted);
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+  white-space: nowrap;
+}
+.context-toggle .ctx-seg.active {
+  color: #fff;
+}
+.context-toggle.ctx-real .ctx-seg.active {
+  background: #27ae60;
+}
+.context-toggle.ctx-sim .ctx-seg.active {
+  background: #6c5ce7;
+}
+.context-toggle .ctx-seg:not(.active):hover {
+  color: var(--text);
+}
+[data-theme="light"] .context-toggle {
+  background: var(--bg-input);
+  border-color: #bbb;
+}
+
+/* Mobile drawer colored section headers */
+.mobile-hub-group.group-red h4 { color: rgba(231, 76, 60, 0.85); }
+.mobile-hub-group.group-green h4 { color: rgba(46, 204, 113, 0.85); }
+.mobile-hub-group.group-blue h4 { color: rgba(52, 152, 219, 0.85); }
+
+/* -- Accessibility -- */
+[data-high-contrast] { --bg: #000; --text: #fff; --border: #fff; --accent: #ff0; }
+[data-reduced-motion] * { animation: none !important; transition: none !important; }
+[data-colorblind="protanopia"] { filter: url(#protanopia); }
+[data-colorblind="deuteranopia"] { filter: url(#deuteranopia); }
+[data-colorblind="tritanopia"] { filter: url(#tritanopia); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-sm); }
+::-webkit-scrollbar-thumb:hover { background: #555; }

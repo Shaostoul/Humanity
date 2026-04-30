@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content="width=device-width, initial-scale=1.0">
+  <title>Admin — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --bg-panel: #141414;
+      --border: #222;
+      --accent: #22aa66;
+      --error: var(--danger, #e55);
+    }
+    body { background: var(--bg); color: var(--text, #e0e0e0); min-height: 100vh; display: flex; flex-direction: column; }
+    #page-app { flex: 1; overflow-y: auto; padding: 24px 32px; max-width: 1200px; width: 100%; margin: 0 auto; }
+    h1 { font-size: 1.3rem; font-weight: 700; color: var(--accent); margin-bottom: 24px; }
+
+    /* Overview cards */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+    .card-label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .card-value { font-size: 1.6rem; font-weight: 700; color: var(--text, #e0e0e0); font-variant-numeric: tabular-nums; }
+    .card-sub { font-size: 0.7rem; color: #666; margin-top: 4px; }
+
+    /* Panels */
+    .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 24px; }
+    .panel h2 { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: 16px; }
+    .panel p { font-size: 0.85rem; color: #888; margin-bottom: 12px; }
+
+    /* Activity chart */
+    .chart-bar-row { display: flex; align-items: flex-end; gap: 2px; height: 120px; padding: 0 4px; }
+    .chart-bar { flex: 1; background: var(--accent); min-width: 4px; border-radius: 2px 2px 0 0; transition: height 0.3s; position: relative; }
+    .chart-bar:hover { background: #33cc77; }
+    .chart-bar:hover::after { content: attr(data-count); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); font-size: 0.65rem; color: var(--text); background: #222; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+    .chart-labels { display: flex; justify-content: space-between; padding: 4px 4px 0; font-size: 0.65rem; color: #666; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { text-align: left; color: #888; font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    td { padding: 8px 12px; border-bottom: 1px solid #1a1a1a; color: var(--text, #ccc); }
+    tr:hover td { background: #1a1a1a; }
+
+    /* Search */
+    .search-box { display: flex; gap: 8px; margin-bottom: 16px; }
+    .search-box input { flex: 1; background: #1a1a1a; border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; }
+    .search-box input::placeholder { color: #555; }
+
+    /* Federation */
+    .fed-card { display: flex; align-items: center; gap: 12px; padding: 12px; background: #1a1a1a; border-radius: 6px; margin-bottom: 8px; }
+    .fed-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .fed-dot.online { background: #22cc66; }
+    .fed-dot.offline { background: #666; }
+    .fed-name { font-weight: 600; font-size: 0.85rem; }
+    .fed-url { font-size: 0.75rem; color: #888; }
+
+    /* Auth gate */
+    #auth-gate { text-align: center; padding: 80px 20px; }
+    #auth-gate p { color: #888; font-size: 0.9rem; margin-bottom: 16px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+    .badge-admin { background: #e55; color: #fff; }
+    .badge-mod { background: #f80; color: #fff; }
+    .badge-verified { background: #22aa66; color: #fff; }
+    .badge-member { background: #444; color: #ccc; }
+
+    /* Game world panel */
+    .game-stat { display: inline-flex; align-items: center; gap: 8px; margin-right: 24px; }
+    .game-stat-label { font-size: 0.8rem; color: #888; }
+    .game-stat-value { font-size: 1.1rem; font-weight: 700; }
+
+    .loading { text-align: center; padding: 40px; color: #666; }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src=/shared/shell.js data-active=ops></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+
+<div id="page-app">
+  <div id="auth-gate" style="display:none">
+    <h1>Admin Dashboard</h1>
+    <p>You must be signed in with an admin account to access this page.</p>
+    <p id="auth-status"></p>
+  </div>
+
+  <div id="dashboard" style="display:none">
+    <h1>Admin Dashboard</h1>
+
+    <!-- Overview cards -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-label">Total Users</div>
+        <div class="card-value" id="stat-users">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Online Now</div>
+        <div class="card-value" id="stat-online">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Messages (24h)</div>
+        <div class="card-value" id="stat-messages-24h">--</div>
+        <div class="card-sub" id="stat-messages-total"></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Storage Used</div>
+        <div class="card-value" id="stat-storage">--</div>
+        <div class="card-sub" id="stat-storage-detail"></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Uptime</div>
+        <div class="card-value" id="stat-uptime">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Game World</div>
+        <div class="card-value" id="stat-game">--</div>
+        <div class="card-sub" id="stat-game-detail"></div>
+      </div>
+    </div>
+
+    <!-- Activity chart -->
+    <div class="panel">
+      <h2>Messages per Hour (24h)</h2>
+      <div class="chart-bar-row" id="activity-chart"></div>
+      <div class="chart-labels">
+        <span>24h ago</span>
+        <span>12h ago</span>
+        <span>Now</span>
+      </div>
+    </div>
+
+    <!-- Top channels -->
+    <div class="panel">
+      <h2>Top Channels</h2>
+      <table>
+        <thead><tr><th>Channel</th><th>Messages</th></tr></thead>
+        <tbody id="top-channels"></tbody>
+      </table>
+    </div>
+
+    <!-- Recent joins -->
+    <div class="panel">
+      <h2>Recent Joins</h2>
+      <table>
+        <thead><tr><th>Name</th><th>Role</th><th>Joined</th></tr></thead>
+        <tbody id="recent-joins"></tbody>
+      </table>
+    </div>
+
+    <!-- Federation status -->
+    <div class="panel">
+      <h2>Federation Status</h2>
+      <div id="federation-list">
+        <p style="color:#666">No federated servers configured.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/pages/admin-app.js"></script>
+</body>
+</html>

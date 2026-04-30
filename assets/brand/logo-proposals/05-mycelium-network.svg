@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HumanityOS logo proposal 5: "Mycelium Network"
+
+  Concept: organic federation. Mycelium is the hidden root network that
+  ties forests together underground, carrying water, nutrients, and
+  signals between trees that never meet above the soil. That's the
+  platform: each person is a node, messages flow invisibly beneath,
+  the network nourishes every member. Unlike the Federation Mesh (#2)
+  which is geometric and formal, this one is biological — the soft
+  version of the same idea.
+
+  Structure: glowing central node, six warm primary filaments curving
+  out to orange secondary nodes, each of those branching again into
+  thin cool filaments with tiny white tips. Reads as "network" at any
+  size; at favicon scale the central glow carries the icon.
+-->
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HumanityOS logo proposal — Mycelium Network">
+  <defs>
+    <radialGradient id="mycCore" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFE3A8"/>
+      <stop offset="55%"  stop-color="#ED8C24"/>
+      <stop offset="100%" stop-color="#5a2f00" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="80" fill="#0a0a0c"/>
+
+  <!-- Secondary branches: thin, cool — sprout from the primary nodes outward -->
+  <g stroke="#8a8a94" fill="none" stroke-linecap="round" stroke-width="2" opacity="0.55">
+    <path d="M 160 160 Q 125 110 95 78"/>
+    <path d="M 160 160 Q 108 178 58 180"/>
+    <path d="M 380 150 Q 420 100 445 65"/>
+    <path d="M 380 150 Q 440 172 462 228"/>
+    <path d="M 408 284 Q 458 296 478 350"/>
+    <path d="M 408 284 Q 468 260 490 240"/>
+    <path d="M 350 410 Q 384 440 425 458"/>
+    <path d="M 350 410 Q 380 470 360 490"/>
+    <path d="M 170 420 Q 135 465 90 470"/>
+    <path d="M 170 420 Q 160 475 190 495"/>
+    <path d="M 100 320 Q 60 360 38 420"/>
+    <path d="M 100 320 Q 45 310 28 280"/>
+  </g>
+
+  <!-- Primary filaments: warm, thicker — center out to the first ring -->
+  <g stroke="#ED8C24" fill="none" stroke-linecap="round" stroke-width="4" opacity="0.9">
+    <path d="M 256 256 Q 205 205 160 160"/>
+    <path d="M 256 256 Q 320 215 380 150"/>
+    <path d="M 256 256 Q 335 265 408 284"/>
+    <path d="M 256 256 Q 310 330 350 410"/>
+    <path d="M 256 256 Q 225 350 170 420"/>
+    <path d="M 256 256 Q 180 300 100 320"/>
+  </g>
+
+  <!-- Secondary branch tips -->
+  <g fill="#e8e8ea">
+    <circle cx="95"  cy="78"  r="4"/>
+    <circle cx="58"  cy="180" r="4"/>
+    <circle cx="445" cy="65"  r="4"/>
+    <circle cx="462" cy="228" r="4"/>
+    <circle cx="478" cy="350" r="4"/>
+    <circle cx="490" cy="240" r="4"/>
+    <circle cx="425" cy="458" r="4"/>
+    <circle cx="360" cy="490" r="4"/>
+    <circle cx="90"  cy="470" r="4"/>
+    <circle cx="190" cy="495" r="4"/>
+    <circle cx="38"  cy="420" r="4"/>
+    <circle cx="28"  cy="280" r="4"/>
+  </g>
+
+  <!-- Primary nodes (orange, 6 around the hub) -->
+  <g fill="#ED8C24">
+    <circle cx="160" cy="160" r="9"/>
+    <circle cx="380" cy="150" r="9"/>
+    <circle cx="408" cy="284" r="9"/>
+    <circle cx="350" cy="410" r="9"/>
+    <circle cx="170" cy="420" r="9"/>
+    <circle cx="100" cy="320" r="9"/>
+  </g>
+
+  <!-- Central hub with glow -->
+  <circle cx="256" cy="256" r="34" fill="url(#mycCore)"/>
+  <circle cx="256" cy="256" r="11" fill="#FFE8BB"/>
+</svg>

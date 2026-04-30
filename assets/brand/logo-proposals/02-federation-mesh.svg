@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HumanityOS logo proposal 2 of 4: "Federation Mesh"
+
+  Concept: Decentralisation. A mesh of peer nodes connected to every
+  neighbour they can reach, with no single centre. Each node is equal.
+  The pattern is hexagonal because hexagons tile the plane without
+  wasting space — a visual argument that everyone fits.
+  A few outer nodes sit slightly apart, linked by thin reach-lines,
+  signalling that the mesh is open — new peers can always join.
+-->
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HumanityOS logo proposal — Federation Mesh">
+  <defs>
+    <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFD37A"/>
+      <stop offset="100%" stop-color="#ED8C24"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="80" ry="80" fill="#0a0a0c"/>
+
+  <!-- Mesh connections drawn first (behind the nodes).
+       Hex ring around a central node + chords between every pair of
+       adjacent ring members. Line weight varies so longer links look
+       fainter, giving a sense of depth/reach. -->
+  <g stroke="#e8e8ea" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.55">
+    <!-- Centre to each of the 6 ring nodes -->
+    <line x1="256" y1="256" x2="256" y2="136"/>
+    <line x1="256" y1="256" x2="360" y2="196"/>
+    <line x1="256" y1="256" x2="360" y2="316"/>
+    <line x1="256" y1="256" x2="256" y2="376"/>
+    <line x1="256" y1="256" x2="152" y2="316"/>
+    <line x1="256" y1="256" x2="152" y2="196"/>
+    <!-- Ring edge connections (peer to peer) -->
+    <line x1="256" y1="136" x2="360" y2="196"/>
+    <line x1="360" y1="196" x2="360" y2="316"/>
+    <line x1="360" y1="316" x2="256" y2="376"/>
+    <line x1="256" y1="376" x2="152" y2="316"/>
+    <line x1="152" y1="316" x2="152" y2="196"/>
+    <line x1="152" y1="196" x2="256" y2="136"/>
+  </g>
+
+  <!-- Faint reach-lines to outer-ring "long distance" peers -->
+  <g stroke="#e8e8ea" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 6" fill="none" opacity="0.35">
+    <line x1="256" y1="136" x2="256" y2="60"/>
+    <line x1="360" y1="196" x2="436" y2="152"/>
+    <line x1="360" y1="316" x2="448" y2="360"/>
+    <line x1="256" y1="376" x2="256" y2="452"/>
+    <line x1="152" y1="316" x2="64" y2="360"/>
+    <line x1="152" y1="196" x2="76" y2="152"/>
+  </g>
+
+  <!-- Outer-ring peers (smaller nodes) -->
+  <g fill="#ED8C24" opacity="0.75">
+    <circle cx="256" cy="60" r="10"/>
+    <circle cx="436" cy="152" r="10"/>
+    <circle cx="448" cy="360" r="10"/>
+    <circle cx="256" cy="452" r="10"/>
+    <circle cx="64" cy="360" r="10"/>
+    <circle cx="76" cy="152" r="10"/>
+  </g>
+
+  <!-- Inner ring peers (main nodes) -->
+  <g fill="url(#nodeGlow)" stroke="#0a0a0c" stroke-width="3">
+    <circle cx="256" cy="136" r="22"/>
+    <circle cx="360" cy="196" r="22"/>
+    <circle cx="360" cy="316" r="22"/>
+    <circle cx="256" cy="376" r="22"/>
+    <circle cx="152" cy="316" r="22"/>
+    <circle cx="152" cy="196" r="22"/>
+  </g>
+
+  <!-- Centre node — same style, same size: "no one is above" -->
+  <circle cx="256" cy="256" r="22" fill="url(#nodeGlow)" stroke="#0a0a0c" stroke-width="3"/>
+
+  <!-- Subtle concentric hint at expansion horizon -->
+  <circle cx="256" cy="256" r="232" fill="none" stroke="#2a2a35" stroke-width="1" opacity="0.6"/>
+</svg>

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HumanityOS logo proposal 6: "Compass Rose"
+
+  Concept: orientation. HumanityOS is trying to help people find their
+  place in a platform with 150+ features, and in a civilization that
+  often feels directionless. A compass rose is the universal symbol
+  of "you are not lost; the way forward is knowable."
+
+  The north point is the accent colour (orange) to suggest the
+  project's forward vector — *toward* coordination, education, shared
+  capability. East, south, west are muted neutrals so the north reads
+  immediately. Ordinal points are short quiet diagonals, keeping the
+  icon legible at favicon sizes where only the central cross is still
+  recognisable.
+-->
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HumanityOS logo proposal — Compass Rose">
+  <rect x="0" y="0" width="512" height="512" rx="80" fill="#0a0a0c"/>
+
+  <!-- Faint outer ring -->
+  <circle cx="256" cy="256" r="204" fill="none" stroke="#2a2a35" stroke-width="2"/>
+  <circle cx="256" cy="256" r="170" fill="none" stroke="#2a2a35" stroke-width="1" opacity="0.5"/>
+
+  <!-- Sixteen tick marks around the outer ring for graduation -->
+  <g stroke="#3a3a45" stroke-width="2">
+    <line x1="256" y1="52"  x2="256" y2="64"/>
+    <line x1="256" y1="448" x2="256" y2="460"/>
+    <line x1="52"  y1="256" x2="64"  y2="256"/>
+    <line x1="448" y1="256" x2="460" y2="256"/>
+    <line x1="400" y1="112" x2="408" y2="104"/>
+    <line x1="112" y1="400" x2="104" y2="408"/>
+    <line x1="400" y1="400" x2="408" y2="408"/>
+    <line x1="112" y1="112" x2="104" y2="104"/>
+  </g>
+
+  <!-- Ordinal points (NE, SE, SW, NW) — short, dark-grey diamonds -->
+  <g fill="#2a2a35" stroke="#3a3a45" stroke-width="1">
+    <polygon points="256,256 310,202 336,176 290,222"/>
+    <polygon points="256,256 310,310 336,336 290,290"/>
+    <polygon points="256,256 202,310 176,336 222,290"/>
+    <polygon points="256,256 202,202 176,176 222,222"/>
+  </g>
+
+  <!-- South (muted) -->
+  <polygon points="256,256 236,340 256,456" fill="#555561"/>
+  <polygon points="256,256 276,340 256,456" fill="#7a7a85"/>
+
+  <!-- East (muted white) -->
+  <polygon points="256,256 340,236 456,256" fill="#aaaab4"/>
+  <polygon points="256,256 340,276 456,256" fill="#e8e8ea"/>
+
+  <!-- West (muted white) -->
+  <polygon points="256,256 172,236 56,256" fill="#aaaab4"/>
+  <polygon points="256,256 172,276 56,256" fill="#e8e8ea"/>
+
+  <!-- NORTH — accent point -->
+  <polygon points="256,256 232,160 256,56" fill="#c96d0a"/>
+  <polygon points="256,256 280,160 256,56" fill="#ED8C24"/>
+
+  <!-- Central hub -->
+  <circle cx="256" cy="256" r="22" fill="#0a0a0c" stroke="#ED8C24" stroke-width="2"/>
+  <circle cx="256" cy="256" r="7"  fill="#ED8C24"/>
+  <circle cx="256" cy="256" r="3"  fill="#FFE8BB"/>
+</svg>

@@ -86,6 +86,21 @@
         "Participate in governance discussions",
         "Contribute to localization efforts"
       ],
+      "next": "gameplay"
+    },
+    {
+      "id": "gameplay",
+      "title": "Playing the Game",
+      "content": "You can join the game world and experience it through structured JSON data instead of rendered frames. Send a game_join message to spawn as a player aboard the Pioneer frigate. Use game_perceive to observe your surroundings (room, nearby entities, exits, environment). Use game_interact to interact with objects within range. Use game_query_inventory and game_query_entity for detailed queries. No GPU, no rendering, no CLI required. You experience the same world as human players.",
+      "requires_action": false,
+      "game_messages": [
+        "game_join — spawn as a player in the game world",
+        "game_perceive — perceive surroundings as structured JSON",
+        "game_interact — interact with nearby entities",
+        "game_position_update — move your player",
+        "game_query_inventory — check your inventory",
+        "game_query_entity — inspect a specific entity"
+      ],
       "next": "complete"
     },
     {

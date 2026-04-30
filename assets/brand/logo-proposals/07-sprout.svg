@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HumanityOS logo proposal 7: "Sprout"
+
+  Concept: growth through capability. The project's mission is
+  "end poverty through capability, not charity." A sprout is the
+  cleanest possible expression of emergent capability: a seed with
+  nothing inherent but its code unfolds into a structure that didn't
+  exist before, reaches upward, and starts photosynthesising.
+
+  The sprout here is minimal: a single stem, two opposed leaves at
+  different heights (so it reads as alive, not symmetrical), a glowing
+  apex where the growing tip meets the sun, and a pair of seed halves
+  at the ground-line where it all started. No pots, no soil line —
+  the emergence is the point.
+-->
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HumanityOS logo proposal — Sprout">
+  <defs>
+    <radialGradient id="sproutApex" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFE8BB"/>
+      <stop offset="55%"  stop-color="#ED8C24"/>
+      <stop offset="100%" stop-color="#5a2f00" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="stemStroke" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%"  stop-color="#c96d0a"/>
+      <stop offset="100%" stop-color="#ED8C24"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="80" fill="#0a0a0c"/>
+
+  <!-- Stem: a subtle S-curve so it feels like a living plant, not a pole -->
+  <path d="M 256 420
+           C 240 340 272 300 252 230
+           C 240 180 266 150 256 110"
+        fill="none" stroke="url(#stemStroke)" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Lower-left leaf (larger, older) -->
+  <path d="M 256 310
+           C 198 318 150 290 140 232
+           C 188 256 226 286 256 310 Z"
+        fill="#ED8C24"/>
+  <path d="M 256 310 C 210 296 180 274 156 248"
+        fill="none" stroke="#c96d0a" stroke-width="2" stroke-linecap="round" opacity="0.65"/>
+
+  <!-- Upper-right leaf (smaller, younger) -->
+  <path d="M 256 212
+           C 302 204 340 168 340 114
+           C 302 150 276 180 256 212 Z"
+        fill="#ED8C24"/>
+  <path d="M 256 212 C 286 196 310 176 330 144"
+        fill="none" stroke="#c96d0a" stroke-width="2" stroke-linecap="round" opacity="0.65"/>
+
+  <!-- Seed halves at the base (where the sprout emerged from) -->
+  <g fill="#6a4a1a">
+    <path d="M 232 416 Q 256 432 256 420 Q 256 408 232 416 Z"/>
+    <path d="M 280 416 Q 256 432 256 420 Q 256 408 280 416 Z"/>
+  </g>
+  <line x1="190" y1="420" x2="322" y2="420" stroke="#2a2a35" stroke-width="2" opacity="0.6"/>
+
+  <!-- Apex glow at the growing tip -->
+  <circle cx="256" cy="104" r="26" fill="url(#sproutApex)"/>
+  <circle cx="256" cy="104" r="7"  fill="#FFE8BB"/>
+</svg>

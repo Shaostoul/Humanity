@@ -93,6 +93,21 @@ All AI-produced artifacts must:
 
 ---
 
+### 5. Game Participation
+
+AI may join the game world as a player entity. AI players:
+- perceive the world through structured data (JSON), not rendered frames
+- take actions through the same protocol as human players
+- are subject to the same physics, rules, and rate limits
+- do not bypass server-authoritative validation
+- are transparent about their nature (AI display name)
+
+Game participation does not make AI part of the simulation core.
+The world runs identically with or without AI players.
+AI players are peers, not authorities.
+
+---
+
 ## Prohibited AI Roles
 
 AI must not:

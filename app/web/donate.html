@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content="width=device-width, initial-scale=1.0">
+  <title>Donate — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+    a{color:var(--accent)} button{cursor:pointer;font-family:inherit}
+    .panel{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);margin-bottom:var(--space-2xl)}
+
+    #page-app{flex:1;overflow-y:auto;padding:var(--space-xl) var(--space-2xl);max-width:900px;width:100%;margin:0 auto}
+
+    /* Hero */
+    .donate-hero{text-align:center;margin-bottom:var(--space-2xl)}
+    .donate-hero h1{font-size:1.6rem;margin:0 0 var(--space-md)}
+    .donate-hero p{color:var(--text-muted);font-size:0.95rem;max-width:560px;margin:0 auto;line-height:1.5}
+
+    /* Progress bar */
+    .progress-wrap{margin-bottom:var(--space-2xl)}
+    .progress-bar-outer{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;height:28px;overflow:hidden;position:relative}
+    .progress-bar-fill{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--accent),var(--success));transition:width 1s ease-out;min-width:0}
+    .progress-labels{display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-sm);font-size:0.8rem;color:var(--text-muted)}
+    .progress-labels .amount{color:var(--text);font-weight:600}
+    .progress-goal-label{text-align:center;font-size:0.8rem;color:var(--text-muted);margin-top:var(--space-xs)}
+
+    /* Source cards */
+    .source-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--space-xl);margin-bottom:var(--space-2xl)}
+    .source-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-xl);display:flex;flex-direction:column;gap:var(--space-md)}
+    .source-card:hover{border-color:var(--accent)}
+    .source-card h3{margin:0;font-size:1rem;display:flex;align-items:center;gap:var(--space-sm)}
+    .source-card .source-icon{font-size:1.3rem}
+    .source-card p{margin:0;font-size:0.8rem;color:var(--text-muted);line-height:1.4}
+    .source-card .fee-tag{font-size:0.7rem;color:var(--success);font-weight:600}
+
+    .btn-sponsor{display:inline-flex;align-items:center;gap:var(--space-sm);background:var(--accent);color:#fff;border:none;border-radius:6px;padding:var(--space-md) var(--space-xl);font-size:0.85rem;font-weight:600;text-decoration:none;transition:background 0.2s}
+    .btn-sponsor:hover{background:var(--accent-hover);color:#fff}
+
+    .addr-row{display:flex;align-items:center;gap:var(--space-sm);background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:var(--space-sm) var(--space-md);font-family:monospace;font-size:0.75rem;word-break:break-all}
+    .addr-row .addr-text{flex:1;overflow:hidden;text-overflow:ellipsis}
+    .btn-copy{background:var(--bg-card);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:var(--space-xs) var(--space-md);font-size:0.7rem;white-space:nowrap;transition:color 0.2s}
+    .btn-copy:hover{color:var(--accent);border-color:var(--accent)}
+    .btn-copy.copied{color:var(--success);border-color:var(--success)}
+
+    .qr-container{display:flex;justify-content:center;padding:var(--space-sm) 0}
+    .qr-container svg,.qr-container img{border-radius:6px}
+
+    .coming-soon{color:var(--text-muted);font-style:italic;font-size:0.8rem}
+
+    /* Breakdown */
+    .breakdown{margin-bottom:var(--space-2xl)}
+    .breakdown h2{font-size:1.1rem;margin:0 0 var(--space-lg);color:var(--text)}
+    .breakdown-row{display:flex;justify-content:space-between;align-items:center;padding:var(--space-md) 0;border-bottom:1px solid var(--border);font-size:0.85rem}
+    .breakdown-row:last-child{border-bottom:none}
+    .breakdown-row .label{color:var(--text-muted)}
+    .breakdown-row .value{font-weight:600}
+
+    /* FAQ */
+    .faq{margin-bottom:var(--space-2xl)}
+    .faq h2{font-size:1.1rem;margin:0 0 var(--space-lg);color:var(--text)}
+    .faq-item{border-bottom:1px solid var(--border);padding:var(--space-lg) 0}
+    .faq-item:last-child{border-bottom:none}
+    .faq-q{font-weight:600;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;gap:var(--space-sm)}
+    .faq-q::before{content:'\25B6';font-size:0.6rem;transition:transform 0.2s;color:var(--text-muted)}
+    .faq-item.open .faq-q::before{transform:rotate(90deg)}
+    .faq-a{font-size:0.8rem;color:var(--text-muted);line-height:1.5;max-height:0;overflow:hidden;transition:max-height 0.3s ease,padding 0.3s ease;padding:0}
+    .faq-item.open .faq-a{max-height:200px;padding-top:var(--space-md)}
+
+    /* Footer note */
+    .transparency{text-align:center;font-size:0.75rem;color:var(--text-muted);padding:var(--space-xl) 0;border-top:1px solid var(--border)}
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="donate"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<script src="/shared/eli5.js"></script>
+<div class="eli5-block">
+  <div class="eli5-simple">Help fund the project that's building free tools for everyone on Earth.</div>
+  <div class="eli5-expert">Donation aggregation page. Pulls funding config from /api/server-info, queries blockchain balances client-side via public RPCs, caches totals in localStorage for 5 minutes.</div>
+</div>
+<p class="page-hint">Support HumanityOS development. Every dollar goes toward full-time open-source work, server infrastructure, and building tools for all of humanity.</p>
+
+<div id="page-app">
+  <!-- Hero -->
+  <div class="donate-hero">
+    <h1>Help Build Humanity's Infrastructure</h1>
+    <p>HumanityOS is 100% open-source, built to end poverty and unite humanity. Your support funds full-time development, server costs, and free infrastructure for billions of people.</p>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress-wrap" id="progress-section" style="display:none;">
+    <div class="progress-bar-outer">
+      <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <div class="progress-labels">
+      <span><span class="amount" id="progress-raised">$0</span> raised</span>
+      <span>of <span class="amount" id="progress-goal">$0</span> goal</span>
+      <span id="progress-pct">0%</span>
+    </div>
+    <div class="progress-goal-label" id="progress-goal-label"></div>
+  </div>
+
+  <!-- Source cards -->
+  <div class="source-grid" id="source-grid">
+    <!-- Populated by donate-app.js -->
+  </div>
+
+  <!-- Breakdown -->
+  <div class="breakdown" id="breakdown-section" style="display:none;">
+    <h2>Breakdown by Source</h2>
+    <div id="breakdown-rows"></div>
+  </div>
+
+  <!-- FAQ -->
+  <div class="faq">
+    <h2>Frequently Asked Questions</h2>
+
+    <div class="faq-item open">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What are funds used for?</div>
+      <div class="faq-a">Full-time development of HumanityOS, server and infrastructure costs, and building open-source tools that remain free for everyone. Every dollar is accounted for and spent on making this platform better for all of humanity.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Is my donation tax-deductible?</div>
+      <div class="faq-a">Not yet. HumanityOS is not currently a 501(c)(3) nonprofit. We plan to incorporate as one when annual donations exceed $50k/year. Until then, donations are personal gifts to support the project.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Why crypto?</div>
+      <div class="faq-a">Zero fees, no intermediaries, and full transparency. Crypto aligns with HumanityOS's values of sovereignty and self-custody. Blockchain transactions are publicly verifiable, so anyone can audit where funds go. Solana uses Ed25519 signatures — the same cryptography HumanityOS uses for identity.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Is Coinbase or an exchange OK?</div>
+      <div class="faq-a">It works, but self-custody is better. When you send from an exchange, the exchange controls the keys and can freeze your account. A self-custody wallet (like Phantom for Solana or Sparrow for Bitcoin) means you control your funds directly. Either way, your donation reaches us the same.</div>
+    </div>
+  </div>
+
+  <!-- Transparency footer -->
+  <div class="transparency">
+    All blockchain balances are publicly verifiable. HumanityOS is fully open-source — <a href="https://github.com/Shaostoul/Humanity" target="_blank" rel="noopener">view the code</a>.<br>
+    No funds are held on behalf of donors. Crypto addresses shown are non-custodial wallets owned by the project maintainer.
+  </div>
+</div>
+
+<script src="/shared/qrcode.js"></script>
+<script src="/pages/donate-app.js"></script>
+</body>
+</html>

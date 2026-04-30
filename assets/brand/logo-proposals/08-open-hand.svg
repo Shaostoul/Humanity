@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HumanityOS logo proposal 8: "Open Hand"
+
+  Concept: public domain, offering. The entire codebase is CC0 —
+  "no permission needed, this belongs to everyone, forever." An open
+  cupped hand offering something bright is the universal gesture of
+  giving without expectation of return.
+
+  Shape language: a single curved stroke describes the palm, with
+  four short finger-lines rising from the palm's curve and a thumb
+  breaking out to the side. The offered thing — a small bright star
+  — rests in the palm's centre and glows. Works because you can read
+  it as "here, take this" at any size; at 16 px the glowing point
+  with a curve under it is still the icon.
+-->
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HumanityOS logo proposal — Open Hand">
+  <defs>
+    <radialGradient id="handGift" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFF1D4"/>
+      <stop offset="50%"  stop-color="#ED8C24"/>
+      <stop offset="100%" stop-color="#5a2f00" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="80" fill="#0a0a0c"/>
+
+  <!-- Thumb (offset left, angled out from the palm arc) -->
+  <path d="M 130 320
+           C 110 290 104 240 118 214"
+        fill="none" stroke="#ED8C24" stroke-width="18" stroke-linecap="round"/>
+
+  <!-- Fingers, rising from along the top of the palm arc, each slightly different height to feel like a real hand -->
+  <g stroke="#ED8C24" stroke-width="18" stroke-linecap="round" fill="none">
+    <line x1="196" y1="282" x2="196" y2="168"/>
+    <line x1="242" y1="272" x2="242" y2="130"/>
+    <line x1="288" y1="272" x2="288" y2="140"/>
+    <line x1="334" y1="282" x2="334" y2="180"/>
+  </g>
+
+  <!-- Palm arc: a wide shallow U that holds the fingers and the gift -->
+  <path d="M 130 320
+           C 150 410 230 432 256 432
+           C 282 432 362 410 382 320"
+        fill="none" stroke="#ED8C24" stroke-width="22" stroke-linecap="round"/>
+
+  <!-- Offered light resting in the palm -->
+  <circle cx="256" cy="360" r="42" fill="url(#handGift)"/>
+  <!-- A tight bright point at the centre of the gift so it still registers at 16 px -->
+  <circle cx="256" cy="360" r="9" fill="#FFF4DA"/>
+</svg>

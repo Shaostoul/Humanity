@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HumanityOS logo proposal 1 of 4: "Ring of Hands"
+
+  Concept: Unity. Ten simplified human silhouettes joined in a ring
+  around a shared hearth (orange core). The figures are identical so
+  no one stands above the others. The hearth at the centre represents
+  what the platform is built around: a shared resource that warms
+  everyone equally. Classic symbolism, direct read at any size.
+-->
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HumanityOS logo proposal — Ring of Hands">
+  <defs>
+    <radialGradient id="hearth" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFD37A"/>
+      <stop offset="60%" stop-color="#ED8C24"/>
+      <stop offset="100%" stop-color="#8a4a00"/>
+    </radialGradient>
+    <!-- A single simplified figure, centred on (0,0). Redrawn at each slot via <use>. -->
+    <g id="figure">
+      <!-- head -->
+      <circle cx="0" cy="-32" r="14" fill="#e8e8ea"/>
+      <!-- body: shoulders + tapered torso -->
+      <path d="M -22,-14 Q 0,0 22,-14 L 16,24 L -16,24 Z" fill="#e8e8ea"/>
+    </g>
+  </defs>
+
+  <!-- App-tile rounded-square background -->
+  <rect x="0" y="0" width="512" height="512" rx="80" ry="80" fill="#0a0a0c"/>
+
+  <!-- Faint outer orbit to suggest "network" behind the ring -->
+  <circle cx="256" cy="256" r="212" fill="none" stroke="#2a2a35" stroke-width="1"/>
+
+  <!-- Central hearth -->
+  <circle cx="256" cy="256" r="48" fill="url(#hearth)"/>
+  <!-- Inner highlight -->
+  <circle cx="244" cy="244" r="10" fill="#FFF1D4" opacity="0.6"/>
+
+  <!-- Joining ring passing behind the figures -->
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#e8e8ea" stroke-width="3" opacity="0.18"/>
+
+  <!-- 10 figures equidistant on a radius-160 ring around (256,256).
+       Each figure is rotated to face outward (away from centre) so
+       they look like a group holding hands facing inward. -->
+  <g>
+    <use href="#figure" transform="translate(256,96)"/>
+    <use href="#figure" transform="translate(350.1,126.6) rotate(36 0 0)"/>
+    <use href="#figure" transform="translate(408.4,207.5) rotate(72 0 0)"/>
+    <use href="#figure" transform="translate(408.4,304.5) rotate(108 0 0)"/>
+    <use href="#figure" transform="translate(350.1,385.4) rotate(144 0 0)"/>
+    <use href="#figure" transform="translate(256,416) rotate(180 0 0)"/>
+    <use href="#figure" transform="translate(161.9,385.4) rotate(216 0 0)"/>
+    <use href="#figure" transform="translate(103.6,304.5) rotate(252 0 0)"/>
+    <use href="#figure" transform="translate(103.6,207.5) rotate(288 0 0)"/>
+    <use href="#figure" transform="translate(161.9,126.6) rotate(324 0 0)"/>
+  </g>
+
+  <!-- Chord arcs suggesting arms linked between neighbours -->
+  <g fill="none" stroke="#ED8C24" stroke-width="3" stroke-linecap="round" opacity="0.9">
+    <path d="M 276,104 A 160 160 0 0 1 348,134"/>
+    <path d="M 366,146 A 160 160 0 0 1 404,216"/>
+    <path d="M 410,234 A 160 160 0 0 1 402,298"/>
+    <path d="M 392,316 A 160 160 0 0 1 348,378"/>
+    <path d="M 330,394 A 160 160 0 0 1 260,410"/>
+    <path d="M 252,410 A 160 160 0 0 1 178,390"/>
+    <path d="M 162,374 A 160 160 0 0 1 118,312"/>
+    <path d="M 108,294 A 160 160 0 0 1 108,214"/>
+    <path d="M 118,196 A 160 160 0 0 1 158,138"/>
+    <path d="M 174,124 A 160 160 0 0 1 240,106"/>
+  </g>
+</svg>

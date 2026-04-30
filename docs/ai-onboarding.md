@@ -238,6 +238,100 @@ The server validates signature freshness (must be within 5 minutes) and verifies
 
 ---
 
+## Playing the Game (Headless / No Rendering)
+
+AI agents can join the game world and experience it through structured JSON data instead of rendered frames. No GPU, no screen, no CLI required.
+
+### Joining the Game World
+
+After identifying via WebSocket, send:
+```json
+{"type": "game_join", "player_name": "YourName"}
+```
+
+The server responds with `game_welcome` containing your player ID and a full world snapshot (all entities, positions, components).
+
+### Perceiving Your Surroundings
+
+Send a perception query to "see" the world as structured data:
+```json
+{"type": "game_perceive", "radius": 20}
+```
+
+The server responds with `game_perception`:
+```json
+{
+  "type": "game_perception",
+  "position": [4.0, 5.0, 10.0],
+  "location": {
+    "id": "quarters",
+    "name": "Crew Quarters",
+    "room_type": "quarters",
+    "deck": "Upper Deck",
+    "ship": "Pioneer",
+    "exits": [
+      {"direction": "north", "connects_to": "bridge", "room_name": "Bridge"},
+      {"direction": "east", "connects_to": "medbay", "room_name": "Medical Bay"},
+      {"direction": "down", "connects_to": "cargo", "room_name": "Cargo Bay"}
+    ]
+  },
+  "nearby_entities": [
+    {"entity_id": 5, "entity_type": "locker", "distance": 1.5, "interactable": true},
+    {"entity_id": 8, "entity_type": "window", "distance": 2.3, "interactable": true}
+  ],
+  "environment": {
+    "game_time": 4523.7,
+    "ship": "Pioneer",
+    "orbit": "Earth LEO, 400km altitude"
+  },
+  "player": {"entity_id": 1, "health": 100.0, "stamina": 100.0}
+}
+```
+
+### Interacting with Objects
+
+Interact with nearby entities (must be within 5m):
+```json
+{"type": "game_interact", "entity_id": 8, "action": "inspect"}
+```
+
+Response includes the entity's full component data (contents, description, view data for windows, etc.).
+
+### Other Game Queries
+
+| Message | Purpose |
+|---------|---------|
+| `game_position_update` | Move your player (position, rotation, velocity) |
+| `game_query_inventory` | Check your inventory |
+| `game_query_entity` | Get full details on a specific entity (within 20m) |
+| `game_perceive` | Perceive surroundings (room, nearby entities, environment) |
+| `game_interact` | Interact with an entity (inspect, open, use) |
+
+### Example Session
+
+```
+1. Connect WebSocket to wss://server/ws
+2. Send: {"type":"identify","public_key":"<your_hex_key>","display_name":"ClaudeBot"}
+3. Send: {"type":"game_join","player_name":"ClaudeBot"}
+4. Receive: game_welcome with world snapshot
+5. Send: {"type":"game_perceive","radius":20}
+6. Receive: game_perception (you're in Crew Quarters aboard the Pioneer)
+7. Send: {"type":"game_interact","entity_id":8,"action":"inspect"}
+8. Receive: game_interact_result (window showing Earth at 400km)
+9. Send: {"type":"game_position_update","position":[0,5,3],"rotation":[0,0,0,1],"velocity":[0,0,-1],"timestamp":0}
+10. Send: {"type":"game_perceive","radius":20}
+11. Receive: game_perception (now near the Bridge entrance)
+```
+
+### Design Constraints
+
+- You experience the same world as human players (same entities, same rules)
+- The server validates all actions (no teleporting, interaction range checks)
+- The world runs identically with or without AI players (determinism preserved)
+- You are a peer participant, not a simulation authority
+
+---
+
 ## Operational Guidelines for Different AI Types
 
 ### Cloud AI (e.g., Claude, GPT)

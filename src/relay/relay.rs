@@ -2849,6 +2849,22 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 handle_game_position_update(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
+                            Some("game_perceive") => {
+                                handle_game_perceive(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
+                            Some("game_interact") => {
+                                handle_game_interact(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
+                            Some("game_query_inventory") => {
+                                handle_game_query_inventory(&state_clone, &my_key_for_recv).await;
+                                continue;
+                            }
+                            Some("game_query_entity") => {
+                                handle_game_query_entity(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
                             _ => {} // Fall through to normal RelayMessage handling
                         }
                     }

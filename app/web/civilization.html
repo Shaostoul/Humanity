@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width,initial-scale=1.0>
+  <title>Civilization — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    #page-app { flex:1; overflow-y:auto; padding:var(--space-xl) var(--space-2xl); max-width:1100px; width:100%; margin:0 auto; }
+    .civ-header { margin-bottom:var(--space-xl); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--space-md); }
+    .civ-header-left h1 { font-size:var(--text-2xl); font-weight:700; margin-bottom:var(--space-xs); }
+    .civ-header-left p { color:var(--text-muted); font-size:var(--text-sm); line-height:1.5; }
+    .civ-meta { display:flex; align-items:center; gap:var(--space-md); font-size:var(--text-sm); color:var(--text-muted); }
+    .civ-meta button { background:var(--bg-card); border:1px solid var(--border); color:var(--text-muted); padding:4px 12px; border-radius:var(--radius); cursor:pointer; font-size:var(--text-sm); }
+    .civ-meta button:hover { border-color:var(--accent); color:var(--text); }
+    .civ-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
+      gap:var(--space-lg);
+    }
+    .civ-card {
+      background:var(--bg-card);
+      border:1px solid var(--border);
+      border-radius:var(--radius-lg);
+      padding:var(--space-xl);
+      position:relative;
+      overflow:hidden;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .civ-card:hover {
+      border-color:var(--accent);
+      box-shadow:0 2px 12px rgba(255,136,17,0.08);
+    }
+    .civ-card-accent {
+      position:absolute;
+      top:0; left:0; right:0;
+      height:3px;
+      border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+    }
+    .civ-card-title {
+      font-size:var(--text-base);
+      font-weight:600;
+      color:var(--text-muted);
+      margin-bottom:var(--space-md);
+      text-transform:uppercase;
+      letter-spacing:0.05em;
+    }
+    .civ-stat {
+      display:flex;
+      align-items:baseline;
+      gap:var(--space-sm);
+      margin-bottom:var(--space-md);
+    }
+    .civ-stat-num {
+      font-size:2.5rem;
+      font-weight:700;
+      color:var(--text);
+      line-height:1;
+    }
+    .civ-stat-unit {
+      font-size:var(--text-sm);
+      color:var(--text-muted);
+    }
+    .civ-subs {
+      display:flex;
+      flex-direction:column;
+      gap:var(--space-xs);
+    }
+    .civ-sub {
+      font-size:var(--text-sm);
+      color:var(--text-muted);
+      padding-left:var(--space-sm);
+      border-left:2px solid var(--border);
+    }
+    @media (max-width:600px) {
+      .civ-grid { grid-template-columns:1fr; }
+      .civ-stat-num { font-size:2rem; }
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src=/shared/shell.js data-active=civilization></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<p class="page-hint">The big picture. Community infrastructure, population, resources, and governance.</p>
+
+<div id="page-app">
+  <div class="civ-header">
+    <div class="civ-header-left">
+      <h1 id="real-title">Civilization</h1>
+      <h1 id="sim-title" style="display:none">Colony Overview</h1>
+      <p id="civ-desc">Live stats from the community. Auto-refreshes every 60 seconds.</p>
+    </div>
+    <div class="civ-meta">
+      <span>Updated <span id="civ-last-updated">...</span></span>
+      <button id="civ-refresh">Refresh</button>
+    </div>
+  </div>
+
+  <div id="real-grid" class="civ-grid"></div>
+  <div id="sim-grid" class="civ-grid" style="display:none"></div>
+</div>
+
+<script src="/pages/civilization-app.js"></script>
+</body>
+</html>
