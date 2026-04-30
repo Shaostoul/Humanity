@@ -338,10 +338,14 @@ The path that gets the most decoupling per unit of effort:
    auto-updater (BUG-034 fix in v0.124.0) will gain this as a fallback
    URL in a follow-up — for now it's a working mirror that anyone can
    `wget` from independently of GitHub.
-4. **Self-hosted BitTorrent tracker + seeder** for the data/asset
-   payload — opentracker + transmission-daemon. Ship a `.torrent` and
-   magnet URI in the release manifest. The auto-updater downloads code
-   over HTTP and assets over BitTorrent. ~half a day.
+4. **BitTorrent seeder + magnet URIs** ✅ shipped v0.129.0 — see
+   [`torrent-infrastructure.md`](torrent-infrastructure.md). Live on the
+   VPS via transmission-daemon, seeding 36 release bundles
+   (v0.122.0–v0.128.3). Magnet URIs in `/releases/manifest.json`. Public
+   trackers (opentrackr, demonii, etc.) for coordination + WebSeed back
+   at `united-humanity.us/releases/` so the critical path is
+   tracker-independent. Self-hosted tracker is a follow-up (not blocking
+   because of the WebSeed). Auto-updater integration follows.
 5. **Internet Archive uploads** — manual at first; automated later. Adds
    a permanent free seeder to every torrent.
 6. **Software Heritage Save Code Now** — one form, then it's automatic

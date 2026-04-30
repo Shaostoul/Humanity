@@ -82,6 +82,16 @@
       "at": "2026-04-29",
       "decision": "Step 3 of distribution-sovereignty plan landed in v0.128.0: self-hosted release-binary mirror at https://united-humanity.us/releases/. nginx /releases/ location with autoindex; backfilled v0.122.0–v0.127.0; build-desktop.yml CI scp's binaries to VPS on every tag push via appleboy/scp-action; mirror-manifest job regenerates manifest.json + latest symlink via /usr/local/bin/regen-releases-manifest. Step 2 (Codeberg) skipped temporarily — operator awaiting signup confirmation email; will land in a follow-up release.",
       "rationale": "The auto-updater (BUG-034 fix in v0.124.0) will gain this as a fallback URL later — for now the mirror is a working independent download path, anyone can wget from it without GitHub. The manifest at /releases/manifest.json + the latest symlink mean operators don't need to know specific version numbers; clients can fetch latest deterministically. nginx sites-enabled/humanity was a regular file (not a symlink to sites-available) — edits had to go directly to sites-enabled. Documented inline in the orchestrator notes."
+    },
+    {
+      "at": "2026-04-29",
+      "decision": "v0.128.2 shipped a CI fix: per-matrix mirror step replaced with a single Linux mirror-to-vps job using actions/download-artifact + appleboy/scp-action. v0.128.3 followed with continue-on-error on the upload step + if: always() on the regen step, because scp-action sometimes returns a false-positive i/o timeout AFTER the upload completes successfully. Workflow is now self-healing.",
+      "rationale": "Original v0.128.0 workflow used appleboy/scp-action per-matrix-job, but Docker container actions only run on Linux runners — macOS/Windows runners failed with 'Container action is only supported on Linux'. v0.128.2 consolidated the upload into one Linux job. v0.128.3 added tolerance for the action's tendency to return false-positive timeouts after successful uploads. Both fixes verified end-to-end in CI."
+    },
+    {
+      "at": "2026-04-29",
+      "decision": "Step 4 of distribution-sovereignty plan landed in v0.129.0: BitTorrent seeder + magnet URIs. transmission-daemon installed on VPS (RPC localhost-only, peer port 51413/tcp+udp). /usr/local/bin/torrent-create-and-seed script creates .torrent files with 5 public trackers + WebSeed pointing back at the HTTPS mirror, then adds them to transmission. /usr/local/bin/regen-releases-manifest extended to a two-phase script: (1) seed any unseeded .tar.gz, (2) build manifest with magnet URIs. Backfilled 36 torrents covering v0.122.0–v0.128.3 (~1.4 GB seeding). docs/torrent-infrastructure.md documents the full setup.",
+      "rationale": "Matches the user's original P2P architecture vision: VPS as always-on seed; client devices become seeders too via swarm participation. WebSeed makes the critical path tracker-independent — even with zero peers and every public tracker down, BitTorrent clients fall back to plain HTTPS from the VPS. CI required NO workflow change because the regen script now handles both seeding and manifest generation. Self-hosted tracker (opentracker) deferred — not blocking because of WebSeed."
     }
   ],
 
@@ -92,7 +102,7 @@
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
     "latest_pushed_tag": "see `git describe --tags --abbrev=0`",
-    "last_release_summary": "v0.128.0 — Step 3: self-hosted release mirror at united-humanity.us/releases/ with manifest + latest symlink; CI auto-mirrors on tag push; v0.127.0 — Step 1: Forgejo at git.united-humanity.us; v0.126.0 — channel seed reduced; v0.125.0 — BUG-035 + BUG-036; v0.124.0 — BUG-034 fix"
+    "last_release_summary": "v0.129.0 — Step 4: BitTorrent seeder + magnet URIs (36 torrents seeding); v0.128.3 — workflow CI hardened; v0.128.0 — Step 3: release mirror; v0.127.0 — Step 1: Forgejo; v0.126.0 — channel seed reduced; v0.125.0 — BUG-035 + BUG-036; v0.124.0 — BUG-034 fix"
   },
 
   "files_in_flight_or_recently_changed": [
