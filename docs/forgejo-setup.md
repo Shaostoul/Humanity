@@ -25,7 +25,7 @@ point of failure.
 
 - **Web UI**: https://git.united-humanity.us
 - **HTTPS clone**: `https://git.united-humanity.us/shaostoul/humanity.git`
-- **SSH clone**: `git@git.united-humanity.us:shaostoul/humanity.git` (system sshd on port 22)
+- **SSH clone**: `forgejo@git.united-humanity.us:shaostoul/humanity.git` (system sshd on port 22; Forgejo's `RUN_USER=forgejo` so SSH user is `forgejo`, NOT `git` — there is no `git` system user on the VPS)
 - **Self-registration**: disabled. Only the admin (`shaostoul`) can create accounts.
 - **OpenID sign-in**: disabled.
 - **API**: anonymous read access on public repos via `https://git.united-humanity.us/api/v1/...`
@@ -43,17 +43,61 @@ Tag push works the same way: tags go to `origin` first (GitHub Actions Build
 Desktop App workflow keys off this), then to `forge`. A transient Forgejo
 outage doesn't block a ship.
 
-To register the second remote on a fresh clone:
+To register the second remote on a fresh clone, **prefer SSH** — credentials never expire, no token rotation, no GCM cache invalidation. HTTPS is supported but is fragile; see "Why SSH" below.
+
+```bash
+# SSH (recommended)
+git remote add forge forgejo@git.united-humanity.us:<user>/humanity.git
+```
+
+### SSH setup (one-time)
+
+1. **Add your public key to Forgejo:** https://git.united-humanity.us/-/user/settings/keys → "Add Key"
+2. **Add a Host entry to `~/.ssh/config`** so git uses the right key:
+   ```
+   Host git.united-humanity.us
+     User forgejo
+     IdentityFile ~/.ssh/<your_key>
+     IdentitiesOnly yes
+     StrictHostKeyChecking accept-new
+   ```
+3. **Verify auth:**
+   ```bash
+   ssh -T forgejo@git.united-humanity.us
+   # → "Hi there, <user>! You've successfully authenticated with the key named ..."
+   ```
+4. **Verify git can reach it:**
+   ```bash
+   git ls-remote forge HEAD
+   # → prints the HEAD commit hash
+   ```
+
+### Why SSH (avoid HTTPS)
+
+HTTPS to Forgejo uses Windows Git Credential Manager via browser SSO. The cached
+token expires/invalidates without warning, and `git push forge main` then dies
+with `Credentials are incorrect or have expired`. Recovery is non-obvious — you
+have to manually erase the cached creds before the next push will re-prompt:
+
+```bash
+printf "protocol=https\nhost=git.united-humanity.us\n\n" | git credential reject
+printf "protocol=https\nhost=git.united-humanity.us\n\n" | git credential-manager erase
+git push forge main   # GCM re-prompts and refreshes
+```
+
+SSH keys don't expire, don't depend on browser SSO, and don't need GCM.
+Once the per-host config in `~/.ssh/config` is in place, every clone, fetch,
+push, and tag-push works without ceremony.
+
+### HTTPS fallback (only if SSH unavailable)
 
 ```bash
 git remote add forge https://git.united-humanity.us/<user>/humanity.git
 ```
 
-Authentication is handled by Windows Git Credential Manager via browser SSO —
-when you log into the Forgejo web UI, GCM detects the Forgejo-shaped server
-on the next push and acquires a token silently. Linux/macOS users may need to
+On Windows, GCM auto-prompts via browser SSO on first push. On Linux/macOS,
 generate a Personal Access Token in **Settings → Applications → Generate New
-Token** and paste it as the password on the first push.
+Token** and paste as the password on first push.
 
 ## Operations
 
