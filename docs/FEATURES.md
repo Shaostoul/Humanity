@@ -397,8 +397,15 @@ Signature-verified webhook for CI/CD integration.
 - Server: `src/relay/api.rs`
 
 ### Game State Authority
-Server-side game world with entity management, position validation, player sync.
+Server-side game world with entity management, position validation, player sync. Loads `data/ships/starter_fleet.ron` at startup; populates 6 Pioneer rooms with equipment + windows. Spatial queries (room_for_position, entities_near, room_by_id) for AI perception.
 - Server: `src/relay/handlers/game_state.rs`
+
+### AI Perception API (v0.131.0)
+Headless gameplay protocol — AI agents perceive and act in the game world via structured JSON instead of rendered frames. Validates distance for interactions (5m), perception range (20m).
+- WebSocket messages: `game_perceive` (room + nearby + environment), `game_interact` (action on entity), `game_query_inventory`, `game_query_entity`
+- Server: `src/relay/handlers/msg_handlers.rs` (handle_game_perceive, handle_game_interact, etc.), `src/relay/relay.rs` (routing)
+- Docs: `docs/ai-onboarding.md` (Playing the Game section), `docs/design/ai_interface.md` (Game Participation role)
+- Test script: `scripts/test-perception-api.js`
 
 ### Unified Binary Deploy
 VPS runs `HumanityOS --headless`. relay.db at `/opt/Humanity/data/`. systemd service updated (v0.90.0).

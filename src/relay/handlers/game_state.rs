@@ -169,7 +169,10 @@ impl GameWorld {
     }
 
     /// Load the Pioneer frigate layout from data/ships/starter_fleet.ron.
+    /// Uses typed deserialization via the existing `ship::layout` schema.
     fn load_starter_ship(&mut self) {
+        use crate::ship::layout::ShipDef;
+
         let path = "data/ships/starter_fleet.ron";
         let contents = match std::fs::read_to_string(path) {
             Ok(c) => c,
@@ -179,7 +182,7 @@ impl GameWorld {
             }
         };
 
-        let parsed: ron::Value = match ron::from_str(&contents) {
+        let ship: ShipDef = match ron::from_str(&contents) {
             Ok(v) => v,
             Err(e) => {
                 tracing::warn!("Failed to parse {}: {} — game world has no ship layout", path, e);
@@ -187,69 +190,29 @@ impl GameWorld {
             }
         };
 
-        let ship_name = parsed.clone().into_rust::<HashMap<String, ron::Value>>()
-            .ok()
-            .and_then(|m| m.get("name").and_then(|v| v.clone().into_rust::<String>().ok()))
-            .unwrap_or_else(|| "Pioneer".to_string());
+        self.ship_name = ship.name.clone();
 
-        self.ship_name = ship_name.clone();
+        for deck in &ship.decks {
+            for room in &deck.rooms {
+                let room_type = room_type_to_str(&room.room_type);
+                let equipment = room_equipment(room_type);
 
-        if let Ok(map) = parsed.into_rust::<HashMap<String, ron::Value>>() {
-            if let Some(decks_val) = map.get("decks") {
-                if let Ok(decks) = decks_val.clone().into_rust::<Vec<HashMap<String, ron::Value>>>() {
-                    for deck in &decks {
-                        let deck_name = deck.get("name")
-                            .and_then(|v| v.clone().into_rust::<String>().ok())
-                            .unwrap_or_default();
+                let doors = room.doors.iter().map(|d| DoorDef {
+                    connects_to: d.connects_to.clone(),
+                    direction: direction_to_str(&d.direction).to_string(),
+                }).collect();
 
-                        if let Some(rooms_val) = deck.get("rooms") {
-                            if let Ok(rooms) = rooms_val.clone().into_rust::<Vec<HashMap<String, ron::Value>>>() {
-                                for room in &rooms {
-                                    let id = room.get("id")
-                                        .and_then(|v| v.clone().into_rust::<String>().ok())
-                                        .unwrap_or_default();
-                                    let name = room.get("name")
-                                        .and_then(|v| v.clone().into_rust::<String>().ok())
-                                        .unwrap_or_default();
-                                    let room_type = room.get("room_type")
-                                        .and_then(|v| v.clone().into_rust::<String>().ok())
-                                        .unwrap_or_default();
-
-                                    let position = extract_f32_3(room.get("position"));
-                                    let size = extract_f32_3(room.get("size"));
-
-                                    let doors = room.get("doors")
-                                        .and_then(|v| v.clone().into_rust::<Vec<HashMap<String, ron::Value>>>().ok())
-                                        .unwrap_or_default()
-                                        .iter()
-                                        .map(|d| DoorDef {
-                                            connects_to: d.get("connects_to")
-                                                .and_then(|v| v.clone().into_rust::<String>().ok())
-                                                .unwrap_or_default(),
-                                            direction: d.get("direction")
-                                                .and_then(|v| v.clone().into_rust::<String>().ok())
-                                                .unwrap_or_default(),
-                                        })
-                                        .collect();
-
-                                    let equipment = room_equipment(&room_type);
-
-                                    self.rooms.push(ShipRoom {
-                                        id,
-                                        name,
-                                        room_type,
-                                        position,
-                                        size,
-                                        doors,
-                                        deck_name: deck_name.clone(),
-                                        ship_name: ship_name.clone(),
-                                        equipment,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
+                self.rooms.push(ShipRoom {
+                    id: room.id.clone(),
+                    name: room.name.clone(),
+                    room_type: room_type.to_string(),
+                    position: [room.position.x, room.position.y, room.position.z],
+                    size: [room.size.x, room.size.y, room.size.z],
+                    doors,
+                    deck_name: deck.name.clone(),
+                    ship_name: ship.name.clone(),
+                    equipment,
+                });
             }
         }
 
@@ -541,18 +504,121 @@ impl GameWorld {
     }
 }
 
-/// Extract [f32; 3] from a RON tuple value like (1.0, 2.0, 3.0).
-fn extract_f32_3(val: Option<&ron::Value>) -> [f32; 3] {
-    val.and_then(|v| {
-        if let ron::Value::Seq(seq) = v {
-            if seq.len() >= 3 {
-                let x = seq[0].clone().into_rust::<f64>().ok()? as f32;
-                let y = seq[1].clone().into_rust::<f64>().ok()? as f32;
-                let z = seq[2].clone().into_rust::<f64>().ok()? as f32;
-                return Some([x, y, z]);
-            }
+/// Convert a RoomType enum into the snake_case string used by room_equipment().
+fn room_type_to_str(rt: &crate::ship::layout::RoomType) -> &'static str {
+    use crate::ship::layout::RoomType::*;
+    match rt {
+        Bridge => "bridge",
+        Quarters => "quarters",
+        Cargo => "cargo",
+        Engineering => "engineering",
+        Medbay => "medbay",
+        Hydroponics => "hydroponics",
+        Armory => "armory",
+        Hangar => "hangar",
+    }
+}
+
+/// Convert a Direction enum into the snake_case string used in perception responses.
+fn direction_to_str(d: &crate::ship::layout::Direction) -> &'static str {
+    use crate::ship::layout::Direction::*;
+    match d {
+        North => "north",
+        South => "south",
+        East => "east",
+        West => "west",
+        Up => "up",
+        Down => "down",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// GameWorld::new() should load data/ships/starter_fleet.ron and produce
+    /// the Pioneer's 6 rooms. If RON parsing silently fails, rooms is empty.
+    #[test]
+    fn loads_starter_ship_with_six_rooms() {
+        let world = GameWorld::new();
+        assert_eq!(world.ship_name, "Pioneer", "ship name should parse from RON");
+        assert_eq!(world.rooms.len(), 6, "Pioneer has 6 rooms (bridge, quarters, medbay, cargo, engineering, hydroponics)");
+
+        let room_ids: Vec<&str> = world.rooms.iter().map(|r| r.id.as_str()).collect();
+        for expected in ["bridge", "quarters", "medbay", "cargo", "engineering", "hydroponics"] {
+            assert!(room_ids.contains(&expected), "missing room: {}", expected);
         }
-        None
-    })
-    .unwrap_or([0.0, 0.0, 0.0])
+    }
+
+    /// Each room should have a non-zero size — a sanity check that position/size
+    /// tuples parsed from RON correctly.
+    #[test]
+    fn rooms_have_non_zero_size() {
+        let world = GameWorld::new();
+        for room in &world.rooms {
+            assert!(room.size[0] > 0.0, "{} has zero width", room.id);
+            assert!(room.size[1] > 0.0, "{} has zero height", room.id);
+            assert!(room.size[2] > 0.0, "{} has zero depth", room.id);
+        }
+    }
+
+    /// The ship should be populated with interactable entities (equipment + windows).
+    /// 6 rooms × ~5 equipment + 3 windows ≈ 33 entities.
+    #[test]
+    fn populates_ship_entities() {
+        let world = GameWorld::new();
+        assert!(world.entities.len() >= 20,
+            "expected at least 20 ship entities, got {}", world.entities.len());
+
+        // At least one window entity (for looking out at Earth).
+        let windows = world.entities.values().filter(|e| e.entity_type == "window").count();
+        assert!(windows >= 1, "expected at least 1 window entity");
+    }
+
+    /// room_for_position should resolve a point inside the Crew Quarters
+    /// to the correct RoomInfo.
+    #[test]
+    fn room_for_position_resolves_quarters() {
+        let world = GameWorld::new();
+        // Default spawn is Crew Quarters center.
+        let spawn = world.default_spawn_position();
+        let room = world.room_for_position(spawn);
+        assert!(room.is_some(), "spawn position must be inside a room");
+        let room = room.unwrap();
+        assert_eq!(room.id, "quarters");
+        assert_eq!(room.name, "Crew Quarters");
+        assert!(!room.exits.is_empty(), "Crew Quarters has 3 exits");
+    }
+
+    /// entities_near should return only entities within radius, sorted by distance.
+    #[test]
+    fn entities_near_filters_and_sorts() {
+        let world = GameWorld::new();
+        let spawn = world.default_spawn_position();
+        let nearby = world.entities_near(spawn, 5.0);
+
+        assert!(!nearby.is_empty(), "expected entities near spawn point");
+
+        // Verify sorted ascending by distance.
+        for window in nearby.windows(2) {
+            assert!(window[0].distance <= window[1].distance, "entities not sorted");
+        }
+
+        // Verify all within radius.
+        for e in &nearby {
+            assert!(e.distance <= 5.0, "entity {} outside radius", e.entity_id);
+        }
+    }
+
+    /// Spawning a player should put them in Crew Quarters when given the sentinel.
+    #[test]
+    fn spawn_player_uses_crew_quarters() {
+        let mut world = GameWorld::new();
+        let id = world.spawn_player("test_pubkey", [0.0, 1.0, 0.0]);
+        let player = &world.entities[&id];
+
+        let room = world.room_for_position(player.position);
+        assert!(room.is_some(), "player not in any room");
+        assert_eq!(room.unwrap().id, "quarters");
+    }
 }
