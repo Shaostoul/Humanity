@@ -77,12 +77,17 @@ missing/malformed input — pages render an empty filter row rather than crashin
 | `src/gui/pages/onboarding.rs:69-86` | 4 onboarding concept cards | `data/onboarding/core_concepts.json` | Loader: `load_onboarding_concepts()`. |
 | `src/gui/pages/onboarding.rs:95-104` | 8 core-page shortcuts | `data/onboarding/core_pages.json` | Loader: `load_onboarding_core_pages()`. `page_id` strings mapped to `GuiPage` variants by `page_id_to_gui_page()`. |
 
+### Migrated in v0.135.0
+
+| Where | What | Target file | Notes |
+|-------|------|-------------|-------|
+| `src/gui/pages/ai_usage.rs:93-94` | AI provider list + time window choices | `data/ai_usage/filters.json` | Loader: `load_ai_usage_filters()` → `state.ai_usage_filters`. |
+| `src/gui/pages/tasks.rs:30` | 4 default project names in TaskPageState | `data/tasks/default_projects.json` | Read in `TaskPageState::default()` via `load_default_projects()` (thread-local, not GuiState field). |
+
 ### Still outstanding (lower-priority)
 
 | Where | What | Target file | Notes |
 |-------|------|-------------|-------|
-| `src/gui/pages/ai_usage.rs:93-94` | AI provider list + time window choices | `data/ai_usage/filters.json` | Medium — small but used in filter UI. |
-| `src/gui/pages/tasks.rs:30` | 4 default project names in TaskPageState | `data/tasks/default_projects.json` | Medium — UI chrome currently, but should load from user config. |
 | `src/gui/pages/calculator.rs:75,93-98` | Calculator button labels | n/a | Acceptable as UI logic — pure layout, not domain data. |
 
 ## Already done (reference patterns)

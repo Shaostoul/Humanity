@@ -103,17 +103,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             for &label in *row {
                                 let is_op = matches!(label, "+" | "-" | "*" | "/" | "=");
                                 let is_special = matches!(label, "C" | "BS");
-                                let text_color = if is_op {
+                                let text_color = if is_op || is_special {
                                     theme.text_on_accent()
-                                } else if is_special {
-                                    Color32::WHITE
                                 } else {
                                     theme.text_primary()
                                 };
                                 let fill = if label == "=" {
                                     theme.accent()
                                 } else if is_op {
-                                    Color32::from_rgb(60, 60, 70)
+                                    theme.bg_secondary()
                                 } else if is_special {
                                     theme.danger()
                                 } else {

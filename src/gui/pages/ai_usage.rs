@@ -90,8 +90,8 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-const PROVIDERS: &[&str] = &["claude", "claude-code", "gpt", "gemini", "grok", "other"];
-const WINDOWS: &[&str] = &["hourly", "5h", "daily", "weekly", "monthly"];
+// Providers and windows live in data/ai_usage/filters.json — load via
+// state.ai_usage_filters.
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut store = load_store();
@@ -137,26 +137,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 // ── Add quota form ──
                 widgets::card_with_header(ui, theme, "Set / update a quota", |ui| {
-                    egui::Grid::new("quota_form_grid").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
-                        ui.label("Provider");
-                        provider_combo(ui, "qprov", &mut state.ai_usage_quota_provider);
-                        ui.end_row();
-
-                        ui.label("Window");
-                        window_combo(ui, "qwin", &mut state.ai_usage_quota_window);
-                        ui.end_row();
-
-                        ui.label("Used");
+                    widgets::form_row(ui, theme, "Provider", |ui| {
+                        options_combo(ui, "qprov", &mut state.ai_usage_quota_provider, &state.ai_usage_filters.providers);
+                    });
+                    widgets::form_row(ui, theme, "Window", |ui| {
+                        options_combo(ui, "qwin", &mut state.ai_usage_quota_window, &state.ai_usage_filters.windows);
+                    });
+                    widgets::form_row(ui, theme, "Used", |ui| {
                         ui.add(egui::TextEdit::singleline(&mut state.ai_usage_quota_used).desired_width(140.0));
-                        ui.end_row();
-
-                        ui.label("Limit");
+                    });
+                    widgets::form_row(ui, theme, "Limit", |ui| {
                         ui.add(egui::TextEdit::singleline(&mut state.ai_usage_quota_limit).desired_width(140.0));
-                        ui.end_row();
-
-                        ui.label("Resets");
+                    });
+                    widgets::form_row(ui, theme, "Resets", |ui| {
                         ui.add(egui::TextEdit::singleline(&mut state.ai_usage_quota_resets).desired_width(140.0).hint_text("2h, 4d, 30m"));
-                        ui.end_row();
                     });
                     ui.add_space(theme.spacing_sm);
                     if Button::primary("Save quota").show(ui, theme) {
@@ -182,26 +176,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 // ── Log event form ──
                 widgets::card_with_header(ui, theme, "Log a usage event", |ui| {
-                    egui::Grid::new("event_form_grid").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
-                        ui.label("Provider");
-                        provider_combo(ui, "eprov", &mut state.ai_usage_event_provider);
-                        ui.end_row();
-
-                        ui.label("Model");
+                    widgets::form_row(ui, theme, "Provider", |ui| {
+                        options_combo(ui, "eprov", &mut state.ai_usage_event_provider, &state.ai_usage_filters.providers);
+                    });
+                    widgets::form_row(ui, theme, "Model", |ui| {
                         ui.add(egui::TextEdit::singleline(&mut state.ai_usage_event_model).desired_width(200.0).hint_text("e.g. opus-4.7"));
-                        ui.end_row();
-
-                        ui.label("Input tokens");
+                    });
+                    widgets::form_row(ui, theme, "Input tokens", |ui| {
                         ui.add(egui::TextEdit::singleline(&mut state.ai_usage_event_input).desired_width(140.0));
-                        ui.end_row();
-
-                        ui.label("Output tokens");
+                    });
+                    widgets::form_row(ui, theme, "Output tokens", |ui| {
                         ui.add(egui::TextEdit::singleline(&mut state.ai_usage_event_output).desired_width(140.0));
-                        ui.end_row();
-
-                        ui.label("Notes");
+                    });
+                    widgets::form_row(ui, theme, "Notes", |ui| {
                         ui.add(egui::TextEdit::multiline(&mut state.ai_usage_event_notes).desired_rows(2).desired_width(360.0));
-                        ui.end_row();
                     });
                     ui.add_space(theme.spacing_sm);
                     if Button::primary("Log event").show(ui, theme) {
@@ -326,22 +314,12 @@ fn quota_card(ui: &mut egui::Ui, theme: &Theme, q: &Quota, pct: f32) -> bool {
     remove
 }
 
-fn provider_combo(ui: &mut egui::Ui, id: &str, value: &mut String) {
+fn options_combo(ui: &mut egui::Ui, id: &str, value: &mut String, options: &[String]) {
     egui::ComboBox::from_id_salt(id)
         .selected_text(value.clone())
         .show_ui(ui, |ui| {
-            for opt in PROVIDERS {
-                ui.selectable_value(value, opt.to_string(), *opt);
-            }
-        });
-}
-
-fn window_combo(ui: &mut egui::Ui, id: &str, value: &mut String) {
-    egui::ComboBox::from_id_salt(id)
-        .selected_text(value.clone())
-        .show_ui(ui, |ui| {
-            for opt in WINDOWS {
-                ui.selectable_value(value, opt.to_string(), *opt);
+            for opt in options {
+                ui.selectable_value(value, opt.clone(), opt);
             }
         });
 }

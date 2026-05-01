@@ -1,0 +1,4 @@
+{
+  "_purpose": "Default project names that populate the task board for a brand-new identity. Once the user adds their own projects, those persist independently. Edit this list to change what new users see on first launch.",
+  "projects": ["Frontend", "Backend", "Game Engine", "Infrastructure"]
+}

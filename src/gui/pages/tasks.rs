@@ -27,7 +27,9 @@ impl Default for TaskPageState {
         Self {
             selected_task: None,
             project_filter: String::new(),
-            projects: vec!["Frontend".into(), "Backend".into(), "Game Engine".into(), "Infrastructure".into()],
+            // Loaded from data/tasks/default_projects.json (see load_default_projects()).
+            // Falls back to empty Vec if the file is missing — user can add projects via UI.
+            projects: load_default_projects(),
             new_labels_input: String::new(),
             new_project: String::new(),
             editing: false,
@@ -35,6 +37,18 @@ impl Default for TaskPageState {
             edit_priority: TaskPriority::Medium,
         }
     }
+}
+
+/// Read the default project list from `data/tasks/default_projects.json`.
+/// Used by `TaskPageState::default()` on first lazy init.
+fn load_default_projects() -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct File { projects: Vec<String> }
+    std::fs::read_to_string("data/tasks/default_projects.json")
+        .ok()
+        .and_then(|s| serde_json::from_str::<File>(&s).ok())
+        .map(|f| f.projects)
+        .unwrap_or_default()
 }
 
 fn with_state<R>(f: impl FnOnce(&mut TaskPageState) -> R) -> R {

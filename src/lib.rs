@@ -635,6 +635,9 @@ mod native_app {
             gui_state.donate_faq = crate::gui::load_donate_faq(&data_dir);
             gui_state.onboarding_concepts = crate::gui::load_onboarding_concepts(&data_dir);
             gui_state.onboarding_core_pages = crate::gui::load_onboarding_core_pages(&data_dir);
+            gui_state.ai_usage_filters = crate::gui::load_ai_usage_filters(&data_dir);
+            // Note: TaskPageState reads data/tasks/default_projects.json itself
+            // on its first lazy-init (it's a thread-local in pages/tasks.rs).
             // Populate the live studio state from the loaded presets.
             gui_state.studio.sources = gui_state
                 .studio_source_presets
@@ -2001,7 +2004,7 @@ mod native_app {
                                 match state.gui_state.active_page {
                                     GuiPage::None | GuiPage::MainMenu => {}
                                     _ => {
-                                        escape_menu::draw_nav_bar(ctx, &mut state.gui_state);
+                                        escape_menu::draw_nav_bar(ctx, &state.theme, &mut state.gui_state);
                                     }
                                 }
 

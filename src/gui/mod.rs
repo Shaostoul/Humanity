@@ -767,6 +767,8 @@ pub struct GuiState {
     pub onboarding_concepts: Vec<OnboardingConcept>,
     /// Onboarding core-page shortcuts (`data/onboarding/core_pages.json`).
     pub onboarding_core_pages: Vec<OnboardingCorePage>,
+    /// AI Usage page filters (`data/ai_usage/filters.json`).
+    pub ai_usage_filters: AiUsageFilters,
 
     // ── Universal help modal (loaded from data/help/topics.json) ──
     /// Registry of help topics. Populated at startup from data/help/topics.json.
@@ -1065,6 +1067,7 @@ impl Default for GuiState {
             donate_faq: Vec::new(),
             onboarding_concepts: Vec::new(),
             onboarding_core_pages: Vec::new(),
+            ai_usage_filters: AiUsageFilters::default(),
             help_registry: crate::gui::widgets::help_modal::HelpRegistry::new(),
             active_help_topic: None,
             onboarding_quest_chains: Vec::new(),
@@ -1544,6 +1547,33 @@ pub fn load_onboarding_core_pages(data_dir: &std::path::Path) -> Vec<OnboardingC
     struct File { pages: Vec<OnboardingCorePage> }
     read_data_json::<File>(data_dir, "onboarding/core_pages.json")
         .map(|f| f.pages)
+        .unwrap_or_default()
+}
+
+/// AI Usage page picker options (providers + time windows).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct AiUsageFilters {
+    #[serde(default)] pub providers: Vec<String>,
+    #[serde(default)] pub windows: Vec<String>,
+}
+
+/// Load AI Usage filter options from `data/ai_usage/filters.json`.
+#[cfg(feature = "native")]
+pub fn load_ai_usage_filters(data_dir: &std::path::Path) -> AiUsageFilters {
+    read_data_json::<AiUsageFilters>(data_dir, "ai_usage/filters.json")
+        .unwrap_or_default()
+}
+
+/// Load default task project names from `data/tasks/default_projects.json`.
+/// These seed the task board for brand-new identities; existing users keep
+/// their own list.
+#[cfg(feature = "native")]
+pub fn load_default_task_projects(data_dir: &std::path::Path) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct File { projects: Vec<String> }
+    read_data_json::<File>(data_dir, "tasks/default_projects.json")
+        .map(|f| f.projects)
         .unwrap_or_default()
 }
 

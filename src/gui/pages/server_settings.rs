@@ -10,6 +10,7 @@ use egui::{Align, Frame, Layout, RichText, Rounding, ScrollArea, Stroke, Vec2};
 
 use crate::gui::theme::Theme;
 use crate::gui::{GuiPage, GuiState};
+use crate::gui::widgets;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
@@ -34,15 +35,7 @@ fn draw_header(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_lg);
     ui.horizontal(|ui| {
         ui.add_space(theme.spacing_lg);
-        let back = egui::Button::new(
-            RichText::new("< Back to Chat")
-                .size(theme.font_size_body)
-                .color(theme.text_secondary()),
-        )
-        .fill(egui::Color32::TRANSPARENT)
-        .stroke(Stroke::new(1.0, theme.border()))
-        .rounding(Rounding::same(theme.border_radius as u8));
-        if ui.add(back).clicked() {
+        if widgets::Button::secondary("< Back to Chat").show(ui, theme) {
             state.active_page = GuiPage::Chat;
         }
     });
@@ -96,14 +89,7 @@ fn draw_invite_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         kv_row(ui, theme, label, invite_url.clone());
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
-            let btn = egui::Button::new(
-                RichText::new("Copy invite")
-                    .color(theme.text_on_accent())
-                    .size(theme.font_size_body),
-            )
-            .fill(theme.accent())
-            .rounding(Rounding::same(theme.border_radius as u8));
-            if ui.add(btn).clicked() {
+            if widgets::Button::primary("Copy invite").show(ui, theme) {
                 ui.ctx().copy_text(invite_url);
             }
         });
@@ -122,14 +108,7 @@ fn draw_danger_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             Some((id, _name)) => ("Leave group", Some(id)),
             None => ("Disconnect from server", None),
         };
-        let btn = egui::Button::new(
-            RichText::new(label)
-                .size(theme.font_size_body)
-                .color(egui::Color32::WHITE),
-        )
-        .fill(theme.danger())
-        .rounding(Rounding::same(theme.border_radius as u8));
-        if ui.add(btn).clicked() {
+        if widgets::Button::danger(label).show(ui, theme) {
             match group_id {
                 Some(gid) => {
                     if let Some(ref client) = state.ws_client {
