@@ -732,6 +732,18 @@ pub struct GuiState {
     /// Whether the slash commands help modal is visible.
     pub show_help_modal: bool,
 
+    // ── Server settings page (mod / admin actions) ──
+    /// Username target for kick/mute/ban/verify/promote actions.
+    pub server_settings_target_user: String,
+    /// Channel name input for create/delete/readonly actions.
+    pub server_settings_channel_name: String,
+    /// Last-generated invite code (shown after admin clicks "Generate invite").
+    pub server_settings_invite_code: String,
+    /// Last action result message (success or error feedback).
+    pub server_settings_status: String,
+    /// Whether the danger-zone confirm-delete prompt is showing.
+    pub server_settings_confirm_action: Option<String>,
+
     // ── Debug console state ──
 
     /// Whether the F12 debug console overlay is visible.
@@ -1051,6 +1063,11 @@ impl Default for GuiState {
             edit_channel_name: String::new(),
             edit_channel_description: String::new(),
             edit_channel_confirm_delete: false,
+            server_settings_target_user: String::new(),
+            server_settings_channel_name: String::new(),
+            server_settings_invite_code: String::new(),
+            server_settings_status: String::new(),
+            server_settings_confirm_action: None,
             show_help_modal: false,
             debug_console_visible: false,
             debug_log: Vec::new(),

@@ -486,19 +486,15 @@ fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         ui.add_space(theme.spacing_sm);
 
         // Legacy fields (kept for backward compatibility)
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Solana (SOL):").color(theme.text_secondary()));
+        widgets::form_row(ui, theme, "Solana (SOL)", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.donate_solana_address)
-                .desired_width(300.0)
+                .desired_width(280.0)
                 .hint_text("Base58 Solana address"));
         });
 
-        ui.add_space(theme.spacing_xs);
-
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Bitcoin (BTC):").color(theme.text_secondary()));
+        widgets::form_row(ui, theme, "Bitcoin (BTC)", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.donate_btc_address)
-                .desired_width(300.0)
+                .desired_width(280.0)
                 .hint_text("Bitcoin address (bc1...)"));
         });
 
@@ -1040,13 +1036,12 @@ fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
         ui.label(RichText::new("Do Not Disturb").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
 
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Start:").color(theme.text_secondary()));
+        widgets::form_row(ui, theme, "Quiet hours start", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.settings.dnd_start)
                 .desired_width(80.0)
                 .hint_text("22:00"));
-            ui.add_space(theme.spacing_sm);
-            ui.label(RichText::new("End:").color(theme.text_secondary()));
+        });
+        widgets::form_row(ui, theme, "Quiet hours end", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.settings.dnd_end)
                 .desired_width(80.0)
                 .hint_text("08:00"));
@@ -1103,11 +1098,9 @@ fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         ui.add_space(theme.spacing_md);
 
-        // Custom RPC
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Custom RPC URL:").color(theme.text_secondary()));
+        widgets::form_row(ui, theme, "Custom RPC URL", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.settings.custom_rpc_url)
-                .desired_width(300.0)
+                .desired_width(280.0)
                 .hint_text("https://..."));
         });
     });
