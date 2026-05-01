@@ -154,18 +154,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 );
                 ui.add_space(4.0);
 
-                if ui
-                    .add(
-                        egui::Button::new(
-                            RichText::new("Connect")
-                                .size(theme.font_size_body)
-                                .color(theme.text_on_accent()),
-                        )
-                        .fill(theme.accent())
-                        .min_size(Vec2::new(ui.available_width() - 32.0, 32.0)),
-                    )
-                    .clicked()
-                {
+                if widgets::Button::primary("Connect").full_width().show(ui, theme) {
                     let ws_url = derive_ws_url(&state.server_url);
                     let name = state.user_name.clone();
                     let pubkey = if state.profile_public_key.is_empty() {
@@ -1675,29 +1664,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
                     // Help button (?) - opens slash commands reference
-                    if ui.add(
-                        egui::Button::new(
-                            RichText::new("?")
-                                .size(theme.font_size_body)
-                                .color(theme.text_muted()),
-                        )
-                        .fill(Color32::from_rgb(40, 40, 48))
-                        .min_size(Vec2::new(28.0, 28.0)),
-                    ).clicked() {
+                    if widgets::Button::ghost("?").show(ui, theme) {
                         state.show_help_modal = !state.show_help_modal;
                     }
 
-                    let send_clicked = ui
-                        .add(
-                            egui::Button::new(
-                                RichText::new("Send")
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_on_accent()),
-                            )
-                            .fill(theme.accent())
-                            .min_size(Vec2::new(56.0, 28.0)),
-                        )
-                        .clicked();
+                    let send_clicked = widgets::Button::primary("Send").show(ui, theme);
 
                     if (enter_pressed || send_clicked) && !state.chat_input.trim().is_empty() {
                         let content = state.chat_input.trim().to_string();

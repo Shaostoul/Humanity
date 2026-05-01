@@ -520,26 +520,22 @@ fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     ui.label(RichText::new(format!("{}.", i + 1)).color(theme.text_muted()).size(theme.font_size_small));
 
                     ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Network:").color(theme.text_muted()).size(theme.font_size_small));
+                        widgets::form_row(ui, theme, "Network", |ui| {
                             ui.add(egui::TextEdit::singleline(&mut addr.network)
                                 .desired_width(150.0)
                                 .hint_text("e.g. Ethereum (ETH)"));
                         });
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Value:").color(theme.text_muted()).size(theme.font_size_small));
+                        widgets::form_row(ui, theme, "Value", |ui| {
                             ui.add(egui::TextEdit::singleline(&mut addr.value)
                                 .desired_width(250.0)
                                 .hint_text("Address or URL"));
                         });
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Label:").color(theme.text_muted()).size(theme.font_size_small));
+                        widgets::form_row(ui, theme, "Label", |ui| {
                             ui.add(egui::TextEdit::singleline(&mut addr.label)
                                 .desired_width(200.0)
                                 .hint_text("Short description"));
                         });
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Type:").color(theme.text_muted()).size(theme.font_size_small));
+                        widgets::form_row(ui, theme, "Type", |ui| {
                             egui::ComboBox::from_id_salt(format!("donate_type_{}", i))
                                 .selected_text(&addr.addr_type)
                                 .width(100.0)
@@ -575,26 +571,23 @@ fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
         // Add new address form
         ui.label(RichText::new("Add Address").color(theme.text_muted()).size(theme.font_size_small));
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Network:").color(theme.text_muted()).size(theme.font_size_small));
+        ui.add_space(theme.spacing_xs);
+        widgets::form_row(ui, theme, "Network", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.donate_new_network)
                 .desired_width(150.0)
                 .hint_text("e.g. Monero (XMR)"));
         });
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Value:").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::form_row(ui, theme, "Value", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.donate_new_value)
                 .desired_width(250.0)
                 .hint_text("Address or URL"));
         });
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Label:").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::form_row(ui, theme, "Label", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.donate_new_label)
                 .desired_width(200.0)
                 .hint_text("Short description"));
         });
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Type:").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::form_row(ui, theme, "Type", |ui| {
             egui::ComboBox::from_id_salt("donate_new_type")
                 .selected_text(&state.donate_new_type)
                 .width(100.0)

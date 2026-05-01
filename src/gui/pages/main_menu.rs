@@ -9,10 +9,12 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    // Full-screen dark backdrop
+    // Full-screen dark backdrop — derived from theme.bg_primary with 94% alpha
+    // so the 3D world (if rendered behind) shows through faintly.
+    let bg = theme.bg_primary();
     let screen = ctx.screen_rect();
     let painter = ctx.layer_painter(egui::LayerId::background());
-    painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(10, 10, 14, 240));
+    painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), 240));
 
     if !state.onboarding_complete {
         draw_onboarding(ctx, theme, state);
@@ -28,7 +30,7 @@ fn draw_onboarding(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(500.0, 520.0))
-        .frame(egui::Frame::window(&ctx.style()).fill(Color32::from_rgb(18, 18, 24)))
+        .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
         .show(ctx, |ui| {
             match state.onboarding_step {
                 0 => draw_step_welcome(ui, theme, state),
@@ -122,7 +124,7 @@ fn draw_step_server(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if state.server_connected {
         ui.horizontal(|ui| {
             ui.add_space(40.0);
-            ui.label(RichText::new("Connected!").size(14.0).color(Color32::from_rgb(46, 204, 113)));
+            ui.label(RichText::new("Connected!").size(14.0).color(theme.success()));
         });
     }
 
@@ -239,9 +241,9 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
                 if !state.settings.seed_phrase_recovery_status.is_empty() {
                     let color = if state.settings.seed_phrase_recovery_status.starts_with("Error") {
-                        Color32::from_rgb(231, 76, 60)
+                        theme.danger()
                     } else {
-                        Color32::from_rgb(46, 204, 113)
+                        theme.success()
                     };
                     ui.label(RichText::new(&state.settings.seed_phrase_recovery_status).color(color).size(11.0));
                 }
@@ -260,7 +262,7 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             } else {
                 format!("Identity: {}", key)
             };
-            ui.label(RichText::new(display).size(11.0).color(Color32::from_rgb(46, 204, 113)));
+            ui.label(RichText::new(display).size(11.0).color(theme.success()));
         });
     }
 
@@ -328,7 +330,7 @@ fn draw_hub(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(360.0, 380.0))
-        .frame(egui::Frame::window(&ctx.style()).fill(Color32::from_rgb(18, 18, 24)))
+        .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(20.0);
