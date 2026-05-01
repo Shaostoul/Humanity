@@ -189,3 +189,85 @@ pub struct VoxelBody {
     /// Whether this voxel body has been modified by the player.
     pub modified: bool,
 }
+
+// ── Aging & Life Stage ──────────────────────────────────────
+
+/// Tracks an entity's age in game-years and current life stage.
+/// Driven by `AgingSystem::tick`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Age {
+    /// Current age in game-years (1 game day = 20 real minutes; 1 game year = 365 game days).
+    pub years: f32,
+    /// Current life stage (e.g. "child", "teen", "young_adult", "adult", "senior", "elder").
+    pub life_stage: String,
+}
+
+impl Default for Age {
+    fn default() -> Self {
+        Self { years: 25.0, life_stage: "young_adult".into() }
+    }
+}
+
+// ── Waste Management ────────────────────────────────────────
+
+/// Marks an entity as a waste-producing source. Rate is kg per game-day.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WasteSource {
+    /// kg of waste produced per game-day.
+    pub rate_per_day: f32,
+    /// Category id from data/waste_management.ron (e.g. "organic", "metal", "plastic").
+    pub category: String,
+}
+
+/// Accumulates waste of various categories on an entity (typically a room or container).
+/// `WasteSystem::tick` adds emissions from nearby `WasteSource` entities.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct WasteAccumulator {
+    /// Per-category accumulated kg.
+    pub by_category: std::collections::HashMap<String, f32>,
+    /// Total capacity in kg before pollution effects apply.
+    pub capacity: f32,
+}
+
+// ── Manufacturing ───────────────────────────────────────────
+
+/// A production facility producing one recipe at a time.
+/// `ManufacturingSystem::tick` advances `progress` toward 1.0; when it
+/// reaches 1.0, `output_count` increments and progress resets to 0.0.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProductionFacility {
+    /// Recipe id from `data/recipes.csv`.
+    pub recipe_id: String,
+    /// Progress toward completing one unit (0.0 to 1.0).
+    pub progress: f32,
+    /// Recipe duration in game-days. 1.0 = one unit per day.
+    pub days_per_unit: f32,
+    /// Total units produced since the facility started.
+    pub output_count: u32,
+    /// Whether the facility is currently running (off if missing inputs/power).
+    pub running: bool,
+}
+
+impl Default for ProductionFacility {
+    fn default() -> Self {
+        Self {
+            recipe_id: String::new(),
+            progress: 0.0,
+            days_per_unit: 1.0,
+            output_count: 0,
+            running: true,
+        }
+    }
+}
+
+// ── Genetics ────────────────────────────────────────────────
+
+/// Diploid genome — one allele pair per trait.
+/// `GeneticsSystem` is event-driven; `breed(parent_a, parent_b)` returns
+/// a child Genome rather than mutating during tick.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Genome {
+    /// trait_id → (allele_a, allele_b). Allele strings are domain-defined
+    /// (e.g. "tall"/"short", "red"/"green", "fast"/"slow").
+    pub alleles: std::collections::HashMap<String, (String, String)>,
+}
