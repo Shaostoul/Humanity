@@ -348,52 +348,27 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
 
-        // Go Live / LIVE button
+        // Go Live / LIVE button — Success variant when live (green), Primary when not.
         if state.studio.is_live {
-            let btn = ui.add(
-                egui::Button::new(
-                    RichText::new("LIVE").size(theme.font_size_body).color(Color32::WHITE).strong(),
-                )
-                .fill(theme.success())
-                .min_size(Vec2::new(70.0, 32.0))
-                .rounding(Rounding::same(6)),
-            );
-            if btn.clicked() {
-                // Clicking LIVE while live does nothing (use Stop)
-            }
-        } else {
-            if widgets::primary_button(ui, theme, "Go Live") {
-                state.studio.is_live = true;
-                state.studio.is_paused = false;
-                state.studio.live_start_time = ui.ctx().input(|i| i.time);
-            }
+            // Indicator only — clicking does nothing (use Stop to end stream).
+            widgets::Button::success("LIVE").show(ui, theme);
+        } else if widgets::Button::primary("Go Live").show(ui, theme) {
+            state.studio.is_live = true;
+            state.studio.is_paused = false;
+            state.studio.live_start_time = ui.ctx().input(|i| i.time);
         }
 
-        // Pause
+        // Pause / Resume — Secondary that flips to accent fill via .active() when paused.
         let pause_label = if state.studio.is_paused { "Resume" } else { "Pause" };
-        let pause_fill = if state.studio.is_paused {
-            Color32::from_rgb(241, 196, 15)
-        } else {
-            Color32::from_rgb(52, 73, 94)
-        };
-        if ui
-            .add(
-                egui::Button::new(
-                    RichText::new(pause_label)
-                        .size(theme.font_size_small)
-                        .color(Color32::WHITE),
-                )
-                .fill(pause_fill)
-                .min_size(Vec2::new(55.0, 32.0))
-                .rounding(Rounding::same(6)),
-            )
-            .clicked()
+        if widgets::Button::secondary(pause_label)
+            .active(state.studio.is_paused)
+            .show(ui, theme)
         {
             state.studio.is_paused = !state.studio.is_paused;
         }
 
-        // Stop
-        if widgets::danger_button(ui, theme, "Stop") {
+        // Stop — Danger variant.
+        if widgets::Button::danger("Stop").show(ui, theme) {
             state.studio.is_live = false;
             state.studio.is_paused = false;
             state.studio.is_afk = false;
@@ -403,30 +378,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.panel_margin);
 
-        // AFK button
-        let afk_fill = if state.studio.is_afk {
-            Color32::from_rgb(155, 89, 182)
-        } else {
-            Color32::from_rgb(52, 73, 94)
-        };
-        if ui
-            .add(
-                egui::Button::new(
-                    RichText::new("AFK")
-                        .size(theme.font_size_small)
-                        .color(Color32::WHITE),
-                )
-                .fill(afk_fill)
-                .min_size(Vec2::new(40.0, 32.0))
-                .rounding(Rounding::same(6)),
-            )
-            .clicked()
+        // AFK toggle — Secondary that flips to accent when active.
+        if widgets::Button::secondary("AFK")
+            .active(state.studio.is_afk)
+            .show(ui, theme)
         {
             state.studio.is_afk = !state.studio.is_afk;
             if state.studio.is_afk {
                 state.studio.afk_start_time = ui.ctx().input(|i| i.time);
                 state.studio.is_paused = true;
-                // Switch to BRB scene if it exists
                 if let Some(brb_idx) = state.studio.scenes.iter().position(|s| s.name == "BRB") {
                     state.studio.active_scene_index = brb_idx;
                 }
@@ -435,24 +395,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
 
-        // BRB button
-        let brb_active = state.studio.is_afk; // same state, different label
-        if ui
-            .add(
-                egui::Button::new(
-                    RichText::new("BRB")
-                        .size(theme.font_size_small)
-                        .color(Color32::WHITE),
-                )
-                .fill(if brb_active {
-                    Color32::from_rgb(155, 89, 182)
-                } else {
-                    Color32::from_rgb(52, 73, 94)
-                })
-                .min_size(Vec2::new(40.0, 32.0))
-                .rounding(Rounding::same(6)),
-            )
-            .clicked()
+        // BRB — same toggle state as AFK, different label.
+        if widgets::Button::secondary("BRB")
+            .active(state.studio.is_afk)
+            .show(ui, theme)
         {
             state.studio.is_afk = !state.studio.is_afk;
             if state.studio.is_afk {

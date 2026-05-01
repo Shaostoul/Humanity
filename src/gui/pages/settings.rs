@@ -790,8 +790,9 @@ fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut Gui
     }
 }
 
-/// One row of the color-picker grid: a label and a swatch button that opens
-/// egui's color picker. Returns true if the color changed.
+/// One row of the color-picker grid: a swatch button (left) followed by the
+/// label (right). Swatches first means they all align in a clean column
+/// regardless of label length. Returns true if the color changed.
 fn color_row(
     ui: &mut egui::Ui,
     label: &str,
@@ -801,8 +802,6 @@ fn color_row(
     let mut rgba = [color_tuple.0, color_tuple.1, color_tuple.2, color_tuple.3];
     let mut changed = false;
     ui.horizontal(|ui| {
-        ui.label(RichText::new(label).color(label_color).size(13.0));
-        ui.add_space(4.0);
         if ui.color_edit_button_rgba_unmultiplied(&mut rgba).changed() {
             color_tuple.0 = rgba[0];
             color_tuple.1 = rgba[1];
@@ -810,6 +809,8 @@ fn color_row(
             color_tuple.3 = rgba[3];
             changed = true;
         }
+        ui.add_space(8.0);
+        ui.label(RichText::new(label).color(label_color).size(13.0));
     });
     changed
 }
