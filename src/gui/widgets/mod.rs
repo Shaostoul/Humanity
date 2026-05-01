@@ -20,6 +20,7 @@ pub mod image_cache_view;
 pub mod form_row;
 pub mod alert;
 pub mod dialog;
+pub mod tree;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;
@@ -37,6 +38,7 @@ pub use button::{primary_button, secondary_button, danger_button};
 pub use form_row::{form_row, form_row_wide, form_row_with_help};
 pub use alert::{alert, alert_with_title, AlertKind};
 pub use dialog::{dialog, dialog_anchored};
+pub use tree::{tree_node, tree_leaf, tree_leaf_colored, TreeState, TreeNodeResponse};
 
 /// Styled card container with background.
 pub fn card(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) {

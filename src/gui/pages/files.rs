@@ -6,14 +6,14 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use std::path::{Path, PathBuf};
 
-/// A node in the directory tree.
+/// A node in the directory tree. Expansion + selection state lives in
+/// `FileBrowserState::tree` (a `widgets::TreeState`), keyed by absolute path.
 #[derive(Debug, Clone)]
 pub enum FsNode {
     Dir {
         name: String,
         path: PathBuf,
         children: Vec<FsNode>,
-        expanded: bool,
     },
     File {
         name: String,
@@ -30,6 +30,8 @@ pub struct FileBrowserState {
     pub breadcrumbs: Vec<String>,
     pub status_message: String,
     pub initialized: bool,
+    /// Universal tree widget state — owns expand/collapse + selection.
+    pub tree: widgets::TreeState,
 }
 
 impl Default for FileBrowserState {
@@ -42,6 +44,7 @@ impl Default for FileBrowserState {
             breadcrumbs: vec!["data".into()],
             status_message: String::new(),
             initialized: false,
+            tree: widgets::TreeState::new(),
         }
     }
 }
@@ -74,7 +77,6 @@ fn scan_dir(path: &Path, depth: usize) -> Option<FsNode> {
             name,
             path: path.to_path_buf(),
             children,
-            expanded: depth == 0,
         })
     } else if path.is_file() {
         Some(FsNode::File {
@@ -86,10 +88,14 @@ fn scan_dir(path: &Path, depth: usize) -> Option<FsNode> {
     }
 }
 
+/// Render the directory tree using the universal `widgets::tree_node` /
+/// `widgets::tree_leaf` primitives. Expansion + selection state lives in
+/// `tree`; this function only owns the file-load side effect.
 fn draw_tree(
     ui: &mut egui::Ui,
-    node: &mut FsNode,
+    node: &FsNode,
     theme: &Theme,
+    tree: &mut widgets::TreeState,
     selected: &mut Option<PathBuf>,
     content: &mut String,
     dirty: &mut bool,
@@ -97,42 +103,23 @@ fn draw_tree(
     status: &mut String,
 ) {
     match node {
-        FsNode::Dir {
-            name,
-            path,
-            children,
-            expanded,
-        } => {
-            let header = if *expanded {
-                format!("v {}", name)
-            } else {
-                format!("> {}", name)
-            };
-            let resp = ui.selectable_label(
-                false,
-                RichText::new(&header).color(theme.accent()),
-            );
-            if resp.clicked() {
-                *expanded = !*expanded;
-            }
-            if *expanded {
-                ui.indent(egui::Id::new(path), |ui| {
-                    for child in children.iter_mut() {
-                        draw_tree(ui, child, theme, selected, content, dirty, breadcrumbs, status);
-                    }
-                });
-            }
+        FsNode::Dir { name, path, children } => {
+            let id = path.to_string_lossy().to_string();
+            widgets::tree_node(ui, theme, tree, &id, name, None, |ui, tree| {
+                for child in children {
+                    draw_tree(ui, child, theme, tree, selected, content, dirty, breadcrumbs, status);
+                }
+            });
         }
         FsNode::File { name, path } => {
-            let is_selected = selected.as_ref() == Some(path);
-            let label_text = RichText::new(name.as_str()).color(if is_selected {
-                theme.text_on_accent()
-            } else {
-                theme.text_primary()
-            });
-            let resp = ui.selectable_label(is_selected, label_text);
-            if resp.clicked() {
-                match std::fs::read_to_string(&*path) {
+            let id = path.to_string_lossy().to_string();
+            // Sync external "selected_file" state with the tree's notion of selection.
+            if selected.as_ref() == Some(path) && !tree.is_selected(&id) {
+                tree.select(&id);
+            }
+            let resp = widgets::tree_leaf(ui, theme, tree, &id, name, None);
+            if resp.clicked {
+                match std::fs::read_to_string(path) {
                     Ok(text) => {
                         *content = text;
                         *dirty = false;
@@ -149,11 +136,7 @@ fn draw_tree(
                     .components()
                     .filter_map(|c| {
                         let s = c.as_os_str().to_string_lossy().to_string();
-                        if s == "." || s == ".." {
-                            None
-                        } else {
-                            Some(s)
-                        }
+                        if s == "." || s == ".." { None } else { Some(s) }
                     })
                     .collect();
             }
@@ -177,6 +160,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let data_path = PathBuf::from("data");
             if data_path.is_dir() {
                 fs.root = scan_dir(&data_path, 0);
+                // Seed the universal tree state so the root directory starts open.
+                if let Some(FsNode::Dir { path, .. }) = &fs.root {
+                    fs.tree.expand(&path.to_string_lossy());
+                }
             }
             fs.initialized = true;
         }
@@ -213,16 +200,29 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     .id_salt("file_tree")
                     .show(&mut cols[0], |ui| {
                         with_state(|fs| {
-                            if let Some(ref mut root) = fs.root {
+                            // Split-borrow so we can read from `root` while
+                            // writing to `tree` and the file-load fields.
+                            let FileBrowserState {
+                                root,
+                                tree,
+                                selected_file,
+                                file_content,
+                                file_dirty,
+                                breadcrumbs,
+                                status_message,
+                                ..
+                            } = &mut *fs;
+                            if let Some(root) = root.as_ref() {
                                 draw_tree(
                                     ui,
                                     root,
                                     theme,
-                                    &mut fs.selected_file,
-                                    &mut fs.file_content,
-                                    &mut fs.file_dirty,
-                                    &mut fs.breadcrumbs,
-                                    &mut fs.status_message,
+                                    tree,
+                                    selected_file,
+                                    file_content,
+                                    file_dirty,
+                                    breadcrumbs,
+                                    status_message,
                                 );
                             } else {
                                 ui.label(

@@ -2213,52 +2213,32 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 // ─────────────────────────────── Create Channel Modal ──────────────────────
 
 fn draw_create_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Create Channel")
-        .collapsible(false)
-        .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(340.0, 0.0))
-        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
-        .show(ctx, |ui| {
-            ui.label(
-                RichText::new("Channel Name")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
+    let mut open = state.show_create_channel_modal;
+    widgets::dialog(ctx, theme, "create_channel_dialog", "Create Channel", &mut open, |ui| {
+        ui.set_min_width(300.0);
+
+        widgets::form_row(ui, theme, "Channel name", |ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut state.new_channel_name)
-                    .desired_width(300.0)
+                    .desired_width(220.0)
                     .hint_text("e.g. announcements"),
             );
+        });
 
-            ui.add_space(8.0);
-
-            ui.label(
-                RichText::new("Description (optional)")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
+        widgets::form_row(ui, theme, "Description", |ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut state.new_channel_description)
-                    .desired_width(300.0)
+                    .desired_width(220.0)
                     .hint_text("What is this channel about?"),
             );
+        });
 
-            ui.add_space(12.0);
+        ui.add_space(theme.spacing_md);
 
-            ui.horizontal(|ui| {
-                let name_valid = !state.new_channel_name.trim().is_empty();
-                if ui.add_enabled(
-                    name_valid,
-                    egui::Button::new(
-                        RichText::new("Create")
-                            .size(theme.font_size_body)
-                            .color(theme.text_on_accent()),
-                    )
-                    .fill(if name_valid { theme.accent() } else { Color32::from_rgb(60, 60, 70) })
-                    .min_size(Vec2::new(100.0, 30.0)),
-                ).clicked() {
-                    // Send channel_create via WebSocket
+        ui.horizontal(|ui| {
+            let name_valid = !state.new_channel_name.trim().is_empty();
+            ui.add_enabled_ui(name_valid, |ui| {
+                if widgets::Button::primary("Create").show(ui, theme) {
                     if let Some(ref client) = state.ws_client {
                         if client.is_connected() {
                             let msg = serde_json::json!({
@@ -2273,91 +2253,57 @@ fn draw_create_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gui
                     }
                     state.show_create_channel_modal = false;
                 }
-
-                ui.add_space(8.0);
-
-                if ui.add(
-                    egui::Button::new(
-                        RichText::new("Cancel")
-                            .size(theme.font_size_body)
-                            .color(theme.text_secondary()),
-                    )
-                    .fill(Color32::from_rgb(40, 40, 48))
-                    .min_size(Vec2::new(100.0, 30.0)),
-                ).clicked() {
-                    state.show_create_channel_modal = false;
-                }
             });
+            ui.add_space(theme.spacing_sm);
+            if widgets::Button::secondary("Cancel").show(ui, theme) {
+                state.show_create_channel_modal = false;
+            }
         });
+    });
+    // Apply X-button close back to state.
+    if !open {
+        state.show_create_channel_modal = false;
+    }
 }
 
 // ─────────────────────────────── Edit Channel Modal ──────────────────────
 
 fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Edit Channel")
-        .collapsible(false)
-        .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(340.0, 0.0))
-        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
-        .show(ctx, |ui| {
-            ui.label(
-                RichText::new(format!("Editing: #{}", state.edit_channel_id))
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
-            ui.add_space(8.0);
+    let mut open = state.show_channel_edit_modal;
+    widgets::dialog(ctx, theme, "edit_channel_dialog", "Edit Channel", &mut open, |ui| {
+        ui.set_min_width(300.0);
 
-            ui.label(
-                RichText::new("Channel Name")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
-            ui.add(
-                egui::TextEdit::singleline(&mut state.edit_channel_name)
-                    .desired_width(300.0),
-            );
+        ui.label(
+            RichText::new(format!("Editing: #{}", state.edit_channel_id))
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        ui.add_space(theme.spacing_sm);
 
-            ui.add_space(8.0);
+        widgets::form_row(ui, theme, "Channel name", |ui| {
+            ui.add(egui::TextEdit::singleline(&mut state.edit_channel_name).desired_width(220.0));
+        });
+        widgets::form_row(ui, theme, "Description", |ui| {
+            ui.add(egui::TextEdit::singleline(&mut state.edit_channel_description).desired_width(220.0));
+        });
 
-            ui.label(
-                RichText::new("Description")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
-            ui.add(
-                egui::TextEdit::singleline(&mut state.edit_channel_description)
-                    .desired_width(300.0),
-            );
-
-            ui.add_space(8.0);
-
-            // Voice enabled toggle (Bug 6)
-            let mut voice_enabled = state.chat_channels.iter()
-                .find(|c| c.id == state.edit_channel_id)
-                .map(|c| c.voice_enabled)
-                .unwrap_or(true);
-            if ui.checkbox(&mut voice_enabled, RichText::new("Voice enabled").size(theme.font_size_small).color(theme.text_secondary())).changed() {
-                if let Some(ch) = state.chat_channels.iter_mut().find(|c| c.id == state.edit_channel_id) {
-                    ch.voice_enabled = voice_enabled;
-                }
+        // Voice enabled toggle.
+        let mut voice_enabled = state.chat_channels.iter()
+            .find(|c| c.id == state.edit_channel_id)
+            .map(|c| c.voice_enabled)
+            .unwrap_or(true);
+        if ui.checkbox(&mut voice_enabled, "Voice enabled").changed() {
+            if let Some(ch) = state.chat_channels.iter_mut().find(|c| c.id == state.edit_channel_id) {
+                ch.voice_enabled = voice_enabled;
             }
+        }
 
-            ui.add_space(12.0);
+        ui.add_space(theme.spacing_md);
 
-            // Save changes
-            ui.horizontal(|ui| {
-                let name_valid = !state.edit_channel_name.trim().is_empty();
-                if ui.add_enabled(
-                    name_valid,
-                    egui::Button::new(
-                        RichText::new("Save")
-                            .size(theme.font_size_body)
-                            .color(theme.text_on_accent()),
-                    )
-                    .fill(if name_valid { theme.accent() } else { Color32::from_rgb(60, 60, 70) })
-                    .min_size(Vec2::new(100.0, 30.0)),
-                ).clicked() {
+        ui.horizontal(|ui| {
+            let name_valid = !state.edit_channel_name.trim().is_empty();
+            ui.add_enabled_ui(name_valid, |ui| {
+                if widgets::Button::primary("Save").show(ui, theme) {
                     if let Some(ref client) = state.ws_client {
                         if client.is_connected() {
                             let msg = serde_json::json!({
@@ -2372,126 +2318,74 @@ fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                     }
                     state.show_channel_edit_modal = false;
                 }
-
-                ui.add_space(8.0);
-
-                if ui.add(
-                    egui::Button::new(
-                        RichText::new("Cancel")
-                            .size(theme.font_size_body)
-                            .color(theme.text_secondary()),
-                    )
-                    .fill(Color32::from_rgb(40, 40, 48))
-                    .min_size(Vec2::new(100.0, 30.0)),
-                ).clicked() {
-                    state.show_channel_edit_modal = false;
-                }
             });
-
-            ui.add_space(12.0);
-            ui.separator();
-            ui.add_space(8.0);
-
-            // Delete channel section
-            if !state.edit_channel_confirm_delete {
-                if ui.add(
-                    egui::Button::new(
-                        RichText::new("Delete Channel")
-                            .size(theme.font_size_body)
-                            .color(theme.danger()),
-                    )
-                    .fill(Color32::from_rgb(50, 25, 25))
-                    .min_size(Vec2::new(300.0, 28.0)),
-                ).clicked() {
-                    state.edit_channel_confirm_delete = true;
-                }
-            } else {
-                ui.label(
-                    RichText::new("Are you sure? This cannot be undone.")
-                        .size(theme.font_size_small)
-                        .color(theme.danger()),
-                );
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    if ui.add(
-                        egui::Button::new(
-                            RichText::new("Yes, Delete")
-                                .size(theme.font_size_body)
-                                .color(Color32::WHITE),
-                        )
-                        .fill(Color32::from_rgb(140, 30, 30))
-                        .min_size(Vec2::new(120.0, 28.0)),
-                    ).clicked() {
-                        // Send delete via slash command (server matches by channel ID)
-                        let ch_id = state.edit_channel_id.clone();
-                        let ch_name = state.edit_channel_name.clone();
-                        send_slash_command(state, &format!("/channel-delete {}", ch_id));
-                        // If name differs from ID, also try deleting by name
-                        if ch_name.to_lowercase() != ch_id.to_lowercase() {
-                            send_slash_command(state, &format!("/channel-delete {}", ch_name));
-                        }
-                        log::info!("Channel delete: id={}, name={}", ch_id, ch_name);
-                        // Switch to general if we just deleted the active channel
-                        if state.chat_active_channel == ch_name {
-                            state.chat_active_channel = "general".to_string();
-                        }
-                        state.show_channel_edit_modal = false;
-                        state.edit_channel_confirm_delete = false;
-                    }
-
-                    ui.add_space(8.0);
-
-                    if ui.add(
-                        egui::Button::new(
-                            RichText::new("No, Keep")
-                                .size(theme.font_size_body)
-                                .color(theme.text_secondary()),
-                        )
-                        .fill(Color32::from_rgb(40, 40, 48))
-                        .min_size(Vec2::new(120.0, 28.0)),
-                    ).clicked() {
-                        state.edit_channel_confirm_delete = false;
-                    }
-                });
+            ui.add_space(theme.spacing_sm);
+            if widgets::Button::secondary("Cancel").show(ui, theme) {
+                state.show_channel_edit_modal = false;
             }
         });
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
+        // Delete channel section
+        if !state.edit_channel_confirm_delete {
+            if widgets::Button::danger("Delete Channel").show(ui, theme) {
+                state.edit_channel_confirm_delete = true;
+            }
+        } else {
+            widgets::alert(ui, theme, widgets::AlertKind::Warning,
+                "Are you sure? This cannot be undone.");
+            ui.add_space(theme.spacing_sm);
+            ui.horizontal(|ui| {
+                if widgets::Button::danger("Yes, Delete").show(ui, theme) {
+                    let ch_id = state.edit_channel_id.clone();
+                    let ch_name = state.edit_channel_name.clone();
+                    send_slash_command(state, &format!("/channel-delete {}", ch_id));
+                    if ch_name.to_lowercase() != ch_id.to_lowercase() {
+                        send_slash_command(state, &format!("/channel-delete {}", ch_name));
+                    }
+                    log::info!("Channel delete: id={}, name={}", ch_id, ch_name);
+                    if state.chat_active_channel == ch_name {
+                        state.chat_active_channel = "general".to_string();
+                    }
+                    state.show_channel_edit_modal = false;
+                    state.edit_channel_confirm_delete = false;
+                }
+                ui.add_space(theme.spacing_sm);
+                if widgets::Button::secondary("No, Keep").show(ui, theme) {
+                    state.edit_channel_confirm_delete = false;
+                }
+            });
+        }
+    });
+    if !open {
+        state.show_channel_edit_modal = false;
+    }
 }
 
 // ─────────────────────────────── Create Group Modal ─────────────────────
 
 fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Create Group")
-        .collapsible(false)
-        .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(340.0, 0.0))
-        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
-        .show(ctx, |ui| {
-            ui.label(
-                RichText::new("Group Name")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
+    let mut open = state.show_create_group_modal;
+    widgets::dialog(ctx, theme, "create_group_dialog", "Create Group", &mut open, |ui| {
+        ui.set_min_width(300.0);
+
+        widgets::form_row(ui, theme, "Group name", |ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut state.new_group_name)
-                    .desired_width(300.0)
+                    .desired_width(220.0)
                     .hint_text("e.g. My Team"),
             );
+        });
 
-            ui.add_space(12.0);
+        ui.add_space(theme.spacing_md);
 
-            ui.horizontal(|ui| {
-                let name_valid = !state.new_group_name.trim().is_empty();
-                if ui.add_enabled(
-                    name_valid,
-                    egui::Button::new(
-                        RichText::new("Create")
-                            .size(theme.font_size_body)
-                            .color(theme.text_on_accent()),
-                    )
-                    .fill(if name_valid { theme.accent() } else { Color32::from_rgb(60, 60, 70) })
-                    .min_size(Vec2::new(100.0, 30.0)),
-                ).clicked() {
+        ui.horizontal(|ui| {
+            let name_valid = !state.new_group_name.trim().is_empty();
+            ui.add_enabled_ui(name_valid, |ui| {
+                if widgets::Button::primary("Create").show(ui, theme) {
                     if let Some(ref client) = state.ws_client {
                         if client.is_connected() {
                             let msg = serde_json::json!({
@@ -2505,59 +2399,39 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                     }
                     state.show_create_group_modal = false;
                 }
-
-                ui.add_space(8.0);
-
-                if ui.add(
-                    egui::Button::new(
-                        RichText::new("Cancel")
-                            .size(theme.font_size_body)
-                            .color(theme.text_secondary()),
-                    )
-                    .fill(Color32::from_rgb(40, 40, 48))
-                    .min_size(Vec2::new(100.0, 30.0)),
-                ).clicked() {
-                    state.show_create_group_modal = false;
-                }
             });
+            ui.add_space(theme.spacing_sm);
+            if widgets::Button::secondary("Cancel").show(ui, theme) {
+                state.show_create_group_modal = false;
+            }
         });
+    });
+    if !open {
+        state.show_create_group_modal = false;
+    }
 }
 
 // ─────────────────────────────── Join Group Modal ──────────────────────
 
 fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Join Group")
-        .collapsible(false)
-        .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(340.0, 0.0))
-        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
-        .show(ctx, |ui| {
-            ui.label(
-                RichText::new("Invite Code")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
+    let mut open = state.show_join_group_modal;
+    widgets::dialog(ctx, theme, "join_group_dialog", "Join Group", &mut open, |ui| {
+        ui.set_min_width(300.0);
+
+        widgets::form_row(ui, theme, "Invite code", |ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut state.join_group_invite_code)
-                    .desired_width(300.0)
+                    .desired_width(220.0)
                     .hint_text("Paste invite code here"),
             );
+        });
 
-            ui.add_space(12.0);
+        ui.add_space(theme.spacing_md);
 
-            ui.horizontal(|ui| {
-                let code_valid = !state.join_group_invite_code.trim().is_empty();
-                if ui.add_enabled(
-                    code_valid,
-                    egui::Button::new(
-                        RichText::new("Join")
-                            .size(theme.font_size_body)
-                            .color(theme.text_on_accent()),
-                    )
-                    .fill(if code_valid { theme.accent() } else { Color32::from_rgb(60, 60, 70) })
-                    .min_size(Vec2::new(100.0, 30.0)),
-                ).clicked() {
+        ui.horizontal(|ui| {
+            let code_valid = !state.join_group_invite_code.trim().is_empty();
+            ui.add_enabled_ui(code_valid, |ui| {
+                if widgets::Button::primary("Join").show(ui, theme) {
                     if let Some(ref client) = state.ws_client {
                         if client.is_connected() {
                             let msg = serde_json::json!({
@@ -2571,22 +2445,16 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     }
                     state.show_join_group_modal = false;
                 }
-
-                ui.add_space(8.0);
-
-                if ui.add(
-                    egui::Button::new(
-                        RichText::new("Cancel")
-                            .size(theme.font_size_body)
-                            .color(theme.text_secondary()),
-                    )
-                    .fill(Color32::from_rgb(40, 40, 48))
-                    .min_size(Vec2::new(100.0, 30.0)),
-                ).clicked() {
-                    state.show_join_group_modal = false;
-                }
             });
+            ui.add_space(theme.spacing_sm);
+            if widgets::Button::secondary("Cancel").show(ui, theme) {
+                state.show_join_group_modal = false;
+            }
         });
+    });
+    if !open {
+        state.show_join_group_modal = false;
+    }
 }
 
 // ─────────────────────────────── UI Helpers ──────────────────────────────
@@ -2893,32 +2761,14 @@ fn send_slash_command(state: &mut GuiState, command: &str) {
 // ─────────────────────────────── Help Modal ──────────────────────────────
 
 fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Slash Commands")
-        .collapsible(false)
-        .resizable(true)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .default_size(Vec2::new(460.0, 500.0))
-        .frame(Frame::NONE.fill(Color32::from_rgb(26, 26, 32)).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
-        .show(ctx, |ui| {
-            // Close button
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Slash Commands Reference")
-                    .size(theme.font_size_heading).color(theme.text_primary()));
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui.add(egui::Button::new(
-                        RichText::new("X").size(theme.font_size_body).color(theme.text_muted()),
-                    ).fill(Color32::TRANSPARENT)).clicked() {
-                        state.show_help_modal = false;
-                    }
-                });
-            });
-            ui.add_space(8.0);
-
-            ScrollArea::vertical()
-                .id_salt("help_modal_scroll")
-                .auto_shrink([false, false])
-                .max_height(440.0)
-                .show(ui, |ui| {
+    let mut open = state.show_help_modal;
+    widgets::dialog(ctx, theme, "slash_commands_dialog", "Slash Commands", &mut open, |ui| {
+        ui.set_min_width(420.0);
+        ScrollArea::vertical()
+            .id_salt("help_modal_scroll")
+            .auto_shrink([false, false])
+            .max_height(440.0)
+            .show(ui, |ui| {
                     let section_color = Color32::from_rgb(100, 180, 255);
                     let cmd_color = theme.text_primary();
                     let desc_color = theme.text_muted();
@@ -3022,5 +2872,8 @@ fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.label(RichText::new("**bold**, *italic*, `code`, ~~strike~~").size(theme.font_size_body).color(desc_color));
                     ui.label(RichText::new("Click the reply arrow on any message to reply").size(theme.font_size_body).color(desc_color));
                 });
-        });
+    });
+    if !open {
+        state.show_help_modal = false;
+    }
 }

@@ -264,24 +264,20 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
 
 fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Display Name:").color(theme.text_secondary()));
+        widgets::form_row(ui, theme, "Display name", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.user_name).desired_width(200.0));
         });
 
-        ui.add_space(theme.spacing_sm);
-
-        // Public key
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Public Key:").color(theme.text_secondary()));
+        widgets::form_row(ui, theme, "Public key", |ui| {
             let key_display = if state.profile_public_key.is_empty() {
                 "No key generated".to_string()
             } else if state.profile_public_key.len() > 16 {
-                format!("{}...{}", &state.profile_public_key[..8], &state.profile_public_key[state.profile_public_key.len()-8..])
+                format!("{}…{}", &state.profile_public_key[..8], &state.profile_public_key[state.profile_public_key.len()-8..])
             } else {
                 state.profile_public_key.clone()
             };
             ui.label(RichText::new(&key_display).color(theme.text_muted()).size(theme.font_size_small));
+            ui.add_space(theme.spacing_sm);
             if widgets::secondary_button(ui, theme, "Copy") {
                 ui.ctx().copy_text(state.profile_public_key.clone());
             }
@@ -292,33 +288,37 @@ fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         // ECDH key (for E2E encrypted DMs)
         ui.label(RichText::new("DM Encryption Key (ECDH P-256)").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("ECDH Public:").color(theme.text_secondary()));
+
+        widgets::form_row(ui, theme, "ECDH public", |ui| {
             let display = if state.ecdh_public_b64.is_empty() {
                 "(not set)".to_string()
             } else if state.ecdh_public_b64.len() > 20 {
-                format!("{}...", &state.ecdh_public_b64[..20])
+                format!("{}…", &state.ecdh_public_b64[..20])
             } else {
                 state.ecdh_public_b64.clone()
             };
             ui.label(RichText::new(&display).color(theme.text_muted()).size(theme.font_size_small));
-            if !state.ecdh_public_b64.is_empty() && widgets::secondary_button(ui, theme, "Copy Public") {
-                ui.ctx().copy_text(state.ecdh_public_b64.clone());
+            if !state.ecdh_public_b64.is_empty() {
+                ui.add_space(theme.spacing_sm);
+                if widgets::secondary_button(ui, theme, "Copy Public") {
+                    ui.ctx().copy_text(state.ecdh_public_b64.clone());
+                }
             }
         });
-        ui.add_space(theme.spacing_xs);
+
         ui.label(
             RichText::new("To read DMs sent by the web client, import the web ECDH key. In your browser console on united-humanity.us, run: localStorage.getItem('humanity_ecdh_backup')")
                 .color(theme.text_muted())
                 .size(theme.font_size_small)
         );
         ui.add_space(theme.spacing_xs);
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Import (JSON from browser):").color(theme.text_secondary()));
+
+        widgets::form_row(ui, theme, "Import JSON", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.ecdh_import_input)
-                .desired_width(260.0)
+                .desired_width(220.0)
                 .password(true)
                 .hint_text("{\"publicKeyRaw\":...}"));
+            ui.add_space(theme.spacing_sm);
             if widgets::primary_button(ui, theme, "Import") {
                 match try_import_ecdh(&state.ecdh_import_input) {
                     Ok((priv_hex, pub_b64)) => {
@@ -335,7 +335,13 @@ fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             }
         });
         if !state.ecdh_import_status.is_empty() {
-            ui.label(RichText::new(&state.ecdh_import_status).color(theme.text_muted()).size(theme.font_size_small));
+            // Use alert widget for status feedback (success-style if "successfully", error otherwise).
+            let kind = if state.ecdh_import_status.contains("Imported successfully") {
+                widgets::AlertKind::Success
+            } else {
+                widgets::AlertKind::Error
+            };
+            widgets::alert(ui, theme, kind, &state.ecdh_import_status);
         }
 
         ui.add_space(theme.spacing_md);
