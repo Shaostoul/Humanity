@@ -82,6 +82,11 @@ fn page_id_to_gui_page(id: &str) -> GuiPage {
     }
 }
 
+/// Max width of the centered content column. Keeps the layout coherent on
+/// wide displays — without this, sections sprawl across the screen and
+/// alignment drifts between sections.
+const CONTENT_MAX_W: f32 = 1024.0;
+
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_primary()).inner_margin(0.0))
@@ -89,22 +94,32 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    draw_hero(ui, theme);
-                    ui.add_space(theme.spacing_xl);
-                    draw_concepts(ui, theme, state);
-                    ui.add_space(theme.spacing_xl);
-                    draw_core_pages(ui, theme, state);
-                    ui.add_space(theme.spacing_xl);
-                    draw_quests(ui, theme, state);
-                    ui.add_space(theme.spacing_xl);
-                    draw_cta(ui, theme, state);
-                    ui.add_space(theme.spacing_xl * 2.0);
+                    // ONE outer centered column. All sections render inside it
+                    // with consistent left-aligned content, so headers + cards
+                    // share the same left edge regardless of screen width.
+                    ui.vertical_centered(|ui| {
+                        ui.set_max_width(CONTENT_MAX_W);
+                        ui.with_layout(Layout::top_down(Align::Min), |ui| {
+                            draw_hero(ui, theme);
+                            ui.add_space(theme.spacing_xl);
+                            draw_concepts(ui, theme, state);
+                            ui.add_space(theme.spacing_xl);
+                            draw_core_pages(ui, theme, state);
+                            ui.add_space(theme.spacing_xl);
+                            draw_quests(ui, theme, state);
+                            ui.add_space(theme.spacing_xl);
+                            draw_cta(ui, theme, state);
+                            ui.add_space(theme.spacing_xl * 2.0);
+                        });
+                    });
                 });
         });
 }
 
 fn draw_hero(ui: &mut egui::Ui, theme: &Theme) {
     ui.add_space(theme.spacing_xl);
+    // Hero is the only intentionally-centered section — overrides the
+    // outer Align::Min for marketing impact at the top of the page.
     ui.with_layout(Layout::top_down(Align::Center), |ui| {
         ui.label(
             RichText::new("GETTING STARTED")
@@ -132,195 +147,151 @@ fn draw_hero(ui: &mut egui::Ui, theme: &Theme) {
     });
 }
 
+/// Section header — small accent-colored kicker + larger primary heading.
+/// Used by every section so they share the same visual rhythm.
+fn section_header(ui: &mut egui::Ui, theme: &Theme, kicker: &str, heading: &str) {
+    ui.label(
+        RichText::new(kicker)
+            .size(theme.font_size_small)
+            .color(theme.accent())
+            .strong(),
+    );
+    ui.add_space(theme.spacing_sm);
+    ui.label(
+        RichText::new(heading)
+            .size(theme.font_size_heading)
+            .color(theme.text_primary())
+            .strong(),
+    );
+    ui.add_space(theme.spacing_md);
+}
+
 fn draw_concepts(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
-    let max_w = ui.available_width().min(960.0);
-    let col_w = ((max_w - theme.spacing_md as f32 * 3.0) / 4.0).max(180.0);
+    section_header(ui, theme, "FOUR THINGS TO KNOW FIRST", "The four core concepts");
 
-    ui.vertical_centered(|ui| {
-        ui.set_max_width(max_w);
-        ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
-            ui.label(
-                RichText::new("FOUR THINGS TO KNOW FIRST")
-                    .size(theme.font_size_small)
-                    .color(theme.accent())
-                    .strong(),
-            );
-        });
-        ui.add_space(theme.spacing_sm);
-        ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
-            ui.label(
-                RichText::new("The four core concepts")
-                    .size(theme.font_size_heading)
-                    .color(theme.text_primary())
-                    .strong(),
-            );
-        });
-        ui.add_space(theme.spacing_md);
+    // 4 cards across, each takes ~1/4 of the parent column width.
+    let avail = ui.available_width();
+    let col_w = ((avail - theme.spacing_md as f32 * 3.0) / 4.0).max(180.0);
 
-        ui.horizontal_wrapped(|ui| {
-            for concept in &state.onboarding_concepts {
-                Frame::none()
-                    .fill(theme.bg_card())
-                    .stroke(Stroke::new(1.0, theme.border()))
-                    .rounding(Rounding::same(theme.border_radius as u8))
-                    .inner_margin(theme.card_padding * 1.5)
-                    .show(ui, |ui| {
-                        // Force vertical layout inside the card; the parent
-                        // horizontal_wrapped would otherwise render title and
-                        // body inline (broken visual on v0.120.x).
-                        ui.set_width(col_w);
-                        ui.vertical(|ui| {
-                            ui.label(
-                                RichText::new(&concept.title)
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_primary())
-                                    .strong(),
-                            );
-                            ui.add_space(theme.spacing_sm);
-                            ui.label(
-                                RichText::new(&concept.body)
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_secondary()),
-                            );
-                        });
-                    });
-            }
-        });
-    });
-}
-
-fn draw_core_pages(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let max_w = ui.available_width().min(960.0);
-    let col_w = ((max_w - theme.spacing_md as f32 * 3.0) / 4.0).max(180.0);
-
-    ui.vertical_centered(|ui| {
-        ui.set_max_width(max_w);
-        ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
-            ui.label(
-                RichText::new("THE PLATFORM")
-                    .size(theme.font_size_small)
-                    .color(theme.accent())
-                    .strong(),
-            );
-        });
-        ui.add_space(theme.spacing_sm);
-        ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
-            ui.label(
-                RichText::new("Where to go next")
-                    .size(theme.font_size_heading)
-                    .color(theme.text_primary())
-                    .strong(),
-            );
-        });
-        ui.add_space(theme.spacing_md);
-
-        let mut clicked: Option<GuiPage> = None;
-        ui.horizontal_wrapped(|ui| {
-            for page in &state.onboarding_core_pages {
-                let response = Frame::none()
-                    .fill(theme.bg_card())
-                    .stroke(Stroke::new(1.0, theme.border()))
-                    .rounding(Rounding::same(theme.border_radius as u8))
-                    .inner_margin(theme.card_padding)
-                    .show(ui, |ui| {
-                        // Same fix as concepts grid: force vertical inside card
-                        // so label + description don't render side-by-side.
-                        ui.set_width(col_w);
-                        ui.set_height(70.0);
-                        ui.vertical(|ui| {
-                            ui.label(
-                                RichText::new(&page.label)
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_primary())
-                                    .strong(),
-                            );
-                            ui.add_space(2.0);
-                            ui.label(
-                                RichText::new(&page.description)
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_secondary()),
-                            );
-                        });
-                    })
-                    .response
-                    .interact(egui::Sense::click());
-
-                if response.clicked() {
-                    clicked = Some(page_id_to_gui_page(&page.page_id));
-                }
-                if response.hovered() {
-                    let painter = ui.painter();
-                    painter.rect_stroke(
-                        response.rect,
-                        Rounding::same(theme.border_radius as u8),
-                        Stroke::new(1.5, theme.accent()),
-                        egui::StrokeKind::Outside,
-                    );
-                }
-            }
-        });
-
-        if let Some(page) = clicked {
-            state.active_page = page;
-        }
-    });
-}
-
-fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let max_w = ui.available_width().min(960.0);
-
-    ui.vertical_centered(|ui| {
-        ui.set_max_width(max_w);
-        ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
-            ui.label(
-                RichText::new("QUESTS")
-                    .size(theme.font_size_small)
-                    .color(theme.accent())
-                    .strong(),
-            );
-        });
-        ui.add_space(theme.spacing_sm);
-        ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
-            ui.label(
-                RichText::new("Learn by doing")
-                    .size(theme.font_size_heading)
-                    .color(theme.text_primary())
-                    .strong(),
-            );
-        });
-        ui.add_space(theme.spacing_sm);
-        ui.with_layout(Layout::left_to_right(Align::TOP), |ui| {
-            ui.label(
-                RichText::new(
-                    "Small tasks that teach the platform. Click a step to mark it done. \
-                     Progress saved locally.",
-                )
-                .size(theme.font_size_small)
-                .color(theme.text_secondary()),
-            );
-        });
-        ui.add_space(theme.spacing_md);
-
-        if state.onboarding_quest_chains.is_empty() {
-            ui.label(
-                RichText::new(
-                    "Quest chains not loaded. Make sure data/onboarding/quests.json exists.",
-                )
-                .size(theme.font_size_small)
-                .color(theme.text_muted())
-                .italics(),
-            );
-            return;
-        }
-
-        for chain in state.onboarding_quest_chains.clone().iter() {
+    ui.horizontal_wrapped(|ui| {
+        for concept in &state.onboarding_concepts {
             Frame::none()
                 .fill(theme.bg_card())
                 .stroke(Stroke::new(1.0, theme.border()))
                 .rounding(Rounding::same(theme.border_radius as u8))
                 .inner_margin(theme.card_padding * 1.5)
                 .show(ui, |ui| {
-                    ui.set_width(max_w - 4.0);
+                    // Force vertical layout inside the card so title and body
+                    // stack instead of rendering inline (parent is horizontal).
+                    ui.set_width(col_w);
+                    ui.vertical(|ui| {
+                        ui.label(
+                            RichText::new(&concept.title)
+                                .size(theme.font_size_body)
+                                .color(theme.text_primary())
+                                .strong(),
+                        );
+                        ui.add_space(theme.spacing_sm);
+                        ui.label(
+                            RichText::new(&concept.body)
+                                .size(theme.font_size_small)
+                                .color(theme.text_secondary()),
+                        );
+                    });
+                });
+        }
+    });
+}
+
+fn draw_core_pages(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    section_header(ui, theme, "THE PLATFORM", "Where to go next");
+
+    // 4 cards across (8 pages → 2 rows). horizontal_wrapped handles the wrap.
+    let avail = ui.available_width();
+    let col_w = ((avail - theme.spacing_md as f32 * 3.0) / 4.0).max(180.0);
+
+    let mut clicked: Option<GuiPage> = None;
+    ui.horizontal_wrapped(|ui| {
+        for page in &state.onboarding_core_pages {
+            let response = Frame::none()
+                .fill(theme.bg_card())
+                .stroke(Stroke::new(1.0, theme.border()))
+                .rounding(Rounding::same(theme.border_radius as u8))
+                .inner_margin(theme.card_padding)
+                .show(ui, |ui| {
+                    ui.set_width(col_w);
+                    ui.set_height(70.0);
+                    ui.vertical(|ui| {
+                        ui.label(
+                            RichText::new(&page.label)
+                                .size(theme.font_size_body)
+                                .color(theme.text_primary())
+                                .strong(),
+                        );
+                        ui.add_space(2.0);
+                        ui.label(
+                            RichText::new(&page.description)
+                                .size(theme.font_size_small)
+                                .color(theme.text_secondary()),
+                        );
+                    });
+                })
+                .response
+                .interact(egui::Sense::click());
+
+            if response.clicked() {
+                clicked = Some(page_id_to_gui_page(&page.page_id));
+            }
+            if response.hovered() {
+                let painter = ui.painter();
+                painter.rect_stroke(
+                    response.rect,
+                    Rounding::same(theme.border_radius as u8),
+                    Stroke::new(1.5, theme.accent()),
+                    egui::StrokeKind::Outside,
+                );
+            }
+        }
+    });
+
+    if let Some(page) = clicked {
+        state.active_page = page;
+    }
+}
+
+fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let avail = ui.available_width();
+    section_header(ui, theme, "QUESTS", "Learn by doing");
+    ui.label(
+        RichText::new(
+            "Small tasks that teach the platform. Click a step to mark it done. \
+             Progress saved locally.",
+        )
+        .size(theme.font_size_small)
+        .color(theme.text_secondary()),
+    );
+    ui.add_space(theme.spacing_md);
+
+    if state.onboarding_quest_chains.is_empty() {
+        ui.label(
+            RichText::new(
+                "Quest chains not loaded. Make sure data/onboarding/quests.json exists.",
+            )
+            .size(theme.font_size_small)
+            .color(theme.text_muted())
+            .italics(),
+        );
+        return;
+    }
+
+    for chain in state.onboarding_quest_chains.clone().iter() {
+        Frame::none()
+            .fill(theme.bg_card())
+            .stroke(Stroke::new(1.0, theme.border()))
+            .rounding(Rounding::same(theme.border_radius as u8))
+            .inner_margin(theme.card_padding * 1.5)
+            .show(ui, |ui| {
+                ui.set_width(avail - 4.0);
                     ui.label(
                         RichText::new(&chain.title)
                             .size(theme.font_size_body)
@@ -409,63 +380,29 @@ fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         ui.add_space(4.0);
                     }
                 });
-            ui.add_space(theme.spacing_md);
-        }
-    });
+        ui.add_space(theme.spacing_md);
+    }
 }
 
 fn draw_cta(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.vertical_centered(|ui| {
-        ui.set_max_width(600.0);
-        ui.label(
-            RichText::new("READY?")
-                .size(theme.font_size_small)
-                .color(theme.accent())
-                .strong(),
-        );
-        ui.add_space(theme.spacing_sm);
-        ui.label(
-            RichText::new("Start using it")
-                .size(theme.font_size_heading)
-                .color(theme.text_primary())
-                .strong(),
-        );
-        ui.add_space(theme.spacing_sm);
-        ui.label(
-            RichText::new(
-                "The fastest way to understand HumanityOS is to open the chat and say hi.",
-            )
-            .size(theme.font_size_small)
-            .color(theme.text_secondary()),
-        );
-        ui.add_space(theme.spacing_md);
+    section_header(ui, theme, "READY?", "Start using it");
+    ui.label(
+        RichText::new(
+            "The fastest way to understand HumanityOS is to open the chat and say hi.",
+        )
+        .size(theme.font_size_small)
+        .color(theme.text_secondary()),
+    );
+    ui.add_space(theme.spacing_md);
 
-        ui.horizontal(|ui| {
-            let primary = egui::Button::new(
-                RichText::new("Open the Chat")
-                    .color(theme.text_on_accent())
-                    .size(theme.font_size_body),
-            )
-            .fill(theme.accent())
-            .rounding(Rounding::same(theme.border_radius as u8))
-            .min_size(Vec2::new(140.0, theme.button_height));
-            if ui.add(primary).clicked() {
-                state.active_page = GuiPage::Chat;
-            }
-
-            let settings_btn = egui::Button::new(
-                RichText::new("Settings")
-                    .color(theme.text_primary())
-                    .size(theme.font_size_body),
-            )
-            .fill(egui::Color32::TRANSPARENT)
-            .stroke(Stroke::new(1.0, theme.border()))
-            .rounding(Rounding::same(theme.border_radius as u8))
-            .min_size(Vec2::new(100.0, theme.button_height));
-            if ui.add(settings_btn).clicked() {
-                state.active_page = GuiPage::Settings;
-            }
-        });
+    ui.horizontal(|ui| {
+        if crate::gui::widgets::Button::primary("Open the Chat").show(ui, theme) {
+            state.active_page = GuiPage::Chat;
+        }
+        ui.add_space(theme.spacing_sm);
+        if crate::gui::widgets::Button::secondary("Settings").show(ui, theme) {
+            state.active_page = GuiPage::Settings;
+        }
     });
 }
 
