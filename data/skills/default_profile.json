@@ -1,0 +1,13 @@
+{
+  "_purpose": "Initial XP per skill for a brand-new player. Skill catalog lives in skills.csv; this file is the starting profile applied at first identity creation.",
+  "skills": [
+    { "name": "Farming",    "xp": 0.30 },
+    { "name": "Crafting",   "xp": 0.10 },
+    { "name": "Trading",    "xp": 0.00 },
+    { "name": "Building",   "xp": 0.05 },
+    { "name": "Cooking",    "xp": 0.00 },
+    { "name": "Mining",     "xp": 0.00 },
+    { "name": "Combat",     "xp": 0.00 },
+    { "name": "Navigation", "xp": 0.00 }
+  ]
+}

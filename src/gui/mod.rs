@@ -759,6 +759,14 @@ pub struct GuiState {
     pub studio_scene_presets: Vec<StudioScenePreset>,
     /// Studio source presets (`data/studio/sources.json`).
     pub studio_source_presets: Vec<StudioSourcePreset>,
+    /// Studio streaming pickers (`data/studio/streaming_config.json`).
+    pub studio_streaming_config: StudioStreamingConfig,
+    /// Donate page FAQ entries (`data/donate/faq.json`).
+    pub donate_faq: Vec<DonateFaqEntry>,
+    /// Onboarding concept cards (`data/onboarding/core_concepts.json`).
+    pub onboarding_concepts: Vec<OnboardingConcept>,
+    /// Onboarding core-page shortcuts (`data/onboarding/core_pages.json`).
+    pub onboarding_core_pages: Vec<OnboardingCorePage>,
 
     // ── Universal help modal (loaded from data/help/topics.json) ──
     /// Registry of help topics. Populated at startup from data/help/topics.json.
@@ -913,16 +921,9 @@ impl Default for GuiState {
             profile_network_avatar: String::new(),
             profile_interests: Vec::new(),
             profile_interest_input: String::new(),
-            profile_skills: vec![
-                ("Farming".into(), 0.3),
-                ("Crafting".into(), 0.1),
-                ("Trading".into(), 0.0),
-                ("Building".into(), 0.05),
-                ("Cooking".into(), 0.0),
-                ("Mining".into(), 0.0),
-                ("Combat".into(), 0.0),
-                ("Navigation".into(), 0.0),
-            ],
+            // Populated from data/skills/default_profile.json at startup
+            // (see lib.rs `load_default_player_skills`). Empty at construction.
+            profile_skills: Vec::new(),
             profile_social_links: Vec::new(),
             profile_social_platform: String::new(),
             profile_social_url: String::new(),
@@ -1060,6 +1061,10 @@ impl Default for GuiState {
             resource_categories: Vec::new(),
             studio_scene_presets: Vec::new(),
             studio_source_presets: Vec::new(),
+            studio_streaming_config: StudioStreamingConfig::default(),
+            donate_faq: Vec::new(),
+            onboarding_concepts: Vec::new(),
+            onboarding_core_pages: Vec::new(),
             help_registry: crate::gui::widgets::help_modal::HelpRegistry::new(),
             active_help_topic: None,
             onboarding_quest_chains: Vec::new(),
@@ -1466,6 +1471,93 @@ pub fn load_studio_sources(data_dir: &std::path::Path) -> Vec<StudioSourcePreset
     struct File { sources: Vec<StudioSourcePreset> }
     read_data_json::<File>(data_dir, "studio/sources.json")
         .map(|f| f.sources)
+        .unwrap_or_default()
+}
+
+/// Picker options for the Broadcasting Studio page (platforms, resolutions, etc.).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct StudioStreamingConfig {
+    #[serde(default)] pub platforms: Vec<String>,
+    #[serde(default)] pub resolutions: Vec<String>,
+    #[serde(default)] pub fps: Vec<u32>,
+    #[serde(default)] pub chat_positions: Vec<String>,
+}
+
+/// Load streaming pickers from `data/studio/streaming_config.json`.
+#[cfg(feature = "native")]
+pub fn load_studio_streaming_config(data_dir: &std::path::Path) -> StudioStreamingConfig {
+    read_data_json::<StudioStreamingConfig>(data_dir, "studio/streaming_config.json")
+        .unwrap_or_default()
+}
+
+/// One Q&A entry on the Donate page FAQ.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct DonateFaqEntry {
+    pub question: String,
+    pub answer: String,
+}
+
+/// Load donate-page FAQ entries from `data/donate/faq.json`.
+#[cfg(feature = "native")]
+pub fn load_donate_faq(data_dir: &std::path::Path) -> Vec<DonateFaqEntry> {
+    #[derive(serde::Deserialize)]
+    struct File { entries: Vec<DonateFaqEntry> }
+    read_data_json::<File>(data_dir, "donate/faq.json")
+        .map(|f| f.entries)
+        .unwrap_or_default()
+}
+
+/// Concept card shown on the onboarding page.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct OnboardingConcept {
+    pub title: String,
+    pub body: String,
+}
+
+/// Load onboarding concepts from `data/onboarding/core_concepts.json`.
+#[cfg(feature = "native")]
+pub fn load_onboarding_concepts(data_dir: &std::path::Path) -> Vec<OnboardingConcept> {
+    #[derive(serde::Deserialize)]
+    struct File { concepts: Vec<OnboardingConcept> }
+    read_data_json::<File>(data_dir, "onboarding/core_concepts.json")
+        .map(|f| f.concepts)
+        .unwrap_or_default()
+}
+
+/// Core page shortcut shown on the onboarding page. `page_id` is mapped to a
+/// `GuiPage` variant by the onboarding draw code.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct OnboardingCorePage {
+    pub page_id: String,
+    pub label: String,
+    pub description: String,
+}
+
+/// Load onboarding core-page shortcuts from `data/onboarding/core_pages.json`.
+#[cfg(feature = "native")]
+pub fn load_onboarding_core_pages(data_dir: &std::path::Path) -> Vec<OnboardingCorePage> {
+    #[derive(serde::Deserialize)]
+    struct File { pages: Vec<OnboardingCorePage> }
+    read_data_json::<File>(data_dir, "onboarding/core_pages.json")
+        .map(|f| f.pages)
+        .unwrap_or_default()
+}
+
+/// Load the starting per-skill XP profile applied to brand-new identities,
+/// from `data/skills/default_profile.json`. The skill catalog itself lives in
+/// `data/skills/skills.csv`; this file is just the initial XP weights.
+#[cfg(feature = "native")]
+pub fn load_default_player_skills(data_dir: &std::path::Path) -> Vec<(String, f32)> {
+    #[derive(serde::Deserialize)]
+    struct Skill { name: String, xp: f32 }
+    #[derive(serde::Deserialize)]
+    struct File { skills: Vec<Skill> }
+    read_data_json::<File>(data_dir, "skills/default_profile.json")
+        .map(|f| f.skills.into_iter().map(|s| (s.name, s.xp)).collect())
         .unwrap_or_default()
 }
 

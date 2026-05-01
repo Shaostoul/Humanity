@@ -715,6 +715,58 @@ fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut Gui
             });
 
             ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new("Panel & chat-section colors")
+                    .size(theme.font_size_body)
+                    .color(theme.text_primary())
+                    .strong(),
+            );
+            ui.label(
+                RichText::new("Tints for the side panels and the DM/Group/Server lanes in the chat 3-panel layout.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_sm);
+
+            ui.columns(2, |cols| {
+                let labels_left = [
+                    ("Panel background",          &mut theme.bg_panel as *mut _),
+                    ("Sidebar background",        &mut theme.bg_sidebar as *mut _),
+                    ("Sidebar (dark)",            &mut theme.bg_sidebar_dark as *mut _),
+                    ("DM lane background",        &mut theme.dm_bg as *mut _),
+                    ("DM row background",         &mut theme.dm_row_bg as *mut _),
+                    ("DM row (hover)",            &mut theme.dm_row_hover as *mut _),
+                    ("Group lane background",     &mut theme.group_bg as *mut _),
+                    ("Group row background",      &mut theme.group_row_bg as *mut _),
+                ];
+                for (label, ptr) in labels_left {
+                    let ui_l = &mut cols[0];
+                    let color_tuple = unsafe { &mut *ptr };
+                    if color_row(ui_l, label, color_tuple, label_color) {
+                        any_color_changed = true;
+                    }
+                }
+                let labels_right = [
+                    ("Group row (hover)",         &mut theme.group_row_hover as *mut _),
+                    ("Server lane background",    &mut theme.server_bg as *mut _),
+                    ("Server row background",     &mut theme.server_row_bg as *mut _),
+                    ("Server row (hover)",        &mut theme.server_row_hover as *mut _),
+                    ("Slider track",              &mut theme.slider_track as *mut _),
+                    ("Badge: donor",              &mut theme.badge_donor as *mut _),
+                    ("Badge: live",               &mut theme.badge_live as *mut _),
+                ];
+                for (label, ptr) in labels_right {
+                    let ui_r = &mut cols[1];
+                    let color_tuple = unsafe { &mut *ptr };
+                    if color_row(ui_r, label, color_tuple, label_color) {
+                        any_color_changed = true;
+                    }
+                }
+            });
+
+            ui.add_space(theme.spacing_md);
             ui.horizontal(|ui| {
                 if widgets::Button::primary("Save Theme").show(ui, theme) {
                     theme.save();

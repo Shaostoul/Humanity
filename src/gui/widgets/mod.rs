@@ -17,6 +17,9 @@ pub mod help_modal;
 pub mod passphrase_modal;
 pub mod image_cache;
 pub mod image_cache_view;
+pub mod form_row;
+pub mod alert;
+pub mod dialog;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;
@@ -28,6 +31,12 @@ pub use button::{Button, ButtonSize, ButtonVariant};
 // Legacy free-function aliases now delegate to the universal Button builder.
 // New code should prefer `Button::primary(label).show(ui, theme)`.
 pub use button::{primary_button, secondary_button, danger_button};
+
+// Convenience re-exports for the common widget surface so call sites
+// can write `widgets::form_row(...)`, `widgets::alert(...)`, `widgets::dialog(...)`.
+pub use form_row::{form_row, form_row_wide, form_row_with_help};
+pub use alert::{alert, alert_with_title, AlertKind};
+pub use dialog::{dialog, dialog_anchored};
 
 /// Styled card container with background.
 pub fn card(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) {

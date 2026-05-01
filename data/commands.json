@@ -1,0 +1,98 @@
+{
+  "_purpose": "Command palette categories + items for the chat UI. Items with 'cmd' send a slash command; 'prefill' opens the input pre-filled. Items with 'action_id' invoke a JS function registered in CMD_PALETTE_ACTIONS. Items with 'nav_url' navigate the page. requires_role gates a category to 'mod' or 'admin' only.",
+  "categories": [
+    {
+      "name": "📱 Social",
+      "requires_role": null,
+      "items": [
+        { "icon": "👁️", "label": "Follow User",       "desc": "/follow",       "cmd": "/follow ",   "prefill": true },
+        { "icon": "🚫", "label": "Unfollow User",     "desc": "/unfollow",     "cmd": "/unfollow ", "prefill": true },
+        { "icon": "🚷", "label": "Block User",        "desc": "/block",        "cmd": "/block ",    "prefill": true },
+        { "icon": "✅", "label": "Unblock User",      "desc": "/unblock",      "cmd": "/unblock ",  "prefill": true },
+        { "icon": "📋", "label": "Block List",        "desc": "View blocks",   "cmd": "/blocklist" },
+        { "icon": "🎟️", "label": "Share Friend Code", "desc": "Generate code", "action_id": "sendFriendCodeRequest" },
+        { "icon": "🔓", "label": "Redeem Friend Code","desc": "/redeem",       "cmd": "/redeem ",   "prefill": true }
+      ]
+    },
+    {
+      "name": "💬 Messaging",
+      "requires_role": null,
+      "items": [
+        { "icon": "📩", "label": "Direct Message",   "desc": "/dm",            "cmd": "/dm ",            "prefill": true },
+        { "icon": "👥", "label": "Create Group",     "desc": "/group-create",  "cmd": "/group-create ",  "prefill": true },
+        { "icon": "📨", "label": "Invite to Group",  "desc": "/group-invite",  "cmd": "/group-invite ",  "prefill": true },
+        { "icon": "🚪", "label": "Leave Group",      "desc": "Leave current",  "cmd": "/group-leave" }
+      ]
+    },
+    {
+      "name": "👤 Profile",
+      "requires_role": null,
+      "items": [
+        { "icon": "📝", "label": "Set Bio",          "desc": "/bio",     "cmd": "/bio ",     "prefill": true },
+        { "icon": "🔗", "label": "Set Social Link",  "desc": "/social",  "cmd": "/social ",  "prefill": true },
+        { "icon": "👀", "label": "View Profile",     "desc": "/profile", "cmd": "/profile ", "prefill": true }
+      ]
+    },
+    {
+      "name": "🔍 Search",
+      "requires_role": null,
+      "items": [
+        { "icon": "🔍", "label": "Search Messages",  "desc": "Open search panel", "action_id": "toggleSearch" },
+        { "icon": "🔎", "label": "Search Command",   "desc": "/search query",     "cmd": "/search ", "prefill": true }
+      ]
+    },
+    {
+      "name": "📌 Pins",
+      "requires_role": null,
+      "items": [
+        { "icon": "📌", "label": "Pin Message",  "desc": "/pin",   "cmd": "/pin ",   "prefill": true },
+        { "icon": "📌", "label": "Personal Pin", "desc": "/mypin", "cmd": "/mypin ", "prefill": true }
+      ]
+    },
+    {
+      "name": "🛡️ Moderation",
+      "requires_role": "mod",
+      "items": [
+        { "icon": "👢", "label": "Kick", "desc": "/kick", "cmd": "/kick ", "prefill": true },
+        { "icon": "🔨", "label": "Ban",  "desc": "/ban",  "cmd": "/ban ",  "prefill": true },
+        { "icon": "🔇", "label": "Mute", "desc": "/mute", "cmd": "/mute ", "prefill": true },
+        { "icon": "📋", "label": "View Reports", "desc": "See reports", "cmd": "/reports" }
+      ]
+    },
+    {
+      "name": "⚙️ Admin",
+      "requires_role": "admin",
+      "items": [
+        { "icon": "✅", "label": "Verify User",    "desc": "/verify",          "cmd": "/verify ",          "prefill": true },
+        { "icon": "🛡️", "label": "Make Mod",      "desc": "/mod",             "cmd": "/mod ",             "prefill": true },
+        { "icon": "🔒", "label": "Lockdown",      "desc": "Toggle lock",      "cmd": "/lockdown" },
+        { "icon": "📢", "label": "Create Channel","desc": "/channel-create",  "cmd": "/channel-create ", "prefill": true }
+      ]
+    },
+    {
+      "name": "🔧 Utility",
+      "requires_role": null,
+      "items": [
+        { "icon": "❓", "label": "Help",            "desc": "Show help",     "cmd": "/help" },
+        { "icon": "🔑", "label": "Export Identity", "desc": "Backup keys",   "cmd": "/export" },
+        { "icon": "🔗", "label": "Link Device",     "desc": "Multi-device",  "cmd": "/link" },
+        { "icon": "📊", "label": "Server Stats",    "desc": "View stats",    "action_id": "openServerStats" }
+      ]
+    },
+    {
+      "name": "🧭 Navigate",
+      "requires_role": null,
+      "items": [
+        { "icon": "📊", "label": "Dashboard", "desc": "Go to /dashboard", "nav_url": "/dashboard" },
+        { "icon": "🏠", "label": "Home",      "desc": "Go to /home",      "nav_url": "/home" },
+        { "icon": "🧠", "label": "Skills",    "desc": "Go to /skills",    "nav_url": "/skills" },
+        { "icon": "🎯", "label": "Tasks",     "desc": "Go to /tasks",     "nav_url": "/tasks" },
+        { "icon": "⚔️", "label": "Quests",   "desc": "Go to /quests",     "nav_url": "/quests" },
+        { "icon": "📅", "label": "Calendar",  "desc": "Go to /calendar",  "nav_url": "/calendar" },
+        { "icon": "🗺️", "label": "Maps",     "desc": "Go to /maps",       "nav_url": "/maps" },
+        { "icon": "📦", "label": "Inventory", "desc": "Go to /inventory", "nav_url": "/inventory" },
+        { "icon": "📝", "label": "Notes",     "desc": "Go to /notes",     "nav_url": "/notes" }
+      ]
+    }
+  ]
+}

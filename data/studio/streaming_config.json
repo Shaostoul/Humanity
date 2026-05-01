@@ -1,0 +1,23 @@
+{
+  "_purpose": "Picker options for the Broadcasting Studio page (platform, resolution, fps, chat overlay position). Edit this file to add/remove options without recompiling.",
+  "platforms": [
+    "HumanityOS Server",
+    "Twitch",
+    "YouTube",
+    "Rumble",
+    "Custom RTMP"
+  ],
+  "resolutions": [
+    "1280x720",
+    "1920x1080",
+    "2560x1440",
+    "3840x2160"
+  ],
+  "fps": [30, 60],
+  "chat_positions": [
+    "Top-Left",
+    "Top-Right",
+    "Bottom-Left",
+    "Bottom-Right"
+  ]
+}

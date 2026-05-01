@@ -114,33 +114,8 @@ fn build_donation_sources(state: &GuiState) -> Vec<DonationSource> {
     sources
 }
 
-struct FaqEntry {
-    question: &'static str,
-    answer: &'static str,
-}
-
-const FAQ: &[FaqEntry] = &[
-    FaqEntry {
-        question: "Where does my money go?",
-        answer: "100% goes to server hosting, development tools, and contributor stipends. All spending is transparent and publicly tracked.",
-    },
-    FaqEntry {
-        question: "Is it tax deductible?",
-        answer: "HumanityOS is an open-source cooperative project. Formal nonprofit status is planned, which would enable tax-deductible donations in the future.",
-    },
-    FaqEntry {
-        question: "Can I donate anonymously?",
-        answer: "Yes! Cryptocurrency donations are pseudonymous by default. GitHub Sponsors also supports anonymous tiers.",
-    },
-    FaqEntry {
-        question: "Can I contribute without money?",
-        answer: "Absolutely! Code contributions, bug reports, translations, documentation, and community building are all incredibly valuable.",
-    },
-    FaqEntry {
-        question: "How is funding tracked?",
-        answer: "All crypto transactions are public on the blockchain. GitHub Sponsors provides monthly transparency reports. We publish quarterly spending breakdowns.",
-    },
-];
+// FAQ entries are loaded at startup from data/donate/faq.json into
+// state.donate_faq (see crate::gui::load_donate_faq).
 
 /// Local state for copied-address feedback and FAQ open state.
 struct DonatePageState {
@@ -154,7 +129,8 @@ impl Default for DonatePageState {
         Self {
             copied_message: String::new(),
             copied_timer: 0.0,
-            faq_open: vec![false; FAQ.len()],
+            // Resized to match state.donate_faq.len() at draw time.
+            faq_open: Vec::new(),
         }
     }
 }
@@ -338,10 +314,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 );
                 ui.add_space(theme.spacing_sm);
 
-                for (i, entry) in FAQ.iter().enumerate() {
+                for (i, entry) in state.donate_faq.iter().enumerate() {
+                    let len = state.donate_faq.len();
                     let is_open = with_local(|ds| {
                         if i >= ds.faq_open.len() {
-                            ds.faq_open.resize(FAQ.len(), false);
+                            ds.faq_open.resize(len, false);
                         }
                         ds.faq_open[i]
                     });
@@ -355,7 +332,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     .color(theme.accent()),
                             );
                             ui.label(
-                                RichText::new(entry.question)
+                                RichText::new(&entry.question)
                                     .size(theme.font_size_body)
                                     .color(theme.text_primary()),
                             );
@@ -372,7 +349,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         if is_open {
                             ui.add_space(theme.spacing_xs);
                             ui.label(
-                                RichText::new(entry.answer)
+                                RichText::new(&entry.answer)
                                     .size(theme.font_size_small)
                                     .color(theme.text_secondary()),
                             );

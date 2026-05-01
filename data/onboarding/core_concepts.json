@@ -1,0 +1,21 @@
+{
+  "_purpose": "Concept cards rendered above the quest chains on the onboarding page. Order in this file is the display order. Edit text without recompiling.",
+  "concepts": [
+    {
+      "title": "Your DID is your identity",
+      "body": "A post-quantum cryptographic key on your device. No username, no password. Backup is a 24-word phrase in Settings. Lose your phone? Recover through guardians you pick — friends and family who hold encrypted shares."
+    },
+    {
+      "title": "Credentials prove what's true about you",
+      "body": "Schools, employers, communities, even individual humans can issue Verifiable Credentials. You hold them, you choose when to share. No central registry, no single point of revocation."
+    },
+    {
+      "title": "Trust grows from what you do",
+      "body": "A multi-layer trust score combines your vouches, credentials, activity, and age. Anti-Sybil math makes farms count for less. Inputs are always visible — no black-box reputation."
+    },
+    {
+      "title": "Anyone can host a server",
+      "body": "The network is federated. No central owner. If one server goes down, the rest keep working. Each server runs local governance; civilization-scope changes need federation-wide quorum."
+    }
+  ]
+}

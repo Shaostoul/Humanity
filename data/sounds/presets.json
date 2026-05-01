@@ -1,0 +1,11 @@
+{
+  "_purpose": "Notification sound presets for the chat UI. Each preset is rendered live via Web Audio API (no audio files). Edit freqs/type/vol/decay to retune.",
+  "presets": {
+    "chime":  { "label": "Chime",  "freqs": [[523.25, 0], [659.25, 0.12]], "type": "sine",     "vol": 0.15, "decay": 0.6 },
+    "ping":   { "label": "Ping",   "freqs": [[880, 0]],                    "type": "sine",     "vol": 0.12, "decay": 0.3 },
+    "bell":   { "label": "Bell",   "freqs": [[1046.5, 0], [784, 0.08]],    "type": "sine",     "vol": 0.10, "decay": 0.8 },
+    "pop":    { "label": "Pop",    "freqs": [[600, 0]],                    "type": "triangle", "vol": 0.20, "decay": 0.15 },
+    "drop":   { "label": "Drop",   "freqs": [[800, 0], [400, 0.08]],       "type": "sine",     "vol": 0.12, "decay": 0.4 },
+    "blip":   { "label": "Blip",   "freqs": [[1200, 0], [900, 0.06]],      "type": "square",   "vol": 0.06, "decay": 0.15 }
+  }
+}

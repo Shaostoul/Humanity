@@ -60,48 +60,27 @@ pub fn load_quest_chains(data_dir: &Path) -> Vec<QuestChain> {
     parsed.chains
 }
 
-/// A core concept card shown above the quest chains.
-struct Concept {
-    title: &'static str,
-    body: &'static str,
+// Concept cards + core-page shortcuts are loaded at startup from
+// data/onboarding/core_concepts.json and data/onboarding/core_pages.json
+// into state.onboarding_concepts / state.onboarding_core_pages.
+//
+// page_id strings are mapped to GuiPage variants by page_id_to_gui_page().
+
+/// Map a page_id string from the JSON to the corresponding GuiPage variant.
+/// Unknown ids fall through to GuiPage::Onboarding (no-op safe default).
+fn page_id_to_gui_page(id: &str) -> GuiPage {
+    match id {
+        "chat"     => GuiPage::Chat,
+        "profile"  => GuiPage::Profile,
+        "wallet"   => GuiPage::Wallet,
+        "tasks"    => GuiPage::Tasks,
+        "market"   => GuiPage::Market,
+        "maps"     => GuiPage::Maps,
+        "settings" => GuiPage::Settings,
+        "notes"    => GuiPage::Notes,
+        _          => GuiPage::Onboarding,
+    }
 }
-
-const CORE_CONCEPTS: &[Concept] = &[
-    Concept {
-        title: "Your DID is your identity",
-        body: "A post-quantum cryptographic key on your device. No username, no password. Backup is a 24-word phrase in Settings. Lose your phone? Recover through guardians you pick \u{2014} friends and family who hold encrypted shares.",
-    },
-    Concept {
-        title: "Credentials prove what's true about you",
-        body: "Schools, employers, communities, even individual humans can issue Verifiable Credentials. You hold them, you choose when to share. No central registry, no single point of revocation.",
-    },
-    Concept {
-        title: "Trust grows from what you do",
-        body: "A multi-layer trust score combines your vouches, credentials, activity, and age. Anti-Sybil math makes farms count for less. Inputs are always visible \u{2014} no black-box reputation.",
-    },
-    Concept {
-        title: "Anyone can host a server",
-        body: "The network is federated. No central owner. If one server goes down, the rest keep working. Each server runs local governance; civilization-scope changes need federation-wide quorum.",
-    },
-];
-
-/// Core page shortcuts rendered in a grid.
-struct CorePage {
-    label: &'static str,
-    description: &'static str,
-    page: GuiPage,
-}
-
-const CORE_PAGES: &[CorePage] = &[
-    CorePage { label: "Chat", description: "Text, voice, video. Encrypted DMs, channels, servers.", page: GuiPage::Chat },
-    CorePage { label: "Profile", description: "Your name, avatar, bio, skills. Seen by others across the network.", page: GuiPage::Profile },
-    CorePage { label: "Wallet", description: "Optional Solana wallet derived from your seed. Send, receive, stake, tip. Decoupled from identity \u{2014} not required to use HumanityOS.", page: GuiPage::Wallet },
-    CorePage { label: "Tasks", description: "Kanban boards for projects, teams, personal life.", page: GuiPage::Tasks },
-    CorePage { label: "Market", description: "Peer-to-peer listings, reviews, buyer-seller messaging.", page: GuiPage::Market },
-    CorePage { label: "Maps", description: "Local to galactic scale. Real navigation or sim exploration.", page: GuiPage::Maps },
-    CorePage { label: "Settings", description: "Identity backup, notifications, theme, accessibility.", page: GuiPage::Settings },
-    CorePage { label: "Notes", description: "Encrypted notes for journals, drafts, anything private.", page: GuiPage::Notes },
-];
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
@@ -112,7 +91,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 .show(ui, |ui| {
                     draw_hero(ui, theme);
                     ui.add_space(theme.spacing_xl);
-                    draw_concepts(ui, theme);
+                    draw_concepts(ui, theme, state);
                     ui.add_space(theme.spacing_xl);
                     draw_core_pages(ui, theme, state);
                     ui.add_space(theme.spacing_xl);
@@ -153,7 +132,7 @@ fn draw_hero(ui: &mut egui::Ui, theme: &Theme) {
     });
 }
 
-fn draw_concepts(ui: &mut egui::Ui, theme: &Theme) {
+fn draw_concepts(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
     let max_w = ui.available_width().min(960.0);
     let col_w = ((max_w - theme.spacing_md as f32 * 3.0) / 4.0).max(180.0);
 
@@ -179,7 +158,7 @@ fn draw_concepts(ui: &mut egui::Ui, theme: &Theme) {
         ui.add_space(theme.spacing_md);
 
         ui.horizontal_wrapped(|ui| {
-            for concept in CORE_CONCEPTS {
+            for concept in &state.onboarding_concepts {
                 Frame::none()
                     .fill(theme.bg_card())
                     .stroke(Stroke::new(1.0, theme.border()))
@@ -192,14 +171,14 @@ fn draw_concepts(ui: &mut egui::Ui, theme: &Theme) {
                         ui.set_width(col_w);
                         ui.vertical(|ui| {
                             ui.label(
-                                RichText::new(concept.title)
+                                RichText::new(&concept.title)
                                     .size(theme.font_size_body)
                                     .color(theme.text_primary())
                                     .strong(),
                             );
                             ui.add_space(theme.spacing_sm);
                             ui.label(
-                                RichText::new(concept.body)
+                                RichText::new(&concept.body)
                                     .size(theme.font_size_small)
                                     .color(theme.text_secondary()),
                             );
@@ -237,7 +216,7 @@ fn draw_core_pages(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         let mut clicked: Option<GuiPage> = None;
         ui.horizontal_wrapped(|ui| {
-            for page in CORE_PAGES {
+            for page in &state.onboarding_core_pages {
                 let response = Frame::none()
                     .fill(theme.bg_card())
                     .stroke(Stroke::new(1.0, theme.border()))
@@ -250,14 +229,14 @@ fn draw_core_pages(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         ui.set_height(70.0);
                         ui.vertical(|ui| {
                             ui.label(
-                                RichText::new(page.label)
+                                RichText::new(&page.label)
                                     .size(theme.font_size_body)
                                     .color(theme.text_primary())
                                     .strong(),
                             );
                             ui.add_space(2.0);
                             ui.label(
-                                RichText::new(page.description)
+                                RichText::new(&page.description)
                                     .size(theme.font_size_small)
                                     .color(theme.text_secondary()),
                             );
@@ -267,7 +246,7 @@ fn draw_core_pages(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .interact(egui::Sense::click());
 
                 if response.clicked() {
-                    clicked = Some(page.page.clone());
+                    clicked = Some(page_id_to_gui_page(&page.page_id));
                 }
                 if response.hovered() {
                     let painter = ui.painter();

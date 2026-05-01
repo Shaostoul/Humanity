@@ -1,0 +1,25 @@
+{
+  "_purpose": "Donate page FAQ entries. Edit to add/remove/reword without recompiling. Order in this file is the display order.",
+  "entries": [
+    {
+      "question": "Where does my money go?",
+      "answer": "100% goes to server hosting, development tools, and contributor stipends. All spending is transparent and publicly tracked."
+    },
+    {
+      "question": "Is it tax deductible?",
+      "answer": "HumanityOS is an open-source cooperative project. Formal nonprofit status is planned, which would enable tax-deductible donations in the future."
+    },
+    {
+      "question": "Can I donate anonymously?",
+      "answer": "Yes! Cryptocurrency donations are pseudonymous by default. GitHub Sponsors also supports anonymous tiers."
+    },
+    {
+      "question": "Can I contribute without money?",
+      "answer": "Absolutely! Code contributions, bug reports, translations, documentation, and community building are all incredibly valuable."
+    },
+    {
+      "question": "How is funding tracked?",
+      "answer": "All crypto transactions are public on the blockchain. GitHub Sponsors provides monthly transparency reports. We publish quarterly spending breakdowns."
+    }
+  ]
+}

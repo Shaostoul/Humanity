@@ -65,15 +65,25 @@ in `src/gui/mod.rs` returning an owned Vec, populated into `GuiState` at startup
 in `lib.rs`, consumed by pages from `state.X`. Graceful fallback to empty Vec on
 missing/malformed input — pages render an empty filter row rather than crashing.
 
-### Still outstanding
+### Migrated in v0.133.0
 
 | Where | What | Target file | Notes |
 |-------|------|-------------|-------|
-| `src/gui/mod.rs:840-849` | 8 hardcoded player skills with XP defaults | `data/skills/default_profile.json` | High priority — skills are user-extensible. |
-| `src/gui/pages/studio.rs:20-35` | Streaming platforms, resolutions, FPS, positions | `data/studio/streaming_config.json` | Medium — separate from scenes/sources. |
-| `web/chat/chat-ui.js:1652-1720` | 30+ command palette items | `data/commands.json` | Medium — slash-command registry. |
-| `src/gui/pages/donate.rs:122-143` | 5 FAQ entries | `data/donate/faq.json` | Low. |
-| `web/chat/chat-ui.js:70-77` | 6 notification sound presets | `data/sounds/presets.json` | Low. |
+| `src/gui/mod.rs:840-849` | 8 hardcoded player skills with XP defaults | `data/skills/default_profile.json` | Loader: `load_default_player_skills()`. |
+| `src/gui/pages/studio.rs:20-35` | Streaming platforms, resolutions, FPS, positions | `data/studio/streaming_config.json` | Loader: `load_studio_streaming_config()` → `state.studio_streaming_config`. |
+| `web/chat/chat-ui.js:1652-1720` | 30+ command palette items | `data/commands.json` | Fetched at startup; `action_id`/`nav_url` fields hydrate via `CMD_PALETTE_ACTIONS` registry. `requires_role` gates mod/admin categories. |
+| `src/gui/pages/donate.rs:122-143` | 5 FAQ entries | `data/donate/faq.json` | Loader: `load_donate_faq()` → `state.donate_faq`. |
+| `web/chat/chat-ui.js:70-77` | 6 notification sound presets | `data/sounds/presets.json` | Fetched at startup; empty until resolved. |
+| `src/gui/pages/onboarding.rs:69-86` | 4 onboarding concept cards | `data/onboarding/core_concepts.json` | Loader: `load_onboarding_concepts()`. |
+| `src/gui/pages/onboarding.rs:95-104` | 8 core-page shortcuts | `data/onboarding/core_pages.json` | Loader: `load_onboarding_core_pages()`. `page_id` strings mapped to `GuiPage` variants by `page_id_to_gui_page()`. |
+
+### Still outstanding (lower-priority)
+
+| Where | What | Target file | Notes |
+|-------|------|-------------|-------|
+| `src/gui/pages/ai_usage.rs:93-94` | AI provider list + time window choices | `data/ai_usage/filters.json` | Medium — small but used in filter UI. |
+| `src/gui/pages/tasks.rs:30` | 4 default project names in TaskPageState | `data/tasks/default_projects.json` | Medium — UI chrome currently, but should load from user config. |
+| `src/gui/pages/calculator.rs:75,93-98` | Calculator button labels | n/a | Acceptable as UI logic — pure layout, not domain data. |
 
 ## Already done (reference patterns)
 

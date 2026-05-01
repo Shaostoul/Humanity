@@ -67,14 +67,13 @@ let audioCtx = null;
 let soundEnabled = localStorage.getItem('humanity_sound_enabled') !== 'false';
 let selectedSound = localStorage.getItem('humanity_sound') || 'chime';
 
-const SOUND_PRESETS = {
-  chime:  { label: 'Chime',  freqs: [[523.25, 0], [659.25, 0.12]], type: 'sine', vol: 0.15, decay: 0.6 },
-  ping:   { label: 'Ping',   freqs: [[880, 0]], type: 'sine', vol: 0.12, decay: 0.3 },
-  bell:   { label: 'Bell',   freqs: [[1046.5, 0], [784, 0.08]], type: 'sine', vol: 0.1, decay: 0.8 },
-  pop:    { label: 'Pop',    freqs: [[600, 0]], type: 'triangle', vol: 0.2, decay: 0.15 },
-  drop:   { label: 'Drop',   freqs: [[800, 0], [400, 0.08]], type: 'sine', vol: 0.12, decay: 0.4 },
-  blip:   { label: 'Blip',   freqs: [[1200, 0], [900, 0.06]], type: 'square', vol: 0.06, decay: 0.15 },
-};
+// Loaded from /data/sounds/presets.json at startup. Empty until fetch resolves;
+// playNotificationChime() returns silently if the preset isn't loaded yet.
+let SOUND_PRESETS = {};
+fetch('/data/sounds/presets.json', { cache: 'no-cache' })
+  .then(function(r) { return r.ok ? r.json() : null; })
+  .then(function(j) { if (j && j.presets) SOUND_PRESETS = j.presets; })
+  .catch(function() { /* silent — sounds just won't play */ });
 
 function playNotificationChime() {
   if (!soundEnabled) return;
@@ -1643,81 +1642,52 @@ showReactionPicker = function(btn, targetFrom, targetTs, msgEl) {
   }, 0);
 };
 
-/* ── Command Palette ── */
+/* ── Command Palette ──
+ *
+ * Categories + items live in /data/commands.json (loaded at startup into
+ * CMD_PALETTE_DATA). Items with action_id dispatch through CMD_PALETTE_ACTIONS.
+ * Items with nav_url navigate the page. Categories with requires_role are
+ * gated to mod/admin.
+ */
+let CMD_PALETTE_DATA = { categories: [] };
+const CMD_PALETTE_ACTIONS = {
+  sendFriendCodeRequest: function() { sendFriendCodeRequest(); },
+  toggleSearch:          function() { toggleSearch(); },
+  openServerStats:       function() { window.open('/info', '_blank'); },
+};
+fetch('/data/commands.json', { cache: 'no-cache' })
+  .then(function(r) { return r.ok ? r.json() : null; })
+  .then(function(j) { if (j && Array.isArray(j.categories)) CMD_PALETTE_DATA = j; })
+  .catch(function() { /* silent — palette will be empty on first open */ });
+
 function getCmdPaletteItems() {
 const myRole = (typeof peerData !== 'undefined' && typeof myKey !== 'undefined' && peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
 const isMod = myRole === 'admin' || myRole === 'mod';
 const isAdmin = myRole === 'admin';
 
-const cats = [
-  { name: '📱 Social', items: [
-    { icon: '👁️', label: 'Follow User', desc: '/follow', cmd: '/follow ', prefill: true },
-    { icon: '🚫', label: 'Unfollow User', desc: '/unfollow', cmd: '/unfollow ', prefill: true },
-    { icon: '🚷', label: 'Block User', desc: '/block', cmd: '/block ', prefill: true },
-    { icon: '✅', label: 'Unblock User', desc: '/unblock', cmd: '/unblock ', prefill: true },
-    { icon: '📋', label: 'Block List', desc: 'View blocks', cmd: '/blocklist' },
-    { icon: '🎟️', label: 'Share Friend Code', desc: 'Generate code', action: function(){ sendFriendCodeRequest(); } },
-    { icon: '🔓', label: 'Redeem Friend Code', desc: '/redeem', cmd: '/redeem ', prefill: true },
-  ]},
-  { name: '💬 Messaging', items: [
-    { icon: '📩', label: 'Direct Message', desc: '/dm', cmd: '/dm ', prefill: true },
-    { icon: '👥', label: 'Create Group', desc: '/group-create', cmd: '/group-create ', prefill: true },
-    { icon: '📨', label: 'Invite to Group', desc: '/group-invite', cmd: '/group-invite ', prefill: true },
-    { icon: '🚪', label: 'Leave Group', desc: 'Leave current', cmd: '/group-leave' },
-  ]},
-  { name: '👤 Profile', items: [
-    { icon: '📝', label: 'Set Bio', desc: '/bio', cmd: '/bio ', prefill: true },
-    { icon: '🔗', label: 'Set Social Link', desc: '/social', cmd: '/social ', prefill: true },
-    { icon: '👀', label: 'View Profile', desc: '/profile', cmd: '/profile ', prefill: true },
-  ]},
-  { name: '🔍 Search', items: [
-    { icon: '🔍', label: 'Search Messages', desc: 'Open search panel', action: () => toggleSearch() },
-    { icon: '🔎', label: 'Search Command', desc: '/search query', cmd: '/search ', prefill: true },
-  ]},
-  { name: '📌 Pins', items: [
-    { icon: '📌', label: 'Pin Message', desc: '/pin', cmd: '/pin ', prefill: true },
-    { icon: '📌', label: 'Personal Pin', desc: '/mypin', cmd: '/mypin ', prefill: true },
-  ]},
-];
-
-if (isMod) {
-  cats.push({ name: '🛡️ Moderation', items: [
-    { icon: '👢', label: 'Kick', desc: '/kick', cmd: '/kick ', prefill: true },
-    { icon: '🔨', label: 'Ban', desc: '/ban', cmd: '/ban ', prefill: true },
-    { icon: '🔇', label: 'Mute', desc: '/mute', cmd: '/mute ', prefill: true },
-    { icon: '📋', label: 'View Reports', desc: 'See reports', cmd: '/reports' },
-  ]});
-}
-
-if (isAdmin) {
-  cats.push({ name: '⚙️ Admin', items: [
-    { icon: '✅', label: 'Verify User', desc: '/verify', cmd: '/verify ', prefill: true },
-    { icon: '🛡️', label: 'Make Mod', desc: '/mod', cmd: '/mod ', prefill: true },
-    { icon: '🔒', label: 'Lockdown', desc: 'Toggle lock', cmd: '/lockdown' },
-    { icon: '📢', label: 'Create Channel', desc: '/channel-create', cmd: '/channel-create ', prefill: true },
-  ]});
-}
-
-cats.push({ name: '🔧 Utility', items: [
-  { icon: '❓', label: 'Help', desc: 'Show help', cmd: '/help' },
-  { icon: '🔑', label: 'Export Identity', desc: 'Backup keys', cmd: '/export' },
-  { icon: '🔗', label: 'Link Device', desc: 'Multi-device', cmd: '/link' },
-  { icon: '📊', label: 'Server Stats', desc: 'View stats', cmd: '/stats', action: function(){ window.open('/info','_blank'); } },
-]});
-
-cats.push({ name: '🧭 Navigate', items: [
-  { icon: '📊', label: 'Dashboard', desc: 'Go to /dashboard', action: function(){ location.href='/dashboard'; } },
-  { icon: '🏠', label: 'Home', desc: 'Go to /home', action: function(){ location.href='/home'; } },
-  { icon: '🧠', label: 'Skills', desc: 'Go to /skills', action: function(){ location.href='/skills'; } },
-  { icon: '🎯', label: 'Tasks', desc: 'Go to /tasks', action: function(){ location.href='/tasks'; } },
-  { icon: '⚔️', label: 'Quests', desc: 'Go to /quests', action: function(){ location.href='/quests'; } },
-  { icon: '📅', label: 'Calendar', desc: 'Go to /calendar', action: function(){ location.href='/calendar'; } },
-  { icon: '🗺️', label: 'Maps', desc: 'Go to /maps', action: function(){ location.href='/maps'; } },
-  { icon: '📦', label: 'Inventory', desc: 'Go to /inventory', action: function(){ location.href='/inventory'; } },
-  { icon: '📝', label: 'Notes', desc: 'Go to /notes', action: function(){ location.href='/notes'; } },
-]});
-
-return cats;
+return CMD_PALETTE_DATA.categories
+  .filter(function(cat) {
+    if (!cat.requires_role) return true;
+    if (cat.requires_role === 'mod') return isMod;
+    if (cat.requires_role === 'admin') return isAdmin;
+    return false;
+  })
+  .map(function(cat) {
+    return {
+      name: cat.name,
+      items: cat.items.map(function(item) {
+        // Hydrate action_id / nav_url into runtime action callbacks.
+        var hydrated = Object.assign({}, item);
+        if (item.action_id && CMD_PALETTE_ACTIONS[item.action_id]) {
+          hydrated.action = CMD_PALETTE_ACTIONS[item.action_id];
+        } else if (item.nav_url) {
+          var url = item.nav_url;
+          hydrated.action = function() { location.href = url; };
+        }
+        return hydrated;
+      }),
+    };
+  });
 }
 
 function renderCmdPalette() {

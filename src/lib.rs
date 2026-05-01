@@ -630,6 +630,11 @@ mod native_app {
             gui_state.resource_categories = crate::gui::load_resource_categories(&data_dir);
             gui_state.studio_scene_presets = crate::gui::load_studio_scenes(&data_dir);
             gui_state.studio_source_presets = crate::gui::load_studio_sources(&data_dir);
+            gui_state.profile_skills = crate::gui::load_default_player_skills(&data_dir);
+            gui_state.studio_streaming_config = crate::gui::load_studio_streaming_config(&data_dir);
+            gui_state.donate_faq = crate::gui::load_donate_faq(&data_dir);
+            gui_state.onboarding_concepts = crate::gui::load_onboarding_concepts(&data_dir);
+            gui_state.onboarding_core_pages = crate::gui::load_onboarding_core_pages(&data_dir);
             // Populate the live studio state from the loaded presets.
             gui_state.studio.sources = gui_state
                 .studio_source_presets

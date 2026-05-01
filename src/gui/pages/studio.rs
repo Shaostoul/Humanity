@@ -10,35 +10,18 @@ use crate::gui::widgets;
 
 const LEFT_PANEL_WIDTH: f32 = 220.0;
 const RIGHT_PANEL_WIDTH: f32 = 220.0;
-const LIVE_GREEN: Color32 = Color32::from_rgb(46, 204, 113);
-const LIVE_RED: Color32 = Color32::from_rgb(231, 76, 60);
-const BG_DARK: Color32 = Color32::from_rgb(14, 14, 18);
-const BG_PANEL: Color32 = Color32::from_rgb(20, 20, 26);
-const BG_PREVIEW: Color32 = Color32::from_rgb(8, 8, 12);
+// Live/REC indicator colors come from theme.success() / theme.danger() so they
+// stay in sync with the rest of the UI's semantic palette.
+// Panel + preview backgrounds use theme.bg_card() / theme.bg_panel() / theme.bg_sidebar_dark().
 
-/// Platform options for streaming target.
-const PLATFORMS: &[&str] = &[
-    "HumanityOS Server",
-    "Twitch",
-    "YouTube",
-    "Rumble",
-    "Custom RTMP",
-];
-
-/// Resolution options.
-const RESOLUTIONS: &[&str] = &["1280x720", "1920x1080", "2560x1440", "3840x2160"];
-
-/// FPS options.
-const FPS_OPTIONS: &[u32] = &[30, 60];
-
-/// Chat overlay position options.
-const CHAT_POSITIONS: &[&str] = &["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"];
+// Platform/resolution/fps/position picker options live in
+// data/studio/streaming_config.json — load them via state.studio_streaming_config.
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Left panel: scenes + sources
     egui::SidePanel::left("studio_left_panel")
         .exact_width(LEFT_PANEL_WIDTH)
-        .frame(Frame::none().fill(BG_PANEL).inner_margin(theme.panel_margin))
+        .frame(Frame::none().fill(theme.bg_card()).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             draw_left_panel(ui, theme, state);
         });
@@ -46,14 +29,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Right panel: properties + stream settings
     egui::SidePanel::right("studio_right_panel")
         .exact_width(RIGHT_PANEL_WIDTH)
-        .frame(Frame::none().fill(BG_PANEL).inner_margin(theme.panel_margin))
+        .frame(Frame::none().fill(theme.bg_card()).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             draw_right_panel(ui, theme, state);
         });
 
     // Center panel: preview + controls
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(BG_DARK).inner_margin(theme.panel_margin))
+        .frame(Frame::none().fill(theme.bg_primary()).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             draw_center_panel(ui, theme, state);
         });
@@ -78,7 +61,8 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         for (i, scene) in state.studio.scenes.iter().enumerate() {
             let is_active = i == active_scene;
             let bg = if is_active {
-                Color32::from_rgba_unmultiplied(0xED, 0x8C, 0x24, 40)
+                let a = theme.accent();
+                Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 40)
             } else {
                 Color32::TRANSPARENT
             };
@@ -168,7 +152,8 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             let src = &state.studio.sources[i];
             let is_selected = selected == Some(i);
             let bg = if is_selected {
-                Color32::from_rgba_unmultiplied(52, 152, 219, 30)
+                let a = theme.accent();
+                Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 25)
             } else {
                 Color32::TRANSPARENT
             };
@@ -258,7 +243,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // ── Preview/Live header ──
     ui.horizontal(|ui| {
         let preview_text = if state.studio.is_live {
-            RichText::new("LIVE").size(theme.font_size_body).color(LIVE_GREEN).strong()
+            RichText::new("LIVE").size(theme.font_size_body).color(theme.success()).strong()
         } else {
             RichText::new("PREVIEW").size(theme.font_size_body).color(theme.text_secondary())
         };
@@ -274,7 +259,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.label(
                 RichText::new(format!("{}:{:02}:{:02}", h, m, s))
                     .size(theme.font_size_small)
-                    .color(LIVE_GREEN),
+                    .color(theme.success()),
             );
         }
     });
@@ -286,7 +271,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let preview_width = avail.x;
 
     Frame::none()
-        .fill(BG_PREVIEW)
+        .fill(theme.bg_sidebar_dark())
         .rounding(Rounding::same(4))
         .stroke(Stroke::new(1.0, theme.border()))
         .show(ui, |ui| {
@@ -351,7 +336,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             if state.studio.is_live {
                 painter.rect_stroke(
                     rect, 4.0,
-                    Stroke::new(2.0, LIVE_GREEN),
+                    Stroke::new(2.0, theme.success()),
                     egui::StrokeKind::Outside,
                 );
             }
@@ -369,7 +354,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 egui::Button::new(
                     RichText::new("LIVE").size(theme.font_size_body).color(Color32::WHITE).strong(),
                 )
-                .fill(LIVE_GREEN)
+                .fill(theme.success())
                 .min_size(Vec2::new(70.0, 32.0))
                 .rounding(Rounding::same(6)),
             );
@@ -509,11 +494,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             Vec2::new(meter_rect.width() * level, meter_rect.height()),
         );
         let meter_color = if level < 0.6 {
-            LIVE_GREEN
+            theme.success()
         } else if level < 0.85 {
-            Color32::from_rgb(241, 196, 15)
+            theme.warning()
         } else {
-            LIVE_RED
+            theme.danger()
         };
         painter.rect_filled(fill_rect, 2.0, meter_color);
 
@@ -523,7 +508,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.label(
                     RichText::new("0 dropped | 3500 kbps")
                         .size(theme.font_size_small)
-                        .color(LIVE_GREEN),
+                        .color(theme.success()),
                 );
             } else {
                 ui.label(
@@ -635,8 +620,8 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .selected_text(&state.studio.stream_platform)
             .width(190.0)
             .show_ui(ui, |ui| {
-                for &p in PLATFORMS {
-                    ui.selectable_value(&mut state.studio.stream_platform, p.to_string(), p);
+                for p in &state.studio_streaming_config.platforms {
+                    ui.selectable_value(&mut state.studio.stream_platform, p.clone(), p);
                 }
             });
 
@@ -671,8 +656,8 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .selected_text(&state.studio.stream_resolution)
             .width(190.0)
             .show_ui(ui, |ui| {
-                for &r in RESOLUTIONS {
-                    ui.selectable_value(&mut state.studio.stream_resolution, r.to_string(), r);
+                for r in &state.studio_streaming_config.resolutions {
+                    ui.selectable_value(&mut state.studio.stream_resolution, r.clone(), r);
                 }
             });
 
@@ -690,7 +675,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .selected_text(format!("{}", state.studio.stream_fps))
             .width(190.0)
             .show_ui(ui, |ui| {
-                for &f in FPS_OPTIONS {
+                for &f in &state.studio_streaming_config.fps {
                     ui.selectable_value(&mut state.studio.stream_fps, f, format!("{}", f));
                 }
             });
@@ -726,8 +711,8 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .selected_text(&state.studio.chat_overlay_position)
             .width(190.0)
             .show_ui(ui, |ui| {
-                for &pos in CHAT_POSITIONS {
-                    ui.selectable_value(&mut state.studio.chat_overlay_position, pos.to_string(), pos);
+                for pos in &state.studio_streaming_config.chat_positions {
+                    ui.selectable_value(&mut state.studio.chat_overlay_position, pos.clone(), pos);
                 }
             });
 
