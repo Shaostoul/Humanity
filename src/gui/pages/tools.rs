@@ -58,40 +58,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Category filter buttons
             with_state(|ts| {
                 ui.horizontal_wrapped(|ui| {
-                    // "All" button
-                    let all_active = ts.active_category.is_none();
-                    let all_text = if all_active {
-                        RichText::new("All").color(theme.text_on_accent()).size(theme.font_size_small)
-                    } else {
-                        RichText::new("All").color(theme.text_secondary()).size(theme.font_size_small)
-                    };
-                    let all_fill = if all_active { theme.accent() } else { Color32::TRANSPARENT };
-                    if ui
-                        .add(
-                            egui::Button::new(all_text)
-                                .fill(all_fill)
-                                .rounding(Rounding::same(theme.border_radius as u8)),
-                        )
-                        .clicked()
+                    // "All" filter — Secondary that flips to accent via .active().
+                    if widgets::Button::secondary("All")
+                        .active(ts.active_category.is_none())
+                        .show(ui, theme)
                     {
                         ts.active_category = None;
                     }
 
                     for cat in &categories {
                         let is_active = ts.active_category.as_deref() == Some(cat.as_str());
-                        let text = if is_active {
-                            RichText::new(cat).color(theme.text_on_accent()).size(theme.font_size_small)
-                        } else {
-                            RichText::new(cat).color(theme.text_secondary()).size(theme.font_size_small)
-                        };
-                        let fill = if is_active { theme.accent() } else { Color32::TRANSPARENT };
-                        if ui
-                            .add(
-                                egui::Button::new(text)
-                                    .fill(fill)
-                                    .rounding(Rounding::same(theme.border_radius as u8)),
-                            )
-                            .clicked()
+                        if widgets::Button::secondary(cat)
+                            .active(is_active)
+                            .show(ui, theme)
                         {
                             ts.active_category = if is_active { None } else { Some(cat.clone()) };
                         }

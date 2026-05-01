@@ -109,13 +109,14 @@ fn sidebar_item(
     }
 }
 
+/// Local helper — delegates to the universal form_row widget so all profile
+/// fields share the same label-column alignment as the rest of the app.
 fn field_row(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &mut String) {
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(label).color(theme.text_secondary()).size(theme.font_size_body));
-        ui.add_space(theme.panel_margin);
-        ui.add(egui::TextEdit::singleline(value).desired_width(200.0));
+    // Strip a trailing colon if present — form_row owns the visual style.
+    let clean_label = label.trim_end_matches(':');
+    widgets::form_row(ui, theme, clean_label, |ui| {
+        ui.add(egui::TextEdit::singleline(value).desired_width(220.0));
     });
-    ui.add_space(theme.row_gap);
 }
 
 fn draw_body_measurements(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
@@ -241,12 +242,14 @@ fn draw_interests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_md);
 
     widgets::card(ui, theme, |ui| {
-        // Add interest input
-        ui.horizontal(|ui| {
+        widgets::form_row(ui, theme, "New interest", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.profile_interest_input)
                 .desired_width(200.0)
                 .hint_text("Add interest..."));
-            if widgets::primary_button(ui, theme, "Add") && !state.profile_interest_input.trim().is_empty() {
+            ui.add_space(theme.spacing_sm);
+            if widgets::Button::primary("Add").show(ui, theme)
+                && !state.profile_interest_input.trim().is_empty()
+            {
                 let interest = state.profile_interest_input.trim().to_string();
                 if !state.profile_interests.contains(&interest) {
                     state.profile_interests.push(interest);
@@ -304,23 +307,26 @@ fn draw_social_links(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_md);
 
     widgets::card(ui, theme, |ui| {
-        // Add new link
-        ui.horizontal(|ui| {
+        widgets::form_row(ui, theme, "Platform", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.profile_social_platform)
-                .desired_width(100.0)
-                .hint_text("Platform"));
+                .desired_width(120.0)
+                .hint_text("e.g. Mastodon"));
+        });
+        widgets::form_row(ui, theme, "URL", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.profile_social_url)
-                .desired_width(200.0)
-                .hint_text("URL"));
-            if widgets::primary_button(ui, theme, "Add") {
-                if !state.profile_social_platform.trim().is_empty() && !state.profile_social_url.trim().is_empty() {
-                    state.profile_social_links.push((
-                        state.profile_social_platform.trim().to_string(),
-                        state.profile_social_url.trim().to_string(),
-                    ));
-                    state.profile_social_platform.clear();
-                    state.profile_social_url.clear();
-                }
+                .desired_width(220.0)
+                .hint_text("https://..."));
+            ui.add_space(theme.spacing_sm);
+            if widgets::Button::primary("Add").show(ui, theme)
+                && !state.profile_social_platform.trim().is_empty()
+                && !state.profile_social_url.trim().is_empty()
+            {
+                state.profile_social_links.push((
+                    state.profile_social_platform.trim().to_string(),
+                    state.profile_social_url.trim().to_string(),
+                ));
+                state.profile_social_platform.clear();
+                state.profile_social_url.clear();
             }
         });
 
@@ -360,9 +366,10 @@ fn draw_streaming(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         if state.profile_streaming_live {
             ui.add_space(theme.spacing_xs);
             ui.horizontal(|ui| {
+                let live_color = theme.danger();
                 let (dot_rect, _) = ui.allocate_exact_size(Vec2::splat(10.0), egui::Sense::hover());
-                ui.painter().circle_filled(dot_rect.center(), 5.0, Color32::from_rgb(231, 76, 60));
-                ui.label(RichText::new("LIVE").color(Color32::from_rgb(231, 76, 60)).strong());
+                ui.painter().circle_filled(dot_rect.center(), 5.0, live_color);
+                ui.label(RichText::new("LIVE").color(live_color).strong());
             });
         }
     });

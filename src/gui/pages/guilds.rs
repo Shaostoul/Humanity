@@ -366,55 +366,42 @@ fn draw_create_form(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_md);
 
     widgets::card(ui, theme, |ui| {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Name:").color(theme.text_secondary()).size(theme.font_size_body));
+        widgets::form_row(ui, theme, "Name", |ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut state.guild_new_name)
-                    .desired_width(300.0)
+                    .desired_width(280.0)
                     .hint_text("Guild name"),
             );
         });
 
-        ui.add_space(theme.spacing_sm);
+        widgets::form_row(ui, theme, "Description", |ui| {
+            ui.add(
+                egui::TextEdit::multiline(&mut state.guild_new_desc)
+                    .desired_width(280.0)
+                    .desired_rows(4)
+                    .hint_text("What is this guild about?"),
+            );
+        });
 
-        ui.label(RichText::new("Description:").color(theme.text_secondary()).size(theme.font_size_body));
-        ui.add(
-            egui::TextEdit::multiline(&mut state.guild_new_desc)
-                .desired_width(f32::INFINITY)
-                .desired_rows(4)
-                .hint_text("What is this guild about?"),
-        );
-
-        ui.add_space(theme.spacing_sm);
-
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Color:").color(theme.text_secondary()).size(theme.font_size_body));
+        widgets::form_row(ui, theme, "Color", |ui| {
             ui.color_edit_button_srgba(&mut state.guild_new_color);
         });
 
-        ui.add_space(theme.spacing_sm);
-
-        // Visibility toggle
+        // Visibility toggle — Secondary buttons with .active() flip the
+        // selected one to accent fill (consistent with tab/nav widgets).
         with_local(|local| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Visibility:").color(theme.text_secondary()).size(theme.font_size_body));
-                let pub_btn = egui::Button::new(
-                    RichText::new("Public")
-                        .size(theme.font_size_small)
-                        .color(if local.visibility_public { theme.text_on_accent() } else { theme.text_secondary() }),
-                )
-                .fill(if local.visibility_public { theme.accent() } else { theme.bg_card() });
-                if ui.add(pub_btn).clicked() {
+            widgets::form_row(ui, theme, "Visibility", |ui| {
+                if widgets::Button::secondary("Public")
+                    .active(local.visibility_public)
+                    .show(ui, theme)
+                {
                     local.visibility_public = true;
                 }
-
-                let priv_btn = egui::Button::new(
-                    RichText::new("Private")
-                        .size(theme.font_size_small)
-                        .color(if !local.visibility_public { theme.text_on_accent() } else { theme.text_secondary() }),
-                )
-                .fill(if !local.visibility_public { theme.accent() } else { theme.bg_card() });
-                if ui.add(priv_btn).clicked() {
+                ui.add_space(theme.spacing_sm);
+                if widgets::Button::secondary("Private")
+                    .active(!local.visibility_public)
+                    .show(ui, theme)
+                {
                     local.visibility_public = false;
                 }
             });

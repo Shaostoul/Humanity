@@ -251,23 +251,22 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     );
                     ui.add_space(theme.spacing_xs);
 
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Title:").color(theme.text_secondary()));
+                    widgets::form_row(ui, theme, "Title", |ui| {
                         ui.add(
                             egui::TextEdit::singleline(&mut state.cal_new_title)
-                                .desired_width(200.0)
+                                .desired_width(220.0)
                                 .hint_text("Event name"),
                         );
                     });
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Start:").color(theme.text_secondary()));
+                    widgets::form_row(ui, theme, "Start time", |ui| {
                         ui.add(
                             egui::TextEdit::singleline(&mut state.cal_new_time)
                                 .desired_width(80.0)
                                 .hint_text("09:00"),
                         );
-                        ui.label(RichText::new("End:").color(theme.text_secondary()));
-                        with_local(|local| {
+                    });
+                    with_local(|local| {
+                        widgets::form_row(ui, theme, "End time", |ui| {
                             ui.add(
                                 egui::TextEdit::singleline(&mut local.new_end_time)
                                     .desired_width(80.0)
@@ -275,22 +274,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             );
                         });
                     });
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Color:").color(theme.text_secondary()));
+                    widgets::form_row(ui, theme, "Color", |ui| {
                         let mut c = state.cal_new_color;
                         ui.color_edit_button_srgba(&mut c);
                         state.cal_new_color = c;
                     });
                     with_local(|local| {
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Description:").color(theme.text_secondary()));
+                        widgets::form_row(ui, theme, "Description", |ui| {
+                            ui.add(
+                                egui::TextEdit::multiline(&mut local.new_description)
+                                    .desired_width(280.0)
+                                    .desired_rows(2)
+                                    .hint_text("Optional details..."),
+                            );
                         });
-                        ui.add(
-                            egui::TextEdit::multiline(&mut local.new_description)
-                                .desired_width(f32::INFINITY)
-                                .desired_rows(2)
-                                .hint_text("Optional details..."),
-                        );
                     });
 
                     ui.add_space(theme.spacing_sm);

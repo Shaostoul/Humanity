@@ -214,25 +214,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 // New listing form
                 if state.listing_show_new_form {
-                    widgets::card(ui, theme, |ui| {
-                        ui.label(RichText::new("Create Listing").size(theme.font_size_heading).color(theme.accent()));
-                        ui.add_space(theme.spacing_xs);
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Title:").color(theme.text_secondary()));
-                            ui.add(egui::TextEdit::singleline(&mut state.listing_new_title).desired_width(300.0));
+                    widgets::card_with_header(ui, theme, "Create Listing", |ui| {
+                        widgets::form_row(ui, theme, "Title", |ui| {
+                            ui.add(egui::TextEdit::singleline(&mut state.listing_new_title).desired_width(280.0));
                         });
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Description:").color(theme.text_secondary()));
+                        widgets::form_row(ui, theme, "Description", |ui| {
                             ui.add(egui::TextEdit::multiline(&mut state.listing_new_description)
-                                .desired_width(300.0)
+                                .desired_width(280.0)
                                 .desired_rows(2));
                         });
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Price (SOL):").color(theme.text_secondary()));
+                        widgets::form_row(ui, theme, "Price (SOL)", |ui| {
                             ui.add(egui::TextEdit::singleline(&mut state.listing_new_price).desired_width(100.0));
-                            ui.add_space(theme.spacing_md);
-                            ui.label(RichText::new("Category:").color(theme.text_secondary()));
-                            // Skip the leading catch-all category ("All") in the create form.
+                        });
+                        widgets::form_row(ui, theme, "Category", |ui| {
                             let create_cats: Vec<String> = state.market_categories.iter().skip(1).cloned().collect();
                             egui::ComboBox::from_id_salt("new_listing_category")
                                 .selected_text(if state.listing_new_category.is_empty() { "Select..." } else { &state.listing_new_category })
@@ -244,9 +238,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     }
                                 });
                         });
-                        ui.add_space(theme.spacing_xs);
+                        ui.add_space(theme.spacing_sm);
                         ui.horizontal(|ui| {
-                            if widgets::primary_button(ui, theme, "Create") && !state.listing_new_title.is_empty() {
+                            if widgets::Button::primary("Create").show(ui, theme) && !state.listing_new_title.is_empty() {
                                 let price = state.listing_new_price.parse::<f64>().unwrap_or(0.0);
                                 let listing = GuiListing {
                                     id: state.listing_next_id,
@@ -264,7 +258,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 state.listing_new_category.clear();
                                 state.listing_show_new_form = false;
                             }
-                            if widgets::secondary_button(ui, theme, "Cancel") {
+                            ui.add_space(theme.spacing_sm);
+                            if widgets::Button::secondary("Cancel").show(ui, theme) {
                                 state.listing_show_new_form = false;
                             }
                         });
