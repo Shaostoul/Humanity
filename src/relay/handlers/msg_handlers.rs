@@ -3262,7 +3262,25 @@ pub async fn handle_game_interact(
         return;
     }
 
-    let response = serde_json::json!({
+    // If the entity has a `dialog` array (NPC), pick a random line and
+    // include it as `dialog_line` in the response. The action "talk" always
+    // gets a line; other actions get one too — keeps the API forgiving for
+    // AI agents experimenting with verbs.
+    let dialog_line: Option<String> = target.components.get("dialog")
+        .and_then(|v| v.as_array())
+        .filter(|arr| !arr.is_empty())
+        .map(|arr| {
+            use rand::Rng;
+            let idx = rand::thread_rng().gen_range(0..arr.len());
+            arr[idx].as_str().unwrap_or("").to_string()
+        })
+        .filter(|s| !s.is_empty());
+
+    let speaker_name: Option<String> = target.components.get("name")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let mut response = serde_json::json!({
         "type": "game_interact_result",
         "entity_id": entity_id,
         "entity_type": target.entity_type,
@@ -3271,17 +3289,31 @@ pub async fn handle_game_interact(
         "components": target.components,
         "position": target.position,
     });
+    if let Some(line) = &dialog_line {
+        response["dialog_line"] = serde_json::Value::String(line.clone());
+    }
+    if let Some(name) = &speaker_name {
+        response["speaker"] = serde_json::Value::String(name.clone());
+    }
 
     drop(world);
     send_game_private(state, my_key, &response).await;
 
-    // Broadcast the interaction to other clients.
-    let broadcast = serde_json::json!({
+    // Broadcast the interaction to other clients. If a dialog line was
+    // returned, surface it in the broadcast too — humans nearby will see
+    // "Helm Officer Vex: Course laid in." style chat.
+    let mut broadcast = serde_json::json!({
         "type": "game_entity_interacted",
         "entity_id": entity_id,
         "player_key": my_key,
         "action": action,
     });
+    if let Some(line) = dialog_line {
+        broadcast["dialog_line"] = serde_json::Value::String(line);
+    }
+    if let Some(name) = speaker_name {
+        broadcast["speaker"] = serde_json::Value::String(name);
+    }
     let _ = state.broadcast_tx.send(RelayMessage::System {
         message: format!("__game__:{}", broadcast),
     });

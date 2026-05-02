@@ -126,20 +126,29 @@ ws.addEventListener('message', (ev) => {
       nearby_sample: nearby.slice(0, 5).map(e => `${e.entity_type} (${e.distance.toFixed(1)}m, interactable=${e.interactable})`),
     });
 
-    const target = nearby.find(e => e.interactable);
+    // Prefer talking to a crew NPC — bridge/medbay/engineering/cargo/hydroponics/quarters
+    // each spawn a role-tagged NPC with dialog lines (v0.162.0).
+    const npcTypes = ['navigator', 'medic', 'engineer', 'maintenance_bot', 'botanist', 'crewmate'];
+    const npc = nearby.find(e => npcTypes.includes(e.entity_type) && e.interactable);
+    const target = npc || nearby.find(e => e.interactable);
     if (!target) {
       console.log('\nNo interactable entities nearby — disconnecting.');
       ws.close();
       return;
     }
+    const action = npc ? 'talk' : 'inspect';
     state = 'awaiting_interact';
-    console.log(`→ Sending game_interact on entity ${target.entity_id} (${target.entity_type})`);
-    send({ type: 'game_interact', entity_id: target.entity_id, action: 'inspect' });
+    console.log(`→ Sending game_interact on entity ${target.entity_id} (${target.entity_type}) action=${action}`);
+    send({ type: 'game_interact', entity_id: target.entity_id, action });
     return;
   }
 
   if (game.type === 'game_interact_result' && state === 'awaiting_interact') {
-    log('game_interact_result', game);
+    if (game.dialog_line) {
+      log('NPC dialog', `${game.speaker || 'NPC'}: "${game.dialog_line}"`);
+    } else {
+      log('game_interact_result', game);
+    }
     state = 'awaiting_final_perception';
     console.log('→ Sending game_perceive again to confirm world state');
     send({ type: 'game_perceive', radius: 25 });

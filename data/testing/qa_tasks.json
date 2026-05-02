@@ -133,6 +133,22 @@
       "category": "perception-api"
     },
     {
+      "id": "v0160-ambient-crew",
+      "version": "0.160.0",
+      "feature": "Ambient NPC crew per room — role-tagged characters",
+      "what_to_test": "Run `node scripts/ai-sample-client.js`. Modify it (or perceive multiple rooms) to peek at: bridge, medbay, engineering, cargo, hydroponics, crew_quarters.",
+      "expected": "Each room has a unique role-named NPC: Helm Officer Vex (bridge), Dr. Kel (medbay), Chief Tan (engineering), CB-7 (cargo, replaces old maintenance_bot), Botanist Yara (hydroponics), Crewmate Nia (crew_quarters). All wander Brownian-style within their room bounds.",
+      "category": "perception-api"
+    },
+    {
+      "id": "v0161-perception-per-action-rate-limit",
+      "version": "0.161.0",
+      "feature": "Perception rate limit — per-action buckets",
+      "what_to_test": "Run `node scripts/ai-sample-client.js` to completion. Watch the perceive→interact→perceive flow.",
+      "expected": "All three calls succeed without rate_limited error. Before v0.161 the second perceive was blocked by the shared 200ms bucket. Now each action (perceive / interact / query_inventory / query_entity) has its own 5/sec bucket.",
+      "category": "perception-api"
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

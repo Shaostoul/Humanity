@@ -294,16 +294,72 @@ impl GameWorld {
 
         // Spawn role-specific ambient NPCs per room type. Each has a wander
         // block so they drift around their assigned room, plus a 'role' field
-        // that AI agents see in perception responses. Makes the ship feel
+        // that AI agents see in perception responses, plus a 'dialog' array
+        // returned by handle_game_interact so AI agents (and humans) get a
+        // bit of personality back when they interact. Makes the ship feel
         // crewed even when no humans are connected.
         for room in &rooms {
-            let (npc_type, npc_name, role, description) = match room.room_type.as_str() {
-                "bridge"      => ("navigator",      "Helm Officer Vex",   "navigator",      "Charts course at the bridge"),
-                "medbay"      => ("medic",          "Dr. Kel",            "medical_officer","Tending to the medbay"),
-                "engineering" => ("engineer",       "Chief Tan",          "chief_engineer", "Monitoring the reactor"),
-                "cargo"       => ("maintenance_bot","CB-7",               "maintenance",    "Autonomous bot patrolling cargo"),
-                "hydroponics" => ("botanist",       "Botanist Yara",      "botanist",       "Tending the hydroponic racks"),
-                "quarters"    => ("crewmate",       "Crewmate Nia",       "off_duty",       "Reading on her bunk"),
+            let (npc_type, npc_name, role, description, dialog) = match room.room_type.as_str() {
+                "bridge" => (
+                    "navigator", "Helm Officer Vex", "navigator",
+                    "Charts course at the bridge",
+                    vec![
+                        "Course laid in. We're holding orbit at 412 km.",
+                        "If you see any unscheduled bursts on the console, flag me immediately.",
+                        "Earth looks calm from up here. Don't let it fool you.",
+                        "I'd kill for a fresh atlas. Real paper. Stars don't move that fast.",
+                    ],
+                ),
+                "medbay" => (
+                    "medic", "Dr. Kel", "medical_officer",
+                    "Tending to the medbay",
+                    vec![
+                        "If you're hurt, sit on the cot. If you're not, don't touch anything.",
+                        "Medkits are in the cabinet. They are not snacks.",
+                        "Microgravity nausea is normal the first week. Hydrate.",
+                        "I patched up worse than you yesterday. Stay still.",
+                    ],
+                ),
+                "engineering" => (
+                    "engineer", "Chief Tan", "chief_engineer",
+                    "Monitoring the reactor",
+                    vec![
+                        "Reactor's at 84% and humming. Don't tap the glass.",
+                        "If a panel is hot, I already know. Walk away.",
+                        "Plumbing on Deck 3 is fixed. Try it before you complain again.",
+                        "We keep this ship alive on duct tape and hope. Mostly hope.",
+                    ],
+                ),
+                "cargo" => (
+                    "maintenance_bot", "CB-7", "maintenance",
+                    "Autonomous bot patrolling cargo",
+                    vec![
+                        "[CB-7] Manifest reconciled. Variance: zero.",
+                        "[CB-7] Bay temperature nominal. Resuming patrol.",
+                        "[CB-7] Crate 19-A misaligned. Correcting.",
+                        "[CB-7] Greetings, citizen. Please do not block the loaders.",
+                    ],
+                ),
+                "hydroponics" => (
+                    "botanist", "Botanist Yara", "botanist",
+                    "Tending the hydroponic racks",
+                    vec![
+                        "These tomatoes are six weeks ahead of schedule. Look at them.",
+                        "Don't touch the green tray. I'm trialing a new nutrient mix.",
+                        "Lettuce harvest in three days. Tell the galley.",
+                        "Plants do better when you talk to them. I'm not joking.",
+                    ],
+                ),
+                "quarters" => (
+                    "crewmate", "Crewmate Nia", "off_duty",
+                    "Reading on her bunk",
+                    vec![
+                        "Off-shift. Quiet hour. Whisper if you must.",
+                        "Cycled through three novels this rotation. Got a recommendation?",
+                        "Lights at 30%. The Earthrise is the best lamp anyway.",
+                        "Wake me at 06:00 ship-time. Not earlier.",
+                    ],
+                ),
                 _ => continue,
             };
             let center_x = room.position[0] + room.size[0] / 2.0;
@@ -322,6 +378,7 @@ impl GameWorld {
                     "name": npc_name,
                     "role": role,
                     "description": description,
+                    "dialog": dialog,
                     "wander": {
                         "min_x": room.position[0] + 1.0,
                         "max_x": room.position[0] + room.size[0] - 1.0,
@@ -584,7 +641,7 @@ impl GameWorld {
     /// Storage key for the persisted world snapshot. Bump the version suffix
     /// when entity spawn logic changes so old snapshots are ignored on load
     /// (otherwise persisted entities would shadow newly-added ambient NPCs).
-    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v2";
+    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v3";
 
     /// Save the world to the SQLite `server_state` table as a JSON blob.
     /// Called periodically from the tick loop. Static-ship fields (rooms,
