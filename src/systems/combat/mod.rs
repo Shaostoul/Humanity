@@ -6,11 +6,24 @@
 pub mod damage;
 pub mod effects;
 
+use rand::Rng;
+
 use crate::ecs::systems::System;
-use crate::ecs::components::Health;
+use crate::ecs::components::{Armor, Dead, Health, LootTable, Transform};
 use crate::hot_reload::data_store::DataStore;
-use damage::DamageEvent;
+use damage::{DamageEvent, DamageType};
 use effects::StatusEffect;
+
+/// Convert a DamageType enum into the lowercase string key used in Armor.resistance.
+fn damage_type_key(t: &DamageType) -> &'static str {
+    match t {
+        DamageType::Kinetic   => "kinetic",
+        DamageType::Thermal   => "thermal",
+        DamageType::Energy    => "energy",
+        DamageType::Chemical  => "chemical",
+        DamageType::Radiation => "radiation",
+    }
+}
 
 /// Combat system: processes damage events, status effects, and death.
 pub struct CombatSystem {
@@ -48,19 +61,71 @@ impl System for CombatSystem {
     fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
         // ── Process pending damage events ──
         let events: Vec<_> = self.pending_damage.drain(..).collect();
-        for (entity, event) in events {
-            if let Ok(mut health) = world.get::<&mut Health>(entity) {
-                // TODO: apply armor/resistance based on damage type
-                health.current = (health.current - event.amount).max(0.0);
+        let mut deaths_to_handle: Vec<hecs::Entity> = Vec::new();
 
+        for (entity, event) in events {
+            // Skip if already dead.
+            if world.get::<&Dead>(entity).is_ok() { continue; }
+
+            // Apply armor mitigation: damage *= (1.0 - resistance).
+            let key = damage_type_key(&event.damage_type);
+            let resistance = world
+                .get::<&Armor>(entity)
+                .ok()
+                .and_then(|a| a.resistance.get(key).copied())
+                .unwrap_or(0.0)
+                .clamp(0.0, 1.0);
+            let mitigated = event.amount * (1.0 - resistance);
+
+            if let Ok(mut health) = world.get::<&mut Health>(entity) {
+                health.current = (health.current - mitigated).max(0.0);
                 if health.current <= 0.0 {
                     log::info!(
-                        "Entity {:?} killed by {:.1} {:?} damage",
-                        entity, event.amount, event.damage_type
+                        "Entity {:?} killed by {:.1} {:?} damage ({:.0}% mitigated by armor)",
+                        entity, mitigated, event.damage_type, resistance * 100.0
                     );
-                    // TODO: trigger death (drop loot, animation, respawn timer)
+                    deaths_to_handle.push(entity);
                 }
             }
+        }
+
+        // ── Trigger death: insert Dead component, drop loot, log respawn ──
+        let mut rng = rand::thread_rng();
+        for entity in deaths_to_handle {
+            // Insert Dead marker (no-op if already present).
+            let _ = world.insert_one(entity, Dead::default());
+
+            // Drop loot if entity has a LootTable.
+            let drops: Vec<(String, u32)> = world.get::<&LootTable>(entity)
+                .map(|table| {
+                    table.entries.iter()
+                        .filter_map(|(item, chance, count)| {
+                            if rng.gen::<f32>() < *chance {
+                                Some((item.clone(), *count))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            if !drops.is_empty() {
+                // Mark loot dropped + log. Future: spawn ItemEntity at Transform.
+                if let Ok(mut dead) = world.get::<&mut Dead>(entity) {
+                    dead.looted = true;
+                }
+                let position = world.get::<&Transform>(entity).ok().map(|t| t.position);
+                log::info!(
+                    "Loot dropped from {:?} at {:?}: {:?}",
+                    entity, position, drops
+                );
+            }
+        }
+
+        // ── Age Dead components (consumers can use this for respawn timers / cleanup) ──
+        for (_, dead) in world.query_mut::<&mut Dead>() {
+            dead.since += dt;
         }
 
         // ── Tick status effects ──

@@ -348,6 +348,64 @@ pub struct FireSuppressor {
     pub strength: f32,
 }
 
+// ── Combat: Armor & Death ───────────────────────────────────
+
+/// Per-damage-type damage reduction (0.0 = no resistance, 1.0 = immune).
+/// `CombatSystem::tick` applies these before subtracting from `Health`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Armor {
+    /// Resistance per damage type id ("kinetic", "thermal", "energy", "chemical", "radiation").
+    pub resistance: std::collections::HashMap<String, f32>,
+}
+
+/// Marks an entity as dead. Death-handling systems remove rendering, drop loot,
+/// and may schedule respawn. `CombatSystem` adds this when Health hits zero.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Dead {
+    /// Game-seconds since death (used by respawn timers + cleanup).
+    pub since: f32,
+    /// Whether loot has been dropped (prevents double-drop).
+    pub looted: bool,
+}
+
+impl Default for Dead {
+    fn default() -> Self {
+        Self { since: 0.0, looted: false }
+    }
+}
+
+/// Loot table — items dropped on death. Each entry is (item_id, drop_chance, count).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LootTable {
+    pub entries: Vec<(String, f32, u32)>,
+}
+
+// ── Medical ─────────────────────────────────────────────────
+
+/// An active medical condition on an entity (injury, illness, infection).
+/// `MedicalSystem::tick` decrements `ticks_remaining` and applies effects
+/// (e.g. health regen reduction, status modifier). Cleared when remaining hits 0.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MedicalConditions {
+    pub active: Vec<ActiveCondition>,
+}
+
+impl Default for MedicalConditions {
+    fn default() -> Self { Self { active: Vec::new() } }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveCondition {
+    /// Condition id from `data/medical.ron` (e.g. "burn_minor", "infection").
+    pub id: String,
+    /// Severity 0.0 to 1.0 — multiplies effect strength.
+    pub severity: f32,
+    /// Game-seconds until this condition resolves naturally.
+    pub seconds_remaining: f32,
+    /// Per-second health change while active (negative = damage, positive = regen).
+    pub health_per_sec: f32,
+}
+
 // ── Genetics ────────────────────────────────────────────────
 
 /// Diploid genome — one allele pair per trait.
