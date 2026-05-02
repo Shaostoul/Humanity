@@ -295,6 +295,19 @@ pub struct ChatMessage {
     /// Count = `reactions[emoji].len()`. Stored as Vec rather than count so
     /// we can prevent duplicate reactions per user and toggle.
     pub reactions: std::collections::HashMap<String, Vec<String>>,
+    /// If this message is a reply, the parent message context.
+    pub reply_to: Option<ReplyContext>,
+}
+
+/// Cached parent-message context for a thread reply.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct ReplyContext {
+    pub sender_key: String,
+    pub sender_name: String,
+    /// Preview snippet of the parent message (truncated to ~100 chars by render).
+    pub preview: String,
+    pub timestamp_ms: u64,
 }
 
 /// A user visible in the chat user list.
@@ -461,6 +474,9 @@ pub struct GuiState {
     pub show_hud: bool,
     pub settings: SettingsState,
     pub chat_input: String,
+    /// When the user clicks "Reply" on a message, this holds the parent context.
+    /// Cleared on send or cancel. Drives the "Replying to ... [X]" banner above the input.
+    pub chat_reply_to: Option<ReplyContext>,
     pub chat_messages: Vec<ChatMessage>,
     /// Timestamps of messages sent from THIS client (for dedup on echo).
     pub chat_sent_timestamps: Vec<u64>,
@@ -871,6 +887,7 @@ impl Default for GuiState {
             show_hud: true,
             settings: SettingsState::default(),
             chat_input: String::new(),
+            chat_reply_to: None,
             chat_messages: Vec::new(),
             chat_sent_timestamps: Vec::new(),
             chat_channels: Vec::new(),

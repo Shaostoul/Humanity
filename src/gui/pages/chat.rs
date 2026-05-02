@@ -1439,7 +1439,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // ── Message area ──
     let active_channel = state.chat_active_channel.clone();
-    let input_height = 52.0;
+    // Input height grows by 22 px when a reply context is active so the
+    // "Replying to … [X]" banner has its own row above the text field.
+    let reply_banner_h: f32 = if state.chat_reply_to.is_some() { 22.0 } else { 0.0 };
+    let input_height = 52.0 + reply_banner_h;
 
     let available = ui.available_rect_before_wrap();
     let messages_rect = egui::Rect::from_min_size(
@@ -1488,6 +1491,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // Reactions clicked during render — applied after the loop ends
                 // so we don't try to send WS messages while iterating &state.
                 let mut pending_reactions: Vec<(String, u64, String)> = Vec::new();
+                // Reply button clicks: defer setting state.chat_reply_to until after the loop.
+                let mut pending_reply: Option<crate::gui::ReplyContext> = None;
 
                 // Remove default item spacing so rows sit flush
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
@@ -1512,6 +1517,28 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     } else {
                         crate::gui::widgets::image_cache::strip_image_urls(&msg.content)
                     };
+
+                    // ── Reply-to context (if this is a reply) ──
+                    if let Some(ref reply) = msg.reply_to {
+                        let row_w = ui.available_width();
+                        let (row_rect, _) = ui.allocate_exact_size(
+                            Vec2::new(row_w, 18.0),
+                            egui::Sense::hover(),
+                        );
+                        ui.painter().rect_filled(row_rect, 0.0, row_bg);
+                        let preview = if reply.preview.len() > 60 {
+                            format!("{}…", &reply.preview[..60])
+                        } else {
+                            reply.preview.clone()
+                        };
+                        ui.painter().text(
+                            egui::pos2(row_rect.left() + 40.0, row_rect.center().y),
+                            egui::Align2::LEFT_CENTER,
+                            &format!("↩ {}: {}", reply.sender_name, preview),
+                            egui::FontId::proportional(theme.font_size_small),
+                            theme.text_muted(),
+                        );
+                    }
 
                     // Only call message_row if there's something to show — an
                     // image-only message should not produce an empty text row
@@ -1640,6 +1667,41 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 });
                             },
                         );
+                        x += plus_w + 4.0;
+
+                        // Reply button — sets state.chat_reply_to so the next sent
+                        // message is a thread reply to this message.
+                        let reply_w = 28.0;
+                        let reply_rect = egui::Rect::from_min_size(
+                            egui::pos2(x, y - 9.0),
+                            Vec2::new(reply_w, 18.0),
+                        );
+                        ui.painter().rect_filled(reply_rect, Rounding::same(9), theme.bg_card());
+                        ui.painter().text(
+                            reply_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "↩",
+                            egui::FontId::proportional(theme.font_size_body),
+                            theme.text_muted(),
+                        );
+                        let reply_resp = ui.interact(
+                            reply_rect,
+                            egui::Id::new(("reply_btn", msg.timestamp_ms)),
+                            egui::Sense::click(),
+                        );
+                        if reply_resp.clicked() {
+                            let preview = if msg.content.len() > 80 {
+                                format!("{}…", &msg.content[..80])
+                            } else {
+                                msg.content.clone()
+                            };
+                            pending_reply = Some(crate::gui::ReplyContext {
+                                sender_key: msg.sender_key.clone(),
+                                sender_name: msg.sender_name.clone(),
+                                preview,
+                                timestamp_ms: msg.timestamp_ms,
+                            });
+                        }
                     }
 
                     // Render each attached image as a clickable thumbnail
@@ -1729,6 +1791,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                 ui.add_space(8.0);
 
+                // Apply pending reply selection (set chat composing context).
+                if let Some(ctx) = pending_reply.take() {
+                    state.chat_reply_to = Some(ctx);
+                }
+
                 // Apply any pending reaction sends collected during render.
                 for (target_from, target_ts, emoji) in pending_reactions {
                     if let Some(ref client) = state.ws_client {
@@ -1765,6 +1832,28 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .fill(Color32::from_rgb(25, 25, 30))
             .inner_margin(egui::Margin::symmetric(16, 8))
             .show(ui, |ui| {
+                // Reply banner — only shown when a reply context is active.
+                if let Some(ref reply) = state.chat_reply_to.clone() {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!(
+                                "↩ Replying to {}: {}",
+                                reply.sender_name,
+                                if reply.preview.len() > 60 {
+                                    format!("{}…", &reply.preview[..60])
+                                } else {
+                                    reply.preview.clone()
+                                }
+                            ))
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                        );
+                        if widgets::Button::ghost("X").show(ui, theme) {
+                            state.chat_reply_to = None;
+                        }
+                    });
+                }
+
                 Frame::NONE
                     .fill(Color32::from_rgb(30, 30, 38))
                     .rounding(Rounding::same(theme.border_radius_lg as u8))
@@ -1870,15 +1959,24 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                         "content": content,
                                     }).to_string()
                                 } else {
-                                    // Normal channel chat
-                                    serde_json::json!({
+                                    // Normal channel chat. Include reply_to if a thread context is active.
+                                    let mut chat_obj = serde_json::json!({
                                         "type": "chat",
                                         "from": state.profile_public_key,
                                         "from_name": display_name,
                                         "content": content,
                                         "timestamp": ts,
                                         "channel": channel,
-                                    }).to_string()
+                                    });
+                                    if let Some(ref r) = state.chat_reply_to {
+                                        chat_obj["reply_to"] = serde_json::json!({
+                                            "from": r.sender_key,
+                                            "from_name": r.sender_name,
+                                            "content": r.preview,
+                                            "timestamp": r.timestamp_ms,
+                                        });
+                                    }
+                                    chat_obj.to_string()
                                 };
                                 crate::debug::push_debug(format!("WS >>> {}", json_str));
                                 client.send(&json_str);
@@ -1901,6 +1999,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         } else {
                             "You".to_string()
                         };
+                        let local_reply_to = state.chat_reply_to.clone();
                         state.chat_messages.push(ChatMessage {
                             sender_name: local_name,
                             sender_key: state.profile_public_key.clone(),
@@ -1908,8 +2007,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             timestamp: now,
                             timestamp_ms: ts,
                             channel,
+                            reply_to: local_reply_to,
                             ..Default::default()
                         });
+                        // Clear reply context — the reply has been sent.
+                        state.chat_reply_to = None;
 
                         while state.chat_messages.len() > 200 {
                             state.chat_messages.remove(0);

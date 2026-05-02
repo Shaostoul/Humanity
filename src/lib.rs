@@ -1165,6 +1165,19 @@ mod native_app {
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("general")
                                             .to_string();
+                                        // Decode reply_to context if present (threads).
+                                        let reply_to = val.get("reply_to").and_then(|r| {
+                                            let from = r.get("from")?.as_str()?.to_string();
+                                            let from_name = r.get("from_name")?.as_str()?.to_string();
+                                            let preview = r.get("content")?.as_str()?.to_string();
+                                            let ts = r.get("timestamp")?.as_u64()?;
+                                            Some(crate::gui::ReplyContext {
+                                                sender_key: from,
+                                                sender_name: from_name,
+                                                preview,
+                                                timestamp_ms: ts,
+                                            })
+                                        });
                                         state.gui_state.chat_messages.push(
                                             crate::gui::ChatMessage {
                                                 sender_name,
@@ -1173,6 +1186,7 @@ mod native_app {
                                                 timestamp: crate::gui::pages::chat::format_timestamp(timestamp),
                                                 timestamp_ms: timestamp,
                                                 channel,
+                                                reply_to,
                                                 ..Default::default()
                                             },
                                         );
