@@ -70,6 +70,9 @@ function decodeGameMsg(msg) {
 
 let state = 'awaiting_identify_ack';
 let myPlayerId = null;
+let allRooms = [];           // [{id,name,room_type,position,size,center}, ...]
+let visitedRooms = new Set(); // room ids the bot has visited
+let tourQueue = [];          // remaining room ids to walk through
 
 ws.addEventListener('open', () => {
   console.log('WebSocket open. Sending identify…');
@@ -107,11 +110,13 @@ ws.addEventListener('message', (ev) => {
   if (game.type === 'game_welcome' && state === 'awaiting_game_welcome') {
     myPlayerId = game.player_id;
     const entityCount = (game.world_snapshot || []).length;
+    allRooms = game.rooms || [];
     const quest = game.current_quest;
     const questLine = quest
       ? `Quest: ${quest.title} (${quest.visited?.length || 0}/${quest.total_rooms})`
       : 'No active quest.';
-    log('game_welcome', `You are entity ${myPlayerId}. World has ${entityCount} entities. ${questLine}`);
+    if (quest?.visited) for (const r of quest.visited) visitedRooms.add(r);
+    log('game_welcome', `You are entity ${myPlayerId}. World has ${entityCount} entities, ${allRooms.length} rooms. ${questLine}`);
     state = 'awaiting_perception';
     console.log('→ Sending game_perceive');
     send({ type: 'game_perceive', radius: 25 });
@@ -161,8 +166,21 @@ ws.addEventListener('message', (ev) => {
 
   if (game.type === 'game_perception' && state === 'awaiting_final_perception') {
     log('game_perception (final)', `Saw ${(game.nearby_entities || []).length} nearby entities`);
-    console.log('\nDemo complete — disconnecting.');
-    setTimeout(() => ws.close(), 250);
+    // Begin the explore_ship quest tour: teleport through every room we
+    // haven't yet visited so the relay records the visits and emits
+    // game_quest_progress events. Each move is well within the 100-unit
+    // server-side teleport limit because the Pioneer is small (~30m).
+    tourQueue = allRooms
+      .map(r => r.id)
+      .filter(id => !visitedRooms.has(id));
+    if (tourQueue.length === 0) {
+      console.log('\nQuest already complete — disconnecting.');
+      setTimeout(() => ws.close(), 250);
+      return;
+    }
+    state = 'touring';
+    console.log(`→ Starting room tour for ${tourQueue.length} room(s)`);
+    sendNextTourStep();
     return;
   }
 
@@ -179,6 +197,14 @@ ws.addEventListener('message', (ev) => {
   if (game.type === 'game_quest_progress' || game.type === 'game_quest_completed') {
     const tag = game.complete ? '✓ COMPLETE' : 'progress';
     log(`Quest ${tag}`, `${game.quest_id} → entered ${game.room_id} (${game.visited_count}/${game.total})`);
+    visitedRooms.add(game.room_id);
+    if (game.complete && state === 'touring') {
+      console.log('\nQuest complete — disconnecting.');
+      setTimeout(() => ws.close(), 500);
+    } else if (state === 'touring') {
+      // Move on to the next room after a short pause.
+      setTimeout(sendNextTourStep, 300);
+    }
     return;
   }
 
@@ -187,8 +213,29 @@ ws.addEventListener('message', (ev) => {
   }
 });
 
-// Safety net — anything stuck for >20 sec is a bug.
+/** Pop the next room off the tour queue and teleport the bot into it. */
+function sendNextTourStep() {
+  while (tourQueue.length > 0) {
+    const roomId = tourQueue.shift();
+    if (visitedRooms.has(roomId)) continue;
+    const room = allRooms.find(r => r.id === roomId);
+    if (!room) continue;
+    console.log(`→ Teleporting to ${room.name} (${roomId}) at [${room.center.map(n => n.toFixed(1)).join(', ')}]`);
+    send({
+      type: 'game_position_update',
+      position: room.center,
+      rotation: [0, 0, 0, 1],
+      velocity: [0, 0, 0],
+      timestamp: Date.now() / 1000,
+    });
+    return;
+  }
+  console.log('\nNo more rooms to visit — disconnecting.');
+  setTimeout(() => ws.close(), 250);
+}
+
+// Safety net — anything stuck for >30 sec is a bug.
 setTimeout(() => {
   console.log('\nTimeout — disconnecting (was in state:', state, ')');
   ws.close();
-}, 20000);
+}, 30000);

@@ -2943,6 +2943,24 @@ pub async fn handle_game_join(
         .get(&player_id)
         .and_then(|e| e.components.get("current_quest"))
         .cloned();
+    // Surface the room list so AI agents can navigate the explore_ship
+    // quest without a separate query — each entry has id, name, type,
+    // position, size, and the player-spawnable center point.
+    let rooms_summary: Vec<serde_json::Value> = world.rooms.iter().map(|r| {
+        let center = [
+            r.position[0] + r.size[0] / 2.0,
+            r.position[1] + 1.0,
+            r.position[2] + r.size[2] / 2.0,
+        ];
+        serde_json::json!({
+            "id": r.id,
+            "name": r.name,
+            "room_type": r.room_type,
+            "position": r.position,
+            "size": r.size,
+            "center": center,
+        })
+    }).collect();
     drop(world);
 
     // Build snapshot JSON values.
@@ -2962,6 +2980,7 @@ pub async fn handle_game_join(
         "player_id": player_id,
         "world_snapshot": snapshot_json,
         "game_time": game_time,
+        "rooms": rooms_summary,
     });
     if let Some(q) = current_quest {
         welcome["current_quest"] = q;
