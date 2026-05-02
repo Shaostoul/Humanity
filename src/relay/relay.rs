@@ -125,6 +125,10 @@ pub struct RelayState {
     pub user_statuses: RwLock<HashMap<String, (String, String)>>,
     /// Per-key last search time (rate limiting: 1 search per 2 seconds).
     pub last_search_times: std::sync::Mutex<HashMap<String, std::time::Instant>>,
+    /// Per-key last perception query time (rate limiting: max 5 perception
+    /// queries per second to prevent AI agents from flooding the relay).
+    /// Covers game_perceive, game_interact, game_query_inventory, game_query_entity.
+    pub last_perception_times: std::sync::Mutex<HashMap<String, std::time::Instant>>,
     /// Active stream (only one at a time for MVP).
     pub active_stream: RwLock<Option<ActiveStream>>,
     /// Active federation connections (server_id → FederatedConnection).
@@ -234,6 +238,7 @@ impl RelayState {
             voice_rooms: RwLock::new(HashMap::new()),
             user_statuses: RwLock::new(HashMap::new()),
             last_search_times: std::sync::Mutex::new(HashMap::new()),
+            last_perception_times: std::sync::Mutex::new(HashMap::new()),
             active_stream: RwLock::new(None),
             federation_connections: RwLock::new(HashMap::new()),
             federation_rate: std::sync::Mutex::new(HashMap::new()),
