@@ -292,32 +292,43 @@ impl GameWorld {
             }
         }
 
-        // Spawn a single ambient NPC ("maintenance_bot") in the Cargo Bay so AI
-        // agents perceive a moving entity. Server-side wander handled by tick().
-        if let Some(cargo) = rooms.iter().find(|r| r.id == "cargo") {
-            let center = [
-                cargo.position[0] + cargo.size[0] / 2.0,
-                cargo.position[1] + 1.0,
-                cargo.position[2] + cargo.size[2] / 2.0,
-            ];
+        // Spawn role-specific ambient NPCs per room type. Each has a wander
+        // block so they drift around their assigned room, plus a 'role' field
+        // that AI agents see in perception responses. Makes the ship feel
+        // crewed even when no humans are connected.
+        for room in &rooms {
+            let (npc_type, npc_name, role, description) = match room.room_type.as_str() {
+                "bridge"      => ("navigator",      "Helm Officer Vex",   "navigator",      "Charts course at the bridge"),
+                "medbay"      => ("medic",          "Dr. Kel",            "medical_officer","Tending to the medbay"),
+                "engineering" => ("engineer",       "Chief Tan",          "chief_engineer", "Monitoring the reactor"),
+                "cargo"       => ("maintenance_bot","CB-7",               "maintenance",    "Autonomous bot patrolling cargo"),
+                "hydroponics" => ("botanist",       "Botanist Yara",      "botanist",       "Tending the hydroponic racks"),
+                "quarters"    => ("crewmate",       "Crewmate Nia",       "off_duty",       "Reading on her bunk"),
+                _ => continue,
+            };
+            let center_x = room.position[0] + room.size[0] / 2.0;
+            let center_y = room.position[1] + 1.0;
+            let center_z = room.position[2] + room.size[2] / 2.0;
             let id = self.next_entity_id;
             self.next_entity_id += 1;
             self.entities.insert(id, GameEntity {
-                entity_type: "maintenance_bot".to_string(),
-                position: center,
+                entity_type: npc_type.to_string(),
+                position: [center_x, center_y, center_z],
                 rotation: [0.0, 0.0, 0.0, 1.0],
                 owner: None,
                 components: serde_json::json!({
                     "interactable": true,
-                    "room_id": "cargo",
-                    "description": "Autonomous maintenance bot wandering the cargo bay",
+                    "room_id": room.id,
+                    "name": npc_name,
+                    "role": role,
+                    "description": description,
                     "wander": {
-                        "min_x": cargo.position[0] + 1.0,
-                        "max_x": cargo.position[0] + cargo.size[0] - 1.0,
-                        "min_z": cargo.position[2] + 1.0,
-                        "max_z": cargo.position[2] + cargo.size[2] - 1.0,
-                        "speed": 0.5,
-                        "y": center[1],
+                        "min_x": room.position[0] + 1.0,
+                        "max_x": room.position[0] + room.size[0] - 1.0,
+                        "min_z": room.position[2] + 1.0,
+                        "max_z": room.position[2] + room.size[2] - 1.0,
+                        "speed": 0.4,
+                        "y": center_y,
                     },
                 }),
                 last_update: 0.0,
@@ -570,8 +581,10 @@ impl GameWorld {
 
     // ── Persistence ────────────────────────────────────────────
 
-    /// Storage key for the persisted world snapshot.
-    pub const PERSIST_KEY: &'static str = "game_world_snapshot";
+    /// Storage key for the persisted world snapshot. Bump the version suffix
+    /// when entity spawn logic changes so old snapshots are ignored on load
+    /// (otherwise persisted entities would shadow newly-added ambient NPCs).
+    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v2";
 
     /// Save the world to the SQLite `server_state` table as a JSON blob.
     /// Called periodically from the tick loop. Static-ship fields (rooms,
