@@ -2195,6 +2195,64 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .hint_text(hint),
                     );
 
+                    // ── @mention autocomplete ──
+                    // If the input ends with `@partial` (no whitespace after the @),
+                    // show a popup of matching users from chat_users.
+                    let mention_partial: Option<String> = {
+                        let text = &state.chat_input;
+                        if let Some(at_pos) = text.rfind('@') {
+                            let after_at = &text[at_pos + 1..];
+                            // No whitespace after the @ means we're still typing the mention.
+                            if !after_at.contains(char::is_whitespace) && after_at.len() < 32 {
+                                Some(after_at.to_string())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    };
+
+                    if let Some(partial) = mention_partial {
+                        let partial_lower = partial.to_lowercase();
+                        let matches: Vec<String> = state.chat_users.iter()
+                            .filter(|u| u.name.to_lowercase().starts_with(&partial_lower))
+                            .take(5)
+                            .map(|u| u.name.clone())
+                            .collect();
+
+                        if !matches.is_empty() && response.has_focus() {
+                            let popup_id = egui::Id::new("mention_autocomplete");
+                            ui.memory_mut(|m| m.open_popup(popup_id));
+                            egui::popup::popup_above_or_below_widget(
+                                ui, popup_id, &response,
+                                egui::AboveOrBelow::Above,
+                                egui::PopupCloseBehavior::CloseOnClickOutside,
+                                |ui| {
+                                    ui.set_min_width(200.0);
+                                    ui.label(
+                                        RichText::new(format!("Mention: @{}", partial))
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_muted()),
+                                    );
+                                    ui.separator();
+                                    for name in matches {
+                                        if ui.button(format!("@{}", name)).clicked() {
+                                            // Replace the @partial with @name + space.
+                                            if let Some(at_pos) = state.chat_input.rfind('@') {
+                                                state.chat_input.truncate(at_pos);
+                                                state.chat_input.push('@');
+                                                state.chat_input.push_str(&name);
+                                                state.chat_input.push(' ');
+                                            }
+                                            ui.memory_mut(|m| m.close_popup());
+                                        }
+                                    }
+                                },
+                            );
+                        }
+                    }
+
                     let enter_pressed =
                         response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
