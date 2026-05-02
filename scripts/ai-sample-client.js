@@ -107,7 +107,11 @@ ws.addEventListener('message', (ev) => {
   if (game.type === 'game_welcome' && state === 'awaiting_game_welcome') {
     myPlayerId = game.player_id;
     const entityCount = (game.world_snapshot || []).length;
-    log('game_welcome', `You are entity ${myPlayerId}. World has ${entityCount} entities.`);
+    const quest = game.current_quest;
+    const questLine = quest
+      ? `Quest: ${quest.title} (${quest.visited?.length || 0}/${quest.total_rooms})`
+      : 'No active quest.';
+    log('game_welcome', `You are entity ${myPlayerId}. World has ${entityCount} entities. ${questLine}`);
     state = 'awaiting_perception';
     console.log('→ Sending game_perceive');
     send({ type: 'game_perceive', radius: 25 });
@@ -166,6 +170,15 @@ ws.addEventListener('message', (ev) => {
   // demo state machine completes, until the safety-net timeout fires.
   if (game.type === 'game_ambient_chatter') {
     log('Ambient chatter', `${game.speaker} (${game.room_id}): "${game.line}"`);
+    return;
+  }
+
+  // Quest progress / completion events (v0.167.0). The relay sends private
+  // game_quest_progress to the questing player on each new room visited and
+  // a public game_quest_completed when all rooms have been visited.
+  if (game.type === 'game_quest_progress' || game.type === 'game_quest_completed') {
+    const tag = game.complete ? '✓ COMPLETE' : 'progress';
+    log(`Quest ${tag}`, `${game.quest_id} → entered ${game.room_id} (${game.visited_count}/${game.total})`);
     return;
   }
 

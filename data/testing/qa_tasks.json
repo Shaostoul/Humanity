@@ -192,6 +192,15 @@
       "category": "ui"
     },
     {
+      "id": "v0167-explore-ship-quest",
+      "version": "0.167.0",
+      "feature": "Starter quest — Explore Ship",
+      "what_to_test": "Run `node scripts/ai-sample-client.js`. Look for the Quest line in the game_welcome log. Then in-game: walk into each room aboard the Pioneer (bridge, medbay, engineering, cargo, hydroponics, crew quarters).",
+      "expected": "Welcome shows: 'Quest: Find your bearings (1/N)' (1 because spawn room is pre-marked visited). Each new room entered triggers a private game_quest_progress event with visited_count + total. Visiting all rooms triggers public game_quest_completed broadcast.",
+      "category": "game-systems",
+      "note": "Quest data lives on the player entity's components.current_quest. PERSIST_KEY bumped to v4 so old snapshots without quest data don't shadow new players."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

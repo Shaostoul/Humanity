@@ -2936,6 +2936,13 @@ pub async fn handle_game_join(
     // Build world snapshot for the joiner.
     let snapshot = world.snapshot();
     let game_time = world.game_time;
+    // Surface the starter quest in the welcome payload so AI agents
+    // (and humans) know what to do without parsing world_snapshot.
+    let current_quest = world
+        .entities
+        .get(&player_id)
+        .and_then(|e| e.components.get("current_quest"))
+        .cloned();
     drop(world);
 
     // Build snapshot JSON values.
@@ -2950,12 +2957,15 @@ pub async fn handle_game_join(
     }).collect();
 
     // Send Welcome to the joining player.
-    let welcome = serde_json::json!({
+    let mut welcome = serde_json::json!({
         "type": "game_welcome",
         "player_id": player_id,
         "world_snapshot": snapshot_json,
         "game_time": game_time,
     });
+    if let Some(q) = current_quest {
+        welcome["current_quest"] = q;
+    }
     let private = RelayMessage::Private {
         to: my_key.to_string(),
         message: format!("__game__:{}", welcome),
@@ -3040,6 +3050,14 @@ pub async fn handle_game_position_update(
     }
 
     world.update_position(player_id, position, rotation);
+
+    // Quest progress: record room entry on the player's explore_ship quest.
+    // record_room_visit returns Some(progress) only when the room is new for
+    // this player, so we only fire the broadcast when something actually changed.
+    let quest_progress = world
+        .room_for_position(position)
+        .and_then(|room| world.record_room_visit(player_id, &room.id));
+
     drop(world);
 
     // Relay to all other game clients via broadcast.
@@ -3054,6 +3072,33 @@ pub async fn handle_game_position_update(
     let _ = state.broadcast_tx.send(RelayMessage::System {
         message: format!("__game__:{}", update),
     });
+
+    // If the position update advanced a quest, send a private update to the
+    // player and broadcast a public completion event when they finish.
+    if let Some(progress) = quest_progress {
+        let event_type = if progress.complete {
+            "game_quest_completed"
+        } else {
+            "game_quest_progress"
+        };
+        let payload = serde_json::json!({
+            "type": event_type,
+            "player_id": player_id,
+            "quest_id": progress.quest_id,
+            "room_id": progress.room_id,
+            "visited_count": progress.visited_count,
+            "total": progress.total,
+            "complete": progress.complete,
+        });
+        // Private update to the questing player.
+        send_game_private(state, my_key, &payload).await;
+        // Public broadcast on completion (so other players can cheer).
+        if progress.complete {
+            let _ = state.broadcast_tx.send(RelayMessage::System {
+                message: format!("__game__:{}", payload),
+            });
+        }
+    }
 }
 
 /// Handle a game client disconnecting. Removes their player entity and broadcasts PlayerLeft.

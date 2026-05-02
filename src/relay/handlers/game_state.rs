@@ -109,6 +109,18 @@ pub struct EntityBrief {
     pub interactable: bool,
 }
 
+/// Quest progress payload returned by `record_room_visit`. Drives the
+/// `game_quest_progress` (or `game_quest_completed` when complete) broadcast
+/// so AI agents and humans both learn the quest advanced.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuestProgress {
+    pub quest_id: String,
+    pub room_id: String,
+    pub visited_count: usize,
+    pub total: usize,
+    pub complete: bool,
+}
+
 // ── Room equipment definitions (from data/rooms.ron) ──
 
 fn room_equipment(room_type: &str) -> Vec<String> {
@@ -415,7 +427,8 @@ impl GameWorld {
     }
 
     /// Spawn a player entity owned by the given public key.
-    /// Spawns in Crew Quarters by default.
+    /// Spawns in Crew Quarters by default. Grants the explore_ship starter
+    /// quest, pre-marking the spawn room as visited.
     pub fn spawn_player(&mut self, owner_key: &str, position: [f32; 3]) -> u64 {
         let id = self.next_entity_id;
         self.next_entity_id += 1;
@@ -426,6 +439,11 @@ impl GameWorld {
             position
         };
 
+        let spawn_room_id = self.room_for_position(spawn_pos)
+            .map(|r| r.id)
+            .unwrap_or_else(|| "quarters".to_string());
+        let total_rooms = self.rooms.len();
+
         let entity = GameEntity {
             entity_type: "player".to_string(),
             position: spawn_pos,
@@ -435,11 +453,56 @@ impl GameWorld {
                 "health": 100.0,
                 "stamina": 100.0,
                 "inventory": [],
+                "current_quest": {
+                    "id": "explore_ship",
+                    "title": "Find your bearings",
+                    "description": "Visit each room aboard the Pioneer to learn the ship's layout.",
+                    "visited": [spawn_room_id],
+                    "total_rooms": total_rooms,
+                    "complete": false,
+                },
             }),
             last_update: self.game_time,
         };
         self.entities.insert(id, entity);
         id
+    }
+
+    /// Mark a room as visited on the player's current explore_ship quest.
+    /// Returns Some(progress) if this visit was new (drives the
+    /// `game_quest_progress` / `game_quest_completed` broadcast), None if
+    /// the room was already visited or the player has no explore_ship quest.
+    pub fn record_room_visit(
+        &mut self,
+        player_id: u64,
+        room_id: &str,
+    ) -> Option<QuestProgress> {
+        let entity = self.entities.get_mut(&player_id)?;
+        let quest = entity.components.get_mut("current_quest")?;
+        if quest.get("id").and_then(|v| v.as_str()) != Some("explore_ship") {
+            return None;
+        }
+        if quest.get("complete").and_then(|v| v.as_bool()).unwrap_or(false) {
+            return None;
+        }
+        let visited = quest.get_mut("visited")?.as_array_mut()?;
+        if visited.iter().any(|v| v.as_str() == Some(room_id)) {
+            return None;
+        }
+        visited.push(serde_json::Value::String(room_id.to_string()));
+        let visited_count = visited.len();
+        let total = quest.get("total_rooms").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        let complete = total > 0 && visited_count >= total;
+        if complete {
+            quest["complete"] = serde_json::Value::Bool(true);
+        }
+        Some(QuestProgress {
+            quest_id: "explore_ship".to_string(),
+            room_id: room_id.to_string(),
+            visited_count,
+            total,
+            complete,
+        })
     }
 
     /// Default spawn position: center of Crew Quarters, 1m above floor.
@@ -641,7 +704,7 @@ impl GameWorld {
     /// Storage key for the persisted world snapshot. Bump the version suffix
     /// when entity spawn logic changes so old snapshots are ignored on load
     /// (otherwise persisted entities would shadow newly-added ambient NPCs).
-    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v3";
+    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v4";
 
     /// Save the world to the SQLite `server_state` table as a JSON blob.
     /// Called periodically from the tick loop. Static-ship fields (rooms,
