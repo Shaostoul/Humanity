@@ -3079,25 +3079,29 @@ pub async fn handle_game_disconnect(
 
 // ── Perception API rate limiting ──
 
-/// Minimum interval between perception queries per public key (200ms = 5/sec).
-/// Prevents AI agents from flooding the relay with rapid-fire perception calls.
+/// Minimum interval between calls of the SAME action type per public key
+/// (200ms = 5 calls/sec). Each action (perceive / interact / query_inventory
+/// / query_entity) has its own bucket so a "perceive → interact → perceive"
+/// flow isn't blocked by a single shared limit. Bucket key = `pubkey|action`.
 const PERCEPTION_MIN_INTERVAL_MS: u64 = 200;
 
-/// Returns true if the caller is allowed to make a perception query right now,
+/// Returns true if the caller is allowed to make this action right now,
 /// false if they need to wait. On false, we send a Private rate-limit warning.
-fn check_perception_rate(state: &Arc<RelayState>, my_key: &str) -> bool {
+/// `action` is "perceive" / "interact" / "query_inventory" / "query_entity".
+fn check_perception_rate(state: &Arc<RelayState>, my_key: &str, action: &str) -> bool {
     let now = std::time::Instant::now();
+    let bucket = format!("{}|{}", my_key, action);
     let allowed = {
         let mut map = match state.last_perception_times.lock() {
             Ok(m) => m,
             Err(p) => p.into_inner(),
         };
-        let allowed = match map.get(my_key) {
+        let allowed = match map.get(&bucket) {
             Some(last) => now.duration_since(*last).as_millis() as u64 >= PERCEPTION_MIN_INTERVAL_MS,
             None => true,
         };
         if allowed {
-            map.insert(my_key.to_string(), now);
+            map.insert(bucket, now);
         }
         allowed
     };
@@ -3105,7 +3109,8 @@ fn check_perception_rate(state: &Arc<RelayState>, my_key: &str) -> bool {
         let private = RelayMessage::Private {
             to: my_key.to_string(),
             message: format!(
-                "__game__:{{\"type\":\"game_error\",\"error\":\"rate_limited\",\"message\":\"Perception queries are limited to {} per second.\"}}",
+                "__game__:{{\"type\":\"game_error\",\"error\":\"rate_limited\",\"action\":\"{}\",\"message\":\"{} calls are limited to {} per second.\"}}",
+                action, action,
                 1000 / PERCEPTION_MIN_INTERVAL_MS
             ),
         };
@@ -3123,7 +3128,7 @@ pub async fn handle_game_perceive(
     my_key: &str,
     raw: &serde_json::Value,
 ) {
-    if !check_perception_rate(state, my_key) { return; }
+    if !check_perception_rate(state, my_key, "perceive") { return; }
     let radius = raw.get("radius")
         .and_then(|v| v.as_f64())
         .unwrap_or(20.0)
@@ -3182,7 +3187,7 @@ pub async fn handle_game_interact(
     my_key: &str,
     raw: &serde_json::Value,
 ) {
-    if !check_perception_rate(state, my_key) { return; }
+    if !check_perception_rate(state, my_key, "interact") { return; }
     let entity_id = match raw.get("entity_id").and_then(|v| v.as_u64()) {
         Some(id) => id,
         None => return,
@@ -3287,7 +3292,7 @@ pub async fn handle_game_query_inventory(
     state: &Arc<RelayState>,
     my_key: &str,
 ) {
-    if !check_perception_rate(state, my_key) { return; }
+    if !check_perception_rate(state, my_key, "query_inventory") { return; }
     let world = state.game_world.read().await;
 
     let player_id = match world.find_player_entity(my_key) {
@@ -3324,7 +3329,7 @@ pub async fn handle_game_query_entity(
     my_key: &str,
     raw: &serde_json::Value,
 ) {
-    if !check_perception_rate(state, my_key) { return; }
+    if !check_perception_rate(state, my_key, "query_entity") { return; }
     let entity_id = match raw.get("entity_id").and_then(|v| v.as_u64()) {
         Some(id) => id,
         None => return,
