@@ -1676,6 +1676,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // Cancel flag — Cancel button in the inline editor sets this
                 // so we clear chat_edit_target after the loop ends.
                 let mut pending_edit_cancel = false;
+                // Report button clicks (from context menu) — buffered to send /report slash command.
+                let mut pending_reports: Vec<(String, String)> = Vec::new();
 
                 // Remove default item spacing so rows sit flush
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
@@ -1771,6 +1773,49 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             state.chat_user_modal_name = msg.sender_name.clone();
                             state.chat_user_modal_key = msg.sender_key.clone();
                         }
+
+                        // Right-click context menu — same actions as the inline
+                        // pill buttons but quicker to reach.
+                        let is_own = msg.sender_key == state.profile_public_key;
+                        row_resp.response.context_menu(|ui| {
+                            ui.set_min_width(160.0);
+                            if ui.button("📋 Copy text").clicked() {
+                                ui.ctx().copy_text(msg.content.clone());
+                                ui.close_menu();
+                            }
+                            if msg.timestamp_ms > 0 && ui.button("↩ Quote / reply").clicked() {
+                                let preview = if msg.content.len() > 80 {
+                                    format!("{}…", &msg.content[..80])
+                                } else {
+                                    msg.content.clone()
+                                };
+                                pending_reply = Some(crate::gui::ReplyContext {
+                                    sender_key: msg.sender_key.clone(),
+                                    sender_name: msg.sender_name.clone(),
+                                    preview,
+                                    timestamp_ms: msg.timestamp_ms,
+                                });
+                                ui.close_menu();
+                            }
+                            if msg.timestamp_ms > 0 && ui.button("📌 Pin message").clicked() {
+                                pending_pins.push((
+                                    msg.sender_key.clone(),
+                                    msg.sender_name.clone(),
+                                    msg.content.clone(),
+                                    msg.timestamp_ms,
+                                ));
+                                ui.close_menu();
+                            }
+                            if is_own && msg.timestamp_ms > 0 && ui.button("✎ Edit").clicked() {
+                                pending_edit = Some((msg.timestamp_ms, msg.content.clone()));
+                                ui.close_menu();
+                            }
+                            ui.separator();
+                            if ui.button("🚩 Report").clicked() {
+                                pending_reports.push((msg.sender_name.clone(), msg.content.clone()));
+                                ui.close_menu();
+                            }
+                        });
                     }
 
                     // ── Reactions row + react picker ──
@@ -2092,6 +2137,28 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         }
                     }
                     state.chat_edit_target = None;
+                }
+
+                // Send pending report slash commands.
+                for (sender_name, _content) in pending_reports {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let ts = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_millis() as u64;
+                            let report_cmd = format!("/report {}", sender_name);
+                            let m = serde_json::json!({
+                                "type": "chat",
+                                "from": state.profile_public_key,
+                                "from_name": state.user_name,
+                                "content": report_cmd,
+                                "timestamp": ts,
+                                "channel": state.chat_active_channel,
+                            });
+                            client.send(&m.to_string());
+                        }
+                    }
                 }
 
                 // Send pending pin requests via WebSocket.
