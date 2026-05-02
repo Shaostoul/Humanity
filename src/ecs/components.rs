@@ -540,6 +540,67 @@ pub struct CreativeWork {
     pub completed: bool,
 }
 
+// ── Docking & Airlocks ──────────────────────────────────────
+
+/// An airlock chamber. `DockingSystem::tick` runs the cycle state machine:
+/// open_outer → sealed → cycling → other_side_open → sealed → ...
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AirlockChamber {
+    /// Current state: "open_outer", "open_inner", "sealed_pressurized",
+    /// "sealed_vacuum", "cycling_to_pressurized", "cycling_to_vacuum".
+    pub state: String,
+    /// 0.0 to 1.0 progress within the current cycling state.
+    pub cycle_progress: f32,
+    /// Game-seconds for one full cycle (vacuum to pressurized or vice versa).
+    pub cycle_seconds: f32,
+}
+
+impl Default for AirlockChamber {
+    fn default() -> Self {
+        Self { state: "sealed_pressurized".into(), cycle_progress: 0.0, cycle_seconds: 8.0 }
+    }
+}
+
+// ── Transportation / Cargo Vehicles ─────────────────────────
+
+/// A cargo vehicle traveling along a route. `TransportationSystem` advances
+/// `progress` from 0.0 (origin) to 1.0 (destination) at `speed_per_day`.
+/// On arrival, the vehicle is marked `arrived` and game code unloads cargo.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CargoVehicle {
+    /// Route id from `data/transportation.ron::roads[].id` or similar.
+    pub route_id: String,
+    /// Progress along route (0.0 to 1.0).
+    pub progress: f32,
+    /// Speed in route-fractions per game-day (1.0 = full route per day).
+    pub speed_per_day: f32,
+    /// Payload — list of (item_id, count).
+    pub payload: Vec<(String, u32)>,
+    /// Whether this vehicle has reached its destination.
+    #[serde(default)]
+    pub arrived: bool,
+}
+
+// ── Offline / Autonomous Agents ─────────────────────────────
+
+/// An autonomous task scheduled to run on an entity periodically.
+/// `OfflineSystem` increments `seconds_since_last` each tick and fires the
+/// task action when `interval_seconds` is reached. Used for AFK NPC chores
+/// (patrol, gather, build) without needing a full BehaviorTree.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutonomousTask {
+    /// Preset id from `data/offline_behaviors.ron::presets[].id`
+    /// (e.g. "patrol", "gather_food", "build_shelter").
+    pub preset_id: String,
+    /// Game-seconds between task firings.
+    pub interval_seconds: f32,
+    /// Time accumulated since the last firing.
+    pub seconds_since_last: f32,
+    /// Total times the task has fired (lifetime stat for this agent).
+    #[serde(default)]
+    pub fire_count: u32,
+}
+
 // ── Genetics ────────────────────────────────────────────────
 
 /// Diploid genome — one allele pair per trait.
