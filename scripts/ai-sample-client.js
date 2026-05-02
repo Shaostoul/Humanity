@@ -159,8 +159,10 @@ ws.addEventListener('message', (ev) => {
       log('game_interact_result', game);
     }
     state = 'awaiting_final_perception';
-    console.log('→ Sending game_perceive again to confirm world state');
-    send({ type: 'game_perceive', radius: 25 });
+    // Wait >200ms between perceives so the per-action rate limiter
+    // (5/sec, ~200ms min interval) doesn't reject the follow-up call.
+    console.log('→ Sending game_perceive again (after 250ms delay) to confirm world state');
+    setTimeout(() => send({ type: 'game_perceive', radius: 25 }), 250);
     return;
   }
 
@@ -262,6 +264,12 @@ ws.addEventListener('message', (ev) => {
 
   if (game.type === 'game_error') {
     console.error(`\n[ERROR] ${game.error}: ${game.message}`);
+    // Recover from a rate_limited error mid-flow by waiting then retrying
+    // the perceive that got blocked.
+    if (game.error === 'rate_limited' && state === 'awaiting_final_perception') {
+      console.log('  ⏱  Backing off 400ms then retrying perceive…');
+      setTimeout(() => send({ type: 'game_perceive', radius: 25 }), 400);
+    }
   }
 });
 
@@ -279,7 +287,8 @@ function sendNextCrewVisit() {
       velocity: [0, 0, 0],
       timestamp: Date.now() / 1000,
     });
-    setTimeout(() => send({ type: 'game_perceive', radius: 25 }), 200);
+    // 250ms gap before perceive so we don't trip the 5/sec rate limit.
+    setTimeout(() => send({ type: 'game_perceive', radius: 25 }), 250);
     return;
   }
   console.log('\nNo more rooms to visit for meet_the_crew — disconnecting.');
