@@ -3433,15 +3433,21 @@ pub async fn handle_game_interact(
         message: format!("__game__:{}", broadcast),
     });
 
-    // Quest progress: record this conversation against the meet_the_crew
-    // quest if the player is on it. Only fires for entities with a `name`
-    // component (i.e. crew NPCs, not lockers / windows).
-    if let Some(npc_name) = speaker_name {
+    // Quest progress for the meet_the_crew (NPC speaker) AND survey_storage
+    // (storage entity) flows. record_npc_talk fires only when interacting
+    // with a named NPC; record_storage_scan fires only when interacting
+    // with a storage entity. Both are mutually exclusive in practice but
+    // the handler runs both checks so verbs stay forgiving.
+    {
         let mut world = state.game_world.write().await;
-        let progress = world.record_npc_talk(player_id, &npc_name);
-        // Apply reward + chain ONLY when the talk completed the quest. We
-        // grab them inside the same write guard so the reward reads the
-        // pre-chain quest data.
+        let mut progress: Option<crate::relay::handlers::game_state::QuestProgress> = None;
+        if let Some(ref npc_name) = speaker_name {
+            progress = world.record_npc_talk(player_id, npc_name);
+        }
+        if progress.is_none() {
+            progress = world.record_storage_scan(player_id, entity_id);
+        }
+        // Apply reward + chain ONLY when the action completed the quest.
         let reward_and_next = if progress.as_ref().map_or(false, |p| p.complete) {
             let r = world.apply_quest_reward(player_id);
             let n = world.chain_next_quest(player_id);

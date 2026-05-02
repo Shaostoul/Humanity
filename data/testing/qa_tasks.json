@@ -236,6 +236,15 @@
       "note": "PERSIST_KEY bumped to v7 since player gained xp/reputation/completed_quests fields."
     },
     {
+      "id": "v0172-survey-storage-quest",
+      "version": "0.172.0",
+      "feature": "Third quest — Survey the Storage",
+      "what_to_test": "Run `node scripts/ai-sample-client.js`. After meet_the_crew completes, watch for survey_storage chained quest. Bot tours each room and scans every storage entity (locker / cabinet / bin).",
+      "expected": "Quest unlocked with goal = total storage entities (locker in quarters, medicine_cabinet in medbay, tool_cabinet + spare_parts_bin in engineering, harvest_bin in hydroponics, inventory_terminal in cargo = 6 storage). Each scan fires game_quest_progress. After all scanned, quest completes with +300 XP +15 rep, totals: 600 XP / 30 rep.",
+      "category": "game-systems",
+      "note": "PERSIST_KEY bumped to v8 since equipment entities gained 'storage' boolean. Validates the quest framework chains an arbitrary number of quests."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

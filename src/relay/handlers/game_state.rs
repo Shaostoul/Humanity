@@ -140,6 +140,17 @@ pub struct QuestReward {
 
 // ── Room equipment definitions (from data/rooms.ron) ──
 
+/// Storage-class equipment that the survey_storage quest cares about.
+/// Anything matching gets `"storage": true` in its components and counts
+/// toward the quest goal when interacted with.
+fn is_storage_equipment(equip: &str) -> bool {
+    matches!(
+        equip,
+        "locker" | "medicine_cabinet" | "tool_cabinet"
+        | "spare_parts_bin" | "harvest_bin" | "inventory_terminal"
+    )
+}
+
 fn room_equipment(room_type: &str) -> Vec<String> {
     match room_type {
         "bridge" => vec![
@@ -283,6 +294,9 @@ impl GameWorld {
                         "interactable": true,
                         "room_id": room.id,
                         "description": format!("{} in {}", equip, room.name),
+                        // Storage flag for the survey_storage quest (v0.172).
+                        // True for cabinets / bins / lockers across rooms.
+                        "storage": is_storage_equipment(equip),
                     }),
                     last_update: 0.0,
                 });
@@ -587,6 +601,7 @@ impl GameWorld {
     /// complete and no follow-up has been set.
     pub fn chain_next_quest(&mut self, player_id: u64) -> Option<serde_json::Value> {
         let total_npcs = self.crew_npc_count();
+        let total_storage = self.storage_entity_count();
         let entity = self.entities.get_mut(&player_id)?;
         let current_id = entity.components.get("current_quest")
             .and_then(|q| q.get("id"))
@@ -612,7 +627,20 @@ impl GameWorld {
                     "message": "You know the crew now. They know you.",
                 },
             })),
-            // meet_the_crew is the current end of the starter chain. Future
+            "meet_the_crew" => Some(serde_json::json!({
+                "id": "survey_storage",
+                "title": "Survey the storage",
+                "description": "Inspect every storage container aboard the ship — lockers, cabinets, and bins.",
+                "scanned": [],
+                "total": total_storage,
+                "complete": false,
+                "reward": {
+                    "xp": 300,
+                    "reputation": 15,
+                    "message": "Inventory's tracked. Chief Tan would approve.",
+                },
+            })),
+            // survey_storage is the current end of the starter chain. Future
             // quests can be added here without touching the handlers.
             _ => None,
         };
@@ -629,6 +657,60 @@ impl GameWorld {
             e.components.get("name").is_some()
                 && e.components.get("dialog").is_some()
         }).count()
+    }
+
+    /// Total number of storage entities in the world (lockers, cabinets,
+    /// bins, etc. — anything with `components.storage == true`). Drives
+    /// the survey_storage quest goal.
+    fn storage_entity_count(&self) -> usize {
+        self.entities.values().filter(|e| {
+            e.components.get("storage").and_then(|v| v.as_bool()).unwrap_or(false)
+        }).count()
+    }
+
+    /// Record that the player scanned a storage entity (interacted with a
+    /// locker / cabinet / bin while on the survey_storage quest). Returns
+    /// Some(progress) on a new scan, None otherwise.
+    pub fn record_storage_scan(
+        &mut self,
+        player_id: u64,
+        entity_id: u64,
+    ) -> Option<QuestProgress> {
+        // Verify the target is actually storage before doing anything.
+        let is_storage = self.entities.get(&entity_id)
+            .and_then(|e| e.components.get("storage"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if !is_storage { return None; }
+
+        let entity = self.entities.get_mut(&player_id)?;
+        let quest = entity.components.get_mut("current_quest")?;
+        if quest.get("id").and_then(|v| v.as_str()) != Some("survey_storage") {
+            return None;
+        }
+        if quest.get("complete").and_then(|v| v.as_bool()).unwrap_or(false) {
+            return None;
+        }
+        let scanned = quest.get_mut("scanned")?.as_array_mut()?;
+        let id_value = serde_json::Value::Number(entity_id.into());
+        if scanned.iter().any(|v| v == &id_value) {
+            return None;
+        }
+        scanned.push(id_value);
+        let scanned_count = scanned.len();
+        let total = quest.get("total").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        let complete = total > 0 && scanned_count >= total;
+        if complete {
+            quest["complete"] = serde_json::Value::Bool(true);
+        }
+        Some(QuestProgress {
+            quest_id: "survey_storage".to_string(),
+            step_id: entity_id.to_string(),
+            room_id: entity_id.to_string(),
+            visited_count: scanned_count,
+            total,
+            complete,
+        })
     }
 
     /// Record that the player has spoken with an NPC. Returns Some(progress)
@@ -915,7 +997,7 @@ impl GameWorld {
     /// Storage key for the persisted world snapshot. Bump the version suffix
     /// when entity spawn logic changes so old snapshots are ignored on load
     /// (otherwise persisted entities would shadow newly-added ambient NPCs).
-    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v7";
+    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v8";
 
     /// Save the world to the SQLite `server_state` table as a JSON blob.
     /// Called periodically from the tick loop. Static-ship fields (rooms,

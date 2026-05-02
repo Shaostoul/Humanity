@@ -203,10 +203,12 @@ ws.addEventListener('message', (ev) => {
   // game_quest_progress to the questing player on each new room visited and
   // a public game_quest_completed when all rooms have been visited. v0.170
   // also chains explore_ship into meet_the_crew, broadcast as
-  // game_quest_unlocked.
+  // game_quest_unlocked. v0.172 chains again into survey_storage.
   if (game.type === 'game_quest_progress' || game.type === 'game_quest_completed') {
     const tag = game.complete ? '✓ COMPLETE' : 'progress';
-    const stepLabel = game.quest_id === 'meet_the_crew' ? 'talked to' : 'entered';
+    const stepLabel = game.quest_id === 'meet_the_crew' ? 'talked to'
+                    : game.quest_id === 'survey_storage' ? 'scanned'
+                    : 'entered';
     log(`Quest ${tag}`, `${game.quest_id} → ${stepLabel} ${game.step_id || game.room_id} (${game.visited_count}/${game.total})`);
     if (game.quest_id === 'explore_ship') {
       visitedRooms.add(game.room_id);
@@ -221,7 +223,14 @@ ws.addEventListener('message', (ev) => {
       return;
     }
     if (game.complete && game.quest_id === 'meet_the_crew') {
-      console.log('\nmeet_the_crew complete — disconnecting.');
+      console.log('\n→ meet_the_crew complete. Starting survey_storage phase.');
+      state = 'surveying_storage';
+      tourQueue = allRooms.map(r => r.id);
+      setTimeout(() => sendNextSurveyVisit(), 500);
+      return;
+    }
+    if (game.complete && game.quest_id === 'survey_storage') {
+      console.log('\nsurvey_storage complete — disconnecting.');
       setTimeout(() => ws.close(), 500);
       return;
     }
@@ -269,6 +278,26 @@ ws.addEventListener('message', (ev) => {
     return;
   }
 
+  // Survey-storage phase (v0.172.0): bot teleports to a room, perceives,
+  // then scans each storage entity (locker / cabinet / bin) in the room.
+  if (game.type === 'game_perception' && state === 'surveying_storage') {
+    const nearby = game.nearby_entities || [];
+    const storageTypes = ['locker', 'medicine_cabinet', 'tool_cabinet', 'spare_parts_bin', 'harvest_bin', 'inventory_terminal'];
+    const storage = nearby.find(e => storageTypes.includes(e.entity_type) && e.interactable);
+    if (storage) {
+      console.log(`→ Scanning ${storage.entity_type} for survey_storage`);
+      send({ type: 'game_interact', entity_id: storage.entity_id, action: 'scan' });
+    } else {
+      setTimeout(sendNextSurveyVisit, 200);
+    }
+    return;
+  }
+
+  if (game.type === 'game_interact_result' && state === 'surveying_storage') {
+    setTimeout(sendNextSurveyVisit, 400);
+    return;
+  }
+
   if (game.type === 'game_error') {
     console.error(`\n[ERROR] ${game.error}: ${game.message}`);
     // Recover from a rate_limited error mid-flow by waiting then retrying
@@ -279,6 +308,27 @@ ws.addEventListener('message', (ev) => {
     }
   }
 });
+
+/** Visit the next room and perceive so we can scan its storage entities. */
+function sendNextSurveyVisit() {
+  while (tourQueue.length > 0) {
+    const roomId = tourQueue.shift();
+    const room = allRooms.find(r => r.id === roomId);
+    if (!room) continue;
+    console.log(`→ Visiting ${room.name} for survey_storage`);
+    send({
+      type: 'game_position_update',
+      position: room.center,
+      rotation: [0, 0, 0, 1],
+      velocity: [0, 0, 0],
+      timestamp: Date.now() / 1000,
+    });
+    setTimeout(() => send({ type: 'game_perceive', radius: 25 }), 250);
+    return;
+  }
+  console.log('\nNo more rooms to visit for survey_storage — disconnecting.');
+  setTimeout(() => ws.close(), 250);
+}
 
 /** Visit the next room and perceive so we can interact with its NPC. */
 function sendNextCrewVisit() {
