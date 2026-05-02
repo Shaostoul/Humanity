@@ -855,6 +855,14 @@ pub struct GuiState {
     pub browser_bookmarks: Vec<BrowserCategory>,
     /// Filter chip on the Browser page: "all" / category id.
     pub browser_filter: String,
+    /// Preview opt-in: render the new two-tier nav (Reality / Sim / Tools /
+    /// Settings + sub-pages) instead of the legacy single-row nav. Toggled
+    /// from the [≡] / [▤] button in the nav itself. Not persisted yet so
+    /// each launch starts on the legacy nav until operator picks a winner.
+    pub nav_two_tier: bool,
+    /// Active top-tier category id when nav_two_tier is on.
+    /// One of: "reality", "sim", "tools", "settings".
+    pub nav_top_category: String,
     /// Onboarding concept cards (`data/onboarding/core_concepts.json`).
     pub onboarding_concepts: Vec<OnboardingConcept>,
     /// Onboarding core-page shortcuts (`data/onboarding/core_pages.json`).
@@ -1175,6 +1183,8 @@ impl Default for GuiState {
             qa_test_filter: "all".to_string(),
             browser_bookmarks: Vec::new(),
             browser_filter: "all".to_string(),
+            nav_two_tier: false,
+            nav_top_category: "reality".to_string(),
             onboarding_concepts: Vec::new(),
             onboarding_core_pages: Vec::new(),
             ai_usage_filters: AiUsageFilters::default(),

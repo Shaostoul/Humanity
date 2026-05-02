@@ -166,6 +166,15 @@
       "note": "Foundation for the in-app browser. When that ships, the same data file drives it."
     },
     {
+      "id": "v0164-two-tier-nav",
+      "version": "0.164.0",
+      "feature": "Two-tier nav preview — Reality / Sim / Tools / Settings",
+      "what_to_test": "On any tool page, look at the right-most icon in the nav bar. Click `▤` to switch to the two-tier preview layout. Click each top category (Reality / Sim / Tools / Settings) and confirm the sub-tier shows the right pages. Click `≡` to switch back.",
+      "expected": "Top tier shows 4 wide colored category tabs (red / purple / blue / gray). Sub tier renders the pages for the selected category. Reality has 14 pages including Profile/Chat/Wallet/Donate/Tasks/Market. Sim has Inventory/Crafting/Studio/Guilds/Trade. Tools has Calculator/Calendar/Notes/Files/Tools/Resources/Browser. Settings has Settings/Onboarding/ServerSettings/Testing.",
+      "category": "design",
+      "note": "PREVIEW. Reply via chat with: which 4 categories you actually want, sub-page reassignments, anything missing. Default still loads single-row nav each launch — flip via the [▤] toggle."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",
