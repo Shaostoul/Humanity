@@ -1669,6 +1669,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 let mut pending_reply: Option<crate::gui::ReplyContext> = None;
                 // Pin button clicks — defer pin_request WS sends.
                 let mut pending_pins: Vec<(String, String, String, u64)> = Vec::new();
+                // Edit button clicks — defer setting edit target.
+                let mut pending_edit: Option<(u64, String)> = None;
+                // Edit-save submissions from the inline editor.
+                let mut pending_edit_save: Option<(u64, String)> = None;
+                // Cancel flag — Cancel button in the inline editor sets this
+                // so we clear chat_edit_target after the loop ends.
+                let mut pending_edit_cancel = false;
 
                 // Remove default item spacing so rows sit flush
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
@@ -1716,11 +1723,36 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         );
                     }
 
-                    // Only call message_row if there's something to show — an
-                    // image-only message should not produce an empty text row
-                    // unless it needs the sender header.
+                    // Inline editor for this message (only on user's own messages
+                    // matching chat_edit_target). Otherwise render the regular row.
+                    let is_editing = state.chat_edit_target
+                        .as_ref()
+                        .map(|(ts, _)| *ts == msg.timestamp_ms && msg.sender_key == state.profile_public_key)
+                        .unwrap_or(false);
+
                     let need_text_row = show_header || !display_text.trim().is_empty();
-                    if need_text_row {
+                    if is_editing {
+                        // Render an editable row in place of the message text.
+                        if let Some((_, ref mut draft)) = state.chat_edit_target {
+                            ui.horizontal(|ui| {
+                                ui.add_space(40.0);
+                                let resp = ui.add(
+                                    egui::TextEdit::multiline(draft)
+                                        .desired_width(ui.available_width() - 130.0)
+                                        .desired_rows(2),
+                                );
+                                ui.add_space(theme.spacing_xs);
+                                if widgets::Button::primary("Save").show(ui, theme)
+                                    || (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+                                {
+                                    pending_edit_save = Some((msg.timestamp_ms, draft.trim().to_string()));
+                                }
+                                if widgets::Button::secondary("Cancel").show(ui, theme) {
+                                    pending_edit_cancel = true;
+                                }
+                            });
+                        }
+                    } else if need_text_row {
                         let row_resp = crate::gui::widgets::row::message_row(
                             ui,
                             theme,
@@ -1908,6 +1940,32 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 msg.timestamp_ms,
                             ));
                         }
+
+                        // Edit button — only on the user's own messages.
+                        if msg.sender_key == state.profile_public_key && msg.timestamp_ms > 0 {
+                            x += pin_w + 4.0;
+                            let edit_w = 28.0;
+                            let edit_rect = egui::Rect::from_min_size(
+                                egui::pos2(x, y - 9.0),
+                                Vec2::new(edit_w, 18.0),
+                            );
+                            ui.painter().rect_filled(edit_rect, Rounding::same(9), theme.bg_card());
+                            ui.painter().text(
+                                edit_rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                "✎",
+                                egui::FontId::proportional(theme.font_size_body),
+                                theme.text_muted(),
+                            );
+                            let edit_resp = ui.interact(
+                                edit_rect,
+                                egui::Id::new(("edit_btn", msg.timestamp_ms)),
+                                egui::Sense::click(),
+                            );
+                            if edit_resp.clicked() {
+                                pending_edit = Some((msg.timestamp_ms, msg.content.clone()));
+                            }
+                        }
                     }
 
                     // Render each attached image as a clickable thumbnail
@@ -2000,6 +2058,40 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // Apply pending reply selection (set chat composing context).
                 if let Some(ctx) = pending_reply.take() {
                     state.chat_reply_to = Some(ctx);
+                }
+
+                // Apply pending edit-target click (open the inline editor for this message).
+                if let Some((ts, draft)) = pending_edit.take() {
+                    state.chat_edit_target = Some((ts, draft));
+                }
+
+                // Apply pending edit cancel (clear the inline editor).
+                if pending_edit_cancel {
+                    state.chat_edit_target = None;
+                }
+
+                // Apply pending edit save (send the WS edit message + clear edit target).
+                if let Some((ts, new_content)) = pending_edit_save.take() {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let msg = serde_json::json!({
+                                "type": "edit",
+                                "from": state.profile_public_key,
+                                "timestamp": ts,
+                                "new_content": new_content.clone(),
+                                "channel": state.chat_active_channel,
+                            });
+                            client.send(&msg.to_string());
+                        }
+                    }
+                    // Optimistic local update so the UI shows the new text immediately.
+                    for m in state.chat_messages.iter_mut() {
+                        if m.sender_key == state.profile_public_key && m.timestamp_ms == ts {
+                            m.content = new_content;
+                            break;
+                        }
+                    }
+                    state.chat_edit_target = None;
                 }
 
                 // Send pending pin requests via WebSocket.

@@ -512,6 +512,9 @@ pub struct GuiState {
     pub chat_pins: std::collections::HashMap<String, Vec<ChatPin>>,
     /// Whether the pins modal is open.
     pub chat_pins_open: bool,
+    /// `(timestamp_ms, draft_content)` for the message currently being edited.
+    /// None = no edit in progress.
+    pub chat_edit_target: Option<(u64, String)>,
     /// Timestamps of messages sent from THIS client (for dedup on echo).
     pub chat_sent_timestamps: Vec<u64>,
     pub chat_channels: Vec<ChatChannel>,
@@ -928,6 +931,7 @@ impl Default for GuiState {
             chat_search_results: Vec::new(),
             chat_pins: std::collections::HashMap::new(),
             chat_pins_open: false,
+            chat_edit_target: None,
             chat_sent_timestamps: Vec::new(),
             chat_channels: Vec::new(),
             chat_active_channel: "general".to_string(),

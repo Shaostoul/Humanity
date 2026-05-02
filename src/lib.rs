@@ -1672,6 +1672,18 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    Some("edit") => {
+                                        // Edited message broadcast — find by sender + timestamp, replace content.
+                                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                        let new_content = val.get("new_content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        for msg in state.gui_state.chat_messages.iter_mut() {
+                                            if msg.sender_key == from && msg.timestamp_ms == ts {
+                                                msg.content = new_content;
+                                                break;
+                                            }
+                                        }
+                                    }
                                     Some("search_results") => {
                                         // Server-returned search results. Populate the search modal.
                                         if let Some(results) = val.get("results").and_then(|v| v.as_array()) {
