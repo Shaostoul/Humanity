@@ -162,6 +162,13 @@ ws.addEventListener('message', (ev) => {
     return;
   }
 
+  // Ambient chatter from the world (v0.165.0). Surfaced even after the
+  // demo state machine completes, until the safety-net timeout fires.
+  if (game.type === 'game_ambient_chatter') {
+    log('Ambient chatter', `${game.speaker} (${game.room_id}): "${game.line}"`);
+    return;
+  }
+
   if (game.type === 'game_error') {
     console.error(`\n[ERROR] ${game.error}: ${game.message}`);
   }

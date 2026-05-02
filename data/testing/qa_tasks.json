@@ -175,6 +175,15 @@
       "note": "PREVIEW. Reply via chat with: which 4 categories you actually want, sub-page reassignments, anything missing. Default still loads single-row nav each launch — flip via the [▤] toggle."
     },
     {
+      "id": "v0165-ambient-chatter",
+      "version": "0.165.0",
+      "feature": "Ambient NPC chatter — world talks to itself",
+      "what_to_test": "Run `node scripts/ai-sample-client.js` and let it idle for 60+ seconds after the demo completes (before the 20s safety-net timeout) — actually update the timeout in the script to 120s for this test. Watch the WebSocket for game_ambient_chatter events.",
+      "expected": "Roughly every 45 seconds a random NPC broadcasts one of their dialog lines. Bot prints e.g.: Ambient chatter — Botanist Yara (hydroponics): \"Lettuce harvest in three days. Tell the galley.\" Event includes entity_id, speaker, room_id, position, line.",
+      "category": "perception-api",
+      "note": "Chatter only fires when at least one NPC has a non-empty `dialog` array. Skipped if relay is fresh and entities not yet populated."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

@@ -264,6 +264,71 @@ pub async fn run_relay() {
         });
     }
 
+    // Ambient NPC chatter: every 45 seconds, pick a random NPC that has
+    // a `dialog` array and broadcast one of their lines as a
+    // `game_ambient_chatter` event. Makes the world feel alive even
+    // when no humans are interacting — AI agents listening in see crew
+    // organically reporting status. Skipped when no NPC has dialog.
+    {
+        let game_state = state.clone();
+        tokio::spawn(async move {
+            // Initial delay so chatter doesn't overlap with the post-boot
+            // perception flood.
+            tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(45));
+            loop {
+                interval.tick().await;
+
+                // Snapshot candidate NPCs while holding the read lock.
+                let world = game_state.game_world.read().await;
+                let candidates: Vec<(u64, String, String, [f32; 3], Vec<String>)> = world
+                    .entities
+                    .iter()
+                    .filter_map(|(id, e)| {
+                        let dialog = e.components.get("dialog")?.as_array()?;
+                        if dialog.is_empty() { return None; }
+                        let lines: Vec<String> = dialog
+                            .iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect();
+                        if lines.is_empty() { return None; }
+                        let name = e.components.get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Unknown")
+                            .to_string();
+                        let room = e.components.get("room_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown")
+                            .to_string();
+                        Some((*id, name, room, e.position, lines))
+                    })
+                    .collect();
+                drop(world);
+
+                if candidates.is_empty() { continue; }
+
+                use rand::Rng;
+                let mut rng = rand::thread_rng();
+                let (entity_id, speaker, room_id, position, lines) =
+                    &candidates[rng.gen_range(0..candidates.len())];
+                let line = &lines[rng.gen_range(0..lines.len())];
+
+                let chatter = serde_json::json!({
+                    "type": "game_ambient_chatter",
+                    "entity_id": entity_id,
+                    "speaker": speaker,
+                    "room_id": room_id,
+                    "position": position,
+                    "line": line,
+                });
+                let _ = game_state.broadcast_tx.send(relay::RelayMessage::System {
+                    message: format!("__game__:{}", chatter),
+                });
+                tracing::debug!("Ambient chatter from {speaker}: {line}");
+            }
+        });
+    }
+
     // Game TimeSync broadcast: every 5 seconds, only when players connected.
     {
         let game_state = state.clone();
