@@ -149,6 +149,23 @@
       "category": "perception-api"
     },
     {
+      "id": "v0162-npc-dialog",
+      "version": "0.162.0",
+      "feature": "NPC dialog — crew talks back",
+      "what_to_test": "Run `node scripts/ai-sample-client.js`. Watch the interact response. (Or in-game: walk up to Helm Officer Vex, Dr. Kel, Chief Tan, CB-7, Botanist Yara, Crewmate Nia and interact.)",
+      "expected": "The interact result includes 'speaker' (NPC name) and 'dialog_line' (a random one of 4 personality lines per NPC). Bot prints e.g.: NPC dialog — Helm Officer Vex: \"Course laid in. We're holding orbit at 412 km.\" Other nearby clients see the dialog in the broadcast too.",
+      "category": "perception-api"
+    },
+    {
+      "id": "v0163-browser-page",
+      "version": "0.163.0",
+      "feature": "Browser page — curated bookmarks",
+      "what_to_test": "Open the Browser page (top nav, blue group, between Testing and Bugs). Try the All / category filter chips. Click any card.",
+      "expected": "Page renders with 5 categories (HumanityOS / Open knowledge / Real-world skills / Sovereign software / Spaceflight). Each card shows icon + title + description + host. Click opens the URL in your default OS browser. Hover tints the card and brightens the border.",
+      "category": "ui",
+      "note": "Foundation for the in-app browser. When that ships, the same data file drives it."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

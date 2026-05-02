@@ -1,0 +1,181 @@
+{
+  "_purpose": "Curated bookmarks rendered on the Browser page. First step toward an in-app browser — for now each card opens the URL in the OS default browser via egui's hyperlink_to. Categories let the operator filter; descriptions explain why each link is here so the page also acts as a reference.",
+  "_workflow": "Operator opens Browser page → reads category headers → clicks a card → URL opens in their default browser. Future: when in-app browser ships, these same bookmarks load inside an isolated tab with vault-stored credentials.",
+  "categories": [
+    {
+      "id": "humanityos",
+      "name": "HumanityOS",
+      "color": "accent",
+      "bookmarks": [
+        {
+          "id": "live-site",
+          "title": "Live site",
+          "url": "https://united-humanity.us",
+          "description": "Production HumanityOS — chat, profiles, vault, marketplace.",
+          "icon": "🌍"
+        },
+        {
+          "id": "github",
+          "title": "GitHub mirror",
+          "url": "https://github.com/Shaostoul/Humanity",
+          "description": "Primary source repository, releases, CI, issue tracker.",
+          "icon": "🐙"
+        },
+        {
+          "id": "forge",
+          "title": "Forgejo mirror",
+          "url": "https://git.united-humanity.us/shaostoul/humanity",
+          "description": "Self-hosted Forgejo mirror — same code, sovereign infrastructure.",
+          "icon": "🛠"
+        },
+        {
+          "id": "release-notes",
+          "title": "Release notes",
+          "url": "https://github.com/Shaostoul/Humanity/releases",
+          "description": "Every shipped version with what changed.",
+          "icon": "📝"
+        }
+      ]
+    },
+    {
+      "id": "knowledge",
+      "name": "Open knowledge",
+      "color": "info",
+      "bookmarks": [
+        {
+          "id": "wikipedia",
+          "title": "Wikipedia",
+          "url": "https://en.wikipedia.org/wiki/Main_Page",
+          "description": "Largest free encyclopedia. Mirror via Kiwix for offline use.",
+          "icon": "📖"
+        },
+        {
+          "id": "archive",
+          "title": "Internet Archive",
+          "url": "https://archive.org",
+          "description": "Books, films, software, and the Wayback Machine.",
+          "icon": "🏛"
+        },
+        {
+          "id": "gutenberg",
+          "title": "Project Gutenberg",
+          "url": "https://www.gutenberg.org",
+          "description": "70,000+ free public-domain ebooks.",
+          "icon": "📚"
+        },
+        {
+          "id": "openstax",
+          "title": "OpenStax",
+          "url": "https://openstax.org/subjects",
+          "description": "Free, peer-reviewed college textbooks.",
+          "icon": "🎓"
+        },
+        {
+          "id": "khan",
+          "title": "Khan Academy",
+          "url": "https://www.khanacademy.org",
+          "description": "Free K-12 + early college courses.",
+          "icon": "🧮"
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "name": "Real-world skills",
+      "color": "success",
+      "bookmarks": [
+        {
+          "id": "ifixit",
+          "title": "iFixit",
+          "url": "https://www.ifixit.com",
+          "description": "Open repair guides for everything from phones to tractors.",
+          "icon": "🔧"
+        },
+        {
+          "id": "instructables",
+          "title": "Instructables",
+          "url": "https://www.instructables.com",
+          "description": "DIY projects: woodworking, electronics, food, craft.",
+          "icon": "🪚"
+        },
+        {
+          "id": "appropedia",
+          "title": "Appropedia",
+          "url": "https://www.appropedia.org",
+          "description": "Sustainable technology, appropriate-tech, off-grid living wiki.",
+          "icon": "🌱"
+        },
+        {
+          "id": "openfarm",
+          "title": "OpenFarm",
+          "url": "https://openfarm.cc",
+          "description": "Crowdsourced gardening + farming guides per crop and region.",
+          "icon": "🌾"
+        }
+      ]
+    },
+    {
+      "id": "sovereign",
+      "name": "Sovereign software",
+      "color": "warning",
+      "bookmarks": [
+        {
+          "id": "codeberg",
+          "title": "Codeberg",
+          "url": "https://codeberg.org",
+          "description": "Non-profit Git hosting on Forgejo, EU-based.",
+          "icon": "⛰"
+        },
+        {
+          "id": "forgejo",
+          "title": "Forgejo project",
+          "url": "https://forgejo.org",
+          "description": "Self-hostable Git forge. Used by HumanityOS for sovereign mirroring.",
+          "icon": "🍴"
+        },
+        {
+          "id": "gnu",
+          "title": "GNU project",
+          "url": "https://www.gnu.org",
+          "description": "Foundational free-software movement and tooling.",
+          "icon": "🐃"
+        },
+        {
+          "id": "fsf",
+          "title": "Free Software Foundation",
+          "url": "https://www.fsf.org",
+          "description": "User-freedom advocacy, license stewardship.",
+          "icon": "📜"
+        }
+      ]
+    },
+    {
+      "id": "spaceflight",
+      "name": "Spaceflight + observation",
+      "color": "info",
+      "bookmarks": [
+        {
+          "id": "iss-tracker",
+          "title": "ISS live tracker",
+          "url": "https://spotthestation.nasa.gov/tracking_map.cfm",
+          "description": "Where the International Space Station is right now. The mothership is fictional — this is real.",
+          "icon": "🛰"
+        },
+        {
+          "id": "skymap",
+          "title": "Stellarium web",
+          "url": "https://stellarium-web.org",
+          "description": "Browser planetarium — see what's overhead tonight.",
+          "icon": "🌠"
+        },
+        {
+          "id": "spaceweather",
+          "title": "SpaceWeather.com",
+          "url": "https://www.spaceweather.com",
+          "description": "Solar storms, aurora forecasts, near-Earth asteroids.",
+          "icon": "☄"
+        }
+      ]
+    }
+  ]
+}

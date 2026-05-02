@@ -111,6 +111,10 @@ pub enum GuiPage {
     /// QA testing tasks — operator-facing checklist of features to manually verify.
     /// Each task has Mark Passed / Report Issue buttons that post results to chat.
     Testing,
+    /// Curated bookmarks page. First step toward the in-app browser — for
+    /// now each card opens its URL in the OS default browser via egui's
+    /// open_url. Data lives in `data/browser/bookmarks.json`.
+    Browser,
 }
 
 /// Item slot data bridged from ECS Inventory for GUI display.
@@ -847,6 +851,10 @@ pub struct GuiState {
     pub qa_test_note: std::collections::HashMap<String, String>,
     /// Filter chip on the Testing page: "all" / category id.
     pub qa_test_filter: String,
+    /// Bookmark categories (`data/browser/bookmarks.json`) shown on the Browser page.
+    pub browser_bookmarks: Vec<BrowserCategory>,
+    /// Filter chip on the Browser page: "all" / category id.
+    pub browser_filter: String,
     /// Onboarding concept cards (`data/onboarding/core_concepts.json`).
     pub onboarding_concepts: Vec<OnboardingConcept>,
     /// Onboarding core-page shortcuts (`data/onboarding/core_pages.json`).
@@ -1165,6 +1173,8 @@ impl Default for GuiState {
             qa_test_status: std::collections::HashMap::new(),
             qa_test_note: std::collections::HashMap::new(),
             qa_test_filter: "all".to_string(),
+            browser_bookmarks: Vec::new(),
+            browser_filter: "all".to_string(),
             onboarding_concepts: Vec::new(),
             onboarding_core_pages: Vec::new(),
             ai_usage_filters: AiUsageFilters::default(),
@@ -1632,6 +1642,40 @@ pub fn load_qa_test_tasks(data_dir: &std::path::Path) -> Vec<QaTestTask> {
     struct File { tasks: Vec<QaTestTask> }
     read_data_json::<File>(data_dir, "testing/qa_tasks.json")
         .map(|f| f.tasks)
+        .unwrap_or_default()
+}
+
+/// One bookmark on the Browser page (curated link to an external site).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct BrowserBookmark {
+    pub id: String,
+    pub title: String,
+    pub url: String,
+    #[serde(default)] pub description: String,
+    #[serde(default)] pub icon: String,
+}
+
+/// A category of bookmarks. Color is one of: accent, info, success, warning, danger.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct BrowserCategory {
+    pub id: String,
+    pub name: String,
+    #[serde(default = "default_browser_color")] pub color: String,
+    pub bookmarks: Vec<BrowserBookmark>,
+}
+
+#[cfg(feature = "native")]
+fn default_browser_color() -> String { "accent".to_string() }
+
+/// Load browser bookmarks from `data/browser/bookmarks.json`.
+#[cfg(feature = "native")]
+pub fn load_browser_bookmarks(data_dir: &std::path::Path) -> Vec<BrowserCategory> {
+    #[derive(serde::Deserialize)]
+    struct File { categories: Vec<BrowserCategory> }
+    read_data_json::<File>(data_dir, "browser/bookmarks.json")
+        .map(|f| f.categories)
         .unwrap_or_default()
 }
 
