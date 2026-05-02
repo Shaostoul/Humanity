@@ -1,0 +1,144 @@
+{
+  "_purpose": "QA test tasks the developer (Claude) wants the operator to verify in the running app. Each task lists the feature, what to do, and what to expect. Operator marks Pass or Report Issue, which posts the result to the active chat channel for the developer to read on the next session.",
+  "_workflow": "Operator opens Testing page → reads task → does the test in-app → clicks Mark Passed or Report Issue (with optional note) → result is sent as a chat message tagged [QA] which Claude reads next session.",
+  "tasks": [
+    {
+      "id": "v0148-reactions-pills",
+      "version": "0.148.0",
+      "feature": "Chat reactions — pill display",
+      "what_to_test": "Open #general. Find any message. Click the + pill to its right. Pick an emoji.",
+      "expected": "A pill appears with the emoji + count 1, accent-tinted because you reacted. Click the same pill again — it should disappear (toggle off).",
+      "category": "chat-parity"
+    },
+    {
+      "id": "v0148-reactions-multi",
+      "version": "0.148.0",
+      "feature": "Chat reactions — multiple users",
+      "what_to_test": "From a second device or web client, react to the same message with the same emoji. On native, watch the count.",
+      "expected": "Pill count increments to 2 without you doing anything. The pill is no longer accent-tinted unless you also reacted.",
+      "category": "chat-parity"
+    },
+    {
+      "id": "v0149-threads-reply",
+      "version": "0.149.0",
+      "feature": "Chat threads — reply",
+      "what_to_test": "Click the ↩ button on someone else's message. Type a response. Press Enter.",
+      "expected": "Banner above input shows 'Replying to <name>: <preview>' with X to cancel. After send, your message renders with a muted '↩ <name>: <preview>' line above its content.",
+      "category": "chat-parity"
+    },
+    {
+      "id": "v0150-search",
+      "version": "0.150.0",
+      "feature": "Chat search",
+      "what_to_test": "Click the 🔍 button on the input bar. Type 'hello' (or any 2+ char query). Press Enter or click Search.",
+      "expected": "Modal opens. Results render as cards with sender, channel, snippet. Click Jump on a result — it switches to that channel and closes the modal.",
+      "category": "chat-parity"
+    },
+    {
+      "id": "v0151-pin-message",
+      "version": "0.151.0",
+      "feature": "Chat pins — pin a message",
+      "what_to_test": "Click the 📌 button on any message. Then click the 📌 N button on the input bar.",
+      "expected": "Pin count appears next to the input-bar 📌. Modal opens with the pinned message as a card showing sender, original timestamp, who pinned it, and content.",
+      "category": "chat-parity"
+    },
+    {
+      "id": "v0152-edit-own",
+      "version": "0.152.0",
+      "feature": "Chat edit — own messages only",
+      "what_to_test": "Send a message. Click the ✎ pencil button on YOUR message. Edit the text. Click Save.",
+      "expected": "Inline editor replaces the text with a multiline TextEdit + Save/Cancel. Save updates the message immediately. The ✎ button should NOT appear on other people's messages.",
+      "category": "chat-parity"
+    },
+    {
+      "id": "v0153-mentions",
+      "version": "0.153.0",
+      "feature": "@ mentions autocomplete",
+      "what_to_test": "Click in the input. Type '@' then start typing a username from the right sidebar.",
+      "expected": "A popup appears above the input with up to 5 matching usernames. Click one — it replaces '@partial' with '@FullName ' (with trailing space).",
+      "category": "chat-parity"
+    },
+    {
+      "id": "v0154-context-menu",
+      "version": "0.154.0",
+      "feature": "Right-click context menu on messages",
+      "what_to_test": "Right-click on any message in the chat feed.",
+      "expected": "Menu appears with: 📋 Copy text, ↩ Quote / reply, 📌 Pin message, ✎ Edit (only on your own messages), separator, 🚩 Report. Each action should work like the inline button equivalent.",
+      "category": "chat-parity"
+    },
+    {
+      "id": "v0137-server-settings-tiers",
+      "version": "0.137.0",
+      "feature": "Server Settings — color-coded role tiers",
+      "what_to_test": "Click the cog menu on the server row in chat. Confirm the page renders.",
+      "expected": "Three sections: 🔴 USER (always shown — identity, role, invite link, disconnect), 🟢 MODERATOR (shown if you're mod/admin — kick/mute/ban target field), 🔵 ADMIN (shown if admin — lockdown, generate invite, channel CRUD, verify, promote, ban). Each section has a colored top-border accent.",
+      "category": "ui"
+    },
+    {
+      "id": "v0139-onboarding-layout",
+      "version": "0.139.0",
+      "feature": "Onboarding page layout",
+      "what_to_test": "Open the Onboarding page (top nav). Resize the window to different widths.",
+      "expected": "Hero section centered. Headers (FOUR THINGS TO KNOW FIRST, THE PLATFORM, QUESTS) all share the same left edge. Cards stay within the centered column (1024px max). No off-screen 'Maps' card on wide displays.",
+      "category": "ui"
+    },
+    {
+      "id": "v0141-aging-stages",
+      "version": "0.141.0",
+      "feature": "Aging system — life stage transitions",
+      "what_to_test": "If your character has an Age component, watch its life_stage field over time (or fast-forward). Check Profile or any system that displays age.",
+      "expected": "At thresholds (12, 18, 30, 50, 70 game-years) the life_stage transitions from child → teen → young_adult → adult → senior → elder. Log line fires on each transition.",
+      "category": "game-systems",
+      "note": "Hard to test interactively without a long play session. Mainly here for completeness — log inspection counts."
+    },
+    {
+      "id": "v0143-combat-armor",
+      "version": "0.143.0",
+      "feature": "Combat — armor mitigates damage",
+      "what_to_test": "If a creature with Armor takes damage, observe the Health drop.",
+      "expected": "Armor.resistance per damage type reduces incoming damage proportionally (e.g. 0.4 kinetic resistance = 40% reduction on kinetic hits). Log line shows '(N% mitigated by armor)'.",
+      "category": "game-systems",
+      "note": "Requires combat scenario to verify. Defer until combat encounter UI exists."
+    },
+    {
+      "id": "v0155-game-persistence",
+      "version": "0.155.0",
+      "feature": "Game state persistence across restarts",
+      "what_to_test": "Move your player to a non-spawn position. Wait 30 seconds (auto-save tick). Restart the relay (`just sync` from a fresh terminal). Reconnect and check your position.",
+      "expected": "Player position, game_time, and inventory are restored from the snapshot. Static ship layout reloads from RON.",
+      "category": "game-systems"
+    },
+    {
+      "id": "v0156-perception-rate-limit",
+      "version": "0.156.0",
+      "feature": "Perception API rate limiting",
+      "what_to_test": "Run the AI sample client multiple times in rapid succession (or write a loop firing game_perceive every 50ms).",
+      "expected": "After ~5 queries/sec, the relay returns game_error with type rate_limited. Bot should slow down and resume after 200ms.",
+      "category": "perception-api"
+    },
+    {
+      "id": "v0157-ai-sample-client",
+      "version": "0.157.0",
+      "feature": "AI sample client end-to-end",
+      "what_to_test": "Run `node scripts/ai-sample-client.js` from the repo root.",
+      "expected": "Connects, identifies, joins, perceives Crew Quarters with ~30+ entities, interacts with one, perceives again, disconnects cleanly. Should complete in under 10 seconds.",
+      "category": "perception-api"
+    },
+    {
+      "id": "v0158-ambient-bot",
+      "version": "0.158.0",
+      "feature": "Ambient maintenance_bot wanders Cargo Bay",
+      "what_to_test": "Use the AI sample client (or game_perceive directly) while standing in or near the Cargo Bay. Take two perception snapshots ~2 seconds apart.",
+      "expected": "A 'maintenance_bot' entity appears in the nearby_entities list. Its position changes between the two snapshots (Brownian wander within bounds).",
+      "category": "perception-api"
+    },
+    {
+      "id": "design-nav-redesign",
+      "version": "next",
+      "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",
+      "what_to_test": "Read this proposal and react in chat: replace the current single-row nav (chat, wallet, donate, profile, identity, ...) with a TWO-TIER nav. Top tier: Reality (red), Sim (purple), Tools (blue), Settings (gray). Sub tier changes with selection. Reality sub: Profile, Chat, Wallet, Donate, Tasks, Market, Civilization, Governance, Maps, Recovery, Identity, Agents, AI Usage, Bugs. Sim sub: Character, Inventory, Crafting, Sim Market, Sim Maps, Quests, Studio, World. Tools sub: Calculator, Calendar, Notes, Files, Tools Catalog. Settings sub: Account, Appearance, Audio, Notifications, Data, Updates, Onboarding. Real/Sim toggle goes away — separate Wallet/Market/etc per category prevents accidental real-money mistakes.",
+      "expected": "Reply in chat with: (1) which 4 categories you want, (2) any sub-page reassignments, (3) anything missing.",
+      "category": "design"
+    }
+  ]
+}

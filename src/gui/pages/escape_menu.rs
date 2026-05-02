@@ -91,6 +91,7 @@ pub fn draw_nav_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     NavItem { label: "Settings", page: GuiPage::Settings },
                     NavItem { label: "Tools", page: GuiPage::Tools },
                     NavItem { label: "Bugs", page: GuiPage::BugReport },
+                    NavItem { label: "Testing", page: GuiPage::Testing },
                 ];
                 nav_group(ui, &blue_items, BLUE, text_muted, state);
 

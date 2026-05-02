@@ -60,7 +60,7 @@ mod native_app {
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, maps, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
-        onboarding, server_settings, identity, governance, recovery, agents, ai_usage,
+        onboarding, server_settings, identity, governance, recovery, agents, ai_usage, testing,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -633,6 +633,7 @@ mod native_app {
             gui_state.profile_skills = crate::gui::load_default_player_skills(&data_dir);
             gui_state.studio_streaming_config = crate::gui::load_studio_streaming_config(&data_dir);
             gui_state.donate_faq = crate::gui::load_donate_faq(&data_dir);
+            gui_state.qa_test_tasks = crate::gui::load_qa_test_tasks(&data_dir);
             gui_state.onboarding_concepts = crate::gui::load_onboarding_concepts(&data_dir);
             gui_state.onboarding_core_pages = crate::gui::load_onboarding_core_pages(&data_dir);
             gui_state.ai_usage_filters = crate::gui::load_ai_usage_filters(&data_dir);
@@ -2186,6 +2187,7 @@ mod native_app {
                                     GuiPage::Recovery => recovery::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Agents => agents::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::AiUsage => ai_usage::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Testing => testing::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::None => {}
                                 }
 

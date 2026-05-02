@@ -108,6 +108,9 @@ pub enum GuiPage {
     /// AI subscription quota tracker + usage event log.
     /// Mirrors the web `/ai-usage` page.
     AiUsage,
+    /// QA testing tasks — operator-facing checklist of features to manually verify.
+    /// Each task has Mark Passed / Report Issue buttons that post results to chat.
+    Testing,
 }
 
 /// Item slot data bridged from ECS Inventory for GUI display.
@@ -836,6 +839,14 @@ pub struct GuiState {
     pub studio_streaming_config: StudioStreamingConfig,
     /// Donate page FAQ entries (`data/donate/faq.json`).
     pub donate_faq: Vec<DonateFaqEntry>,
+    /// QA test tasks (`data/testing/qa_tasks.json`) shown on the Testing page.
+    pub qa_test_tasks: Vec<QaTestTask>,
+    /// Per-task local status: id → "passed" / "issue" / "" (untouched).
+    pub qa_test_status: std::collections::HashMap<String, String>,
+    /// Per-task draft note (when typing into Report Issue field).
+    pub qa_test_note: std::collections::HashMap<String, String>,
+    /// Filter chip on the Testing page: "all" / category id.
+    pub qa_test_filter: String,
     /// Onboarding concept cards (`data/onboarding/core_concepts.json`).
     pub onboarding_concepts: Vec<OnboardingConcept>,
     /// Onboarding core-page shortcuts (`data/onboarding/core_pages.json`).
@@ -1150,6 +1161,10 @@ impl Default for GuiState {
             studio_source_presets: Vec::new(),
             studio_streaming_config: StudioStreamingConfig::default(),
             donate_faq: Vec::new(),
+            qa_test_tasks: Vec::new(),
+            qa_test_status: std::collections::HashMap::new(),
+            qa_test_note: std::collections::HashMap::new(),
+            qa_test_filter: "all".to_string(),
             onboarding_concepts: Vec::new(),
             onboarding_core_pages: Vec::new(),
             ai_usage_filters: AiUsageFilters::default(),
@@ -1594,6 +1609,29 @@ pub fn load_donate_faq(data_dir: &std::path::Path) -> Vec<DonateFaqEntry> {
     struct File { entries: Vec<DonateFaqEntry> }
     read_data_json::<File>(data_dir, "donate/faq.json")
         .map(|f| f.entries)
+        .unwrap_or_default()
+}
+
+/// One QA test task surfaced on the Testing page.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct QaTestTask {
+    pub id: String,
+    #[serde(default)] pub version: String,
+    pub feature: String,
+    pub what_to_test: String,
+    pub expected: String,
+    #[serde(default)] pub category: String,
+    #[serde(default)] pub note: Option<String>,
+}
+
+/// Load QA test tasks from `data/testing/qa_tasks.json`.
+#[cfg(feature = "native")]
+pub fn load_qa_test_tasks(data_dir: &std::path::Path) -> Vec<QaTestTask> {
+    #[derive(serde::Deserialize)]
+    struct File { tasks: Vec<QaTestTask> }
+    read_data_json::<File>(data_dir, "testing/qa_tasks.json")
+        .map(|f| f.tasks)
         .unwrap_or_default()
 }
 
