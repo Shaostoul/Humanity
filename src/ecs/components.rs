@@ -260,6 +260,94 @@ impl Default for ProductionFacility {
     }
 }
 
+// ── Plumbing & Water ────────────────────────────────────────
+
+/// A water storage tank. Capacity in liters; current is the live level.
+/// `PlumbingSystem` drains tanks to satisfy nearby `WaterFixture` demand.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WaterTank {
+    pub current: f32,
+    pub capacity: f32,
+}
+
+impl Default for WaterTank {
+    fn default() -> Self {
+        Self { current: 0.0, capacity: 1000.0 }
+    }
+}
+
+/// A water-consuming fixture (sink, shower, hydroponics tray, livestock trough).
+/// `demand_per_day` is target liters/day; `supplied_today` accumulates as
+/// water is delivered from a nearby `WaterTank`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WaterFixture {
+    pub demand_per_day: f32,
+    pub supplied_today: f32,
+    /// Whether the fixture got water on the last tick (drives "no water" UI feedback).
+    #[serde(default)]
+    pub satisfied: bool,
+}
+
+// ── HVAC & Room Environment ─────────────────────────────────
+
+/// Per-room atmospheric state. `HvacSystem` mutates this each tick based on
+/// nearby HVAC units, room occupancy (CO2 emission), and outside conditions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoomEnvironment {
+    pub temp_c: f32,
+    pub humidity: f32,    // 0.0 to 1.0
+    pub co2_ppm: f32,     // healthy < 1000, drowsy > 1500, dangerous > 5000
+}
+
+impl Default for RoomEnvironment {
+    fn default() -> Self {
+        Self { temp_c: 20.0, humidity: 0.45, co2_ppm: 420.0 }
+    }
+}
+
+/// An HVAC unit. Heats, cools, or vents; affects nearby `RoomEnvironment`s
+/// each tick. `mode` is "heat" / "cool" / "vent" / "off".
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HvacUnit {
+    pub mode: String,
+    /// Target temperature in Celsius for heat/cool modes.
+    pub target_temp: f32,
+    /// Output power (kW). Higher = faster temperature change + faster ventilation.
+    pub power_kw: f32,
+}
+
+// ── Fire ────────────────────────────────────────────────────
+
+/// An active fire on an entity. `FireSystem` consumes fuel each tick;
+/// when `fuel_remaining` reaches zero, the fire is removed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Fire {
+    /// 0.0 to 1.0. Higher = hotter, more damage, longer spread reach.
+    pub intensity: f32,
+    /// Game-seconds of fuel left before the fire dies naturally.
+    pub fuel_remaining: f32,
+}
+
+/// Marks an entity as flammable. `FireSystem` may ignite this entity if a
+/// nearby `Fire` rolls a spread check within `ignition_dist`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Flammable {
+    /// Distance from a Fire at which spread becomes possible (meters).
+    pub ignition_dist: f32,
+    /// Game-seconds of fuel this entity provides if ignited.
+    pub fuel_seconds: f32,
+}
+
+/// A fire suppressor (sprinkler, foam nozzle, fire extinguisher mount).
+/// `FireSystem` reduces intensity of nearby fires each tick.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FireSuppressor {
+    /// Suppression range (meters).
+    pub range: f32,
+    /// Intensity reduction per game-second when active.
+    pub strength: f32,
+}
+
 // ── Genetics ────────────────────────────────────────────────
 
 /// Diploid genome — one allele pair per trait.
