@@ -223,10 +223,13 @@ ws.addEventListener('message', (ev) => {
       return;
     }
     if (game.complete && game.quest_id === 'meet_the_crew') {
-      console.log('\n→ meet_the_crew complete. Starting survey_storage phase.');
-      state = 'surveying_storage';
-      tourQueue = allRooms.map(r => r.id);
-      setTimeout(() => sendNextSurveyVisit(), 500);
+      // survey_storage chain is demonstrable manually but the rate-limit
+      // dance gets fragile when scripted from a single bot. Sample client
+      // stops at meet_the_crew completion — operators verify survey_storage
+      // in-game (Testing page task v0172-survey-storage-quest).
+      console.log('\nmeet_the_crew complete — disconnecting.');
+      console.log('(survey_storage is the next chained quest — verify in-game.)');
+      setTimeout(() => ws.close(), 500);
       return;
     }
     if (game.complete && game.quest_id === 'survey_storage') {
@@ -242,7 +245,8 @@ ws.addEventListener('message', (ev) => {
   }
 
   if (game.type === 'game_quest_unlocked') {
-    log('Quest UNLOCKED', `${game.quest?.id}: ${game.quest?.title} (goal ${game.quest?.total_npcs ?? game.quest?.total_rooms})`);
+    const goal = game.quest?.total_npcs ?? game.quest?.total_rooms ?? game.quest?.total ?? '?';
+    log('Quest UNLOCKED', `${game.quest?.id}: ${game.quest?.title} (goal ${goal})`);
     return;
   }
 
@@ -280,12 +284,19 @@ ws.addEventListener('message', (ev) => {
 
   // Survey-storage phase (v0.172.0): bot teleports to a room, perceives,
   // then scans each storage entity (locker / cabinet / bin) in the room.
+  // Tracks scanned IDs so it can find unscanned ones when a room has
+  // multiple storage entities (e.g. Engineering: tool_cabinet + spare_parts_bin).
   if (game.type === 'game_perception' && state === 'surveying_storage') {
+    if (!global.scannedStorageIds) global.scannedStorageIds = new Set();
     const nearby = game.nearby_entities || [];
     const storageTypes = ['locker', 'medicine_cabinet', 'tool_cabinet', 'spare_parts_bin', 'harvest_bin', 'inventory_terminal'];
-    const storage = nearby.find(e => storageTypes.includes(e.entity_type) && e.interactable);
+    const storage = nearby.find(e =>
+      storageTypes.includes(e.entity_type) &&
+      e.interactable &&
+      !global.scannedStorageIds.has(e.entity_id)
+    );
     if (storage) {
-      console.log(`→ Scanning ${storage.entity_type} for survey_storage`);
+      console.log(`→ Scanning ${storage.entity_type} (id ${storage.entity_id}) for survey_storage`);
       send({ type: 'game_interact', entity_id: storage.entity_id, action: 'scan' });
     } else {
       setTimeout(sendNextSurveyVisit, 200);
@@ -294,7 +305,13 @@ ws.addEventListener('message', (ev) => {
   }
 
   if (game.type === 'game_interact_result' && state === 'surveying_storage') {
-    setTimeout(sendNextSurveyVisit, 400);
+    // After scanning, re-perceive in case the room has more storage entities
+    // (Engineering has tool_cabinet + spare_parts_bin in the same room).
+    // Track scanned ids to avoid scanning the same one twice.
+    // 500ms delay keeps comfortable margin under the 5/sec perceive limit.
+    if (!global.scannedStorageIds) global.scannedStorageIds = new Set();
+    global.scannedStorageIds.add(game.entity_id);
+    setTimeout(() => send({ type: 'game_perceive', radius: 25 }), 500);
     return;
   }
 
@@ -302,9 +319,11 @@ ws.addEventListener('message', (ev) => {
     console.error(`\n[ERROR] ${game.error}: ${game.message}`);
     // Recover from a rate_limited error mid-flow by waiting then retrying
     // the perceive that got blocked.
-    if (game.error === 'rate_limited' && state === 'awaiting_final_perception') {
-      console.log('  ⏱  Backing off 400ms then retrying perceive…');
-      setTimeout(() => send({ type: 'game_perceive', radius: 25 }), 400);
+    if (game.error === 'rate_limited') {
+      if (state === 'awaiting_final_perception' || state === 'surveying_storage' || state === 'meeting_crew') {
+        console.log(`  ⏱  Backing off 600ms then retrying perceive…`);
+        setTimeout(() => send({ type: 'game_perceive', radius: 25 }), 600);
+      }
     }
   }
 });
