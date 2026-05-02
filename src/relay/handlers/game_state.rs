@@ -109,12 +109,15 @@ pub struct EntityBrief {
     pub interactable: bool,
 }
 
-/// Quest progress payload returned by `record_room_visit`. Drives the
-/// `game_quest_progress` (or `game_quest_completed` when complete) broadcast
-/// so AI agents and humans both learn the quest advanced.
+/// Quest progress payload returned by `record_room_visit` or
+/// `record_npc_talk`. `step_id` is the room id (for explore_ship) or NPC
+/// name (for meet_the_crew). `room_id` is kept as an alias of step_id for
+/// backward compatibility with AI clients that consumed the v0.167 shape.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuestProgress {
     pub quest_id: String,
+    pub step_id: String,
+    /// Alias of step_id; preserved for v0.167 compatibility.
     pub room_id: String,
     pub visited_count: usize,
     pub total: usize,
@@ -518,11 +521,13 @@ impl GameWorld {
     /// Returns Some(progress) if this visit was new (drives the
     /// `game_quest_progress` / `game_quest_completed` broadcast), None if
     /// the room was already visited or the player has no explore_ship quest.
+    /// On completion, automatically chains into the meet_the_crew quest.
     pub fn record_room_visit(
         &mut self,
         player_id: u64,
         room_id: &str,
     ) -> Option<QuestProgress> {
+        let total_npcs = self.crew_npc_count();
         let entity = self.entities.get_mut(&player_id)?;
         let quest = entity.components.get_mut("current_quest")?;
         if quest.get("id").and_then(|v| v.as_str()) != Some("explore_ship") {
@@ -541,11 +546,70 @@ impl GameWorld {
         let complete = total > 0 && visited_count >= total;
         if complete {
             quest["complete"] = serde_json::Value::Bool(true);
+            // Chain into the next quest: Meet the Crew. Replace
+            // current_quest with the new one so AI agents (and humans)
+            // immediately have a follow-up goal. Reward stays implicit
+            // for now — TODO: add reputation/inventory rewards in v0.171+.
+            entity.components["current_quest"] = serde_json::json!({
+                "id": "meet_the_crew",
+                "title": "Meet the crew",
+                "description": "Talk to every named crew member to learn who's aboard.",
+                "talked_to": [],
+                "total_npcs": total_npcs,
+                "complete": false,
+            });
         }
         Some(QuestProgress {
             quest_id: "explore_ship".to_string(),
+            step_id: room_id.to_string(),
             room_id: room_id.to_string(),
             visited_count,
+            total,
+            complete,
+        })
+    }
+
+    /// Total number of named crew NPCs (entities with both a `name` and a
+    /// `dialog` field). Drives the meet_the_crew quest goal.
+    fn crew_npc_count(&self) -> usize {
+        self.entities.values().filter(|e| {
+            e.components.get("name").is_some()
+                && e.components.get("dialog").is_some()
+        }).count()
+    }
+
+    /// Record that the player has spoken with an NPC. Returns Some(progress)
+    /// if this NPC was new for the meet_the_crew quest, None otherwise.
+    /// Auto-completes the quest when all NPCs have been spoken with.
+    pub fn record_npc_talk(
+        &mut self,
+        player_id: u64,
+        npc_name: &str,
+    ) -> Option<QuestProgress> {
+        let entity = self.entities.get_mut(&player_id)?;
+        let quest = entity.components.get_mut("current_quest")?;
+        if quest.get("id").and_then(|v| v.as_str()) != Some("meet_the_crew") {
+            return None;
+        }
+        if quest.get("complete").and_then(|v| v.as_bool()).unwrap_or(false) {
+            return None;
+        }
+        let talked = quest.get_mut("talked_to")?.as_array_mut()?;
+        if talked.iter().any(|v| v.as_str() == Some(npc_name)) {
+            return None;
+        }
+        talked.push(serde_json::Value::String(npc_name.to_string()));
+        let talked_count = talked.len();
+        let total = quest.get("total_npcs").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        let complete = total > 0 && talked_count >= total;
+        if complete {
+            quest["complete"] = serde_json::Value::Bool(true);
+        }
+        Some(QuestProgress {
+            quest_id: "meet_the_crew".to_string(),
+            step_id: npc_name.to_string(),
+            room_id: npc_name.to_string(), // alias for backward-compat
+            visited_count: talked_count,
             total,
             complete,
         })
@@ -750,7 +814,7 @@ impl GameWorld {
     /// Storage key for the persisted world snapshot. Bump the version suffix
     /// when entity spawn logic changes so old snapshots are ignored on load
     /// (otherwise persisted entities would shadow newly-added ambient NPCs).
-    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v5";
+    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v6";
 
     /// Save the world to the SQLite `server_state` table as a JSON blob.
     /// Called periodically from the tick loop. Static-ship fields (rooms,

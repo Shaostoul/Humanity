@@ -218,6 +218,15 @@
       "note": "PERSIST_KEY bumped to v5 since NPC component schema added 'greetings' field."
     },
     {
+      "id": "v0170-quest-chain",
+      "version": "0.170.0",
+      "feature": "Quest chain — Meet the Crew unlocks after Explore Ship",
+      "what_to_test": "Run `node scripts/ai-sample-client.js`. After explore_ship completes, watch for game_quest_unlocked event then the new meeting_crew phase that talks to each NPC.",
+      "expected": "Bot finishes the room tour, sees explore_ship complete, gets game_quest_unlocked for meet_the_crew, then revisits each room and talks to each NPC. Each talk fires game_quest_progress for meet_the_crew. After all 6 NPCs, meet_the_crew completes and bot disconnects.",
+      "category": "game-systems",
+      "note": "PERSIST_KEY bumped to v6 since player components schema added a chained quest. Old snapshots get a fresh quest on next reload."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

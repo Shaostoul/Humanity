@@ -197,20 +197,66 @@ ws.addEventListener('message', (ev) => {
     return;
   }
 
-  // Quest progress / completion events (v0.167.0). The relay sends private
+  // Quest progress / completion events (v0.167.0+). The relay sends private
   // game_quest_progress to the questing player on each new room visited and
-  // a public game_quest_completed when all rooms have been visited.
+  // a public game_quest_completed when all rooms have been visited. v0.170
+  // also chains explore_ship into meet_the_crew, broadcast as
+  // game_quest_unlocked.
   if (game.type === 'game_quest_progress' || game.type === 'game_quest_completed') {
     const tag = game.complete ? '✓ COMPLETE' : 'progress';
-    log(`Quest ${tag}`, `${game.quest_id} → entered ${game.room_id} (${game.visited_count}/${game.total})`);
-    visitedRooms.add(game.room_id);
-    if (game.complete && state === 'touring') {
-      console.log('\nQuest complete — disconnecting.');
+    const stepLabel = game.quest_id === 'meet_the_crew' ? 'talked to' : 'entered';
+    log(`Quest ${tag}`, `${game.quest_id} → ${stepLabel} ${game.step_id || game.room_id} (${game.visited_count}/${game.total})`);
+    if (game.quest_id === 'explore_ship') {
+      visitedRooms.add(game.room_id);
+    }
+    // explore_ship complete → switch to meeting_crew phase and start
+    // talking to NPCs in each room. Bot perceives the current room first.
+    if (game.complete && game.quest_id === 'explore_ship' && state === 'touring') {
+      state = 'meeting_crew';
+      console.log('\n→ explore_ship complete. Starting meet_the_crew phase.');
+      tourQueue = allRooms.map(r => r.id); // visit each room again to talk to NPC
+      setTimeout(() => sendNextCrewVisit(), 500);
+      return;
+    }
+    if (game.complete && game.quest_id === 'meet_the_crew') {
+      console.log('\nmeet_the_crew complete — disconnecting.');
       setTimeout(() => ws.close(), 500);
-    } else if (state === 'touring') {
+      return;
+    }
+    if (state === 'touring' && !game.complete) {
       // Move on to the next room after a short pause.
       setTimeout(sendNextTourStep, 300);
     }
+    return;
+  }
+
+  if (game.type === 'game_quest_unlocked') {
+    log('Quest UNLOCKED', `${game.quest?.id}: ${game.quest?.title} (goal ${game.quest?.total_npcs ?? game.quest?.total_rooms})`);
+    return;
+  }
+
+  // Meet-the-crew phase: bot teleports to a room, perceives, then talks
+  // to the resident NPC. Receives game_perception → finds NPC → interacts.
+  if (game.type === 'game_perception' && state === 'meeting_crew') {
+    const nearby = game.nearby_entities || [];
+    const npcTypes = ['navigator', 'medic', 'engineer', 'maintenance_bot', 'botanist', 'crewmate'];
+    const npc = nearby.find(e => npcTypes.includes(e.entity_type) && e.interactable);
+    if (npc) {
+      console.log(`→ Talking to ${npc.entity_type} for meet_the_crew`);
+      send({ type: 'game_interact', entity_id: npc.entity_id, action: 'talk' });
+    } else {
+      // No NPC in this room — move on.
+      setTimeout(sendNextCrewVisit, 200);
+    }
+    return;
+  }
+
+  if (game.type === 'game_interact_result' && state === 'meeting_crew') {
+    if (game.dialog_line) {
+      log('NPC dialog (crew quest)', `${game.speaker || 'NPC'}: "${game.dialog_line}"`);
+    }
+    // Move to next room after a short pause.
+    setTimeout(sendNextCrewVisit, 400);
     return;
   }
 
@@ -218,6 +264,27 @@ ws.addEventListener('message', (ev) => {
     console.error(`\n[ERROR] ${game.error}: ${game.message}`);
   }
 });
+
+/** Visit the next room and perceive so we can interact with its NPC. */
+function sendNextCrewVisit() {
+  while (tourQueue.length > 0) {
+    const roomId = tourQueue.shift();
+    const room = allRooms.find(r => r.id === roomId);
+    if (!room) continue;
+    console.log(`→ Visiting ${room.name} for meet_the_crew`);
+    send({
+      type: 'game_position_update',
+      position: room.center,
+      rotation: [0, 0, 0, 1],
+      velocity: [0, 0, 0],
+      timestamp: Date.now() / 1000,
+    });
+    setTimeout(() => send({ type: 'game_perceive', radius: 25 }), 200);
+    return;
+  }
+  console.log('\nNo more rooms to visit for meet_the_crew — disconnecting.');
+  setTimeout(() => ws.close(), 250);
+}
 
 /** Pop the next room off the tour queue and teleport the bot into it. */
 function sendNextTourStep() {
@@ -240,8 +307,8 @@ function sendNextTourStep() {
   setTimeout(() => ws.close(), 250);
 }
 
-// Safety net — anything stuck for >30 sec is a bug.
+// Safety net — anything stuck for >60 sec is a bug.
 setTimeout(() => {
   console.log('\nTimeout — disconnecting (was in state:', state, ')');
   ws.close();
-}, 30000);
+}, 60000);

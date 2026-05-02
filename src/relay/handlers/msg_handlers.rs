@@ -3113,6 +3113,7 @@ pub async fn handle_game_position_update(
             "type": event_type,
             "player_id": player_id,
             "quest_id": progress.quest_id,
+            "step_id": progress.step_id,
             "room_id": progress.room_id,
             "visited_count": progress.visited_count,
             "total": progress.total,
@@ -3125,6 +3126,23 @@ pub async fn handle_game_position_update(
             let _ = state.broadcast_tx.send(RelayMessage::System {
                 message: format!("__game__:{}", payload),
             });
+            // Notify the player about the freshly unlocked next quest by
+            // re-reading their current_quest from the world.
+            let world = state.game_world.read().await;
+            let next_quest = world
+                .entities
+                .get(&player_id)
+                .and_then(|e| e.components.get("current_quest"))
+                .cloned();
+            drop(world);
+            if let Some(q) = next_quest {
+                let unlock = serde_json::json!({
+                    "type": "game_quest_unlocked",
+                    "player_id": player_id,
+                    "quest": q,
+                });
+                send_game_private(state, my_key, &unlock).await;
+            }
         }
     }
 
@@ -3397,12 +3415,44 @@ pub async fn handle_game_interact(
     if let Some(line) = dialog_line {
         broadcast["dialog_line"] = serde_json::Value::String(line);
     }
-    if let Some(name) = speaker_name {
-        broadcast["speaker"] = serde_json::Value::String(name);
+    if let Some(ref name) = speaker_name {
+        broadcast["speaker"] = serde_json::Value::String(name.clone());
     }
     let _ = state.broadcast_tx.send(RelayMessage::System {
         message: format!("__game__:{}", broadcast),
     });
+
+    // Quest progress: record this conversation against the meet_the_crew
+    // quest if the player is on it. Only fires for entities with a `name`
+    // component (i.e. crew NPCs, not lockers / windows).
+    if let Some(npc_name) = speaker_name {
+        let mut world = state.game_world.write().await;
+        let progress = world.record_npc_talk(player_id, &npc_name);
+        drop(world);
+        if let Some(progress) = progress {
+            let event_type = if progress.complete {
+                "game_quest_completed"
+            } else {
+                "game_quest_progress"
+            };
+            let payload = serde_json::json!({
+                "type": event_type,
+                "player_id": player_id,
+                "quest_id": progress.quest_id,
+                "step_id": progress.step_id,
+                "room_id": progress.room_id,
+                "visited_count": progress.visited_count,
+                "total": progress.total,
+                "complete": progress.complete,
+            });
+            send_game_private(state, my_key, &payload).await;
+            if progress.complete {
+                let _ = state.broadcast_tx.send(RelayMessage::System {
+                    message: format!("__game__:{}", payload),
+                });
+            }
+        }
+    }
 }
 
 /// Handle an inventory query. Returns the player's inventory component.
