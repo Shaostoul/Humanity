@@ -498,6 +498,48 @@ pub struct Telescope {
     pub power: f32,
 }
 
+// ── Governance ──────────────────────────────────────────────
+
+/// An active vote/proposal in a settlement. `GovernanceSystem::tick` resolves
+/// it when `deadline_seconds_remaining` reaches 0.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveVote {
+    /// Proposal text or id from data/governance.ron.
+    pub proposal: String,
+    /// Game-seconds until the vote closes.
+    pub deadline_seconds_remaining: f32,
+    /// Yes votes accumulated so far.
+    pub yes: u32,
+    /// No votes.
+    pub no: u32,
+    /// Whether the vote has been resolved (set to true on close).
+    #[serde(default)]
+    pub resolved: bool,
+}
+
+// ── Creative Arts ───────────────────────────────────────────
+
+/// An artistic work in progress (painting, song, sculpture, performance).
+/// `CreativeArtsSystem::tick` advances `progress` toward 1.0 at
+/// `progress_per_day` rate while `working` is true. On completion, `quality`
+/// is computed from creator skill (game code sets this when starting work).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreativeWork {
+    /// Output type id from data/creative_arts.ron::outputs[].id.
+    pub work_type: String,
+    /// Progress toward completion (0.0 to 1.0).
+    pub progress: f32,
+    /// Days to complete one unit of work at full speed.
+    pub days_to_complete: f32,
+    /// Quality 0.0 to 1.0 — set on creation by skill check.
+    pub quality: f32,
+    /// Whether the artist is actively working on it.
+    pub working: bool,
+    /// Whether the work has been finished.
+    #[serde(default)]
+    pub completed: bool,
+}
+
 // ── Genetics ────────────────────────────────────────────────
 
 /// Diploid genome — one allele pair per trait.
