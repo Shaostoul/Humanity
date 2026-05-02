@@ -467,6 +467,37 @@ impl Default for SoilPatch {
     fn default() -> Self { Self { fertility: 0.5, soil_type: "loam".into() } }
 }
 
+// ── Oceanography / Marine Resources ─────────────────────────
+
+/// A marine resource population (fish stock, kelp bed, oyster reef).
+/// `OceanographySystem::tick` regenerates the population toward `carrying_capacity`
+/// at `regen_rate_per_day` while not at cap. Harvest interactions deplete it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarineResource {
+    /// Resource id from `data/oceanography.ron::marine_resources[].id`.
+    pub resource_id: String,
+    /// Current population in kg (or count, as the resource type defines).
+    pub current: f32,
+    /// Maximum sustainable population.
+    pub carrying_capacity: f32,
+    /// Per-day regeneration rate when below capacity (kg/day).
+    pub regen_per_day: f32,
+}
+
+// ── Astronomy / Telescopes ──────────────────────────────────
+
+/// A telescope or sensor array. Each tick, it accumulates `observation_seconds`
+/// while pointed at a target. Useful for science / navigation gameplay.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Telescope {
+    /// Currently aimed target id (e.g. "earth", "mars", "alpha_centauri") or empty.
+    pub target_id: String,
+    /// Game-seconds of accumulated observation time on the current target.
+    pub observation_seconds: f32,
+    /// Magnification / sensitivity (1.0 = naked-eye, 1000.0 = research-grade).
+    pub power: f32,
+}
+
 // ── Genetics ────────────────────────────────────────────────
 
 /// Diploid genome — one allele pair per trait.
