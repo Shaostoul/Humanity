@@ -245,6 +245,15 @@
       "note": "PERSIST_KEY bumped to v8 since equipment entities gained 'storage' boolean. Validates the quest framework chains an arbitrary number of quests."
     },
     {
+      "id": "v0173-rgb-nav-separator",
+      "version": "0.173.0",
+      "feature": "Nav RGB channeling separator + active button consistency",
+      "what_to_test": "Switch to two-tier nav via [▤]. Watch the thin colored line under the top tier and under the sub tier — it should slowly cycle through the RGB spectrum. Click each top category — the active one's border should also be the same channeling RGB. Switch back to legacy via [≡] — should now ALSO have the channeling line under the single-row nav.",
+      "expected": "Both nav layouts have a 3px-tall RGB separator line directly below them, slowly shifting through the hue spectrum. In two-tier: a separator under both the top tier AND the sub tier. Active top-category button (Reality/Sim/Tools/Settings) has an animated RGB border matching the active sub-page button. The channeling color stays in lockstep across all attention-grabbing UI elements.",
+      "category": "ui",
+      "note": "Future: when player is being attacked the channeling color flips from cyclic RGB to a pulsing red. The state field exists (state.attack_pulse_active) but no combat system sets it yet. Hand-test with a debug toggle once added."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

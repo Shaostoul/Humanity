@@ -863,6 +863,14 @@ pub struct GuiState {
     /// Active top-tier category id when nav_two_tier is on.
     /// One of: "reality", "sim", "tools", "settings".
     pub nav_top_category: String,
+    /// True when the player is taking damage / under attack — flips the
+    /// nav RGB separator from cyclic spectrum to a pulsing red so the
+    /// player can tell mid-menu without sound. Set by combat / damage
+    /// systems; cleared after a short cooldown.
+    pub attack_pulse_active: bool,
+    /// game_time when attack_pulse_active was last set; used to auto-clear
+    /// after a few seconds of no new damage events.
+    pub attack_pulse_last_hit_at: f64,
     /// Onboarding concept cards (`data/onboarding/core_concepts.json`).
     pub onboarding_concepts: Vec<OnboardingConcept>,
     /// Onboarding core-page shortcuts (`data/onboarding/core_pages.json`).
@@ -1185,6 +1193,8 @@ impl Default for GuiState {
             browser_filter: "all".to_string(),
             nav_two_tier: false,
             nav_top_category: "reality".to_string(),
+            attack_pulse_active: false,
+            attack_pulse_last_hit_at: 0.0,
             onboarding_concepts: Vec::new(),
             onboarding_core_pages: Vec::new(),
             ai_usage_filters: AiUsageFilters::default(),

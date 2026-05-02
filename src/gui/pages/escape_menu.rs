@@ -38,7 +38,8 @@ pub fn draw_nav_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 /// Legacy single-row RGB nav bar. Same UI as before — red identity / green
 /// contextual / blue system groups + Real/Sim toggle on the right, plus a
 /// new `[▤]` button just before the help "?" that switches to the two-tier
-/// preview layout.
+/// preview layout. Now also draws an RGB channeling separator below itself
+/// so the design language matches the two-tier layout.
 fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Keep repainting so the RGB channeling animation stays smooth
     ctx.request_repaint();
@@ -46,6 +47,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
     let accent = theme.accent();
     let text_muted = theme.text_muted();
     let border = theme.border();
+    let attack_pulse = state.attack_pulse_active;
 
     egui::TopBottomPanel::top("escape_nav_bar")
         .frame(Frame::none().fill(theme.bg_card()).inner_margin(egui::Margin::symmetric(8, 4)))
@@ -214,6 +216,10 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 });
             });
         });
+
+    // RGB channeling separator below the nav — matches the two-tier
+    // layout's separators so the design language is consistent.
+    rgb_separator(ctx, theme, "nav_one_tier_sep", attack_pulse);
 }
 
 
@@ -235,6 +241,38 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color32 {
     Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
 }
 
+/// Active-element "channeling" color: cycles through the RGB spectrum
+/// in normal mode, or pulses red when the player is being attacked.
+/// Shared by active nav buttons + the RGB separator lines so all
+/// attention-grabbing UI elements stay in lockstep.
+pub fn channeling_color(time: f32, attack_pulse: bool) -> Color32 {
+    if attack_pulse {
+        // Pulse between bright red and dark red at ~2 Hz.
+        let t = (time * 4.0).sin() * 0.5 + 0.5; // 0.0..1.0
+        let v = 0.55 + 0.45 * t;                 // 0.55..1.0
+        Color32::from_rgb((v * 255.0) as u8, 0, 0)
+    } else {
+        let hue = (time * 0.3) % 1.0;
+        hsv_to_rgb(hue, 0.9, 1.0)
+    }
+}
+
+/// Thin horizontal separator panel that paints the channeling color
+/// (RGB cycling normally, red pulse on attack). Used between the top
+/// menu / sub menu / page area in the two-tier nav.
+fn rgb_separator(ctx: &egui::Context, theme: &Theme, panel_id: &'static str, attack_pulse: bool) {
+    egui::TopBottomPanel::top(panel_id)
+        .frame(Frame::none().fill(theme.bg_primary()).inner_margin(0.0))
+        .exact_height(3.0)
+        .show_separator_line(false)
+        .show(ctx, |ui| {
+            let time = ui.ctx().input(|i| i.time) as f32;
+            let color = channeling_color(time, attack_pulse);
+            let rect = ui.max_rect();
+            ui.painter().rect_filled(rect, Rounding::ZERO, color);
+        });
+}
+
 /// Draw a group of nav buttons with border-based visual language.
 ///
 /// Border states (from ops.html Color Reference):
@@ -245,6 +283,7 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color32 {
 /// Group color subtly tints the button background.
 fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: Color32, state: &mut GuiState) {
     let time = ui.ctx().input(|i| i.time) as f32;
+    let attack_pulse = state.attack_pulse_active;
 
     for item in items {
         let is_active = std::mem::discriminant(&state.active_page)
@@ -259,11 +298,10 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
             Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 10)
         };
 
-        // Border: active = animated RGB, default = thin group color
+        // Border: active = animated channeling color (RGB cycle or red
+        // pulse on attack), default = thin group color.
         let border_stroke = if is_active {
-            let hue = (time * 0.3) % 1.0;
-            let rgb = hsv_to_rgb(hue, 0.9, 1.0);
-            Stroke::new(2.0, rgb)
+            Stroke::new(2.0, channeling_color(time, attack_pulse))
         } else {
             Stroke::new(1.0, Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 60))
         };
@@ -389,8 +427,10 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
     let accent = theme.accent();
     let text_muted = theme.text_muted();
     let border = theme.border();
+    let time = ctx.input(|i| i.time) as f32;
+    let attack_pulse = state.attack_pulse_active;
 
-    // ── Top tier: 4 wide category tabs ──
+    // ── Top tier: 4 wide fixed category tabs ──
     egui::TopBottomPanel::top("nav_two_tier_top")
         .frame(Frame::none().fill(theme.bg_card()).inner_margin(egui::Margin::symmetric(8, 6)))
         .show(ctx, |ui| {
@@ -417,8 +457,10 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                         Color32::from_rgba_unmultiplied(cat.color.r(), cat.color.g(), cat.color.b(), 14)
                     };
                     let fg = if is_active { Color32::WHITE } else { text_muted };
+                    // Active = channeling RGB (or red pulse on attack);
+                    // inactive = thin tinted border in the category color.
                     let stroke = if is_active {
-                        Stroke::new(2.0, cat.color)
+                        Stroke::new(2.0, channeling_color(time, attack_pulse))
                     } else {
                         Stroke::new(1.0, Color32::from_rgba_unmultiplied(cat.color.r(), cat.color.g(), cat.color.b(), 80))
                     };
@@ -454,6 +496,9 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
             });
         });
 
+    // ── RGB separator between top tier and sub tier ──
+    rgb_separator(ctx, theme, "nav_two_tier_sep_top", attack_pulse);
+
     // ── Sub tier: pages within the active top category ──
     egui::TopBottomPanel::top("nav_two_tier_sub")
         .frame(
@@ -478,4 +523,7 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 }
             });
         });
+
+    // ── RGB separator between sub tier and page area ──
+    rgb_separator(ctx, theme, "nav_two_tier_sep_sub", attack_pulse);
 }
