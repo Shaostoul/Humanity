@@ -3126,15 +3126,26 @@ pub async fn handle_game_position_update(
             let _ = state.broadcast_tx.send(RelayMessage::System {
                 message: format!("__game__:{}", payload),
             });
-            // Notify the player about the freshly unlocked next quest by
-            // re-reading their current_quest from the world.
-            let world = state.game_world.read().await;
-            let next_quest = world
-                .entities
-                .get(&player_id)
-                .and_then(|e| e.components.get("current_quest"))
-                .cloned();
+            // Order matters: apply_quest_reward reads the current_quest
+            // (still explore_ship) → fires reward → chain_next_quest swaps
+            // it to meet_the_crew → unlock event surfaces the new quest.
+            let mut world = state.game_world.write().await;
+            let reward = world.apply_quest_reward(player_id);
+            let next_quest = world.chain_next_quest(player_id);
             drop(world);
+            if let Some(r) = reward {
+                let reward_payload = serde_json::json!({
+                    "type": "game_quest_reward",
+                    "player_id": player_id,
+                    "quest_id": r.quest_id,
+                    "xp": r.xp,
+                    "reputation": r.reputation,
+                    "message": r.message,
+                    "xp_total": r.xp_total,
+                    "reputation_total": r.reputation_total,
+                });
+                send_game_private(state, my_key, &reward_payload).await;
+            }
             if let Some(q) = next_quest {
                 let unlock = serde_json::json!({
                     "type": "game_quest_unlocked",
@@ -3428,6 +3439,16 @@ pub async fn handle_game_interact(
     if let Some(npc_name) = speaker_name {
         let mut world = state.game_world.write().await;
         let progress = world.record_npc_talk(player_id, &npc_name);
+        // Apply reward + chain ONLY when the talk completed the quest. We
+        // grab them inside the same write guard so the reward reads the
+        // pre-chain quest data.
+        let reward_and_next = if progress.as_ref().map_or(false, |p| p.complete) {
+            let r = world.apply_quest_reward(player_id);
+            let n = world.chain_next_quest(player_id);
+            Some((r, n))
+        } else {
+            None
+        };
         drop(world);
         if let Some(progress) = progress {
             let event_type = if progress.complete {
@@ -3450,6 +3471,29 @@ pub async fn handle_game_interact(
                 let _ = state.broadcast_tx.send(RelayMessage::System {
                     message: format!("__game__:{}", payload),
                 });
+            }
+        }
+        if let Some((reward, next)) = reward_and_next {
+            if let Some(r) = reward {
+                let reward_payload = serde_json::json!({
+                    "type": "game_quest_reward",
+                    "player_id": player_id,
+                    "quest_id": r.quest_id,
+                    "xp": r.xp,
+                    "reputation": r.reputation,
+                    "message": r.message,
+                    "xp_total": r.xp_total,
+                    "reputation_total": r.reputation_total,
+                });
+                send_game_private(state, my_key, &reward_payload).await;
+            }
+            if let Some(q) = next {
+                let unlock = serde_json::json!({
+                    "type": "game_quest_unlocked",
+                    "player_id": player_id,
+                    "quest": q,
+                });
+                send_game_private(state, my_key, &unlock).await;
             }
         }
     }

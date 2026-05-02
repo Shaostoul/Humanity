@@ -237,6 +237,13 @@ ws.addEventListener('message', (ev) => {
     return;
   }
 
+  // Quest rewards (v0.171.0). Private event with xp + reputation deltas
+  // and post-application running totals.
+  if (game.type === 'game_quest_reward') {
+    log('Quest REWARD', `${game.quest_id} → +${game.xp} XP, +${game.reputation} rep (totals: ${game.xp_total} XP / ${game.reputation_total} rep)\n  "${game.message}"`);
+    return;
+  }
+
   // Meet-the-crew phase: bot teleports to a room, perceives, then talks
   // to the resident NPC. Receives game_perception → finds NPC → interacts.
   if (game.type === 'game_perception' && state === 'meeting_crew') {

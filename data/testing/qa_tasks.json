@@ -227,6 +227,15 @@
       "note": "PERSIST_KEY bumped to v6 since player components schema added a chained quest. Old snapshots get a fresh quest on next reload."
     },
     {
+      "id": "v0171-quest-rewards",
+      "version": "0.171.0",
+      "feature": "Quest rewards — XP + reputation",
+      "what_to_test": "Run `node scripts/ai-sample-client.js`. Watch for game_quest_reward events when each quest completes.",
+      "expected": "On explore_ship complete: '+100 XP, +5 rep (totals: 100/5)' with message 'You're getting your bearings...'. On meet_the_crew complete: '+200 XP, +10 rep (totals: 300/15)' with 'You know the crew now. They know you.' Player components.xp/reputation accumulate across the session.",
+      "category": "game-systems",
+      "note": "PERSIST_KEY bumped to v7 since player gained xp/reputation/completed_quests fields."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

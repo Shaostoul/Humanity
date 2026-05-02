@@ -124,6 +124,20 @@ pub struct QuestProgress {
     pub complete: bool,
 }
 
+/// Reward payload returned by `apply_quest_reward` when a quest finishes.
+/// Drives the `game_quest_reward` private event so the player sees what
+/// they earned. xp_total / reputation_total are the post-application stats
+/// so AI agents don't need a follow-up query to read them.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuestReward {
+    pub quest_id: String,
+    pub xp: u64,
+    pub reputation: u64,
+    pub message: String,
+    pub xp_total: u64,
+    pub reputation_total: u64,
+}
+
 // ── Room equipment definitions (from data/rooms.ron) ──
 
 fn room_equipment(room_type: &str) -> Vec<String> {
@@ -481,6 +495,10 @@ impl GameWorld {
                 "health": 100.0,
                 "stamina": 100.0,
                 "inventory": [],
+                // RPG-ish progression. Earned by completing quests.
+                "xp": 0,
+                "reputation": 0,
+                "completed_quests": [],
                 "current_quest": {
                     "id": "explore_ship",
                     "title": "Find your bearings",
@@ -488,6 +506,11 @@ impl GameWorld {
                     "visited": [spawn_room_id],
                     "total_rooms": total_rooms,
                     "complete": false,
+                    "reward": {
+                        "xp": 100,
+                        "reputation": 5,
+                        "message": "You're getting your bearings. The crew nods as you pass.",
+                    },
                 },
             }),
             last_update: self.game_time,
@@ -521,13 +544,14 @@ impl GameWorld {
     /// Returns Some(progress) if this visit was new (drives the
     /// `game_quest_progress` / `game_quest_completed` broadcast), None if
     /// the room was already visited or the player has no explore_ship quest.
-    /// On completion, automatically chains into the meet_the_crew quest.
+    /// Does NOT chain to the next quest — caller should call
+    /// `apply_quest_reward` then `chain_next_quest` after a completion so
+    /// the reward fires for the right quest.
     pub fn record_room_visit(
         &mut self,
         player_id: u64,
         room_id: &str,
     ) -> Option<QuestProgress> {
-        let total_npcs = self.crew_npc_count();
         let entity = self.entities.get_mut(&player_id)?;
         let quest = entity.components.get_mut("current_quest")?;
         if quest.get("id").and_then(|v| v.as_str()) != Some("explore_ship") {
@@ -546,18 +570,6 @@ impl GameWorld {
         let complete = total > 0 && visited_count >= total;
         if complete {
             quest["complete"] = serde_json::Value::Bool(true);
-            // Chain into the next quest: Meet the Crew. Replace
-            // current_quest with the new one so AI agents (and humans)
-            // immediately have a follow-up goal. Reward stays implicit
-            // for now — TODO: add reputation/inventory rewards in v0.171+.
-            entity.components["current_quest"] = serde_json::json!({
-                "id": "meet_the_crew",
-                "title": "Meet the crew",
-                "description": "Talk to every named crew member to learn who's aboard.",
-                "talked_to": [],
-                "total_npcs": total_npcs,
-                "complete": false,
-            });
         }
         Some(QuestProgress {
             quest_id: "explore_ship".to_string(),
@@ -567,6 +579,47 @@ impl GameWorld {
             total,
             complete,
         })
+    }
+
+    /// Promote the player to the next quest in the chain after the current
+    /// one completes. Returns the new quest payload if a chain exists, None
+    /// if the chain has ended. Idempotent: only fires when current_quest is
+    /// complete and no follow-up has been set.
+    pub fn chain_next_quest(&mut self, player_id: u64) -> Option<serde_json::Value> {
+        let total_npcs = self.crew_npc_count();
+        let entity = self.entities.get_mut(&player_id)?;
+        let current_id = entity.components.get("current_quest")
+            .and_then(|q| q.get("id"))
+            .and_then(|v| v.as_str())?
+            .to_string();
+        let complete = entity.components.get("current_quest")
+            .and_then(|q| q.get("complete"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if !complete { return None; }
+
+        let next = match current_id.as_str() {
+            "explore_ship" => Some(serde_json::json!({
+                "id": "meet_the_crew",
+                "title": "Meet the crew",
+                "description": "Talk to every named crew member to learn who's aboard.",
+                "talked_to": [],
+                "total_npcs": total_npcs,
+                "complete": false,
+                "reward": {
+                    "xp": 200,
+                    "reputation": 10,
+                    "message": "You know the crew now. They know you.",
+                },
+            })),
+            // meet_the_crew is the current end of the starter chain. Future
+            // quests can be added here without touching the handlers.
+            _ => None,
+        };
+        if let Some(ref q) = next {
+            entity.components["current_quest"] = q.clone();
+        }
+        next
     }
 
     /// Total number of named crew NPCs (entities with both a `name` and a
@@ -612,6 +665,54 @@ impl GameWorld {
             visited_count: talked_count,
             total,
             complete,
+        })
+    }
+
+    /// Apply the reward block from a player's just-completed current_quest:
+    /// adds xp + reputation to the player's stats, appends the quest id to
+    /// `completed_quests`, and returns the QuestReward (with running totals).
+    /// Returns None if the player has no current_quest or it isn't complete.
+    pub fn apply_quest_reward(&mut self, player_id: u64) -> Option<QuestReward> {
+        let entity = self.entities.get_mut(&player_id)?;
+
+        // Snapshot the quest reward before mutating anything else.
+        let (quest_id, xp, rep, message) = {
+            let quest = entity.components.get("current_quest")?;
+            if !quest.get("complete").and_then(|v| v.as_bool()).unwrap_or(false) {
+                return None;
+            }
+            let quest_id = quest.get("id")?.as_str()?.to_string();
+            let reward = quest.get("reward")?;
+            let xp = reward.get("xp").and_then(|v| v.as_u64()).unwrap_or(0);
+            let rep = reward.get("reputation").and_then(|v| v.as_u64()).unwrap_or(0);
+            let message = reward.get("message").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            (quest_id, xp, rep, message)
+        };
+
+        // Apply to player stats.
+        let cur_xp = entity.components.get("xp").and_then(|v| v.as_u64()).unwrap_or(0);
+        let cur_rep = entity.components.get("reputation").and_then(|v| v.as_u64()).unwrap_or(0);
+        let xp_total = cur_xp + xp;
+        let reputation_total = cur_rep + rep;
+        entity.components["xp"] = serde_json::json!(xp_total);
+        entity.components["reputation"] = serde_json::json!(reputation_total);
+
+        // Track completion. completed_quests is a Vec<String>.
+        if let Some(list) = entity.components.get_mut("completed_quests")
+            .and_then(|v| v.as_array_mut())
+        {
+            if !list.iter().any(|v| v.as_str() == Some(quest_id.as_str())) {
+                list.push(serde_json::Value::String(quest_id.clone()));
+            }
+        }
+
+        Some(QuestReward {
+            quest_id,
+            xp,
+            reputation: rep,
+            message,
+            xp_total,
+            reputation_total,
         })
     }
 
@@ -814,7 +915,7 @@ impl GameWorld {
     /// Storage key for the persisted world snapshot. Bump the version suffix
     /// when entity spawn logic changes so old snapshots are ignored on load
     /// (otherwise persisted entities would shadow newly-added ambient NPCs).
-    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v6";
+    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v7";
 
     /// Save the world to the SQLite `server_state` table as a JSON blob.
     /// Called periodically from the tick loop. Static-ship fields (rooms,
