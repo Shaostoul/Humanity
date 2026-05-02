@@ -1323,9 +1323,9 @@
     },
     {
       "path": "/download.html",
-      "hash": "sha256:69806bf026f54c89b4c196df3938eac106071ed007e0b496437519e20c24c144",
+      "hash": "sha256:74b004378afb48435d3132ba9cae9f8b956fea7c4c329a8ce0e9f4da43f66431",
       "size": 40212,
-      "modified": 1777684555
+      "modified": 1777684952
     },
     {
       "path": "/files.html",
@@ -1395,9 +1395,9 @@
     },
     {
       "path": "/ops.html",
-      "hash": "sha256:5bc006066cb213dc940a527dc7f4f673b20bb496a74a1024e923beb27d53695e",
+      "hash": "sha256:fce4de3695b129bddc12b26c0d6362f28225d937754c0b242153ac46978263dd",
       "size": 18189,
-      "modified": 1777684555
+      "modified": 1777684952
     },
     {
       "path": "/pages/admin-app.js",
@@ -1461,9 +1461,9 @@
     },
     {
       "path": "/pages/settings-app.js",
-      "hash": "sha256:02d268c9dbef9761f0cb4636b0459be9d665ac0651b25c80959245bd72d7c9e0",
+      "hash": "sha256:f9c2631a1f35b8f634fdbb42274325668f2e5920a84c20e80f647b4bb7d3b8ce",
       "size": 96284,
-      "modified": 1777684555
+      "modified": 1777684952
     },
     {
       "path": "/pages/tasks-app.js",
@@ -1659,21 +1659,21 @@
     },
     {
       "path": "/shared/shell.js",
-      "hash": "sha256:240cf8c59d0c4b9a7e83251770726394dd50411d8b70e84f0df38d2af7e50e3b",
+      "hash": "sha256:c22d23d9e15970f95d775639fa26739cf2189806b90eb02e57eee9594aa75f46",
       "size": 62631,
-      "modified": 1777684555
+      "modified": 1777684952
     },
     {
       "path": "/shared/sw.js",
-      "hash": "sha256:58532a5144c1df6c5a0f4f5a0446ee8eb00ca3635d0d207c57cacbdc9988072b",
+      "hash": "sha256:c396ba2742400a50e8c8631fd9341a572e0aeab2fb6f9fd8ac22217f9e07db2e",
       "size": 4495,
-      "modified": 1777684555
+      "modified": 1777684952
     },
     {
       "path": "/shared/theme.css",
       "hash": "sha256:22ab5f1d2df4756f7ab91f5fdc212b35b0de1b2fa11003c0cbc7bf2a7273d8a3",
       "size": 6399,
-      "modified": 1777684555
+      "modified": 1777684952
     },
     {
       "path": "/shared/wallet.js",
@@ -1721,7 +1721,7 @@
       "path": "/index.html",
       "hash": "sha256:807ef9ccfde6574793792f240c8ca2fbab9472f7b7c766a7804bff183fa12a23",
       "size": 208,
-      "modified": 1777684558
+      "modified": 1777684955
     }
   ],
   "total_size": 15704939,

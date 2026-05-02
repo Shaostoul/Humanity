@@ -222,6 +222,14 @@ pub async fn run_relay() {
         });
     }
 
+    // Restore persisted GameWorld snapshot (player positions, world entities,
+    // game_time) — survives across relay restarts. Static ship layout is reloaded
+    // from RON on every boot so layout edits propagate.
+    {
+        let mut world = state.game_world.write().await;
+        world.restore_from_db(&state.db);
+    }
+
     // Game world simulation tick loop: 20 ticks/sec (50ms), only when players connected.
     {
         let game_state = state.clone();
@@ -233,6 +241,23 @@ pub async fn run_relay() {
                 let mut world = game_state.game_world.write().await;
                 if world.player_count() > 0 {
                     world.tick(0.05); // 50ms = 0.05 seconds
+                }
+                drop(world);
+            }
+        });
+    }
+
+    // Periodic save: every 30 seconds, persist GameWorld to SQLite so
+    // player movement / interactions / game_time survive a relay restart.
+    {
+        let game_state = state.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
+            loop {
+                interval.tick().await;
+                let world = game_state.game_world.read().await;
+                if let Err(e) = world.save_to_db(&game_state.db) {
+                    tracing::warn!("Game world periodic save failed: {e}");
                 }
                 drop(world);
             }

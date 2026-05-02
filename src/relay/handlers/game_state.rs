@@ -25,7 +25,7 @@ pub struct EntitySnapshot {
 }
 
 /// A game entity tracked by the server.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameEntity {
     pub entity_type: String,
     pub position: [f32; 3],
@@ -501,6 +501,68 @@ impl GameWorld {
         self.rooms.iter()
             .find(|r| r.id == room_id)
             .map(|r| self.room_info(r))
+    }
+
+    // ── Persistence ────────────────────────────────────────────
+
+    /// Storage key for the persisted world snapshot.
+    pub const PERSIST_KEY: &'static str = "game_world_snapshot";
+
+    /// Save the world to the SQLite `server_state` table as a JSON blob.
+    /// Called periodically from the tick loop. Static-ship fields (rooms,
+    /// ship_name) are NOT saved — those reload from RON on every startup.
+    pub fn save_to_db(&self, db: &crate::relay::storage::Storage) -> Result<(), String> {
+        #[derive(Serialize)]
+        struct Snapshot<'a> {
+            entities: &'a HashMap<u64, GameEntity>,
+            next_entity_id: u64,
+            game_time: f64,
+        }
+        let snap = Snapshot {
+            entities: &self.entities,
+            next_entity_id: self.next_entity_id,
+            game_time: self.game_time,
+        };
+        let json = serde_json::to_string(&snap).map_err(|e| format!("serialize: {e}"))?;
+        db.set_state(Self::PERSIST_KEY, &json).map_err(|e| format!("save: {e}"))?;
+        Ok(())
+    }
+
+    /// Restore world entities from the SQLite snapshot if one exists.
+    /// Returns true if a snapshot was found and applied. Replaces freshly
+    /// populated ship entities with the persisted set so player movement
+    /// and inventory survive relay restarts.
+    pub fn restore_from_db(&mut self, db: &crate::relay::storage::Storage) -> bool {
+        #[derive(Deserialize)]
+        struct Snapshot {
+            entities: HashMap<u64, GameEntity>,
+            next_entity_id: u64,
+            game_time: f64,
+        }
+        let json = match db.get_state(Self::PERSIST_KEY) {
+            Ok(Some(s)) => s,
+            Ok(None) => return false,
+            Err(e) => {
+                tracing::warn!("Could not read game_world_snapshot: {e}");
+                return false;
+            }
+        };
+        match serde_json::from_str::<Snapshot>(&json) {
+            Ok(snap) => {
+                self.entities = snap.entities;
+                self.next_entity_id = snap.next_entity_id.max(self.next_entity_id);
+                self.game_time = snap.game_time;
+                tracing::info!(
+                    "Restored game world snapshot: {} entities, game_time={:.2}",
+                    self.entities.len(), self.game_time
+                );
+                true
+            }
+            Err(e) => {
+                tracing::warn!("Could not parse game_world_snapshot: {e}");
+                false
+            }
+        }
     }
 }
 
