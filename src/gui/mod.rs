@@ -1191,7 +1191,11 @@ impl Default for GuiState {
             qa_test_filter: "all".to_string(),
             browser_bookmarks: Vec::new(),
             browser_filter: "all".to_string(),
-            nav_two_tier: false,
+            // v0.174.0: default to two-tier nav for fresh installs. Existing
+            // users with `nav_two_tier=false` saved in config keep their
+            // legacy layout until they flip via [▤]; new sessions land on
+            // the two-tier layout immediately.
+            nav_two_tier: true,
             nav_top_category: "reality".to_string(),
             attack_pulse_active: false,
             attack_pulse_last_hit_at: 0.0,

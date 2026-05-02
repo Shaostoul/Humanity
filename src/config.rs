@@ -91,10 +91,12 @@ pub struct AppConfig {
     #[serde(default)]
     pub donate_addresses: Vec<DonateAddressConfig>,
 
-    /// Two-tier nav preview opt-in (v0.166.0). When true, the nav bar uses
-    /// the Reality / Sim / Tools / Settings layout with sub-pages. Default
-    /// false keeps the legacy single-row nav.
-    #[serde(default)]
+    /// Two-tier nav layout (v0.166.0, default flipped to true in v0.174.0).
+    /// When true, the nav bar uses the Reality / Sim / Tools / Settings
+    /// layout with sub-pages. When false, falls back to the legacy
+    /// single-row nav. Fresh installs default to true; existing users with
+    /// the field already saved keep their previous choice.
+    #[serde(default = "default_true")]
     pub nav_two_tier: bool,
     /// Active top-tier category when nav_two_tier is on.
     #[serde(default = "default_nav_top_category")]

@@ -254,6 +254,14 @@
       "note": "Future: when player is being attacked the channeling color flips from cyclic RGB to a pulsing red. The state field exists (state.attack_pulse_active) but no combat system sets it yet. Hand-test with a debug toggle once added."
     },
     {
+      "id": "v0174-two-tier-default",
+      "version": "0.174.0",
+      "feature": "Two-tier nav is the default layout",
+      "what_to_test": "Delete (or rename) `config.json` next to the exe and relaunch — fresh install sims a new user. App should open on the two-tier nav (Reality / Sim / Tools / Settings + sub tier). If you've previously toggled to legacy and saved it, your choice is respected — flip via the [▤] button to revisit two-tier.",
+      "expected": "Fresh install: two-tier nav active out of the gate. Existing config: previous nav_two_tier value honored. Toggle button still works in both directions.",
+      "category": "ui"
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",
