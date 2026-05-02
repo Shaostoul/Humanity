@@ -110,6 +110,75 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if state.chat_search_open {
         draw_search_modal(ctx, theme, state);
     }
+
+    // ── PINS MODAL ──
+    if state.chat_pins_open {
+        draw_pins_modal(ctx, theme, state);
+    }
+}
+
+fn draw_pins_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let mut open = state.chat_pins_open;
+    let channel = state.chat_active_channel.clone();
+    let title = format!("Pinned in #{}", channel);
+    widgets::dialog(ctx, theme, "chat_pins_dialog", &title, &mut open, |ui| {
+        ui.set_min_width(520.0);
+
+        // Snapshot the pin list to avoid borrow conflict if rendering triggers
+        // state mutations (e.g. clicking a pin to jump to the message).
+        let pins = state.chat_pins.get(&channel).cloned().unwrap_or_default();
+        if pins.is_empty() {
+            ui.label(
+                RichText::new("No pinned messages in this channel.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            return;
+        }
+
+        ui.label(
+            RichText::new(format!("{} pin(s) — pin/unpin via the 📌 button on each message.", pins.len()))
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        ui.add_space(theme.spacing_sm);
+
+        ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
+            for p in &pins {
+                widgets::card(ui, theme, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(&p.from_name)
+                                .size(theme.font_size_body)
+                                .color(theme.text_primary())
+                                .strong(),
+                        );
+                        ui.label(
+                            RichText::new(format_timestamp(p.original_timestamp))
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(
+                                RichText::new(format!("pinned by {}", p.pinned_by))
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            );
+                        });
+                    });
+                    ui.label(
+                        RichText::new(&p.content)
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    );
+                });
+                ui.add_space(theme.spacing_xs);
+            }
+        });
+    });
+    if !open {
+        state.chat_pins_open = false;
+    }
 }
 
 fn draw_search_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
@@ -1598,6 +1667,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 let mut pending_reactions: Vec<(String, u64, String)> = Vec::new();
                 // Reply button clicks: defer setting state.chat_reply_to until after the loop.
                 let mut pending_reply: Option<crate::gui::ReplyContext> = None;
+                // Pin button clicks — defer pin_request WS sends.
+                let mut pending_pins: Vec<(String, String, String, u64)> = Vec::new();
 
                 // Remove default item spacing so rows sit flush
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
@@ -1807,6 +1878,36 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 timestamp_ms: msg.timestamp_ms,
                             });
                         }
+
+                        x += reply_w + 4.0;
+
+                        // Pin button — sends pin_request to the relay.
+                        let pin_w = 24.0;
+                        let pin_rect = egui::Rect::from_min_size(
+                            egui::pos2(x, y - 9.0),
+                            Vec2::new(pin_w, 18.0),
+                        );
+                        ui.painter().rect_filled(pin_rect, Rounding::same(9), theme.bg_card());
+                        ui.painter().text(
+                            pin_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "📌",
+                            egui::FontId::proportional(theme.font_size_small),
+                            theme.text_muted(),
+                        );
+                        let pin_resp = ui.interact(
+                            pin_rect,
+                            egui::Id::new(("pin_btn", msg.timestamp_ms)),
+                            egui::Sense::click(),
+                        );
+                        if pin_resp.clicked() && msg.timestamp_ms > 0 {
+                            pending_pins.push((
+                                msg.sender_key.clone(),
+                                msg.sender_name.clone(),
+                                msg.content.clone(),
+                                msg.timestamp_ms,
+                            ));
+                        }
                     }
 
                     // Render each attached image as a clickable thumbnail
@@ -1901,6 +2002,23 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     state.chat_reply_to = Some(ctx);
                 }
 
+                // Send pending pin requests via WebSocket.
+                for (from_key, from_name, content, ts) in pending_pins {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let r = serde_json::json!({
+                                "type": "pin_request",
+                                "from_key": from_key,
+                                "from_name": from_name,
+                                "content": content,
+                                "timestamp": ts,
+                                "channel": state.chat_active_channel,
+                            });
+                            client.send(&r.to_string());
+                        }
+                    }
+                }
+
                 // Apply any pending reaction sends collected during render.
                 for (target_from, target_ts, emoji) in pending_reactions {
                     if let Some(ref client) = state.ws_client {
@@ -1991,6 +2109,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // Search button — opens the message search modal.
                     if widgets::Button::ghost("🔍").show(ui, theme) {
                         state.chat_search_open = true;
+                    }
+
+                    // Pins button — shows pin count + opens the pins modal.
+                    let pin_count = state.chat_pins.get(&state.chat_active_channel).map(|p| p.len()).unwrap_or(0);
+                    let pin_label = if pin_count > 0 { format!("📌 {}", pin_count) } else { "📌".to_string() };
+                    if widgets::Button::ghost(&pin_label).show(ui, theme) {
+                        state.chat_pins_open = true;
                     }
 
                     // Help button (?) - opens slash commands reference

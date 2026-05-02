@@ -1689,9 +1689,46 @@ mod native_app {
                                             }
                                         }
                                     }
-                                    Some("pins_sync") | Some("member_joined") => {
-                                        // Acknowledged but not yet rendered in native UI
-                                        log::debug!("Received server message type: {:?}", val.get("type"));
+                                    Some("pins_sync") => {
+                                        // Replace the channel's pin list.
+                                        let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        if let Some(arr) = val.get("pins").and_then(|v| v.as_array()) {
+                                            let pins: Vec<crate::gui::ChatPin> = arr.iter().map(|p| crate::gui::ChatPin {
+                                                from_key: p.get("from_key").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                                from_name: p.get("from_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                                content: p.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                                original_timestamp: p.get("original_timestamp").and_then(|v| v.as_u64()).unwrap_or(0),
+                                                pinned_by: p.get("pinned_by").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                                pinned_at: p.get("pinned_at").and_then(|v| v.as_u64()).unwrap_or(0),
+                                            }).collect();
+                                            state.gui_state.chat_pins.insert(channel, pins);
+                                        }
+                                    }
+                                    Some("pin_added") => {
+                                        let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        if let Some(p) = val.get("pin") {
+                                            let pin = crate::gui::ChatPin {
+                                                from_key: p.get("from_key").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                                from_name: p.get("from_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                                content: p.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                                original_timestamp: p.get("original_timestamp").and_then(|v| v.as_u64()).unwrap_or(0),
+                                                pinned_by: p.get("pinned_by").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                                pinned_at: p.get("pinned_at").and_then(|v| v.as_u64()).unwrap_or(0),
+                                            };
+                                            state.gui_state.chat_pins.entry(channel).or_insert_with(Vec::new).push(pin);
+                                        }
+                                    }
+                                    Some("pin_removed") => {
+                                        let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let index = val.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                                        if let Some(pins) = state.gui_state.chat_pins.get_mut(&channel) {
+                                            if index < pins.len() {
+                                                pins.remove(index);
+                                            }
+                                        }
+                                    }
+                                    Some("member_joined") => {
+                                        log::debug!("Received server message type: member_joined");
                                     }
                                     Some("task_list_response") => {
                                         // Task list response from the WebSocket task_list request

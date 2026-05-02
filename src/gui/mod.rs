@@ -320,6 +320,19 @@ pub struct ChatSearchResult {
     pub timestamp_ms: u64,
 }
 
+/// One pinned message in a channel. Mirrors the relay's PinData type
+/// so the WS handler can decode without a separate adapter.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct ChatPin {
+    pub from_key: String,
+    pub from_name: String,
+    pub content: String,
+    pub original_timestamp: u64,
+    pub pinned_by: String,
+    pub pinned_at: u64,
+}
+
 /// A user visible in the chat user list.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -494,6 +507,11 @@ pub struct GuiState {
     pub chat_search_query: String,
     /// Most recent search results (cleared when the modal closes).
     pub chat_search_results: Vec<ChatSearchResult>,
+    /// Pins per channel (id → list of pinned messages).
+    /// Populated by `pins_sync` and `pin_added` server messages.
+    pub chat_pins: std::collections::HashMap<String, Vec<ChatPin>>,
+    /// Whether the pins modal is open.
+    pub chat_pins_open: bool,
     /// Timestamps of messages sent from THIS client (for dedup on echo).
     pub chat_sent_timestamps: Vec<u64>,
     pub chat_channels: Vec<ChatChannel>,
@@ -908,6 +926,8 @@ impl Default for GuiState {
             chat_search_open: false,
             chat_search_query: String::new(),
             chat_search_results: Vec::new(),
+            chat_pins: std::collections::HashMap::new(),
+            chat_pins_open: false,
             chat_sent_timestamps: Vec::new(),
             chat_channels: Vec::new(),
             chat_active_channel: "general".to_string(),
