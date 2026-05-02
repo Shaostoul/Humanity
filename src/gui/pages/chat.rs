@@ -1485,6 +1485,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 let bg_odd = Color32::from_rgb(16, 16, 20);
                 let ctx_time = ui.ctx().input(|i| i.time);
 
+                // Reactions clicked during render — applied after the loop ends
+                // so we don't try to send WS messages while iterating &state.
+                let mut pending_reactions: Vec<(String, u64, String)> = Vec::new();
+
                 // Remove default item spacing so rows sit flush
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
 
@@ -1532,6 +1536,110 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             state.chat_user_modal_name = msg.sender_name.clone();
                             state.chat_user_modal_key = msg.sender_key.clone();
                         }
+                    }
+
+                    // ── Reactions row + react picker ──
+                    // Renders below the text/image of every message:
+                    //   pills for each reaction (emoji + count, accent if I reacted)
+                    //   a small "+" button that pops out the 8-emoji picker
+                    let reactions_indent = 40.0;
+                    let my_key = state.profile_public_key.clone();
+                    let target_from = msg.sender_key.clone();
+                    let target_ts = msg.timestamp_ms;
+                    if !msg.reactions.is_empty() || target_ts > 0 {
+                        let row_w = ui.available_width();
+                        let (row_rect, _) = ui.allocate_exact_size(
+                            Vec2::new(row_w, 22.0),
+                            egui::Sense::hover(),
+                        );
+                        ui.painter().rect_filled(row_rect, 0.0, row_bg);
+                        let mut x = row_rect.left() + reactions_indent;
+                        let y = row_rect.center().y;
+
+                        // Sort reactions by emoji for stable order.
+                        let mut emojis: Vec<(&String, &Vec<String>)> = msg.reactions.iter().collect();
+                        emojis.sort_by(|a, b| a.0.cmp(b.0));
+                        for (emoji, keys) in emojis {
+                            let count = keys.len();
+                            if count == 0 { continue; }
+                            let i_reacted = keys.contains(&my_key);
+                            let label = format!("{} {}", emoji, count);
+                            let label_w = (label.len() as f32) * 8.0 + 12.0;
+                            let pill = egui::Rect::from_min_size(
+                                egui::pos2(x, y - 9.0),
+                                Vec2::new(label_w, 18.0),
+                            );
+                            let pill_bg = if i_reacted {
+                                let a = theme.accent();
+                                Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 60)
+                            } else {
+                                theme.bg_card()
+                            };
+                            ui.painter().rect_filled(pill, Rounding::same(9), pill_bg);
+                            ui.painter().rect_stroke(
+                                pill,
+                                Rounding::same(9),
+                                Stroke::new(1.0, if i_reacted { theme.accent() } else { theme.border() }),
+                                egui::StrokeKind::Inside,
+                            );
+                            ui.painter().text(
+                                pill.center(),
+                                egui::Align2::CENTER_CENTER,
+                                &label,
+                                egui::FontId::proportional(theme.font_size_small),
+                                if i_reacted { theme.accent() } else { theme.text_primary() },
+                            );
+                            // Click pill to toggle.
+                            let resp = ui.interact(
+                                pill,
+                                egui::Id::new(("react_pill", msg.timestamp_ms, emoji.clone())),
+                                egui::Sense::click(),
+                            );
+                            if resp.clicked() {
+                                pending_reactions.push((target_from.clone(), target_ts, emoji.clone()));
+                            }
+                            x += label_w + 4.0;
+                        }
+
+                        // "+" picker button — clicking opens the 8-emoji picker inline.
+                        const REACT_OPTIONS: &[&str] = &["❤️", "😂", "👍", "👎", "🔥", "😮", "😢", "🎉"];
+                        let plus_w = 24.0;
+                        let plus_rect = egui::Rect::from_min_size(
+                            egui::pos2(x, y - 9.0),
+                            Vec2::new(plus_w, 18.0),
+                        );
+                        ui.painter().rect_filled(plus_rect, Rounding::same(9), theme.bg_card());
+                        ui.painter().text(
+                            plus_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "+",
+                            egui::FontId::proportional(theme.font_size_body),
+                            theme.text_muted(),
+                        );
+                        let plus_resp = ui.interact(
+                            plus_rect,
+                            egui::Id::new(("react_add", msg.timestamp_ms)),
+                            egui::Sense::click(),
+                        );
+                        let popup_id = egui::Id::new(("react_popup", msg.timestamp_ms));
+                        if plus_resp.clicked() {
+                            ui.memory_mut(|m| m.toggle_popup(popup_id));
+                        }
+                        egui::popup::popup_below_widget(
+                            ui, popup_id, &plus_resp,
+                            egui::PopupCloseBehavior::CloseOnClickOutside,
+                            |ui| {
+                                ui.set_min_width(220.0);
+                                ui.horizontal_wrapped(|ui| {
+                                    for emoji in REACT_OPTIONS {
+                                        if ui.button(*emoji).clicked() {
+                                            pending_reactions.push((target_from.clone(), target_ts, emoji.to_string()));
+                                            ui.memory_mut(|m| m.close_popup());
+                                        }
+                                    }
+                                });
+                            },
+                        );
                     }
 
                     // Render each attached image as a clickable thumbnail
@@ -1620,6 +1728,29 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
 
                 ui.add_space(8.0);
+
+                // Apply any pending reaction sends collected during render.
+                for (target_from, target_ts, emoji) in pending_reactions {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let from_name = if !state.user_name.is_empty() {
+                                state.user_name.clone()
+                            } else {
+                                "Anonymous".to_string()
+                            };
+                            let r = serde_json::json!({
+                                "type": "reaction",
+                                "target_from": target_from,
+                                "target_timestamp": target_ts,
+                                "emoji": emoji,
+                                "from": state.profile_public_key,
+                                "from_name": from_name,
+                                "channel": state.chat_active_channel,
+                            });
+                            client.send(&r.to_string());
+                        }
+                    }
+                }
             });
     });
 
@@ -1673,14 +1804,16 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     if (enter_pressed || send_clicked) && !state.chat_input.trim().is_empty() {
                         let content = state.chat_input.trim().to_string();
                         let channel = state.chat_active_channel.clone();
+                        // Single timestamp used for both the WS send and the local echo
+                        // so reaction-targeting (which keys on sender + ts) matches.
+                        let ts = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis() as u64;
 
                         // Send via WebSocket if connected
                         if let Some(ref client) = state.ws_client {
                             if client.is_connected() {
-                                let ts = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_millis() as u64;
 
                                 // Resolve display name: prefer user_name, fall back to peer list, then "Anonymous"
                                 let display_name = if !state.user_name.is_empty() {
@@ -1773,7 +1906,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             sender_key: state.profile_public_key.clone(),
                             content,
                             timestamp: now,
+                            timestamp_ms: ts,
                             channel,
+                            ..Default::default()
                         });
 
                         while state.chat_messages.len() > 200 {

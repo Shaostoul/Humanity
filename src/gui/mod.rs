@@ -280,13 +280,21 @@ pub struct GuiGuild {
 
 /// A chat message received from or sent to the relay server.
 #[cfg(feature = "native")]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ChatMessage {
     pub sender_name: String,
     pub sender_key: String,
     pub content: String,
+    /// Display-formatted timestamp string (e.g. "12:34:56").
     pub timestamp: String,
+    /// Original numeric timestamp (ms since epoch). Used for reaction targeting
+    /// (Reaction message references messages by sender_key + timestamp_ms).
+    pub timestamp_ms: u64,
     pub channel: String,
+    /// Reactions: emoji → list of sender public keys who reacted.
+    /// Count = `reactions[emoji].len()`. Stored as Vec rather than count so
+    /// we can prevent duplicate reactions per user and toggle.
+    pub reactions: std::collections::HashMap<String, Vec<String>>,
 }
 
 /// A user visible in the chat user list.

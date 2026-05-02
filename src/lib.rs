@@ -1171,7 +1171,9 @@ mod native_app {
                                                 sender_key,
                                                 content,
                                                 timestamp: crate::gui::pages::chat::format_timestamp(timestamp),
+                                                timestamp_ms: timestamp,
                                                 channel,
+                                                ..Default::default()
                                             },
                                         );
                                         // Bound message buffer
@@ -1297,18 +1299,19 @@ mod native_app {
                                                 continue;
                                             }
                                             // Add as a system message in current channel
+                                            let now_ms = std::time::SystemTime::now()
+                                                .duration_since(std::time::UNIX_EPOCH)
+                                                .unwrap_or_default()
+                                                .as_millis() as u64;
                                             state.gui_state.chat_messages.push(
                                                 crate::gui::ChatMessage {
                                                     sender_name: "System".to_string(),
                                                     sender_key: String::new(),
                                                     content: msg.to_string(),
-                                                    timestamp: crate::gui::pages::chat::format_timestamp(
-                                                        std::time::SystemTime::now()
-                                                            .duration_since(std::time::UNIX_EPOCH)
-                                                            .unwrap_or_default()
-                                                            .as_millis() as u64,
-                                                    ),
+                                                    timestamp: crate::gui::pages::chat::format_timestamp(now_ms),
+                                                    timestamp_ms: now_ms,
                                                     channel: state.gui_state.chat_active_channel.clone(),
+                                                    ..Default::default()
                                                 },
                                             );
                                         }
@@ -1513,7 +1516,9 @@ mod native_app {
                                             sender_key: from_key,
                                             content,
                                             timestamp: crate::gui::pages::chat::format_timestamp(ts),
+                                            timestamp_ms: ts,
                                             channel: dm_channel,
+                                            ..Default::default()
                                         });
                                         while state.gui_state.chat_messages.len() > 200 {
                                             state.gui_state.chat_messages.remove(0);
@@ -1555,7 +1560,9 @@ mod native_app {
                                                     sender_key: from_key,
                                                     content,
                                                     timestamp: crate::gui::pages::chat::format_timestamp(ts),
+                                                    timestamp_ms: ts,
                                                     channel: dm_channel.clone(),
+                                                    ..Default::default()
                                                 });
                                             }
                                             log::info!("DM history for {}: {} messages ({} decrypted)", partner, total, decrypted_count);
@@ -1574,7 +1581,9 @@ mod native_app {
                                             sender_key: from_key,
                                             content,
                                             timestamp: crate::gui::pages::chat::format_timestamp(ts),
+                                            timestamp_ms: ts,
                                             channel: group_channel,
+                                            ..Default::default()
                                         });
                                         while state.gui_state.chat_messages.len() > 200 {
                                             state.gui_state.chat_messages.remove(0);
@@ -1596,14 +1605,60 @@ mod native_app {
                                                     sender_key: from_key,
                                                     content,
                                                     timestamp: crate::gui::pages::chat::format_timestamp(ts),
+                                                    timestamp_ms: ts,
                                                     channel: group_channel.clone(),
+                                                    ..Default::default()
                                                 });
                                             }
                                             log::info!("Group history for {}: {} messages", group_id, msgs.len());
                                         }
                                     }
-                                    Some("reactions_sync") | Some("pins_sync")
-                                    | Some("member_joined") => {
+                                    Some("reaction") => {
+                                        // Single reaction: target_from + target_timestamp + emoji + from
+                                        let target_from = val.get("target_from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let target_ts = val.get("target_timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                        let emoji = val.get("emoji").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        if !emoji.is_empty() && target_ts > 0 {
+                                            for msg in state.gui_state.chat_messages.iter_mut() {
+                                                if msg.sender_key == target_from && msg.timestamp_ms == target_ts {
+                                                    let entry = msg.reactions.entry(emoji.clone()).or_insert_with(Vec::new);
+                                                    // Toggle: if already reacted, remove. Otherwise add.
+                                                    if let Some(idx) = entry.iter().position(|k| k == &from) {
+                                                        entry.remove(idx);
+                                                    } else {
+                                                        entry.push(from.clone());
+                                                    }
+                                                    if entry.is_empty() {
+                                                        msg.reactions.remove(&emoji);
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Some("reactions_sync") => {
+                                        // Bulk sync: array of {target_from, target_timestamp, emoji, from}.
+                                        if let Some(arr) = val.get("reactions").and_then(|v| v.as_array()) {
+                                            for r in arr {
+                                                let target_from = r.get("target_from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let target_ts = r.get("target_timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                let emoji = r.get("emoji").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let from = r.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                if emoji.is_empty() || target_ts == 0 { continue; }
+                                                for msg in state.gui_state.chat_messages.iter_mut() {
+                                                    if msg.sender_key == target_from && msg.timestamp_ms == target_ts {
+                                                        let entry = msg.reactions.entry(emoji.clone()).or_insert_with(Vec::new);
+                                                        if !entry.contains(&from) {
+                                                            entry.push(from.clone());
+                                                        }
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Some("pins_sync") | Some("member_joined") => {
                                         // Acknowledged but not yet rendered in native UI
                                         log::debug!("Received server message type: {:?}", val.get("type"));
                                     }
@@ -1754,18 +1809,19 @@ mod native_app {
                                                 || msg == "sync_ack";
                                             if !is_profile_noise {
                                                 // Show as system message in chat
+                                                let now_ms = std::time::SystemTime::now()
+                                                    .duration_since(std::time::UNIX_EPOCH)
+                                                    .unwrap_or_default()
+                                                    .as_millis() as u64;
                                                 state.gui_state.chat_messages.push(
                                                     crate::gui::ChatMessage {
                                                         sender_name: "System".to_string(),
                                                         sender_key: String::new(),
                                                         content: msg.to_string(),
-                                                        timestamp: crate::gui::pages::chat::format_timestamp(
-                                                            std::time::SystemTime::now()
-                                                                .duration_since(std::time::UNIX_EPOCH)
-                                                                .unwrap_or_default()
-                                                                .as_millis() as u64,
-                                                        ),
+                                                        timestamp: crate::gui::pages::chat::format_timestamp(now_ms),
+                                                        timestamp_ms: now_ms,
                                                         channel: state.gui_state.chat_active_channel.clone(),
+                                                        ..Default::default()
                                                     },
                                                 );
                                             }
@@ -1891,7 +1947,9 @@ mod native_app {
                                                         sender_key,
                                                         content,
                                                         timestamp: crate::gui::pages::chat::format_timestamp(timestamp),
+                                                        timestamp_ms: timestamp,
                                                         channel: ch,
+                                                        ..Default::default()
                                                     },
                                                 );
                                                 fetched += 1;
