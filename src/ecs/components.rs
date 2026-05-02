@@ -406,6 +406,67 @@ pub struct ActiveCondition {
     pub health_per_sec: f32,
 }
 
+// ── Electrical ──────────────────────────────────────────────
+
+/// A power source. Outputs `output_watts` while `active` and consumes fuel
+/// at `fuel_per_second` (kg/sec, 0 = solar/wind/grid). `ElectricalSystem::tick`
+/// shuts down generators when their fuel inventory is empty.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PowerGenerator {
+    pub output_watts: f32,
+    pub fuel_per_second: f32,
+    pub active: bool,
+}
+
+impl Default for PowerGenerator {
+    fn default() -> Self {
+        Self { output_watts: 100.0, fuel_per_second: 0.0, active: true }
+    }
+}
+
+/// A power consumer. Draws `draw_watts` while `enabled`. Higher `priority`
+/// stays on first when supply < demand (1 = critical, 5 = optional).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PowerConsumer {
+    pub draw_watts: f32,
+    pub priority: u8,
+    pub enabled: bool,
+}
+
+impl Default for PowerConsumer {
+    fn default() -> Self {
+        Self { draw_watts: 50.0, priority: 3, enabled: true }
+    }
+}
+
+// ── Geology / Mining ────────────────────────────────────────
+
+/// An ore deposit attached to a terrain entity. `GeologySystem` doesn't
+/// deplete this on its own — `MiningInteraction` handlers extract from it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OreDeposit {
+    /// Ore type id from `data/geology.ron::ore_veins[].id`.
+    pub ore_id: String,
+    /// Remaining yield in kg.
+    pub yield_remaining: f32,
+    /// Original yield (so depletion can compute `0.0..1.0` progress).
+    pub yield_initial: f32,
+}
+
+/// A soil patch — slowly accumulates nutrients from organic matter.
+/// `GeologySystem::tick` increments fertility based on adjacent decomposing waste.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SoilPatch {
+    /// Nutrient density 0.0 to 1.0. Affects farming yield.
+    pub fertility: f32,
+    /// Soil type id from `data/geology.ron::soil_types[].id`.
+    pub soil_type: String,
+}
+
+impl Default for SoilPatch {
+    fn default() -> Self { Self { fertility: 0.5, soil_type: "loam".into() } }
+}
+
 // ── Genetics ────────────────────────────────────────────────
 
 /// Diploid genome — one allele pair per trait.

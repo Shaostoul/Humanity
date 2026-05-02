@@ -1,28 +1,32 @@
-//! Electrical system -- power generation, distribution, and consumption.
+//! Electrical system — power generation, distribution, and consumption.
 //!
-//! Loads wire, generator, distribution, and consumer definitions from
-//! `data/electrical.ron`. Tracks power budgets per room/structure.
+//! Each tick:
+//!   1. Sum all `PowerGenerator.output_watts` where `active`.
+//!   2. Sum all `PowerConsumer.draw_watts` where `enabled`.
+//!   3. If supply >= demand: every consumer stays enabled.
+//!   4. If supply < demand: shed load by `priority` (highest priority off first)
+//!      until supply >= remaining demand.
+//!   5. Throttle log spam to once per 5 seconds.
+//!
+//! Fuel consumption is currently a stub — generators with `fuel_per_second > 0`
+//! should drain their inventory; that's a future tie-in to the Inventory system.
 
 use std::path::Path;
 
 use serde::Deserialize;
 
+use crate::ecs::components::{PowerConsumer, PowerGenerator};
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
 /// Top-level RON schema for `data/electrical.ron`.
 #[derive(Debug, Deserialize)]
 pub struct ElectricalData {
-    pub wires: Vec<ron::Value>,
-    pub generators: Vec<ron::Value>,
-    pub distribution: Vec<ron::Value>,
-    pub consumers: Vec<ron::Value>,
+    #[serde(default)] pub wires: Vec<ron::Value>,
+    #[serde(default)] pub generators: Vec<ron::Value>,
+    #[serde(default)] pub distribution: Vec<ron::Value>,
+    #[serde(default)] pub consumers: Vec<ron::Value>,
 }
-
-// TODO: Add PowerGenerator component to ecs/components.rs:
-//   pub struct PowerGenerator { pub output_watts: f32, pub fuel_per_second: f32, pub active: bool }
-// TODO: Add PowerConsumer component to ecs/components.rs:
-//   pub struct PowerConsumer { pub draw_watts: f32, pub priority: u8 }
 
 /// Tracks power generation, distribution, and consumption.
 pub struct ElectricalSystem {
@@ -49,72 +53,95 @@ impl ElectricalSystem {
             ElectricalData { wires: vec![], generators: vec![], distribution: vec![], consumers: vec![] }
         });
         log::info!("Loaded electrical data: {} wires, {} generators", data.wires.len(), data.generators.len());
-        Self { data, power_balance: 0.0, total_generation: 0.0, total_consumption: 0.0, log_cooldown: 0.0 }
+        Self {
+            data,
+            power_balance: 0.0,
+            total_generation: 0.0,
+            total_consumption: 0.0,
+            log_cooldown: 0.0,
+        }
     }
 }
 
 impl System for ElectricalSystem {
-    fn name(&self) -> &str {
-        "ElectricalSystem"
-    }
+    fn name(&self) -> &str { "ElectricalSystem" }
 
     fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
-        use crate::ecs::components::Name;
-        use crate::systems::inventory::Inventory;
+        // Sum supply.
+        let total_gen: f32 = world.query::<&PowerGenerator>().iter()
+            .filter_map(|(_, g)| if g.active { Some(g.output_watts) } else { None })
+            .sum();
 
-        let mut total_gen: f32 = 0.0;
-        let mut total_draw: f32 = 0.0;
+        // Collect consumers (entity, draw, priority) sorted by priority desc.
+        let mut consumers: Vec<(hecs::Entity, f32, u8)> = world.query::<&PowerConsumer>().iter()
+            .map(|(e, c)| (e, if c.enabled { c.draw_watts } else { 0.0 }, c.priority))
+            .collect();
+        // Sort priority desc — highest priority is shed first (counter-intuitive,
+        // but matches the convention "priority 5 = optional, 1 = critical": shed
+        // optionals first by sorting descending).
+        consumers.sort_by(|a, b| b.2.cmp(&a.2));
 
-        // TODO: Replace this Interactable-based scan with proper PowerGenerator/PowerConsumer
-        // components once they exist. For now we use Interactable.interaction_type as a proxy:
-        //   "generator" entities produce power, "machine" entities consume it.
-        for (_entity, (interactable, inv)) in
-            world.query::<(&crate::ecs::components::Interactable, Option<&Inventory>)>().iter()
-        {
-            match interactable.interaction_type.as_str() {
-                "generator" => {
-                    // Check if the generator has fuel in its inventory
-                    let has_fuel = inv.map_or(false, |inv| inv.has_item("fuel", 1));
-                    // Each generator produces a base 100W when fueled
-                    if has_fuel {
-                        total_gen += 100.0;
+        let total_demand: f32 = consumers.iter().map(|(_, w, _)| *w).sum();
+
+        // Decide who's enabled this frame.
+        let mut to_disable: Vec<hecs::Entity> = Vec::new();
+        let mut to_enable: Vec<hecs::Entity> = Vec::new();
+        let mut remaining_supply = total_gen;
+        let mut consumed = 0.0_f32;
+
+        if total_demand <= total_gen {
+            // Plenty of supply — make sure all consumers are enabled.
+            for (entity, draw, _) in &consumers {
+                let was_enabled = world.get::<&PowerConsumer>(*entity).map(|c| c.enabled).unwrap_or(true);
+                if !was_enabled {
+                    to_enable.push(*entity);
+                }
+                consumed += *draw;
+            }
+        } else {
+            // Deficit — go through consumers shedding load.
+            // We sorted with HIGHEST priority first; those get shed first.
+            for (entity, draw, _) in &consumers {
+                if remaining_supply >= *draw && *draw > 0.0 {
+                    remaining_supply -= *draw;
+                    consumed += *draw;
+                    let was_enabled = world.get::<&PowerConsumer>(*entity).map(|c| c.enabled).unwrap_or(true);
+                    if !was_enabled {
+                        to_enable.push(*entity);
                     }
+                } else {
+                    to_disable.push(*entity);
                 }
-                "machine" => {
-                    // Each machine draws a base 50W
-                    total_draw += 50.0;
-                }
-                _ => {}
             }
         }
 
-        self.total_generation = total_gen;
-        self.total_consumption = total_draw;
-        self.power_balance = total_gen - total_draw;
+        // Apply enabled changes.
+        for entity in to_disable {
+            if let Ok(mut c) = world.get::<&mut PowerConsumer>(entity) { c.enabled = false; }
+        }
+        for entity in to_enable {
+            if let Ok(mut c) = world.get::<&mut PowerConsumer>(entity) { c.enabled = true; }
+        }
 
-        // Throttle log output to once every 5 seconds to avoid spam
+        self.total_generation = total_gen;
+        self.total_consumption = consumed;
+        self.power_balance = total_gen - consumed;
+
+        // Throttle log output.
         self.log_cooldown -= dt;
         if self.log_cooldown <= 0.0 {
             self.log_cooldown = 5.0;
-
-            if self.power_balance < 0.0 {
+            if total_demand > total_gen && total_gen > 0.0 {
                 log::warn!(
-                    "Power deficit: {:.0}W (gen {:.0}W, draw {:.0}W)",
-                    self.power_balance.abs(),
-                    self.total_generation,
-                    self.total_consumption,
+                    "Power deficit: shedding {:.0}W (demand {:.0}W, supply {:.0}W)",
+                    total_demand - total_gen, total_demand, total_gen
                 );
-            } else if self.total_generation > 0.0 {
+            } else if total_gen > 0.0 {
                 log::debug!(
                     "Power OK: surplus {:.0}W (gen {:.0}W, draw {:.0}W)",
-                    self.power_balance,
-                    self.total_generation,
-                    self.total_consumption,
+                    self.power_balance, self.total_generation, self.total_consumption
                 );
             }
-
-            // Log entity count for debugging
-            let _gen_name_count = world.query::<&Name>().iter().count();
         }
     }
 }
