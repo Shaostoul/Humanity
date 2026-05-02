@@ -105,6 +105,111 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if state.show_help_modal {
         draw_help_modal(ctx, theme, state);
     }
+
+    // ── SEARCH MODAL ──
+    if state.chat_search_open {
+        draw_search_modal(ctx, theme, state);
+    }
+}
+
+fn draw_search_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let mut open = state.chat_search_open;
+    widgets::dialog(ctx, theme, "chat_search_dialog", "Search messages", &mut open, |ui| {
+        ui.set_min_width(520.0);
+        widgets::form_row(ui, theme, "Query", |ui| {
+            let resp = ui.add(
+                egui::TextEdit::singleline(&mut state.chat_search_query)
+                    .desired_width(360.0)
+                    .hint_text("e.g. blueprint   (min 2 chars)"),
+            );
+            ui.add_space(theme.spacing_sm);
+            let can_search = state.chat_search_query.trim().len() >= 2;
+            ui.add_enabled_ui(can_search, |ui| {
+                if widgets::Button::primary("Search").show(ui, theme)
+                    || (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+                {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let msg = serde_json::json!({
+                                "type": "search",
+                                "query": state.chat_search_query.trim(),
+                                "limit": 50,
+                            });
+                            client.send(&msg.to_string());
+                            state.chat_search_results.clear();
+                        }
+                    }
+                }
+            });
+        });
+
+        ui.add_space(theme.spacing_sm);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
+        if state.chat_search_results.is_empty() {
+            ui.label(
+                RichText::new("No results yet — type a query and hit Search.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        } else {
+            ui.label(
+                RichText::new(format!("{} result(s)", state.chat_search_results.len()))
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_xs);
+
+            // Snapshot to avoid borrow conflict when clicking jumps the channel.
+            let results = state.chat_search_results.clone();
+            let mut jump_to: Option<String> = None;
+            ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+                for r in &results {
+                    widgets::card(ui, theme, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(&r.sender_name)
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary())
+                                    .strong(),
+                            );
+                            ui.label(
+                                RichText::new(format!("in #{}", r.channel))
+                                    .size(theme.font_size_small)
+                                    .color(theme.accent()),
+                            );
+                            ui.label(
+                                RichText::new(format_timestamp(r.timestamp_ms))
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            );
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if widgets::Button::secondary("Jump").show(ui, theme) {
+                                    jump_to = Some(r.channel.clone());
+                                }
+                            });
+                        });
+                        ui.label(
+                            RichText::new(&r.content)
+                                .size(theme.font_size_small)
+                                .color(theme.text_secondary()),
+                        );
+                    });
+                    ui.add_space(theme.spacing_xs);
+                }
+            });
+
+            if let Some(ch) = jump_to {
+                state.chat_active_channel = ch;
+                state.chat_search_open = false;
+            }
+        }
+    });
+    if !open {
+        state.chat_search_open = false;
+        state.chat_search_results.clear();
+    }
 }
 
 // ─────────────────────────────── LEFT PANEL ───────────────────────────────
@@ -1882,6 +1987,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                     let enter_pressed =
                         response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+
+                    // Search button — opens the message search modal.
+                    if widgets::Button::ghost("🔍").show(ui, theme) {
+                        state.chat_search_open = true;
+                    }
 
                     // Help button (?) - opens slash commands reference
                     if widgets::Button::ghost("?").show(ui, theme) {

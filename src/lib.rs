@@ -1672,6 +1672,23 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    Some("search_results") => {
+                                        // Server-returned search results. Populate the search modal.
+                                        if let Some(results) = val.get("results").and_then(|v| v.as_array()) {
+                                            state.gui_state.chat_search_results.clear();
+                                            for r in results {
+                                                let channel = r.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let sender_name = r.get("from_name").and_then(|v| v.as_str())
+                                                    .or_else(|| r.get("from").and_then(|v| v.as_str()))
+                                                    .unwrap_or("Anonymous").to_string();
+                                                let content = r.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let timestamp_ms = r.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                state.gui_state.chat_search_results.push(crate::gui::ChatSearchResult {
+                                                    channel, sender_name, content, timestamp_ms,
+                                                });
+                                            }
+                                        }
+                                    }
                                     Some("pins_sync") | Some("member_joined") => {
                                         // Acknowledged but not yet rendered in native UI
                                         log::debug!("Received server message type: {:?}", val.get("type"));
