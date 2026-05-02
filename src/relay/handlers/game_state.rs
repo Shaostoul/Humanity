@@ -311,7 +311,7 @@ impl GameWorld {
         // bit of personality back when they interact. Makes the ship feel
         // crewed even when no humans are connected.
         for room in &rooms {
-            let (npc_type, npc_name, role, description, dialog) = match room.room_type.as_str() {
+            let (npc_type, npc_name, role, description, dialog, greetings) = match room.room_type.as_str() {
                 "bridge" => (
                     "navigator", "Helm Officer Vex", "navigator",
                     "Charts course at the bridge",
@@ -320,6 +320,10 @@ impl GameWorld {
                         "If you see any unscheduled bursts on the console, flag me immediately.",
                         "Earth looks calm from up here. Don't let it fool you.",
                         "I'd kill for a fresh atlas. Real paper. Stars don't move that fast.",
+                    ],
+                    vec![
+                        "Welcome to the bridge. Don't touch the helm.",
+                        "Mind the cabling, citizen.",
                     ],
                 ),
                 "medbay" => (
@@ -331,6 +335,10 @@ impl GameWorld {
                         "Microgravity nausea is normal the first week. Hydrate.",
                         "I patched up worse than you yesterday. Stay still.",
                     ],
+                    vec![
+                        "Welcome to medical. State your symptom, briefly.",
+                        "You look pale. Drink some water.",
+                    ],
                 ),
                 "engineering" => (
                     "engineer", "Chief Tan", "chief_engineer",
@@ -340,6 +348,10 @@ impl GameWorld {
                         "If a panel is hot, I already know. Walk away.",
                         "Plumbing on Deck 3 is fixed. Try it before you complain again.",
                         "We keep this ship alive on duct tape and hope. Mostly hope.",
+                    ],
+                    vec![
+                        "Engineering. Keep your hands behind the yellow line.",
+                        "Welcome. The reactor whines. That's normal.",
                     ],
                 ),
                 "cargo" => (
@@ -351,6 +363,10 @@ impl GameWorld {
                         "[CB-7] Crate 19-A misaligned. Correcting.",
                         "[CB-7] Greetings, citizen. Please do not block the loaders.",
                     ],
+                    vec![
+                        "[CB-7] Citizen detected. Logging entry.",
+                        "[CB-7] Welcome to Cargo. Please mind the loaders.",
+                    ],
                 ),
                 "hydroponics" => (
                     "botanist", "Botanist Yara", "botanist",
@@ -361,6 +377,10 @@ impl GameWorld {
                         "Lettuce harvest in three days. Tell the galley.",
                         "Plants do better when you talk to them. I'm not joking.",
                     ],
+                    vec![
+                        "Welcome! Mind the spore filter at the door.",
+                        "Quiet, please. The seedlings are sensitive.",
+                    ],
                 ),
                 "quarters" => (
                     "crewmate", "Crewmate Nia", "off_duty",
@@ -370,6 +390,10 @@ impl GameWorld {
                         "Cycled through three novels this rotation. Got a recommendation?",
                         "Lights at 30%. The Earthrise is the best lamp anyway.",
                         "Wake me at 06:00 ship-time. Not earlier.",
+                    ],
+                    vec![
+                        "Hey. Off-shift, but make yourself at home.",
+                        "Bunk's free if you need a nap. Just say so.",
                     ],
                 ),
                 _ => continue,
@@ -391,6 +415,7 @@ impl GameWorld {
                     "role": role,
                     "description": description,
                     "dialog": dialog,
+                    "greetings": greetings,
                     "wander": {
                         "min_x": room.position[0] + 1.0,
                         "max_x": room.position[0] + room.size[0] - 1.0,
@@ -466,6 +491,27 @@ impl GameWorld {
         };
         self.entities.insert(id, entity);
         id
+    }
+
+    /// Find the resident NPC in a room (by room_id component) and return
+    /// a random greeting line. None if no NPC, no greetings, or empty array.
+    /// Used by handle_game_position_update on first room entry to surface
+    /// "Welcome to medical, state your symptom" etc.
+    pub fn pick_room_greeting(&self, room_id: &str) -> Option<(String, String)> {
+        let npc = self.entities.values().find(|e| {
+            e.components.get("room_id").and_then(|v| v.as_str()) == Some(room_id)
+                && e.components.get("greetings").is_some()
+        })?;
+        let speaker = npc.components.get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown")
+            .to_string();
+        let lines = npc.components.get("greetings")?.as_array()?;
+        if lines.is_empty() { return None; }
+        use rand::Rng;
+        let idx = rand::thread_rng().gen_range(0..lines.len());
+        let line = lines[idx].as_str()?.to_string();
+        Some((speaker, line))
     }
 
     /// Mark a room as visited on the player's current explore_ship quest.
@@ -704,7 +750,7 @@ impl GameWorld {
     /// Storage key for the persisted world snapshot. Bump the version suffix
     /// when entity spawn logic changes so old snapshots are ignored on load
     /// (otherwise persisted entities would shadow newly-added ambient NPCs).
-    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v4";
+    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v5";
 
     /// Save the world to the SQLite `server_state` table as a JSON blob.
     /// Called periodically from the tick loop. Static-ship fields (rooms,

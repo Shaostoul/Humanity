@@ -201,6 +201,23 @@
       "note": "Quest data lives on the player entity's components.current_quest. PERSIST_KEY bumped to v4 so old snapshots without quest data don't shadow new players."
     },
     {
+      "id": "v0168-quest-tour-client",
+      "version": "0.168.0",
+      "feature": "AI sample client tours rooms automatically",
+      "what_to_test": "Run `node scripts/ai-sample-client.js`. Watch the Teleporting → ... lines after the first dialog interaction.",
+      "expected": "After the dialog test the bot reads game_welcome.rooms, lists unvisited rooms, and teleports through each one in order. game_quest_progress fires per visit, game_quest_completed fires at the end. Bot disconnects cleanly. Total runtime under 15 seconds.",
+      "category": "perception-api"
+    },
+    {
+      "id": "v0169-npc-greetings",
+      "version": "0.169.0",
+      "feature": "NPC greets player on first room entry",
+      "what_to_test": "Run `node scripts/ai-sample-client.js` and watch for NPC greeting lines during the room tour.",
+      "expected": "Each new room entry fires a private game_npc_greeting event with the resident NPC's speaker + a random greeting line (e.g., 'Dr. Kel: \"Welcome to medical. State your symptom, briefly.\"'). Greetings only fire on FIRST entry per room per player — re-entering doesn't re-trigger.",
+      "category": "perception-api",
+      "note": "PERSIST_KEY bumped to v5 since NPC component schema added 'greetings' field."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

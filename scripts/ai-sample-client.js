@@ -191,6 +191,12 @@ ws.addEventListener('message', (ev) => {
     return;
   }
 
+  // NPC greeting on first room entry (v0.169.0). Resident NPC says hi.
+  if (game.type === 'game_npc_greeting') {
+    log('NPC greeting', `${game.speaker}: "${game.line}"`);
+    return;
+  }
+
   // Quest progress / completion events (v0.167.0). The relay sends private
   // game_quest_progress to the questing player on each new room visited and
   // a public game_quest_completed when all rooms have been visited.

@@ -3073,9 +3073,18 @@ pub async fn handle_game_position_update(
     // Quest progress: record room entry on the player's explore_ship quest.
     // record_room_visit returns Some(progress) only when the room is new for
     // this player, so we only fire the broadcast when something actually changed.
-    let quest_progress = world
-        .room_for_position(position)
-        .and_then(|room| world.record_room_visit(player_id, &room.id));
+    // Also pick a greeting from the resident NPC for a flavorful first entry.
+    let (quest_progress, greeting) = if let Some(room) = world.room_for_position(position) {
+        let progress = world.record_room_visit(player_id, &room.id);
+        let greeting = if progress.is_some() {
+            world.pick_room_greeting(&room.id)
+        } else {
+            None
+        };
+        (progress, greeting)
+    } else {
+        (None, None)
+    };
 
     drop(world);
 
@@ -3117,6 +3126,19 @@ pub async fn handle_game_position_update(
                 message: format!("__game__:{}", payload),
             });
         }
+    }
+
+    // NPC greeting on first entry into a room (v0.169.0). Sent privately
+    // so it doesn't spam other players, and only fires the first time the
+    // player enters that room (gated by `quest_progress.is_some()` above).
+    if let Some((speaker, line)) = greeting {
+        let payload = serde_json::json!({
+            "type": "game_npc_greeting",
+            "player_id": player_id,
+            "speaker": speaker,
+            "line": line,
+        });
+        send_game_private(state, my_key, &payload).await;
     }
 }
 
