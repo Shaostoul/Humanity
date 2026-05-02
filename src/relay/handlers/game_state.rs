@@ -292,6 +292,38 @@ impl GameWorld {
             }
         }
 
+        // Spawn a single ambient NPC ("maintenance_bot") in the Cargo Bay so AI
+        // agents perceive a moving entity. Server-side wander handled by tick().
+        if let Some(cargo) = rooms.iter().find(|r| r.id == "cargo") {
+            let center = [
+                cargo.position[0] + cargo.size[0] / 2.0,
+                cargo.position[1] + 1.0,
+                cargo.position[2] + cargo.size[2] / 2.0,
+            ];
+            let id = self.next_entity_id;
+            self.next_entity_id += 1;
+            self.entities.insert(id, GameEntity {
+                entity_type: "maintenance_bot".to_string(),
+                position: center,
+                rotation: [0.0, 0.0, 0.0, 1.0],
+                owner: None,
+                components: serde_json::json!({
+                    "interactable": true,
+                    "room_id": "cargo",
+                    "description": "Autonomous maintenance bot wandering the cargo bay",
+                    "wander": {
+                        "min_x": cargo.position[0] + 1.0,
+                        "max_x": cargo.position[0] + cargo.size[0] - 1.0,
+                        "min_z": cargo.position[2] + 1.0,
+                        "max_z": cargo.position[2] + cargo.size[2] - 1.0,
+                        "speed": 0.5,
+                        "y": center[1],
+                    },
+                }),
+                last_update: 0.0,
+            });
+        }
+
         tracing::info!("Populated {} ship entities across {} rooms",
             self.entities.len(), self.rooms.len());
     }
@@ -401,9 +433,42 @@ impl GameWorld {
         }).collect()
     }
 
-    /// Advance the game simulation by dt seconds.
+    /// Advance the game simulation by dt seconds. Now also drives ambient
+    /// NPC wander behavior — any entity with a `wander` block in its
+    /// components JSON drifts to a random target within bounds at `speed`
+    /// units/sec. This makes the world feel alive for AI agents perceiving
+    /// it even when no humans are connected.
     pub fn tick(&mut self, dt: f64) {
         self.game_time += dt;
+
+        // Apply wander to entities that have a `wander` component.
+        // Random number generator scoped to this tick.
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let dt_f = dt as f32;
+
+        let entity_ids: Vec<u64> = self.entities.keys().copied().collect();
+        for id in entity_ids {
+            let Some(entity) = self.entities.get_mut(&id) else { continue };
+            let wander = match entity.components.get("wander").cloned() {
+                Some(w) => w,
+                None => continue,
+            };
+            let min_x = wander.get("min_x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+            let max_x = wander.get("max_x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+            let min_z = wander.get("min_z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+            let max_z = wander.get("max_z").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+            let speed = wander.get("speed").and_then(|v| v.as_f64()).unwrap_or(0.5) as f32;
+            let y = wander.get("y").and_then(|v| v.as_f64()).unwrap_or(entity.position[1] as f64) as f32;
+
+            // Brownian-style step in X/Z within bounds.
+            let dx = (rng.gen::<f32>() - 0.5) * 2.0 * speed * dt_f;
+            let dz = (rng.gen::<f32>() - 0.5) * 2.0 * speed * dt_f;
+            entity.position[0] = (entity.position[0] + dx).clamp(min_x, max_x);
+            entity.position[1] = y;
+            entity.position[2] = (entity.position[2] + dz).clamp(min_z, max_z);
+            entity.last_update = self.game_time;
+        }
     }
 
     /// Get the number of player entities currently in the world.

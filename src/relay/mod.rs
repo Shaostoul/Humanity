@@ -230,7 +230,9 @@ pub async fn run_relay() {
         world.restore_from_db(&state.db);
     }
 
-    // Game world simulation tick loop: 20 ticks/sec (50ms), only when players connected.
+    // Game world simulation tick loop: 20 ticks/sec (50ms). Always ticks now
+    // — game_time advances and ambient NPCs (e.g. maintenance_bot) wander
+    // even when no humans are connected, so AI agents perceive a living world.
     {
         let game_state = state.clone();
         tokio::spawn(async move {
@@ -239,9 +241,7 @@ pub async fn run_relay() {
             loop {
                 interval.tick().await;
                 let mut world = game_state.game_world.write().await;
-                if world.player_count() > 0 {
-                    world.tick(0.05); // 50ms = 0.05 seconds
-                }
+                world.tick(0.05); // 50ms = 0.05 seconds
                 drop(world);
             }
         });
