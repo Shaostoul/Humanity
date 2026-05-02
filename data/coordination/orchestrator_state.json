@@ -3,12 +3,12 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
 
   "current_orchestrator_session": {
-    "started_at": "2026-04-26",
-    "model": "claude-opus-4.7-1m",
-    "primary_focus": "Repo audit (5-tier punch list) — Sessions 1+2+3 of 4 landed in same chat"
+    "started_at": "2026-05-01",
+    "model": "claude-sonnet-4.5",
+    "primary_focus": "Gameplay loop arc (v0.159 → v0.172) — 14 minor releases. AI agents now have a complete 3-quest gameplay loop end-to-end against the live VPS."
   },
 
-  "current_focus": "Sessions 1 (v0.122.0), 2 (v0.123.0), and 3 (v0.124.0) of audit punch list landed. Session 4+ (game system stub implementation) still outstanding.",
+  "current_focus": "Operator AFK — shipped 14 minor releases this session. Gameplay loop validated end-to-end against live VPS in 8 seconds (explore_ship → meet_the_crew, with survey_storage chain visible). 25+ QA tasks queued in the Testing page. Operator should test on next return; no active work in flight.",
 
   "open_questions_for_human": [],
 
@@ -97,6 +97,11 @@
       "at": "2026-04-30",
       "decision": "Step 4.5 landed in v0.130.0: layered packages + file-level manifest. New scripts/gen-data-manifest.js walks data/ + assets/icons/ + assets/shaders/, writes data-manifest-<tag>.json with per-file SHA-256 hash + Forgejo per-file URL (https://git.united-humanity.us/shaostoul/humanity/raw/tag/<tag>/<path>). bundle-data CI job now generates the manifest + uploads it as a release asset + as a workflow artifact. mirror-to-vps job depends on bundle-data so it picks up the data archive + manifest via download-artifact. Backfilled 10 data archives + 10 data manifests for v0.122.0–v0.129.0. transmission auto-seeded 10 new data-archive torrents (50 total now, ~3.6 GB).",
       "rationale": "User instinct: 'shipping 38 MB for a 4 KB recipe edit is wasteful, and we should be able to inspect what's changing'. The layered architecture (binary / data / assets as separate torrents) plus file-level manifest enables future delta sync: a 4 KB data tweak becomes a 4 KB update. Forgejo's raw-file URLs serve as the per-file CDN — no IPFS or extra storage layer required. SHA-256 chosen over BLAKE3 to avoid extra deps in the manifest generator (Node stdlib only). Client-side delta sync UI (Step 4.6+) will read this manifest, compare to local files, and fetch only what changed."
+    },
+    {
+      "at": "2026-05-01",
+      "decision": "Gameplay loop arc shipped v0.159 → v0.172 (14 minor releases). Closes Tier 1A (game systems stub completion) + Tier 1B (chat parity) and adds a 3-quest starter gameplay loop on top. AI agents now experience the loop end-to-end against the live VPS in 8 seconds: connect → identify → join → welcome (with quest + rooms) → perceive → talk to NPC → tour rooms → explore_ship completed (+100 XP) → meet_the_crew unlocked → talk to all 6 crew → meet_the_crew completed (+200 XP, 300 total) → survey_storage unlocked. World ticks 24/7, 6 NPCs per room with dialog/greetings/wander, ambient chatter every 45s. PERSIST_KEY bumped 8 times (v1 → v8). 196 tests passing. New pages: Testing (QA loop), Browser (curated bookmarks). New nav: two-tier preview (Reality/Sim/Tools/Settings), opt-in via [▤], persists.",
+      "rationale": "Operator was AFK and asked Claude to 'keep developing'. Each release ships independently testable changes with QA tasks added to data/testing/qa_tasks.json (now 25 entries). Quest framework is data-driven (chain_next_quest matches on quest id, easily extensible). Live VPS validation each release confirmed real-world behavior. Bot demo shows complete gameplay loop in 8 seconds — operators see the system working end-to-end without manual play."
     }
   ],
 
@@ -107,7 +112,7 @@
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
     "latest_pushed_tag": "see `git describe --tags --abbrev=0`",
-    "last_release_summary": "v0.130.0 — Step 4.5: layered packages + file-level data manifest (50 torrents seeding); v0.129.0 — Step 4: BitTorrent seeder; v0.128.3 — workflow CI hardened; v0.128.0 — Step 3: release mirror; v0.127.0 — Step 1: Forgejo; v0.126.0 — channel seed reduced"
+    "last_release_summary": "v0.172.x — survey_storage chained quest (3rd quest in chain). v0.171.0 — quest rewards (XP + reputation). v0.170.0 — meet_the_crew chained from explore_ship. v0.169.0 — NPC greetings on first room entry. v0.168.0 — game_welcome.rooms + bot quest tour. v0.167.0 — explore_ship starter quest. v0.166.0 — nav layout persistence. v0.165.0 — ambient world chatter. v0.164.0 — two-tier nav preview. v0.163.0 — Browser bookmarks page. v0.162.0 — NPC dialog system. v0.161.0 — perception rate-limit per-action buckets. v0.160.0 — ambient NPC crew. v0.159.0 — async QA testing loop."
   },
 
   "files_in_flight_or_recently_changed": [
