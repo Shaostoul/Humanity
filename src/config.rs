@@ -90,7 +90,18 @@ pub struct AppConfig {
     /// Dynamic donation addresses (new flexible format).
     #[serde(default)]
     pub donate_addresses: Vec<DonateAddressConfig>,
+
+    /// Two-tier nav preview opt-in (v0.166.0). When true, the nav bar uses
+    /// the Reality / Sim / Tools / Settings layout with sub-pages. Default
+    /// false keeps the legacy single-row nav.
+    #[serde(default)]
+    pub nav_two_tier: bool,
+    /// Active top-tier category when nav_two_tier is on.
+    #[serde(default = "default_nav_top_category")]
+    pub nav_top_category: String,
 }
+
+fn default_nav_top_category() -> String { "reality".to_string() }
 
 /// Serializable donation address entry for config persistence.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -312,6 +323,8 @@ impl AppConfig {
                 value: a.value.clone(),
                 label: a.label.clone(),
             }).collect(),
+            nav_two_tier: state.nav_two_tier,
+            nav_top_category: state.nav_top_category.clone(),
         }
     }
 
@@ -352,6 +365,10 @@ impl AppConfig {
         // Donation addresses
         state.donate_solana_address = self.donate_solana_address.clone();
         state.donate_btc_address = self.donate_btc_address.clone();
+        state.nav_two_tier = self.nav_two_tier;
+        if !self.nav_top_category.is_empty() {
+            state.nav_top_category = self.nav_top_category.clone();
+        }
         state.donate_addresses = self.donate_addresses.iter().map(|a| crate::gui::DonateAddress {
             network: a.network.clone(),
             addr_type: a.addr_type.clone(),

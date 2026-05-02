@@ -157,6 +157,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     ).on_hover_text("Switch to two-tier nav preview");
                     if layout_btn.clicked() {
                         state.nav_two_tier = true;
+                        crate::config::AppConfig::from_gui_state(state).save();
                     }
                     ui.add_space(4.0);
 
@@ -430,6 +431,7 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     );
                     if btn.clicked() {
                         state.nav_top_category = cat.id.to_string();
+                        crate::config::AppConfig::from_gui_state(state).save();
                     }
                 }
 
@@ -446,6 +448,7 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     ).on_hover_text("Switch back to legacy single-row nav");
                     if layout_btn.clicked() {
                         state.nav_two_tier = false;
+                        crate::config::AppConfig::from_gui_state(state).save();
                     }
                 });
             });

@@ -184,6 +184,14 @@
       "note": "Chatter only fires when at least one NPC has a non-empty `dialog` array. Skipped if relay is fresh and entities not yet populated."
     },
     {
+      "id": "v0166-nav-persistence",
+      "version": "0.166.0",
+      "feature": "Nav layout preference persists across launches",
+      "what_to_test": "Switch to the two-tier nav via [▤]. Pick a top category like Sim. Close the app fully (don't just reload). Relaunch.",
+      "expected": "App reopens with the two-tier nav active and Sim still selected. Switch back via [≡], close, relaunch — opens on legacy single-row nav. Preference saved to config.json next to the exe.",
+      "category": "ui"
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",
