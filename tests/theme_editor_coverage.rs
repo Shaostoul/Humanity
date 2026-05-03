@@ -132,18 +132,28 @@ fn extract_color_fields(theme_src: &str) -> Vec<String> {
     out
 }
 
-/// Parse `pub <name>: f32,` lines to get sizing/spacing/font-size fields.
+/// Parse `pub <name>: T,` lines for non-color "policy" tokens —
+/// numerics (f32, usize, u8), booleans, and similar primitives that
+/// drive UI behavior. Anything matching MUST have an editor row.
 fn extract_size_fields(theme_src: &str) -> Vec<String> {
     let mut out = Vec::new();
+    const PRIMITIVES: &[&str] = &["f32", "usize", "u8", "u16", "u32", "i32", "bool"];
     for line in theme_src.lines() {
         let l = line.trim();
-        if !(l.starts_with("pub ")
-            && (l.contains(": f32,") || l.contains(": usize,")
-                || l.ends_with(": f32") || l.ends_with(": usize")))
-        {
-            continue;
-        }
+        if !l.starts_with("pub ") { continue; }
         if l.starts_with("//") { continue; }
+
+        let mut matched = false;
+        for prim in PRIMITIVES {
+            let with_comma = format!(": {},", prim);
+            let without = format!(": {}", prim);
+            if l.contains(&with_comma) || l.ends_with(&without) {
+                matched = true;
+                break;
+            }
+        }
+        if !matched { continue; }
+
         let after_pub = &l["pub ".len()..];
         if let Some(colon_idx) = after_pub.find(':') {
             let name = after_pub[..colon_idx].trim().to_string();
@@ -173,19 +183,22 @@ fn extract_editor_color_refs(editor_src: &str) -> HashSet<String> {
     out
 }
 
-/// Find every `&mut theme.<name>` reference NOT followed by `as *mut _`.
-/// These are the styled_slider callsites in draw_widgets_content.
+/// Find every theme field referenced by the settings editor. Catches:
+/// 1. `&mut theme.<name>` direct mutable references (styled_slider, toggle)
+/// 2. `theme.<name> = <local>` write-back assignments (split-borrow pattern
+///    used by draw_animations_content where `&Theme` and `&mut field` would
+///    conflict — caller snapshots into a local, edits, writes back)
+/// Excludes pointer-cast color-row references (handled separately).
 fn extract_editor_direct_refs(editor_src: &str) -> HashSet<String> {
     let mut out = HashSet::new();
     for line in editor_src.lines() {
+        // Pattern 1: `&mut theme.<name>` (not followed by `as *mut _`).
         let mut idx = 0;
         while let Some(rel) = line[idx..].find("&mut theme.") {
             let start = idx + rel;
             let after = &line[start + "&mut theme.".len()..];
             if let Some(end) = after.find(|c: char| !(c.is_alphanumeric() || c == '_')) {
                 let name = after[..end].to_string();
-                // Skip if this same reference is followed by `as *mut _`
-                // (color-row pattern handled separately).
                 let tail = &line[start..];
                 let is_pointer_cast = tail.contains("as *mut _")
                     && tail.find(&name).map(|p| p < tail.find("as *mut _").unwrap_or(usize::MAX)).unwrap_or(false);
@@ -195,6 +208,22 @@ fn extract_editor_direct_refs(editor_src: &str) -> HashSet<String> {
                 idx = start + "&mut theme.".len() + end;
             } else {
                 break;
+            }
+        }
+        // Pattern 2: `theme.<name> =` write-back. Indicates the field is
+        // edited (just via a snapshot variable) and persisted back.
+        let trimmed = line.trim_start();
+        if let Some(rest) = trimmed.strip_prefix("theme.") {
+            if let Some(eq_pos) = rest.find('=') {
+                let name_part = rest[..eq_pos].trim();
+                // Skip method-call assignments like `theme.foo() = ...`
+                // and chained accesses like `theme.foo.bar = ...`.
+                if !name_part.contains('(') && !name_part.contains('.')
+                    && !name_part.is_empty()
+                    && name_part.chars().all(|c| c.is_alphanumeric() || c == '_')
+                {
+                    out.insert(name_part.to_string());
+                }
             }
         }
     }

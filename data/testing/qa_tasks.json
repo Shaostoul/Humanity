@@ -295,6 +295,15 @@
       "category": "design"
     },
     {
+      "id": "v0177-animations-section",
+      "version": "0.177.0",
+      "feature": "Animations settings section — pick your own RGB style + attack indicator",
+      "what_to_test": "Settings → Animations. Try: (1) flip the master switch off — RGB cycling on the nav separator + active borders should freeze. Flip back on. (2) Change Nav Separator → Style to Solid; the bar should hold a single color. Try Pulse; it should breathe brightness. (3) Speed slider on each — tweak and watch the rate change. (4) Attack Indicator → click 'Test attack pulse for 3s'. Watch the nav. Then change style to Pulse Yellow / Flash White / Solid and re-test.",
+      "expected": "Master switch freezes everything. Each style picker visibly changes the animation in real time. Attack test button triggers the configured indicator for 3s then auto-clears. Speeds at 0.0 = static, 1.0 = default, 3.0 = fast. All settings persist via Save Animations.",
+      "category": "ui",
+      "note": "All animation behavior previously hardcoded in escape_menu.rs is now token-driven. Reduced-motion users can disable everything; action gamers can pick yellow-pulse over red. Five attack styles: None / Pulse Red / Pulse Yellow / Flash White / Solid Danger Color."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

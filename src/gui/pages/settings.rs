@@ -134,6 +134,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
             let categories = [
                 ("Account", SettingsCategory::Account),
                 ("Appearance", SettingsCategory::Appearance),
+                ("Animations", SettingsCategory::Animations),
                 ("Widgets", SettingsCategory::Widgets),
                 ("Notifications", SettingsCategory::Notifications),
                 ("Wallet", SettingsCategory::Wallet),
@@ -184,6 +185,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                     let categories_order = [
                         SettingsCategory::Account,
                         SettingsCategory::Appearance,
+                        SettingsCategory::Animations,
                         SettingsCategory::Widgets,
                         SettingsCategory::Notifications,
                         SettingsCategory::Wallet,
@@ -206,6 +208,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                         let heading_text = match cat {
                             SettingsCategory::Account => "Account",
                             SettingsCategory::Appearance => "Appearance",
+                            SettingsCategory::Animations => "Animations",
                             SettingsCategory::Widgets => "Widgets",
                             SettingsCategory::Notifications => "Notifications",
                             SettingsCategory::Wallet => "Wallet",
@@ -228,6 +231,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                         match cat {
                             SettingsCategory::Account => draw_account_content(ui, theme, state),
                             SettingsCategory::Appearance => draw_appearance_content(ui, theme, state),
+                            SettingsCategory::Animations => draw_animations_content(ui, theme, state),
                             SettingsCategory::Widgets => draw_widgets_content(ui, theme, state),
                             SettingsCategory::Notifications => draw_notifications_content(ui, theme, state),
                             SettingsCategory::Wallet => draw_wallet_content(ui, theme, state),
@@ -845,6 +849,174 @@ fn color_row(
         }
         ui.add_space(8.0);
         ui.label(RichText::new(label).color(label_color).size(13.0));
+    });
+    changed
+}
+
+/// Animation customization (v0.177.0). Master switch + per-element style
+/// pickers (RGB cycle / solid / pulse / off) and speed multipliers.
+/// Replaces the formerly-hardcoded RGB-cycle and red-pulse behaviors so
+/// users can pick what they want — accessibility users get a "off" option
+/// for reduced motion, action gamers can pick yellow-pulse over red, etc.
+fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
+    use crate::gui::theme::attack as atk;
+    let mut changed = false;
+
+    // Snapshot styling values up-front so we can borrow theme mutably
+    // for the field references inside the cards.
+    let card_bg = theme.bg_card();
+    let card_border = theme.border();
+    let card_radius = theme.border_radius;
+    let card_padding = theme.card_padding;
+    let body_size = theme.font_size_body;
+    let small_size = theme.font_size_small;
+    let xs = theme.spacing_xs;
+    let md = theme.spacing_md;
+    let text_primary = theme.text_primary();
+    let text_muted = theme.text_muted();
+
+    let frame = || {
+        egui::Frame::none()
+            .fill(card_bg)
+            .rounding(Rounding::same(card_radius as u8))
+            .inner_margin(card_padding)
+            .stroke(Stroke::new(1.0, card_border))
+    };
+
+    // Snapshot the editable token values into locals so we can pass
+    // `&Theme` (immutable, for styling) and `&mut local` to widgets
+    // simultaneously. Write back whatever changed at the end.
+    let mut anim_enabled = theme.animations_enabled;
+    let mut sep_anim = theme.nav_separator_animation;
+    let mut sep_speed = theme.nav_separator_animation_speed;
+    let mut border_anim = theme.nav_active_border_animation;
+    let mut atk_style = theme.attack_indicator_style;
+    let mut atk_speed = theme.attack_indicator_speed;
+
+    // ── Master switch ──
+    frame().show(ui, |ui| {
+        ui.label(RichText::new("Master switch").size(body_size).color(text_primary).strong());
+        ui.label(RichText::new(
+            "Off freezes every animation — RGB cycles hold their last frame, \
+             attack pulses become a solid danger color. Use for reduced-motion \
+             accessibility or to focus while you work."
+        ).size(small_size).color(text_muted));
+        if widgets::toggle(ui, theme, "Animations enabled", &mut anim_enabled) {
+            changed = true;
+        }
+    });
+    ui.add_space(md);
+
+    // ── Nav separator style + speed ──
+    frame().show(ui, |ui| {
+        ui.label(RichText::new("Nav separator (colored line under the top + sub menus)")
+            .size(body_size).color(text_primary).strong());
+        ui.add_space(xs);
+        if anim_style_picker(ui, theme, "Style", &mut sep_anim) { changed = true; }
+        if widgets::labeled_slider(ui, theme, "Speed", &mut sep_speed, 0.0..=3.0) {
+            changed = true;
+        }
+    });
+    ui.add_space(md);
+
+    // ── Active button border style ──
+    frame().show(ui, |ui| {
+        ui.label(RichText::new("Active button border (current page / category highlight)")
+            .size(body_size).color(text_primary).strong());
+        ui.add_space(xs);
+        if anim_style_picker(ui, theme, "Style", &mut border_anim) { changed = true; }
+    });
+    ui.add_space(md);
+
+    // ── Attack indicator style + speed + test button ──
+    frame().show(ui, |ui| {
+        ui.label(RichText::new("Attack indicator (in-menu alert when you take damage)")
+            .size(body_size).color(text_primary).strong());
+        ui.label(RichText::new(
+            "Most games only play sound when you're hit while in menus. \
+             This gives you a visual too — pick a style."
+        ).size(small_size).color(text_muted));
+        ui.add_space(xs);
+        let attack_options = [
+            (atk::NONE,         "None (sound only)"),
+            (atk::PULSE_RED,    "Pulse red"),
+            (atk::PULSE_YELLOW, "Pulse yellow"),
+            (atk::FLASH_WHITE,  "Flash white"),
+            (atk::BORDER_ONLY,  "Solid (no motion)"),
+        ];
+        if u8_radio_picker(ui, theme, "Style", &mut atk_style, &attack_options) {
+            changed = true;
+        }
+        if widgets::labeled_slider(ui, theme, "Speed", &mut atk_speed, 0.0..=3.0) {
+            changed = true;
+        }
+        if widgets::Button::secondary("Test attack pulse for 3s").show(ui, theme) {
+            state.attack_pulse_active = true;
+            state.attack_pulse_last_hit_at = ui.ctx().input(|i| i.time);
+        }
+    });
+
+    // Write back any edits.
+    theme.animations_enabled = anim_enabled;
+    theme.nav_separator_animation = sep_anim;
+    theme.nav_separator_animation_speed = sep_speed;
+    theme.nav_active_border_animation = border_anim;
+    theme.attack_indicator_style = atk_style;
+    theme.attack_indicator_speed = atk_speed;
+
+    // Auto-clear the test attack pulse after 3 seconds.
+    if state.attack_pulse_active {
+        let now = ui.ctx().input(|i| i.time);
+        if now - state.attack_pulse_last_hit_at > 3.0 {
+            state.attack_pulse_active = false;
+        }
+        ui.ctx().request_repaint();
+    }
+
+    ui.add_space(md);
+    if widgets::Button::primary("Save Animations").show(ui, theme) {
+        theme.save();
+    }
+
+    if changed {
+        state.settings_dirty = true;
+    }
+}
+
+/// Radio-button-ish picker for the standard nav animation style enum
+/// (off / solid / rgb_cycle / pulse). Returns true if value changed.
+fn anim_style_picker(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &mut u8) -> bool {
+    use crate::gui::theme::anim;
+    let options = [
+        (anim::OFF,       "Off"),
+        (anim::SOLID,     "Solid"),
+        (anim::RGB_CYCLE, "RGB cycle"),
+        (anim::PULSE,     "Pulse"),
+    ];
+    u8_radio_picker(ui, theme, label, value, &options)
+}
+
+/// Generic horizontal-radio picker for a u8 enum token. Each option is
+/// rendered as a small toggle button; clicking sets the value. Returns
+/// true if value changed.
+fn u8_radio_picker(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    label: &str,
+    value: &mut u8,
+    options: &[(u8, &str)],
+) -> bool {
+    let mut changed = false;
+    widgets::settings_row(ui, theme, label, |ui| {
+        for (code, name) in options {
+            let active = *value == *code;
+            if widgets::Button::secondary(*name).active(active).show(ui, theme) {
+                if !active {
+                    *value = *code;
+                    changed = true;
+                }
+            }
+        }
     });
     changed
 }

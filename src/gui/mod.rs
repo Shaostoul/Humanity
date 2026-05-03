@@ -1787,6 +1787,7 @@ pub fn load_default_player_skills(data_dir: &std::path::Path) -> Vec<(String, f3
 pub enum SettingsCategory {
     Account,
     Appearance,
+    Animations,
     Widgets,
     Notifications,
     Wallet,

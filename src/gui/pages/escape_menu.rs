@@ -239,39 +239,139 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color32 {
     Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
 }
 
-/// Active-element "channeling" color: cycles through the RGB spectrum
-/// in normal mode, or pulses red when the player is being attacked.
-/// Shared by active nav buttons + the RGB separator lines so all
-/// attention-grabbing UI elements stay in lockstep.
-pub fn channeling_color(time: f32, attack_pulse: bool) -> Color32 {
+/// Active-element "channeling" color, theme-aware (v0.177.0).
+///
+/// Reads `theme.nav_active_border_animation` (RGB_CYCLE / SOLID / PULSE / OFF)
+/// and `theme.attack_indicator_style` (PULSE_RED / PULSE_YELLOW / FLASH_WHITE
+/// / BORDER_ONLY / NONE) plus `animations_enabled` master switch + the speed
+/// multipliers. `fallback` is the contextual color used in SOLID mode (e.g.
+/// the active category's tinted color) and as the BORDER_ONLY attack color.
+///
+/// Shared by active nav buttons + the RGB separator so all attention-grabbing
+/// elements animate in lockstep.
+pub fn channeling_color(
+    theme: &Theme,
+    time: f32,
+    attack_pulse: bool,
+    fallback: Color32,
+) -> Color32 {
+    use crate::gui::theme::{anim, attack as atk};
+
+    if !theme.animations_enabled {
+        // Hold a static color when animations are disabled. For attack
+        // mode pick the danger color; otherwise use the fallback.
+        return if attack_pulse { theme.danger() } else { fallback };
+    }
+
     if attack_pulse {
-        // Pulse between bright red and dark red at ~2 Hz.
-        let t = (time * 4.0).sin() * 0.5 + 0.5; // 0.0..1.0
-        let v = 0.55 + 0.45 * t;                 // 0.55..1.0
-        // theme-exempt: programmatic pulse, value computed each frame.
-        // Hardcoded red channel is the documented "attack" indicator color.
-        Color32::from_rgb((v * 255.0) as u8, 0, 0)
-    } else {
-        let hue = (time * 0.3) % 1.0;
-        hsv_to_rgb(hue, 0.9, 1.0)
+        let t_speed = (time * 4.0 * theme.attack_indicator_speed).max(0.0);
+        match theme.attack_indicator_style {
+            atk::NONE => {} // fall through to non-attack path
+            atk::PULSE_RED => {
+                let t = t_speed.sin() * 0.5 + 0.5;
+                let v = 0.55 + 0.45 * t;
+                // theme-exempt: programmatic pulse from theme tokens.
+                return Color32::from_rgb((v * 255.0) as u8, 0, 0);
+            }
+            atk::PULSE_YELLOW => {
+                let t = t_speed.sin() * 0.5 + 0.5;
+                let v = 0.55 + 0.45 * t;
+                // theme-exempt: programmatic pulse from theme tokens.
+                return Color32::from_rgb((v * 255.0) as u8, (v * 220.0) as u8, 0);
+            }
+            atk::FLASH_WHITE => {
+                // Square-ish blink at ~6 Hz.
+                let t = ((time * 12.0 * theme.attack_indicator_speed).sin() > 0.0) as u8;
+                return if t == 1 { Color32::WHITE } else { theme.danger() };
+            }
+            atk::BORDER_ONLY => return theme.danger(),
+            _ => {}
+        }
+    }
+
+    // Non-attack path: separator/active-border animation style.
+    let speed = theme.nav_separator_animation_speed.max(0.0);
+    match theme.nav_active_border_animation {
+        anim::OFF => fallback,
+        anim::SOLID => fallback,
+        anim::RGB_CYCLE => {
+            let hue = (time * 0.3 * speed) % 1.0;
+            hsv_to_rgb(hue.rem_euclid(1.0), 0.9, 1.0)
+        }
+        anim::PULSE => {
+            let t = (time * 2.0 * speed).sin() * 0.5 + 0.5;
+            let v = 0.4 + 0.6 * t;
+            // theme-exempt: brightness modulation of fallback color.
+            Color32::from_rgb(
+                (fallback.r() as f32 * v) as u8,
+                (fallback.g() as f32 * v) as u8,
+                (fallback.b() as f32 * v) as u8,
+            )
+        }
+        _ => fallback,
     }
 }
 
-/// Thin horizontal separator panel that paints the channeling color
-/// (RGB cycling normally, red pulse on attack). Used between the top
-/// menu / sub menu / page area in the two-tier nav. Height comes from
-/// `theme.nav_separator_height` so the operator can tune presence.
+/// Thin horizontal separator panel between nav tiers. Honors
+/// `theme.nav_separator_animation` (OFF / SOLID / RGB_CYCLE / PULSE)
+/// and `animations_enabled` master switch. Returns early without
+/// allocating panel space when style == OFF.
 fn rgb_separator(ctx: &egui::Context, theme: &Theme, panel_id: &'static str, attack_pulse: bool) {
+    use crate::gui::theme::anim;
+    if theme.nav_separator_animation == anim::OFF { return; }
+
     egui::TopBottomPanel::top(panel_id)
         .frame(Frame::none().fill(theme.bg_primary()).inner_margin(0.0))
         .exact_height(theme.nav_separator_height)
         .show_separator_line(false)
         .show(ctx, |ui| {
             let time = ui.ctx().input(|i| i.time) as f32;
-            let color = channeling_color(time, attack_pulse);
+            // Separator's "fallback" solid color is the accent — that's the
+            // single color used when SOLID is selected or animations off.
+            let fallback = theme.accent();
+            let color = if theme.animations_enabled
+                && theme.nav_separator_animation != anim::SOLID
+            {
+                separator_color(theme, time, attack_pulse, fallback)
+            } else if attack_pulse && theme.animations_enabled {
+                // Honor attack indicator even in SOLID mode for safety.
+                channeling_color(theme, time, attack_pulse, fallback)
+            } else {
+                fallback
+            };
             let rect = ui.max_rect();
             ui.painter().rect_filled(rect, Rounding::ZERO, color);
         });
+}
+
+/// Like `channeling_color` but reads `nav_separator_animation` instead of
+/// `nav_active_border_animation`. Lets the separator pick a different style
+/// from the active button border (e.g. solid separator + RGB borders).
+fn separator_color(theme: &Theme, time: f32, attack_pulse: bool, fallback: Color32) -> Color32 {
+    use crate::gui::theme::anim;
+    if attack_pulse {
+        return channeling_color(theme, time, attack_pulse, fallback);
+    }
+    let speed = theme.nav_separator_animation_speed.max(0.0);
+    match theme.nav_separator_animation {
+        anim::OFF => fallback,
+        anim::SOLID => fallback,
+        anim::RGB_CYCLE => {
+            let hue = (time * 0.3 * speed) % 1.0;
+            hsv_to_rgb(hue.rem_euclid(1.0), 0.9, 1.0)
+        }
+        anim::PULSE => {
+            let t = (time * 2.0 * speed).sin() * 0.5 + 0.5;
+            let v = 0.4 + 0.6 * t;
+            // theme-exempt: brightness modulation of fallback color.
+            Color32::from_rgb(
+                (fallback.r() as f32 * v) as u8,
+                (fallback.g() as f32 * v) as u8,
+                (fallback.b() as f32 * v) as u8,
+            )
+        }
+        _ => fallback,
+    }
 }
 
 /// Draw a group of nav buttons with border-based visual language.
@@ -299,10 +399,14 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
             Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 10)
         };
 
-        // Border: active = animated channeling color (RGB cycle or red
-        // pulse on attack), default = thin group color.
+        // Border: active = animated channeling color (RGB cycle / pulse /
+        // solid / red attack — driven by theme.nav_active_border_animation
+        // and theme.attack_indicator_style). Inactive = thin tinted border.
         let border_stroke = if is_active {
-            Stroke::new(theme.nav_active_border_width, channeling_color(time, attack_pulse))
+            Stroke::new(
+                theme.nav_active_border_width,
+                channeling_color(theme, time, attack_pulse, color),
+            )
         } else {
             Stroke::new(1.0, Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 60))
         };
@@ -456,10 +560,14 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                         Color32::from_rgba_unmultiplied(cat.color.r(), cat.color.g(), cat.color.b(), 14)
                     };
                     let fg = if is_active { Color32::WHITE } else { text_muted };
-                    // Active = channeling RGB (or red pulse on attack);
-                    // inactive = thin tinted border in the category color.
+                    // Active = channeling color from theme animation
+                    // tokens (cycle / pulse / solid / attack).
+                    // Inactive = thin tinted border in the category color.
                     let stroke = if is_active {
-                        Stroke::new(theme.nav_active_border_width, channeling_color(time, attack_pulse))
+                        Stroke::new(
+                            theme.nav_active_border_width,
+                            channeling_color(theme, time, attack_pulse, cat.color),
+                        )
                     } else {
                         Stroke::new(1.0, Color32::from_rgba_unmultiplied(cat.color.r(), cat.color.g(), cat.color.b(), 80))
                     };

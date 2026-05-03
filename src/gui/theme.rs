@@ -179,6 +179,47 @@ pub struct Theme {
     pub nav_active_border_width: f32,
     #[serde(default = "default_nav_hover_border_width")]
     pub nav_hover_border_width: f32,
+
+    // ── Animations (v0.177.0) ──
+    // Master switch + per-element style/speed tokens. Lets users turn
+    // off RGB cycling (motion-sensitivity / focus mode), pick a static
+    // color instead, or change the in-menu attack indicator from red
+    // pulse to yellow / flash / etc.
+    //
+    // animations_enabled = master switch. When false, all animations
+    // freeze at their first frame (or are skipped entirely for separators).
+    // Style enums use u8 codes so they round-trip cleanly through RON;
+    // editor uses radio buttons. See `AnimationStyle` / `AttackStyle`.
+    #[serde(default = "default_animations_enabled")]
+    pub animations_enabled: bool,
+    #[serde(default = "default_nav_separator_anim")]
+    pub nav_separator_animation: u8,
+    #[serde(default = "default_anim_speed")]
+    pub nav_separator_animation_speed: f32,
+    #[serde(default = "default_active_border_anim")]
+    pub nav_active_border_animation: u8,
+    #[serde(default = "default_attack_anim")]
+    pub attack_indicator_style: u8,
+    #[serde(default = "default_anim_speed")]
+    pub attack_indicator_speed: f32,
+}
+
+/// Animation style enum encoded as u8 in theme.ron for serde stability.
+/// Used by both the nav separator and the active-button border.
+pub mod anim {
+    pub const OFF:       u8 = 0; // no animation, paint nothing or static border
+    pub const SOLID:     u8 = 1; // single solid color (uses contextual color)
+    pub const RGB_CYCLE: u8 = 2; // hue spectrum cycle (current default)
+    pub const PULSE:     u8 = 3; // single-color brightness breathing
+}
+
+/// Attack indicator style encoded as u8.
+pub mod attack {
+    pub const NONE:        u8 = 0; // no override (channeling stays cyclic)
+    pub const PULSE_RED:   u8 = 1; // current default — bright<->dark red 2 Hz
+    pub const PULSE_YELLOW:u8 = 2; // softer warning vibe
+    pub const FLASH_WHITE: u8 = 3; // rapid bright white blink
+    pub const BORDER_ONLY: u8 = 4; // hold border at solid danger color, no pulse
 }
 
 impl Theme {
@@ -440,6 +481,12 @@ fn default_nav_legacy_blue()  -> C { (0.204, 0.596, 0.859, 1.0) } // #3498DB
 fn default_nav_separator_height() -> f32 { 3.0 }
 fn default_nav_active_border_width() -> f32 { 2.0 }
 fn default_nav_hover_border_width() -> f32 { 2.0 }
+// Animation defaults (v0.177.0).
+fn default_animations_enabled() -> bool { true }
+fn default_nav_separator_anim() -> u8 { 2 }   // RGB_CYCLE
+fn default_active_border_anim() -> u8 { 2 }   // RGB_CYCLE
+fn default_attack_anim() -> u8 { 1 }          // PULSE_RED
+fn default_anim_speed() -> f32 { 1.0 }
 
 fn default_theme() -> Theme {
     Theme {
@@ -535,5 +582,11 @@ fn default_theme() -> Theme {
         nav_separator_height: default_nav_separator_height(),
         nav_active_border_width: default_nav_active_border_width(),
         nav_hover_border_width: default_nav_hover_border_width(),
+        animations_enabled: default_animations_enabled(),
+        nav_separator_animation: default_nav_separator_anim(),
+        nav_separator_animation_speed: default_anim_speed(),
+        nav_active_border_animation: default_active_border_anim(),
+        attack_indicator_style: default_attack_anim(),
+        attack_indicator_speed: default_anim_speed(),
     }
 }
