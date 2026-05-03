@@ -304,6 +304,23 @@
       "note": "All animation behavior previously hardcoded in escape_menu.rs is now token-driven. Reduced-motion users can disable everything; action gamers can pick yellow-pulse over red. Five attack styles: None / Pulse Red / Pulse Yellow / Flash White / Solid Danger Color."
     },
     {
+      "id": "v0178-doc-audit",
+      "version": "0.178.0",
+      "feature": "Doc audit — CLAUDE.md / MEMORY.md / new docs/PAGES.md",
+      "what_to_test": "(Developer-facing.) Open CLAUDE.md and look for the 'Cryptography (canonical, audited 2026-05-03)' table. Open docs/PAGES.md — should list 32 native + 38 web pages. Open MEMORY.md (`C:\\Users\\Shaos\\.claude\\projects\\C--Humanity\\memory\\MEMORY.md`) — should reference single-crate `src/` layout, NOT the old `server/` `native/` `crates/` split.",
+      "expected": "All three docs accurately reflect current state. Crypto table shows dual-stack (Ed25519 chat + Dilithium3 federation). Page registry has 32 native pages with file paths + audience. MEMORY.md anti-context-rot rules section explains how to prevent recurrence.",
+      "category": "design"
+    },
+    {
+      "id": "v0178-security-fixes",
+      "version": "0.178.0",
+      "feature": "Security fixes — H1 SQL pattern + H2 timestamp freshness + H3 federated chat sig",
+      "what_to_test": "Operationally invisible — these are defensive fixes. Verify by: (1) cargo test --features relay --no-default-features (should show 201 tests pass, including 5 new freshness_tests). (2) On the live VPS, sending a federated_chat with no signature or stale timestamp should now be rejected with 'invalid or missing signature' / 'timestamp outside ±5 min window' in the relay log.",
+      "expected": "H1: trading.rs no longer uses format!() for column names — match into static SQL strings instead. H2: federation_hello + federated_chat reject any timestamp outside ±5 min skew window. H3: federated_chat now requires a signature, verifies it against the source server's stored Ed25519 pubkey, rejects unsigned or invalid messages.",
+      "category": "design",
+      "note": "From 2026-05-03 security audit. H4 (DM crypto silent downgrade to plaintext) deferred — needs UI work for the user-warning modal. M1-M3 + L1-L2 from the audit also deferred."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

@@ -139,18 +139,25 @@ impl Storage {
                 None => return Ok((false, false)),
             };
 
-            let col = if user_key == trade.initiator_key {
-                "initiator_confirmed"
+            // Match into a fully-static SQL string per side (rather than
+            // format!() with a column name) so the query is parameterized
+            // end-to-end. The column names are already hardcoded constants;
+            // this just removes the unsafe-pattern smell so the security
+            // audit lint can't mistake it for SQL injection.
+            // (Security audit 2026-05-03 H1.)
+            if user_key == trade.initiator_key {
+                conn.execute(
+                    "UPDATE trades SET initiator_confirmed = 1 WHERE id = ?1",
+                    params![trade_id],
+                )?;
             } else if user_key == trade.recipient_key {
-                "recipient_confirmed"
+                conn.execute(
+                    "UPDATE trades SET recipient_confirmed = 1 WHERE id = ?1",
+                    params![trade_id],
+                )?;
             } else {
                 return Ok((false, false));
-            };
-
-            conn.execute(
-                &format!("UPDATE trades SET {} = 1 WHERE id = ?1", col),
-                params![trade_id],
-            )?;
+            }
 
             // Check if both are now confirmed.
             let (ic, rc): (i32, i32) = conn.query_row(

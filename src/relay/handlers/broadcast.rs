@@ -67,6 +67,43 @@ pub fn verify_ed25519_signature(public_key_hex: &str, content: &str, timestamp: 
     verifying_key.verify(message.as_bytes(), &signature).is_ok()
 }
 
+/// Maximum tolerated drift for inbound timestamped messages.
+/// 5 minutes matches the existing `/api/vault/sync` freshness window.
+/// Any inbound message with a timestamp outside `[now - MAX, now + MAX]`
+/// is a replay (or clock skew so bad it's indistinguishable). Reject.
+pub const MAX_TIMESTAMP_SKEW_MS: u64 = 5 * 60 * 1000;
+
+/// Returns true iff the given millisecond timestamp is within the
+/// freshness window. Used by federation hello / federated chat / profile
+/// gossip to defeat replay attacks. (Security audit 2026-05-03 H2.)
+pub fn is_timestamp_fresh(message_ts_ms: u64) -> bool {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let too_old    = now_ms.saturating_sub(message_ts_ms) > MAX_TIMESTAMP_SKEW_MS;
+    let too_future = message_ts_ms.saturating_sub(now_ms) > MAX_TIMESTAMP_SKEW_MS;
+    !too_old && !too_future
+}
+
+#[cfg(test)]
+mod freshness_tests {
+    use super::*;
+
+    fn now_ms() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64
+    }
+
+    #[test] fn fresh_now_is_accepted() { assert!(is_timestamp_fresh(now_ms())); }
+    #[test] fn fresh_one_minute_ago_is_accepted() { assert!(is_timestamp_fresh(now_ms() - 60_000)); }
+    #[test] fn stale_one_hour_ago_is_rejected() { assert!(!is_timestamp_fresh(now_ms() - 60 * 60_000)); }
+    #[test] fn future_ten_min_ahead_is_rejected() { assert!(!is_timestamp_fresh(now_ms() + 10 * 60_000)); }
+    #[test] fn epoch_zero_is_rejected() { assert!(!is_timestamp_fresh(0)); }
+}
+
 /// Broadcast an updated peer list to all connected clients.
 /// WHY: After role changes (verify, mod, etc.) clients need fresh data for badges.
 pub async fn broadcast_peer_list(state: &Arc<RelayState>) {

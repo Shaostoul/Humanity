@@ -2117,6 +2117,15 @@ pub async fn handle_federation_hello(
     timestamp: u64,
     signature: String,
 ) {
+    // Reject replays before doing any DB work. (Security audit 2026-05-03 H2.)
+    if !crate::relay::handlers::broadcast::is_timestamp_fresh(timestamp) {
+        tracing::warn!(
+            "Federation: rejected hello from {} — timestamp outside ±5 min window (replay?)",
+            server_id
+        );
+        return;
+    }
+
     if let Ok(servers) = state.db.list_federated_servers() {
         if let Some(server) = servers.iter().find(|s| s.server_id == server_id || s.url == server_id) {
             if server.trust_tier >= 2 {
@@ -2156,18 +2165,57 @@ pub async fn handle_federated_chat(
     channel: String,
     signature: Option<String>,
 ) {
-    let accepted = if let Ok(servers) = state.db.list_federated_servers() {
-        servers.iter().any(|s| (s.server_id == server_id || s.url == server_id) && s.trust_tier >= 2)
-    } else { false };
-
-    if accepted {
-        if state.db.is_channel_federated(&channel).unwrap_or(false) {
-            let federated_msg = RelayMessage::FederatedChat {
-                server_id, server_name, from_name, content, timestamp, channel, signature,
-            };
-            let _ = state.broadcast_tx.send(federated_msg);
-        }
+    // Security audit 2026-05-03 H3: previously this handler only checked
+    // that the source server was trust-tier ≥ 2 and that the channel was
+    // federated. The signature field was passed through to broadcast
+    // without ever being verified — a compromised tier-2 server could
+    // forge chat from any name. Now: reject stale timestamps, then
+    // require + verify the signature against the source server's stored
+    // pubkey. Unsigned messages are rejected outright.
+    if !crate::relay::handlers::broadcast::is_timestamp_fresh(timestamp) {
+        tracing::warn!(
+            "Federation: rejected chat from {} — timestamp outside ±5 min window (replay?)",
+            server_id
+        );
+        return;
     }
+
+    let server = match state.db.list_federated_servers() {
+        Ok(list) => list.into_iter().find(|s| s.server_id == server_id || s.url == server_id),
+        Err(_) => None,
+    };
+    let Some(server) = server else {
+        tracing::warn!("Federation: rejected chat from unknown server {}", server_id);
+        return;
+    };
+    if server.trust_tier < 2 {
+        tracing::warn!("Federation: rejected chat from {} — trust tier {} < 2", server_id, server.trust_tier);
+        return;
+    }
+
+    // Verify signature. Canonical message: "fed_chat\n<from_name>\n<channel>\n<content>"
+    // The trailing `timestamp` arg goes into the `\n<timestamp>` suffix that
+    // verify_ed25519_signature appends; this is the same shape as profile gossip.
+    let canonical = format!("fed_chat\n{}\n{}\n{}", from_name, channel, content);
+    let sig_valid = match (signature.as_deref(), server.public_key.as_deref()) {
+        (Some(sig), Some(pk)) => verify_ed25519_signature(pk, &canonical, timestamp, sig),
+        _ => false,
+    };
+    if !sig_valid {
+        tracing::warn!(
+            "Federation: rejected chat from {} on {} — invalid or missing signature",
+            server_id, channel
+        );
+        return;
+    }
+
+    if !state.db.is_channel_federated(&channel).unwrap_or(false) {
+        return;
+    }
+    let federated_msg = RelayMessage::FederatedChat {
+        server_id, server_name, from_name, content, timestamp, channel, signature,
+    };
+    let _ = state.broadcast_tx.send(federated_msg);
 }
 
 pub async fn handle_federation_welcome(
