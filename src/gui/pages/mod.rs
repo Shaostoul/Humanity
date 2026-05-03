@@ -38,3 +38,4 @@ pub mod ai_usage;
 pub mod testing;
 pub mod browser;
 pub mod category_overview;
+pub mod settings_pages;

@@ -126,6 +126,24 @@ pub enum GuiPage {
     OverviewTools,
     OverviewSettings,
     OverviewDev,
+    /// Settings sub-pages (v0.182.0). Each replaces one section of the
+    /// former single-scroll Settings page. The sub-tier nav lists these
+    /// individually so users navigate straight to a category instead of
+    /// scrolling. The legacy `GuiPage::Settings` variant still works
+    /// (renders the all-in-one view) for backwards compatibility with
+    /// saved deep links, but the nav no longer points to it.
+    SettingsAccount,
+    SettingsAppearance,
+    SettingsAnimations,
+    SettingsWidgets,
+    SettingsNotifications,
+    SettingsWallet,
+    SettingsAudio,
+    SettingsGraphics,
+    SettingsControls,
+    SettingsPrivacy,
+    SettingsData,
+    SettingsUpdates,
 }
 
 /// Item slot data bridged from ECS Inventory for GUI display.

@@ -61,7 +61,7 @@ mod native_app {
         tasks, profile, maps, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
         onboarding, server_settings, identity, governance, recovery, agents, ai_usage, testing,
-        browser, category_overview,
+        browser, category_overview, settings_pages,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -2203,6 +2203,18 @@ mod native_app {
                                     GuiPage::OverviewTools    => category_overview::draw(ctx, &state.theme, &mut state.gui_state, "tools"),
                                     GuiPage::OverviewSettings => category_overview::draw(ctx, &state.theme, &mut state.gui_state, "settings"),
                                     GuiPage::OverviewDev      => category_overview::draw(ctx, &state.theme, &mut state.gui_state, "dev"),
+                                    GuiPage::SettingsAccount       => settings_pages::draw_account(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::SettingsAppearance    => settings_pages::draw_appearance(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::SettingsAnimations    => settings_pages::draw_animations(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::SettingsWidgets       => settings_pages::draw_widgets(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::SettingsNotifications => settings_pages::draw_notifications(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::SettingsWallet        => settings_pages::draw_wallet(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::SettingsAudio         => settings_pages::draw_audio(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::SettingsGraphics      => settings_pages::draw_graphics(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::SettingsControls      => settings_pages::draw_controls(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::SettingsPrivacy       => settings_pages::draw_privacy(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::SettingsData          => settings_pages::draw_data(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::SettingsUpdates       => settings_pages::draw_updates(ctx, &mut state.theme, &mut state.gui_state),
                                     GuiPage::None => {}
                                 }
 

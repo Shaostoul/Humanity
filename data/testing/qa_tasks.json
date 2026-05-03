@@ -358,8 +358,17 @@
       "version": "0.181.0",
       "feature": "Top-tier nav buttons land on category overview pages (Reality/Sim/Tools/Settings/Dev)",
       "what_to_test": "Switch to two-tier nav. Click each top category button (Reality / Sim / Tools / Settings / Dev). Each should now load its own LANDING page — header in the category color, summary line, then a grid of cards (one per sub-page) with a label and a one-line description. Click any card to jump straight to that page. Sub-tier buttons still work for direct navigation as before.",
-      "expected": "Reality landing: 11 cards (Profile/Chat/Wallet/Donate/Tasks/Market/Civilization/Governance/Maps/Recovery/Identity). Sim: 5 cards. Tools: 6 cards. Settings: 3 cards (will become 14 in v0.182 settings split). Dev: 5 cards. Click any card → navigates. Hover → card border becomes the category color.",
+      "expected": "Reality landing: 11 cards (Profile/Chat/Wallet/Donate/Tasks/Market/Civilization/Governance/Maps/Recovery/Identity). Sim: 5 cards. Tools: 6 cards. Settings: 14 cards (after v0.182 settings split). Dev: 5 cards. Click any card → navigates. Hover → card border becomes the category color.",
       "category": "ui"
+    },
+    {
+      "id": "v0182-settings-split",
+      "version": "0.182.0",
+      "feature": "Settings split into 12 per-category sub-pages",
+      "what_to_test": "Click Settings (top-tier). Settings landing now shows 14 cards (12 categories + Onboarding + Server Admin). Click Account → opens its own page (no sidebar TOC, no infinite scroll). Same for Appearance, Animations, Widgets, Notifications, Wallet, Audio, Graphics, Controls, Privacy, Data, Updates. Each page has a styled header (label + summary) followed by the same content the old single-page Settings had in that section.",
+      "expected": "No more 1300-line scroll page. Each settings category is a real GuiPage variant with a real URL-shaped destination. Sub-tier nav lists all 14 (no parent/sub-button redundancy). Edits in Appearance/Animations/Widgets persist to theme.ron via Save buttons same as before. Legacy GuiPage::Settings still renders the all-in-one view for any code path that explicitly targets it (back-compat).",
+      "category": "ui",
+      "note": "Existing draw_X_content fns in settings.rs were only made pub(crate) — no logic moved. Each new page is a 6-line wrapper in settings_pages.rs that calls into the shared content fn under a styled header frame. If a content fn needs new behavior, edit settings.rs once and every wrapper picks it up."
     },
     {
       "id": "design-nav-redesign",

@@ -266,7 +266,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
         });
 }
 
-fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         widgets::form_row(ui, theme, "Display name", |ui| {
             ui.add(egui::TextEdit::singleline(&mut state.user_name).desired_width(200.0));
@@ -623,7 +623,7 @@ fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     });
 }
 
-fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
+pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         if widgets::toggle(ui, theme, "Dark Mode", &mut state.settings.dark_mode) {
             state.settings_dirty = true;
@@ -859,7 +859,7 @@ fn color_row(
 /// Replaces the formerly-hardcoded RGB-cycle and red-pulse behaviors so
 /// users can pick what they want — accessibility users get a "off" option
 /// for reduced motion, action gamers can pick yellow-pulse over red, etc.
-fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
+pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
     use crate::gui::theme::attack as atk;
     let mut changed = false;
 
@@ -1038,7 +1038,7 @@ fn u8_radio_picker(
     changed
 }
 
-fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
+pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
     // Capture card styling values before mutable borrows
     let card_bg = theme.bg_card();
     let card_border = theme.border();
@@ -1263,7 +1263,7 @@ fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiSta
     });
 }
 
-fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+pub(crate) fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         widgets::toggle(ui, theme, "Direct Messages", &mut state.settings.notify_dm);
         widgets::toggle(ui, theme, "Mentions", &mut state.settings.notify_mentions);
@@ -1286,7 +1286,7 @@ fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
     });
 }
 
-fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         // Solana address
         ui.horizontal(|ui| {
@@ -1343,7 +1343,7 @@ fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         if widgets::labeled_slider(ui, theme, "Master Volume", &mut state.settings.master_volume, 0.0..=1.0) {
             state.settings_dirty = true;
@@ -1357,7 +1357,7 @@ fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         if widgets::toggle(ui, theme, "Fullscreen", &mut state.settings.fullscreen) {
             state.settings_dirty = true;
@@ -1374,7 +1374,7 @@ fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     });
 }
 
-fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         if widgets::labeled_slider(ui, theme, "Mouse Sensitivity", &mut state.settings.mouse_sensitivity, 0.01..=10.0) {
             state.settings_dirty = true;
@@ -1416,14 +1416,14 @@ fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     });
 }
 
-fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         widgets::toggle(ui, theme, "Profile Visible to Others", &mut state.settings.profile_visible);
         widgets::toggle(ui, theme, "Show Online Status", &mut state.settings.online_status_visible);
     });
 }
 
-fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         ui.label(RichText::new("Export & Backup").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
@@ -1453,7 +1453,7 @@ fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         // Current version
         ui.label(RichText::new(format!("Current Version: v{}", VERSION)).strong());
