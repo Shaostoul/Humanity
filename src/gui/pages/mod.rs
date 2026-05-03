@@ -37,3 +37,4 @@ pub mod agents;
 pub mod ai_usage;
 pub mod testing;
 pub mod browser;
+pub mod category_overview;

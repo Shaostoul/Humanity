@@ -16,6 +16,10 @@ use crate::gui::theme::Theme;
 struct NavItem {
     label: &'static str,
     page: GuiPage,
+    /// One-line description used by category overview landing pages
+    /// (the new "all top buttons get a summary page" pattern in v0.181.0).
+    /// Empty string means the page hides from overviews.
+    description: &'static str,
 }
 
 /// Draw the RGB header nav bar at the top of the screen.
@@ -68,9 +72,9 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 
                 // Red group: identity (unchanged by context)
                 let red_items = [
-                    NavItem { label: "Chat", page: GuiPage::Chat },
-                    NavItem { label: "Wallet", page: GuiPage::Wallet },
-                    NavItem { label: "Donate", page: GuiPage::Donate },
+                    NavItem { label: "Chat", page: GuiPage::Chat, description: "" },
+                    NavItem { label: "Wallet", page: GuiPage::Wallet, description: "" },
+                    NavItem { label: "Donate", page: GuiPage::Donate, description: "" },
                 ];
                 nav_group(ui, &red_items, theme.nav_legacy_red(), text_muted, theme, state);
 
@@ -80,17 +84,17 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 
                 // Green group: context-sensitive
                 let green_items = [
-                    NavItem { label: "Profile", page: GuiPage::Profile },
-                    NavItem { label: "Identity", page: GuiPage::Identity },
-                    NavItem { label: "Governance", page: GuiPage::Governance },
-                    NavItem { label: "Recovery", page: GuiPage::Recovery },
-                    NavItem { label: "Tasks", page: GuiPage::Tasks },
-                    NavItem { label: "Inventory", page: GuiPage::Inventory },
-                    NavItem { label: "Maps", page: GuiPage::Maps },
-                    NavItem { label: "Market", page: GuiPage::Market },
-                    NavItem { label: "Crafting", page: GuiPage::Crafting },
-                    NavItem { label: "Civilization", page: GuiPage::Civilization },
-                    NavItem { label: "Studio", page: GuiPage::Studio },
+                    NavItem { label: "Profile", page: GuiPage::Profile, description: "" },
+                    NavItem { label: "Identity", page: GuiPage::Identity, description: "" },
+                    NavItem { label: "Governance", page: GuiPage::Governance, description: "" },
+                    NavItem { label: "Recovery", page: GuiPage::Recovery, description: "" },
+                    NavItem { label: "Tasks", page: GuiPage::Tasks, description: "" },
+                    NavItem { label: "Inventory", page: GuiPage::Inventory, description: "" },
+                    NavItem { label: "Maps", page: GuiPage::Maps, description: "" },
+                    NavItem { label: "Market", page: GuiPage::Market, description: "" },
+                    NavItem { label: "Crafting", page: GuiPage::Crafting, description: "" },
+                    NavItem { label: "Civilization", page: GuiPage::Civilization, description: "" },
+                    NavItem { label: "Studio", page: GuiPage::Studio, description: "" },
                 ];
                 nav_group(ui, &green_items, theme.nav_legacy_green(), text_muted, theme, state);
 
@@ -100,14 +104,14 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 
                 // Blue group: system
                 let blue_items = [
-                    NavItem { label: "Onboarding", page: GuiPage::Onboarding },
-                    NavItem { label: "Agents", page: GuiPage::Agents },
-                    NavItem { label: "AI Usage", page: GuiPage::AiUsage },
-                    NavItem { label: "Settings", page: GuiPage::Settings },
-                    NavItem { label: "Tools", page: GuiPage::Tools },
-                    NavItem { label: "Bugs", page: GuiPage::BugReport },
-                    NavItem { label: "Testing", page: GuiPage::Testing },
-                    NavItem { label: "Browser", page: GuiPage::Browser },
+                    NavItem { label: "Onboarding", page: GuiPage::Onboarding, description: "" },
+                    NavItem { label: "Agents", page: GuiPage::Agents, description: "" },
+                    NavItem { label: "AI Usage", page: GuiPage::AiUsage, description: "" },
+                    NavItem { label: "Settings", page: GuiPage::Settings, description: "" },
+                    NavItem { label: "Tools", page: GuiPage::Tools, description: "" },
+                    NavItem { label: "Bugs", page: GuiPage::BugReport, description: "" },
+                    NavItem { label: "Testing", page: GuiPage::Testing, description: "" },
+                    NavItem { label: "Browser", page: GuiPage::Browser, description: "" },
                 ];
                 nav_group(ui, &blue_items, theme.nav_legacy_blue(), text_muted, theme, state);
 
@@ -493,47 +497,69 @@ fn top_categories(theme: &Theme) -> Vec<TopCategory> {
 /// Tools = utility apps that aren't bound to game state.
 /// Settings = personal config + server admin.
 /// Dev = developer / QA / inspection (visibility-gated).
+/// Public view of `sub_pages_for` for the category-overview pages.
+/// Returns (label, page, description) tuples so callers don't depend on
+/// the private NavItem type. Empty Vec for unknown categories.
+pub fn category_pages(category: &str) -> Vec<(&'static str, GuiPage, &'static str)> {
+    sub_pages_for(category)
+        .into_iter()
+        .map(|n| (n.label, n.page, n.description))
+        .collect()
+}
+
+/// Top category metadata for overview pages: id, label, color, description.
+pub fn category_meta(category: &str, theme: &Theme) -> Option<(&'static str, Color32, &'static str)> {
+    match category {
+        "reality"  => Some(("Reality",  theme.nav_reality(),  "Identity, communication, civic life — the real you, your real money, your real community.")),
+        "sim"      => Some(("Sim",      theme.nav_sim(),      "In-game / character-bound activities. Simulated economies, crafted items, ship interiors.")),
+        "tools"    => Some(("Tools",    theme.nav_tools(),    "Utility apps that aren't bound to game state. Calculator, calendar, notes, browser.")),
+        "settings" => Some(("Settings", theme.nav_settings(), "Personal preferences and server administration.")),
+        "dev"      => Some(("Dev",      theme.nav_dev(),      "Developer / QA / inspection. Hidden by default at v1.0; on during the dev period.")),
+        _ => None,
+    }
+}
+
 fn sub_pages_for(category: &str) -> Vec<NavItem> {
     match category {
         "reality" => vec![
-            NavItem { label: "Profile",     page: GuiPage::Profile },
-            NavItem { label: "Chat",        page: GuiPage::Chat },
-            NavItem { label: "Wallet",      page: GuiPage::Wallet },
-            NavItem { label: "Donate",      page: GuiPage::Donate },
-            NavItem { label: "Tasks",       page: GuiPage::Tasks },
-            NavItem { label: "Market",      page: GuiPage::Market },
-            NavItem { label: "Civilization",page: GuiPage::Civilization },
-            NavItem { label: "Governance",  page: GuiPage::Governance },
-            NavItem { label: "Maps",        page: GuiPage::Maps },
-            NavItem { label: "Recovery",    page: GuiPage::Recovery },
-            NavItem { label: "Identity",    page: GuiPage::Identity },
+            NavItem { label: "Profile",      page: GuiPage::Profile,      description: "Public-facing identity, bio, socials, avatar." },
+            NavItem { label: "Chat",         page: GuiPage::Chat,         description: "Cooperative messaging across servers and DMs." },
+            NavItem { label: "Wallet",       page: GuiPage::Wallet,       description: "Self-custodied crypto wallet (Solana SOL + tokens)." },
+            NavItem { label: "Donate",       page: GuiPage::Donate,       description: "Support development via crypto / GitHub Sponsors." },
+            NavItem { label: "Tasks",        page: GuiPage::Tasks,        description: "Personal + shared kanban with project grouping." },
+            NavItem { label: "Market",       page: GuiPage::Market,       description: "P2P marketplace: browse, list, message sellers." },
+            NavItem { label: "Civilization", page: GuiPage::Civilization, description: "Community / colony stats, charts, timeline." },
+            NavItem { label: "Governance",   page: GuiPage::Governance,   description: "Proposals, votes, tally — local + civilization scope." },
+            NavItem { label: "Maps",         page: GuiPage::Maps,         description: "Solar system + planet detail browser." },
+            NavItem { label: "Recovery",     page: GuiPage::Recovery,     description: "Social key recovery (Shamir M-of-N guardians)." },
+            NavItem { label: "Identity",     page: GuiPage::Identity,     description: "DID, Verifiable Credentials, trust score, AI status." },
         ],
         "sim" => vec![
-            NavItem { label: "Inventory",   page: GuiPage::Inventory },
-            NavItem { label: "Crafting",    page: GuiPage::Crafting },
-            NavItem { label: "Studio",      page: GuiPage::Studio },
-            NavItem { label: "Guilds",      page: GuiPage::Guilds },
-            NavItem { label: "Trade",       page: GuiPage::Trade },
+            NavItem { label: "Inventory", page: GuiPage::Inventory, description: "Item grid, equipment slots, weight tracking." },
+            NavItem { label: "Crafting",  page: GuiPage::Crafting,  description: "Recipes by category with craft queue + progress." },
+            NavItem { label: "Studio",    page: GuiPage::Studio,    description: "OBS-style scene + source manager for streams." },
+            NavItem { label: "Guilds",    page: GuiPage::Guilds,    description: "Guild browser, members, chat, create form." },
+            NavItem { label: "Trade",     page: GuiPage::Trade,     description: "P2P trades with escrow + dual confirmation." },
         ],
         "tools" => vec![
-            NavItem { label: "Calculator",  page: GuiPage::Calculator },
-            NavItem { label: "Calendar",    page: GuiPage::Calendar },
-            NavItem { label: "Notes",       page: GuiPage::Notes },
-            NavItem { label: "Resources",   page: GuiPage::Resources },
-            NavItem { label: "Tools",       page: GuiPage::Tools },
-            NavItem { label: "Browser",     page: GuiPage::Browser },
+            NavItem { label: "Calculator", page: GuiPage::Calculator, description: "Scientific calculator with history." },
+            NavItem { label: "Calendar",   page: GuiPage::Calendar,   description: "Month view + add events with time and color." },
+            NavItem { label: "Notes",      page: GuiPage::Notes,      description: "Notes app with autosave + word count." },
+            NavItem { label: "Resources",  page: GuiPage::Resources,  description: "Curated resource directory (Real / Sim aware)." },
+            NavItem { label: "Tools",      page: GuiPage::Tools,      description: "Open-source tools catalog with search + filters." },
+            NavItem { label: "Browser",    page: GuiPage::Browser,    description: "Curated bookmarks; opens in your default browser." },
         ],
         "settings" => vec![
-            NavItem { label: "Settings",        page: GuiPage::Settings },
-            NavItem { label: "Onboarding",      page: GuiPage::Onboarding },
-            NavItem { label: "Server Settings", page: GuiPage::ServerSettings },
+            NavItem { label: "Settings",        page: GuiPage::Settings,       description: "Account, appearance, animations, audio, controls, more." },
+            NavItem { label: "Onboarding",      page: GuiPage::Onboarding,     description: "First-run orientation + permanent reference quests." },
+            NavItem { label: "Server Settings", page: GuiPage::ServerSettings, description: "Server / group admin (USER / MOD / ADMIN tiered)." },
         ],
         "dev" => vec![
-            NavItem { label: "Testing",   page: GuiPage::Testing },
-            NavItem { label: "Bugs",      page: GuiPage::BugReport },
-            NavItem { label: "Agents",    page: GuiPage::Agents },
-            NavItem { label: "AI Usage",  page: GuiPage::AiUsage },
-            NavItem { label: "Files",     page: GuiPage::Files },
+            NavItem { label: "Testing",  page: GuiPage::Testing,   description: "QA checklist; Mark Passed / Report Issue posts to chat." },
+            NavItem { label: "Bugs",     page: GuiPage::BugReport, description: "Submit bug reports with severity + category." },
+            NavItem { label: "Agents",   page: GuiPage::Agents,    description: "Multi-AI scope coordination dashboard." },
+            NavItem { label: "AI Usage", page: GuiPage::AiUsage,   description: "AI subscription quota tracker + usage log." },
+            NavItem { label: "Files",    page: GuiPage::Files,     description: "Browse + edit text files in the data/ directory." },
         ],
         _ => Vec::new(),
     }
@@ -595,6 +621,19 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     );
                     if btn.clicked() {
                         state.nav_top_category = cat.id.to_string();
+                        // v0.181.0: top-tier click also loads the matching
+                        // overview page so the user sees a summary card
+                        // grid instead of staying on whatever sub-page was
+                        // last active. Sub-tier buttons still navigate
+                        // straight to individual pages.
+                        state.active_page = match cat.id {
+                            "reality"  => GuiPage::OverviewReality,
+                            "sim"      => GuiPage::OverviewSim,
+                            "tools"    => GuiPage::OverviewTools,
+                            "settings" => GuiPage::OverviewSettings,
+                            "dev"      => GuiPage::OverviewDev,
+                            _ => state.active_page.clone(),
+                        };
                         crate::config::AppConfig::from_gui_state(state).save();
                     }
                 }

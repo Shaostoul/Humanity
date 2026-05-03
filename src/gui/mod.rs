@@ -115,6 +115,17 @@ pub enum GuiPage {
     /// now each card opens its URL in the OS default browser via egui's
     /// open_url. Data lives in `data/browser/bookmarks.json`.
     Browser,
+    /// Top-category overview / landing pages (v0.181.0). Each top-tier
+    /// nav button (Reality / Sim / Tools / Settings / Dev) lands on the
+    /// matching overview, which renders a card grid of every sub-page
+    /// in that category with a one-line description. Sub-page nav items
+    /// remain available for direct navigation; the overview is the
+    /// "browse / discover what's in this category" entry point.
+    OverviewReality,
+    OverviewSim,
+    OverviewTools,
+    OverviewSettings,
+    OverviewDev,
 }
 
 /// Item slot data bridged from ECS Inventory for GUI display.

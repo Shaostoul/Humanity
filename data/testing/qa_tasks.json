@@ -354,6 +354,14 @@
       "category": "design"
     },
     {
+      "id": "v0181-category-overviews",
+      "version": "0.181.0",
+      "feature": "Top-tier nav buttons land on category overview pages (Reality/Sim/Tools/Settings/Dev)",
+      "what_to_test": "Switch to two-tier nav. Click each top category button (Reality / Sim / Tools / Settings / Dev). Each should now load its own LANDING page — header in the category color, summary line, then a grid of cards (one per sub-page) with a label and a one-line description. Click any card to jump straight to that page. Sub-tier buttons still work for direct navigation as before.",
+      "expected": "Reality landing: 11 cards (Profile/Chat/Wallet/Donate/Tasks/Market/Civilization/Governance/Maps/Recovery/Identity). Sim: 5 cards. Tools: 6 cards. Settings: 3 cards (will become 14 in v0.182 settings split). Dev: 5 cards. Click any card → navigates. Hover → card border becomes the category color.",
+      "category": "ui"
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",
