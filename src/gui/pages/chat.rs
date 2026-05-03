@@ -1733,6 +1733,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         .unwrap_or(false);
 
                     let need_text_row = show_header || !display_text.trim().is_empty();
+                    // Track whether the message row was hovered this frame so the
+                    // reactions/reply/pin/edit button row below can stay hidden
+                    // unless the user is actually pointing at this message.
+                    // (Discord/Slack pattern. Right-click context menu still
+                    // works as the always-available fallback.)
+                    let mut row_was_hovered = false;
                     if is_editing {
                         // Render an editable row in place of the message text.
                         if let Some((_, ref mut draft)) = state.chat_edit_target {
@@ -1768,6 +1774,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             channeling,
                             ctx_time,
                         );
+                        row_was_hovered = row_resp.response.hovered();
                         if row_resp.userbox_clicked(ui.ctx()) {
                             state.chat_user_modal_open = true;
                             state.chat_user_modal_name = msg.sender_name.clone();
@@ -1819,14 +1826,19 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     }
 
                     // ── Reactions row + react picker ──
-                    // Renders below the text/image of every message:
-                    //   pills for each reaction (emoji + count, accent if I reacted)
-                    //   a small "+" button that pops out the 8-emoji picker
+                    // Renders below the text/image of a message ONLY when:
+                    //   (a) the message has at least one reaction (pills must
+                    //       always be visible so the count is discoverable), or
+                    //   (b) the cursor is over the message row (Slack/Discord
+                    //       hover pattern).
+                    // Right-click context menu (rendered above) is the
+                    // always-available fallback.
                     let reactions_indent = 40.0;
                     let my_key = state.profile_public_key.clone();
                     let target_from = msg.sender_key.clone();
                     let target_ts = msg.timestamp_ms;
-                    if !msg.reactions.is_empty() || target_ts > 0 {
+                    let show_buttons = !msg.reactions.is_empty() || row_was_hovered;
+                    if show_buttons && target_ts > 0 {
                         let row_w = ui.available_width();
                         let (row_rect, _) = ui.allocate_exact_size(
                             Vec2::new(row_w, 22.0),

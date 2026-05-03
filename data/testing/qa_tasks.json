@@ -330,6 +330,30 @@
       "note": "Dev visibility default-on during development period; flips to default-off at v1.0. Operator decision per CLAUDE.md."
     },
     {
+      "id": "v0180-chat-buttons-hover",
+      "version": "0.180.0",
+      "feature": "Chat reaction/reply/pin/edit buttons gated to hover",
+      "what_to_test": "Open Chat. Scroll through messages. Confirm: messages WITHOUT reactions show no button row. Hover a message — buttons appear (reactions +, ↩ reply, 📌 pin, ✎ edit on your own). Move cursor away — buttons disappear. Right-click any message — context menu still works as fallback.",
+      "expected": "Cleaner chat surface; the row of buttons only renders when (a) a message has at least one reaction (so the count stays visible) or (b) the cursor is over the message row. Discord/Slack pattern.",
+      "category": "chat-parity"
+    },
+    {
+      "id": "v0180-game-chatter-filter",
+      "version": "0.180.0",
+      "feature": "Ambient NPC chatter no longer pollutes #general (or any chat channel)",
+      "what_to_test": "Open Chat → #general. Wait 1-2 minutes. Previously you'd see Helm Officer Vex / CB-7 / etc. lines appear as system messages every ~45s. After this fix: nothing.",
+      "expected": "Game-engine traffic (`__game__:`-prefixed system frames) is filtered out of chat in BOTH native (src/lib.rs) AND web (web/chat/app.js). Game UI consumers + the AI sample client still receive the events because they decode raw WS frames themselves; only the chat renderer skips them.",
+      "category": "chat-parity"
+    },
+    {
+      "id": "v0180-crypto-doc-clarification",
+      "version": "0.180.0",
+      "feature": "CLAUDE.md crypto section: explicit migration roadmap",
+      "what_to_test": "(Developer-facing.) Open CLAUDE.md → Cryptography section → Migration status. Should now have THREE clear migration steps (Account → PQ-primary, DM E2EE → Kyber768, Profile gossip → ML-DSA) with a callout that today's reality is Ed25519-primary while the goal is Dilithium3-primary.",
+      "expected": "Future sessions reading CLAUDE.md cannot mistake the goal for the current state. The X-reply-style mistake (claiming Dilithium3 in marketing copy when chat is still Ed25519) cannot recur from doc misreading.",
+      "category": "design"
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

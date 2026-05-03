@@ -127,7 +127,18 @@ Identity (federation objects): ML-DSA-65 (Dilithium3, FIPS 204), separate keypai
 | Server-side KDF | Argon2id (memory-hard) | `src/relay/core/kdf.rs` | Active (replaced PBKDF2 for relay secrets) |
 | Key rotation | Ed25519 dual-sign certificate | `web/chat/crypto.js`, `src/relay/handlers/msg_handlers.rs::handle_key_rotation` | Active (PQ rotation TBD) |
 
-**Migration status as of audit:** chat clients still sign with Ed25519. Federation objects + DIDs already moved to Dilithium3. Kyber768 infrastructure deployed but DM E2EE still uses ECDH P-256. Plan: chat-side PQ migration in a follow-up phase; ECDH→Kyber DM migration after that. Until then, **do not claim "we use Dilithium3 for everything"** — it's only the federation object layer.
+**Migration status as of audit:**
+- Chat clients still sign with Ed25519. New accounts get an Ed25519 keypair only (`web/chat/crypto.js::generateKeypair`); BIP39 seed restores Ed25519 only. The `peers` table is keyed by Ed25519 hex.
+- Federation objects + DIDs already moved to Dilithium3 (server-side `api/v2/*` routes). Chat clients never touch DIDs directly.
+- Kyber768 infrastructure deployed but DM E2EE still uses ECDH P-256.
+
+**Operator-stated direction (target, not yet shipped):** the account/identity primary key should be Dilithium3, with Ed25519 retained only for Solana-wallet compatibility (Solana itself hasn't migrated). Today's reality is the inverse — Ed25519 IS the primary chat identity. Migration roadmap:
+
+1. **Account → PQ-primary**: `generateKeypair()` produces both Dilithium3 + Ed25519 from one BIP39 seed; `myIdentity.publicKeyHex` becomes the Dilithium3 fingerprint (or DID); identify message sends both pubkeys; relay stores Dilithium3 as canonical, Ed25519 as a Solana-wallet attachment. (Not yet shipped.)
+2. **DM E2EE → Kyber768**: hybrid handshake (ECDH ⊕ Kyber) so old clients still negotiate, then drop ECDH once adoption is high.
+3. **Profile gossip → ML-DSA**: flip `should_accept_profile_gossip` to require PQ signatures.
+
+Until these ship: **CLAUDE.md and any user-facing copy MUST describe Ed25519 as today's chat-side reality** even though it's the migration source, not the destination. Don't claim "we use Dilithium3 for the account" — that's the goal, not the state.
 
 When you change any of these in code, update this table in the same commit.
 

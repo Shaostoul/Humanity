@@ -975,6 +975,18 @@ async function handleMessage(msg) {
         break;
       }
       if (msg.message === 'sync_ack') break; // Silent ack
+      // Game-engine traffic (ambient NPC chatter, quest events, world ticks)
+      // is broadcast as system-prefixed messages so AI agents subscribed to
+      // game state can listen. They must NOT pollute regular chat channels.
+      // Forward to any registered game listener and skip rendering.
+      // (Bug fix 2026-05-03.)
+      if (msg.message && msg.message.startsWith('__game__:')) {
+        try {
+          const game = JSON.parse(msg.message.slice('__game__:'.length));
+          if (typeof window.onGameMessage === 'function') window.onGameMessage(game);
+        } catch (e) { console.warn('Bad __game__ payload', e); }
+        break;
+      }
       // Skill endorsement counts response.
       if (msg.message && msg.message.startsWith('__skill_endorsements__:')) {
         try {

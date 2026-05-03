@@ -1311,8 +1311,15 @@ mod native_app {
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
                                             log::info!("Relay system message: {}", msg);
                                             crate::debug::push_debug(format!("System: {}", msg));
-                                            // Filter out internal sync messages from chat display
-                                            if msg.starts_with("__sync_data__") || msg == "sync_ack" {
+                                            // Filter out internal sync + game messages from chat display.
+                                            // `__game__:` prefix tags game-engine traffic (ambient
+                                            // chatter, quest events, NPC dialog, world ticks) — those
+                                            // belong on the game/perception channel, NOT in #general
+                                            // where humans are talking. (Bug fix 2026-05-03.)
+                                            if msg.starts_with("__sync_data__")
+                                                || msg.starts_with("__game__:")
+                                                || msg == "sync_ack"
+                                            {
                                                 continue;
                                             }
                                             // Add as a system message in current channel
