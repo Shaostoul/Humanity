@@ -371,6 +371,15 @@
       "note": "Existing draw_X_content fns in settings.rs were only made pub(crate) — no logic moved. Each new page is a 6-line wrapper in settings_pages.rs that calls into the shared content fn under a styled header frame. If a content fn needs new behavior, edit settings.rs once and every wrapper picks it up."
     },
     {
+      "id": "v0183-chat-action-overlay",
+      "version": "0.183.0",
+      "feature": "Chat action buttons (+, ↩, 📌, ✎) float as a popup, no layout shift on hover",
+      "what_to_test": "Open Chat. Hover any message. Action buttons should now appear as a small floating popup at the message's top-right with a shadow/border. Move cursor away — popup disappears. Crucially: HOVERING DIFFERENT MESSAGES SHOULD NOT MOVE THE TEXT. Previously hovering would push everything below down by 22px causing weird glitches. Reaction pills (when a message has reactions) STILL appear inline below the text — that's static info, not a hover state.",
+      "expected": "Hover-trigger UI no longer changes layout. Cursor sliding from message text right into the popup buttons keeps the popup visible (slight overlap by design). Click + to open emoji picker; ↩ to set reply target; 📌 to pin; ✎ to edit your own messages. Right-click context menu still works as the always-available fallback.",
+      "category": "chat-parity",
+      "note": "egui::Area with order Foreground + RIGHT_TOP pivot anchored to row.right_top minus a small offset. Shadow + bg_card frame so it reads as a discrete popup. Reaction pills kept inline since they're static content (this message has 3 thumbs-up — known, doesn't change on hover)."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

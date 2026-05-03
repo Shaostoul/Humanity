@@ -1733,12 +1733,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         .unwrap_or(false);
 
                     let need_text_row = show_header || !display_text.trim().is_empty();
-                    // Track whether the message row was hovered this frame so the
-                    // reactions/reply/pin/edit button row below can stay hidden
-                    // unless the user is actually pointing at this message.
-                    // (Discord/Slack pattern. Right-click context menu still
-                    // works as the always-available fallback.)
+                    // Track row hover state + rect so we can paint the action
+                    // buttons (+ picker, reply, pin, edit) as a *floating overlay*
+                    // anchored to the row's top-right. The overlay does NOT
+                    // allocate layout space, so hovering a message no longer
+                    // shifts every message below it down by 22px.
                     let mut row_was_hovered = false;
+                    let mut row_rect_opt: Option<egui::Rect> = None;
                     if is_editing {
                         // Render an editable row in place of the message text.
                         if let Some((_, ref mut draft)) = state.chat_edit_target {
@@ -1775,6 +1776,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             ctx_time,
                         );
                         row_was_hovered = row_resp.response.hovered();
+                        row_rect_opt = Some(row_resp.response.rect);
                         if row_resp.userbox_clicked(ui.ctx()) {
                             state.chat_user_modal_open = true;
                             state.chat_user_modal_name = msg.sender_name.clone();
@@ -1825,30 +1827,24 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         });
                     }
 
-                    // ── Reactions row + react picker ──
-                    // Renders below the text/image of a message ONLY when:
-                    //   (a) the message has at least one reaction (pills must
-                    //       always be visible so the count is discoverable), or
-                    //   (b) the cursor is over the message row (Slack/Discord
-                    //       hover pattern).
-                    // Right-click context menu (rendered above) is the
-                    // always-available fallback.
+                    // ── Reaction PILLS (inline, only when reactions exist) ──
+                    // These are STATIC content (this message has 3 thumbs-up,
+                    // etc.) — render them inline below the message text. Doesn't
+                    // shift on hover because their existence doesn't depend on
+                    // hover. Click a pill to toggle your own reaction.
                     let reactions_indent = 40.0;
                     let my_key = state.profile_public_key.clone();
                     let target_from = msg.sender_key.clone();
                     let target_ts = msg.timestamp_ms;
-                    let show_buttons = !msg.reactions.is_empty() || row_was_hovered;
-                    if show_buttons && target_ts > 0 {
+                    if !msg.reactions.is_empty() && target_ts > 0 {
                         let row_w = ui.available_width();
-                        let (row_rect, _) = ui.allocate_exact_size(
+                        let (pills_rect, _) = ui.allocate_exact_size(
                             Vec2::new(row_w, 22.0),
                             egui::Sense::hover(),
                         );
-                        ui.painter().rect_filled(row_rect, 0.0, row_bg);
-                        let mut x = row_rect.left() + reactions_indent;
-                        let y = row_rect.center().y;
-
-                        // Sort reactions by emoji for stable order.
+                        ui.painter().rect_filled(pills_rect, 0.0, row_bg);
+                        let mut x = pills_rect.left() + reactions_indent;
+                        let y = pills_rect.center().y;
                         let mut emojis: Vec<(&String, &Vec<String>)> = msg.reactions.iter().collect();
                         emojis.sort_by(|a, b| a.0.cmp(b.0));
                         for (emoji, keys) in emojis {
@@ -1881,7 +1877,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 egui::FontId::proportional(theme.font_size_small),
                                 if i_reacted { theme.accent() } else { theme.text_primary() },
                             );
-                            // Click pill to toggle.
                             let resp = ui.interact(
                                 pill,
                                 egui::Id::new(("react_pill", msg.timestamp_ms, emoji.clone())),
@@ -1892,136 +1887,134 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             }
                             x += label_w + 4.0;
                         }
+                    }
 
-                        // "+" picker button — clicking opens the 8-emoji picker inline.
-                        const REACT_OPTIONS: &[&str] = &["❤️", "😂", "👍", "👎", "🔥", "😮", "😢", "🎉"];
-                        let plus_w = 24.0;
-                        let plus_rect = egui::Rect::from_min_size(
-                            egui::pos2(x, y - 9.0),
-                            Vec2::new(plus_w, 18.0),
-                        );
-                        ui.painter().rect_filled(plus_rect, Rounding::same(9), theme.bg_card());
-                        ui.painter().text(
-                            plus_rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            "+",
-                            egui::FontId::proportional(theme.font_size_body),
-                            theme.text_muted(),
-                        );
-                        let plus_resp = ui.interact(
-                            plus_rect,
-                            egui::Id::new(("react_add", msg.timestamp_ms)),
-                            egui::Sense::click(),
-                        );
-                        let popup_id = egui::Id::new(("react_popup", msg.timestamp_ms));
-                        if plus_resp.clicked() {
-                            ui.memory_mut(|m| m.toggle_popup(popup_id));
-                        }
-                        egui::popup::popup_below_widget(
-                            ui, popup_id, &plus_resp,
-                            egui::PopupCloseBehavior::CloseOnClickOutside,
-                            |ui| {
-                                ui.set_min_width(220.0);
-                                ui.horizontal_wrapped(|ui| {
-                                    for emoji in REACT_OPTIONS {
-                                        if ui.button(*emoji).clicked() {
-                                            pending_reactions.push((target_from.clone(), target_ts, emoji.to_string()));
-                                            ui.memory_mut(|m| m.close_popup());
-                                        }
-                                    }
+                    // ── Action buttons (floating overlay, hover-only) ──
+                    // Lives in an egui::Area anchored to the message row's
+                    // top-right. Does NOT allocate layout space — hover doesn't
+                    // shift any message below. Buttons: + reaction picker, ↩
+                    // reply, 📌 pin, and ✎ edit (own messages only).
+                    if row_was_hovered && target_ts > 0 {
+                        if let Some(row_rect) = row_rect_opt {
+                            const REACT_OPTIONS: &[&str] = &["❤️", "😂", "👍", "👎", "🔥", "😮", "😢", "🎉"];
+                            let is_own = msg.sender_key == state.profile_public_key;
+                            // Anchor: top-right of the row, lifted ~10px so the
+                            // overlay floats above the row's top edge but still
+                            // overlaps the right side. Overlap means the cursor
+                            // sliding from text to overlay never crosses an
+                            // un-hovered gap, so the overlay stays sticky.
+                            let overlay_pos = egui::pos2(
+                                row_rect.right() - 8.0,
+                                row_rect.top() - 12.0,
+                            );
+                            egui::Area::new(egui::Id::new(("react_overlay", target_ts)))
+                                .fixed_pos(overlay_pos)
+                                .pivot(egui::Align2::RIGHT_TOP)
+                                .order(egui::Order::Foreground)
+                                .interactable(true)
+                                .show(ui.ctx(), |ui| {
+                                    Frame::none()
+                                        .fill(theme.bg_card())
+                                        .stroke(Stroke::new(1.0, theme.border()))
+                                        .rounding(Rounding::same(6))
+                                        .inner_margin(4.0)
+                                        .shadow(egui::epaint::Shadow {
+                                            offset: [1, 2],
+                                            blur: 6,
+                                            spread: 0,
+                                            color: Color32::from_black_alpha(80),
+                                        })
+                                        .show(ui, |ui| {
+                                            ui.spacing_mut().item_spacing.x = 4.0;
+                                            ui.horizontal(|ui| {
+                                                // + react picker
+                                                let plus_resp = ui.add(
+                                                    egui::Button::new(
+                                                        RichText::new("+")
+                                                            .size(theme.font_size_body)
+                                                            .color(theme.text_muted())
+                                                    )
+                                                    .min_size(Vec2::new(24.0, 22.0))
+                                                    .rounding(Rounding::same(4))
+                                                ).on_hover_text("Add reaction");
+                                                let popup_id = egui::Id::new(("react_popup", target_ts));
+                                                if plus_resp.clicked() {
+                                                    ui.memory_mut(|m| m.toggle_popup(popup_id));
+                                                }
+                                                egui::popup::popup_below_widget(
+                                                    ui, popup_id, &plus_resp,
+                                                    egui::PopupCloseBehavior::CloseOnClickOutside,
+                                                    |ui| {
+                                                        ui.set_min_width(220.0);
+                                                        ui.horizontal_wrapped(|ui| {
+                                                            for emoji in REACT_OPTIONS {
+                                                                if ui.button(*emoji).clicked() {
+                                                                    pending_reactions.push((target_from.clone(), target_ts, emoji.to_string()));
+                                                                    ui.memory_mut(|m| m.close_popup());
+                                                                }
+                                                            }
+                                                        });
+                                                    },
+                                                );
+
+                                                // ↩ reply
+                                                if ui.add(
+                                                    egui::Button::new(
+                                                        RichText::new("↩")
+                                                            .size(theme.font_size_body)
+                                                            .color(theme.text_muted())
+                                                    )
+                                                    .min_size(Vec2::new(28.0, 22.0))
+                                                    .rounding(Rounding::same(4))
+                                                ).on_hover_text("Reply").clicked() {
+                                                    let preview = if msg.content.len() > 80 {
+                                                        format!("{}…", &msg.content[..80])
+                                                    } else {
+                                                        msg.content.clone()
+                                                    };
+                                                    pending_reply = Some(crate::gui::ReplyContext {
+                                                        sender_key: msg.sender_key.clone(),
+                                                        sender_name: msg.sender_name.clone(),
+                                                        preview,
+                                                        timestamp_ms: target_ts,
+                                                    });
+                                                }
+
+                                                // 📌 pin
+                                                if ui.add(
+                                                    egui::Button::new(
+                                                        RichText::new("📌")
+                                                            .size(theme.font_size_small)
+                                                            .color(theme.text_muted())
+                                                    )
+                                                    .min_size(Vec2::new(24.0, 22.0))
+                                                    .rounding(Rounding::same(4))
+                                                ).on_hover_text("Pin message").clicked() {
+                                                    pending_pins.push((
+                                                        msg.sender_key.clone(),
+                                                        msg.sender_name.clone(),
+                                                        msg.content.clone(),
+                                                        target_ts,
+                                                    ));
+                                                }
+
+                                                // ✎ edit (own only)
+                                                if is_own {
+                                                    if ui.add(
+                                                        egui::Button::new(
+                                                            RichText::new("✎")
+                                                                .size(theme.font_size_body)
+                                                                .color(theme.text_muted())
+                                                        )
+                                                        .min_size(Vec2::new(28.0, 22.0))
+                                                        .rounding(Rounding::same(4))
+                                                    ).on_hover_text("Edit").clicked() {
+                                                        pending_edit = Some((target_ts, msg.content.clone()));
+                                                    }
+                                                }
+                                            });
+                                        });
                                 });
-                            },
-                        );
-                        x += plus_w + 4.0;
-
-                        // Reply button — sets state.chat_reply_to so the next sent
-                        // message is a thread reply to this message.
-                        let reply_w = 28.0;
-                        let reply_rect = egui::Rect::from_min_size(
-                            egui::pos2(x, y - 9.0),
-                            Vec2::new(reply_w, 18.0),
-                        );
-                        ui.painter().rect_filled(reply_rect, Rounding::same(9), theme.bg_card());
-                        ui.painter().text(
-                            reply_rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            "↩",
-                            egui::FontId::proportional(theme.font_size_body),
-                            theme.text_muted(),
-                        );
-                        let reply_resp = ui.interact(
-                            reply_rect,
-                            egui::Id::new(("reply_btn", msg.timestamp_ms)),
-                            egui::Sense::click(),
-                        );
-                        if reply_resp.clicked() {
-                            let preview = if msg.content.len() > 80 {
-                                format!("{}…", &msg.content[..80])
-                            } else {
-                                msg.content.clone()
-                            };
-                            pending_reply = Some(crate::gui::ReplyContext {
-                                sender_key: msg.sender_key.clone(),
-                                sender_name: msg.sender_name.clone(),
-                                preview,
-                                timestamp_ms: msg.timestamp_ms,
-                            });
-                        }
-
-                        x += reply_w + 4.0;
-
-                        // Pin button — sends pin_request to the relay.
-                        let pin_w = 24.0;
-                        let pin_rect = egui::Rect::from_min_size(
-                            egui::pos2(x, y - 9.0),
-                            Vec2::new(pin_w, 18.0),
-                        );
-                        ui.painter().rect_filled(pin_rect, Rounding::same(9), theme.bg_card());
-                        ui.painter().text(
-                            pin_rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            "📌",
-                            egui::FontId::proportional(theme.font_size_small),
-                            theme.text_muted(),
-                        );
-                        let pin_resp = ui.interact(
-                            pin_rect,
-                            egui::Id::new(("pin_btn", msg.timestamp_ms)),
-                            egui::Sense::click(),
-                        );
-                        if pin_resp.clicked() && msg.timestamp_ms > 0 {
-                            pending_pins.push((
-                                msg.sender_key.clone(),
-                                msg.sender_name.clone(),
-                                msg.content.clone(),
-                                msg.timestamp_ms,
-                            ));
-                        }
-
-                        // Edit button — only on the user's own messages.
-                        if msg.sender_key == state.profile_public_key && msg.timestamp_ms > 0 {
-                            x += pin_w + 4.0;
-                            let edit_w = 28.0;
-                            let edit_rect = egui::Rect::from_min_size(
-                                egui::pos2(x, y - 9.0),
-                                Vec2::new(edit_w, 18.0),
-                            );
-                            ui.painter().rect_filled(edit_rect, Rounding::same(9), theme.bg_card());
-                            ui.painter().text(
-                                edit_rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                "✎",
-                                egui::FontId::proportional(theme.font_size_body),
-                                theme.text_muted(),
-                            );
-                            let edit_resp = ui.interact(
-                                edit_rect,
-                                egui::Id::new(("edit_btn", msg.timestamp_ms)),
-                                egui::Sense::click(),
-                            );
-                            if edit_resp.clicked() {
-                                pending_edit = Some((msg.timestamp_ms, msg.content.clone()));
-                            }
                         }
                     }
 
