@@ -99,16 +99,18 @@ Plus mirrors of every native page: `chat.html`, `inventory.html`, `tasks.html`, 
 - **Window/chrome custom title bar** — settings or independent overlay (operator-requested, deferred).
 - **Multi-monitor manager** — settings sub-page (future).
 
-## Natural groupings (used by two-tier nav)
+## Natural groupings (used by two-tier nav, landed v0.179.0)
 
-These are the operator-confirmed sub-page assignments for `escape_menu.rs::sub_pages_for()`:
+Source of truth: `escape_menu.rs::sub_pages_for()`. Top categories from `top_categories(theme)`.
 
-| Top tier | Color | Sub-pages |
-|----------|-------|-----------|
-| **Reality** | red (`nav_reality`) | Profile, Chat, Wallet, Donate, Tasks, Market, Civilization, Governance, Maps, Recovery, Identity |
-| **Sim** | purple (`nav_sim`) | Inventory, Crafting, Studio, Guilds, Trade |
-| **Tools** | blue (`nav_tools`) | Calculator, Calendar, Notes, Resources, Tools, Browser |
-| **Settings** | gray (`nav_settings`) | Settings, Onboarding, ServerSettings |
-| **Dev** *(planned v0.180+)* | yellow/amber (`nav_dev`, TBD) | Testing, Bugs, Agents, AiUsage, Files, *future:* Performance, NetworkInspector, EntityInspector, LogViewer |
+| Top tier | Color token | Sub-pages |
+|----------|-------------|-----------|
+| **Reality** | `nav_reality` (red) | Profile, Chat, Wallet, Donate, Tasks, Market, Civilization, Governance, Maps, Recovery, Identity |
+| **Sim** | `nav_sim` (purple) | Inventory, Crafting, Studio, Guilds, Trade |
+| **Tools** | `nav_tools` (blue) | Calculator, Calendar, Notes, Resources, Tools, Browser |
+| **Settings** | `nav_settings` (gray) | Settings, Onboarding, ServerSettings |
+| **Dev** | `nav_dev` (amber) | Testing, Bugs, Agents, AiUsage, Files |
 
-Dev category is enabled by default during the development period; ship gate via `theme.dev_menu_visible` boolean (default true now, default false at v1.0).
+Dev visibility is gated by `theme.nav_dev_visible` (default `true` during the development period; toggle in Settings → Animations → Developer mode). At v1.0 the default flips to `false` and only shows when the operator opts in.
+
+Future Dev pages to add as they ship: PerformanceProfiler, NetworkInspector, EntityInspector, LogViewer, ConfigDump.

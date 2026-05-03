@@ -92,4 +92,6 @@
     nav_active_border_animation: 2,
     attack_indicator_style: 1,
     attack_indicator_speed: 1.0,
+    nav_dev: (0.953, 0.612, 0.071, 1.0),
+    nav_dev_visible: true,
 )

@@ -159,6 +159,11 @@ pub struct Theme {
     pub nav_tools: C,
     #[serde(default = "default_nav_settings")]
     pub nav_settings: C,
+    /// Dev top-tier category color (amber). Visibility gated by
+    /// `nav_dev_visible`; defaults to ON during the development period
+    /// and will flip to OFF at v1.0 unless the user opts in.
+    #[serde(default = "default_nav_dev")]
+    pub nav_dev: C,
 
     // Legacy single-row nav group colors. Identity / contextual / system
     // groupings on the legacy nav. Same colors as Reality / (sub-set) /
@@ -202,6 +207,13 @@ pub struct Theme {
     pub attack_indicator_style: u8,
     #[serde(default = "default_anim_speed")]
     pub attack_indicator_speed: f32,
+
+    /// Show the Dev top-tier category in the nav (Testing / Bugs /
+    /// Agents / AI Usage / Files). Default true during the dev period;
+    /// at v1.0 this flips to false and only shows when explicitly
+    /// toggled in Settings → Account → Developer mode.
+    #[serde(default = "default_nav_dev_visible")]
+    pub nav_dev_visible: bool,
 }
 
 /// Animation style enum encoded as u8 in theme.ron for serde stability.
@@ -256,6 +268,7 @@ impl Theme {
     pub fn nav_sim(&self) -> Color32 { Self::c32(&self.nav_sim) }
     pub fn nav_tools(&self) -> Color32 { Self::c32(&self.nav_tools) }
     pub fn nav_settings(&self) -> Color32 { Self::c32(&self.nav_settings) }
+    pub fn nav_dev(&self) -> Color32 { Self::c32(&self.nav_dev) }
     pub fn nav_legacy_red(&self) -> Color32 { Self::c32(&self.nav_legacy_red) }
     pub fn nav_legacy_green(&self) -> Color32 { Self::c32(&self.nav_legacy_green) }
     pub fn nav_legacy_blue(&self) -> Color32 { Self::c32(&self.nav_legacy_blue) }
@@ -475,6 +488,7 @@ fn default_nav_reality()  -> C { (0.906, 0.298, 0.235, 1.0) } // #E74C3C — red
 fn default_nav_sim()      -> C { (0.424, 0.361, 0.906, 1.0) } // #6C5CE7 — purple
 fn default_nav_tools()    -> C { (0.204, 0.596, 0.859, 1.0) } // #3498DB — blue
 fn default_nav_settings() -> C { (0.498, 0.549, 0.553, 1.0) } // #7F8C8D — gray
+fn default_nav_dev()      -> C { (0.953, 0.612, 0.071, 1.0) } // #F39C12 — amber
 fn default_nav_legacy_red()   -> C { (0.906, 0.298, 0.235, 1.0) } // #E74C3C
 fn default_nav_legacy_green() -> C { (0.180, 0.800, 0.443, 1.0) } // #2ECC71
 fn default_nav_legacy_blue()  -> C { (0.204, 0.596, 0.859, 1.0) } // #3498DB
@@ -487,6 +501,7 @@ fn default_nav_separator_anim() -> u8 { 2 }   // RGB_CYCLE
 fn default_active_border_anim() -> u8 { 2 }   // RGB_CYCLE
 fn default_attack_anim() -> u8 { 1 }          // PULSE_RED
 fn default_anim_speed() -> f32 { 1.0 }
+fn default_nav_dev_visible() -> bool { true } // ON during dev period; flip at v1.0
 
 fn default_theme() -> Theme {
     Theme {
@@ -576,6 +591,7 @@ fn default_theme() -> Theme {
         nav_sim: default_nav_sim(),
         nav_tools: default_nav_tools(),
         nav_settings: default_nav_settings(),
+        nav_dev: default_nav_dev(),
         nav_legacy_red: default_nav_legacy_red(),
         nav_legacy_green: default_nav_legacy_green(),
         nav_legacy_blue: default_nav_legacy_blue(),
@@ -588,5 +604,6 @@ fn default_theme() -> Theme {
         nav_active_border_animation: default_active_border_anim(),
         attack_indicator_style: default_attack_anim(),
         attack_indicator_speed: default_anim_speed(),
+        nav_dev_visible: default_nav_dev_visible(),
     }
 }

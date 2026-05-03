@@ -467,19 +467,32 @@ struct TopCategory {
     color: Color32,
 }
 
-fn top_categories(theme: &Theme) -> [TopCategory; 4] {
-    [
+/// All possible top categories. Dev is filtered out at render time when
+/// `theme.nav_dev_visible` is false (planned for v1.0; on by default
+/// during the development period). Returns a Vec rather than a fixed
+/// array because the Dev slot is conditional.
+fn top_categories(theme: &Theme) -> Vec<TopCategory> {
+    let mut cats = vec![
         TopCategory { id: "reality",  label: "Reality",  color: theme.nav_reality() },
         TopCategory { id: "sim",      label: "Sim",      color: theme.nav_sim() },
         TopCategory { id: "tools",    label: "Tools",    color: theme.nav_tools() },
         TopCategory { id: "settings", label: "Settings", color: theme.nav_settings() },
-    ]
+    ];
+    if theme.nav_dev_visible {
+        cats.push(TopCategory { id: "dev", label: "Dev", color: theme.nav_dev() });
+    }
+    cats
 }
 
-/// Sub-pages for a given top category. Maps proposed taxonomy onto
-/// existing GuiPage variants. Pages that don't exist yet (Character,
-/// Quests, World, Sim Market, etc.) are intentionally omitted — they'll
-/// appear here when their pages ship.
+/// Sub-pages for a given top category. Source of truth for nav grouping
+/// is `docs/PAGES.md` "Natural groupings" table — keep in sync.
+///
+/// Reality = identity, communication, civic life (works in both Real and
+/// Sim contexts; the page itself disambiguates if needed).
+/// Sim = in-game / character-bound activities.
+/// Tools = utility apps that aren't bound to game state.
+/// Settings = personal config + server admin.
+/// Dev = developer / QA / inspection (visibility-gated).
 fn sub_pages_for(category: &str) -> Vec<NavItem> {
     match category {
         "reality" => vec![
@@ -494,9 +507,6 @@ fn sub_pages_for(category: &str) -> Vec<NavItem> {
             NavItem { label: "Maps",        page: GuiPage::Maps },
             NavItem { label: "Recovery",    page: GuiPage::Recovery },
             NavItem { label: "Identity",    page: GuiPage::Identity },
-            NavItem { label: "Agents",      page: GuiPage::Agents },
-            NavItem { label: "AI Usage",    page: GuiPage::AiUsage },
-            NavItem { label: "Bugs",        page: GuiPage::BugReport },
         ],
         "sim" => vec![
             NavItem { label: "Inventory",   page: GuiPage::Inventory },
@@ -509,16 +519,21 @@ fn sub_pages_for(category: &str) -> Vec<NavItem> {
             NavItem { label: "Calculator",  page: GuiPage::Calculator },
             NavItem { label: "Calendar",    page: GuiPage::Calendar },
             NavItem { label: "Notes",       page: GuiPage::Notes },
-            NavItem { label: "Files",       page: GuiPage::Files },
-            NavItem { label: "Tools",       page: GuiPage::Tools },
             NavItem { label: "Resources",   page: GuiPage::Resources },
+            NavItem { label: "Tools",       page: GuiPage::Tools },
             NavItem { label: "Browser",     page: GuiPage::Browser },
         ],
         "settings" => vec![
-            NavItem { label: "Settings",       page: GuiPage::Settings },
-            NavItem { label: "Onboarding",     page: GuiPage::Onboarding },
-            NavItem { label: "Server Settings",page: GuiPage::ServerSettings },
-            NavItem { label: "Testing",        page: GuiPage::Testing },
+            NavItem { label: "Settings",        page: GuiPage::Settings },
+            NavItem { label: "Onboarding",      page: GuiPage::Onboarding },
+            NavItem { label: "Server Settings", page: GuiPage::ServerSettings },
+        ],
+        "dev" => vec![
+            NavItem { label: "Testing",   page: GuiPage::Testing },
+            NavItem { label: "Bugs",      page: GuiPage::BugReport },
+            NavItem { label: "Agents",    page: GuiPage::Agents },
+            NavItem { label: "AI Usage",  page: GuiPage::AiUsage },
+            NavItem { label: "Files",     page: GuiPage::Files },
         ],
         _ => Vec::new(),
     }
@@ -616,8 +631,16 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
         .show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
-                let active_cat = state.nav_top_category.clone();
-                let cat_color = top_categories(theme)
+                // If the saved category was hidden (e.g. operator turned off
+                // Dev mode while it was active), fall back to Reality so the
+                // sub tier never goes empty.
+                let mut active_cat = state.nav_top_category.clone();
+                let cats = top_categories(theme);
+                if !cats.iter().any(|c| c.id == active_cat) {
+                    active_cat = "reality".to_string();
+                    state.nav_top_category = active_cat.clone();
+                }
+                let cat_color = cats
                     .iter()
                     .find(|c| c.id == active_cat)
                     .map(|c| c.color)

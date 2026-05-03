@@ -788,6 +788,7 @@ fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut Gui
                     ("Nav: Sim (purple)",    &mut theme.nav_sim as *mut _),
                     ("Nav: Tools (blue)",    &mut theme.nav_tools as *mut _),
                     ("Nav: Settings (gray)", &mut theme.nav_settings as *mut _),
+                    ("Nav: Dev (amber)",     &mut theme.nav_dev as *mut _),
                 ];
                 for (label, ptr) in labels_left {
                     let ui_l = &mut cols[0];
@@ -892,6 +893,7 @@ fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut Gui
     let mut border_anim = theme.nav_active_border_animation;
     let mut atk_style = theme.attack_indicator_style;
     let mut atk_speed = theme.attack_indicator_speed;
+    let mut dev_visible = theme.nav_dev_visible;
 
     // ── Master switch ──
     frame().show(ui, |ui| {
@@ -956,6 +958,20 @@ fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut Gui
         }
     });
 
+    // ── Developer mode (lives here for borrow-checker geometry; will
+    // move to its own Settings → Developer section at v1.0). ──
+    frame().show(ui, |ui| {
+        ui.label(RichText::new("Developer mode").size(body_size).color(text_primary).strong());
+        ui.label(RichText::new(
+            "Show the Dev top-tier category in the nav bar (Testing / Bugs / \
+             Agents / AI Usage / Files). On by default during the development \
+             period; turn off if you want a cleaner production-style nav."
+        ).size(small_size).color(text_muted));
+        if widgets::toggle(ui, theme, "Show Dev menu", &mut dev_visible) {
+            changed = true;
+        }
+    });
+
     // Write back any edits.
     theme.animations_enabled = anim_enabled;
     theme.nav_separator_animation = sep_anim;
@@ -963,6 +979,7 @@ fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut Gui
     theme.nav_active_border_animation = border_anim;
     theme.attack_indicator_style = atk_style;
     theme.attack_indicator_speed = atk_speed;
+    theme.nav_dev_visible = dev_visible;
 
     // Auto-clear the test attack pulse after 3 seconds.
     if state.attack_pulse_active {

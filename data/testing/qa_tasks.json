@@ -321,6 +321,15 @@
       "note": "From 2026-05-03 security audit. H4 (DM crypto silent downgrade to plaintext) deferred — needs UI work for the user-warning modal. M1-M3 + L1-L2 from the audit also deferred."
     },
     {
+      "id": "v0179-dev-top-category",
+      "version": "0.179.0",
+      "feature": "Dev top-tier nav category + page regrouping per audit",
+      "what_to_test": "Switch to two-tier nav. You should now see FIVE top categories — Reality / Sim / Tools / Settings / Dev (amber). Click Dev: sub-tier shows Testing / Bugs / Agents / AI Usage / Files. Click Reality: should NOT show Bugs / AI Usage / Agents anymore (they moved). Tools: should NOT show Files anymore.",
+      "expected": "Five categories visible, dev pages cleanly grouped under amber Dev category. Settings → Animations → Developer mode → Show Dev menu toggle hides/shows the Dev category. Color is editable in Settings → Appearance → Nav category colors → Nav: Dev (amber).",
+      "category": "ui",
+      "note": "Dev visibility default-on during development period; flips to default-off at v1.0. Operator decision per CLAUDE.md."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",
