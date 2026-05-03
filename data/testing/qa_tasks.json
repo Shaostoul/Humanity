@@ -271,6 +271,30 @@
       "note": "Backstop: cargo test --test theme_token_lint will fail any future PR that adds a new Color32::from_rgb(N, N, N) literal in src/gui/ or src/renderer/. 168 pre-existing literals in 22 legacy files are allowlisted with audit notes — those get migrated one release at a time."
     },
     {
+      "id": "v0176-fov-slider-fix",
+      "version": "0.176.0",
+      "feature": "FOV slider no longer overlaps its value label",
+      "what_to_test": "Open Settings → Graphics → FOV. Drag the slider. Watch the numeric value on the right.",
+      "expected": "The slider track stops 56px before the right edge so the numeric value (e.g. '90') always paints in its own space, never on top of the slider. Same fix applies to every other labeled slider on the page (volumes, render distance, mouse sensitivity, all the Widgets sizing/spacing knobs).",
+      "category": "ui"
+    },
+    {
+      "id": "v0176-nav-tokens-discoverable",
+      "version": "0.176.0",
+      "feature": "Nav color + size tokens visible in Settings",
+      "what_to_test": "Settings → Appearance → scroll to 'Nav category colors' section. Settings → Widgets → scroll to 'Nav' card.",
+      "expected": "Appearance shows 7 nav color rows (Reality, Sim, Tools, Settings, plus 3 legacy group colors). Widgets shows a Nav card with Separator Height, Active Border Width, Hover Border Width sliders. Editing any of them updates the nav immediately. Also: Background (modal overlay) is now editable — was missing.",
+      "category": "ui"
+    },
+    {
+      "id": "v0176-coverage-test",
+      "version": "0.176.0",
+      "feature": "Settings editor coverage enforced by cargo test",
+      "what_to_test": "(Developer-facing.) Run `cargo test --test theme_editor_coverage`. Then ADD a fake field `pub fake_color: C,` to theme.rs (don't wire it into the editor). Re-run.",
+      "expected": "Initially passes (after this release every token is editable). After adding fake_color the test fails with: '❌ 1 color token(s) defined in src/gui/theme.rs are NOT editable... theme.fake_color'. This is the durable backstop against the v0.175 → v0.176 nav-missing-from-editor incident recurring.",
+      "category": "design"
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

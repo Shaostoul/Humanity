@@ -672,6 +672,7 @@ fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut Gui
                     ("Background (secondary)", &mut theme.bg_secondary as *mut _),
                     ("Background (tertiary)", &mut theme.bg_tertiary as *mut _),
                     ("Background (card)", &mut theme.bg_card as *mut _),
+                    ("Background (modal overlay)", &mut theme.bg_modal as *mut _),
                     ("Accent", &mut theme.accent as *mut _),
                     ("Accent (hover)", &mut theme.accent_hover as *mut _),
                     ("Accent (pressed)", &mut theme.accent_pressed as *mut _),
@@ -751,6 +752,50 @@ fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut Gui
                     ("Slider track",              &mut theme.slider_track as *mut _),
                     ("Badge: donor",              &mut theme.badge_donor as *mut _),
                     ("Badge: live",               &mut theme.badge_live as *mut _),
+                ];
+                for (label, ptr) in labels_right {
+                    let ui_r = &mut cols[1];
+                    let color_tuple = unsafe { &mut *ptr };
+                    if color_row(ui_r, label, color_tuple, label_color) {
+                        any_color_changed = true;
+                    }
+                }
+            });
+
+            ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new("Nav category colors")
+                    .size(theme.font_size_body)
+                    .color(theme.text_primary())
+                    .strong(),
+            );
+            ui.label(
+                RichText::new("Top-tier categories in the two-tier nav (Reality / Sim / Tools / Settings) and the legacy single-row nav groups (red / green / blue).")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_sm);
+
+            ui.columns(2, |cols| {
+                let labels_left = [
+                    ("Nav: Reality (red)",   &mut theme.nav_reality as *mut _),
+                    ("Nav: Sim (purple)",    &mut theme.nav_sim as *mut _),
+                    ("Nav: Tools (blue)",    &mut theme.nav_tools as *mut _),
+                    ("Nav: Settings (gray)", &mut theme.nav_settings as *mut _),
+                ];
+                for (label, ptr) in labels_left {
+                    let ui_l = &mut cols[0];
+                    let color_tuple = unsafe { &mut *ptr };
+                    if color_row(ui_l, label, color_tuple, label_color) {
+                        any_color_changed = true;
+                    }
+                }
+                let labels_right = [
+                    ("Nav legacy: red group",   &mut theme.nav_legacy_red as *mut _),
+                    ("Nav legacy: green group", &mut theme.nav_legacy_green as *mut _),
+                    ("Nav legacy: blue group",  &mut theme.nav_legacy_blue as *mut _),
                 ];
                 for (label, ptr) in labels_right {
                     let ui_r = &mut cols[1];
@@ -899,6 +944,16 @@ fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiSta
         make_card(ui, "Controls", &mut |ui| {
             any_changed |= styled_slider(ui, &ss, "Slider Track H", &mut theme.slider_track_height, 1.0..=12.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Slider Thumb R", &mut theme.slider_thumb_radius, 3.0..=16.0, label_color);
+        });
+        ui.add_space(spacing_sm);
+
+        // Nav card (v0.176.0): RGB separator height + active/hover border
+        // widths used by the two-tier and legacy nav. Editing these
+        // re-styles the nav immediately.
+        make_card(ui, "Nav", &mut |ui| {
+            any_changed |= styled_slider(ui, &ss, "Separator Height", &mut theme.nav_separator_height, 1.0..=10.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Active Border Width", &mut theme.nav_active_border_width, 1.0..=5.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Hover Border Width", &mut theme.nav_hover_border_width, 1.0..=5.0, label_color);
         });
 
         ui.add_space(spacing_sm);

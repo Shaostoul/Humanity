@@ -87,11 +87,24 @@ pub fn settings_row(ui: &mut Ui, theme: &Theme, label: &str, add_control: impl F
 /// Custom slider with visible track bar and accent fill.
 /// Returns true if value changed.
 pub fn custom_slider(ui: &mut Ui, theme: &Theme, value: &mut f32, range: std::ops::RangeInclusive<f32>) -> bool {
+    let desired_width = ui.available_width().min(250.0);
+    custom_slider_with_width(ui, theme, value, range, desired_width)
+}
+
+/// Internal slider with explicit pixel width. Used by `custom_slider`
+/// (full available width) and `custom_slider_capped` (width minus a
+/// reserved tail for the value label).
+fn custom_slider_with_width(
+    ui: &mut Ui,
+    theme: &Theme,
+    value: &mut f32,
+    range: std::ops::RangeInclusive<f32>,
+    desired_width: f32,
+) -> bool {
     let min = *range.start();
     let max = *range.end();
     let track_h = theme.slider_track_height;
     let thumb_r = theme.slider_thumb_radius;
-    let desired_width = ui.available_width().min(250.0);
     let widget_height = thumb_r * 2.0 + 4.0;
 
     let (rect, response) = ui.allocate_exact_size(
@@ -177,10 +190,18 @@ pub fn custom_slider(ui: &mut Ui, theme: &Theme, value: &mut f32, range: std::op
 }
 
 /// Labeled slider with aligned label and custom track. Returns true if value changed.
+///
+/// Layout: `[settings_label][slider track][value text]`. The slider reserves
+/// 56px on its right for the numeric value so they never overlap, even when
+/// the user has set spacing tokens to near-zero.
 pub fn labeled_slider(ui: &mut Ui, theme: &Theme, label: &str, value: &mut f32, range: std::ops::RangeInclusive<f32>) -> bool {
     let mut changed = false;
     settings_row(ui, theme, label, |ui| {
-        changed = custom_slider(ui, theme, value, range.clone());
+        // Reserve space for the value label so the slider doesn't overlap it.
+        // Without this, custom_slider grabs all remaining width and the
+        // numeric value paints on top — the FOV-overlap bug operator hit.
+        const VALUE_RESERVE: f32 = 56.0;
+        changed = custom_slider_capped(ui, theme, value, range.clone(), VALUE_RESERVE);
         // Show numeric value after slider
         let max = *range.end();
         let value_text = if max <= 1.0 {
@@ -193,6 +214,20 @@ pub fn labeled_slider(ui: &mut Ui, theme: &Theme, label: &str, value: &mut f32, 
         ui.label(RichText::new(value_text).color(theme.text_muted()).size(theme.font_size_small));
     });
     changed
+}
+
+/// Like custom_slider but reserves `reserve_right` pixels of horizontal
+/// space (for a trailing value label / icon / etc). Returns true if changed.
+pub fn custom_slider_capped(
+    ui: &mut Ui,
+    theme: &Theme,
+    value: &mut f32,
+    range: std::ops::RangeInclusive<f32>,
+    reserve_right: f32,
+) -> bool {
+    let avail = ui.available_width();
+    let target_w = (avail - reserve_right).max(60.0).min(250.0);
+    custom_slider_with_width(ui, theme, value, range, target_w)
 }
 
 /// Custom checkbox with visible border when unchecked.
