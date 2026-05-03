@@ -9,12 +9,9 @@
 use egui::{Align, Color32, Frame, Layout, RichText, Rounding, Sense, Stroke, Vec2};
 use crate::gui::{GuiPage, GuiState, VERSION};
 use crate::gui::theme::Theme;
-
-// Nav-group identity colors (red = identity pages, green = contextual, blue = system).
-// Distinct from the brand theme palette by design — these are navigation grouping markers.
-const RED:   Color32 = Color32::from_rgb(231, 76, 60);
-const GREEN: Color32 = Color32::from_rgb(46, 204, 113);
-const BLUE:  Color32 = Color32::from_rgb(52, 152, 219);
+// Nav category colors / sizes used to live as `const` here. They moved to
+// `data/gui/theme.ron` in v0.175.0 so the Settings page color editor can
+// tune them. Read via `theme.nav_legacy_red()`, `theme.nav_reality()`, etc.
 
 struct NavItem {
     label: &'static str,
@@ -75,7 +72,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     NavItem { label: "Wallet", page: GuiPage::Wallet },
                     NavItem { label: "Donate", page: GuiPage::Donate },
                 ];
-                nav_group(ui, &red_items, RED, text_muted, state);
+                nav_group(ui, &red_items, theme.nav_legacy_red(), text_muted, theme, state);
 
                 ui.add_space(6.0);
                 separator_dot(ui, border);
@@ -95,7 +92,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     NavItem { label: "Civilization", page: GuiPage::Civilization },
                     NavItem { label: "Studio", page: GuiPage::Studio },
                 ];
-                nav_group(ui, &green_items, GREEN, text_muted, state);
+                nav_group(ui, &green_items, theme.nav_legacy_green(), text_muted, theme, state);
 
                 ui.add_space(6.0);
                 separator_dot(ui, border);
@@ -112,7 +109,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     NavItem { label: "Testing", page: GuiPage::Testing },
                     NavItem { label: "Browser", page: GuiPage::Browser },
                 ];
-                nav_group(ui, &blue_items, BLUE, text_muted, state);
+                nav_group(ui, &blue_items, theme.nav_legacy_blue(), text_muted, theme, state);
 
                 // Push Real/Sim toggle to the right.
                 // Render order in right_to_left: first = rightmost. So:
@@ -152,7 +149,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                         egui::Button::new(
                             RichText::new("▤").size(11.0).color(text_muted)
                         )
-                        .fill(Color32::from_rgba_unmultiplied(0, 0, 0, 0))
+                        .fill(Color32::TRANSPARENT) // theme-exempt: sentinel transparency
                         .stroke(Stroke::new(1.0, border))
                         .rounding(Rounding::same(4))
                         .min_size(Vec2::new(22.0, 22.0)),
@@ -166,9 +163,10 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     let sim_active = !state.context_real;
                     let real_active = state.context_real;
 
-                    // Sim button
+                    // Sim button — uses the same purple as the two-tier
+                    // nav's Sim category so the design language matches.
                     let sim_color = if sim_active {
-                        Color32::from_rgb(108, 92, 231)
+                        theme.nav_sim()
                     } else {
                         border
                     };
@@ -223,7 +221,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 }
 
 
-/// Convert HSV to RGB Color32.
+/// Convert HSV to RGB Color32. theme-exempt: pure math helper.
 fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color32 {
     let i = (h * 6.0).floor() as i32;
     let f = h * 6.0 - i as f32;
@@ -250,6 +248,8 @@ pub fn channeling_color(time: f32, attack_pulse: bool) -> Color32 {
         // Pulse between bright red and dark red at ~2 Hz.
         let t = (time * 4.0).sin() * 0.5 + 0.5; // 0.0..1.0
         let v = 0.55 + 0.45 * t;                 // 0.55..1.0
+        // theme-exempt: programmatic pulse, value computed each frame.
+        // Hardcoded red channel is the documented "attack" indicator color.
         Color32::from_rgb((v * 255.0) as u8, 0, 0)
     } else {
         let hue = (time * 0.3) % 1.0;
@@ -259,11 +259,12 @@ pub fn channeling_color(time: f32, attack_pulse: bool) -> Color32 {
 
 /// Thin horizontal separator panel that paints the channeling color
 /// (RGB cycling normally, red pulse on attack). Used between the top
-/// menu / sub menu / page area in the two-tier nav.
+/// menu / sub menu / page area in the two-tier nav. Height comes from
+/// `theme.nav_separator_height` so the operator can tune presence.
 fn rgb_separator(ctx: &egui::Context, theme: &Theme, panel_id: &'static str, attack_pulse: bool) {
     egui::TopBottomPanel::top(panel_id)
         .frame(Frame::none().fill(theme.bg_primary()).inner_margin(0.0))
-        .exact_height(3.0)
+        .exact_height(theme.nav_separator_height)
         .show_separator_line(false)
         .show(ctx, |ui| {
             let time = ui.ctx().input(|i| i.time) as f32;
@@ -281,7 +282,7 @@ fn rgb_separator(ctx: &egui::Context, theme: &Theme, panel_id: &'static str, att
 /// - Active (current page): animated RGB border cycling through hue spectrum
 ///
 /// Group color subtly tints the button background.
-fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: Color32, state: &mut GuiState) {
+fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: Color32, theme: &Theme, state: &mut GuiState) {
     let time = ui.ctx().input(|i| i.time) as f32;
     let attack_pulse = state.attack_pulse_active;
 
@@ -301,7 +302,7 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
         // Border: active = animated channeling color (RGB cycle or red
         // pulse on attack), default = thin group color.
         let border_stroke = if is_active {
-            Stroke::new(2.0, channeling_color(time, attack_pulse))
+            Stroke::new(theme.nav_active_border_width, channeling_color(time, attack_pulse))
         } else {
             Stroke::new(1.0, Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 60))
         };
@@ -314,15 +315,16 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
                 .min_size(Vec2::new(0.0, 28.0)),
         );
 
-        // Override border on hover: blue 2px glow
+        // Override border on hover: nav-blue glow at the configured width.
+        // Both color + width come from theme tokens so the Settings page
+        // can tune them.
         if response.hovered() && !is_active {
             let rect = response.rect;
             let painter = ui.painter();
-            let hover_color = Color32::from_rgb(52, 152, 219); // BLUE
             painter.rect_stroke(
                 rect,
                 Rounding::same(6),
-                Stroke::new(2.0, hover_color),
+                Stroke::new(theme.nav_hover_border_width, theme.nav_legacy_blue()),
                 egui::StrokeKind::Outside,
             );
         }
@@ -352,11 +354,8 @@ fn separator_dot(ui: &mut egui::Ui, color: Color32) {
 // (e.g. spending real crypto when they meant in-game tokens).
 // ─────────────────────────────────────────────────────────────────────────
 
-/// Top-tier category color palette.
-const REALITY_PURPLE: Color32 = Color32::from_rgb(231, 76, 60);    // red
-const SIM_PURPLE:     Color32 = Color32::from_rgb(108, 92, 231);   // purple
-const TOOLS_BLUE:     Color32 = Color32::from_rgb(52, 152, 219);   // blue
-const SETTINGS_GRAY:  Color32 = Color32::from_rgb(127, 140, 141);  // gray
+// Top-tier category color palette moved to theme.ron in v0.175.0.
+// Read via `theme.nav_reality()`, `theme.nav_sim()`, etc.
 
 struct TopCategory {
     id: &'static str,
@@ -364,12 +363,12 @@ struct TopCategory {
     color: Color32,
 }
 
-fn top_categories() -> [TopCategory; 4] {
+fn top_categories(theme: &Theme) -> [TopCategory; 4] {
     [
-        TopCategory { id: "reality",  label: "Reality",  color: REALITY_PURPLE },
-        TopCategory { id: "sim",      label: "Sim",      color: SIM_PURPLE },
-        TopCategory { id: "tools",    label: "Tools",    color: TOOLS_BLUE },
-        TopCategory { id: "settings", label: "Settings", color: SETTINGS_GRAY },
+        TopCategory { id: "reality",  label: "Reality",  color: theme.nav_reality() },
+        TopCategory { id: "sim",      label: "Sim",      color: theme.nav_sim() },
+        TopCategory { id: "tools",    label: "Tools",    color: theme.nav_tools() },
+        TopCategory { id: "settings", label: "Settings", color: theme.nav_settings() },
     ]
 }
 
@@ -448,7 +447,7 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 }
                 ui.add_space(8.0);
 
-                let cats = top_categories();
+                let cats = top_categories(theme);
                 for cat in &cats {
                     let is_active = state.nav_top_category == cat.id;
                     let bg = if is_active {
@@ -460,7 +459,7 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     // Active = channeling RGB (or red pulse on attack);
                     // inactive = thin tinted border in the category color.
                     let stroke = if is_active {
-                        Stroke::new(2.0, channeling_color(time, attack_pulse))
+                        Stroke::new(theme.nav_active_border_width, channeling_color(time, attack_pulse))
                     } else {
                         Stroke::new(1.0, Color32::from_rgba_unmultiplied(cat.color.r(), cat.color.g(), cat.color.b(), 80))
                     };
@@ -510,7 +509,7 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 let active_cat = state.nav_top_category.clone();
-                let cat_color = top_categories()
+                let cat_color = top_categories(theme)
                     .iter()
                     .find(|c| c.id == active_cat)
                     .map(|c| c.color)
@@ -519,7 +518,7 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 if pages.is_empty() {
                     ui.label(RichText::new("(no pages in this category yet)").size(11.0).color(text_muted).italics());
                 } else {
-                    nav_group(ui, &pages, cat_color, text_muted, state);
+                    nav_group(ui, &pages, cat_color, text_muted, theme, state);
                 }
             });
         });

@@ -262,6 +262,15 @@
       "category": "ui"
     },
     {
+      "id": "v0175-nav-theme-tokens",
+      "version": "0.175.0",
+      "feature": "Nav colors editable from Settings page",
+      "what_to_test": "Open Settings → scroll to color editors. Look for nav_reality, nav_sim, nav_tools, nav_settings, nav_legacy_red, nav_legacy_green, nav_legacy_blue. Tweak one — e.g. change nav_sim from purple to neon green. Save. Switch to two-tier nav and click the Sim category.",
+      "expected": "Sim button + sub-tier color reflects your edit immediately. Same for the other nav category colors. Sizes (nav_separator_height, nav_active_border_width) are also editable as numeric tokens.",
+      "category": "ui",
+      "note": "Backstop: cargo test --test theme_token_lint will fail any future PR that adds a new Color32::from_rgb(N, N, N) literal in src/gui/ or src/renderer/. 168 pre-existing literals in 22 legacy files are allowlisted with audit notes — those get migrated one release at a time."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

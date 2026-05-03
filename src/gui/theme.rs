@@ -145,6 +145,40 @@ pub struct Theme {
     // Chat buffer size
     #[serde(default = "default_max_messages")]
     pub max_messages: usize,
+
+    // ── Nav category colors (v0.175.0) ──
+    // Two-tier nav top categories. These define the canonical colors for
+    // Reality (red), Sim (purple), Tools (blue), Settings (gray) in both
+    // the active button border and the inactive tinted background. Editable
+    // in-app via Settings; previously hardcoded in escape_menu.rs as const.
+    #[serde(default = "default_nav_reality")]
+    pub nav_reality: C,
+    #[serde(default = "default_nav_sim")]
+    pub nav_sim: C,
+    #[serde(default = "default_nav_tools")]
+    pub nav_tools: C,
+    #[serde(default = "default_nav_settings")]
+    pub nav_settings: C,
+
+    // Legacy single-row nav group colors. Identity / contextual / system
+    // groupings on the legacy nav. Same colors as Reality / (sub-set) /
+    // Tools so the design language stays consistent if a user toggles
+    // between layouts.
+    #[serde(default = "default_nav_legacy_red")]
+    pub nav_legacy_red: C,
+    #[serde(default = "default_nav_legacy_green")]
+    pub nav_legacy_green: C,
+    #[serde(default = "default_nav_legacy_blue")]
+    pub nav_legacy_blue: C,
+
+    // Nav sizing knobs. Pulled out of the hardcoded constants so the
+    // operator can tune nav presence without recompiling.
+    #[serde(default = "default_nav_separator_height")]
+    pub nav_separator_height: f32,
+    #[serde(default = "default_nav_active_border_width")]
+    pub nav_active_border_width: f32,
+    #[serde(default = "default_nav_hover_border_width")]
+    pub nav_hover_border_width: f32,
 }
 
 impl Theme {
@@ -170,7 +204,20 @@ impl Theme {
     pub fn success(&self) -> Color32 { Self::c32(&self.success) }
     pub fn warning(&self) -> Color32 { Self::c32(&self.warning) }
     pub fn danger(&self) -> Color32 { Self::c32(&self.danger) }
+    pub fn info(&self) -> Color32 { Self::c32(&self.info) }
     pub fn border(&self) -> Color32 { Self::c32(&self.border) }
+    pub fn border_focus(&self) -> Color32 { Self::c32(&self.border_focus) }
+
+    // Nav tokens (v0.175.0). All formerly-hardcoded constants in
+    // escape_menu.rs migrated to theme.ron so the Settings page color
+    // editor can tune them.
+    pub fn nav_reality(&self) -> Color32 { Self::c32(&self.nav_reality) }
+    pub fn nav_sim(&self) -> Color32 { Self::c32(&self.nav_sim) }
+    pub fn nav_tools(&self) -> Color32 { Self::c32(&self.nav_tools) }
+    pub fn nav_settings(&self) -> Color32 { Self::c32(&self.nav_settings) }
+    pub fn nav_legacy_red(&self) -> Color32 { Self::c32(&self.nav_legacy_red) }
+    pub fn nav_legacy_green(&self) -> Color32 { Self::c32(&self.nav_legacy_green) }
+    pub fn nav_legacy_blue(&self) -> Color32 { Self::c32(&self.nav_legacy_blue) }
     pub fn slider_track(&self) -> Color32 { Self::c32(&self.slider_track) }
     pub fn bg_panel(&self) -> Color32 { Self::c32(&self.bg_panel) }
     pub fn bg_sidebar(&self) -> Color32 { Self::c32(&self.bg_sidebar) }
@@ -381,6 +428,19 @@ fn default_server_row_bg() -> C { (0.078, 0.078, 0.216, 1.0) }
 fn default_server_row_hover() -> C { (0.098, 0.098, 0.275, 1.0) }
 fn default_max_messages() -> usize { 200 }
 
+// Nav category colors (v0.175.0). Matches the original constants from
+// escape_menu.rs so existing themes look identical post-migration.
+fn default_nav_reality()  -> C { (0.906, 0.298, 0.235, 1.0) } // #E74C3C — red
+fn default_nav_sim()      -> C { (0.424, 0.361, 0.906, 1.0) } // #6C5CE7 — purple
+fn default_nav_tools()    -> C { (0.204, 0.596, 0.859, 1.0) } // #3498DB — blue
+fn default_nav_settings() -> C { (0.498, 0.549, 0.553, 1.0) } // #7F8C8D — gray
+fn default_nav_legacy_red()   -> C { (0.906, 0.298, 0.235, 1.0) } // #E74C3C
+fn default_nav_legacy_green() -> C { (0.180, 0.800, 0.443, 1.0) } // #2ECC71
+fn default_nav_legacy_blue()  -> C { (0.204, 0.596, 0.859, 1.0) } // #3498DB
+fn default_nav_separator_height() -> f32 { 3.0 }
+fn default_nav_active_border_width() -> f32 { 2.0 }
+fn default_nav_hover_border_width() -> f32 { 2.0 }
+
 fn default_theme() -> Theme {
     Theme {
         bg_primary: (0.039, 0.039, 0.047, 1.0),       // #0a0a0c
@@ -464,5 +524,16 @@ fn default_theme() -> Theme {
         server_row_bg: default_server_row_bg(),
         server_row_hover: default_server_row_hover(),
         max_messages: default_max_messages(),
+        // Nav tokens (v0.175.0) — see default_nav_* helpers above.
+        nav_reality: default_nav_reality(),
+        nav_sim: default_nav_sim(),
+        nav_tools: default_nav_tools(),
+        nav_settings: default_nav_settings(),
+        nav_legacy_red: default_nav_legacy_red(),
+        nav_legacy_green: default_nav_legacy_green(),
+        nav_legacy_blue: default_nav_legacy_blue(),
+        nav_separator_height: default_nav_separator_height(),
+        nav_active_border_width: default_nav_active_border_width(),
+        nav_hover_border_width: default_nav_hover_border_width(),
     }
 }

@@ -28,6 +28,8 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 
 **One theme source.** Design tokens (colors, spacing, radii, fonts) live in `data/gui/theme.ron`. Native reads it directly. Web's `theme.css` is regenerated from it by `node scripts/gen-theme-css.js`. Do not hand-edit color values in `theme.css` — edit the RON and regenerate.
 
+> **Enforced by `cargo test --test theme_token_lint`.** Every UI file under `src/gui/` and `src/renderer/` is scanned for hardcoded `Color32::from_rgb(...)` literals. New violations FAIL the test. Pre-existing offenders are allowlisted in `tests/theme_token_lint.rs::LEGACY_OFFENDERS` with notes; remove an entry from that list when you migrate the file. Genuinely transient/computed colors (debug overlays, HSV math, programmatic gradients) escape via a `// theme-exempt: <reason>` comment on the line. **If you add a new color and the test fails, do not "fix" it by adding the file to LEGACY_OFFENDERS — add a token to `theme.ron` + accessor in `theme.rs` instead.** The whole point is to shrink that list, not grow it.
+
 **Infinite-of-X.** Anything that can exist more than once is a data file, not code. No hardcoded arrays of domain objects. No `vec![Thing::a(), Thing::b(), Thing::c()]`. See `docs/design/infinite-of-x.md` for the checklist every new feature must pass.
 
 **Dual-UI parity.** When a web feature adds a UI pattern (modal, nav element, widget, page), ask: does native need the same? If yes, port before shipping. If no, document why in the design doc. Do not let web and native silently drift.
