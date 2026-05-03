@@ -9,18 +9,20 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 > 1. **READ `data/coordination/orchestrator_state.json`** — running session journal. Tells you what the previous orchestrator was doing, what decisions were made, what scopes have active claims, what NOT to redo.
 > 2. **Run `node scripts/agent-status.js`** — per-scope coordinator-friendly summary aggregating `data/coordination/sessions/*.json`.
 > 3. Read `docs/FEATURES.md` for complete feature inventory with file paths (never rebuild what exists)
-> 4. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
-> 5. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
-> 6. Read `docs/SOP.md` for version sync, deploy, and development procedures
-> 7. Read `docs/design/ui-system.md` before touching any widget, page, or visual code
-> 8. Read `docs/design/infinite-of-x.md` before writing any list-shaped literal in code
-> 9. Read `docs/design/storage-architecture.md` before touching any storage / signed object / federation code
-> 10. **Before pushing a release**: `git status --short` and stage any untracked .rs/.ron/.csv. Local builds pass with untracked files; CI fails on fresh checkout.
-> 11. **After pushing a Rust release**: run `just build-game` to produce a versioned local exe — CI doesn't build Windows.
-> 12. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
-> 13. If agents report editing files under `native/src/`, `server/src/`, or `crates/`, those paths don't exist anymore. Run `just clean-worktrees` and redo against the real `src/` tree.
-> 14. **Before claiming a multi-AI scope**, check `data/coordination/agent_registry.ron` for ownership rules and the `agent_sessions` SQLite table for active claims.
-> 15. **Before ending the session** with significant changes, update `data/coordination/orchestrator_state.json` so the next orchestrator picks up cleanly.
+> 4. Read `docs/PAGES.md` for the canonical UI page registry (32 native + 38 web, with purpose / audience / parity)
+> 5. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
+> 6. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
+> 7. Read `docs/SOP.md` for version sync, deploy, and development procedures
+> 8. Read `docs/design/ui-system.md` before touching any widget, page, or visual code
+> 9. Read `docs/design/infinite-of-x.md` before writing any list-shaped literal in code
+> 10. Read `docs/design/storage-architecture.md` before touching any storage / signed object / federation code
+> 11. **Before pushing a release**: `git status --short` and stage any untracked .rs/.ron/.csv. Local builds pass with untracked files; CI fails on fresh checkout.
+> 12. **After pushing a Rust release**: run `just build-game` to produce a versioned local exe — CI doesn't build Windows.
+> 13. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
+> 14. If agents report editing files under `native/src/`, `server/src/`, or `crates/`, those paths don't exist anymore. Run `just clean-worktrees` and redo against the real `src/` tree.
+> 15. **Before claiming a multi-AI scope**, check `data/coordination/agent_registry.ron` for ownership rules and the `agent_sessions` SQLite table for active claims.
+> 16. **Before ending the session** with significant changes, update `data/coordination/orchestrator_state.json` so the next orchestrator picks up cleanly.
+> 17. **Before quoting algorithms / tech specifics in user-facing copy** (X posts, README, marketing): grep the actual code or read the Cryptography section. Memory + docs may lag behind code during migrations.
 
 ## Non-negotiable design rules
 
@@ -99,11 +101,35 @@ Binary modes:
   HumanityOS                ← full desktop app (renderer + relay + game)
   HumanityOS --headless     ← server-only mode (relay, no GPU) for VPS
 
-Identity: Ed25519 key = identity = Solana wallet address
+Identity (chat client): Ed25519 key = identity = Solana wallet address
+Identity (federation objects): ML-DSA-65 (Dilithium3, FIPS 204), separate keypair
   ├ No home servers, no accounts, no passwords
   ├ Signed profiles replicate across all federated servers
-  └ BIP39 24-word seed phrase backs up everything
+  ├ BIP39 24-word seed phrase backs up the Ed25519 key
+  └ Full crypto inventory in the "Cryptography" section below — read it before quoting algorithms
 ```
+
+## Cryptography (canonical, audited 2026-05-03)
+
+> **Read this section any time you need to write or quote an algorithm name.** The repo carries two parallel identity stacks during the post-quantum migration — `Ed25519` for chat, `ML-DSA-65` for federation objects. Mixing them up is the #1 source of doc drift.
+
+| Layer | Algorithm | Where | Status |
+|-------|-----------|-------|--------|
+| Chat identity signing | Ed25519 | `web/chat/crypto.js` (Web Crypto API) | Active |
+| Federation object signing | ML-DSA-65 / Dilithium3 (FIPS 204) | `src/relay/core/pq_crypto.rs` | Active |
+| Profile gossip signing | Ed25519 | `src/relay/handlers/federation.rs` | Active (v0.122 verifier; unsigned still accepted from trusted peers) |
+| DM E2EE | ECDH P-256 + AES-256-GCM | `web/chat/crypto.js` | Active |
+| Post-quantum KEM | Kyber768 / ML-KEM-768 | `src/relay/core/pq_crypto.rs`, `web/shared/pq-identity.js` | Infra ready; **not yet wired into DM flow** |
+| DID derivation | `did:hum:<base58(BLAKE3(dilithium_pubkey)[..16])>` | `src/relay/core/did.rs` | Active — derived from PQ key |
+| Solana wallet | Ed25519 (same key as chat identity) | `web/chat/crypto.js` `extractSolanaKeypair()` | Active |
+| Vault encryption (web) | AES-256-GCM + PBKDF2-SHA-256, **600,000 iterations** | `web/chat/crypto.js` | Active |
+| Vault encryption (native) | AES-256-GCM + PBKDF2-SHA-256, **100,000 iterations** | `src/config.rs` | Active (legacy iter count; upgrade pending) |
+| Server-side KDF | Argon2id (memory-hard) | `src/relay/core/kdf.rs` | Active (replaced PBKDF2 for relay secrets) |
+| Key rotation | Ed25519 dual-sign certificate | `web/chat/crypto.js`, `src/relay/handlers/msg_handlers.rs::handle_key_rotation` | Active (PQ rotation TBD) |
+
+**Migration status as of audit:** chat clients still sign with Ed25519. Federation objects + DIDs already moved to Dilithium3. Kyber768 infrastructure deployed but DM E2EE still uses ECDH P-256. Plan: chat-side PQ migration in a follow-up phase; ECDH→Kyber DM migration after that. Until then, **do not claim "we use Dilithium3 for everything"** — it's only the federation object layer.
+
+When you change any of these in code, update this table in the same commit.
 
 ## File map
 
@@ -138,7 +164,11 @@ Identity: Ed25519 key = identity = Solana wallet address
 | `src/updater.rs` | Auto-update: version check, download, delegate to newer exe |
 | `web/chat/app.js` | Core chat logic (~1700 LOC) |
 | `web/chat/chat-*.js` | messages, dms, social, ui, voice, profile, p2p |
-| `web/chat/crypto.js` | Ed25519/ECDH/AES + BIP39 + backup helpers |
+| `web/chat/crypto.js` | Ed25519/ECDH/AES + BIP39 + Solana wallet + backup helpers (chat-side identity) |
+| `web/shared/pq-identity.js` | Dilithium3 + Kyber768 client API (post-quantum identity for federation objects) |
+| `src/relay/core/pq_crypto.rs` | Server-side ML-DSA-65 + ML-KEM-768 implementations |
+| `src/relay/core/did.rs` | DID derivation: `did:hum:<base58(BLAKE3(pq_pubkey)[..16])>` |
+| `src/relay/core/kdf.rs` | Argon2id KDF for server-stored secrets |
 | `web/shared/events.js` | Lightweight event bus (`hos.on/off/emit/gather`) |
 | `web/shared/shell.js` | Nav injection IIFE -- loaded first on every page |
 | `web/shared/settings.js` | Settings panel + gear button |
@@ -208,10 +238,11 @@ GET        /api/sellers/{key}/rating
 
 ## Key patterns
 
-**Ed25519 identity** (set in web/chat/app.js `connect()`):
+**Ed25519 chat identity** (set in web/chat/app.js `connect()`):
 ```js
 myIdentity = { publicKeyHex, privateKey, publicKey, canSign }
 ```
+> Federation objects use a separate Dilithium3 keypair (see Cryptography section above).
 
 **Relay unicast**: `target: Option<String>` on message variant; broadcast loop `continue`s if target≠my_key
 
@@ -228,7 +259,10 @@ sig_by_new = sign(old_key + "\n" + timestamp, new_private_key)
 ```
 
 **AES-256-GCM + PBKDF2-SHA256** (vault, notes, backup):
-`deriveKeyFromPassphrase(passphrase, salt)` → CryptoKey (600k iterations)
+`deriveKeyFromPassphrase(passphrase, salt)` → CryptoKey
+- Web client: 600,000 iterations
+- Native vault (`src/config.rs::PBKDF2_ITERATIONS`): 100,000 iterations (legacy; pending upgrade)
+- Relay-stored secrets: Argon2id via `src/relay/core/kdf.rs` (replaces PBKDF2 for server-side)
 
 **Rate limiting**: Fibonacci backoff per public key in `src/relay/relay.rs`
 
@@ -254,7 +288,7 @@ via notify file watcher. Mods = editing files in the data directory.
 
 **Local-first storage** (native binary):
 OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
-- `identity/` — encrypted Ed25519 keys
+- `identity/` — encrypted Ed25519 keys (chat identity); Dilithium3 keys parallel where applicable
 - `saves/` — named save slots (profile, inventory, farm, quests, skills, world)
 - `settings/` — preferences, sync config, display state
 - `cache/` — offline messages, avatars, manifests
