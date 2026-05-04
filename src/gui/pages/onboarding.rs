@@ -170,7 +170,10 @@ fn draw_concepts(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
     section_header(ui, theme, "FOUR THINGS TO KNOW FIRST", "The four core concepts");
 
     // 4 cards across, each takes ~1/4 of the parent column width.
-    let avail = ui.available_width();
+    // Clamp to CONTENT_MAX_W because available_width() on a horizontal
+    // layout child can exceed the centered column's set_max_width
+    // constraint and cause the rightmost cards to overflow off-screen.
+    let avail = ui.available_width().min(CONTENT_MAX_W);
     let col_w = ((avail - theme.spacing_md as f32 * 3.0) / 4.0).max(180.0);
 
     ui.horizontal_wrapped(|ui| {
@@ -207,7 +210,8 @@ fn draw_core_pages(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     section_header(ui, theme, "THE PLATFORM", "Where to go next");
 
     // 4 cards across (8 pages → 2 rows). horizontal_wrapped handles the wrap.
-    let avail = ui.available_width();
+    // Clamp to CONTENT_MAX_W (see draw_concepts comment).
+    let avail = ui.available_width().min(CONTENT_MAX_W);
     let col_w = ((avail - theme.spacing_md as f32 * 3.0) / 4.0).max(180.0);
 
     let mut clicked: Option<GuiPage> = None;

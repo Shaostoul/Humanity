@@ -1893,6 +1893,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 pill_rect_for_msg.right() + 4.0,
                                 pill_rect_for_msg.center().y,
                             );
+                            // Animated channeling color (RGB cycle / pulse / red on attack).
+                            // Used for every glyph + the Þ separator so the popup feels
+                            // alive and matches the active-page nav border.
+                            let chan_time = ui.ctx().input(|i| i.time) as f32;
+                            let chan_attack = state.attack_pulse_active;
+                            let chan = crate::gui::pages::escape_menu::channeling_color(
+                                theme, chan_time, chan_attack, theme.accent(),
+                            );
+                            ui.ctx().request_repaint();
                             egui::Area::new(egui::Id::new(("pill_expand", target_ts)))
                                 .fixed_pos(overlay_pos)
                                 .pivot(egui::Align2::LEFT_CENTER)
@@ -1913,9 +1922,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                         .show(ui, |ui| {
                                             ui.spacing_mut().item_spacing.x = 2.0;
                                             ui.horizontal(|ui| {
-                                                // Functions on the LEFT of Þ.
+                                                // Functions on the LEFT of Þ. Use plain
+                                                // unicode arrows + ASCII letters so they
+                                                // render reliably in the default font
+                                                // (emoji glyphs like 📌 ✎ show as squares
+                                                // without an emoji font installed).
                                                 if ui.add(
-                                                    egui::Button::new(RichText::new("↩").size(theme.font_size_body).color(theme.text_muted()))
+                                                    egui::Button::new(RichText::new("↩").size(theme.font_size_body).color(chan))
                                                         .min_size(Vec2::new(26.0, 22.0))
                                                         .rounding(Rounding::same(4))
                                                 ).on_hover_text("Reply").clicked() {
@@ -1930,15 +1943,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                     });
                                                 }
                                                 if ui.add(
-                                                    egui::Button::new(RichText::new("📌").size(theme.font_size_small).color(theme.text_muted()))
-                                                        .min_size(Vec2::new(24.0, 22.0))
+                                                    egui::Button::new(RichText::new("⊠").size(theme.font_size_body).color(chan))
+                                                        .min_size(Vec2::new(26.0, 22.0))
                                                         .rounding(Rounding::same(4))
                                                 ).on_hover_text("Pin").clicked() {
                                                     pending_pins.push((msg.sender_key.clone(), msg.sender_name.clone(), msg.content.clone(), target_ts));
                                                 }
                                                 if is_own {
                                                     if ui.add(
-                                                        egui::Button::new(RichText::new("✎").size(theme.font_size_body).color(theme.text_muted()))
+                                                        egui::Button::new(RichText::new("✎").size(theme.font_size_body).color(chan))
                                                             .min_size(Vec2::new(26.0, 22.0))
                                                             .rounding(Rounding::same(4))
                                                     ).on_hover_text("Edit").clicked() {
@@ -1947,24 +1960,30 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                 }
 
                                                 // Þ separator (matches the inline pill).
+                                                // Painted in the channeling color too so the
+                                                // whole popup pulses together.
                                                 ui.add_space(2.0);
-                                                ui.label(RichText::new("Þ").size(theme.font_size_body).color(theme.accent()).strong());
+                                                ui.label(RichText::new("Þ").size(theme.font_size_body).color(chan).strong());
                                                 ui.add_space(2.0);
 
-                                                // Top-10 reactions on the RIGHT of Þ.
+                                                // Top-10 reactions on the RIGHT of Þ. Strip
+                                                // any U+FE0F variation selector — it ends up
+                                                // as a tofu square next to ❤ in fonts that
+                                                // don't honor the emoji presentation hint.
                                                 for emoji in TOP_REACTIONS {
+                                                    let clean: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect();
                                                     if ui.add(
-                                                        egui::Button::new(RichText::new(*emoji).size(theme.font_size_body))
+                                                        egui::Button::new(RichText::new(&clean).size(theme.font_size_body))
                                                             .min_size(Vec2::new(26.0, 22.0))
                                                             .rounding(Rounding::same(4))
                                                     ).clicked() {
-                                                        pending_reactions.push((target_from.clone(), target_ts, emoji.to_string()));
+                                                        pending_reactions.push((target_from.clone(), target_ts, clean.clone()));
                                                     }
                                                 }
 
                                                 // ∞ all-emoji picker (popup with full set).
                                                 let inf_resp = ui.add(
-                                                    egui::Button::new(RichText::new("∞").size(theme.font_size_body).color(theme.accent()))
+                                                    egui::Button::new(RichText::new("∞").size(theme.font_size_body).color(chan))
                                                         .min_size(Vec2::new(26.0, 22.0))
                                                         .rounding(Rounding::same(4))
                                                 ).on_hover_text("All reactions");
@@ -1979,8 +1998,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                         ui.set_min_width(280.0);
                                                         ui.horizontal_wrapped(|ui| {
                                                             for emoji in ALL_REACTIONS {
-                                                                if ui.button(*emoji).clicked() {
-                                                                    pending_reactions.push((target_from.clone(), target_ts, emoji.to_string()));
+                                                                let clean: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect();
+                                                                if ui.button(&clean).clicked() {
+                                                                    pending_reactions.push((target_from.clone(), target_ts, clean.clone()));
                                                                     ui.memory_mut(|m| m.close_popup());
                                                                 }
                                                             }

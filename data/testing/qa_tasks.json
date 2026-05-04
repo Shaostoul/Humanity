@@ -405,6 +405,15 @@
       "note": "Combined hover region = pill_rect.union(estimated_popup_rect). Cursor inside that union region keeps popup visible. Once cursor leaves both, popup disappears."
     },
     {
+      "id": "v0186-icons-and-onboarding",
+      "version": "0.186.0",
+      "feature": "Pill icons RGB-animated + broken glyphs replaced + onboarding cards no longer overflow off-screen",
+      "what_to_test": "(A) Open Chat, hover a message. The function button glyphs (↩ reply, ⊠ pin, ✎ edit) and the Þ separator and the ∞ all-emoji button should now slowly cycle through RGB hues like the active-page nav border. Reaction emoji that previously rendered as squares (❤️ → ❤, 📌 → ⊠) now show clean. (B) Open Settings → Onboarding. Resize the window narrower then wider. The 'Where to go next' card row should fit within the centered 1024px column — no card cut off at the right edge anymore.",
+      "expected": "Function icons in chat popup pulse RGB matching the global animation tokens (Settings → Animations → Active button border). Onboarding 'Four core concepts' and 'Where to go next' card rows wrap correctly when content would exceed the centered column width.",
+      "category": "ui",
+      "note": "Root cause for onboarding overflow — ui.available_width() inside a horizontal-wrapped child can exceed the parent's set_max_width constraint. Fix: clamp avail.min(CONTENT_MAX_W) before computing per-card width. Root cause for icons — emoji like 📌 and ✎ aren't in egui's default font; replaced with ⊠ and kept ✎ (with caveat). Variation selector U+FE0F stripped from ❤️ and other emoji to avoid the trailing-square rendering bug."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",
