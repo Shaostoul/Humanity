@@ -1763,11 +1763,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             });
                         }
                     } else if need_text_row {
-                        // Estimate pill width: timestamp (e.g. "12:34") + Þ
-                        // + small per-reaction badge. ~52px for ts/Þ +
-                        // ~22px per visible reaction (max 4 shown collapsed).
-                        let visible_reaction_count = msg.reactions.len().min(4);
-                        let pill_width = 52.0 + 22.0 * visible_reaction_count as f32;
+                        // Measure exact pill width — must match what
+                        // paint_timestamp_pill draws or the reserved space
+                        // in message_row will be wrong and content text
+                        // overlaps the pill (operator-reported bug).
+                        let pill_width = compute_pill_width(ui.ctx(), theme, &msg.timestamp, &msg.reactions);
                         let row_resp = crate::gui::widgets::row::message_row(
                             ui,
                             theme,
@@ -3308,6 +3308,70 @@ fn truncate_str(s: &str, max: usize) -> String {
 
 // ─────────────────────────────── Shared Helpers ──────────────────────────
 
+/// Measure the exact width the timestamp pill needs. Used by chat.rs to
+/// pass `pill_width` into message_row so the row reserves the correct
+/// amount of horizontal space. paint_timestamp_pill MUST keep its
+/// rendering math in sync with this function — if they diverge the
+/// reservation will be wrong and message text will overlap the pill.
+///
+/// Layout (matches paint_timestamp_pill):
+///   [ 6px pad | timestamp | 5px gap | Þ | 4px gap | badges (3px gap each) | 6px pad ]
+fn compute_pill_width(
+    ctx: &egui::Context,
+    theme: &Theme,
+    timestamp: &str,
+    reactions: &std::collections::HashMap<String, Vec<String>>,
+) -> f32 {
+    let ts_clean = timestamp.trim().trim_end_matches(" UTC").trim().to_string();
+    let ts_w = ctx.fonts(|f| {
+        f.layout_no_wrap(
+            ts_clean,
+            egui::FontId::proportional(theme.small_size),
+            theme.text_muted(),
+        )
+    }).size().x;
+
+    let thorn_w = ctx.fonts(|f| {
+        f.layout_no_wrap(
+            "Þ".to_string(),
+            egui::FontId::proportional(theme.font_size_body),
+            theme.accent(),
+        )
+    }).size().x;
+
+    // Base layout (must match paint_timestamp_pill):
+    //   left_pad(6) + ts_w + gap(5) + thorn_w + right_pad(6)
+    let mut total = 6.0 + ts_w + 5.0 + thorn_w + 6.0;
+
+    if !reactions.is_empty() {
+        // When badges are present they REPLACE the right pad with:
+        // gap_before_first(4) + sum(badge_body) + sum(gap 3 between)
+        // + right_pad(6).
+        total -= 6.0;
+        let mut first = true;
+        for (emoji, keys) in {
+            let mut e: Vec<(&String, &Vec<String>)> = reactions.iter().collect();
+            e.sort_by(|a, b| a.0.cmp(b.0));
+            e.into_iter().take(4)
+        } {
+            if keys.is_empty() { continue; }
+            let label = format!("{}{}", emoji, keys.len());
+            let label_w = ctx.fonts(|f| {
+                f.layout_no_wrap(
+                    label,
+                    egui::FontId::proportional(theme.small_size),
+                    theme.text_primary(),
+                )
+            }).size().x;
+            total += if first { 4.0 } else { 3.0 };
+            first = false;
+            total += label_w + 4.0; // badge body = label_w + 2px each side
+        }
+        total += 6.0; // right pad after last badge
+    }
+    total.ceil()
+}
+
 /// Paint the inline timestamp pill: a small rounded frame containing the
 /// timestamp text, a Þ separator, and any existing reaction badges (with
 /// counts). Anchored at the rect message_row reserved.
@@ -3339,8 +3403,8 @@ fn paint_timestamp_pill(
     );
 
     let ts_clean = timestamp.trim().trim_end_matches(" UTC").trim();
-    let mut x = rect.left() + 6.0;
     let cy = rect.center().y;
+    let mut x = rect.left() + 6.0; // left pad — must match compute_pill_width
 
     // Timestamp text
     let ts_galley = ui.fonts(|f| {
@@ -3350,9 +3414,10 @@ fn paint_timestamp_pill(
             theme.text_muted(),
         )
     });
+    let ts_h = ts_galley.size().y;
     let ts_w = ts_galley.size().x;
-    painter.galley(egui::pos2(x, cy - ts_galley.size().y / 2.0), ts_galley, theme.text_muted());
-    x += ts_w + 5.0;
+    painter.galley(egui::pos2(x, cy - ts_h / 2.0), ts_galley, theme.text_muted());
+    x += ts_w + 5.0; // ts width + gap before Þ — must match compute
 
     // Þ pull-tab marker
     let thorn_galley = ui.fonts(|f| {
@@ -3362,14 +3427,17 @@ fn paint_timestamp_pill(
             theme.accent(),
         )
     });
+    let thorn_h = thorn_galley.size().y;
     let thorn_w = thorn_galley.size().x;
-    painter.galley(egui::pos2(x, cy - thorn_galley.size().y / 2.0), thorn_galley, theme.accent());
-    x += thorn_w + 4.0;
+    painter.galley(egui::pos2(x, cy - thorn_h / 2.0), thorn_galley, theme.accent());
+    x += thorn_w; // advance past Þ; first-badge gap added below
 
-    // Existing reaction badges (right of Þ). Each = emoji + small count.
+    // Existing reaction badges (right of Þ). Each = [2px-pad emoji+count 2px-pad]
+    // followed by 3px gap to the next badge. First badge follows Þ after a 4px gap.
     if !reactions.is_empty() {
         let mut emojis: Vec<(&String, &Vec<String>)> = reactions.iter().collect();
         emojis.sort_by(|a, b| a.0.cmp(b.0));
+        let mut first = true;
         for (emoji, keys) in emojis.into_iter().take(4) {
             let count = keys.len();
             if count == 0 { continue; }
@@ -3382,10 +3450,14 @@ fn paint_timestamp_pill(
                     if i_reacted { theme.accent() } else { theme.text_primary() },
                 )
             });
-            let label_w = label_galley.size().x + 4.0;
+            let label_w = label_galley.size().x;
+            let badge_w = label_w + 4.0; // 2px internal pad each side
+            // Pre-badge gap: 4 for first, 3 for subsequent — must match compute.
+            x += if first { 4.0 } else { 3.0 };
+            first = false;
             let badge_rect = egui::Rect::from_min_size(
                 egui::pos2(x, cy - 8.0),
-                Vec2::new(label_w, 16.0),
+                Vec2::new(badge_w, 16.0),
             );
             // Stop drawing if we'd overflow the reserved pill width.
             if badge_rect.right() > rect.right() - 2.0 { break; }
@@ -3410,7 +3482,7 @@ fn paint_timestamp_pill(
             if resp.clicked() {
                 pending_reactions.push((msg_sender_key.clone(), msg_ts_ms, emoji.clone()));
             }
-            x += label_w + 3.0;
+            x += badge_w; // advance past the badge body; next-badge gap added next iter
         }
     }
 }

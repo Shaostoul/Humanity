@@ -137,11 +137,20 @@ pub fn message_row(
             },
         );
     } else if use_pill {
-        // Append a transparent space sized to the pill width. This reserves
-        // layout room so wrapped content lines align cleanly past the pill.
-        // The pill paints at the rect we return.
+        // Reserve EXACTLY pill_width worth of layout space using transparent
+        // spaces. We must measure the space's actual rendered width or our
+        // estimate will be off and message text will overlap the pill.
+        // Measured per-call in case the body font / theme changes.
+        let space_w = ui.fonts(|f| {
+            f.layout_no_wrap(
+                " ".to_string(),
+                egui::FontId::proportional(body_font),
+                Color32::TRANSPARENT,
+            )
+        }).size().x.max(1.0);
+        let n = ((pill_width / space_w).ceil() as usize).max(1);
         job.append(
-            &" ".repeat(((pill_width / (body_font * 0.5)).ceil() as usize).max(1)),
+            &" ".repeat(n),
             0.0,
             egui::TextFormat {
                 font_id: egui::FontId::proportional(body_font),
