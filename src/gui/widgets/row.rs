@@ -42,6 +42,19 @@ const USERBOX_GAP: f32 = 8.0;
 ///
 /// First row includes the sender's name in bold before the timestamp.
 /// Continuation rows just show `timestamp · content`.
+/// Render a universal row with optional userbox + word-wrapped content +
+/// optional reserved space for a "timestamp pill" widget the caller
+/// paints over the returned `pill_rect`.
+///
+/// `pill_width` (NEW v0.184): width in pixels to reserve between the
+/// name (or row start, for continuation rows) and the content text. Pass
+/// 0.0 to preserve the legacy inline-timestamp behavior. When > 0:
+/// - the timestamp text is OMITTED from the in-row layout job (caller's
+///   pill is expected to render it)
+/// - the row reserves `pill_width` of horizontal space at the pill's
+///   anchor point so content wraps cleanly to its right
+/// - `pill_rect` in the response gives the caller the exact rect to
+///   paint into (top-aligned with the row, height = first line height).
 pub fn message_row(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -54,6 +67,7 @@ pub fn message_row(
     bg_color: Color32,
     channeling: bool,
     ctx_time: f64,
+    pill_width: f32,
 ) -> MessageRowResponse {
     let full_width = ui.available_width();
     let border_color = theme.border();
@@ -70,6 +84,7 @@ pub fn message_row(
 
     // Strip " UTC" so timestamps are tight.
     let ts_clean = timestamp.trim().trim_end_matches(" UTC").trim().to_string();
+    let use_pill = pill_width > 0.0;
 
     // Build the text galley using a LayoutJob so we can bold the name only
     // on header rows and keep the rest at the normal weight.
@@ -97,7 +112,12 @@ pub fn message_row(
             },
         );
     }
-    if !ts_clean.is_empty() {
+    // Inline timestamp (legacy behavior) only when pill_width == 0.
+    // When the caller is painting a pill instead, omit timestamp + interpunct
+    // here so the pill displays it. We leave a SPACE (taking pill_width worth
+    // of horizontal advance) between name and content; the caller paints the
+    // pill on top of that gap.
+    if !use_pill && !ts_clean.is_empty() {
         job.append(
             &ts_clean,
             0.0,
@@ -116,6 +136,19 @@ pub fn message_row(
                 ..Default::default()
             },
         );
+    } else if use_pill {
+        // Append a transparent space sized to the pill width. This reserves
+        // layout room so wrapped content lines align cleanly past the pill.
+        // The pill paints at the rect we return.
+        job.append(
+            &" ".repeat(((pill_width / (body_font * 0.5)).ceil() as usize).max(1)),
+            0.0,
+            egui::TextFormat {
+                font_id: egui::FontId::proportional(body_font),
+                color: Color32::TRANSPARENT,
+                ..Default::default()
+            },
+        );
     }
     job.append(
         content,
@@ -129,6 +162,34 @@ pub fn message_row(
 
     let galley = painter.layout_job(job);
     let text_h = galley.size().y;
+
+    // For pill placement: re-lay just the "Name  " prefix to find where
+    // the pill should anchor (right after the name on header rows; at
+    // content_x for continuation rows).
+    let pill_x_offset = if use_pill && show_header && !name.is_empty() {
+        let mut prefix = LayoutJob::default();
+        prefix.append(
+            name,
+            0.0,
+            egui::TextFormat {
+                font_id: egui::FontId::proportional(side_font),
+                color: Color32::WHITE,
+                ..Default::default()
+            },
+        );
+        prefix.append(
+            "  ",
+            0.0,
+            egui::TextFormat {
+                font_id: egui::FontId::proportional(body_font),
+                color: theme.text_muted(),
+                ..Default::default()
+            },
+        );
+        painter.layout_job(prefix).size().x
+    } else {
+        0.0
+    };
 
     // Row height = exactly what the text needs, with a tiny padding. We do NOT
     // force a minimum row height based on USERBOX_SIZE any more — that was
@@ -147,6 +208,7 @@ pub fn message_row(
         return MessageRowResponse {
             response,
             userbox_rect: Rect::NOTHING,
+            pill_rect: Rect::NOTHING,
         };
     }
 
@@ -215,9 +277,23 @@ pub fn message_row(
     let content_y = hy + 2.0;
     painter.galley(egui::pos2(content_x, content_y), galley, text_color);
 
+    // Pill rect: anchored at content_x + name_width, height = first line of
+    // content. Caller paints the actual pill contents (timestamp + Þ +
+    // reactions) into this rect.
+    let pill_rect = if use_pill {
+        let pill_h = (theme.icon_size * 0.6).max(18.0).min(text_h);
+        Rect::from_min_size(
+            egui::pos2(content_x + pill_x_offset, content_y),
+            Vec2::new(pill_width, pill_h),
+        )
+    } else {
+        Rect::NOTHING
+    };
+
     MessageRowResponse {
         response,
         userbox_rect: userbox_hit,
+        pill_rect,
     }
 }
 
@@ -225,6 +301,10 @@ pub fn message_row(
 pub struct MessageRowResponse {
     pub response: egui::Response,
     pub userbox_rect: Rect,
+    /// Rect where the caller should paint the timestamp pill (when
+    /// `pill_width > 0` was passed in). Empty rect when the pill was
+    /// not requested.
+    pub pill_rect: Rect,
 }
 
 impl MessageRowResponse {

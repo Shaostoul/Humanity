@@ -1733,13 +1733,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         .unwrap_or(false);
 
                     let need_text_row = show_header || !display_text.trim().is_empty();
-                    // Track row hover state + rect so we can paint the action
-                    // buttons (+ picker, reply, pin, edit) as a *floating overlay*
-                    // anchored to the row's top-right. The overlay does NOT
-                    // allocate layout space, so hovering a message no longer
-                    // shifts every message below it down by 22px.
+                    // Track row hover + row rect + pill rect so the expanded
+                    // pill popup (rendered later) can anchor to the right
+                    // place. The popup is an egui::Area, doesn't allocate
+                    // layout space — hovering a message no longer shifts
+                    // every message below.
                     let mut row_was_hovered = false;
                     let mut row_rect_opt: Option<egui::Rect> = None;
+                    let mut pill_rect_for_msg: egui::Rect = egui::Rect::NOTHING;
                     if is_editing {
                         // Render an editable row in place of the message text.
                         if let Some((_, ref mut draft)) = state.chat_edit_target {
@@ -1762,6 +1763,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             });
                         }
                     } else if need_text_row {
+                        // Estimate pill width: timestamp (e.g. "12:34") + Þ
+                        // + small per-reaction badge. ~52px for ts/Þ +
+                        // ~22px per visible reaction (max 4 shown collapsed).
+                        let visible_reaction_count = msg.reactions.len().min(4);
+                        let pill_width = 52.0 + 22.0 * visible_reaction_count as f32;
                         let row_resp = crate::gui::widgets::row::message_row(
                             ui,
                             theme,
@@ -1774,9 +1780,26 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             row_bg,
                             channeling,
                             ctx_time,
+                            pill_width,
                         );
                         row_was_hovered = row_resp.response.hovered();
                         row_rect_opt = Some(row_resp.response.rect);
+                        pill_rect_for_msg = row_resp.pill_rect;
+
+                        // Paint the timestamp pill into the rect message_row reserved.
+                        if pill_rect_for_msg != egui::Rect::NOTHING {
+                            paint_timestamp_pill(
+                                ui,
+                                theme,
+                                pill_rect_for_msg,
+                                &msg.timestamp,
+                                &msg.reactions,
+                                &state.profile_public_key,
+                                msg.timestamp_ms,
+                                msg.sender_key.clone(),
+                                &mut pending_reactions,
+                            );
+                        }
                         if row_resp.userbox_clicked(ui.ctx()) {
                             state.chat_user_modal_open = true;
                             state.chat_user_modal_name = msg.sender_name.clone();
@@ -1827,96 +1850,46 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         });
                     }
 
-                    // ── Reaction PILLS (inline, only when reactions exist) ──
-                    // These are STATIC content (this message has 3 thumbs-up,
-                    // etc.) — render them inline below the message text. Doesn't
-                    // shift on hover because their existence doesn't depend on
-                    // hover. Click a pill to toggle your own reaction.
-                    let reactions_indent = 40.0;
-                    let my_key = state.profile_public_key.clone();
-                    let target_from = msg.sender_key.clone();
+                    // (Old inline reaction PILLS row removed — reactions
+                    // now live INSIDE the timestamp pill itself. See
+                    // paint_timestamp_pill() above for the inline display.)
                     let target_ts = msg.timestamp_ms;
-                    if !msg.reactions.is_empty() && target_ts > 0 {
-                        let row_w = ui.available_width();
-                        let (pills_rect, _) = ui.allocate_exact_size(
-                            Vec2::new(row_w, 22.0),
-                            egui::Sense::hover(),
-                        );
-                        ui.painter().rect_filled(pills_rect, 0.0, row_bg);
-                        let mut x = pills_rect.left() + reactions_indent;
-                        let y = pills_rect.center().y;
-                        let mut emojis: Vec<(&String, &Vec<String>)> = msg.reactions.iter().collect();
-                        emojis.sort_by(|a, b| a.0.cmp(b.0));
-                        for (emoji, keys) in emojis {
-                            let count = keys.len();
-                            if count == 0 { continue; }
-                            let i_reacted = keys.contains(&my_key);
-                            let label = format!("{} {}", emoji, count);
-                            let label_w = (label.len() as f32) * 8.0 + 12.0;
-                            let pill = egui::Rect::from_min_size(
-                                egui::pos2(x, y - 9.0),
-                                Vec2::new(label_w, 18.0),
-                            );
-                            let pill_bg = if i_reacted {
-                                let a = theme.accent();
-                                Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 60)
-                            } else {
-                                theme.bg_card()
-                            };
-                            ui.painter().rect_filled(pill, Rounding::same(9), pill_bg);
-                            ui.painter().rect_stroke(
-                                pill,
-                                Rounding::same(9),
-                                Stroke::new(1.0, if i_reacted { theme.accent() } else { theme.border() }),
-                                egui::StrokeKind::Inside,
-                            );
-                            ui.painter().text(
-                                pill.center(),
-                                egui::Align2::CENTER_CENTER,
-                                &label,
-                                egui::FontId::proportional(theme.font_size_small),
-                                if i_reacted { theme.accent() } else { theme.text_primary() },
-                            );
-                            let resp = ui.interact(
-                                pill,
-                                egui::Id::new(("react_pill", msg.timestamp_ms, emoji.clone())),
-                                egui::Sense::click(),
-                            );
-                            if resp.clicked() {
-                                pending_reactions.push((target_from.clone(), target_ts, emoji.clone()));
-                            }
-                            x += label_w + 4.0;
-                        }
-                    }
+                    let target_from = msg.sender_key.clone();
 
-                    // ── Action buttons (floating overlay, hover-only) ──
-                    // Lives in an egui::Area anchored to the message row's
-                    // top-right. Does NOT allocate layout space — hover doesn't
-                    // shift any message below. Buttons: + reaction picker, ↩
-                    // reply, 📌 pin, and ✎ edit (own messages only).
+                    // ── Expanded pill popup (hover the row → opens below) ──
+                    // The collapsed pill (timestamp + Þ + visible reactions)
+                    // already painted inline. When the user hovers the row,
+                    // an expanded popup appears below the pill with action
+                    // buttons (↩ reply, 📌 pin, ✎ edit) on the LEFT, and a
+                    // top-10 default emoji row + ∞ all-emoji button on the
+                    // RIGHT — separated by the Þ symbol matching the pill.
                     if row_was_hovered && target_ts > 0 {
                         if let Some(row_rect) = row_rect_opt {
-                            const REACT_OPTIONS: &[&str] = &["❤️", "😂", "👍", "👎", "🔥", "😮", "😢", "🎉"];
+                            const TOP_REACTIONS: &[&str] = &["❤️", "👍", "😂", "🎉", "🔥", "😮", "😢", "👎", "💯", "⭐"];
+                            const ALL_REACTIONS: &[&str] = &["❤️","🧡","💛","💚","💙","💜","🤍","🖤","👍","👎","😂","😍","🥰","😊","😎","🤔","😢","😭","😡","🤬","🔥","💯","⭐","🎉","🙌","👏","🙏","💪","🤝","👀","🚀","⚡","💡","🌟","✨","💀","🤡","🤯","🥳","😴"];
                             let is_own = msg.sender_key == state.profile_public_key;
-                            // Anchor: top-right of the row, lifted ~10px so the
-                            // overlay floats above the row's top edge but still
-                            // overlaps the right side. Overlap means the cursor
-                            // sliding from text to overlay never crosses an
-                            // un-hovered gap, so the overlay stays sticky.
+
+                            let pill_rect_anchor = if pill_rect_for_msg != egui::Rect::NOTHING {
+                                pill_rect_for_msg
+                            } else {
+                                row_rect
+                            };
+                            // Anchor the popup just below the pill, left-aligned
+                            // with it. Keeps the cursor flow short (mouse moves
+                            // straight down from the Þ into the expanded panel).
                             let overlay_pos = egui::pos2(
-                                row_rect.right() - 8.0,
-                                row_rect.top() - 12.0,
+                                pill_rect_anchor.left(),
+                                pill_rect_anchor.bottom() + 2.0,
                             );
-                            egui::Area::new(egui::Id::new(("react_overlay", target_ts)))
+                            egui::Area::new(egui::Id::new(("pill_expand", target_ts)))
                                 .fixed_pos(overlay_pos)
-                                .pivot(egui::Align2::RIGHT_TOP)
                                 .order(egui::Order::Foreground)
                                 .interactable(true)
                                 .show(ui.ctx(), |ui| {
                                     Frame::none()
                                         .fill(theme.bg_card())
                                         .stroke(Stroke::new(1.0, theme.border()))
-                                        .rounding(Rounding::same(6))
+                                        .rounding(Rounding::same(8))
                                         .inner_margin(4.0)
                                         .shadow(egui::epaint::Shadow {
                                             offset: [1, 2],
@@ -1925,29 +1898,74 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                             color: Color32::from_black_alpha(80),
                                         })
                                         .show(ui, |ui| {
-                                            ui.spacing_mut().item_spacing.x = 4.0;
+                                            ui.spacing_mut().item_spacing.x = 2.0;
                                             ui.horizontal(|ui| {
-                                                // + react picker
-                                                let plus_resp = ui.add(
-                                                    egui::Button::new(
-                                                        RichText::new("+")
-                                                            .size(theme.font_size_body)
-                                                            .color(theme.text_muted())
-                                                    )
-                                                    .min_size(Vec2::new(24.0, 22.0))
-                                                    .rounding(Rounding::same(4))
-                                                ).on_hover_text("Add reaction");
-                                                let popup_id = egui::Id::new(("react_popup", target_ts));
-                                                if plus_resp.clicked() {
-                                                    ui.memory_mut(|m| m.toggle_popup(popup_id));
+                                                // Functions on the LEFT of Þ.
+                                                if ui.add(
+                                                    egui::Button::new(RichText::new("↩").size(theme.font_size_body).color(theme.text_muted()))
+                                                        .min_size(Vec2::new(26.0, 22.0))
+                                                        .rounding(Rounding::same(4))
+                                                ).on_hover_text("Reply").clicked() {
+                                                    let preview = if msg.content.len() > 80 {
+                                                        format!("{}…", &msg.content[..80])
+                                                    } else { msg.content.clone() };
+                                                    pending_reply = Some(crate::gui::ReplyContext {
+                                                        sender_key: msg.sender_key.clone(),
+                                                        sender_name: msg.sender_name.clone(),
+                                                        preview,
+                                                        timestamp_ms: target_ts,
+                                                    });
+                                                }
+                                                if ui.add(
+                                                    egui::Button::new(RichText::new("📌").size(theme.font_size_small).color(theme.text_muted()))
+                                                        .min_size(Vec2::new(24.0, 22.0))
+                                                        .rounding(Rounding::same(4))
+                                                ).on_hover_text("Pin").clicked() {
+                                                    pending_pins.push((msg.sender_key.clone(), msg.sender_name.clone(), msg.content.clone(), target_ts));
+                                                }
+                                                if is_own {
+                                                    if ui.add(
+                                                        egui::Button::new(RichText::new("✎").size(theme.font_size_body).color(theme.text_muted()))
+                                                            .min_size(Vec2::new(26.0, 22.0))
+                                                            .rounding(Rounding::same(4))
+                                                    ).on_hover_text("Edit").clicked() {
+                                                        pending_edit = Some((target_ts, msg.content.clone()));
+                                                    }
+                                                }
+
+                                                // Þ separator (matches the inline pill).
+                                                ui.add_space(2.0);
+                                                ui.label(RichText::new("Þ").size(theme.font_size_body).color(theme.accent()).strong());
+                                                ui.add_space(2.0);
+
+                                                // Top-10 reactions on the RIGHT of Þ.
+                                                for emoji in TOP_REACTIONS {
+                                                    if ui.add(
+                                                        egui::Button::new(RichText::new(*emoji).size(theme.font_size_body))
+                                                            .min_size(Vec2::new(26.0, 22.0))
+                                                            .rounding(Rounding::same(4))
+                                                    ).clicked() {
+                                                        pending_reactions.push((target_from.clone(), target_ts, emoji.to_string()));
+                                                    }
+                                                }
+
+                                                // ∞ all-emoji picker (popup with full set).
+                                                let inf_resp = ui.add(
+                                                    egui::Button::new(RichText::new("∞").size(theme.font_size_body).color(theme.accent()))
+                                                        .min_size(Vec2::new(26.0, 22.0))
+                                                        .rounding(Rounding::same(4))
+                                                ).on_hover_text("All reactions");
+                                                let inf_popup_id = egui::Id::new(("react_inf_popup", target_ts));
+                                                if inf_resp.clicked() {
+                                                    ui.memory_mut(|m| m.toggle_popup(inf_popup_id));
                                                 }
                                                 egui::popup::popup_below_widget(
-                                                    ui, popup_id, &plus_resp,
+                                                    ui, inf_popup_id, &inf_resp,
                                                     egui::PopupCloseBehavior::CloseOnClickOutside,
                                                     |ui| {
-                                                        ui.set_min_width(220.0);
+                                                        ui.set_min_width(280.0);
                                                         ui.horizontal_wrapped(|ui| {
-                                                            for emoji in REACT_OPTIONS {
+                                                            for emoji in ALL_REACTIONS {
                                                                 if ui.button(*emoji).clicked() {
                                                                     pending_reactions.push((target_from.clone(), target_ts, emoji.to_string()));
                                                                     ui.memory_mut(|m| m.close_popup());
@@ -1956,62 +1974,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                         });
                                                     },
                                                 );
-
-                                                // ↩ reply
-                                                if ui.add(
-                                                    egui::Button::new(
-                                                        RichText::new("↩")
-                                                            .size(theme.font_size_body)
-                                                            .color(theme.text_muted())
-                                                    )
-                                                    .min_size(Vec2::new(28.0, 22.0))
-                                                    .rounding(Rounding::same(4))
-                                                ).on_hover_text("Reply").clicked() {
-                                                    let preview = if msg.content.len() > 80 {
-                                                        format!("{}…", &msg.content[..80])
-                                                    } else {
-                                                        msg.content.clone()
-                                                    };
-                                                    pending_reply = Some(crate::gui::ReplyContext {
-                                                        sender_key: msg.sender_key.clone(),
-                                                        sender_name: msg.sender_name.clone(),
-                                                        preview,
-                                                        timestamp_ms: target_ts,
-                                                    });
-                                                }
-
-                                                // 📌 pin
-                                                if ui.add(
-                                                    egui::Button::new(
-                                                        RichText::new("📌")
-                                                            .size(theme.font_size_small)
-                                                            .color(theme.text_muted())
-                                                    )
-                                                    .min_size(Vec2::new(24.0, 22.0))
-                                                    .rounding(Rounding::same(4))
-                                                ).on_hover_text("Pin message").clicked() {
-                                                    pending_pins.push((
-                                                        msg.sender_key.clone(),
-                                                        msg.sender_name.clone(),
-                                                        msg.content.clone(),
-                                                        target_ts,
-                                                    ));
-                                                }
-
-                                                // ✎ edit (own only)
-                                                if is_own {
-                                                    if ui.add(
-                                                        egui::Button::new(
-                                                            RichText::new("✎")
-                                                                .size(theme.font_size_body)
-                                                                .color(theme.text_muted())
-                                                        )
-                                                        .min_size(Vec2::new(28.0, 22.0))
-                                                        .rounding(Rounding::same(4))
-                                                    ).on_hover_text("Edit").clicked() {
-                                                        pending_edit = Some((target_ts, msg.content.clone()));
-                                                    }
-                                                }
                                             });
                                         });
                                 });
@@ -3332,6 +3294,117 @@ fn truncate_str(s: &str, max: usize) -> String {
 }
 
 // ─────────────────────────────── Shared Helpers ──────────────────────────
+
+/// Paint the inline timestamp pill: a small rounded frame containing the
+/// timestamp text, a Þ separator, and any existing reaction badges (with
+/// counts). Anchored at the rect message_row reserved.
+///
+/// Clicking an existing reaction toggles your own. Clicking Þ has no
+/// dedicated action (the pill expands via row hover; see the
+/// `pill_expand` Area in the message render block).
+fn paint_timestamp_pill(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    rect: egui::Rect,
+    timestamp: &str,
+    reactions: &std::collections::HashMap<String, Vec<String>>,
+    my_key: &str,
+    msg_ts_ms: u64,
+    msg_sender_key: String,
+    pending_reactions: &mut Vec<(String, u64, String)>,
+) {
+    let painter = ui.painter();
+    // Pill background — subtle so it reads as an inline element, not a
+    // standalone control. Hover state is handled by the parent row, which
+    // triggers the expanded popup.
+    let bg = {
+        let c = theme.bg_card();
+        Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), 200)
+    };
+    painter.rect_filled(rect, Rounding::same(9), bg);
+    painter.rect_stroke(
+        rect,
+        Rounding::same(9),
+        Stroke::new(1.0, theme.border()),
+        egui::StrokeKind::Inside,
+    );
+
+    let ts_clean = timestamp.trim().trim_end_matches(" UTC").trim();
+    let mut x = rect.left() + 6.0;
+    let cy = rect.center().y;
+
+    // Timestamp text
+    let ts_galley = ui.fonts(|f| {
+        f.layout_no_wrap(
+            ts_clean.to_string(),
+            egui::FontId::proportional(theme.small_size),
+            theme.text_muted(),
+        )
+    });
+    let ts_w = ts_galley.size().x;
+    painter.galley(egui::pos2(x, cy - ts_galley.size().y / 2.0), ts_galley, theme.text_muted());
+    x += ts_w + 5.0;
+
+    // Þ pull-tab marker
+    let thorn_galley = ui.fonts(|f| {
+        f.layout_no_wrap(
+            "Þ".to_string(),
+            egui::FontId::proportional(theme.font_size_body),
+            theme.accent(),
+        )
+    });
+    let thorn_w = thorn_galley.size().x;
+    painter.galley(egui::pos2(x, cy - thorn_galley.size().y / 2.0), thorn_galley, theme.accent());
+    x += thorn_w + 4.0;
+
+    // Existing reaction badges (right of Þ). Each = emoji + small count.
+    if !reactions.is_empty() {
+        let mut emojis: Vec<(&String, &Vec<String>)> = reactions.iter().collect();
+        emojis.sort_by(|a, b| a.0.cmp(b.0));
+        for (emoji, keys) in emojis.into_iter().take(4) {
+            let count = keys.len();
+            if count == 0 { continue; }
+            let i_reacted = keys.contains(&my_key.to_string());
+            let label = format!("{}{}", emoji, count);
+            let label_galley = ui.fonts(|f| {
+                f.layout_no_wrap(
+                    label.clone(),
+                    egui::FontId::proportional(theme.small_size),
+                    if i_reacted { theme.accent() } else { theme.text_primary() },
+                )
+            });
+            let label_w = label_galley.size().x + 4.0;
+            let badge_rect = egui::Rect::from_min_size(
+                egui::pos2(x, cy - 8.0),
+                Vec2::new(label_w, 16.0),
+            );
+            // Stop drawing if we'd overflow the reserved pill width.
+            if badge_rect.right() > rect.right() - 2.0 { break; }
+            let badge_bg = if i_reacted {
+                let a = theme.accent();
+                Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 60)
+            } else {
+                Color32::TRANSPARENT
+            };
+            painter.rect_filled(badge_rect, Rounding::same(7), badge_bg);
+            painter.galley(
+                egui::pos2(badge_rect.left() + 2.0, cy - label_galley.size().y / 2.0),
+                label_galley,
+                if i_reacted { theme.accent() } else { theme.text_primary() },
+            );
+            // Click badge to toggle this reaction.
+            let resp = ui.interact(
+                badge_rect,
+                egui::Id::new(("react_pill_inline", msg_ts_ms, emoji.clone())),
+                egui::Sense::click(),
+            );
+            if resp.clicked() {
+                pending_reactions.push((msg_sender_key.clone(), msg_ts_ms, emoji.clone()));
+            }
+            x += label_w + 3.0;
+        }
+    }
+}
 
 /// Convert an HTTPS URL to a WSS URL for the relay.
 pub fn derive_ws_url(url: &str) -> String {

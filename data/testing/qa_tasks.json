@@ -380,6 +380,22 @@
       "note": "egui::Area with order Foreground + RIGHT_TOP pivot anchored to row.right_top minus a small offset. Shadow + bg_card frame so it reads as a discrete popup. Reaction pills kept inline since they're static content (this message has 3 thumbs-up — known, doesn't change on hover)."
     },
     {
+      "id": "v0183-icon-uniform",
+      "version": "0.183.2",
+      "feature": "Avatar icons uniform size from theme.icon_size",
+      "what_to_test": "Open Chat. Compare avatar circles across messages of different lengths (single-line vs multi-line). Settings → Widgets → Icon Size: tweak. Confirm every avatar updates to the new size uniformly.",
+      "expected": "Every avatar circle is the same size, scaled from theme.icon_size. Previously the icon was sized as 38% of row_h causing single-line messages to get tiny ~6px circles while long messages got ~12px ones. Letter font is now full side_font, not capped to row_h - 4."
+    },
+    {
+      "id": "v0184-timestamp-pill",
+      "version": "0.184.0",
+      "feature": "Timestamp pill — replaces inline timestamp + reactions row + popup",
+      "what_to_test": "Open Chat. Each message header now shows a small pill: [timestamp Þ existing-reactions]. Click an existing reaction badge to toggle yours. Hover the message row — an expanded panel opens BELOW the pill with: ↩ reply, 📌 pin, ✎ edit (own only), then a Þ separator, then 10 default reactions, then ∞ for the full emoji picker. Click ∞ → 40-emoji picker.",
+      "expected": "No more separate inline pills row below messages and no more top-right popup. One unified pill that lives where the timestamp used to be. Hovering messages doesn't shift layout. Clicking reactions in the expanded panel adds them. Right-click context menu still works as fallback.",
+      "category": "chat-parity",
+      "note": "Phase 1 of the operator's pill design. Top-10 reactions are static defaults today; v0.185+ will add per-user frequency tracking + server-configurable defaults + custom emoji."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",

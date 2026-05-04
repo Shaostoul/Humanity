@@ -1189,6 +1189,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                     Color32::from_rgb(26, 26, 34),
                     false,
                     0.0,
+                    0.0, // pill_width = 0 → preview keeps inline timestamp
                 );
                 ui.add_space(theme.section_gap);
                 // Continuation row
@@ -1204,6 +1205,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                     Color32::from_rgb(30, 30, 38),
                     false,
                     0.0,
+                    0.0, // pill_width = 0
                 );
 
                 ui.add_space(spacing_md);
