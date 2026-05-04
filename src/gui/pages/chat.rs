@@ -1870,12 +1870,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         let is_own = msg.sender_key == state.profile_public_key;
 
                         // Estimated popup geometry — needed for the sticky
-                        // hover region (cursor moving from pill into popup
-                        // must remain "in" the combined region or the popup
-                        // dismisses).
-                        let est_buttons = if is_own { 3 } else { 2 };
+                        // hover region. Function buttons are now text labels
+                        // (Pin / Edit) which are wider than the prior icon
+                        // attempts, so widen the estimate accordingly.
+                        let func_w = 26.0      // ↩ reply
+                                   + 36.0      // Pin
+                                   + (if is_own { 40.0 } else { 0.0 }); // Edit (own only)
                         let est_popup_w =
-                            est_buttons as f32 * 28.0    // function buttons (↩ 📌 ✎)
+                            func_w
                             + 18.0                       // Þ separator
                             + TOP_REACTIONS.len() as f32 * 28.0 // top-10 reactions
                             + 30.0                       // ∞ button
@@ -1943,18 +1945,18 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                     });
                                                 }
                                                 if ui.add(
-                                                    egui::Button::new(RichText::new("⊠").size(theme.font_size_body).color(chan))
-                                                        .min_size(Vec2::new(26.0, 22.0))
+                                                    egui::Button::new(RichText::new("Pin").size(theme.font_size_small).color(chan))
+                                                        .min_size(Vec2::new(34.0, 22.0))
                                                         .rounding(Rounding::same(4))
-                                                ).on_hover_text("Pin").clicked() {
+                                                ).on_hover_text("Pin message").clicked() {
                                                     pending_pins.push((msg.sender_key.clone(), msg.sender_name.clone(), msg.content.clone(), target_ts));
                                                 }
                                                 if is_own {
                                                     if ui.add(
-                                                        egui::Button::new(RichText::new("✎").size(theme.font_size_body).color(chan))
-                                                            .min_size(Vec2::new(26.0, 22.0))
+                                                        egui::Button::new(RichText::new("Edit").size(theme.font_size_small).color(chan))
+                                                            .min_size(Vec2::new(38.0, 22.0))
                                                             .rounding(Rounding::same(4))
-                                                    ).on_hover_text("Edit").clicked() {
+                                                    ).on_hover_text("Edit message").clicked() {
                                                         pending_edit = Some((target_ts, msg.content.clone()));
                                                     }
                                                 }
@@ -3375,7 +3377,10 @@ fn compute_pill_width(
             e.into_iter().take(4)
         } {
             if keys.is_empty() { continue; }
-            let label = format!("{}{}", emoji, keys.len());
+            // Match paint_timestamp_pill — strip FE0F before measuring so
+            // the badge width estimate matches the rendered width.
+            let display_emoji: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect();
+            let label = format!("{}{}", display_emoji, keys.len());
             let label_w = ctx.fonts(|f| {
                 f.layout_no_wrap(
                     label,
@@ -3461,8 +3466,12 @@ fn paint_timestamp_pill(
         for (emoji, keys) in emojis.into_iter().take(4) {
             let count = keys.len();
             if count == 0 { continue; }
+            // Strip U+FE0F variation selector from any pre-existing reaction
+            // (older clients may have stored "❤️" with the selector — render
+            // path now uses bare codepoint to avoid the trailing tofu square).
+            let display_emoji: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect();
             let i_reacted = keys.contains(&my_key.to_string());
-            let label = format!("{}{}", emoji, count);
+            let label = format!("{}{}", display_emoji, count);
             let label_galley = ui.fonts(|f| {
                 f.layout_no_wrap(
                     label.clone(),
@@ -3493,7 +3502,9 @@ fn paint_timestamp_pill(
                 label_galley,
                 if i_reacted { theme.accent() } else { theme.text_primary() },
             );
-            // Click badge to toggle this reaction.
+            // Click badge to toggle this reaction. Send the SAME key that was
+            // stored (with or without FE0F) so the relay matches and toggles
+            // the correct entry — don't substitute the cleaned display string.
             let resp = ui.interact(
                 badge_rect,
                 egui::Id::new(("react_pill_inline", msg_ts_ms, emoji.clone())),
