@@ -191,12 +191,18 @@ pub fn message_row(
         0.0
     };
 
-    // Row height = exactly what the text needs, with a tiny padding. We do NOT
-    // force a minimum row height based on USERBOX_SIZE any more — that was
-    // producing 14 px of dead space under single-line first messages, which
-    // read as an unwanted line break between the first message of a sender
-    // block and their continuations. The userbox now adapts to the row.
-    let row_h = (text_h + 2.0).max(16.0);
+    // Row height = max(text height, icon size + padding) on HEADER rows so
+    // the avatar circle fits comfortably and message blocks aren't cramped.
+    // Continuation rows (no avatar) stay tight against text so a sender's
+    // multi-message block reads as one block, not a series of gaps.
+    // Operator request 2026-05-04: avatars are ~2 text lines tall so there
+    // should be visible breathing room between sender groups.
+    let min_h = if show_header {
+        (theme.icon_size + 6.0).max(16.0)
+    } else {
+        16.0
+    };
+    let row_h = (text_h + 4.0).max(min_h);
 
     let (full_rect, response) =
         ui.allocate_exact_size(Vec2::new(full_width, row_h), Sense::click());

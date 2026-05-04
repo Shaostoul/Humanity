@@ -1856,33 +1856,46 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let target_ts = msg.timestamp_ms;
                     let target_from = msg.sender_key.clone();
 
-                    // ── Expanded pill popup (hover the row → opens below) ──
-                    // The collapsed pill (timestamp + Þ + visible reactions)
-                    // already painted inline. When the user hovers the row,
-                    // an expanded popup appears below the pill with action
-                    // buttons (↩ reply, 📌 pin, ✎ edit) on the LEFT, and a
-                    // top-10 default emoji row + ∞ all-emoji button on the
-                    // RIGHT — separated by the Þ symbol matching the pill.
-                    if row_was_hovered && target_ts > 0 {
-                        if let Some(row_rect) = row_rect_opt {
-                            const TOP_REACTIONS: &[&str] = &["❤️", "👍", "😂", "🎉", "🔥", "😮", "😢", "👎", "💯", "⭐"];
-                            const ALL_REACTIONS: &[&str] = &["❤️","🧡","💛","💚","💙","💜","🤍","🖤","👍","👎","😂","😍","🥰","😊","😎","🤔","😢","😭","😡","🤬","🔥","💯","⭐","🎉","🙌","👏","🙏","💪","🤝","👀","🚀","⚡","💡","🌟","✨","💀","🤡","🤯","🥳","😴"];
-                            let is_own = msg.sender_key == state.profile_public_key;
+                    // ── Expanded pill popup (right of Þ, sticky hover) ──
+                    // Opens when the cursor is over the pill OR over the popup
+                    // itself (sticky combined region), so moving from pill to
+                    // popup doesn't dismiss it. Extends RIGHTWARD from the
+                    // pill so it reads as the pill "growing" with new
+                    // controls — functions on the LEFT (separated from the
+                    // existing Þ that's already in the inline pill), reactions
+                    // on the RIGHT, ∞ at the far right.
+                    if pill_rect_for_msg != egui::Rect::NOTHING && target_ts > 0 {
+                        const TOP_REACTIONS: &[&str] = &["❤️", "👍", "😂", "🎉", "🔥", "😮", "😢", "👎", "💯", "⭐"];
+                        const ALL_REACTIONS: &[&str] = &["❤️","🧡","💛","💚","💙","💜","🤍","🖤","👍","👎","😂","😍","🥰","😊","😎","🤔","😢","😭","😡","🤬","🔥","💯","⭐","🎉","🙌","👏","🙏","💪","🤝","👀","🚀","⚡","💡","🌟","✨","💀","🤡","🤯","🥳","😴"];
+                        let is_own = msg.sender_key == state.profile_public_key;
 
-                            let pill_rect_anchor = if pill_rect_for_msg != egui::Rect::NOTHING {
-                                pill_rect_for_msg
-                            } else {
-                                row_rect
-                            };
-                            // Anchor the popup just below the pill, left-aligned
-                            // with it. Keeps the cursor flow short (mouse moves
-                            // straight down from the Þ into the expanded panel).
+                        // Estimated popup geometry — needed for the sticky
+                        // hover region (cursor moving from pill into popup
+                        // must remain "in" the combined region or the popup
+                        // dismisses).
+                        let est_buttons = if is_own { 3 } else { 2 };
+                        let est_popup_w =
+                            est_buttons as f32 * 28.0    // function buttons (↩ 📌 ✎)
+                            + 18.0                       // Þ separator
+                            + TOP_REACTIONS.len() as f32 * 28.0 // top-10 reactions
+                            + 30.0                       // ∞ button
+                            + 16.0;                      // padding
+                        let est_popup_rect = egui::Rect::from_min_size(
+                            egui::pos2(pill_rect_for_msg.right() + 4.0, pill_rect_for_msg.top() - 2.0),
+                            Vec2::new(est_popup_w, pill_rect_for_msg.height() + 4.0),
+                        );
+                        let combined_rect = pill_rect_for_msg.union(est_popup_rect);
+                        let pointer = ui.ctx().input(|i| i.pointer.hover_pos());
+                        let combined_hovered = pointer.map(|p| combined_rect.contains(p)).unwrap_or(false);
+
+                        if combined_hovered {
                             let overlay_pos = egui::pos2(
-                                pill_rect_anchor.left(),
-                                pill_rect_anchor.bottom() + 2.0,
+                                pill_rect_for_msg.right() + 4.0,
+                                pill_rect_for_msg.center().y,
                             );
                             egui::Area::new(egui::Id::new(("pill_expand", target_ts)))
                                 .fixed_pos(overlay_pos)
+                                .pivot(egui::Align2::LEFT_CENTER)
                                 .order(egui::Order::Foreground)
                                 .interactable(true)
                                 .show(ui.ctx(), |ui| {
@@ -3314,14 +3327,10 @@ fn paint_timestamp_pill(
     pending_reactions: &mut Vec<(String, u64, String)>,
 ) {
     let painter = ui.painter();
-    // Pill background — subtle so it reads as an inline element, not a
-    // standalone control. Hover state is handled by the parent row, which
-    // triggers the expanded popup.
-    let bg = {
-        let c = theme.bg_card();
-        Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), 200)
-    };
-    painter.rect_filled(rect, Rounding::same(9), bg);
+    // Pill background — fully OPAQUE so the underlying transparent layout
+    // spacer doesn't let message text bleed through. Earlier the alpha
+    // was 200 which produced visible text overlap on long pill widths.
+    painter.rect_filled(rect, Rounding::same(9), theme.bg_card());
     painter.rect_stroke(
         rect,
         Rounding::same(9),

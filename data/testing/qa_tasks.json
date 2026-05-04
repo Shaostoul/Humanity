@@ -396,6 +396,15 @@
       "note": "Phase 1 of the operator's pill design. Top-10 reactions are static defaults today; v0.185+ will add per-user frequency tracking + server-configurable defaults + custom emoji."
     },
     {
+      "id": "v0185-pill-polish",
+      "version": "0.185.0",
+      "feature": "Timestamp pill polish — opaque bg + sticky hover + right-of-pill popup + header row breathing room",
+      "what_to_test": "Open Chat. (1) Pill is fully opaque now — no message text visible behind it. (2) Hover a pill — expanded panel opens to the RIGHT (not below). (3) Move cursor from pill INTO the panel buttons — popup stays open (sticky combined hover region). Click a top-10 emoji or a function button. (4) Header rows are now tall enough to comfortably fit the avatar circle — sender groups have visible breathing room between them. Continuation rows from the same sender stay tight together as before. (5) Click an existing reaction badge in the pill → toggles your reaction (popup may still be open from hover but doesn't interfere).",
+      "expected": "Pill text never overlaps message text. Popup extends rightward from the pill, mouse can move into it without dismissing. Header rows are at least theme.icon_size + 6px tall (38px default) so avatars don't crowd the text below. Popup width estimated correctly so the sticky hover region encompasses both pill + popup.",
+      "category": "chat-parity",
+      "note": "Combined hover region = pill_rect.union(estimated_popup_rect). Cursor inside that union region keeps popup visible. Once cursor leaves both, popup disappears."
+    },
+    {
       "id": "design-nav-redesign",
       "version": "next",
       "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",
