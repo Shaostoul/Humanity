@@ -186,18 +186,22 @@ pub fn message_row(
             StrokeKind::Inside,
         );
 
-        // Filled circle with the sender's first letter. Icon sizes to fit
-        // the row so short rows get a proportionally smaller icon, taller
-        // rows keep a readable icon at the top.
-        let icon_r = (row_h * 0.38).clamp(6.0, USERBOX_SIZE * 0.38);
-        let icon_y = (hy + (USERBOX_SIZE / 2.0).min(row_h / 2.0)).max(hy + icon_r + 1.0);
-        let icon_center = egui::pos2(userbox_hit.center().x, icon_y);
+        // Filled circle with the sender's first letter — constant size
+        // across every message regardless of row height, anchored to the
+        // top of the row. Previously the icon scaled with row_h which
+        // made single-line messages get a tiny icon and multi-line
+        // messages get a larger one. Operator wants uniform sizing
+        // matching the theme token so Settings → Widgets → Icon Size
+        // controls every avatar consistently.
+        let icon_r = (theme.icon_size * 0.38).max(6.0);
+        let icon_y = (hy + theme.icon_size / 2.0).max(hy + icon_r + 1.0);
+        let icon_center = egui::pos2(userbox_hit.center().x, icon_y.min(hy + row_h - icon_r - 1.0));
         painter.circle_filled(icon_center, icon_r, icon_color);
         painter.text(
             icon_center,
             egui::Align2::CENTER_CENTER,
             &icon_letter.to_uppercase().to_string(),
-            egui::FontId::proportional(side_font.min(row_h - 4.0)),
+            egui::FontId::proportional(side_font),
             Color32::WHITE,
         );
 
