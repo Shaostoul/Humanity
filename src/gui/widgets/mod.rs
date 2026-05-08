@@ -61,6 +61,72 @@ pub fn card_with_header(ui: &mut Ui, theme: &Theme, title: &str, add_contents: i
     });
 }
 
+/// Tinted section card — like `card`, but with a colored stroke + tinted
+/// background derived from the supplied accent color. Used in pages where
+/// privilege tier / nav category needs to be color-coded (e.g. server
+/// settings: red = USER, green = MOD, blue = ADMIN). Adds a small uppercase
+/// title above the card in the same accent color so the section reads at
+/// a glance.
+///
+/// Replaces the page-local `color_section` helpers that used to copy this
+/// pattern in each file. Edit here to restyle every tinted section.
+pub fn tinted_section(
+    ui: &mut Ui,
+    theme: &Theme,
+    title: &str,
+    accent: Color32,
+    contents: impl FnOnce(&mut Ui, &Theme),
+) {
+    ui.vertical_centered(|ui| {
+        ui.set_max_width(720.0);
+        ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+            ui.label(
+                RichText::new(title)
+                    .size(theme.font_size_small)
+                    .color(accent)
+                    .strong(),
+            );
+            ui.add_space(theme.spacing_sm);
+            // Tinted background derived from the accent (alpha 18) — same
+            // formula color_section was using before extraction.
+            let tint = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 18);
+            egui::Frame::none()
+                .fill(tint)
+                .stroke(Stroke::new(1.5, accent))
+                .rounding(Rounding::same(theme.border_radius as u8))
+                .inner_margin(theme.card_padding * 1.5)
+                .show(ui, |ui| {
+                    contents(ui, theme);
+                });
+        });
+    });
+}
+
+/// Subsection title — bold body-sized label used inside sections to group
+/// related controls (e.g. "Registration", "Channels", "User management"
+/// inside the Admin section of Server Settings). Pulls font + color from
+/// theme tokens so restyling propagates everywhere.
+pub fn subsection_label(ui: &mut Ui, theme: &Theme, text: &str) {
+    ui.label(
+        RichText::new(text)
+            .size(theme.font_size_body)
+            .color(theme.text_primary())
+            .strong(),
+    );
+    ui.add_space(theme.spacing_xs);
+}
+
+/// Muted body text — paragraph-style hint / description. Used right
+/// under headings to explain what a section does. Single source so the
+/// "muted hint" voice is consistent across pages.
+pub fn body_hint(ui: &mut Ui, theme: &Theme, text: &str) {
+    ui.label(
+        RichText::new(text)
+            .size(theme.font_size_small)
+            .color(theme.text_muted()),
+    );
+}
+
 /// Collapsible section with header.
 pub fn collapsible_section(ui: &mut Ui, title: &str, default_open: bool, add_contents: impl FnOnce(&mut Ui)) {
     egui::CollapsingHeader::new(title)
