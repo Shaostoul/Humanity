@@ -112,6 +112,21 @@ fn draw_tab_bar(
     });
 }
 
+/// Shared column widths for the Channels grid — used by header AND data
+/// rows so they line up perfectly. Bug fix 2026-05-04: previously the
+/// header used allocate_ui_with_layout(reservation) but the labels
+/// collapsed to text width while data rows used different widget widths,
+/// so the columns drifted.
+const CHANNEL_COL_WIDTHS: [f32; 7] = [
+    144.0, // Name
+    284.0, // Description
+    72.0,  // Read-only
+    60.0,  // Voice
+    72.0,  // Federated
+    60.0,  // Save
+    72.0,  // Delete
+];
+
 /// Channels spreadsheet tab. One row per channel with editable cells:
 /// Name | Description | Read-only | Voice | Federated | (Save) | (Delete).
 /// Plus a sticky "+ new channel" row at the bottom.
@@ -163,26 +178,39 @@ fn draw_channels_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_
                 let mut row_changed = false;
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
-                    if ui.add(egui::TextEdit::singleline(&mut draft.name).desired_width(140.0)).changed() {
-                        row_changed = true;
-                    }
-                    if ui.add(egui::TextEdit::singleline(&mut draft.description).desired_width(280.0)).changed() {
-                        row_changed = true;
-                    }
-                    if ui.checkbox(&mut draft.read_only, "").changed() { row_changed = true; }
-                    ui.add_space(28.0);
-                    if ui.checkbox(&mut draft.voice_enabled, "").changed() { row_changed = true; }
-                    ui.add_space(20.0);
-                    if ui.checkbox(&mut draft.federated, "").changed() { row_changed = true; }
-                    ui.add_space(28.0);
-                    if widgets::Button::primary("Save").show(ui, theme) {
-                        save_id = Some(ch.id.clone());
-                    }
-                    if is_admin {
-                        if widgets::Button::danger("Delete").show(ui, theme) {
-                            delete_id = Some(ch.id.clone());
-                        }
-                    }
+                    // Each cell uses ui.add_sized with the shared CHANNEL_COL_WIDTHS
+                    // so columns line up across header + every data row.
+                    if ui.add_sized(
+                        Vec2::new(CHANNEL_COL_WIDTHS[0], 22.0),
+                        egui::TextEdit::singleline(&mut draft.name),
+                    ).changed() { row_changed = true; }
+                    if ui.add_sized(
+                        Vec2::new(CHANNEL_COL_WIDTHS[1], 22.0),
+                        egui::TextEdit::singleline(&mut draft.description),
+                    ).changed() { row_changed = true; }
+                    centered_checkbox(ui, theme, &mut draft.read_only, CHANNEL_COL_WIDTHS[2], &mut row_changed);
+                    centered_checkbox(ui, theme, &mut draft.voice_enabled, CHANNEL_COL_WIDTHS[3], &mut row_changed);
+                    centered_checkbox(ui, theme, &mut draft.federated, CHANNEL_COL_WIDTHS[4], &mut row_changed);
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(CHANNEL_COL_WIDTHS[5], 22.0),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            if widgets::Button::primary("Save").show(ui, theme) {
+                                save_id = Some(ch.id.clone());
+                            }
+                        },
+                    );
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(CHANNEL_COL_WIDTHS[6], 22.0),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            if is_admin {
+                                if widgets::Button::danger("Delete").show(ui, theme) {
+                                    delete_id = Some(ch.id.clone());
+                                }
+                            }
+                        },
+                    );
                 });
                 let _ = row_changed; // visual cue could go here; keep minimal for v1
             }
@@ -202,26 +230,32 @@ fn draw_channels_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_
                 ui.add_space(theme.spacing_xs);
                 let new_draft = &mut state.server_settings_new_channel;
                 let mut create_clicked = false;
+                let mut _row_changed_unused = false;
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
-                    ui.add(egui::TextEdit::singleline(&mut new_draft.name)
-                        .desired_width(140.0)
-                        .hint_text("channel-name"));
-                    ui.add(egui::TextEdit::singleline(&mut new_draft.description)
-                        .desired_width(280.0)
-                        .hint_text("Description"));
-                    ui.checkbox(&mut new_draft.read_only, "");
-                    ui.add_space(28.0);
-                    ui.checkbox(&mut new_draft.voice_enabled, "");
-                    ui.add_space(20.0);
-                    ui.checkbox(&mut new_draft.federated, "");
-                    ui.add_space(28.0);
-                    let valid = !new_draft.name.trim().is_empty();
-                    ui.add_enabled_ui(valid, |ui| {
-                        if widgets::Button::primary("Create").show(ui, theme) {
-                            create_clicked = true;
-                        }
-                    });
+                    ui.add_sized(
+                        Vec2::new(CHANNEL_COL_WIDTHS[0], 22.0),
+                        egui::TextEdit::singleline(&mut new_draft.name).hint_text("channel-name"),
+                    );
+                    ui.add_sized(
+                        Vec2::new(CHANNEL_COL_WIDTHS[1], 22.0),
+                        egui::TextEdit::singleline(&mut new_draft.description).hint_text("Description"),
+                    );
+                    centered_checkbox(ui, theme, &mut new_draft.read_only, CHANNEL_COL_WIDTHS[2], &mut _row_changed_unused);
+                    centered_checkbox(ui, theme, &mut new_draft.voice_enabled, CHANNEL_COL_WIDTHS[3], &mut _row_changed_unused);
+                    centered_checkbox(ui, theme, &mut new_draft.federated, CHANNEL_COL_WIDTHS[4], &mut _row_changed_unused);
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(CHANNEL_COL_WIDTHS[5] + CHANNEL_COL_WIDTHS[6], 22.0),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            let valid = !new_draft.name.trim().is_empty();
+                            ui.add_enabled_ui(valid, |ui| {
+                                if widgets::Button::primary("Create").show(ui, theme) {
+                                    create_clicked = true;
+                                }
+                            });
+                        },
+                    );
                 });
 
                 if create_clicked {
@@ -279,26 +313,46 @@ fn draw_channels_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_
     });
 }
 
-/// One row of the channel grid. `is_header = true` styles as a header.
+/// Centered checkbox cell with a visible border. Wraps
+/// `widgets::custom_checkbox` (which has a theme-driven border) inside a
+/// fixed-width allocation so checkbox columns line up with their headers.
+/// Without the visible border the unchecked state was invisible against
+/// the page background — bug fix 2026-05-04.
+fn centered_checkbox(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    value: &mut bool,
+    cell_width: f32,
+    row_changed: &mut bool,
+) {
+    ui.allocate_ui_with_layout(
+        Vec2::new(cell_width, 22.0),
+        egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+        |ui| {
+            if widgets::custom_checkbox(ui, theme, value) {
+                *row_changed = true;
+            }
+        },
+    );
+}
+
+/// One row of the channel grid header. Labels live in fixed-width slots
+/// matching `CHANNEL_COL_WIDTHS`, and we use `add_sized` so the label's
+/// drawn box actually fills the column (egui's `allocate_ui_with_layout`
+/// + `ui.label` collapses the inner widget to its text width and lets
+/// the next cell crowd in).
 fn channel_grid_row(ui: &mut egui::Ui, theme: &Theme, cells: &[&str], is_header: bool) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
-        let widths = [144.0, 284.0, 60.0, 60.0, 60.0, 60.0, 80.0];
         let size = if is_header { theme.font_size_small } else { theme.font_size_body };
         for (i, label) in cells.iter().enumerate() {
-            let w = widths.get(i).copied().unwrap_or(80.0);
-            ui.allocate_ui_with_layout(
-                Vec2::new(w, 22.0),
-                egui::Layout::left_to_right(egui::Align::Center),
-                |ui| {
-                    let txt = if is_header {
-                        RichText::new(*label).size(size).color(theme.text_muted()).strong()
-                    } else {
-                        RichText::new(*label).size(size).color(theme.text_primary())
-                    };
-                    ui.label(txt);
-                },
-            );
+            let w = CHANNEL_COL_WIDTHS.get(i).copied().unwrap_or(80.0);
+            let txt = if is_header {
+                RichText::new(*label).size(size).color(theme.text_muted()).strong()
+            } else {
+                RichText::new(*label).size(size).color(theme.text_primary())
+            };
+            ui.add_sized(Vec2::new(w, 22.0), egui::Label::new(txt));
         }
     });
 }
