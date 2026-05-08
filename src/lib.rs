@@ -615,6 +615,12 @@ mod native_app {
             );
             let theme = crate::gui::theme::load_theme();
             theme.apply_to_egui(&egui_ctx);
+            // Install the OS-installed emoji font as a fallback so glyphs
+            // outside egui's bundled subset (colored hearts, hand gestures,
+            // most emoji past the base set) render properly instead of
+            // showing as tofu (▢). Silent no-op if the platform font is
+            // unavailable. See src/gui/fonts.rs.
+            crate::gui::fonts::install_system_emoji_fallback(&egui_ctx);
             let mut gui_state = GuiState::default();
 
             // Load data-driven catalogs into GUI state

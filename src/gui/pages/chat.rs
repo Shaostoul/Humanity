@@ -63,31 +63,39 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             draw_center_panel(ui, theme, state);
         });
 
-    // ── FLOATING LOCK OVERLAYS (v0.189.x) ──
-    // The two panel-lock toggles live as Areas pinned to the actual top
-    // corners of the center panel — between the side panel boundary and
-    // the chat header content. Tucked tight so they don't crowd the
-    // channel title or look like part of the sidebar. Reads as the
-    // "edge of the panel" rather than a header element.
+    // ── FLOATING LOCK OVERLAYS (v0.190.0) ──
+    // Pinned to the EXACT top corners of the center panel with zero
+    // inner padding. The button is 14×14 and sits flush against the
+    // panel boundary — left button at the left panel's right edge,
+    // right button such that its right edge meets the right panel's
+    // left edge. The Area gets `Frame::NONE` (no inner margin) and
+    // the button helper itself avoids any horizontal wrapper / spacing,
+    // so what you see on screen is exactly 14 pixels of icon and
+    // nothing else.
+    const LOCK_PX: f32 = 14.0;
     let left_panel_right = left_response.response.rect.right();
     let right_panel_left = right_response.response.rect.left();
-    let header_y = left_response.response.rect.top() + 6.0;
+    let header_top = left_response.response.rect.top();
 
     egui::Area::new(egui::Id::new("chat_left_lock_overlay"))
-        .fixed_pos(egui::pos2(left_panel_right + 4.0, header_y))
+        .fixed_pos(egui::pos2(left_panel_right, header_top))
         .order(egui::Order::Foreground)
         .interactable(true)
         .show(ctx, |ui| {
+            // Strip the parent style's item_spacing inside this Area
+            // so even nested allocations don't introduce stray gaps.
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
             if draw_panel_lock_button(ui, theme, state.chat_left_panel_locked) {
                 state.chat_left_panel_locked = !state.chat_left_panel_locked;
                 crate::config::AppConfig::from_gui_state(state).save();
             }
         });
     egui::Area::new(egui::Id::new("chat_right_lock_overlay"))
-        .fixed_pos(egui::pos2(right_panel_left - 24.0, header_y))
+        .fixed_pos(egui::pos2(right_panel_left - LOCK_PX, header_top))
         .order(egui::Order::Foreground)
         .interactable(true)
         .show(ctx, |ui| {
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
             if draw_panel_lock_button(ui, theme, state.chat_right_panel_locked) {
                 state.chat_right_panel_locked = !state.chat_right_panel_locked;
                 crate::config::AppConfig::from_gui_state(state).save();
@@ -1858,19 +1866,29 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // existing Þ that's already in the inline pill), reactions
                     // on the RIGHT, ∞ at the far right.
                     if pill_rect_for_msg != egui::Rect::NOTHING && target_ts > 0 {
-                        // Only emoji that I have CONFIRMED render in the
-                        // currently-loaded font (operator screenshots before
-                        // 2026-05-04 audit). Adding a new one? Test it
-                        // first — add to TOP first, get a screenshot, then
-                        // add to ALL. The icon_glyph_lint test catches
-                        // U+FE0F variation selectors automatically. Aim
-                        // for ~15 reliable choices vs 40 partial ones.
+                        // Reactions list. As of v0.190.0 we install the OS's
+                        // emoji font (Windows seguiemj.ttf, macOS Apple Color
+                        // Emoji, Linux Noto Color Emoji) as an egui font
+                        // fallback at startup (see src/gui/fonts.rs). That
+                        // covers basically every emoji in BMP + supplementary
+                        // plane, so we can use a real reaction palette here.
+                        // The icon_glyph_lint test still catches U+FE0F
+                        // variation selectors and known-broken glyphs.
                         const TOP_REACTIONS: &[&str] = &[
                             "❤", "👍", "👎", "😂", "🤣", "😢", "😡", "🔥", "💯", "⭐",
                         ];
                         const ALL_REACTIONS: &[&str] = &[
-                            "❤", "👍", "👎", "😂", "🤣", "😢", "😡", "🔥", "💯", "⭐",
-                            "🎉", "😮", "∞",
+                            // Hearts (colored) — system font supplies these.
+                            "❤", "🧡", "💛", "💚", "💙", "💜", "🤍", "🖤", "🤎",
+                            // Faces — laughs, cries, surprises, anger, love.
+                            "😂", "🤣", "😢", "😭", "😡", "🤬", "😮", "😱", "🥰", "😍",
+                            "🤔", "🙄", "😴", "🤯", "🥳", "😎",
+                            // Hands & gestures.
+                            "👍", "👎", "👏", "🙌", "🙏", "🤝", "✊", "💪",
+                            // Symbols / objects.
+                            "🔥", "💯", "⭐", "🎉", "✨", "💡", "🚀", "💀", "👀",
+                            // Picker handle.
+                            "∞",
                         ];
                         let is_own = msg.sender_key == state.profile_public_key;
 
@@ -3216,23 +3234,21 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 
 // ─────────────────────────────── UI Helpers ──────────────────────────────
 
-/// Draw a lock/unlock toggle button at the top of a panel.
-/// Positioned at the left edge, next to the panel border.
+/// Draw a lock/unlock toggle button — designed to sit flush in a panel
+/// corner with NO surrounding padding. Allocates exactly 14×14 with no
+/// horizontal wrapper or item spacing, so when the caller positions an
+/// Area at the panel boundary the button paints exactly there.
 /// Returns true if the button was clicked (toggle lock state).
 fn draw_panel_lock_button(ui: &mut egui::Ui, _theme: &Theme, locked: bool) -> bool {
     let tooltip = if locked { "Unlock panel width" } else { "Lock panel width" };
     let color = if locked { Color32::from_rgb(200, 180, 100) } else { Color32::from_rgb(100, 100, 100) };
-    let response = ui.horizontal(|ui| {
-        ui.add_space(2.0);
-        let (rect, resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
-        if locked {
-            crate::gui::widgets::icons::paint_lock(ui.painter(), rect, color);
-        } else {
-            crate::gui::widgets::icons::paint_unlock(ui.painter(), rect, color);
-        }
-        resp.on_hover_text(tooltip).clicked()
-    }).inner;
-    response
+    let (rect, resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
+    if locked {
+        crate::gui::widgets::icons::paint_lock(ui.painter(), rect, color);
+    } else {
+        crate::gui::widgets::icons::paint_unlock(ui.painter(), rect, color);
+    }
+    resp.on_hover_text(tooltip).clicked()
 }
 
 /// Draw a collapsible section header with a tinted background.

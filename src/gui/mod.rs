@@ -9,6 +9,8 @@ pub mod theme;
 pub mod widgets;
 #[cfg(feature = "native")]
 pub mod pages;
+#[cfg(feature = "native")]
+pub mod fonts;
 
 /// Current engine version (read from Cargo.toml at compile time).
 #[cfg(feature = "native")]
