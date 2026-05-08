@@ -1547,6 +1547,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .stroke(Stroke::new(1.0, Color32::from_rgb(40, 40, 48)))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
+                // Force the horizontal layout (and therefore the Frame
+                // around it) to fill the full available panel width.
+                // Without this, ui.horizontal shrinks to its content's
+                // bounding rect, so the dark-gray header background only
+                // covered the left portion next to the channel name and
+                // left a black void on the right when the description
+                // was short. The header should always read as one
+                // continuous bar across the panel.
+                ui.set_min_width(ui.available_width());
                 let ac = state.chat_active_channel.clone();
                 if ac.starts_with("dm:") {
                     // DM header: back button + partner name

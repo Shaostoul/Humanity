@@ -1308,7 +1308,7 @@ mod native_app {
                                                     .unwrap_or("Text")
                                                     .to_string();
                                                 state.gui_state.chat_channels.push(
-                                                    crate::gui::ChatChannel { id, name, description, category, voice_joined: false, voice_enabled: true },
+                                                    crate::gui::ChatChannel { id, name, description, category, voice_joined: false, voice_enabled: true, read_only: false, federated: false },
                                                 );
                                             }
                                         }
@@ -1416,6 +1416,8 @@ mod native_app {
                                                             category: "Text".to_string(),
                                                             voice_joined: false,
                                                             voice_enabled: true,
+                                                            read_only: false,
+                                                            federated: false,
                                                         },
                                                     );
                                                 }
@@ -1513,6 +1515,8 @@ mod native_app {
                                                         // matching server channels. Actual voice routing
                                                         // still needs server multi-channel support.
                                                         voice_enabled: true,
+                                                        read_only: false,
+                                                        federated: false,
                                                     }],
                                                     collapsed: false,
                                                 });

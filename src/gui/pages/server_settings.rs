@@ -171,8 +171,8 @@ fn draw_channels_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_
                     .or_insert_with(|| crate::gui::ChannelDraft {
                         name: ch.name.clone(),
                         description: ch.description.clone(),
-                        read_only: false, // TODO wire from chat_channels once flag exists
-                        federated: false, // TODO wire from chat_channels once flag exists
+                        read_only: ch.read_only,
+                        federated: ch.federated,
                         voice_enabled: ch.voice_enabled,
                     });
                 let mut row_changed = false;
@@ -279,6 +279,25 @@ fn draw_channels_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_
             // Apply pending row actions.
             if let Some(id) = save_id {
                 if let Some(draft) = state.server_settings_channel_drafts.get(&id).cloned() {
+                    // 1. Apply the draft to the live channel locally so the
+                    //    chat UI (mic icons, read-only status, etc.) updates
+                    //    immediately without waiting for a server round-trip.
+                    //    This is what the operator sees when they reopen
+                    //    the modal — the checkboxes now reflect the saved
+                    //    state instead of snapping back. Until the relay
+                    //    grows a `channel_update` handler (TODO follow-up),
+                    //    these flags only persist for the current session
+                    //    on this client.
+                    if let Some(ch) = state.chat_channels.iter_mut().find(|c| c.id == id) {
+                        ch.name = draft.name.trim().to_string();
+                        ch.description = draft.description.trim().to_string();
+                        ch.read_only = draft.read_only;
+                        ch.voice_enabled = draft.voice_enabled;
+                        ch.federated = draft.federated;
+                    }
+                    // 2. Send the WS message anyway so when the server
+                    //    handler ships, existing clients are already
+                    //    sending the right payload.
                     if let Some(ref client) = state.ws_client {
                         if client.is_connected() {
                             let msg = serde_json::json!({
@@ -293,7 +312,7 @@ fn draw_channels_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_
                             client.send(&msg.to_string());
                         }
                     }
-                    state.server_settings_status = format!("Channel '{}' update sent.", draft.name);
+                    state.server_settings_status = format!("Channel '{}' update applied.", draft.name);
                 }
             }
             if let Some(id) = delete_id {

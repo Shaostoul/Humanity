@@ -236,12 +236,20 @@ pub fn message_row(
     let mut userbox_hit = Rect::NOTHING;
 
     if show_header {
-        // Userbox width is fixed (USERBOX_SIZE = 32) so message indents align
-        // across all senders. Height matches the row exactly so there is no
-        // dead space under short single-line messages.
+        // Userbox is a FIXED SQUARE (USERBOX_SIZE × USERBOX_SIZE) anchored
+        // to the top-left of the row. Previously its height = row_h
+        // which meant multi-line messages got a tall rectangle while
+        // single-line messages got a short one — the avatar boxes
+        // looked inconsistently sized even though theme.icon_size
+        // (which drives the inner circle) hadn't changed. Operator
+        // 2026-05-08: "they should just be the size they're set at in
+        // the settings, not have this dynamic size." A fixed square
+        // gives a consistent visual anchor regardless of how the
+        // message text wraps. Width still equals USERBOX_SIZE so
+        // message indents stay aligned across senders.
         userbox_hit = Rect::from_min_size(
             egui::pos2(hx, hy),
-            Vec2::new(USERBOX_SIZE, row_h),
+            Vec2::splat(USERBOX_SIZE),
         );
 
         let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
@@ -264,15 +272,13 @@ pub fn message_row(
         );
 
         // Filled circle with the sender's first letter — constant size
-        // across every message regardless of row height, anchored to the
-        // top of the row. Previously the icon scaled with row_h which
-        // made single-line messages get a tiny icon and multi-line
-        // messages get a larger one. Operator wants uniform sizing
-        // matching the theme token so Settings → Widgets → Icon Size
-        // controls every avatar consistently.
+        // across every message regardless of row height. Centered in
+        // the (now fixed-square) userbox so positioning is symmetric.
+        // Settings → Widgets → Icon Size still controls the inner
+        // circle radius so the operator can scale the avatars without
+        // affecting the message indent.
         let icon_r = (theme.icon_size * 0.38).max(6.0);
-        let icon_y = (hy + theme.icon_size / 2.0).max(hy + icon_r + 1.0);
-        let icon_center = egui::pos2(userbox_hit.center().x, icon_y.min(hy + row_h - icon_r - 1.0));
+        let icon_center = userbox_hit.center();
         painter.circle_filled(icon_center, icon_r, icon_color);
         painter.text(
             icon_center,

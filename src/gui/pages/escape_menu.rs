@@ -52,6 +52,12 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 
     egui::TopBottomPanel::top("escape_nav_bar")
         .frame(Frame::none().fill(theme.bg_card()).inner_margin(egui::Margin::symmetric(8, 4)))
+        // Suppress the panel's default 1px gray separator line — the
+        // rgb_separator below is the canonical visual divider. Without
+        // this, the layout produces a stack of (active button border) +
+        // (panel-bottom-stroke) + (rgb separator), which read as a
+        // doubled line compared to other separators in the layout.
+        .show_separator_line(false)
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
@@ -588,6 +594,13 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
     // ── Top tier: 4 wide fixed category tabs ──
     egui::TopBottomPanel::top("nav_two_tier_top")
         .frame(Frame::none().fill(theme.bg_card()).inner_margin(egui::Margin::symmetric(8, 6)))
+        // Suppress the panel's default 1px gray separator — the
+        // rgb_separator after this panel is the canonical divider. With
+        // the default stroke present AND an active button border (2px)
+        // sitting just above it, the top-tier divider read as a doubled
+        // line vs. the bottom-tier divider (which has no active button
+        // border above it). Match both tiers by removing the default.
+        .show_separator_line(false)
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -680,6 +693,9 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 .fill(theme.bg_secondary())
                 .inner_margin(egui::Margin::symmetric(8, 4)),
         )
+        // Same reasoning as the top tier above — let rgb_separator be
+        // the only divider between sub tier and page content.
+        .show_separator_line(false)
         .show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
