@@ -86,6 +86,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         draw_create_channel_modal(ctx, theme, state);
     }
 
+    // ── ADD SERVER MODAL (v0.187.0) ──
+    if state.show_add_server_modal {
+        draw_add_server_modal(ctx, theme, state);
+    }
+
     // ── EDIT CHANNEL MODAL ──
     if state.show_channel_edit_modal {
         draw_edit_channel_modal(ctx, theme, state);
@@ -842,25 +847,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     cx += icon_size + 2.0;
                                 }
 
-                                // 2. Cog icon (admin only)
-                                if is_group_admin {
-                                    let cog_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
-                                    gear_icon_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, row_rect.top()), Vec2::new(icon_size + 4.0, row_rect.height()));
-                                    let on_gear = response.hovered() && gear_icon_rect.contains(hover_pos);
-                                    let cog_color = if on_gear { theme.accent() } else { Color32::from_rgb(100, 100, 110) };
-                                    crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
-                                    if on_gear {
-                                        let rgb = crate::gui::widgets::row::rgb_from_time(ctx_time);
-                                        ui.painter().rect_stroke(
-                                            cog_rect.expand(2.0),
-                                            Rounding::same(2),
-                                            Stroke::new(1.0, rgb),
-                                            egui::StrokeKind::Outside,
-                                        );
-                                        ui.ctx().request_repaint();
-                                    }
-                                    cx += icon_size + 2.0;
-                                }
+                                // (Per-channel cog removed in v0.187 — group
+                                // channel admin lives in the group settings
+                                // cog next to the group name.)
 
                                 // 3. # channel name
                                 ui.painter().text(
@@ -984,7 +973,9 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     }
     // (disconnect is handled inside the server name row)
     if add_server_clicked {
-        // TODO: open add-server modal
+        state.show_add_server_modal = true;
+        state.add_server_url_draft.clear();
+        state.add_server_name_draft.clear();
     }
 
     if !collapsed {
@@ -1208,27 +1199,11 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 cx += icon_size + 2.0;
                             }
 
-                            // 2. Settings/cog icon (admin only)
-                            if is_channel_admin {
-                                let cog_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
-                                gear_icon_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, row_rect.top()), Vec2::new(icon_size + 4.0, row_rect.height()));
-                                let on_gear = response.hovered() && gear_icon_rect.contains(ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default()));
-                                let gear_color = if edit_modal_for_this || on_gear {
-                                    Color32::WHITE
-                                } else {
-                                    Color32::from_rgb(100, 100, 110)
-                                };
-                                crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, gear_color);
-                                if edit_modal_for_this {
-                                    let rgb_color = crate::gui::widgets::row::rgb_from_time(ctx_time);
-                                    ui.painter().rect_stroke(
-                                        cog_rect, Rounding::same(2),
-                                        Stroke::new(1.5, rgb_color), egui::StrokeKind::Outside,
-                                    );
-                                    ui.ctx().request_repaint();
-                                }
-                                cx += icon_size + 2.0;
-                            }
+                            // (Per-channel settings cog removed in v0.187 —
+                            // channel admin lives in the Server Settings
+                            // modal next to the server name. Click that
+                            // single cog to manage every channel + role +
+                            // member in one place.)
 
                             // 3. # Channel name
                             ui.painter().text(
@@ -1300,21 +1275,10 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         }
                     }
 
-                    // + Create Channel (admin/mod only)
-                    if is_channel_admin {
-                        ui.add_space(1.0);
-                        ui.horizontal(|ui| {
-                            ui.add_space(theme.item_padding + 2.0);
-                            if widgets::Button::ghost("+ Create Channel")
-                                .size(widgets::ButtonSize::Small)
-                                .show(ui, theme)
-                            {
-                                state.show_create_channel_modal = true;
-                                state.new_channel_name.clear();
-                                state.new_channel_description.clear();
-                            }
-                        });
-                    }
+                    // (+ Create Channel button removed in v0.187 — channel
+                    // creation now lives inside the Server Settings cog so
+                    // the sidebar stays clean. Click the cog next to the
+                    // server name to manage all channels in one place.)
 
                     ui.add_space(2.0);
                     } // end if !svr_collapsed
@@ -1882,17 +1846,26 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             + TOP_REACTIONS.len() as f32 * 28.0 // top-10 reactions
                             + 30.0                       // ∞ button
                             + 16.0;                      // padding
+                        // Popup rect adjacent to the pill (no gap so cursor
+                        // sliding rightward stays in a connected hover region).
                         let est_popup_rect = egui::Rect::from_min_size(
-                            egui::pos2(pill_rect_for_msg.right() + 4.0, pill_rect_for_msg.top() - 2.0),
+                            egui::pos2(pill_rect_for_msg.right(), pill_rect_for_msg.top() - 2.0),
                             Vec2::new(est_popup_w, pill_rect_for_msg.height() + 4.0),
                         );
-                        let combined_rect = pill_rect_for_msg.union(est_popup_rect);
+                        // Sticky hover gate: open if cursor is over THE PILL
+                        // or over THE POPUP REGION specifically. Earlier code
+                        // used pill.union(popup) which created a bounding
+                        // rect that included the message TEXT area between
+                        // them — so hovering message body opened the popup.
+                        // (Operator-reported bug 2026-05-04.)
                         let pointer = ui.ctx().input(|i| i.pointer.hover_pos());
-                        let combined_hovered = pointer.map(|p| combined_rect.contains(p)).unwrap_or(false);
+                        let pill_hovered = pointer.map(|p| pill_rect_for_msg.contains(p)).unwrap_or(false);
+                        let popup_hovered = pointer.map(|p| est_popup_rect.contains(p)).unwrap_or(false);
+                        let combined_hovered = pill_hovered || popup_hovered;
 
                         if combined_hovered {
                             let overlay_pos = egui::pos2(
-                                pill_rect_for_msg.right() + 4.0,
+                                pill_rect_for_msg.right(),
                                 pill_rect_for_msg.center().y,
                             );
                             // Animated channeling color (RGB cycle / pulse / red on attack).
@@ -2925,6 +2898,87 @@ fn draw_create_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gui
     // Apply X-button close back to state.
     if !open {
         state.show_create_channel_modal = false;
+    }
+}
+
+// ─────────────────────────────── Add Server Modal ───────────────────────
+
+fn draw_add_server_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let mut open = state.show_add_server_modal;
+    widgets::dialog(ctx, theme, "add_server_dialog", "Add Server", &mut open, |ui| {
+        ui.set_min_width(380.0);
+        ui.label(
+            RichText::new(
+                "Connect to another HumanityOS relay. Paste the server's URL \
+                 (e.g. https://example.com) and an optional display name. \
+                 The server is added to your sidebar; you can switch to it \
+                 by clicking its name."
+            )
+            .size(theme.font_size_small)
+            .color(theme.text_muted()),
+        );
+        ui.add_space(theme.spacing_md);
+
+        widgets::form_row(ui, theme, "Server URL", |ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut state.add_server_url_draft)
+                    .desired_width(280.0)
+                    .hint_text("https://example.com"),
+            );
+        });
+        widgets::form_row(ui, theme, "Display name", |ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut state.add_server_name_draft)
+                    .desired_width(280.0)
+                    .hint_text("(optional — derived from URL if blank)"),
+            );
+        });
+
+        ui.add_space(theme.spacing_md);
+
+        // Validation: URL must be non-empty and parse-able with http/https
+        // scheme. Doesn't reach the server here — the connect attempt
+        // happens later when the user clicks the new server's row.
+        let url = state.add_server_url_draft.trim();
+        let url_valid = !url.is_empty()
+            && (url.starts_with("https://") || url.starts_with("http://"))
+            && url.len() > 8;
+
+        ui.horizontal(|ui| {
+            ui.add_enabled_ui(url_valid, |ui| {
+                if widgets::Button::primary("Add").show(ui, theme) {
+                    let normalized = url.trim_end_matches('/').to_string();
+                    let derived_name = normalized
+                        .trim_start_matches("https://")
+                        .trim_start_matches("http://")
+                        .split('/').next().unwrap_or("server").to_string();
+                    let display_name = if state.add_server_name_draft.trim().is_empty() {
+                        derived_name
+                    } else {
+                        state.add_server_name_draft.trim().to_string()
+                    };
+                    // Append to chat_servers if not already present.
+                    if !state.chat_servers.iter().any(|s| s.url == normalized) {
+                        state.chat_servers.push(crate::gui::ChatServer {
+                            id: format!("srv_{}", normalized),
+                            name: display_name,
+                            url: normalized,
+                            connected: false,
+                            channels: Vec::new(),
+                            voice_channels: Vec::new(),
+                        });
+                    }
+                    state.show_add_server_modal = false;
+                }
+            });
+            ui.add_space(theme.spacing_sm);
+            if widgets::Button::secondary("Cancel").show(ui, theme) {
+                state.show_add_server_modal = false;
+            }
+        });
+    });
+    if !open {
+        state.show_add_server_modal = false;
     }
 }
 

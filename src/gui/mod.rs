@@ -425,6 +425,16 @@ pub struct ChatServer {
     pub name: String,
     pub channels: Vec<ChatChannel>,
     pub voice_channels: Vec<String>,
+    /// Stable id (typically `srv_<url>`) for nav highlighting + dedupe.
+    /// (v0.187.0)
+    pub id: String,
+    /// Relay URL for this server (e.g. https://example.com). When the
+    /// user clicks this server's row in the chat sidebar, the client
+    /// reconnects to this URL. (v0.187.0)
+    pub url: String,
+    /// True iff the websocket to this server is currently open.
+    /// (v0.187.0)
+    pub connected: bool,
 }
 
 /// Studio source type variants.
@@ -809,6 +819,13 @@ pub struct GuiState {
     // ── Channel create modal ──
     pub show_create_channel_modal: bool,
     pub new_channel_name: String,
+    /// "+ Add Server" modal (v0.187.0). Lets the user paste a relay URL
+    /// (e.g. https://other-server.example) and connect to it. Maintains
+    /// the previous server list rather than swapping — multi-server
+    /// support is the eventual goal.
+    pub show_add_server_modal: bool,
+    pub add_server_url_draft: String,
+    pub add_server_name_draft: String,
     pub new_channel_description: String,
 
     // ── Create group modal ──
@@ -1184,6 +1201,9 @@ impl Default for GuiState {
             chat_user_modal_name: String::new(),
             chat_user_modal_key: String::new(),
             show_create_channel_modal: false,
+            show_add_server_modal: false,
+            add_server_url_draft: String::new(),
+            add_server_name_draft: String::new(),
             new_channel_name: String::new(),
             new_channel_description: String::new(),
             show_create_group_modal: false,
