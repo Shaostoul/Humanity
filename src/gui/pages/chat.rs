@@ -1781,10 +1781,16 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         let is_own = msg.sender_key == state.profile_public_key;
                         row_resp.response.context_menu(|ui| {
                             ui.set_min_width(160.0);
-                            if ui.button("📋 Copy text").clicked() {
+                            // Plain text labels — leading emoji glyphs were
+                            // unreliable across the loaded font (📋 📌 ✎ all
+                            // rendered as tofu in some sessions). The context
+                            // menu prioritizes legibility over ornament.
+                            if ui.button("Copy text").clicked() {
                                 ui.ctx().copy_text(msg.content.clone());
                                 ui.close_menu();
                             }
+                            // ↩ U+21A9 is in the Arrows block which IS in the
+                            // loaded font — safe to keep.
                             if msg.timestamp_ms > 0 && ui.button("↩ Quote / reply").clicked() {
                                 let preview = if msg.content.len() > 80 {
                                     format!("{}…", &msg.content[..80])
@@ -1799,7 +1805,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 });
                                 ui.close_menu();
                             }
-                            if msg.timestamp_ms > 0 && ui.button("📌 Pin message").clicked() {
+                            if msg.timestamp_ms > 0 && ui.button("Pin message").clicked() {
                                 pending_pins.push((
                                     msg.sender_key.clone(),
                                     msg.sender_name.clone(),
@@ -1808,12 +1814,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 ));
                                 ui.close_menu();
                             }
-                            if is_own && msg.timestamp_ms > 0 && ui.button("✎ Edit").clicked() {
+                            if is_own && msg.timestamp_ms > 0 && ui.button("Edit").clicked() {
                                 pending_edit = Some((msg.timestamp_ms, msg.content.clone()));
                                 ui.close_menu();
                             }
                             ui.separator();
-                            if ui.button("🚩 Report").clicked() {
+                            if ui.button("Report").clicked() {
                                 pending_reports.push((msg.sender_name.clone(), msg.content.clone()));
                                 ui.close_menu();
                             }
@@ -1835,8 +1841,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // existing Þ that's already in the inline pill), reactions
                     // on the RIGHT, ∞ at the far right.
                     if pill_rect_for_msg != egui::Rect::NOTHING && target_ts > 0 {
-                        const TOP_REACTIONS: &[&str] = &["❤️", "👍", "😂", "🎉", "🔥", "😮", "😢", "👎", "💯", "⭐"];
-                        const ALL_REACTIONS: &[&str] = &["❤️","🧡","💛","💚","💙","💜","🤍","🖤","👍","👎","😂","😍","🥰","😊","😎","🤔","😢","😭","😡","🤬","🔥","💯","⭐","🎉","🙌","👏","🙏","💪","🤝","👀","🚀","⚡","💡","🌟","✨","💀","🤡","🤯","🥳","😴"];
+                        // No U+FE0F variation selectors — they always render
+                        // as a trailing tofu square next to the emoji. Bare
+                        // codepoints only.
+                        const TOP_REACTIONS: &[&str] = &["❤", "👍", "😂", "🎉", "🔥", "😮", "😢", "👎", "💯", "⭐"];
+                        const ALL_REACTIONS: &[&str] = &["❤","🧡","💛","💚","💙","💜","🤍","🖤","👍","👎","😂","😍","🥰","😊","😎","🤔","😢","😭","😡","🤬","🔥","💯","⭐","🎉","🙌","👏","🙏","💪","🤝","👀","🚀","⚡","💡","🌟","✨","💀","🤡","🤯","🥳","😴"];
                         let is_own = msg.sender_key == state.profile_public_key;
 
                         // Estimated popup geometry — needed for the sticky

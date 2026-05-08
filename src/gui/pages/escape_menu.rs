@@ -147,17 +147,17 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     ui.add_space(4.0);
 
                     // Layout toggle: switch to two-tier preview layout.
-                    // Single button shows the *other* mode's icon so the
-                    // affordance is obvious ("click to get the other one").
+                    // Plain text "2T" — the previous ▤ glyph (Geometric
+                    // Shapes) rendered as tofu in the loaded font.
                     let layout_btn = ui.add(
                         egui::Button::new(
-                            RichText::new("▤").size(11.0).color(text_muted)
+                            RichText::new("2T").size(10.0).color(text_muted)
                         )
                         .fill(Color32::TRANSPARENT) // theme-exempt: sentinel transparency
                         .stroke(Stroke::new(1.0, border))
                         .rounding(Rounding::same(4))
-                        .min_size(Vec2::new(22.0, 22.0)),
-                    ).on_hover_text("Switch to two-tier nav preview");
+                        .min_size(Vec2::new(28.0, 22.0)),
+                    ).on_hover_text("Switch to two-tier nav (Reality / Sim / Tools / Settings / Dev)");
                     if layout_btn.clicked() {
                         state.nav_two_tier = true;
                         crate::config::AppConfig::from_gui_state(state).save();
@@ -653,12 +653,14 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
                     ui.add_space(4.0);
+                    // Plain text "1T" — was ≡ (Math Operators block) which
+                    // didn't render in the loaded font.
                     let layout_btn = ui.add(
-                        egui::Button::new(RichText::new("≡").size(13.0).color(text_muted))
+                        egui::Button::new(RichText::new("1T").size(11.0).color(text_muted))
                             .fill(Color32::TRANSPARENT)
                             .stroke(Stroke::new(1.0, border))
                             .rounding(Rounding::same(4))
-                            .min_size(Vec2::new(28.0, 28.0)),
+                            .min_size(Vec2::new(32.0, 28.0)),
                     ).on_hover_text("Switch back to legacy single-row nav");
                     if layout_btn.clicked() {
                         state.nav_two_tier = false;
