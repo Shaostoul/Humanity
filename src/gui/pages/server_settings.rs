@@ -46,6 +46,14 @@ const ADMIN_COLOR: Color32 = Color32::from_rgb(52, 152, 219);  // BLUE — syste
 /// feel without buttons looking cramped.
 const CHANNEL_ROW_H: f32 = 26.0;
 
+/// Shared max width for every tinted section on this page. Picked to
+/// fit the channel grid (~788 px including spacing) plus padding so
+/// the Admin section doesn't bulge out wider than User and Mod.
+/// Operator bug 2026-05-08: width mismatch read as a layout regression.
+/// Using one constant guarantees all sections render at IDENTICAL width,
+/// matching the tab bar and members tab too.
+const SECTION_MAX_WIDTH: f32 = 960.0;
+
 /// Shared column widths for the Channels grid — used by header AND data
 /// rows so they line up perfectly. Bug fix 2026-05-04: previously the
 /// header used allocate_ui_with_layout(reservation) but the labels
@@ -148,7 +156,11 @@ fn draw_header(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_lg);
     ui.horizontal(|ui| {
         ui.add_space(theme.spacing_lg);
-        if widgets::Button::secondary("< Back to Chat").show(ui, theme) {
+        if widgets::Button::secondary("< Back to Chat")
+            .tooltip("Return to the chat page. Any unsaved row drafts in the channels editor \
+                      are preserved if you come back.")
+            .show(ui, theme)
+        {
             state.active_page = GuiPage::Chat;
             state.server_settings_status.clear();
         }
@@ -184,7 +196,14 @@ fn draw_header(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ── User Section ────────────────────────────────────────────────────────────
 
 fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, role: &str) {
-    widgets::tinted_section(ui, theme, "USER", USER_COLOR, |ui, theme| {
+    widgets::tinted_section(ui, theme, "USER", USER_COLOR, SECTION_MAX_WIDTH, |ui, theme| {
+        widgets::body_hint(
+            ui, theme,
+            "What you see no matter your role. Your connection details, profile shortcuts, \
+             a copyable invite link, and the disconnect button.",
+        );
+        ui.add_space(theme.spacing_sm);
+
         kv_row(ui, theme, "Connected server", resolve_server_url(state));
         kv_row(ui, theme, "Your identity", short_key(&state.profile_public_key));
         kv_row(ui, theme, "Network status", state.ws_status.clone());
@@ -192,11 +211,19 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
 
         ui.add_space(theme.spacing_md);
         ui.horizontal(|ui| {
-            if widgets::Button::secondary("Open Profile").show(ui, theme) {
+            if widgets::Button::secondary("Open Profile")
+                .tooltip("Edit your display name, avatar, bio, and pronouns. Your profile is \
+                          signed and replicates across federated servers.")
+                .show(ui, theme)
+            {
                 state.active_page = GuiPage::Profile;
             }
             ui.add_space(theme.spacing_sm);
-            if widgets::Button::secondary("Notification preferences").show(ui, theme) {
+            if widgets::Button::secondary("Notification preferences")
+                .tooltip("Choose which events ping you (DMs, mentions, task assignments) \
+                          and set quiet hours. Stored locally per device.")
+                .show(ui, theme)
+            {
                 state.active_page = GuiPage::Settings;
             }
         });
@@ -215,7 +242,11 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
         };
         kv_row(ui, theme, label, invite_url.clone());
         ui.add_space(theme.spacing_sm);
-        if widgets::Button::primary("Copy invite").show(ui, theme) {
+        if widgets::Button::primary("Copy invite")
+            .tooltip("Copy the public invite link to your clipboard. Anyone with the link \
+                      can join. For an invite-only server, ask an admin to generate a one-time invite code.")
+            .show(ui, theme)
+        {
             ui.ctx().copy_text(invite_url);
             state.server_settings_status = "Invite link copied to clipboard.".into();
         }
@@ -230,7 +261,14 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
             Some((id, _name)) => ("Leave group", Some(id)),
             None => ("Disconnect from server", None),
         };
-        if widgets::Button::danger(disconnect_label).show(ui, theme) {
+        let disconnect_tip = if group_id.is_some() {
+            "Leave this group. You won't receive new messages here. You can rejoin via \
+             the group invite link."
+        } else {
+            "Stop the WebSocket connection to this server. Your identity stays on your \
+             device. Reconnect any time by re-entering the server URL."
+        };
+        if widgets::Button::danger(disconnect_label).tooltip(disconnect_tip).show(ui, theme) {
             do_disconnect(state, group_id);
         }
     });
@@ -239,10 +277,11 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
 // ── Mod Section ─────────────────────────────────────────────────────────────
 
 fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    widgets::tinted_section(ui, theme, "MODERATOR", MOD_COLOR, |ui, theme| {
+    widgets::tinted_section(ui, theme, "MODERATOR", MOD_COLOR, SECTION_MAX_WIDTH, |ui, theme| {
         widgets::body_hint(
             ui, theme,
-            "Targets the username typed below. Leave blank to use a slash command in chat instead.",
+            "Mods can take action on members and review reported messages. Type a username \
+             below, then click an action. Leave the field blank to use a slash command in chat instead.",
         );
         ui.add_space(theme.spacing_sm);
 
@@ -259,19 +298,30 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         let target_valid = !state.server_settings_target_user.trim().is_empty();
         ui.add_enabled_ui(target_valid, |ui| {
             ui.horizontal(|ui| {
-                if widgets::Button::secondary("Mute").show(ui, theme) {
+                if widgets::Button::secondary("Mute")
+                    .tooltip("Prevent this user from sending messages. They can still read. \
+                              Reversible — click Unmute to restore.")
+                    .show(ui, theme)
+                {
                     let cmd = format!("/mute {}", state.server_settings_target_user.trim());
                     send_slash(state, &cmd);
                     state.server_settings_status = format!("Sent: {}", cmd);
                 }
                 ui.add_space(theme.spacing_sm);
-                if widgets::Button::secondary("Unmute").show(ui, theme) {
+                if widgets::Button::secondary("Unmute")
+                    .tooltip("Restore the user's ability to send messages.")
+                    .show(ui, theme)
+                {
                     let cmd = format!("/unmute {}", state.server_settings_target_user.trim());
                     send_slash(state, &cmd);
                     state.server_settings_status = format!("Sent: {}", cmd);
                 }
                 ui.add_space(theme.spacing_sm);
-                if widgets::Button::danger("Kick").show(ui, theme) {
+                if widgets::Button::danger("Kick")
+                    .tooltip("Disconnect the user immediately. They can rejoin (use Ban for a \
+                              persistent block — admin-only).")
+                    .show(ui, theme)
+                {
                     let cmd = format!("/kick {}", state.server_settings_target_user.trim());
                     send_slash(state, &cmd);
                     state.server_settings_status = format!("Sent: {}", cmd);
@@ -284,8 +334,17 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(theme.spacing_sm);
 
         widgets::subsection_label(ui, theme, "Channel moderation");
+        widgets::body_hint(
+            ui, theme,
+            "Acts on the currently-active channel.",
+        );
+        ui.add_space(theme.spacing_xs);
         ui.horizontal(|ui| {
-            if widgets::Button::secondary("Pin last message").show(ui, theme) {
+            if widgets::Button::secondary("Pin last message")
+                .tooltip("Pin the most recent message in the channel you have open. Pinned \
+                          messages stay accessible from the channel header.")
+                .show(ui, theme)
+            {
                 send_slash(state, "/pin");
                 state.server_settings_status = "Sent: /pin".into();
             }
@@ -299,15 +358,25 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         widgets::subsection_label(ui, theme, "Reports");
         widgets::body_hint(
             ui, theme,
-            "Mod review surface for messages flagged via Report. Designed in \
-             docs/design/report-system.md. Eight overlapping anti-abuse defenses: \
-             rate limit, same-target cooldown, self-report rejected, trust-score \
-             weighting, Mark Bogus → trust hit, adversarial-mod escape valve, \
-             signed transparent log, federation opt-in.",
+            "Queue of messages flagged via the Report button on a chat row. View shows the \
+             flagged content + reporter. Decide: Dismiss / Warn / Mute / Kick / Ban / Mark Bogus. \
+             Mark Bogus deducts trust from the reporter so abusive flagging gets self-corrected.",
+        );
+        ui.add_space(theme.spacing_xs);
+        widgets::body_hint(
+            ui, theme,
+            "Anti-abuse defenses: rate limit (max reports per hour), same-target cooldown \
+             (no spam-reporting one user), self-reports rejected, trust-score weighting on \
+             reporter rep, signed transparent log of all decisions, federation opt-in for \
+             cross-server escalation. See docs/design/report-system.md for the full design.",
         );
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
-            if widgets::Button::secondary("View reports").show(ui, theme) {
+            if widgets::Button::secondary("View reports")
+                .tooltip("Open the report queue in chat (current implementation uses the \
+                          /reports slash command — UI surface lands in v0.194+).")
+                .show(ui, theme)
+            {
                 send_slash(state, "/reports");
                 state.server_settings_status = "Sent: /reports — check the active channel for results.".into();
             }
@@ -318,16 +387,38 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ── Admin Section ───────────────────────────────────────────────────────────
 
 fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    widgets::tinted_section(ui, theme, "ADMIN", ADMIN_COLOR, |ui, theme| {
+    widgets::tinted_section(ui, theme, "ADMIN", ADMIN_COLOR, SECTION_MAX_WIDTH, |ui, theme| {
+        widgets::body_hint(
+            ui, theme,
+            "Admin-only controls: who can join, what channels exist, and which users get \
+             elevated roles or banned.",
+        );
+        ui.add_space(theme.spacing_sm);
+
         // ── Registration ──
         widgets::subsection_label(ui, theme, "Registration");
+        widgets::body_hint(
+            ui, theme,
+            "Lockdown blocks NEW registrations server-wide. Existing members keep full \
+             access — useful during a spam wave or when switching to invite-only mode. \
+             Generate Invite produces a one-time code that bypasses lockdown for one new user.",
+        );
+        ui.add_space(theme.spacing_xs);
         ui.horizontal(|ui| {
-            if widgets::Button::secondary("Toggle lockdown").show(ui, theme) {
+            if widgets::Button::secondary("Toggle lockdown")
+                .tooltip("Flip the registration gate on/off. Existing members are unaffected. \
+                          Status appears in chat after the toggle.")
+                .show(ui, theme)
+            {
                 send_slash(state, "/lockdown");
                 state.server_settings_status = "Sent: /lockdown — registration toggle requested.".into();
             }
             ui.add_space(theme.spacing_sm);
-            if widgets::Button::primary("Generate invite code").show(ui, theme) {
+            if widgets::Button::primary("Generate invite code")
+                .tooltip("Create a single-use invite code. Code appears in the chat channel. \
+                          Share it with one person — they can register even during lockdown.")
+                .show(ui, theme)
+            {
                 send_slash(state, "/invite");
                 state.server_settings_status = "Sent: /invite — code will appear in the active channel.".into();
             }
@@ -349,7 +440,10 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         widgets::body_hint(
             ui, theme,
             &format!(
-                "Targets the username from the Moderator section above (currently: {}).",
+                "Acts on the username typed in the Moderator section above (currently: {}). \
+                 Verify gives a green check next to their name. Promote to mod grants \
+                 moderator-tier permissions. Ban is permanent — they can't rejoin without \
+                 admin reversal.",
                 if state.server_settings_target_user.trim().is_empty() {
                     "(empty)".to_string()
                 } else {
@@ -361,19 +455,32 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         let user_valid = !state.server_settings_target_user.trim().is_empty();
         ui.add_enabled_ui(user_valid, |ui| {
             ui.horizontal(|ui| {
-                if widgets::Button::secondary("Verify").show(ui, theme) {
+                if widgets::Button::secondary("Verify")
+                    .tooltip("Add a verified badge next to the user's name. Use for known-good \
+                              identities to help others trust them at a glance.")
+                    .show(ui, theme)
+                {
                     let cmd = format!("/verify {}", state.server_settings_target_user.trim());
                     send_slash(state, &cmd);
                     state.server_settings_status = format!("Sent: {}", cmd);
                 }
                 ui.add_space(theme.spacing_sm);
-                if widgets::Button::secondary("Promote to mod").show(ui, theme) {
+                if widgets::Button::secondary("Promote to mod")
+                    .tooltip("Grant moderator role: the user can now mute, kick, pin messages, \
+                              and view the report queue. Reversible — promote to admin to allow \
+                              them to demote others.")
+                    .show(ui, theme)
+                {
                     let cmd = format!("/mod {}", state.server_settings_target_user.trim());
                     send_slash(state, &cmd);
                     state.server_settings_status = format!("Sent: {}", cmd);
                 }
                 ui.add_space(theme.spacing_sm);
-                if widgets::Button::danger("Ban").show(ui, theme) {
+                if widgets::Button::danger("Ban")
+                    .tooltip("Permanently block this user from the server. Their public key is \
+                              added to the ban list. Reversible only by another admin.")
+                    .show(ui, theme)
+                {
                     let cmd = format!("/ban {}", state.server_settings_target_user.trim());
                     send_slash(state, &cmd);
                     state.server_settings_status = format!("Sent: {}", cmd);
@@ -392,17 +499,25 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::subsection_label(ui, theme, "Channels");
     widgets::body_hint(
         ui, theme,
-        "Edit any cell, then click Save on the row. New channel? Fill in the bottom \
-         row and click Create. Delete asks for confirmation.",
+        "Each row is a channel. Edit a cell then click Save. Hover any column header for \
+         what that flag does. Use the bottom row to create a new channel. Delete is \
+         permanent — messages are kept but the channel goes away.",
+    );
+    ui.add_space(theme.spacing_xs);
+    widgets::body_hint(
+        ui, theme,
+        "Read-only: only mods + admins can post (everyone can read). \
+         Voice: enables the voice-call icon next to the channel — disable to make it \
+         text-only. \
+         Federated: messages in this channel gossip to peer servers in the federation \
+         network so members on OTHER servers can read and reply. Off = local-only to this server.",
     );
     ui.add_space(theme.spacing_sm);
 
-    // Header row — visual column titles.
-    channel_grid_row(
-        ui, theme,
-        &["Name", "Description", "Read-only", "Voice", "Federated", "", ""],
-        /* is_header */ true,
-    );
+    // Header row — visual column titles with hover tooltips so admins
+    // get the per-column explanation without scrolling back to the
+    // intro paragraph.
+    channel_grid_header(ui, theme);
 
     // One row per existing channel.
     let channels = state.chat_channels.clone();
@@ -438,12 +553,22 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             centered_checkbox(ui, theme, &mut draft.read_only, CHANNEL_COL_WIDTHS[2], &mut row_changed);
             centered_checkbox(ui, theme, &mut draft.voice_enabled, CHANNEL_COL_WIDTHS[3], &mut row_changed);
             centered_checkbox(ui, theme, &mut draft.federated, CHANNEL_COL_WIDTHS[4], &mut row_changed);
-            row_button(ui, theme, CHANNEL_COL_WIDTHS[5], widgets::Button::primary("Save"), || {
-                save_id = Some(ch.id.clone());
-            });
-            row_button(ui, theme, CHANNEL_COL_WIDTHS[6], widgets::Button::danger("Delete"), || {
-                delete_id = Some(ch.id.clone());
-            });
+            row_button(
+                ui, theme, CHANNEL_COL_WIDTHS[5],
+                widgets::Button::primary("Save").tooltip(
+                    "Apply this row's changes. Updates name / description / read-only / \
+                     voice / federated flags on the relay and broadcasts to all clients."
+                ),
+                || { save_id = Some(ch.id.clone()); },
+            );
+            row_button(
+                ui, theme, CHANNEL_COL_WIDTHS[6],
+                widgets::Button::danger("Delete").tooltip(
+                    "Permanently delete this channel. Past messages stay in the database \
+                     but the channel disappears from sidebars. Cannot be undone."
+                ),
+                || { delete_id = Some(ch.id.clone()); },
+            );
         });
         let _ = row_changed; // visual cue could go here; keep minimal for v1
     }
@@ -482,6 +607,11 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.add_enabled_ui(valid, |ui| {
                     if widgets::Button::primary("Create")
                         .min_height(CHANNEL_ROW_H)
+                        .tooltip(
+                            "Create a new channel with the values typed above. All flags \
+                             default off (read-only, federated). Voice defaults on. You can \
+                             change any flag after creation by editing the row."
+                        )
                         .show(ui, theme)
                     {
                         create_clicked = true;
@@ -604,23 +734,46 @@ fn centered_checkbox(
     );
 }
 
-/// One row of the channel grid header. Labels live in fixed-width slots
-/// matching `CHANNEL_COL_WIDTHS`, and we use `add_sized` so the label's
-/// drawn box actually fills the column (egui's `allocate_ui_with_layout`
-/// + `ui.label` collapses the inner widget to its text width and lets
-/// the next cell crowd in).
-fn channel_grid_row(ui: &mut egui::Ui, theme: &Theme, cells: &[&str], is_header: bool) {
+/// Channel grid header. Labels live in fixed-width slots matching
+/// `CHANNEL_COL_WIDTHS`, and we use `add_sized` so the label's drawn box
+/// actually fills the column (egui's `allocate_ui_with_layout` +
+/// `ui.label` collapses the inner widget to its text width and lets the
+/// next cell crowd in).
+///
+/// Each header label gets a hover tooltip explaining what the column
+/// does — operator 2026-05-08: "we should provide more information about
+/// what each option does." Hovering Read-only / Voice / Federated tells
+/// the admin exactly what flipping that checkbox will do.
+fn channel_grid_header(ui: &mut egui::Ui, theme: &Theme) {
+    // Each cell is (label, tooltip). Save and Delete columns are blank
+    // headers since the buttons themselves carry their own tooltips.
+    let cells: [(&str, &str); 7] = [
+        ("Name",        "The channel id used in chat (#name). Renaming updates the display \
+                         label only — the underlying id stays the same so existing message \
+                         references keep working."),
+        ("Description", "One-line summary shown next to the channel name in the chat header."),
+        ("Read-only",   "On: only mods + admins can post here. Everyone can still read. \
+                         Useful for #announcements style channels."),
+        ("Voice",       "On: voice icon appears next to the channel so members can join a \
+                         voice call. Off: text-only — voice icon hidden."),
+        ("Federated",   "On: messages in this channel gossip to peer servers in the federation \
+                         network so members on OTHER servers can read and reply. \
+                         Off: local to this server only."),
+        ("",            ""),
+        ("",            ""),
+    ];
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
-        let size = if is_header { theme.font_size_small } else { theme.font_size_body };
-        for (i, label) in cells.iter().enumerate() {
-            let w = CHANNEL_COL_WIDTHS.get(i).copied().unwrap_or(80.0);
-            let txt = if is_header {
-                RichText::new(*label).size(size).color(theme.text_muted()).strong()
-            } else {
-                RichText::new(*label).size(size).color(theme.text_primary())
-            };
-            ui.add_sized(Vec2::new(w, CHANNEL_ROW_H), egui::Label::new(txt));
+        for (i, (label, tip)) in cells.iter().enumerate() {
+            let w = CHANNEL_COL_WIDTHS[i];
+            let txt = RichText::new(*label)
+                .size(theme.font_size_small)
+                .color(theme.text_muted())
+                .strong();
+            let resp = ui.add_sized(Vec2::new(w, CHANNEL_ROW_H), egui::Label::new(txt));
+            if !tip.is_empty() {
+                resp.on_hover_text(*tip);
+            }
         }
     });
 }

@@ -68,6 +68,13 @@ pub fn card_with_header(ui: &mut Ui, theme: &Theme, title: &str, add_contents: i
 /// title above the card in the same accent color so the section reads at
 /// a glance.
 ///
+/// `max_width` lets the page choose how wide the card sits — a page with
+/// multiple stacked sections should pass the SAME value to every call so
+/// the cards line up. Pages that mix narrow text-only sections with a
+/// wide spreadsheet should pick a width that fits the widest content
+/// AND apply it uniformly (operator pushback 2026-05-08: mismatched
+/// section widths read as a layout bug).
+///
 /// Replaces the page-local `color_section` helpers that used to copy this
 /// pattern in each file. Edit here to restyle every tinted section.
 pub fn tinted_section(
@@ -75,10 +82,11 @@ pub fn tinted_section(
     theme: &Theme,
     title: &str,
     accent: Color32,
+    max_width: f32,
     contents: impl FnOnce(&mut Ui, &Theme),
 ) {
     ui.vertical_centered(|ui| {
-        ui.set_max_width(720.0);
+        ui.set_max_width(max_width);
         ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
             ui.label(
                 RichText::new(title)
@@ -96,6 +104,11 @@ pub fn tinted_section(
                 .rounding(Rounding::same(theme.border_radius as u8))
                 .inner_margin(theme.card_padding * 1.5)
                 .show(ui, |ui| {
+                    // Force the inner content to claim the full card width
+                    // so the card itself doesn't shrink-to-content (which
+                    // would let a narrow section visually mismatch a wider
+                    // sibling). The padding is already handled by Frame.
+                    ui.set_min_width(max_width - theme.card_padding * 3.0);
                     contents(ui, theme);
                 });
         });
