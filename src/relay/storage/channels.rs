@@ -97,12 +97,57 @@ impl Storage {
         })
     }
 
+    /// List all channels with category info AND the voice_enabled flag.
+    /// Used by `build_channel_list` so the broadcasted channel_list includes
+    /// the persisted voice toggle. Tuple shape is
+    /// `(id, name, description, read_only, category_id, voice_enabled)`.
+    pub fn list_channels_with_categories_and_voice(&self) -> Result<Vec<(String, String, Option<String>, bool, Option<i64>, bool)>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, name, description, COALESCE(read_only, 0), category_id, COALESCE(voice_enabled, 1)
+                 FROM channels
+                 ORDER BY COALESCE(position, 100) ASC, created_at ASC"
+            )?;
+            let channels = stmt.query_map([], |row| {
+                let ro: i32 = row.get(3)?;
+                let ve: i32 = row.get(5)?;
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, ro != 0, row.get(4)?, ve != 0))
+            })?.filter_map(|r| r.ok()).collect();
+            Ok(channels)
+        })
+    }
+
     /// Set the read_only flag on a channel.
     pub fn set_channel_read_only(&self, id: &str, read_only: bool) -> Result<bool, rusqlite::Error> {
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "UPDATE channels SET read_only = ?1 WHERE id = ?2",
                 params![read_only as i32, id],
+            )?;
+            Ok(rows > 0)
+        })
+    }
+
+    /// Update a channel's display name (does NOT change the id).
+    /// Server-side handler for `channel_update` uses this alongside
+    /// `set_channel_description`. Renaming the id is a separate operation
+    /// (`rename_channel`) because it requires migrating message-scoped data.
+    pub fn set_channel_name(&self, id: &str, name: &str) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let rows = conn.execute(
+                "UPDATE channels SET name = ?1 WHERE id = ?2",
+                params![name, id],
+            )?;
+            Ok(rows > 0)
+        })
+    }
+
+    /// Update a channel's description.
+    pub fn set_channel_description(&self, id: &str, description: &str) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let rows = conn.execute(
+                "UPDATE channels SET description = ?1 WHERE id = ?2",
+                params![description, id],
             )?;
             Ok(rows > 0)
         })

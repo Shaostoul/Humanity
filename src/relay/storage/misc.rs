@@ -330,6 +330,35 @@ impl Storage {
         })
     }
 
+    // ── Channel voice_enabled methods (v0.192.0) ──
+
+    /// Set whether voice is enabled for a channel. Default for existing
+    /// channels is `true` (voice ON) — admins can disable it per-channel
+    /// via the Server Settings → Channels editor.
+    pub fn set_channel_voice_enabled(&self, channel_id: &str, voice_enabled: bool) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let rows = conn.execute(
+                "UPDATE channels SET voice_enabled = ?1 WHERE id = ?2",
+                params![voice_enabled as i32, channel_id],
+            )?;
+            Ok(rows > 0)
+        })
+    }
+
+    /// Read the voice_enabled flag for a channel. Returns true if the
+    /// row is missing (defensive default — better to allow voice in
+    /// the unlikely-no-row case than to silently disable it).
+    pub fn is_channel_voice_enabled(&self, channel_id: &str) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let val: i32 = conn.query_row(
+                "SELECT COALESCE(voice_enabled, 1) FROM channels WHERE id = ?1",
+                params![channel_id],
+                |row| row.get(0),
+            ).unwrap_or(1);
+            Ok(val != 0)
+        })
+    }
+
     // ── Voice Channel methods ──
 
     /// Create a voice channel. Returns the new channel ID.

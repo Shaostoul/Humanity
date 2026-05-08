@@ -615,6 +615,18 @@ impl Storage {
             info!("Migration: added federated column to channels");
         }
 
+        // Migration: add voice_enabled column to channels (v0.192.0).
+        // Default 1 = voice ON for all existing channels (matches the
+        // pre-migration behavior where voice was implicitly always
+        // available). Server Settings → Channels admin can toggle it
+        // per-channel via channel_update.
+        if conn.prepare("SELECT voice_enabled FROM channels LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE channels ADD COLUMN voice_enabled INTEGER DEFAULT 1;"
+            )?;
+            info!("Migration: added voice_enabled column to channels");
+        }
+
         // Follows table (social system).
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS follows (

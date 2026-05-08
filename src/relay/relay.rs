@@ -430,6 +430,13 @@ pub struct ChannelInfo {
     pub category_name: Option<String>,
     #[serde(default)]
     pub federated: bool,
+    /// Whether voice chat is enabled for this channel. Default `true` for
+    /// historical channels and new channels — admins can disable it
+    /// per-channel via Server Settings → Channels (v0.192.0).
+    /// Reuses the module-level `default_true` helper (defined elsewhere
+    /// in this file for other serde defaults).
+    #[serde(default = "default_true")]
+    pub voice_enabled: bool,
 }
 
 /// Category info sent to clients.
@@ -574,6 +581,26 @@ pub enum RelayMessage {
         channels: Vec<ChannelInfo>,
         #[serde(skip_serializing_if = "Option::is_none")]
         categories: Option<Vec<CategoryInfo>>,
+    },
+
+    /// Admin updates a channel's metadata (name / description) and flags
+    /// (read_only / voice_enabled / federated). Sent by the Server
+    /// Settings → Channels spreadsheet on Save (v0.192.0). The handler
+    /// requires admin role; on success it broadcasts a fresh
+    /// `channel_list` so all clients see the new state.
+    #[serde(rename = "channel_update")]
+    ChannelUpdate {
+        channel_id: String,
+        #[serde(default)]
+        name: Option<String>,
+        #[serde(default)]
+        description: Option<String>,
+        #[serde(default)]
+        read_only: Option<bool>,
+        #[serde(default)]
+        voice_enabled: Option<bool>,
+        #[serde(default)]
+        federated: Option<bool>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -4384,6 +4411,56 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         }
                                         Err(e) => tracing::error!("Failed to edit message: {e}"),
                                     }
+                                }
+                            }
+                            // Channel update (admin) — set name/description/flags
+                            // on an existing channel and rebroadcast the
+                            // channel list so every connected client picks up
+                            // the new state. Used by Server Settings → Channels
+                            // spreadsheet (v0.192.0). Voice toggle persists
+                            // across server restarts because all four flags
+                            // live in the SQLite `channels` table.
+                            RelayMessage::ChannelUpdate { channel_id, name, description, read_only, voice_enabled, federated } => {
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if role != "admin" {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins can update channels.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else if !state_clone.db.channel_exists(&channel_id).unwrap_or(false) {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: format!("Channel '{}' not found.", channel_id),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    // Apply each provided field independently.
+                                    // Missing (None) fields are left unchanged
+                                    // so the client doesn't have to send the
+                                    // whole row to update one flag.
+                                    if let Some(n) = name.as_ref() {
+                                        let trimmed = n.trim();
+                                        if !trimmed.is_empty() {
+                                            let _ = state_clone.db.set_channel_name(&channel_id, trimmed);
+                                        }
+                                    }
+                                    if let Some(d) = description.as_ref() {
+                                        let _ = state_clone.db.set_channel_description(&channel_id, d.trim());
+                                    }
+                                    if let Some(ro) = read_only {
+                                        let _ = state_clone.db.set_channel_read_only(&channel_id, ro);
+                                    }
+                                    if let Some(ve) = voice_enabled {
+                                        let _ = state_clone.db.set_channel_voice_enabled(&channel_id, ve);
+                                    }
+                                    if let Some(fed) = federated {
+                                        let _ = state_clone.db.set_channel_federated(&channel_id, fed);
+                                    }
+                                    // Rebroadcast — every connected client
+                                    // gets a fresh channel_list and updates
+                                    // its local chat_channels accordingly.
+                                    broadcast_channel_list(&state_clone);
                                 }
                             }
                             // Pin request — pin a specific message by key + timestamp.

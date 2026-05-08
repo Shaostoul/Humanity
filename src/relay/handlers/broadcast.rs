@@ -31,15 +31,27 @@ pub fn build_task_list(db: &crate::relay::storage::Storage) -> Vec<TaskData> {
     }).collect()
 }
 
-/// Build ChannelInfo list with category data from the database.
+/// Build ChannelInfo list with category data from the database. As of
+/// v0.192.0 this includes `voice_enabled` so the client can persist the
+/// admin-toggled state across restarts (operator bug 2026-05-08: voice
+/// re-enabled itself on app restart).
 pub fn build_channel_list(db: &crate::relay::storage::Storage) -> Vec<ChannelInfo> {
     let categories = db.list_categories().unwrap_or_default();
     let cat_map: std::collections::HashMap<i64, String> = categories.into_iter().map(|(id, name, _)| (id, name)).collect();
-    let channels = db.list_channels_with_categories().unwrap_or_default();
-    channels.into_iter().map(|(id, name, desc, ro, cat_id)| {
+    let channels = db.list_channels_with_categories_and_voice().unwrap_or_default();
+    channels.into_iter().map(|(id, name, desc, ro, cat_id, voice_enabled)| {
         let cat_name = cat_id.and_then(|cid| cat_map.get(&cid).cloned());
         let federated = db.is_channel_federated(&id).unwrap_or(false);
-        ChannelInfo { id, name, description: desc, read_only: ro, category_id: cat_id, category_name: cat_name, federated }
+        ChannelInfo {
+            id,
+            name,
+            description: desc,
+            read_only: ro,
+            category_id: cat_id,
+            category_name: cat_name,
+            federated,
+            voice_enabled,
+        }
     }).collect()
 }
 

@@ -1307,8 +1307,31 @@ mod native_app {
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("Text")
                                                     .to_string();
+                                                // Read the persisted flags from the server so admin
+                                                // toggles in Server Settings → Channels survive
+                                                // restarts. Pre-v0.192 servers omit voice_enabled
+                                                // entirely; treat missing-field as true so old
+                                                // servers don't accidentally disable voice.
+                                                let voice_enabled = ch.get("voice_enabled")
+                                                    .and_then(|v| v.as_bool())
+                                                    .unwrap_or(true);
+                                                let read_only = ch.get("read_only")
+                                                    .and_then(|v| v.as_bool())
+                                                    .unwrap_or(false);
+                                                let federated = ch.get("federated")
+                                                    .and_then(|v| v.as_bool())
+                                                    .unwrap_or(false);
                                                 state.gui_state.chat_channels.push(
-                                                    crate::gui::ChatChannel { id, name, description, category, voice_joined: false, voice_enabled: true, read_only: false, federated: false },
+                                                    crate::gui::ChatChannel {
+                                                        id,
+                                                        name,
+                                                        description,
+                                                        category,
+                                                        voice_joined: false,
+                                                        voice_enabled,
+                                                        read_only,
+                                                        federated,
+                                                    },
                                                 );
                                             }
                                         }
