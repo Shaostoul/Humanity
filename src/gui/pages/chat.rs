@@ -63,6 +63,37 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             draw_center_panel(ui, theme, state);
         });
 
+    // ── FLOATING LOCK OVERLAYS (v0.189.x) ──
+    // The two panel-lock toggles live as Areas pinned to the actual top
+    // corners of the center panel — between the side panel boundary and
+    // the chat header content. Tucked tight so they don't crowd the
+    // channel title or look like part of the sidebar. Reads as the
+    // "edge of the panel" rather than a header element.
+    let left_panel_right = left_response.response.rect.right();
+    let right_panel_left = right_response.response.rect.left();
+    let header_y = left_response.response.rect.top() + 6.0;
+
+    egui::Area::new(egui::Id::new("chat_left_lock_overlay"))
+        .fixed_pos(egui::pos2(left_panel_right + 4.0, header_y))
+        .order(egui::Order::Foreground)
+        .interactable(true)
+        .show(ctx, |ui| {
+            if draw_panel_lock_button(ui, theme, state.chat_left_panel_locked) {
+                state.chat_left_panel_locked = !state.chat_left_panel_locked;
+                crate::config::AppConfig::from_gui_state(state).save();
+            }
+        });
+    egui::Area::new(egui::Id::new("chat_right_lock_overlay"))
+        .fixed_pos(egui::pos2(right_panel_left - 24.0, header_y))
+        .order(egui::Order::Foreground)
+        .interactable(true)
+        .show(ctx, |ui| {
+            if draw_panel_lock_button(ui, theme, state.chat_right_panel_locked) {
+                state.chat_right_panel_locked = !state.chat_right_panel_locked;
+                crate::config::AppConfig::from_gui_state(state).save();
+            }
+        });
+
     // ── USER PROFILE MODAL ──
     if state.chat_user_modal_open {
         draw_user_modal(ctx, theme, state);
@@ -1497,23 +1528,17 @@ fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
 fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // ── Channel header ──
-    // Layout: [lock-left] [channel name + description] ........ [lock-right]
-    // The two lock toggles moved here from the sidebars in v0.188.0 so the
-    // sidebar content stays uncluttered and the controls live next to the
-    // active focus point of the chat (the channel name).
+    // Lock buttons moved OUT of the header in v0.189.x — operator wanted
+    // them tucked into the actual panel CORNERS, not next to the channel
+    // title where they could be mistaken for a UI label. They now paint
+    // as floating Areas anchored to the side-panel boundaries (see the
+    // overlays at the bottom of `chat::draw`).
     Frame::NONE
         .fill(Color32::from_rgb(25, 25, 30))
         .inner_margin(egui::Margin::symmetric(16, 10))
         .stroke(Stroke::new(1.0, Color32::from_rgb(40, 40, 48)))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                // Lock-left button: pinned at the far left of the header.
-                if draw_panel_lock_button(ui, theme, state.chat_left_panel_locked) {
-                    state.chat_left_panel_locked = !state.chat_left_panel_locked;
-                    crate::config::AppConfig::from_gui_state(state).save();
-                }
-                ui.add_space(theme.spacing_sm);
-
                 let ac = state.chat_active_channel.clone();
                 if ac.starts_with("dm:") {
                     // DM header: back button + partner name
@@ -1570,14 +1595,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         );
                     }
                 }
-
-                // Lock-right button: pinned at the far right of the header.
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if draw_panel_lock_button(ui, theme, state.chat_right_panel_locked) {
-                        state.chat_right_panel_locked = !state.chat_right_panel_locked;
-                        crate::config::AppConfig::from_gui_state(state).save();
-                    }
-                });
             });
         });
 
@@ -1841,11 +1858,20 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // existing Þ that's already in the inline pill), reactions
                     // on the RIGHT, ∞ at the far right.
                     if pill_rect_for_msg != egui::Rect::NOTHING && target_ts > 0 {
-                        // No U+FE0F variation selectors — they always render
-                        // as a trailing tofu square next to the emoji. Bare
-                        // codepoints only.
-                        const TOP_REACTIONS: &[&str] = &["❤", "👍", "😂", "🎉", "🔥", "😮", "😢", "👎", "💯", "⭐"];
-                        const ALL_REACTIONS: &[&str] = &["❤","🧡","💛","💚","💙","💜","🤍","🖤","👍","👎","😂","😍","🥰","😊","😎","🤔","😢","😭","😡","🤬","🔥","💯","⭐","🎉","🙌","👏","🙏","💪","🤝","👀","🚀","⚡","💡","🌟","✨","💀","🤡","🤯","🥳","😴"];
+                        // Only emoji that I have CONFIRMED render in the
+                        // currently-loaded font (operator screenshots before
+                        // 2026-05-04 audit). Adding a new one? Test it
+                        // first — add to TOP first, get a screenshot, then
+                        // add to ALL. The icon_glyph_lint test catches
+                        // U+FE0F variation selectors automatically. Aim
+                        // for ~15 reliable choices vs 40 partial ones.
+                        const TOP_REACTIONS: &[&str] = &[
+                            "❤", "👍", "👎", "😂", "🤣", "😢", "😡", "🔥", "💯", "⭐",
+                        ];
+                        const ALL_REACTIONS: &[&str] = &[
+                            "❤", "👍", "👎", "😂", "🤣", "😢", "😡", "🔥", "💯", "⭐",
+                            "🎉", "😮", "∞",
+                        ];
                         let is_own = msg.sender_key == state.profile_public_key;
 
                         // Estimated popup geometry — needed for the sticky
