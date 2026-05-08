@@ -393,6 +393,19 @@ pub struct ChatChannel {
     pub voice_enabled: bool,
 }
 
+/// In-flight edit state for one row of the Server Settings → Channels
+/// spreadsheet (v0.188.0). Cloned from the live channel into the draft
+/// when the row is opened, written back via slash command on Save.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct ChannelDraft {
+    pub name: String,
+    pub description: String,
+    pub read_only: bool,
+    pub federated: bool,
+    pub voice_enabled: bool,
+}
+
 /// A DM conversation entry for the left panel.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -826,6 +839,18 @@ pub struct GuiState {
     pub show_add_server_modal: bool,
     pub add_server_url_draft: String,
     pub add_server_name_draft: String,
+    /// Active tab index on the Server Settings page (v0.188.0).
+    /// 0 = Overview (USER/MOD/ADMIN tiered sections).
+    /// 1 = Channels (spreadsheet editor).
+    /// 2 = Members (list with role + actions).
+    /// 3 = Reports (placeholder for v0.189 mod review surface).
+    pub server_settings_tab: u8,
+    /// Per-channel-row draft state for the Channels spreadsheet — keyed
+    /// by channel id, value is the in-flight edit (name, desc, flags).
+    /// Saved when the user clicks the row's Save button.
+    pub server_settings_channel_drafts: std::collections::HashMap<String, ChannelDraft>,
+    /// Pending "new channel" row at the bottom of the Channels grid.
+    pub server_settings_new_channel: ChannelDraft,
     pub new_channel_description: String,
 
     // ── Create group modal ──
@@ -1204,6 +1229,9 @@ impl Default for GuiState {
             show_add_server_modal: false,
             add_server_url_draft: String::new(),
             add_server_name_draft: String::new(),
+            server_settings_tab: 0,
+            server_settings_channel_drafts: std::collections::HashMap::new(),
+            server_settings_new_channel: ChannelDraft::default(),
             new_channel_name: String::new(),
             new_channel_description: String::new(),
             show_create_group_modal: false,

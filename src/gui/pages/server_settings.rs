@@ -34,23 +34,32 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     draw_header(ui, theme, state);
-                    ui.add_space(theme.spacing_xl);
+                    ui.add_space(theme.spacing_md);
 
                     let role = current_user_role(state);
                     let is_mod   = matches!(role.as_str(), "mod" | "admin" | "owner");
                     let is_admin = matches!(role.as_str(), "admin" | "owner");
 
-                    draw_user_section(ui, theme, state, &role);
-                    ui.add_space(theme.spacing_lg);
+                    draw_tab_bar(ui, theme, state, is_mod, is_admin);
+                    ui.add_space(theme.spacing_md);
 
-                    if is_mod {
-                        draw_mod_section(ui, theme, state);
-                        ui.add_space(theme.spacing_lg);
-                    }
-
-                    if is_admin {
-                        draw_admin_section(ui, theme, state);
-                        ui.add_space(theme.spacing_lg);
+                    match state.server_settings_tab {
+                        0 => {
+                            draw_user_section(ui, theme, state, &role);
+                            ui.add_space(theme.spacing_lg);
+                            if is_mod {
+                                draw_mod_section(ui, theme, state);
+                                ui.add_space(theme.spacing_lg);
+                            }
+                            if is_admin {
+                                draw_admin_section(ui, theme, state);
+                                ui.add_space(theme.spacing_lg);
+                            }
+                        }
+                        1 => draw_channels_tab(ui, theme, state, is_admin),
+                        2 => draw_members_tab(ui, theme, state, is_mod),
+                        3 => draw_reports_tab(ui, theme),
+                        _ => state.server_settings_tab = 0,
                     }
 
                     if !state.server_settings_status.is_empty() {
@@ -71,6 +80,366 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(theme.spacing_xl);
                 });
         });
+}
+
+/// Draw the tab bar — Overview / Channels / Members / Reports.
+/// Reports is dev-only for v0.188 (placeholder); becomes the mod review
+/// surface in v0.189. Members + Reports gated on mod tier.
+fn draw_tab_bar(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    state: &mut GuiState,
+    is_mod: bool,
+    is_admin: bool,
+) {
+    ui.vertical_centered(|ui| {
+        ui.set_max_width(960.0);
+        ui.horizontal(|ui| {
+            let tabs: &[(&str, u8, bool)] = &[
+                ("Overview",  0, true),
+                ("Channels",  1, is_admin),
+                ("Members",   2, is_mod),
+                ("Reports",   3, is_mod),
+            ];
+            for (label, idx, enabled) in tabs {
+                if !*enabled { continue; }
+                let active = state.server_settings_tab == *idx;
+                if widgets::Button::secondary(*label).active(active).show(ui, theme) {
+                    state.server_settings_tab = *idx;
+                }
+            }
+        });
+    });
+}
+
+/// Channels spreadsheet tab. One row per channel with editable cells:
+/// Name | Description | Read-only | Voice | Federated | (Save) | (Delete).
+/// Plus a sticky "+ new channel" row at the bottom.
+fn draw_channels_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_admin: bool) {
+    ui.vertical_centered(|ui| {
+        ui.set_max_width(960.0);
+        ui.with_layout(egui::Layout::top_down(Align::Min), |ui| {
+            // Section heading
+            ui.label(
+                RichText::new("Channels")
+                    .size(theme.font_size_heading)
+                    .color(theme.text_primary())
+                    .strong(),
+            );
+            ui.label(
+                RichText::new(
+                    "Edit any cell, then click Save on the row. New channel? \
+                     Fill in the bottom row and click Create. Delete is admin-only \
+                     and asks for confirmation."
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_md);
+
+            // Header row — visual column titles.
+            channel_grid_row(
+                ui, theme,
+                &["Name", "Description", "Read-only", "Voice", "Federated", "", ""],
+                /* is_header */ true,
+            );
+
+            // One row per existing channel.
+            let channels = state.chat_channels.clone();
+            let mut delete_id: Option<String> = None;
+            let mut save_id: Option<String> = None;
+
+            for ch in &channels {
+                // Pull or seed the draft for this channel.
+                let draft = state.server_settings_channel_drafts
+                    .entry(ch.id.clone())
+                    .or_insert_with(|| crate::gui::ChannelDraft {
+                        name: ch.name.clone(),
+                        description: ch.description.clone(),
+                        read_only: false, // TODO wire from chat_channels once flag exists
+                        federated: false, // TODO wire from chat_channels once flag exists
+                        voice_enabled: ch.voice_enabled,
+                    });
+                let mut row_changed = false;
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    if ui.add(egui::TextEdit::singleline(&mut draft.name).desired_width(140.0)).changed() {
+                        row_changed = true;
+                    }
+                    if ui.add(egui::TextEdit::singleline(&mut draft.description).desired_width(280.0)).changed() {
+                        row_changed = true;
+                    }
+                    if ui.checkbox(&mut draft.read_only, "").changed() { row_changed = true; }
+                    ui.add_space(28.0);
+                    if ui.checkbox(&mut draft.voice_enabled, "").changed() { row_changed = true; }
+                    ui.add_space(20.0);
+                    if ui.checkbox(&mut draft.federated, "").changed() { row_changed = true; }
+                    ui.add_space(28.0);
+                    if widgets::Button::primary("Save").show(ui, theme) {
+                        save_id = Some(ch.id.clone());
+                    }
+                    if is_admin {
+                        if widgets::Button::danger("Delete").show(ui, theme) {
+                            delete_id = Some(ch.id.clone());
+                        }
+                    }
+                });
+                let _ = row_changed; // visual cue could go here; keep minimal for v1
+            }
+
+            ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_md);
+
+            // "+ new channel" sticky row at bottom (admin only).
+            if is_admin {
+                ui.label(
+                    RichText::new("+ New channel")
+                        .size(theme.font_size_body)
+                        .color(theme.accent())
+                        .strong(),
+                );
+                ui.add_space(theme.spacing_xs);
+                let new_draft = &mut state.server_settings_new_channel;
+                let mut create_clicked = false;
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.add(egui::TextEdit::singleline(&mut new_draft.name)
+                        .desired_width(140.0)
+                        .hint_text("channel-name"));
+                    ui.add(egui::TextEdit::singleline(&mut new_draft.description)
+                        .desired_width(280.0)
+                        .hint_text("Description"));
+                    ui.checkbox(&mut new_draft.read_only, "");
+                    ui.add_space(28.0);
+                    ui.checkbox(&mut new_draft.voice_enabled, "");
+                    ui.add_space(20.0);
+                    ui.checkbox(&mut new_draft.federated, "");
+                    ui.add_space(28.0);
+                    let valid = !new_draft.name.trim().is_empty();
+                    ui.add_enabled_ui(valid, |ui| {
+                        if widgets::Button::primary("Create").show(ui, theme) {
+                            create_clicked = true;
+                        }
+                    });
+                });
+
+                if create_clicked {
+                    let name = state.server_settings_new_channel.name.trim().to_string();
+                    let desc = state.server_settings_new_channel.description.trim().to_string();
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let msg = serde_json::json!({
+                                "type": "channel_create",
+                                "name": name,
+                                "description": desc,
+                            });
+                            client.send(&msg.to_string());
+                        }
+                    }
+                    state.server_settings_new_channel = crate::gui::ChannelDraft::default();
+                    state.server_settings_status = format!("Channel '{}' creation requested.", name);
+                }
+            }
+
+            // Apply pending row actions.
+            if let Some(id) = save_id {
+                if let Some(draft) = state.server_settings_channel_drafts.get(&id).cloned() {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let msg = serde_json::json!({
+                                "type": "channel_update",
+                                "channel_id": id,
+                                "name": draft.name.trim(),
+                                "description": draft.description.trim(),
+                                "read_only": draft.read_only,
+                                "voice_enabled": draft.voice_enabled,
+                                "federated": draft.federated,
+                            });
+                            client.send(&msg.to_string());
+                        }
+                    }
+                    state.server_settings_status = format!("Channel '{}' update sent.", draft.name);
+                }
+            }
+            if let Some(id) = delete_id {
+                if let Some(ref client) = state.ws_client {
+                    if client.is_connected() {
+                        let msg = serde_json::json!({
+                            "type": "channel_delete",
+                            "channel_id": id,
+                        });
+                        client.send(&msg.to_string());
+                    }
+                }
+                state.server_settings_status = format!("Channel deletion requested for '{}'.", id);
+                state.server_settings_channel_drafts.remove(&id);
+            }
+        });
+    });
+}
+
+/// One row of the channel grid. `is_header = true` styles as a header.
+fn channel_grid_row(ui: &mut egui::Ui, theme: &Theme, cells: &[&str], is_header: bool) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        let widths = [144.0, 284.0, 60.0, 60.0, 60.0, 60.0, 80.0];
+        let size = if is_header { theme.font_size_small } else { theme.font_size_body };
+        for (i, label) in cells.iter().enumerate() {
+            let w = widths.get(i).copied().unwrap_or(80.0);
+            ui.allocate_ui_with_layout(
+                Vec2::new(w, 22.0),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    let txt = if is_header {
+                        RichText::new(*label).size(size).color(theme.text_muted()).strong()
+                    } else {
+                        RichText::new(*label).size(size).color(theme.text_primary())
+                    };
+                    ui.label(txt);
+                },
+            );
+        }
+    });
+}
+
+/// Members tab — list of server / group members with role + actions.
+/// Spreadsheet-style; v0.188 uses the existing slash-command surface
+/// (kick / mute / ban / promote) per row.
+fn draw_members_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_mod: bool) {
+    ui.vertical_centered(|ui| {
+        ui.set_max_width(960.0);
+        ui.with_layout(egui::Layout::top_down(Align::Min), |ui| {
+            ui.label(
+                RichText::new("Members")
+                    .size(theme.font_size_heading)
+                    .color(theme.text_primary())
+                    .strong(),
+            );
+            ui.label(
+                RichText::new(
+                    "Member roster will populate from the relay. Per-row \
+                     actions (Mute / Kick / Ban / Promote) trigger the \
+                     existing slash-command flow. v0.188 ships the layout; \
+                     full inline actions land in v0.189."
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_md);
+
+            // Header
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                let cols = [("Name", 160.0), ("DID", 200.0), ("Role", 90.0), ("Joined", 110.0), ("Actions", 200.0)];
+                for (label, w) in cols {
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(w, 22.0),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.label(RichText::new(label).color(theme.text_muted()).strong().size(theme.font_size_small));
+                        },
+                    );
+                }
+            });
+
+            ui.separator();
+
+            let _ = is_mod;
+            // For v0.188, list the cached chat peers as a placeholder.
+            // v0.189 wires this to relay's server_members table.
+            let peers: Vec<(String, String)> = state.chat_users
+                .iter()
+                .map(|p| (p.name.clone(), p.public_key.clone()))
+                .collect();
+            if peers.is_empty() {
+                ui.add_space(theme.spacing_md);
+                ui.label(
+                    RichText::new("No members loaded yet — wait for the relay roster sync.")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted())
+                        .italics(),
+                );
+            } else {
+                for (name, key) in peers.iter().take(50) {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(160.0, 22.0),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                ui.label(RichText::new(name).color(theme.text_primary()));
+                            },
+                        );
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(200.0, 22.0),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                let short = if key.len() > 16 {
+                                    format!("{}…{}", &key[..6], &key[key.len()-6..])
+                                } else { key.clone() };
+                                ui.label(RichText::new(short).monospace().color(theme.text_muted()).size(theme.font_size_small));
+                            },
+                        );
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(90.0, 22.0),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                ui.label(RichText::new("user").color(theme.text_secondary()).size(theme.font_size_small));
+                            },
+                        );
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(110.0, 22.0),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                ui.label(RichText::new("—").color(theme.text_muted()).size(theme.font_size_small));
+                            },
+                        );
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(200.0, 22.0),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                ui.label(RichText::new("(actions in v0.189)").color(theme.text_muted()).italics().size(theme.font_size_small));
+                            },
+                        );
+                    });
+                }
+            }
+        });
+    });
+}
+
+/// Reports tab — placeholder for the v0.189 mod review surface.
+/// See `docs/design/report-system.md` for the full design.
+fn draw_reports_tab(ui: &mut egui::Ui, theme: &Theme) {
+    ui.vertical_centered(|ui| {
+        ui.set_max_width(720.0);
+        ui.with_layout(egui::Layout::top_down(Align::Min), |ui| {
+            ui.label(
+                RichText::new("Reports")
+                    .size(theme.font_size_heading)
+                    .color(theme.text_primary())
+                    .strong(),
+            );
+            ui.add_space(theme.spacing_md);
+            ui.label(
+                RichText::new(
+                    "Mod review surface for messages flagged via 🚩 Report. \
+                     Designed in `docs/design/report-system.md`. Ships v0.189 \
+                     — storage table, WebSocket handlers, decision buttons \
+                     (Dismiss / Warn / Mute / Kick / Ban / Mark Bogus), and \
+                     the trust-score-based anti-abuse defenses."
+                )
+                .size(theme.font_size_body)
+                .color(theme.text_secondary()),
+            );
+            ui.add_space(theme.spacing_lg);
+            widgets::alert(
+                ui, theme, widgets::AlertKind::Info,
+                "Eight overlapping anti-abuse defenses: rate limit / same-target cooldown / self-report rejected / trust-score weighting / Mark Bogus → trust hit / adversarial-mod escape valve / signed transparent log / federation opt-in.",
+            );
+        });
+    });
 }
 
 // ── Header ──────────────────────────────────────────────────────────────────

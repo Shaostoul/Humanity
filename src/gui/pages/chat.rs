@@ -28,18 +28,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     } else {
         left_panel.default_width(state.chat_left_panel_width).resizable(true)
     };
-    let mut left_lock_toggled = false;
+    // Panel lock buttons MOVED to center panel header in v0.188.0.
+    // The sidebar panels just render their content; the lock toggle is a
+    // small button on the chat header alongside the channel name. This
+    // keeps the sidebars clean and puts the controls where the user is
+    // most likely already looking.
     let left_response = left_panel.show(ctx, |ui| {
-        if draw_panel_lock_button(ui, theme, state.chat_left_panel_locked) {
-            left_lock_toggled = true;
-        }
         draw_left_panel(ui, theme, state);
     });
-    if left_lock_toggled {
-        state.chat_left_panel_locked = !state.chat_left_panel_locked;
-        crate::config::AppConfig::from_gui_state(state).save();
-    }
-    // Track the actual rendered width so it persists
     if !state.chat_left_panel_locked {
         state.chat_left_panel_width = left_response.response.rect.width();
     }
@@ -53,18 +49,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     } else {
         right_panel.default_width(state.chat_right_panel_width).resizable(true)
     };
-    let mut right_lock_toggled = false;
     let right_response = right_panel.show(ctx, |ui| {
-        if draw_panel_lock_button(ui, theme, state.chat_right_panel_locked) {
-            right_lock_toggled = true;
-        }
         draw_right_panel(ui, theme, state);
     });
-    if right_lock_toggled {
-        state.chat_right_panel_locked = !state.chat_right_panel_locked;
-        crate::config::AppConfig::from_gui_state(state).save();
-    }
-    // Track the actual rendered width so it persists
     if !state.chat_right_panel_locked {
         state.chat_right_panel_width = right_response.response.rect.width();
     }
@@ -1510,12 +1497,23 @@ fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
 fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // ── Channel header ──
+    // Layout: [lock-left] [channel name + description] ........ [lock-right]
+    // The two lock toggles moved here from the sidebars in v0.188.0 so the
+    // sidebar content stays uncluttered and the controls live next to the
+    // active focus point of the chat (the channel name).
     Frame::NONE
         .fill(Color32::from_rgb(25, 25, 30))
         .inner_margin(egui::Margin::symmetric(16, 10))
         .stroke(Stroke::new(1.0, Color32::from_rgb(40, 40, 48)))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
+                // Lock-left button: pinned at the far left of the header.
+                if draw_panel_lock_button(ui, theme, state.chat_left_panel_locked) {
+                    state.chat_left_panel_locked = !state.chat_left_panel_locked;
+                    crate::config::AppConfig::from_gui_state(state).save();
+                }
+                ui.add_space(theme.spacing_sm);
+
                 let ac = state.chat_active_channel.clone();
                 if ac.starts_with("dm:") {
                     // DM header: back button + partner name
@@ -1572,6 +1570,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         );
                     }
                 }
+
+                // Lock-right button: pinned at the far right of the header.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if draw_panel_lock_button(ui, theme, state.chat_right_panel_locked) {
+                        state.chat_right_panel_locked = !state.chat_right_panel_locked;
+                        crate::config::AppConfig::from_gui_state(state).save();
+                    }
+                });
             });
         });
 
