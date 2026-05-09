@@ -596,7 +596,12 @@
   nav.innerHTML =
     '<nav class="hub-nav">' +
       /* Brand */
-      '<a href="/" class="brand' + (active === 'landing' ? ' active' : '') + '" data-tip="Home">H</a>' +
+      // v0.196.0: H brand button now goes to /chat (the cooperative
+      // platform's primary surface) instead of the marketing landing
+      // page. Operator: "the H stands for Humanity ... fitting because
+      // chat IS the cooperative platform." Marketing/landing is reached
+      // via the standalone /pages/index.html for unsigned visitors.
+      '<a href="/chat" class="brand' + (active === 'chat' ? ' active' : '') + '" data-tip="Home — Chat">H</a>' +
 
       '<div class="nav-divider"></div>' +
 
@@ -1251,7 +1256,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.195.1';
+    var CURRENT_VERSION = '0.196.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

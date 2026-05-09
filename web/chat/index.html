@@ -33,6 +33,45 @@
   <link rel="stylesheet" href="/chat/voice.css?v=3">
   <link rel="stylesheet" href="/chat/inputs.css?v=3">
   <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
+  <!--
+    v0.196.0: pre-flight check for first-time visitors. If the browser
+    has no stored HumanityOS identity (neither IndexedDB nor localStorage
+    backup), redirect to the explanatory landing page so the user
+    learns what HumanityOS is BEFORE we silently auto-create an
+    Ed25519 identity for them. Operator 2026-05-08: "new users who
+    haven't signed into the chat yet on the website get automatically
+    redirected to an onboarding page... they need to know what this is
+    about. Then when they 'sign their chosen name' at the bottom they
+    join the chat."
+
+    The check runs synchronously enough to redirect before chat scripts
+    initialize. IndexedDB lookup is async but the localStorage backup
+    is synchronous and good enough for a fast-path check (any user who
+    has ever connected has the localStorage backup). For the rare case
+    of IDB-only identity without backup, the chat scripts will load
+    normally and connect — the backup gets recreated on first send.
+  -->
+  <script>
+    (function preflightIdentity() {
+      // If we already came back from the landing page (hash flag) skip
+      // the redirect — the user just signed up and we don't want to
+      // bounce them back.
+      if (location.hash === '#joined') {
+        history.replaceState(null, '', location.pathname);
+        return;
+      }
+      try {
+        var hasBackup  = !!localStorage.getItem('humanity_key_backup');
+        var hasLegacy  = !!localStorage.getItem('humanity_key');
+        var hasWrapped = !!localStorage.getItem('humanity_key_wrapped');
+        if (hasBackup || hasLegacy || hasWrapped) return;
+        // First-time visitor — redirect to landing.
+        location.replace('/?welcome=1&return=' + encodeURIComponent(location.pathname));
+      } catch (e) {
+        // localStorage blocked — let chat handle it, no redirect.
+      }
+    })();
+  </script>
 </head>
 <body>
   <script src="/shared/icons.js?v=1"></script>

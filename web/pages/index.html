@@ -388,6 +388,119 @@
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js"></script>
 
+  <!--
+    v0.196.0: sign-in banner shown only when /chat redirected here
+    because the visitor has no identity yet (?welcome=1 in URL). Lets
+    the user pick a name and join in one click without leaving the
+    landing page. Generates an Ed25519 keypair locally, saves the
+    PKCS8-wrapped private key + the chosen name to localStorage, then
+    bounces back to /chat#joined (the hash flag tells chat's pre-flight
+    to skip the redirect-back-to-landing check).
+
+    The whole identity creation runs in the browser — no server call,
+    no signup form data sent anywhere. The "humanity_key_backup" entry
+    is exactly the format chat/crypto.js expects, so the chat client
+    picks it up on next load like any returning user.
+  -->
+  <section id="welcome-signin" style="display: none; padding: 32px 24px; background: linear-gradient(180deg, rgba(237,140,36,0.08), transparent);">
+    <div style="max-width: 720px; margin: 0 auto; text-align: center;">
+      <div style="font-size: 0.85rem; color: var(--accent); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;">First time here?</div>
+      <h2 style="font-size: clamp(1.5rem, 3vw, 2rem); margin: 0 0 12px; font-weight: 800;">Welcome to HumanityOS</h2>
+      <p style="color: var(--text-muted); margin: 0 0 8px; line-height: 1.6;">
+        A free app where anyone can chat, plan, trade, and build together. No ads, no accounts, no owner.
+        Read about it below — or pick a name and jump straight into the chat.
+      </p>
+      <p style="color: var(--text-muted); margin: 0 0 20px; line-height: 1.6; font-size: 0.9rem;">
+        Your "name" is just a label other members see. There's no password, no email, no profile to fill in.
+        Your computer creates a private signing key for you so messages prove they're yours. The key never leaves this device.
+      </p>
+      <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; max-width: 480px; margin: 0 auto;">
+        <input id="welcome-name" type="text" placeholder="Your chosen name (letters, numbers, _ -)"
+               style="flex: 1; min-width: 220px; padding: 12px 14px; font-size: 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-primary);"
+               maxlength="24" autofocus>
+        <button id="welcome-join" style="padding: 12px 22px; font-size: 1rem; font-weight: 700; border: none; border-radius: 8px; background: var(--accent); color: var(--text-on-accent, #000); cursor: pointer;">
+          Join the chat →
+        </button>
+      </div>
+      <p id="welcome-error" style="color: var(--danger); margin: 10px 0 0; font-size: 0.9rem; min-height: 1.2em;"></p>
+      <p style="color: var(--text-muted); margin-top: 18px; font-size: 0.85rem;">
+        Want to read more first? Scroll down — everything HumanityOS does is documented below.
+        Already have an identity from another device? <a href="/identity" style="color: var(--accent);">Restore from your seed phrase →</a>
+      </p>
+    </div>
+  </section>
+
+  <script>
+    // v0.196.0: only show the welcome banner when ?welcome=1 is set
+    // (i.e. /chat redirected here because the visitor has no identity).
+    // This keeps the landing page clean for return visitors who came
+    // for the marketing copy rather than to sign up.
+    (function welcomeBanner() {
+      var params = new URLSearchParams(location.search);
+      if (params.get('welcome') !== '1') return;
+      var sec = document.getElementById('welcome-signin');
+      if (!sec) return;
+      sec.style.display = 'block';
+      // Scroll into view so the user sees the sign-up immediately even
+      // if they were deep in the page from a previous visit.
+      sec.scrollIntoView({ behavior: 'auto', block: 'start' });
+      var nameInput = document.getElementById('welcome-name');
+      var joinBtn = document.getElementById('welcome-join');
+      var err = document.getElementById('welcome-error');
+
+      // Pre-fill from any saved name (for users who clear keys but keep name).
+      var saved = localStorage.getItem('humanity_name');
+      if (saved) nameInput.value = saved;
+      nameInput.focus();
+
+      function setError(msg) { err.textContent = msg || ''; }
+
+      async function joinChat() {
+        var name = nameInput.value.trim();
+        if (!/^[A-Za-z0-9_-]{1,24}$/.test(name)) {
+          setError('Name must be 1-24 characters: letters, numbers, _ or -.');
+          nameInput.focus();
+          return;
+        }
+        setError('');
+        joinBtn.disabled = true;
+        joinBtn.textContent = 'Setting up your identity...';
+        try {
+          // Generate Ed25519 keypair via Web Crypto API. Same algorithm
+          // chat/crypto.js uses — see generateKeypair() there.
+          var kp = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
+          var rawPub = await crypto.subtle.exportKey('raw', kp.publicKey);
+          var publicKeyHex = Array.from(new Uint8Array(rawPub))
+            .map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+          // Save PKCS8-wrapped private key + pubkey to localStorage in
+          // the format chat/crypto.js's restoreKeyFromLocalStorage()
+          // expects. Chat picks it up on next load like a returning user.
+          var pkcs8 = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
+          var b64 = btoa(String.fromCharCode.apply(null, new Uint8Array(pkcs8)));
+          localStorage.setItem('humanity_key_backup', JSON.stringify({
+            publicKeyHex: publicKeyHex,
+            privateKeyPkcs8: b64
+          }));
+          localStorage.setItem('humanity_name', name);
+          // Bounce to chat. The #joined hash tells the pre-flight check
+          // to skip its first-time redirect (otherwise we'd loop).
+          var ret = params.get('return') || '/chat';
+          location.replace(ret + '#joined');
+        } catch (e) {
+          console.error('Identity generation failed:', e);
+          setError('Could not create your identity in this browser. Try a different browser (Chrome, Firefox, Safari latest).');
+          joinBtn.disabled = false;
+          joinBtn.textContent = 'Join the chat →';
+        }
+      }
+
+      joinBtn.addEventListener('click', joinChat);
+      nameInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') joinChat();
+      });
+    })();
+  </script>
+
   <div class="eli5-block" style="max-width:900px;margin:0 auto;padding-left:24px;padding-right:24px;">
     <div class="eli5-simple">A free app where people chat, plan, trade, and build together. No accounts, no owner, everyone's software.</div>
     <div class="eli5-expert">Rust/axum relay. Post-quantum self-custody identity (ML-DSA-65 / Dilithium3). DIDs + Verifiable Credentials. Multi-layer trust score. Local+civilization governance. Social key recovery. ML-KEM-768 + AES-256-GCM E2E. WebRTC voice/video. wgpu 3D engine. Federated, local-first, CC0 public domain.</div>

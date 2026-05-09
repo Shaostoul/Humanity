@@ -6,7 +6,7 @@
 //! - Blue group: system/config pages
 //! Plus a Real/Sim toggle on the right.
 
-use egui::{Align, Color32, Frame, Layout, RichText, Rounding, Sense, Stroke, Vec2};
+use egui::{Align, Color32, Frame, Layout, Rect, RichText, Rounding, Sense, Stroke, Vec2};
 use crate::gui::{GuiPage, GuiState, VERSION};
 use crate::gui::theme::Theme;
 // Nav category colors / sizes used to live as `const` here. They moved to
@@ -24,23 +24,21 @@ struct NavItem {
 
 /// Draw the RGB header nav bar at the top of the screen.
 ///
-/// Dispatches to either the legacy single-row layout or the new two-tier
-/// (Reality / Sim / Tools / Settings) preview layout based on
-/// `state.nav_two_tier`. Both layouts include a `[≡] / [▤]` toggle on the
-/// right that flips the mode so operator can A/B them.
+/// Single-row layout — red identity / green contextual / blue system
+/// groups + Real/Sim toggle on the right. v0.196.0: the experimental
+/// two-tier preview layout was removed entirely (operator 2026-05-08:
+/// "I really want to not need so many pages... The single row main menu
+/// is cleaner."). nav_two_tier field on GuiState is preserved for
+/// backwards-compatible config deserialization but ignored.
 pub fn draw_nav_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    if state.nav_two_tier {
-        draw_nav_bar_two_tier(ctx, theme, state);
-    } else {
-        draw_nav_bar_one_tier(ctx, theme, state);
-    }
+    draw_nav_bar_one_tier(ctx, theme, state);
 }
 
-/// Legacy single-row RGB nav bar. Same UI as before — red identity / green
-/// contextual / blue system groups + Real/Sim toggle on the right, plus a
-/// new `[▤]` button just before the help "?" that switches to the two-tier
-/// preview layout. Now also draws an RGB channeling separator below itself
-/// so the design language matches the two-tier layout.
+/// Single-row RGB nav bar. Red identity / green contextual / blue
+/// system groups, with each button now showing an icon next to its
+/// label (v0.196.0). H brand button on the left navigates to Chat
+/// (operator decision: "H stands for Humanity ... fitting" + chat is
+/// the primary value prop). Real/Sim toggle on the right.
 fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Keep repainting so the RGB channeling animation stays smooth
     ctx.request_repaint();
@@ -62,14 +60,19 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
 
-                // Brand
+                // Brand H — navigates to Chat. Operator 2026-05-08:
+                // "the H stands for Humanity... If we make the H button
+                // on the main header menu chat then it's kinda fitting."
+                // Chat IS the cooperative platform's primary value prop;
+                // dashboard would be a maintenance burden for low payoff.
                 let brand = ui.add(
                     egui::Button::new(RichText::new("H").size(14.0).strong().color(accent))
                         .min_size(Vec2::new(28.0, 28.0))
                         .rounding(Rounding::same(6)),
-                );
+                ).on_hover_text("Home — Chat (the cooperative platform)");
                 if brand.clicked() {
-                    state.active_page = GuiPage::None;
+                    state.clear_nav_back();
+                    state.active_page = GuiPage::Chat;
                 }
 
                 ui.add_space(6.0);
@@ -151,24 +154,9 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                         state.active_help_topic = Some("real-sim".to_string());
                     }
                     ui.add_space(4.0);
-
-                    // Layout toggle: switch to two-tier preview layout.
-                    // Plain text "2T" — the previous ▤ glyph (Geometric
-                    // Shapes) rendered as tofu in the loaded font.
-                    let layout_btn = ui.add(
-                        egui::Button::new(
-                            RichText::new("2T").size(10.0).color(text_muted)
-                        )
-                        .fill(Color32::TRANSPARENT) // theme-exempt: sentinel transparency
-                        .stroke(Stroke::new(1.0, border))
-                        .rounding(Rounding::same(4))
-                        .min_size(Vec2::new(28.0, 22.0)),
-                    ).on_hover_text("Switch to two-tier nav (Reality / Sim / Tools / Settings / Dev)");
-                    if layout_btn.clicked() {
-                        state.nav_two_tier = true;
-                        crate::config::AppConfig::from_gui_state(state).save();
-                    }
-                    ui.add_space(4.0);
+                    // v0.196.0: removed the 2T (two-tier) layout toggle.
+                    // Operator decided the single-row nav is cleaner and
+                    // we want fewer pages overall, not more nav layers.
 
                     let sim_active = !state.context_real;
                     let real_active = state.context_real;
@@ -396,60 +384,85 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
     let time = ui.ctx().input(|i| i.time) as f32;
     let attack_pulse = state.attack_pulse_active;
 
+    // v0.196.0: each nav button now carries an icon alongside its label.
+    // Operator 2026-05-08: "All the main menu buttons should have icons."
+    // Icons come from widgets::icons::paint_nav_icon (router that maps
+    // GuiPage → painter call). We allocate the button rect manually so
+    // we have a Painter to draw the icon + position the label, instead
+    // of going through egui::Button which only takes a single galley.
+
+    const ICON_W: f32 = 14.0;
+    const PAD_X: f32 = 8.0;
+    const ICON_LABEL_GAP: f32 = 5.0;
+    const BUTTON_H: f32 = 28.0;
+
     for item in items {
         let is_active = std::mem::discriminant(&state.active_page)
             == std::mem::discriminant(&item.page);
 
         let text_color = if is_active { Color32::WHITE } else { text_muted };
 
-        // Subtle group-color tinted background
+        // Measure the label so we can size the button to fit icon + gap + text + padding.
+        let galley = ui.painter().layout_no_wrap(
+            item.label.to_string(),
+            egui::FontId::proportional(11.0),
+            text_color,
+        );
+        let label_w = galley.size().x;
+        let total_w = PAD_X + ICON_W + ICON_LABEL_GAP + label_w + PAD_X;
+
+        let (rect, response) = ui.allocate_exact_size(
+            Vec2::new(total_w, BUTTON_H),
+            egui::Sense::click(),
+        );
+
+        // Subtle group-color tinted background.
         let bg_fill = if is_active {
             Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 30)
+        } else if response.hovered() {
+            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 18)
         } else {
             Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 10)
         };
 
-        // Border: active = animated channeling color (RGB cycle / pulse /
-        // solid / red attack — driven by theme.nav_active_border_animation
-        // and theme.attack_indicator_style). Inactive = thin tinted border.
+        // Border: active = animated channeling color. Inactive = thin tint.
         let border_stroke = if is_active {
             Stroke::new(
                 theme.nav_active_border_width,
                 channeling_color(theme, time, attack_pulse, color),
             )
+        } else if response.hovered() {
+            Stroke::new(theme.nav_hover_border_width, theme.nav_legacy_blue())
         } else {
             Stroke::new(1.0, Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 60))
         };
 
-        let response = ui.add(
-            egui::Button::new(RichText::new(item.label).size(11.0).color(text_color))
-                .fill(bg_fill)
-                .stroke(border_stroke)
-                .rounding(Rounding::same(6))
-                .min_size(Vec2::new(0.0, 28.0)),
+        let painter = ui.painter();
+        painter.rect_filled(rect, Rounding::same(6), bg_fill);
+        painter.rect_stroke(rect, Rounding::same(6), border_stroke, egui::StrokeKind::Inside);
+
+        // Paint the icon centered vertically in a 14×14 box at the left.
+        let icon_rect = Rect::from_min_size(
+            egui::pos2(rect.left() + PAD_X, rect.center().y - ICON_W * 0.5),
+            Vec2::splat(ICON_W),
+        );
+        // Icon color tracks text — active = white, otherwise muted —
+        // so the icon reads as part of the label, not a separate element.
+        let _has_icon = crate::gui::widgets::icons::paint_nav_icon(
+            painter, icon_rect, item.page.clone(), text_color,
         );
 
-        // Override border on hover: nav-blue glow at the configured width.
-        // Both color + width come from theme tokens so the Settings page
-        // can tune them.
-        if response.hovered() && !is_active {
-            let rect = response.rect;
-            let painter = ui.painter();
-            painter.rect_stroke(
-                rect,
-                Rounding::same(6),
-                Stroke::new(theme.nav_hover_border_width, theme.nav_legacy_blue()),
-                egui::StrokeKind::Outside,
-            );
-        }
+        // Paint the label to the right of the icon, vertically centered.
+        let label_pos = egui::pos2(
+            rect.left() + PAD_X + ICON_W + ICON_LABEL_GAP,
+            rect.center().y - galley.size().y * 0.5,
+        );
+        painter.galley(label_pos, galley, text_color);
 
         if response.clicked() {
-            // Top-tier / sub-tier nav clicks are LATERAL navigations,
-            // not nested. Clear the back stack so the user doesn't end
-            // up with stale entries from a prior contextual flow when
-            // they later open a sub-page from somewhere else. Esc on
-            // the new page goes straight to FPS, which is correct for
-            // root-level navigation.
+            // Top-tier nav clicks are LATERAL — clear the back stack
+            // so Esc on the new page goes straight to FPS instead of
+            // through stale contextual flow entries.
             state.clear_nav_back();
             state.active_page = item.page.clone();
         }
@@ -589,149 +602,11 @@ fn sub_pages_for(category: &str) -> Vec<NavItem> {
     }
 }
 
-fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    ctx.request_repaint();
-
-    let accent = theme.accent();
-    let text_muted = theme.text_muted();
-    let border = theme.border();
-    let time = ctx.input(|i| i.time) as f32;
-    let attack_pulse = state.attack_pulse_active;
-
-    // ── Top tier: 4 wide fixed category tabs ──
-    egui::TopBottomPanel::top("nav_two_tier_top")
-        .frame(Frame::none().fill(theme.bg_card()).inner_margin(egui::Margin::symmetric(8, 6)))
-        // Suppress the panel's default 1px gray separator — the
-        // rgb_separator after this panel is the canonical divider. With
-        // the default stroke present AND an active button border (2px)
-        // sitting just above it, the top-tier divider read as a doubled
-        // line vs. the bottom-tier divider (which has no active button
-        // border above it). Match both tiers by removing the default.
-        .show_separator_line(false)
-        .show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
-
-                // Brand
-                let brand = ui.add(
-                    egui::Button::new(RichText::new("H").size(15.0).strong().color(accent))
-                        .min_size(Vec2::new(36.0, 36.0))
-                        .rounding(Rounding::same(8)),
-                );
-                if brand.clicked() {
-                    state.active_page = GuiPage::None;
-                }
-                ui.add_space(8.0);
-
-                let cats = top_categories(theme);
-                for cat in &cats {
-                    let is_active = state.nav_top_category == cat.id;
-                    let bg = if is_active {
-                        Color32::from_rgba_unmultiplied(cat.color.r(), cat.color.g(), cat.color.b(), 60)
-                    } else {
-                        Color32::from_rgba_unmultiplied(cat.color.r(), cat.color.g(), cat.color.b(), 14)
-                    };
-                    let fg = if is_active { Color32::WHITE } else { text_muted };
-                    // Active = channeling color from theme animation
-                    // tokens (cycle / pulse / solid / attack).
-                    // Inactive = thin tinted border in the category color.
-                    let stroke = if is_active {
-                        Stroke::new(
-                            theme.nav_active_border_width,
-                            channeling_color(theme, time, attack_pulse, cat.color),
-                        )
-                    } else {
-                        Stroke::new(1.0, Color32::from_rgba_unmultiplied(cat.color.r(), cat.color.g(), cat.color.b(), 80))
-                    };
-                    let btn = ui.add(
-                        egui::Button::new(RichText::new(cat.label).size(14.0).color(fg).strong())
-                            .fill(bg)
-                            .stroke(stroke)
-                            .rounding(Rounding::same(8))
-                            .min_size(Vec2::new(120.0, 36.0)),
-                    );
-                    if btn.clicked() {
-                        state.nav_top_category = cat.id.to_string();
-                        // v0.181.0: top-tier click also loads the matching
-                        // overview page so the user sees a summary card
-                        // grid instead of staying on whatever sub-page was
-                        // last active. Sub-tier buttons still navigate
-                        // straight to individual pages.
-                        // v0.195.0: clear nav back stack — top-tier clicks
-                        // are lateral navigations, not nested.
-                        state.clear_nav_back();
-                        state.active_page = match cat.id {
-                            "reality"  => GuiPage::OverviewReality,
-                            "sim"      => GuiPage::OverviewSim,
-                            "tools"    => GuiPage::OverviewTools,
-                            "settings" => GuiPage::OverviewSettings,
-                            "dev"      => GuiPage::OverviewDev,
-                            _ => state.active_page.clone(),
-                        };
-                        crate::config::AppConfig::from_gui_state(state).save();
-                    }
-                }
-
-                // Push the layout-toggle to the right.
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    ui.add_space(4.0);
-                    // Plain text "1T" — was ≡ (Math Operators block) which
-                    // didn't render in the loaded font.
-                    let layout_btn = ui.add(
-                        egui::Button::new(RichText::new("1T").size(11.0).color(text_muted))
-                            .fill(Color32::TRANSPARENT)
-                            .stroke(Stroke::new(1.0, border))
-                            .rounding(Rounding::same(4))
-                            .min_size(Vec2::new(32.0, 28.0)),
-                    ).on_hover_text("Switch back to legacy single-row nav");
-                    if layout_btn.clicked() {
-                        state.nav_two_tier = false;
-                        crate::config::AppConfig::from_gui_state(state).save();
-                    }
-                });
-            });
-        });
-
-    // ── RGB separator between top tier and sub tier ──
-    rgb_separator(ctx, theme, "nav_two_tier_sep_top", attack_pulse);
-
-    // ── Sub tier: pages within the active top category ──
-    egui::TopBottomPanel::top("nav_two_tier_sub")
-        .frame(
-            Frame::none()
-                .fill(theme.bg_secondary())
-                .inner_margin(egui::Margin::symmetric(8, 4)),
-        )
-        // Same reasoning as the top tier above — let rgb_separator be
-        // the only divider between sub tier and page content.
-        .show_separator_line(false)
-        .show(ctx, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                // If the saved category was hidden (e.g. operator turned off
-                // Dev mode while it was active), fall back to Reality so the
-                // sub tier never goes empty.
-                let mut active_cat = state.nav_top_category.clone();
-                let cats = top_categories(theme);
-                if !cats.iter().any(|c| c.id == active_cat) {
-                    active_cat = "reality".to_string();
-                    state.nav_top_category = active_cat.clone();
-                }
-                let cat_color = cats
-                    .iter()
-                    .find(|c| c.id == active_cat)
-                    .map(|c| c.color)
-                    .unwrap_or(accent);
-                let pages = sub_pages_for(&active_cat);
-                if pages.is_empty() {
-                    ui.label(RichText::new("(no pages in this category yet)").size(11.0).color(text_muted).italics());
-                } else {
-                    nav_group(ui, &pages, cat_color, text_muted, theme, state);
-                }
-            });
-        });
-
-    // ── RGB separator between sub tier and page area ──
-    rgb_separator(ctx, theme, "nav_two_tier_sep_sub", attack_pulse);
-}
+// v0.196.0: removed `draw_nav_bar_two_tier`. Operator decided the
+// single-row nav is cleaner and we want to reduce total page count
+// rather than add layout layers. `top_categories` and `sub_pages_for`
+// are kept because the category-overview pages (Reality / Sim / Tools /
+// Settings / Dev) still use them via `pub_sub_pages_for`. The
+// `state.nav_two_tier` and `state.nav_top_category` fields stay on
+// GuiState for backwards-compatible config deserialization but the
+// single-row layout ignores them.

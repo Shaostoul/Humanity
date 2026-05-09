@@ -257,3 +257,372 @@ pub fn paint_person(painter: &egui::Painter, rect: Rect, color: Color32) {
 pub fn icon_button(ui: &mut egui::Ui, size: f32) -> (Rect, egui::Response) {
     ui.allocate_exact_size(Vec2::splat(size), egui::Sense::click())
 }
+
+// ─────────────────────────── Nav item icons (v0.196.0) ───────────────────────
+// Operator 2026-05-08: every main-menu nav button should have an icon
+// alongside its label. egui's bundled font has spotty icon coverage
+// (icon_glyph_lint enforces this), so we paint simple geometric shapes
+// directly. The shapes are intentionally minimal — they need to be
+// distinguishable at 12-14 px and theme-color-able. Crisp at any DPI
+// because they're vector primitives going straight to the GPU.
+//
+// `paint_nav_icon` is the central router — match the page enum to a
+// small painter call. Adding a new nav target? Add one match arm + one
+// paint helper and you're done.
+
+/// Speech bubble — Chat.
+pub fn paint_chat(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let r = rect.width().min(rect.height()) * 0.4;
+    let c = rect.center();
+    let stroke = Stroke::new((r * 0.18).max(1.0), color);
+    // Rounded rect body
+    let body = Rect::from_center_size(Pos2::new(c.x, c.y - r * 0.1), Vec2::new(r * 1.7, r * 1.2));
+    painter.rect_stroke(body, egui::Rounding::same(((r * 0.35) as u8).max(2)), stroke, egui::StrokeKind::Inside);
+    // Tail (small triangle pointing down-left)
+    let tail_top = Pos2::new(c.x - r * 0.4, body.bottom() - 0.5);
+    let tail_bot = Pos2::new(c.x - r * 0.7, body.bottom() + r * 0.45);
+    let tail_right = Pos2::new(c.x - r * 0.1, body.bottom() - 0.5);
+    painter.line_segment([tail_top, tail_bot], stroke);
+    painter.line_segment([tail_bot, tail_right], stroke);
+}
+
+/// Wallet — rectangle with a small coin slot.
+pub fn paint_wallet(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.1).max(1.0), color);
+    let body = Rect::from_center_size(c, Vec2::new(w * 0.85, w * 0.6));
+    painter.rect_stroke(body, egui::Rounding::same(2), stroke, egui::StrokeKind::Inside);
+    // Coin slot circle on the right
+    painter.circle_filled(Pos2::new(body.right() - w * 0.12, c.y), w * 0.06, color);
+}
+
+/// Heart — Donate.
+pub fn paint_heart(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height()) * 0.4;
+    // Two top circles for the lobes
+    painter.circle_filled(Pos2::new(c.x - w * 0.45, c.y - w * 0.15), w * 0.45, color);
+    painter.circle_filled(Pos2::new(c.x + w * 0.45, c.y - w * 0.15), w * 0.45, color);
+    // Triangle for the bottom
+    use egui::epaint::PathShape;
+    let pts = vec![
+        Pos2::new(c.x - w * 0.85, c.y),
+        Pos2::new(c.x + w * 0.85, c.y),
+        Pos2::new(c.x, c.y + w * 0.85),
+    ];
+    painter.add(PathShape::convex_polygon(pts, color, Stroke::NONE));
+}
+
+/// Key — Identity.
+pub fn paint_key(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.1).max(1.0), color);
+    let r = w * 0.18;
+    // Bow (circle on the left)
+    painter.circle_stroke(Pos2::new(c.x - w * 0.25, c.y), r, stroke);
+    // Shaft
+    painter.line_segment([Pos2::new(c.x - w * 0.25 + r, c.y), Pos2::new(c.x + w * 0.4, c.y)], stroke);
+    // Teeth (two short downward strokes)
+    painter.line_segment([Pos2::new(c.x + w * 0.2, c.y), Pos2::new(c.x + w * 0.2, c.y + w * 0.15)], stroke);
+    painter.line_segment([Pos2::new(c.x + w * 0.35, c.y), Pos2::new(c.x + w * 0.35, c.y + w * 0.15)], stroke);
+}
+
+/// Scroll / document — Governance.
+pub fn paint_scroll(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.08).max(1.0), color);
+    let body = Rect::from_center_size(c, Vec2::new(w * 0.6, w * 0.8));
+    painter.rect_stroke(body, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    // Three text lines inside
+    for i in 0..3 {
+        let y = body.top() + body.height() * (0.3 + 0.2 * i as f32);
+        painter.line_segment([Pos2::new(body.left() + w * 0.08, y), Pos2::new(body.right() - w * 0.08, y)], stroke);
+    }
+}
+
+/// Lifebuoy — Recovery.
+pub fn paint_lifebuoy(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let r = rect.width().min(rect.height()) * 0.4;
+    let stroke = Stroke::new((r * 0.18).max(1.0), color);
+    painter.circle_stroke(c, r, stroke);
+    painter.circle_stroke(c, r * 0.45, stroke);
+    // Four cross marks at compass points
+    for i in 0..4 {
+        let a = i as f32 * std::f32::consts::FRAC_PI_2;
+        let from = Pos2::new(c.x + a.cos() * r * 0.45, c.y + a.sin() * r * 0.45);
+        let to = Pos2::new(c.x + a.cos() * r, c.y + a.sin() * r);
+        painter.line_segment([from, to], stroke);
+    }
+}
+
+/// Checklist — Tasks.
+pub fn paint_checklist(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.1).max(1.0), color);
+    // Three rows of (small box + line)
+    for i in 0..3 {
+        let y = c.y + (i as f32 - 1.0) * w * 0.25;
+        let box_left = c.x - w * 0.3;
+        let box_size = w * 0.15;
+        let bx = Rect::from_min_size(Pos2::new(box_left, y - box_size * 0.5), Vec2::splat(box_size));
+        painter.rect_stroke(bx, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+        // Line to the right of the box
+        painter.line_segment(
+            [Pos2::new(box_left + box_size + w * 0.05, y), Pos2::new(c.x + w * 0.35, y)],
+            stroke,
+        );
+    }
+}
+
+/// Open box — Inventory.
+pub fn paint_box(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.1).max(1.0), color);
+    let body = Rect::from_center_size(c, Vec2::new(w * 0.7, w * 0.6));
+    painter.rect_stroke(body, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    // Lid line across the top
+    painter.line_segment(
+        [Pos2::new(body.left(), body.top() + body.height() * 0.3), Pos2::new(body.right(), body.top() + body.height() * 0.3)],
+        stroke,
+    );
+}
+
+/// Map pin — Maps.
+pub fn paint_pin(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let r = w * 0.25;
+    // Drop shape: circle on top, triangle below
+    painter.circle_filled(Pos2::new(c.x, c.y - w * 0.1), r, color);
+    use egui::epaint::PathShape;
+    let pts = vec![
+        Pos2::new(c.x - r * 0.7, c.y),
+        Pos2::new(c.x + r * 0.7, c.y),
+        Pos2::new(c.x, c.y + w * 0.4),
+    ];
+    painter.add(PathShape::convex_polygon(pts, color, Stroke::NONE));
+    // Inner hole
+    painter.circle_filled(Pos2::new(c.x, c.y - w * 0.1), r * 0.4, Color32::from_rgb(20, 20, 26));
+}
+
+/// Shopping bag — Market.
+pub fn paint_bag(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.1).max(1.0), color);
+    let body = Rect::from_center_size(Pos2::new(c.x, c.y + w * 0.05), Vec2::new(w * 0.6, w * 0.55));
+    painter.rect_stroke(body, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    // Handle (arc above the body)
+    let handle_y = body.top() - w * 0.05;
+    let handle_w = body.width() * 0.5;
+    painter.line_segment([Pos2::new(c.x - handle_w * 0.5, handle_y), Pos2::new(c.x - handle_w * 0.5, body.top())], stroke);
+    painter.line_segment([Pos2::new(c.x + handle_w * 0.5, handle_y), Pos2::new(c.x + handle_w * 0.5, body.top())], stroke);
+    painter.line_segment([Pos2::new(c.x - handle_w * 0.5, handle_y), Pos2::new(c.x + handle_w * 0.5, handle_y)], stroke);
+}
+
+/// Hammer — Crafting.
+pub fn paint_hammer(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.12).max(1.0), color);
+    // Head: horizontal rectangle on top
+    let head = Rect::from_center_size(Pos2::new(c.x, c.y - w * 0.2), Vec2::new(w * 0.55, w * 0.2));
+    painter.rect_filled(head, egui::Rounding::same(1), color);
+    // Handle: diagonal line going down-right
+    painter.line_segment(
+        [Pos2::new(c.x + w * 0.05, c.y - w * 0.1), Pos2::new(c.x + w * 0.3, c.y + w * 0.35)],
+        stroke,
+    );
+}
+
+/// Building / city — Civilization.
+pub fn paint_building(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.08).max(1.0), color);
+    // Three vertical bars of varying height (skyline)
+    let bar_w = w * 0.18;
+    let positions = [-0.3, 0.0, 0.3];
+    let heights = [0.5, 0.7, 0.55];
+    for (i, &dx) in positions.iter().enumerate() {
+        let h = w * heights[i];
+        let bar = Rect::from_min_size(
+            Pos2::new(c.x + dx * w - bar_w * 0.5, c.y + w * 0.35 - h),
+            Vec2::new(bar_w, h),
+        );
+        painter.rect_stroke(bar, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    }
+}
+
+/// Palette — Studio.
+pub fn paint_palette(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.08).max(1.0), color);
+    // Oval body
+    painter.circle_stroke(c, w * 0.4, stroke);
+    // Three paint dots inside
+    painter.circle_filled(Pos2::new(c.x - w * 0.18, c.y - w * 0.05), w * 0.06, color);
+    painter.circle_filled(Pos2::new(c.x + w * 0.05, c.y - w * 0.18), w * 0.06, color);
+    painter.circle_filled(Pos2::new(c.x + w * 0.18, c.y + w * 0.05), w * 0.06, color);
+}
+
+/// Compass — Onboarding.
+pub fn paint_compass(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let r = rect.width().min(rect.height()) * 0.4;
+    let stroke = Stroke::new((r * 0.18).max(1.0), color);
+    painter.circle_stroke(c, r, stroke);
+    // Arrow pointing up-right (compass needle)
+    use egui::epaint::PathShape;
+    let pts = vec![
+        Pos2::new(c.x - r * 0.3, c.y + r * 0.3),
+        Pos2::new(c.x + r * 0.5, c.y - r * 0.5),
+        Pos2::new(c.x + r * 0.15, c.y - r * 0.05),
+    ];
+    painter.add(PathShape::convex_polygon(pts, color, Stroke::NONE));
+}
+
+/// Robot head — Agents.
+pub fn paint_robot(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.1).max(1.0), color);
+    let body = Rect::from_center_size(c, Vec2::new(w * 0.6, w * 0.55));
+    painter.rect_stroke(body, egui::Rounding::same(2), stroke, egui::StrokeKind::Inside);
+    // Two eye dots
+    painter.circle_filled(Pos2::new(c.x - w * 0.12, c.y - w * 0.05), w * 0.05, color);
+    painter.circle_filled(Pos2::new(c.x + w * 0.12, c.y - w * 0.05), w * 0.05, color);
+    // Antenna
+    painter.line_segment([Pos2::new(c.x, body.top()), Pos2::new(c.x, body.top() - w * 0.15)], stroke);
+    painter.circle_filled(Pos2::new(c.x, body.top() - w * 0.18), w * 0.04, color);
+}
+
+/// Bar chart — AI Usage.
+pub fn paint_chart(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.1).max(1.0), color);
+    // Three bars of increasing height
+    let bar_w = w * 0.15;
+    let xs = [-0.25, 0.0, 0.25];
+    let hs = [0.3, 0.5, 0.7];
+    for (i, &dx) in xs.iter().enumerate() {
+        let h = w * hs[i];
+        let bar = Rect::from_min_size(
+            Pos2::new(c.x + dx * w - bar_w * 0.5, c.y + w * 0.35 - h),
+            Vec2::new(bar_w, h),
+        );
+        painter.rect_filled(bar, egui::Rounding::same(1), color);
+    }
+    // Baseline
+    painter.line_segment(
+        [Pos2::new(c.x - w * 0.4, c.y + w * 0.36), Pos2::new(c.x + w * 0.4, c.y + w * 0.36)],
+        stroke,
+    );
+}
+
+/// Wrench — Tools.
+pub fn paint_wrench(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.13).max(1.0), color);
+    // Diagonal handle
+    painter.line_segment(
+        [Pos2::new(c.x - w * 0.3, c.y + w * 0.3), Pos2::new(c.x + w * 0.2, c.y - w * 0.2)],
+        stroke,
+    );
+    // Open jaw at the top
+    painter.circle_stroke(Pos2::new(c.x + w * 0.25, c.y - w * 0.25), w * 0.13, stroke);
+}
+
+/// Bug — BugReport.
+pub fn paint_bug(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.1).max(1.0), color);
+    // Body oval
+    painter.circle_filled(c, w * 0.25, color);
+    // Two antennae
+    painter.line_segment([Pos2::new(c.x - w * 0.12, c.y - w * 0.18), Pos2::new(c.x - w * 0.25, c.y - w * 0.35)], stroke);
+    painter.line_segment([Pos2::new(c.x + w * 0.12, c.y - w * 0.18), Pos2::new(c.x + w * 0.25, c.y - w * 0.35)], stroke);
+    // Three legs each side
+    for i in 0..3 {
+        let y = c.y - w * 0.1 + i as f32 * w * 0.12;
+        painter.line_segment([Pos2::new(c.x - w * 0.2, y), Pos2::new(c.x - w * 0.4, y + w * 0.05)], stroke);
+        painter.line_segment([Pos2::new(c.x + w * 0.2, y), Pos2::new(c.x + w * 0.4, y + w * 0.05)], stroke);
+    }
+}
+
+/// Clipboard — Testing.
+pub fn paint_clipboard(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.08).max(1.0), color);
+    let body = Rect::from_center_size(c, Vec2::new(w * 0.55, w * 0.7));
+    painter.rect_stroke(body, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    // Tab at the top
+    let tab = Rect::from_center_size(Pos2::new(c.x, body.top() - w * 0.02), Vec2::new(w * 0.25, w * 0.1));
+    painter.rect_filled(tab, egui::Rounding::same(1), color);
+    // Lines inside
+    for i in 0..3 {
+        let y = body.top() + body.height() * (0.35 + 0.2 * i as f32);
+        painter.line_segment([Pos2::new(body.left() + w * 0.08, y), Pos2::new(body.right() - w * 0.08, y)], stroke);
+    }
+}
+
+/// Globe — Browser.
+pub fn paint_globe(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let r = rect.width().min(rect.height()) * 0.4;
+    let stroke = Stroke::new((r * 0.16).max(1.0), color);
+    painter.circle_stroke(c, r, stroke);
+    // Vertical meridian
+    painter.line_segment([Pos2::new(c.x, c.y - r), Pos2::new(c.x, c.y + r)], stroke);
+    // Equator
+    painter.line_segment([Pos2::new(c.x - r, c.y), Pos2::new(c.x + r, c.y)], stroke);
+    // Two latitude curves (approximate as horizontal ellipse arcs)
+    painter.line_segment([Pos2::new(c.x - r * 0.85, c.y - r * 0.45), Pos2::new(c.x + r * 0.85, c.y - r * 0.45)], stroke);
+    painter.line_segment([Pos2::new(c.x - r * 0.85, c.y + r * 0.45), Pos2::new(c.x + r * 0.85, c.y + r * 0.45)], stroke);
+}
+
+/// Router: paint the icon for a given GUI page. Returns true if an icon
+/// was painted, false if the page has no icon assigned (caller can fall
+/// back to a generic placeholder or skip the icon).
+///
+/// Add new nav items here — one match arm + one paint helper above and
+/// the nav bar picks it up automatically.
+pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::GuiPage, color: Color32) -> bool {
+    use crate::gui::GuiPage as P;
+    match page {
+        P::Chat        => { paint_chat(painter, rect, color); true }
+        P::Wallet      => { paint_wallet(painter, rect, color); true }
+        P::Donate      => { paint_heart(painter, rect, color); true }
+        P::Profile     => { paint_person(painter, rect, color); true }
+        P::Identity    => { paint_key(painter, rect, color); true }
+        P::Governance  => { paint_scroll(painter, rect, color); true }
+        P::Recovery    => { paint_lifebuoy(painter, rect, color); true }
+        P::Tasks       => { paint_checklist(painter, rect, color); true }
+        P::Inventory   => { paint_box(painter, rect, color); true }
+        P::Maps        => { paint_pin(painter, rect, color); true }
+        P::Market      => { paint_bag(painter, rect, color); true }
+        P::Crafting    => { paint_hammer(painter, rect, color); true }
+        P::Civilization => { paint_building(painter, rect, color); true }
+        P::Studio      => { paint_palette(painter, rect, color); true }
+        P::Onboarding  => { paint_compass(painter, rect, color); true }
+        P::Agents      => { paint_robot(painter, rect, color); true }
+        P::AiUsage     => { paint_chart(painter, rect, color); true }
+        P::Settings    => { paint_cog(painter, rect, color); true }
+        P::Tools       => { paint_wrench(painter, rect, color); true }
+        P::BugReport   => { paint_bug(painter, rect, color); true }
+        P::Testing     => { paint_clipboard(painter, rect, color); true }
+        P::Browser     => { paint_globe(painter, rect, color); true }
+        _ => false,
+    }
+}
