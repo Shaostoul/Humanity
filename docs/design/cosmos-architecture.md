@@ -1,0 +1,614 @@
+# Cosmos Architecture
+
+Universal model for player position, ship movement, multi-system navigation,
+and "what's nearby right now" — across scales from a player walking inside
+a ship to a fleet crossing interstellar distances.
+
+**Status:** Proposal (2026-05-09)
+**Affects:** `src/gui/pages/maps.rs`, `src/gui/pages/inventory.rs`,
+`src/ecs/`, `src/systems/`, `src/renderer/floating_origin.rs`,
+`src/relay/handlers/game_state.rs`, `data/star_systems/`, `data/galaxy/`,
+`data/ships/`
+**Supersedes:** the Sol-hardcoded `data/solar_system/bodies.json` schema.
+Layers underneath `docs/design/maps-multi-scale.md` (which describes the
+web-side render hierarchy and continues to apply on top of this model).
+
+---
+
+## 1. Why this exists
+
+The game spans 30 orders of magnitude: a player walks the bridge of their
+ship at meter scale, the ship orbits at AU scale, the system sits inside a
+galaxy at light-year scale. No single coordinate triple holds that range
+without losing precision somewhere — `f32` breaks past ~10 km, `f64` past
+~30 AU, fixed-point integers run out at galactic scales.
+
+Every game that solves this (Star Citizen, Elite Dangerous, KSP) uses the
+same two ideas in combination:
+
+1. **Hierarchical positions** — store position as "what container am I
+   inside, and where in that container?" Each level uses local coordinates
+   relative to its parent, keeping precision tight.
+2. **Floating origin** — for rendering, recenter the visible world around
+   the player periodically so the rendered scene stays near the origin
+   regardless of "absolute" galactic position.
+
+We already have the floating-origin half (`src/renderer/floating_origin.rs`,
+wired into `EngineState`). This doc specifies the hierarchy.
+
+---
+
+## 2. The container model
+
+Every entity that has a position — players, ships, NPCs, dropped items —
+stores its position as a **container reference + local offset**:
+
+```rust
+pub struct PositionInUniverse {
+    /// What am I inside / on / near?
+    pub container: ContainerRef,
+    /// Where in the container's local frame? Units depend on container type.
+    pub local_pos: glam::DVec3,
+    /// Facing direction.
+    pub local_rot: glam::DQuat,
+}
+
+pub enum ContainerRef {
+    /// Inside or attached to a ship. local_pos is meters from the ship's
+    /// origin (defined by the ship's RON layout).
+    Ship(ShipId),
+
+    /// On the surface of a celestial body. local_pos is east/north/up
+    /// in meters from the body's surface origin (lat/lon → ECEF-style).
+    Body { system_id: String, body_id: String },
+
+    /// Free-floating in a star system. local_pos is meters from the
+    /// system's barycenter (or its primary star, near enough at this scale).
+    Space { system_id: String },
+
+    /// Free-floating in interstellar space. local_pos is meters within
+    /// a "deep-space chunk" identified by chunk_coord (see §10).
+    Deep { chunk_coord: GalaxyChunkCoord },
+}
+
+pub type ShipId = String;          // e.g. "pioneer-001"
+pub type GalaxyChunkCoord = [i64; 3]; // chunk indices in galaxy octree
+```
+
+Read this as **astronomical addressing**:
+> "I'm in the captain's chair on the bridge of *Pioneer*, which is in
+> orbit around Earth, which is in Sol, which is at galaxy chunk (0,0,0)."
+
+Each level only knows about its parent. To get a player's "world
+position" for rendering, walk up the parent chain summing local frames.
+
+---
+
+## 3. Position composition
+
+The world position of an entity is computed by recursively resolving its
+container chain. Pseudo-code:
+
+```rust
+fn world_position(pos: &PositionInUniverse, world: &World, sim_time: SimTime) -> Vec3DeepSpace {
+    let parent_world = match &pos.container {
+        ContainerRef::Ship(id) => world_position(&world.ships[id].position, world, sim_time),
+        ContainerRef::Body { system_id, body_id } => body_position(system_id, body_id, sim_time),
+        ContainerRef::Space { system_id } => system_barycenter(system_id),
+        ContainerRef::Deep { chunk_coord } => chunk_to_galaxy_pos(chunk_coord),
+    };
+    let parent_rot = ...; // analogous
+    parent_world + parent_rot * pos.local_pos
+}
+```
+
+Notes:
+- `body_position(system, body, t)` is deterministic from orbital elements
+  (Kepler) — anyone with the system data + sim_time computes the same
+  answer. No need to sync body positions.
+- `world.ships[id].position` recurses; ship-in-ship (drone bay → fighter)
+  works naturally up to whatever nesting depth we allow.
+- The chain terminates at `Deep` — chunks live in absolute galactic
+  coordinates.
+
+---
+
+## 4. Movement scenarios
+
+### 4a. Player walks inside the ship
+- `container` doesn't change. `local_pos` updates frame-by-frame from input.
+- High-frequency: synced ~20 Hz over WebSocket like any FPS movement.
+- Bandwidth scope: only peers whose `container` matches need this update.
+
+### 4b. Player walks off the ship onto a planet's surface
+- `container` changes from `Ship(pioneer)` → `Body { system: "sol", body: "earth" }`.
+- This is a discrete event: synced once with `(new_container, new_local_pos)`.
+- The transition point (airlock, ramp) is part of the ship layout; crossing
+  it triggers the swap.
+
+### 4c. Mothership accelerates / changes orbit
+- The ship has its own `PositionInUniverse` with `container = Space { system: "sol" }`.
+- `ship.position.local_pos` updates over time (via orbital mechanics or
+  manual flight controls).
+- **Players inside don't notice anything at the data level.** Their
+  `container` is still `Ship(pioneer)`, their `local_pos` (5 m east of the
+  bridge center) is unchanged.
+- Their **rendered** world position updates because the parent chain
+  resolves with the ship's new position. This is just standard parent-child
+  rigid body relationship.
+
+### 4d. Fleet jumps to deep space
+- Each ship's container transitions `Space { system: "sol" }` → `Deep { chunk_coord }`.
+- Players' containers are still `Ship(...)` — no per-player update needed.
+- During transit, the ship's `chunk_coord` updates as it crosses chunk
+  boundaries.
+
+### 4e. Ship arrives at a new system
+- Ship's container transitions `Deep` → `Space { system: "alpha_centauri" }`.
+- The system's data file (`data/star_systems/alpha_centauri.json`) is loaded
+  if not already cached.
+- Players still don't change container.
+
+### 4f. Ship is destroyed
+See §11. Players inside transition to a fallback container (escape pod,
+nearest body, "void" container with timeout-to-respawn).
+
+---
+
+## 5. The cosmos UI is context-aware
+
+There is **no fixed "Sol system" page**. There is a **Cosmos page** (working
+name) that renders the contents of the player's current container at the
+appropriate scale:
+
+| Player's container | What the Cosmos page shows |
+|--------------------|----------------------------|
+| `Ship(X)` | Ship interior layout (from RON) + crew + the view "out the windows" of the ship's own neighbors |
+| `Body { system, body }` | Local terrain around player + nearby surface entities; zoomable up to system view |
+| `Space { system }` | Player as a dot in the system; all bound bodies + ships in that system |
+| `Deep { chunk_coord }` | Player as a dot in deep space; rogue bodies within R light-years from the galaxy octree |
+
+The same UI handles all four cases by branching on `container` type. Zoom
+gestures cross the scale boundaries per `docs/design/maps-multi-scale.md`.
+
+There is also an **Indoor Map** widget — a small panel showing the player's
+ship interior with the player's `local_pos` as a dot — that's persistent
+regardless of which container the ship itself is in. This is the "Ship Bridge
+viewscreen" the operator described.
+
+---
+
+## 6. Time
+
+**There is one universal simulation time:** `SimTime` in milliseconds since
+the epoch. All position computations are functions of `SimTime`.
+
+```rust
+pub struct SimTime(pub u64); // milliseconds since J2000.0
+```
+
+Why a single global time:
+- Body positions (orbital mechanics) need a time input. Two players looking
+  at Mars must agree on where Mars is.
+- Replays / synchronization need deterministic playback.
+
+**Time speed is server-controlled** with per-region overrides:
+- Default speed: 1× real time (a real second = a sim second).
+- Inside a "fast travel" volume (between systems): 100×–10000× by
+  vote / per-fleet captain authority.
+- Combat / crowded scenes: forced to 1× to keep things fair.
+
+The relay is the source of truth. Clients receive `(sim_time_ms, sim_speed)`
+periodically; clients interpolate between updates.
+
+**Trade-off accepted:** a single global time means players can't be on
+different "speeds" at once. This is a deliberate simplification — relativistic
+time dilation is out of scope. All players in a fleet experience the same
+sim seconds.
+
+---
+
+## 7. Authority — who owns what mutable state
+
+| State | Authority | Sync model |
+|-------|-----------|------------|
+| Player position (`local_pos` within container) | Player's own client | Client pushes ~20 Hz to relay; relay broadcasts to peers in same container |
+| Player container change | Relay validates (legal transition?); relay broadcasts | Event-driven |
+| Ship position when piloted | The piloting client | Client pushes ~5 Hz; relay broadcasts to all subscribed clients |
+| Ship position when on autopilot | Relay-authoritative (NPC orchestrator) | Relay computes + broadcasts |
+| Ship container change | Relay validates + broadcasts | Event-driven |
+| Body position | Deterministic from orbital elements + sim_time | NEVER synced; computed locally |
+| Rogue body position (procedural) | Deterministic from seed + chunk + sim_time | NEVER synced; computed locally |
+| NPC ships | Relay-authoritative | Relay broadcasts |
+| Sim time + speed | Relay | Periodic gossip + on-change events |
+
+**Rule of thumb:** if it's deterministic, don't sync it — re-derive it. If
+multiple humans can mutate it, the relay validates and is the source of truth.
+
+---
+
+## 8. Multiplayer sync detail
+
+Three frequency tiers:
+
+**High-frequency (per-frame-ish):**
+- Player local_pos within container — only sent to peers in the same container.
+- Ship position when manually piloted — sent to all subscribers of that ship.
+
+**Medium-frequency (~1 Hz):**
+- Ship orbital state when on autopilot.
+- Sim time gossip.
+
+**Event-driven (sporadic, signed):**
+- Container transitions (player boards ship; ship jumps to deep space).
+- Ship destruction.
+- Sim speed changes.
+
+**Subscription model:** a client subscribes to update streams it cares about.
+By default a client subscribes to:
+- Its own player.
+- Its current container's ship (if any) and that ship's neighbors in its
+  parent container.
+- All other players in the same container as the player.
+
+**Bandwidth scaling:**
+- N players in one ship = N × N high-freq position updates if everyone
+  subscribes to everyone. Mitigation: spatial culling within the ship —
+  only subscribe to peers within visible range or same room.
+- Many ships in a system: subscribe coarsely to ship positions, finely
+  only to the ship the player is on.
+
+---
+
+## 9. Persistence
+
+**Stored per-player:**
+- `PositionInUniverse` (the player's container ref + local_pos).
+- Inventory, profile, etc. (already exists).
+
+**Stored per-ship:**
+- Ship ID, layout reference (which RON file), current `PositionInUniverse`,
+  velocity vector if moving, owner public key, crew list (player keys with
+  permissions).
+
+**Stored per-system / per-body:**
+- Static data: name, mass, orbital elements, atmosphere, etc. — all in
+  `data/star_systems/{system}.json`. Never mutated at runtime.
+
+**Computed, NOT stored:**
+- Body world positions at any sim_time.
+- Rogue body positions in any chunk.
+- Player world positions (always computed from container chain).
+
+**Universe state file growth:** scales with players + ships, not with
+bodies or rogues. A million players + 100k ships ≈ ~100 MB of state.
+Manageable.
+
+---
+
+## 10. Galaxy spatial index + procedural rogues
+
+For "what's near my fleet right now in deep space" queries we need a
+spatial index over the entire galaxy. This index has two layers:
+
+**Layer 1 — Known bodies (bound to systems):**
+- Source: `data/star_systems/index.json` lists every system with its
+  `galaxy_position_ly`.
+- Built into an octree at startup. Fast point/sphere queries.
+
+**Layer 2 — Rogue interstellar bodies (NOT bound to any system):**
+- Procedurally generated per chunk. A chunk is a 1 ly cube indexed by
+  `(i, j, k)` where each is `floor(galaxy_pos_ly / 1.0)`.
+- Per-chunk content is deterministic from `hash(galaxy_seed, i, j, k)`:
+  - 0-3 rogue asteroids per chunk (Poisson-distributed, density tunable).
+  - Occasional rogue planet (rare, ~1 per 1000 chunks).
+- This means **no rogue bodies are stored** — they're computed on demand
+  from seed + chunk coordinate. Two clients computing the contents of
+  chunk (5, 12, -3) get identical rogues.
+- Resource gathering from a rogue mutates per-chunk-state (stored sparsely
+  in the relay's `rogue_state` table) — only chunks with mutations get
+  storage rows.
+
+**"What's nearby" query** (called when player container is `Deep`):
+1. Compute galaxy chunks within R ly of player.
+2. For each chunk: union of (known bodies in chunk) + (procedural rogues
+   from seed) + (any modifications from `rogue_state` table).
+3. Return as the indoor map's content.
+
+---
+
+## 11. Edge cases
+
+### Container destroyed (ship blows up)
+- All entities inside the ship transition to `Body(emergency_pod)` — a
+  default escape vessel that drifts at the ship's last position.
+- If no emergency pod available, transition to a `Void` container that
+  schedules respawn at a player-chosen home location after N seconds.
+
+### Container teleport (ship jumps to deep space)
+- Smooth client-side: cross-fade between renderers (system view → deep
+  space view) over ~1 second. Player sees the transition cinematically.
+- The container ref change is a single discrete event regardless.
+
+### Container nested deeply
+- Support up to N=4 levels (player → fighter → carrier → space). Beyond
+  that the position composition cost grows linearly with depth, which is
+  fine but the UX gets confusing.
+- Enforce N=4 limit in the validator (relay-side).
+
+### Network partition while inside a moving ship
+- Client keeps rendering at last-known ship velocity (dead reckoning).
+- On reconnect, snap to authoritative position with a brief visual
+  interpolation.
+
+### Two players "piloting" the same ship
+- Pilot is a role attached to a specific seat (defined in ship RON).
+- Only the player currently occupying that seat has piloting authority.
+- Sitting down acquires the role atomically (relay-validated).
+
+### Cross-server fleet movement (federation)
+- A ship in `Space { system: "sol" }` on relay A can transit to a system
+  hosted on relay B.
+- Mid-transit, the ship's container is `Deep` — no relay authority needed
+  for the spatial position.
+- On arrival, ship + crew migrate to relay B's authority. Federation
+  handshake transfers ship state.
+- Out of scope for v1, but the model accommodates it.
+
+---
+
+## 12. Renderer integration
+
+The existing floating origin (`src/renderer/floating_origin.rs`) handles
+the "keep render coordinates near zero" half. With this model:
+
+- **Per frame**: compute the player's world position from their container chain.
+- Pass that world position to `FloatingOrigin::recenter_if_needed()`.
+- All other entities the renderer cares about (bodies, ships, other players)
+  also resolve their world positions from their container chains; floating
+  origin shifts them to the same render frame.
+- LOD: nearby bodies render with detail, distant bodies as billboards.
+- Skybox: in `Space` or `Deep` containers, the skybox is "what's far away"
+  — paint stars from `data/galaxy/skybox_catalog.json` plus large nearby
+  bodies as proper geometry.
+
+---
+
+## 13. Data layout
+
+```
+data/star_systems/
+  index.json             # registry of all known bound systems with galaxy positions
+  sol.json               # all bodies bound to Sol
+  alpha_centauri.json    # placeholder — empty bodies list, just metadata
+  trappist_1.json
+  ...
+  README.md              # schema docs so anyone can drop in new systems
+
+data/galaxy/
+  galaxy_seed.json       # deterministic seed for procedural rogues
+  skybox_catalog.json    # named distant stars for skybox rendering
+  rogue_density.json     # tunable parameters: bodies per chunk, types
+
+data/ships/
+  pioneer.ron            # ship layout (existing convention from src/ship/)
+  freighter_class.ron
+  fighter_class.ron
+  emergency_pod.ron      # default escape vessel
+  ...
+```
+
+**Per-system file shape** (`data/star_systems/sol.json`):
+
+```json
+{
+  "id": "sol",
+  "name": "Solar System",
+  "primary_star": "sun",
+  "galaxy_position_ly": [0, 0, 0],
+  "epoch": "J2000.0",
+  "bodies": [
+    { "id": "sun",   "type": "star",   "physical": {...}, "orbit": null },
+    { "id": "earth", "type": "planet", "physical": {...}, "orbit": {
+        "parent": "sun",
+        "semi_major_axis_au": 1.0,
+        "eccentricity": 0.0167,
+        "inclination_deg": 7.155,
+        "longitude_of_ascending_node_deg": -11.26064,
+        "argument_of_periapsis_deg": 114.20783,
+        "mean_anomaly_at_epoch_deg": 358.617
+    }},
+    ...
+  ]
+}
+```
+
+**Index file shape** (`data/star_systems/index.json`):
+
+```json
+{
+  "systems": [
+    {
+      "id": "sol",
+      "name": "Solar System",
+      "primary_star_name": "Sun",
+      "spectral_class": "G2V",
+      "galaxy_position_ly": [0, 0, 0],
+      "distance_from_sol_ly": 0
+    },
+    {
+      "id": "alpha_centauri",
+      "name": "Alpha Centauri",
+      "primary_star_name": "Alpha Centauri A",
+      "spectral_class": "G2V",
+      "galaxy_position_ly": [-1.348, -3.972, -1.535],
+      "distance_from_sol_ly": 4.367
+    }
+  ]
+}
+```
+
+---
+
+## 14. Implementation phases
+
+This is multi-month work. Phases sized to ship in 1–3 release cycles each.
+
+**Phase 1 — Data restructure (no code change to position model yet)**
+- Move `data/solar_system/bodies.json` → `data/star_systems/sol.json`
+  with the wrapper schema above.
+- Create `data/star_systems/index.json` with Sol entry.
+- Update existing `parse_bodies()` loader to read from new paths.
+- Verify: nothing visible to the user changes.
+
+**Phase 2 — Position model in ECS**
+- Add `PositionInUniverse` component.
+- Add `Container` resource (the container graph: ship → parent, etc.).
+- Refactor existing player position to use `PositionInUniverse` with
+  default container `Body { system: "sol", body: "earth" }`.
+- World-position resolver function.
+- No UI change yet.
+
+**Phase 3 — Cosmos page (context-aware)**
+- New `pages/cosmos.rs`. Renders based on player's container.
+- Replaces the dead-code orbit visualization in `maps.rs`.
+- Multi-system data already loaded; system switcher dropdown for testing.
+- Indoor Map widget for ship interior view.
+
+**Phase 4 — Ship as a container**
+- Add `ShipId` + `Ship` storage.
+- Layout-driven interior (RON file → walkable rooms).
+- Player can transition `Body(earth) ↔ Ship(pioneer)` via airlock event.
+
+**Phase 5 — Ship movement + sync**
+- ECS system updates ship `local_pos` based on velocity / orbital state.
+- WS messages for `ship_position_update`, `container_transition`.
+- Multiple clients see the same ship motion.
+
+**Phase 6 — Deep space + galaxy octree**
+- Galaxy octree built at startup from `index.json`.
+- `Deep` container support.
+- Rogue body procedural generation.
+- Ship transit between systems.
+
+**Phase 7 — Time controls**
+- Sim time gossip.
+- Sim speed control + voting.
+
+**Phase 8 — Edge cases + polish**
+- Ship destruction, escape pods, cross-server transit, etc.
+
+Each phase is independently shippable — the model degrades gracefully.
+
+---
+
+## 15. Open questions (decisions still to make)
+
+These are deliberate punts. Each will surface as a real choice during
+implementation; capturing them here so we don't pretend they're settled.
+
+1. **Time speed authority.** Server-wide vs per-fleet vs per-region? The
+   doc proposes server-with-region-overrides; if the operator's vision is
+   fleet-controlled time (a single ship can engage warp), that needs a
+   different sync model.
+
+2. **Procedural rogue density.** How many asteroids per cubic light-year?
+   What fraction are minable? What fraction have rare materials? Tuning
+   knob in `data/galaxy/rogue_density.json`.
+
+3. **Save format.** Position state on the relay: SQLite columns vs separate
+   binary file. SQLite is easier to query; binary is faster for periodic
+   snapshots. Probably SQLite for now (we already have `relay.db`).
+
+4. **NPC ship orchestration.** Per-relay (each relay simulates the NPCs in
+   its systems) or per-fleet (a designated client AI runs the NPCs)?
+
+5. **Player death + respawn.** Where does a dead player respawn? Home
+   planet (chosen during onboarding)? Random nearby body? Owner's ship?
+
+6. **Ship ownership / crew permissions.** Ship has owner + crew roles
+   (captain, navigator, gunner, passenger). What's the permission model?
+   Captain can promote crew? Owner can boot anyone?
+
+7. **Cross-server fleet movement.** Federation handshake for ship transit
+   between two relays. Out of scope for v1 but worth designing now so the
+   model doesn't preclude it.
+
+8. **Coordinate precision strategy at the edges.** `f64` for `local_pos`
+   inside `Space` (~AU scale) is fine — 15 digits gives meter precision at
+   AU. Inside `Deep`, chunks are 1 ly cubes; `f64` local_pos within a
+   chunk gives sub-millimeter precision. Inside `Body` surface, `f64`
+   gives sub-millimeter at planetary radii. **All good.**
+
+9. **Unit conventions.** Suggest: SI throughout (meters, seconds, kg) for
+   storage and math. Convert to AU / ly / km only for display. The current
+   data files mix km and AU; restructure to standardize.
+
+10. **Asteroid belt vs individual asteroid.** The Sol asteroid belt has
+    millions of bodies. Storing each is impractical. Strategy: belt is a
+    `region` with density parameters; individual asteroids generated
+    procedurally per chunk like rogues. Major named asteroids (Ceres,
+    Vesta, etc.) stored explicitly; the rest are procedural.
+
+---
+
+## 16. What changes vs today
+
+| Today | After this design lands |
+|-------|------------------------|
+| Player has `Vec3` world position | Player has `PositionInUniverse` (container + local) |
+| Sol bodies in `data/solar_system/bodies.json` | Sol bodies in `data/star_systems/sol.json`, plus `index.json` registry |
+| `parse_bodies()` loads one embedded JSON | `load_system(id)` loads any system on demand |
+| Map page renders Sol orbit hardcoded | Cosmos page renders contents of player's current container |
+| Ship is a render-only model | Ship is a container with its own position; players can be inside |
+| No fleet movement | Ships have velocity, update over time, players inherit motion |
+| One solar system | Many systems + interstellar deep space + procedural rogues |
+| Single-relay assumption | Federation-friendly transit between relays |
+
+---
+
+## 17. Things this doc does NOT cover (separate design needed)
+
+- **Combat + damage.** Ships taking damage, how that affects movement,
+  destruction conditions.
+- **Resource gathering mechanics.** What it looks like when a ship
+  approaches a rogue asteroid and starts mining.
+- **Crafting + ship construction.** How players build new ships.
+- **Economy / trade between fleets.** Marketplace model already exists for
+  flat goods; ship-to-ship trade across systems is unspecified.
+- **Stargate / wormhole / warp drive.** Faster-than-light specifics. The
+  architecture supports any FTL model — it's just "ship transitions to
+  Deep, eventually transitions out" — but the in-game mechanics aren't
+  defined.
+- **AI agents living in the world.** AI agents are first-class citizens
+  per the platform mission; their position model is the same as players,
+  but governance / permissions for AI movement isn't defined here.
+
+---
+
+## 18. Pre-implementation checklist
+
+Before Phase 1 ships, these need confirmation from the operator:
+
+- [ ] Is the universal sim_time model OK, or do you want fleet-controlled time?
+- [ ] Confirm the four `ContainerRef` variants cover everything you've imagined.
+- [ ] Confirm the unit convention (SI internally, display in AU/ly/km).
+- [ ] Confirm the procedural rogue model (deterministic from seed) vs
+      hand-authored interstellar bodies.
+- [ ] Confirm Sol restructure is safe — no other code I haven't found
+      depends on the current `data/solar_system/bodies.json` path.
+- [ ] Confirm the doc captures what you've been thinking about, or flag
+      gaps.
+
+---
+
+## 19. References
+
+- `docs/design/maps-multi-scale.md` — web-side render hierarchy (galaxy →
+  street); continues to apply on top of this model
+- `docs/design/infinite-of-x.md` — design rule this whole doc is in service of
+- `src/renderer/floating_origin.rs` — existing floating origin
+- `src/ship/` — ship layout parser (Fibonacci spiral generator)
+- `src/ecs/` — hecs ECS where the position component will live
+- `data/solar_system/bodies.json` — current single-system data, slated for
+  restructure in Phase 1
