@@ -17,6 +17,11 @@ pub struct AppConfig {
     pub server_url: String,
     pub user_name: String,
     pub public_key_hex: String,
+    /// LEGACY: kept for backwards-compatible deserialization of pre-v0.197
+    /// configs that still have the field. The Real/Sim toggle was removed
+    /// in v0.197.0; this field is read but ignored. New configs serialize
+    /// it for compatibility with old binaries on the same machine.
+    #[serde(default)]
     pub context_real: bool,
     pub completed_onboarding: bool,
     // Settings
@@ -291,7 +296,10 @@ impl AppConfig {
             server_url: state.server_url.clone(),
             user_name: state.user_name.clone(),
             public_key_hex: state.profile_public_key.clone(),
-            context_real: state.context_real,
+            // v0.197.0: context_real removed from GuiState. Always
+            // serialize true so old binaries on the same machine still
+            // see "real mode" if they read the config.
+            context_real: true,
             completed_onboarding: state.onboarding_complete,
             fov: state.settings.fov,
             mouse_sensitivity: state.settings.mouse_sensitivity,
@@ -343,7 +351,7 @@ impl AppConfig {
         if !self.public_key_hex.is_empty() {
             state.profile_public_key = self.public_key_hex.clone();
         }
-        state.context_real = self.context_real;
+        // v0.197.0: context_real removed from GuiState — apply step skipped.
         state.onboarding_complete = self.completed_onboarding;
         state.settings.fov = self.fov;
         state.settings.mouse_sensitivity = self.mouse_sensitivity;

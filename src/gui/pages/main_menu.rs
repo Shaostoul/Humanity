@@ -179,23 +179,10 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 
     ui.add_space(12.0);
-
-    // Context mode selection
-    ui.horizontal(|ui| {
-        ui.add_space(40.0);
-        ui.label(RichText::new("Default Mode:").size(14.0).color(theme.text_primary()));
-    });
-    ui.add_space(4.0);
-    ui.horizontal(|ui| {
-        ui.add_space(40.0);
-        ui.radio_value(&mut state.context_real, true, "Real (life tools, real notifications)");
-    });
-    ui.horizontal(|ui| {
-        ui.add_space(40.0);
-        ui.radio_value(&mut state.context_real, false, "Sim (game mode, simulation notifications)");
-    });
-
-    ui.add_space(12.0);
+    // v0.197.0: removed Real/Sim default-mode radio. Real/Sim toggle
+    // and concept removed app-wide — pages commit to Real and
+    // game-mode equivalents (FPS, in-world inventory, etc.) live
+    // inside the game loop, not as toggleable views.
 
     // ── Recover from Seed Phrase ──
     ui.horizontal(|ui| {
@@ -294,13 +281,12 @@ fn draw_step_ready(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         ui.add_space(8.0);
 
-        let mode = if state.context_real { "Real" } else { "Sim" };
         let server_status = if state.server_connected {
             format!("Connected to {}", state.server_url)
         } else {
             "Offline mode".to_string()
         };
-        ui.label(RichText::new(format!("Mode: {} | {}", mode, server_status)).size(13.0).color(theme.text_secondary()));
+        ui.label(RichText::new(server_status).size(13.0).color(theme.text_secondary()));
 
         ui.add_space(40.0);
 
@@ -339,9 +325,8 @@ fn draw_hub(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.label(RichText::new("End poverty. Unite humanity.").size(theme.font_size_body).color(theme.text_secondary()));
                 ui.add_space(8.0);
 
-                let mode = if state.context_real { "Real" } else { "Sim" };
                 let status = if state.server_connected { "Online" } else { "Offline" };
-                ui.label(RichText::new(format!("{} | {}", mode, status)).size(12.0).color(theme.text_muted()));
+                ui.label(RichText::new(status).size(12.0).color(theme.text_muted()));
 
                 ui.add_space(24.0);
 

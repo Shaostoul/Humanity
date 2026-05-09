@@ -1,5 +1,9 @@
-//! Civilization dashboard — community stats (Real) or colony stats (Sim).
-//! 3-column stats grid, trend arrows, progress bars, events timeline, charts placeholder.
+//! Civilization dashboard — community stats. v0.197.0: previously
+//! branched on `context_real` to show "Community Dashboard" for real
+//! mode vs "Colony Dashboard" for sim mode. Operator removed the
+//! Real/Sim toggle — this page commits to the Real (community)
+//! framing. The colony / sim variant would live as a separate page
+//! reachable from inside the FPS gameplay if reintroduced later.
 
 use egui::{Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::GuiState;
@@ -7,47 +11,27 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let is_real = state.context_real;
-    let title = if is_real { "Community Dashboard" } else { "Colony Dashboard" };
-
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(title)
-                        .size(theme.font_size_title)
-                        .color(theme.text_primary()),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let mode_label = if is_real { "Real" } else { "Sim" };
-                    widgets::badge(ui, theme, mode_label, theme.accent());
-                });
-            });
+            ui.label(
+                RichText::new("Community Dashboard")
+                    .size(theme.font_size_title)
+                    .color(theme.text_primary()),
+            );
 
             ui.add_space(theme.spacing_md);
 
             ScrollArea::vertical().show(ui, |ui| {
-                // Stats definitions with trend arrows
-                let stats: Vec<(&str, String, &str, f32)> = if is_real {
-                    vec![
-                        ("Population", state.civ_population.to_string(), "+12", 0.0),
-                        ("Buildings Built", state.civ_buildings.to_string(), "+3", 0.0),
-                        ("Resources Gathered", state.civ_resources.to_string(), "+45", 0.0),
-                        ("Technology Level", format!("Level {}", state.civ_tech_level), "", civ_tech_progress(state.civ_tech_level)),
-                        ("Food Supply", format!("{:.0}%", state.civ_food * 100.0), "", state.civ_food),
-                        ("Energy Production", format!("{:.0}%", state.civ_energy * 100.0), "", state.civ_energy),
-                    ]
-                } else {
-                    vec![
-                        ("Colonists", state.civ_population.to_string(), "+5", 0.0),
-                        ("Structures", state.civ_buildings.to_string(), "+2", 0.0),
-                        ("Stockpile", state.civ_resources.to_string(), "+28", 0.0),
-                        ("Research Tier", format!("Tier {}", state.civ_tech_level), "", civ_tech_progress(state.civ_tech_level)),
-                        ("Food Reserves", format!("{:.0}%", state.civ_food * 100.0), "", state.civ_food),
-                        ("Power Grid", format!("{:.0}%", state.civ_energy * 100.0), "", state.civ_energy),
-                    ]
-                };
+                // Real-mode stats (community framing).
+                let stats: Vec<(&str, String, &str, f32)> = vec![
+                    ("Population", state.civ_population.to_string(), "+12", 0.0),
+                    ("Buildings Built", state.civ_buildings.to_string(), "+3", 0.0),
+                    ("Resources Gathered", state.civ_resources.to_string(), "+45", 0.0),
+                    ("Technology Level", format!("Level {}", state.civ_tech_level), "", civ_tech_progress(state.civ_tech_level)),
+                    ("Food Supply", format!("{:.0}%", state.civ_food * 100.0), "", state.civ_food),
+                    ("Energy Production", format!("{:.0}%", state.civ_energy * 100.0), "", state.civ_energy),
+                ];
 
                 // 3-column stats grid
                 egui::Grid::new("civ_stats_grid_3col")
@@ -64,18 +48,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 ui.add_space(theme.spacing_md);
 
-                // Key metrics with progress bars
-                let metrics: Vec<(&str, f32)> = if is_real {
-                    vec![
-                        ("Water Supply", state.civ_water),
-                        ("Happiness", state.civ_happiness),
-                    ]
-                } else {
-                    vec![
-                        ("Water Recycling", state.civ_water),
-                        ("Morale", state.civ_happiness),
-                    ]
-                };
+                // Key metrics with progress bars (real-mode framing).
+                let metrics: Vec<(&str, f32)> = vec![
+                    ("Water Supply", state.civ_water),
+                    ("Happiness", state.civ_happiness),
+                ];
 
                 widgets::card(ui, theme, |ui| {
                     ui.label(

@@ -328,30 +328,38 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(Frame::none().fill(Color32::from_rgb(8, 8, 14)).inner_margin(0.0))
         .show(ctx, |ui| {
-            // Header bar
+            // Header bar. v0.197.0: removed Real/Sim toggle. Page commits
+            // to Real (earth) framing. The orbit visualization that was
+            // previously the Sim branch lives in `draw_solar_system_view`
+            // below — currently unreachable but preserved for revival as
+            // a separate SolarSystem page when operator requests it.
             ui.horizontal(|ui| {
                 ui.add_space(theme.panel_margin);
-                ui.label(RichText::new("Solar System Map").size(theme.font_size_heading).color(theme.text_primary()));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let mode_text = if state.context_real { "Real" } else { "Sim" };
-                    if widgets::secondary_button(ui, theme, mode_text) {
-                        state.context_real = !state.context_real;
-                    }
-                });
+                ui.label(RichText::new("Map").size(theme.font_size_heading).color(theme.text_primary()));
             });
 
-            if state.context_real {
-                // Real mode: earth focus
-                ui.add_space(theme.spacing_lg);
-                ui.vertical_centered(|ui| {
-                    widgets::card(ui, theme, |ui| {
-                        ui.label(RichText::new("Earth - Real World").size(theme.font_size_heading).color(theme.accent()));
-                        ui.add_space(theme.spacing_xs);
-                        ui.label(RichText::new("Interactive map integration (OpenStreetMap) is planned for the native app.").color(theme.text_secondary()));
-                        ui.label(RichText::new("Use the web version for real-world mapping features.").color(theme.text_muted()));
-                    });
+            // Real (earth) view.
+            ui.add_space(theme.spacing_lg);
+            ui.vertical_centered(|ui| {
+                widgets::card(ui, theme, |ui| {
+                    ui.label(RichText::new("Earth — Real World").size(theme.font_size_heading).color(theme.accent()));
+                    ui.add_space(theme.spacing_xs);
+                    ui.label(RichText::new("Interactive map integration (OpenStreetMap) is planned for the native app.").color(theme.text_secondary()));
+                    ui.label(RichText::new("Use the web version for real-world mapping features.").color(theme.text_muted()));
                 });
-            } else {
+            });
+            // ──────────────────────────────────────────────────────────
+            // The block below was the Sim-mode orbit visualization. It
+            // ran when context_real was false. Operator removed the
+            // toggle so this code is currently unreachable. Wrapped in
+            // `if false` to silence the warning and explicitly mark it
+            // dead code awaiting promotion into its own page.
+            //
+            // To revive: extract into `pub fn draw_solar_system(ctx, theme,
+            // state)` in a new pages/solar_system.rs, add GuiPage::SolarSystem
+            // variant, route it from sub_pages_for("sim"), and add an icon.
+            // ──────────────────────────────────────────────────────────
+            if false {
                 // Sim mode: orbit visualization
                 let available = ui.available_size();
                 let (rect, response) = ui.allocate_exact_size(available, egui::Sense::click_and_drag());

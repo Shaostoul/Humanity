@@ -106,12 +106,12 @@ pub enum GuiPage {
     /// Social key recovery setup + active recovery requests.
     /// Mirrors the web `/recovery` page.
     Recovery,
-    /// Multi-AI agent coordination dashboard: scope registry + status + overrides.
-    /// Mirrors the web `/agents` page.
-    Agents,
-    /// AI subscription quota tracker + usage event log.
-    /// Mirrors the web `/ai-usage` page.
-    AiUsage,
+    // v0.197.0: removed Agents and AiUsage GuiPage variants. Operator
+    // 2026-05-08: "That AI Agents page also seems useless. As well as
+    // the AI usage." Multi-AI orchestration is handled via
+    // data/coordination/* + the relay agent_sessions table — the UI
+    // pages weren't pulling their weight. The page modules + state
+    // fields were removed in the same release.
     /// QA testing tasks — operator-facing checklist of features to manually verify.
     /// Each task has Mark Passed / Report Issue buttons that post results to chat.
     Testing,
@@ -631,8 +631,9 @@ pub struct GuiState {
     pub server_connected: bool,
     /// User display name input.
     pub user_name: String,
-    /// Real/Sim context mode. true = real (default), false = sim.
-    pub context_real: bool,
+    // v0.197.0: removed `context_real`. Real/Sim toggle deleted —
+    // pages commit to Real, game-mode equivalents live inside the
+    // game loop (FPS) rather than as toggleable views.
     /// Default page to load after onboarding (Chat by default).
     pub default_page: GuiPage,
 
@@ -975,8 +976,7 @@ pub struct GuiState {
     pub onboarding_concepts: Vec<OnboardingConcept>,
     /// Onboarding core-page shortcuts (`data/onboarding/core_pages.json`).
     pub onboarding_core_pages: Vec<OnboardingCorePage>,
-    /// AI Usage page filters (`data/ai_usage/filters.json`).
-    pub ai_usage_filters: AiUsageFilters,
+    // v0.197.0: ai_usage_filters removed (AI Usage page deleted).
 
     // ── Universal help modal (loaded from data/help/topics.json) ──
     /// Registry of help topics. Populated at startup from data/help/topics.json.
@@ -1036,17 +1036,7 @@ pub struct GuiState {
     /// Set to true when the Recovery page wants to fetch held shares.
     pub recovery_guardian_pending: bool,
 
-    // ── AI Usage page form state (v0.121.0) ──
-    pub ai_usage_quota_provider: String,
-    pub ai_usage_quota_window: String,
-    pub ai_usage_quota_used: String,
-    pub ai_usage_quota_limit: String,
-    pub ai_usage_quota_resets: String,
-    pub ai_usage_event_provider: String,
-    pub ai_usage_event_model: String,
-    pub ai_usage_event_input: String,
-    pub ai_usage_event_output: String,
-    pub ai_usage_event_notes: String,
+    // v0.197.0: AI Usage page form state removed (page deleted).
 }
 
 #[cfg(feature = "native")]
@@ -1130,7 +1120,6 @@ impl Default for GuiState {
             server_url: "https://united-humanity.us".to_string(),
             server_connected: false,
             user_name: "Player".to_string(),
-            context_real: true,
             default_page: GuiPage::Chat,
 
             // Task board defaults
@@ -1348,7 +1337,7 @@ impl Default for GuiState {
             attack_pulse_last_hit_at: 0.0,
             onboarding_concepts: Vec::new(),
             onboarding_core_pages: Vec::new(),
-            ai_usage_filters: AiUsageFilters::default(),
+            // v0.197.0: ai_usage_filters removed (page deleted).
             help_registry: crate::gui::widgets::help_modal::HelpRegistry::new(),
             active_help_topic: None,
             onboarding_quest_chains: Vec::new(),
@@ -1383,17 +1372,7 @@ impl Default for GuiState {
             recovery_guardian_did: String::new(),
             recovery_guardian_pending: false,
 
-            // AI Usage page form state (v0.121.0)
-            ai_usage_quota_provider: "claude".to_string(),
-            ai_usage_quota_window: "5h".to_string(),
-            ai_usage_quota_used: String::new(),
-            ai_usage_quota_limit: String::new(),
-            ai_usage_quota_resets: String::new(),
-            ai_usage_event_provider: "claude".to_string(),
-            ai_usage_event_model: String::new(),
-            ai_usage_event_input: String::new(),
-            ai_usage_event_output: String::new(),
-            ai_usage_event_notes: String::new(),
+            // v0.197.0: AI Usage page form state removed (page deleted).
         }
     }
 }
@@ -1888,20 +1867,8 @@ pub fn load_onboarding_core_pages(data_dir: &std::path::Path) -> Vec<OnboardingC
         .unwrap_or_default()
 }
 
-/// AI Usage page picker options (providers + time windows).
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, Default, serde::Deserialize)]
-pub struct AiUsageFilters {
-    #[serde(default)] pub providers: Vec<String>,
-    #[serde(default)] pub windows: Vec<String>,
-}
-
-/// Load AI Usage filter options from `data/ai_usage/filters.json`.
-#[cfg(feature = "native")]
-pub fn load_ai_usage_filters(data_dir: &std::path::Path) -> AiUsageFilters {
-    read_data_json::<AiUsageFilters>(data_dir, "ai_usage/filters.json")
-        .unwrap_or_default()
-}
+// v0.197.0: AiUsageFilters and load_ai_usage_filters removed (AI Usage
+// page deleted along with its data/ai_usage/filters.json loader).
 
 /// Load default task project names from `data/tasks/default_projects.json`.
 /// These seed the task board for brand-new identities; existing users keep

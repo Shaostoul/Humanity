@@ -616,8 +616,8 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         P::Civilization => { paint_building(painter, rect, color); true }
         P::Studio      => { paint_palette(painter, rect, color); true }
         P::Onboarding  => { paint_compass(painter, rect, color); true }
-        P::Agents      => { paint_robot(painter, rect, color); true }
-        P::AiUsage     => { paint_chart(painter, rect, color); true }
+        // v0.197.0: Agents + AiUsage variants removed. paint_robot and
+        // paint_chart are kept (other future pages might use them).
         P::Settings    => { paint_cog(painter, rect, color); true }
         P::Tools       => { paint_wrench(painter, rect, color); true }
         P::BugReport   => { paint_bug(painter, rect, color); true }

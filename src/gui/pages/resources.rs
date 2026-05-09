@@ -31,34 +31,16 @@ fn with_state<R>(f: impl FnOnce(&mut ResourcesPageState) -> R) -> R {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let is_real = state.context_real;
-
+    // v0.197.0: previously branched on context_real for Real vs Sim
+    // resource lists. Real/Sim toggle removed — page commits to Real.
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
-            // Header
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("Resources")
-                        .size(theme.font_size_title)
-                        .color(theme.text_primary()),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let mode_label = if is_real { "Real" } else { "Sim" };
-                    let mode_color = if is_real { theme.success() } else { Theme::c32(&theme.info) };
-                    egui::Frame::none()
-                        .fill(mode_color)
-                        .rounding(Rounding::same(3))
-                        .inner_margin(Vec2::new(8.0, 3.0))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new(mode_label)
-                                    .size(theme.font_size_small)
-                                    .color(Color32::WHITE),
-                            );
-                        });
-                });
-            });
+            ui.label(
+                RichText::new("Resources")
+                    .size(theme.font_size_title)
+                    .color(theme.text_primary()),
+            );
             ui.separator();
 
             ui.columns(2, |cols| {
@@ -110,11 +92,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         cols[1].label(RichText::new("No resources loaded.").color(theme.text_muted()));
                         return;
                     };
-                    let resources: &[crate::gui::ResourceEntry] = if is_real {
-                        &cat.real_resources
-                    } else {
-                        &cat.sim_resources
-                    };
+                    // Real-mode list only (sim list ignored — toggle removed v0.197.0).
+                    let resources: &[crate::gui::ResourceEntry] = &cat.real_resources;
 
                     cols[1].label(
                         RichText::new(cat.name.as_str())

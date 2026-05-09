@@ -33,8 +33,9 @@ pub mod server_settings;
 pub mod identity;
 pub mod governance;
 pub mod recovery;
-pub mod agents;
-pub mod ai_usage;
+// v0.197.0: agents and ai_usage page modules removed. The multi-AI
+// orchestration infrastructure (data/coordination/* + relay
+// agent_sessions table) is unaffected — only the UI surface is gone.
 pub mod testing;
 pub mod browser;
 pub mod category_overview;

@@ -111,11 +111,14 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Blue group: system
+                // Blue group: system. v0.197.0: removed Agents and AI
+                // Usage — operator: "That AI Agents page also seems
+                // useless. As well as the AI usage." Multi-AI orchestration
+                // is handled via data/coordination/* + relay-side
+                // agent_sessions storage; the UI page wasn't pulling its
+                // weight. Quota tracking moves out of the app.
                 let blue_items = [
                     NavItem { label: "Onboarding", page: GuiPage::Onboarding, description: "" },
-                    NavItem { label: "Agents", page: GuiPage::Agents, description: "" },
-                    NavItem { label: "AI Usage", page: GuiPage::AiUsage, description: "" },
                     NavItem { label: "Settings", page: GuiPage::Settings, description: "" },
                     NavItem { label: "Tools", page: GuiPage::Tools, description: "" },
                     NavItem { label: "Bugs", page: GuiPage::BugReport, description: "" },
@@ -124,92 +127,16 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 ];
                 nav_group(ui, &blue_items, theme.nav_legacy_blue(), text_muted, theme, state);
 
-                // Push Real/Sim toggle to the right.
-                // Render order in right_to_left: first = rightmost. So:
-                //   help_btn → sim → real  ⇒  visual order: [Real][Sim][?]
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-
-                    // Help "?" button for the Real/Sim toggle
-                    ui.add_space(4.0);
-                    let help_size = Vec2::new(18.0, 18.0);
-                    let (help_rect, help_resp) = ui.allocate_exact_size(help_size, Sense::click());
-                    if ui.is_rect_visible(help_rect) {
-                        let (stroke_color, text_color) = if help_resp.hovered() {
-                            (accent, accent)
-                        } else {
-                            (border, text_muted)
-                        };
-                        let painter = ui.painter();
-                        painter.circle_stroke(help_rect.center(), 8.0, Stroke::new(1.0, stroke_color));
-                        painter.text(
-                            help_rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            "?",
-                            egui::FontId::proportional(10.0),
-                            text_color,
-                        );
-                    }
-                    if help_resp.clicked() {
-                        state.active_help_topic = Some("real-sim".to_string());
-                    }
-                    ui.add_space(4.0);
-                    // v0.196.0: removed the 2T (two-tier) layout toggle.
-                    // Operator decided the single-row nav is cleaner and
-                    // we want fewer pages overall, not more nav layers.
-
-                    let sim_active = !state.context_real;
-                    let real_active = state.context_real;
-
-                    // Sim button — uses the same purple as the two-tier
-                    // nav's Sim category so the design language matches.
-                    let sim_color = if sim_active {
-                        theme.nav_sim()
-                    } else {
-                        border
-                    };
-                    let sim_btn = ui.add(
-                        egui::Button::new(
-                            RichText::new("Sim").size(11.0).color(if sim_active {
-                                Color32::WHITE
-                            } else {
-                                text_muted
-                            }),
-                        )
-                        .fill(sim_color)
-                        .rounding(Rounding {
-                            nw: 0, ne: 4, se: 4, sw: 0,
-                        })
-                        .min_size(Vec2::new(36.0, 22.0)),
-                    );
-                    if sim_btn.clicked() {
-                        state.context_real = false;
-                    }
-
-                    // Real button
-                    let real_color = if real_active {
-                        accent
-                    } else {
-                        border
-                    };
-                    let real_btn = ui.add(
-                        egui::Button::new(
-                            RichText::new("Real").size(11.0).color(if real_active {
-                                Color32::BLACK
-                            } else {
-                                text_muted
-                            }),
-                        )
-                        .fill(real_color)
-                        .rounding(Rounding {
-                            nw: 4, ne: 0, se: 0, sw: 4,
-                        })
-                        .min_size(Vec2::new(36.0, 22.0)),
-                    );
-                    if real_btn.clicked() {
-                        state.context_real = true;
-                    }
-                });
+                // v0.197.0: removed the Real/Sim toggle entirely along
+                // with the help "?" button that explained it. Operator
+                // 2026-05-08: "Let's remove the real/sim button too and
+                // that functionality. We'll keep the pages separate.
+                // Real inventory page should be different than game
+                // inventory page as to avoid confusion." Pages that
+                // previously branched on `state.context_real` now commit
+                // to their Real-mode rendering. Game-mode equivalents
+                // (e.g. inventory in FPS gameplay) are accessed from
+                // within the game loop via Tab, not from this nav bar.
             });
         });
 
@@ -594,8 +521,6 @@ fn sub_pages_for(category: &str) -> Vec<NavItem> {
         "dev" => vec![
             NavItem { label: "Testing",  page: GuiPage::Testing,   description: "QA checklist; Mark Passed / Report Issue posts to chat." },
             NavItem { label: "Bugs",     page: GuiPage::BugReport, description: "Submit bug reports with severity + category." },
-            NavItem { label: "Agents",   page: GuiPage::Agents,    description: "Multi-AI scope coordination dashboard." },
-            NavItem { label: "AI Usage", page: GuiPage::AiUsage,   description: "AI subscription quota tracker + usage log." },
             NavItem { label: "Files",    page: GuiPage::Files,     description: "Browse + edit text files in the data/ directory." },
         ],
         _ => Vec::new(),

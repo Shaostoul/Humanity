@@ -60,7 +60,7 @@ mod native_app {
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, maps, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
-        onboarding, server_settings, identity, governance, recovery, agents, ai_usage, testing,
+        onboarding, server_settings, identity, governance, recovery, testing,
         browser, category_overview, settings_pages,
     };
     use crate::gui::widgets::help_modal;
@@ -649,7 +649,7 @@ mod native_app {
             gui_state.browser_bookmarks = crate::gui::load_browser_bookmarks(&data_dir);
             gui_state.onboarding_concepts = crate::gui::load_onboarding_concepts(&data_dir);
             gui_state.onboarding_core_pages = crate::gui::load_onboarding_core_pages(&data_dir);
-            gui_state.ai_usage_filters = crate::gui::load_ai_usage_filters(&data_dir);
+            // v0.197.0: ai_usage_filters loader removed.
             // Note: TaskPageState reads data/tasks/default_projects.json itself
             // on its first lazy-init (it's a thread-local in pages/tasks.rs).
             // Populate the live studio state from the loaded presets.
@@ -2248,8 +2248,7 @@ mod native_app {
                                     GuiPage::Identity => identity::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Governance => governance::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Recovery => recovery::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Agents => agents::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::AiUsage => ai_usage::draw(ctx, &state.theme, &mut state.gui_state),
+                                    // v0.197.0: GuiPage::Agents and GuiPage::AiUsage removed.
                                     GuiPage::Testing => testing::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Browser => browser::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::OverviewReality  => category_overview::draw(ctx, &state.theme, &mut state.gui_state, "reality"),
