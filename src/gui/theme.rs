@@ -330,8 +330,13 @@ impl Theme {
         self.accent_hover = (1.0, 0.651, 0.239, 1.0);     // #FFA63D
         self.accent_pressed = (0.8, 0.451, 0.098, 1.0);   // #CC7319
         self.text_primary = (0.910, 0.910, 0.918, 1.0);   // #e8e8ea
-        self.text_secondary = (0.533, 0.533, 0.580, 1.0); // #888894
-        self.text_muted = (0.416, 0.416, 0.459, 1.0);     // #6a6a75
+        // v0.195.0: brighten secondary + muted to address operator's
+        // astigmatism — the old #888894 / #6a6a75 grays were hard to
+        // read against tinted card backgrounds without glasses.
+        // Hierarchy preserved: primary > secondary > muted, just shifted
+        // up the brightness scale.
+        self.text_secondary = (0.706, 0.706, 0.745, 1.0); // #b4b4be (was #888894)
+        self.text_muted = (0.580, 0.580, 0.624, 1.0);     // #94949f (was #6a6a75)
         self.text_on_accent = (1.0, 1.0, 1.0, 1.0);
         self.success = (0.165, 0.722, 0.439, 1.0);        // #2AB870
         self.warning = (0.961, 0.722, 0.231, 1.0);        // #F5B83B
@@ -514,8 +519,10 @@ fn default_theme() -> Theme {
         accent_hover: (1.0, 0.65, 0.24, 1.0),
         accent_pressed: (0.8, 0.45, 0.10, 1.0),
         text_primary: (0.910, 0.910, 0.918, 1.0),     // #e8e8ea
-        text_secondary: (0.533, 0.533, 0.580, 1.0),   // #888894
-        text_muted: (0.416, 0.416, 0.459, 1.0),       // #6a6a75
+        // v0.195.0: brighter secondary + muted for accessibility (see
+        // matching values in `apply_dark_defaults`).
+        text_secondary: (0.706, 0.706, 0.745, 1.0),   // #b4b4be
+        text_muted: (0.580, 0.580, 0.624, 1.0),       // #94949f
         text_on_accent: (0.05, 0.05, 0.05, 1.0),
         success: (0.2, 0.75, 0.3, 1.0),
         warning: (0.95, 0.75, 0.1, 1.0),

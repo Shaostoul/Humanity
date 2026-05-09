@@ -453,6 +453,10 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let dm_count = state.chat_dms.len();
     let display_limit = state.chat_dm_display_limit;
 
+    // Capture the cog's rect from inside the closure so the floating
+    // popup below knows where to anchor. Cell because Rect: Copy and we
+    // need interior mutability across the closure boundary.
+    let cog_rect_cell: std::cell::Cell<Option<egui::Rect>> = std::cell::Cell::new(None);
     let mut dm_cog_clicked = false;
     if tinted_section_header_with_buttons(
         ui,
@@ -463,6 +467,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             let (cog_rect, cog_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
             let cog_color = if cog_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
             crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
+            cog_rect_cell.set(Some(cog_rect));
             if cog_resp.on_hover_text("DM Settings").clicked() {
                 dm_cog_clicked = true;
             }
@@ -471,25 +476,51 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         state.chat_dm_collapsed = !state.chat_dm_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
     }
-    // DM settings popup
+    // Toggle popup open state on cog click.
     if dm_cog_clicked {
-        let menu_id = ui.id().with("dm_settings_menu");
-        ui.memory_mut(|m| m.toggle_popup(menu_id));
+        state.dm_settings_popup_open = !state.dm_settings_popup_open;
     }
-    {
-        let menu_id = ui.id().with("dm_settings_menu");
-        let dummy_resp = ui.allocate_rect(egui::Rect::from_min_size(ui.cursor().min, Vec2::ZERO), egui::Sense::hover());
-        egui::popup_below_widget(ui, menu_id, &dummy_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| {
-            ui.set_min_width(140.0);
-            ui.label(RichText::new("DM Settings").size(theme.font_size_body).color(theme.text_primary()).strong());
-            ui.separator();
-            if ui.button("Clear All DMs").clicked() {
-                state.chat_dms.clear();
+    // Render the popup as a manual floating Area anchored to the cog.
+    // Bypassing egui::popup_below_widget because that machinery uses
+    // CloseOnClick which fires on the SAME FRAME as the trigger click,
+    // making the popup flicker on for one frame then disappear
+    // (operator bug 2026-05-08). Manual Area + close-outside check
+    // that explicitly excludes the trigger click frame is reliable.
+    if state.dm_settings_popup_open {
+        if let Some(cog_rect) = cog_rect_cell.get() {
+            let popup_resp = egui::Area::new(egui::Id::new("dm_settings_popup"))
+                .fixed_pos(egui::pos2(cog_rect.left() - 100.0, cog_rect.bottom() + 4.0))
+                .order(egui::Order::Foreground)
+                .show(ui.ctx(), |ui| {
+                    egui::Frame::popup(ui.style())
+                        .show(ui, |ui| {
+                            ui.set_min_width(140.0);
+                            ui.label(RichText::new("DM Settings").size(theme.font_size_body).color(theme.text_primary()).strong());
+                            ui.separator();
+                            if ui.button("Clear All DMs").clicked() {
+                                state.chat_dms.clear();
+                                state.dm_settings_popup_open = false;
+                            }
+                            if ui.button("DM Notifications").clicked() {
+                                // TODO: toggle DM notifications
+                                state.dm_settings_popup_open = false;
+                            }
+                        });
+                });
+            // Close-on-click-outside — but ignore the trigger-click frame
+            // so opening doesn't immediately close. Click is "outside" if
+            // it lands neither in the popup's rect nor on the cog.
+            if !dm_cog_clicked {
+                let click_outside = ui.ctx().input(|i| {
+                    i.pointer.any_click() && i.pointer.interact_pos().map_or(false, |pos| {
+                        !popup_resp.response.rect.contains(pos) && !cog_rect.contains(pos)
+                    })
+                });
+                if click_outside {
+                    state.dm_settings_popup_open = false;
+                }
             }
-            if ui.button("DM Notifications").clicked() {
-                // TODO: toggle DM notifications
-            }
-        });
+        }
     }
 
     if !collapsed {
@@ -612,6 +643,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let mut create_clicked = false;
     let mut join_clicked = false;
     let mut groups_cog_clicked = false;
+    // Capture the cog's rect from inside the closure for the floating
+    // popup anchor — same pattern as the DM section.
+    let groups_cog_rect_cell: std::cell::Cell<Option<egui::Rect>> = std::cell::Cell::new(None);
 
     if tinted_section_header_with_buttons(
         ui,
@@ -624,6 +658,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 let (cog_rect, cog_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
                 let cog_color = if cog_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
                 crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
+                groups_cog_rect_cell.set(Some(cog_rect));
                 if cog_resp.on_hover_text("Group Settings").clicked() {
                     groups_cog_clicked = true;
                 }
@@ -651,25 +686,44 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         state.chat_groups_collapsed = !state.chat_groups_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
     }
-    // Groups settings popup
+    // Groups settings popup — manual Area, same pattern as DM cog.
+    // Fixes the same flicker bug where popup_below_widget + CloseOnClick
+    // self-closed on the trigger click frame.
     if groups_cog_clicked {
-        let menu_id = ui.id().with("groups_settings_menu");
-        ui.memory_mut(|m| m.toggle_popup(menu_id));
+        state.groups_settings_popup_open = !state.groups_settings_popup_open;
     }
-    {
-        let menu_id = ui.id().with("groups_settings_menu");
-        let dummy_resp = ui.allocate_rect(egui::Rect::from_min_size(ui.cursor().min, Vec2::ZERO), egui::Sense::hover());
-        egui::popup_below_widget(ui, menu_id, &dummy_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| {
-            ui.set_min_width(140.0);
-            ui.label(RichText::new("Groups Settings").size(theme.font_size_body).color(theme.text_primary()).strong());
-            ui.separator();
-            if ui.button("Group Notifications").clicked() {
-                // TODO: toggle group notifications
+    if state.groups_settings_popup_open {
+        if let Some(cog_rect) = groups_cog_rect_cell.get() {
+            let popup_resp = egui::Area::new(egui::Id::new("groups_settings_popup"))
+                .fixed_pos(egui::pos2(cog_rect.left() - 100.0, cog_rect.bottom() + 4.0))
+                .order(egui::Order::Foreground)
+                .show(ui.ctx(), |ui| {
+                    egui::Frame::popup(ui.style())
+                        .show(ui, |ui| {
+                            ui.set_min_width(140.0);
+                            ui.label(RichText::new("Groups Settings").size(theme.font_size_body).color(theme.text_primary()).strong());
+                            ui.separator();
+                            if ui.button("Group Notifications").clicked() {
+                                // TODO: toggle group notifications
+                                state.groups_settings_popup_open = false;
+                            }
+                            if ui.button("Sort by Activity").clicked() {
+                                // TODO: sort groups
+                                state.groups_settings_popup_open = false;
+                            }
+                        });
+                });
+            if !groups_cog_clicked {
+                let click_outside = ui.ctx().input(|i| {
+                    i.pointer.any_click() && i.pointer.interact_pos().map_or(false, |pos| {
+                        !popup_resp.response.rect.contains(pos) && !cog_rect.contains(pos)
+                    })
+                });
+                if click_outside {
+                    state.groups_settings_popup_open = false;
+                }
             }
-            if ui.button("Sort by Activity").clicked() {
-                // TODO: sort groups
-            }
-        });
+        }
     }
 
     if create_clicked {
@@ -943,8 +997,10 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
 
                 // Navigate to server-settings page if a group menu asked for it.
+                // push_nav_to so Esc on ServerSettings returns to Chat
+                // instead of jumping to FPS mode.
                 if open_server_settings {
-                    state.active_page = crate::gui::GuiPage::ServerSettings;
+                    state.push_nav_to(crate::gui::GuiPage::ServerSettings);
                 }
 
                 // Apply group leave (send to server so groups don't come back)
@@ -1132,7 +1188,8 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         if is_server_admin {
                             ui.separator();
                             if ui.button("Server Settings").clicked() {
-                                state.active_page = crate::gui::GuiPage::ServerSettings;
+                                // push_nav_to so Esc returns to Chat.
+                                state.push_nav_to(crate::gui::GuiPage::ServerSettings);
                             }
                         }
                         ui.separator();

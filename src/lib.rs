@@ -621,6 +621,11 @@ mod native_app {
             // showing as tofu (▢). Silent no-op if the platform font is
             // unavailable. See src/gui/fonts.rs.
             crate::gui::fonts::install_system_emoji_fallback(&egui_ctx);
+            // Load + cache the in-app glossary (data/glossary.json) so
+            // widgets::definition_text can pop term definitions on
+            // Alt+hover. Silent no-op if the file is missing — definition
+            // tooltips just won't appear. (v0.195.0.)
+            crate::gui::glossary::install();
             let mut gui_state = GuiState::default();
 
             // Load data-driven catalogs into GUI state
@@ -750,17 +755,33 @@ mod native_app {
                     if let PhysicalKey::Code(key) = event.physical_key {
                         let pressed = event.state.is_pressed();
 
-                        // Escape: None -> reopen last_page, any page -> save to last_page and return to game
+                        // Escape behavior (v0.195.0):
+                        //   1. If the nav back-stack has entries, pop one
+                        //      — this is "go back" inside a nested page
+                        //      flow (Chat → cog → ServerSettings → Esc
+                        //      should return to Chat, not jump to FPS).
+                        //   2. If we're on a non-None page and the stack
+                        //      is empty, save the page as last_page and
+                        //      go to None (FPS mode). Same as before.
+                        //   3. If we're already on None, reopen last_page.
+                        //      Same as before.
+                        //   4. MainMenu always stays put — operator can't
+                        //      Esc out of the title screen.
                         if key == KeyCode::Escape && pressed {
                             let old_page = state.gui_state.active_page;
-                            state.gui_state.active_page = match old_page {
-                                GuiPage::None => state.gui_state.last_page,
-                                GuiPage::MainMenu => GuiPage::MainMenu, // don't escape from title
-                                other => {
-                                    state.gui_state.last_page = other;
-                                    GuiPage::None
-                                }
-                            };
+
+                            if state.gui_state.pop_nav_back() {
+                                // Did the back-pop. active_page is now the previous nested page.
+                            } else {
+                                state.gui_state.active_page = match old_page {
+                                    GuiPage::None => state.gui_state.last_page,
+                                    GuiPage::MainMenu => GuiPage::MainMenu,
+                                    other => {
+                                        state.gui_state.last_page = other;
+                                        GuiPage::None
+                                    }
+                                };
+                            }
                             // Update cursor grab based on page transition
                             let new_page = state.gui_state.active_page;
                             if old_page == GuiPage::None && new_page != GuiPage::None {

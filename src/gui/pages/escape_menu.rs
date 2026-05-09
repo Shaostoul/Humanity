@@ -444,6 +444,13 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
         }
 
         if response.clicked() {
+            // Top-tier / sub-tier nav clicks are LATERAL navigations,
+            // not nested. Clear the back stack so the user doesn't end
+            // up with stale entries from a prior contextual flow when
+            // they later open a sub-page from somewhere else. Esc on
+            // the new page goes straight to FPS, which is correct for
+            // root-level navigation.
+            state.clear_nav_back();
             state.active_page = item.page.clone();
         }
     }
@@ -650,6 +657,9 @@ fn draw_nav_bar_two_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                         // grid instead of staying on whatever sub-page was
                         // last active. Sub-tier buttons still navigate
                         // straight to individual pages.
+                        // v0.195.0: clear nav back stack — top-tier clicks
+                        // are lateral navigations, not nested.
+                        state.clear_nav_back();
                         state.active_page = match cat.id {
                             "reality"  => GuiPage::OverviewReality,
                             "sim"      => GuiPage::OverviewSim,

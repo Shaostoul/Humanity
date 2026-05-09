@@ -154,14 +154,23 @@ fn draw_tab_bar(
 
 fn draw_header(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_lg);
-    ui.horizontal(|ui| {
-        ui.add_space(theme.spacing_lg);
-        if widgets::Button::secondary("< Back to Chat")
-            .tooltip("Return to the chat page. Any unsaved row drafts in the channels editor \
+    // Back button — centered at the top of the page so users always
+    // know where to find it. Operator 2026-05-08: "have the back to chat
+    // button at the top middle so the go back button is always in a
+    // predictable place." Same UX pattern as Esc, just clickable.
+    ui.vertical_centered(|ui| {
+        if widgets::Button::secondary("< Back")
+            .tooltip("Return to the previous page (or Chat if you opened settings directly). \
+                      Same as pressing Esc. Any unsaved row drafts in the channels editor \
                       are preserved if you come back.")
             .show(ui, theme)
         {
-            state.active_page = GuiPage::Chat;
+            // Pop the nav stack if we have one — that's the "previous
+            // page" the user expects. Otherwise fall back to Chat as
+            // the canonical home for this page.
+            if !state.pop_nav_back() {
+                state.active_page = GuiPage::Chat;
+            }
             state.server_settings_status.clear();
         }
     });
@@ -202,10 +211,17 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
             "What you see no matter your role. Your connection details, profile shortcuts, \
              a copyable invite link, and the disconnect button.",
         );
+        widgets::body_hint(
+            ui, theme,
+            "Tip: hold Alt and hover any underlined word for its definition (Ed25519, \
+             federation, peer-to-peer, etc.).",
+        );
         ui.add_space(theme.spacing_sm);
 
         kv_row(ui, theme, "Connected server", resolve_server_url(state));
-        kv_row(ui, theme, "Your identity", short_key(&state.profile_public_key));
+        // Identity is your Ed25519 public key. Alt+hover "Ed25519" or
+        // "identity" to see what those mean.
+        kv_row_with_definition(ui, theme, "Your identity", "ed25519", short_key(&state.profile_public_key));
         kv_row(ui, theme, "Network status", state.ws_status.clone());
         kv_row(ui, theme, "Your role", role_label(role));
 
@@ -216,7 +232,8 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
                           signed and replicates across federated servers.")
                 .show(ui, theme)
             {
-                state.active_page = GuiPage::Profile;
+                // push_nav_to so Esc returns to ServerSettings.
+                state.push_nav_to(GuiPage::Profile);
             }
             ui.add_space(theme.spacing_sm);
             if widgets::Button::secondary("Notification preferences")
@@ -224,7 +241,7 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
                           and set quiet hours. Stored locally per device.")
                 .show(ui, theme)
             {
-                state.active_page = GuiPage::Settings;
+                state.push_nav_to(GuiPage::Settings);
             }
         });
 
@@ -872,6 +889,59 @@ fn kv_row(ui: &mut egui::Ui, theme: &Theme, key: &str, value: String) {
                         .size(theme.font_size_small)
                         .color(theme.text_secondary()),
                 );
+            },
+        );
+        ui.label(
+            RichText::new(value)
+                .size(theme.font_size_body)
+                .color(theme.text_primary())
+                .monospace(),
+        );
+    });
+    ui.add_space(theme.spacing_xs);
+}
+
+/// Like `kv_row`, but the KEY label gets an Alt+hover dictionary
+/// tooltip. `glossary_term` is looked up case-insensitively in
+/// `data/glossary.json`. If the term isn't in the glossary the row
+/// renders identically to kv_row — no warning, no breakage.
+/// Foundation for the in-app docs system (v0.195.0); incremental
+/// adoption across the app follows.
+fn kv_row_with_definition(ui: &mut egui::Ui, theme: &Theme, key: &str, glossary_term: &str, value: String) {
+    ui.horizontal(|ui| {
+        ui.allocate_ui_with_layout(
+            Vec2::new(160.0, ui.spacing().interact_size.y),
+            Layout::left_to_right(Align::Center),
+            |ui| {
+                // We render the key text inline so it picks up the
+                // standard kv_row styling, then call definition_text
+                // separately — the widget handles the Alt+hover tooltip.
+                let label_resp = ui.label(
+                    RichText::new(key)
+                        .size(theme.font_size_small)
+                        .color(theme.text_secondary()),
+                );
+                // Manual Alt+hover (mirrors widgets::definition_text but
+                // applied to an existing Response so we keep kv_row's
+                // exact font/size/color).
+                let alt = ui.ctx().input(|i| i.modifiers.alt);
+                if alt {
+                    if let Some(entry) = crate::gui::glossary::glossary().lookup(glossary_term) {
+                        let entry_term = entry.term.clone();
+                        let entry_def = entry.definition.clone();
+                        let entry_link = entry.link.clone();
+                        label_resp.on_hover_ui(move |ui| {
+                            ui.set_max_width(360.0);
+                            ui.label(RichText::new(&entry_term).strong());
+                            ui.add_space(4.0);
+                            ui.label(&entry_def);
+                            if !entry_link.is_empty() {
+                                ui.add_space(4.0);
+                                ui.label(RichText::new(format!("More: {}", &entry_link)).italics().small());
+                            }
+                        });
+                    }
+                }
             },
         );
         ui.label(

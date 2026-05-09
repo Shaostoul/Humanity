@@ -140,6 +140,54 @@ pub fn body_hint(ui: &mut Ui, theme: &Theme, text: &str) {
     );
 }
 
+/// Render a text label that, when the user holds Alt and hovers over it,
+/// shows the HumanityOS dictionary definition of `term` (looked up
+/// case-insensitively in `data/glossary.json`). The visible text can
+/// differ from the lookup key — pass the term you want defined as the
+/// second argument and the display text as the first.
+///
+/// Example:
+///   `definition_text(ui, "Ed25519", "ed25519")` shows "Ed25519" inline
+///   and on Alt+hover pops the definition + Wikipedia link from the
+///   glossary.
+///
+/// If the term isn't in the dictionary, falls back to a plain label
+/// (no tooltip) so missing-term tooltips don't surprise users.
+///
+/// Operator 2026-05-08: "If there's a word on the screen in the menus
+/// they should be able to mouse over it and hold the alt key or some
+/// other configured key and get the definition of that word as it is
+/// in HumanityOS' dictionary."
+///
+/// Returns the underlying egui Response so callers can chain.
+pub fn definition_text(ui: &mut Ui, display: &str, term: &str) -> egui::Response {
+    let resp = ui.label(display);
+    let entry = crate::gui::glossary::glossary().lookup(term);
+    if let Some(e) = entry {
+        // Tooltip only fires when Alt is held — without Alt, hovering
+        // is silent so the label doesn't spam tooltips when the user
+        // is just reading. Matches operator's "Alt + hover" mental model.
+        let alt_held = ui.ctx().input(|i| i.modifiers.alt);
+        if alt_held {
+            let resp_for_tooltip = resp.clone();
+            let entry_term = e.term.clone();
+            let entry_def = e.definition.clone();
+            let entry_link = e.link.clone();
+            return resp_for_tooltip.on_hover_ui(move |ui| {
+                ui.set_max_width(360.0);
+                ui.label(RichText::new(&entry_term).strong());
+                ui.add_space(4.0);
+                ui.label(&entry_def);
+                if !entry_link.is_empty() {
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(format!("More: {}", &entry_link)).italics().small());
+                }
+            });
+        }
+    }
+    resp
+}
+
 /// Collapsible section with header.
 pub fn collapsible_section(ui: &mut Ui, title: &str, default_open: bool, add_contents: impl FnOnce(&mut Ui)) {
     egui::CollapsingHeader::new(title)

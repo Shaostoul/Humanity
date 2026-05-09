@@ -11,6 +11,8 @@ pub mod widgets;
 pub mod pages;
 #[cfg(feature = "native")]
 pub mod fonts;
+#[cfg(feature = "native")]
+pub mod glossary;
 
 /// Current engine version (read from Cargo.toml at compile time).
 #[cfg(feature = "native")]
@@ -561,6 +563,15 @@ pub struct GuiState {
     pub active_page: GuiPage,
     /// Last page visited before returning to game view. Escape reopens this page.
     pub last_page: GuiPage,
+    /// Navigation back-stack. When a page opens a sub-page (e.g. clicking
+    /// the cog on a server row opens ServerSettings from Chat), the source
+    /// page is pushed here so Escape returns to it instead of jumping
+    /// straight to FPS mode. Operator 2026-05-08: "if I'm in nested pages
+    /// like that esc needs to reliably take people back to the previous
+    /// menu/page". Use `push_nav_to` / `pop_nav_back` helpers below.
+    /// Direct nav-bar clicks DO NOT push (they replace the current page,
+    /// not nest under it).
+    pub nav_back_stack: Vec<GuiPage>,
     pub show_chat: bool,
     pub show_hud: bool,
     pub settings: SettingsState,
@@ -870,6 +881,15 @@ pub struct GuiState {
     pub show_join_group_modal: bool,
     pub join_group_invite_code: String,
 
+    // ── Sidebar section settings popups (v0.195.0) ──
+    // Rendered as floating Areas anchored below the section's cog
+    // button. Using GuiState fields instead of egui's popup machinery
+    // because the previous `popup_below_widget(... CloseOnClick ...)`
+    // pattern self-closed on the trigger click — the popup flickered
+    // on for one frame then disappeared (operator bug 2026-05-08).
+    pub dm_settings_popup_open: bool,
+    pub groups_settings_popup_open: bool,
+
     // ── Channel edit modal ──
     pub show_channel_edit_modal: bool,
     pub edit_channel_id: String,
@@ -1030,11 +1050,50 @@ pub struct GuiState {
 }
 
 #[cfg(feature = "native")]
+impl GuiState {
+    /// Navigate to a sub-page, pushing the CURRENT page onto the back
+    /// stack so Escape returns there. Use this for contextual openings
+    /// (cog → ServerSettings, message → details modal, etc.). For
+    /// peer-level navigation (clicking a top-tier nav button), set
+    /// `active_page` directly and call `clear_nav_back` to drop the
+    /// stack — those navigations don't nest.
+    pub fn push_nav_to(&mut self, target: GuiPage) {
+        // Avoid pushing duplicate top-of-stack — repeatedly opening the
+        // same sub-page from the same parent shouldn't bury the parent
+        // under N copies of itself.
+        if self.nav_back_stack.last() != Some(&self.active_page) {
+            self.nav_back_stack.push(self.active_page);
+        }
+        self.active_page = target;
+    }
+
+    /// Pop the back stack and switch to that page. Returns true if a
+    /// page was popped (caller can decide what to do if false — e.g.
+    /// fall through to "Esc closes menu" behavior at the root level).
+    pub fn pop_nav_back(&mut self) -> bool {
+        if let Some(prev) = self.nav_back_stack.pop() {
+            self.active_page = prev;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Drop the back stack — used when navigating laterally (e.g.
+    /// clicking a top-tier nav button) so the user doesn't end up with
+    /// a stack of unrelated pages from earlier sessions.
+    pub fn clear_nav_back(&mut self) {
+        self.nav_back_stack.clear();
+    }
+}
+
+#[cfg(feature = "native")]
 impl Default for GuiState {
     fn default() -> Self {
         Self {
             active_page: GuiPage::MainMenu,
             last_page: GuiPage::Chat,
+            nav_back_stack: Vec::new(),
             show_chat: false,
             show_hud: true,
             settings: SettingsState::default(),
@@ -1244,6 +1303,8 @@ impl Default for GuiState {
             new_channel_name: String::new(),
             new_channel_description: String::new(),
             show_create_group_modal: false,
+            dm_settings_popup_open: false,
+            groups_settings_popup_open: false,
             new_group_name: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),
