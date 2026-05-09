@@ -401,6 +401,12 @@ fn draw_cta(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     ui.horizontal(|ui| {
         if crate::gui::widgets::Button::primary("Open the Chat").show(ui, theme) {
+            // Mark the concept tour as seen so the user goes straight to
+            // Chat on the next launch (instead of being routed back here).
+            // Persist immediately so the flag survives a crash before the
+            // next normal config save. v0.198.0.
+            state.concept_tour_seen = true;
+            crate::config::AppConfig::from_gui_state(state).save();
             state.active_page = GuiPage::Chat;
         }
         ui.add_space(theme.spacing_sm);

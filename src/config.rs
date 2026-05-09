@@ -24,6 +24,13 @@ pub struct AppConfig {
     #[serde(default)]
     pub context_real: bool,
     pub completed_onboarding: bool,
+    /// v0.198.0: whether the user has seen the post-identity Onboarding
+    /// concept tour. Defaults to `true` via serde so pre-v0.198 configs
+    /// (where the user has been using the app for a while) don't get
+    /// force-routed back through the tour. Fresh installs set this to
+    /// false in GuiState, see Default impl, so they DO see the tour.
+    #[serde(default = "default_true")]
+    pub concept_tour_seen: bool,
     // Settings
     #[serde(default = "default_fov")]
     pub fov: f32,
@@ -301,6 +308,7 @@ impl AppConfig {
             // see "real mode" if they read the config.
             context_real: true,
             completed_onboarding: state.onboarding_complete,
+            concept_tour_seen: state.concept_tour_seen,
             fov: state.settings.fov,
             mouse_sensitivity: state.settings.mouse_sensitivity,
             master_volume: state.settings.master_volume,
@@ -353,6 +361,7 @@ impl AppConfig {
         }
         // v0.197.0: context_real removed from GuiState — apply step skipped.
         state.onboarding_complete = self.completed_onboarding;
+        state.concept_tour_seen = self.concept_tour_seen;
         state.settings.fov = self.fov;
         state.settings.mouse_sensitivity = self.mouse_sensitivity;
         state.settings.master_volume = self.master_volume;

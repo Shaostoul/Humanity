@@ -634,6 +634,16 @@ pub struct GuiState {
     // v0.197.0: removed `context_real`. Real/Sim toggle deleted —
     // pages commit to Real, game-mode equivalents live inside the
     // game loop (FPS) rather than as toggleable views.
+    /// Whether the first-run concept tour (Onboarding page) has been
+    /// completed. v0.198.0: new users land on Onboarding after identity
+    /// setup so they understand what HumanityOS IS before being dropped
+    /// into chat. Once they click "Open the Chat" from Onboarding
+    /// (or skip it explicitly) this flips true and they go straight
+    /// to Chat on subsequent launches. Existing users created before
+    /// this field defaults to true via the AppConfig migration so they
+    /// don't get force-routed into the tour they've never seen but
+    /// don't need.
+    pub concept_tour_seen: bool,
     /// Default page to load after onboarding (Chat by default).
     pub default_page: GuiPage,
 
@@ -1120,6 +1130,7 @@ impl Default for GuiState {
             server_url: "https://united-humanity.us".to_string(),
             server_connected: false,
             user_name: "Player".to_string(),
+            concept_tour_seen: false,
             default_page: GuiPage::Chat,
 
             // Task board defaults
