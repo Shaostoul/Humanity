@@ -54,11 +54,17 @@ pub struct PositionInUniverse {
 }
 
 pub enum ContainerRef {
-    /// Inside or attached to a ship. local_pos is meters from the ship's
-    /// origin (defined by the ship's RON layout).
-    Ship(ShipId),
+    /// Inside or attached to a vessel. "Vessel" generalizes the original
+    /// "Ship" name to cover anything mobile-and-inhabitable: spaceships,
+    /// cars, trucks, tanks, fighter jets, space stations, walking mechs,
+    /// even buildings (treated as a stationary vessel). The vessel's
+    /// layout (rooms, corridors, seats) is defined in its RON file.
+    /// local_pos is meters from the vessel's origin.
+    /// Renamed from `Ship` per operator 2026-05-09.
+    Vessel(VesselId),
 
-    /// On the surface of a celestial body. local_pos is east/north/up
+    /// On the surface of a celestial body. Asteroids, planets, moons,
+    /// comets — anything you can stand on. local_pos is east/north/up
     /// in meters from the body's surface origin (lat/lon → ECEF-style).
     Body { system_id: String, body_id: String },
 
@@ -69,9 +75,22 @@ pub enum ContainerRef {
     /// Free-floating in interstellar space. local_pos is meters within
     /// a "deep-space chunk" identified by chunk_coord (see §10).
     Deep { chunk_coord: GalaxyChunkCoord },
+
+    /// Pocket dimension — an isolated coordinate space disconnected from
+    /// the normal galaxy. Use for tutorial spaces, tech demos, instanced
+    /// quest areas, or any "outside the main universe" gameplay. The
+    /// dimension's id selects which pocket. Travel into/out of a Pocket
+    /// is a portal event, not a continuous transit.
+    /// Added per operator 2026-05-09 ("maybe other universes / pocket
+    /// dimensions"). A future Dimension variant could sit at the top of
+    /// the chain to model fully-alternate universes with their own
+    /// galaxies; deliberately punted (premature complexity).
+    Pocket(PocketId),
 }
 
-pub type ShipId = String;          // e.g. "pioneer-001"
+pub type VesselId = String;        // e.g. "pioneer-001", "ford-f150-abc"
+pub type PocketId  = String;       // e.g. "tutorial-cave", "boss-arena-42"
+
 pub type GalaxyChunkCoord = [i64; 3]; // chunk indices in galaxy octree
 ```
 
@@ -586,19 +605,49 @@ implementation; capturing them here so we don't pretend they're settled.
 
 ---
 
+## 17b. Operator decisions (2026-05-09 session)
+
+Locked in during the design discussion that produced this doc:
+
+- **`ContainerRef` variants finalized**: `Vessel` (renamed from Ship —
+  covers spaceships, cars, trucks, tanks, fighter jets, walking mechs,
+  stations, buildings), `Body` (planet/asteroid/moon surface), `Space`
+  (free-floating in a system), `Deep` (interstellar), `Pocket` (isolated
+  dimension for tutorials / quest instances / tech demos). Alternate
+  universes with their own galaxies are deliberately deferred — could
+  add a `Dimension` variant at the top of the chain later.
+- **Procedural + hand-authored bodies both supported** per body. Default
+  is procedural (cheap, immediate); hand-authoring overrides procedural
+  field-by-field. Earth ships first as procedural-Earth, gets hand-
+  authored later when we have the data + tooling. Same body ID, two
+  data sources.
+- **SI units internally, display unit per context.** Storage and math
+  use meters / seconds / kg throughout. Display layer (UI strings,
+  tooltips, value formatters) converts to AU / ly / km / lightseconds /
+  whatever reads naturally. Eliminates conversion bugs.
+- **Sol restructure is safe** — operator confirmed nothing else depends
+  on `data/solar_system/bodies.json`. Phase 1 already shipped (v0.199.0).
+
 ## 18. Pre-implementation checklist
 
-Before Phase 1 ships, these need confirmation from the operator:
+Phase 1 status (2026-05-09):
 
-- [ ] Is the universal sim_time model OK, or do you want fleet-controlled time?
-- [ ] Confirm the four `ContainerRef` variants cover everything you've imagined.
-- [ ] Confirm the unit convention (SI internally, display in AU/ly/km).
-- [ ] Confirm the procedural rogue model (deterministic from seed) vs
-      hand-authored interstellar bodies.
-- [ ] Confirm Sol restructure is safe — no other code I haven't found
-      depends on the current `data/solar_system/bodies.json` path.
-- [ ] Confirm the doc captures what you've been thinking about, or flag
-      gaps.
+- [x] **`ContainerRef` variants** — confirmed + extended: Vessel, Body,
+      Space, Deep, Pocket (see §17b).
+- [x] **Unit convention** — SI internally, display layer converts.
+- [x] **Hand-authored AND procedural bodies** — both supported per body
+      (procedural default, hand-authoring overrides field-by-field).
+- [x] **Sol restructure safe** — no dependencies on the old path. Phase 1
+      shipped in v0.199.0.
+- [ ] **Universal sim_time vs fleet-controlled time** — under
+      discussion; operator leaning toward universal. Pros/cons:
+      | Universal | Fleet-controlled |
+      |-----------|------------------|
+      | Easy multiplayer (everyone agrees Mars is at the same place at sim time T) | Each fleet can fast-travel without affecting others |
+      | Deterministic; replays / records work cleanly | More expressive (warp drive engaged → time accelerates for the crew) |
+      | Fast travel still works via region-based speed multipliers | Hard sync; "what time is Mars?" depends on observer perspective |
+      | Combat / shared scenes "just work" | Cross-fleet interaction across different speeds is undefined |
+- [ ] **Anything missing** — see §17c for results of the doc audit.
 
 ---
 

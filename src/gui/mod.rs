@@ -384,6 +384,36 @@ pub struct ChatUser {
 }
 
 /// A channel in the channel list.
+/// A DM that the user clicked Send on, but which we COULDN'T encrypt
+/// (recipient's ECDH key not known, our key not set, or encryption
+/// errored). Stored on GuiState so a confirmation modal can pop up
+/// asking the user to either send it as plaintext anyway, or cancel.
+///
+/// Backstory: before v0.199 the code silently sent the DM as plaintext
+/// with only a log message. Operator security audit (B3, 2026-04-30)
+/// flagged this as a downgrade attack vector — an attacker who can
+/// suppress ECDH key announcements could strip encryption from a DM
+/// the user thinks is private. The confirmation modal forces explicit
+/// user opt-in for any plaintext send.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct PendingUnencryptedDm {
+    /// Recipient's public key (Ed25519 hex).
+    pub partner_key: String,
+    /// Recipient's display name (best-known label for the modal copy).
+    pub partner_name: String,
+    /// The plaintext message body the user typed.
+    pub content: String,
+    /// Original send timestamp (ms since epoch). Reused on confirm so
+    /// the eventual sent message has the same `ts` the user clicked Send at.
+    pub timestamp_ms: u64,
+    /// Why we can't encrypt — one of:
+    ///   "missing_peer_key"     — recipient hasn't broadcast their ECDH pub key yet
+    ///   "no_own_ecdh"          — this client doesn't have its own ECDH key set
+    ///   "encryption_failed: X" — encrypt_dm() errored with X
+    pub reason: String,
+}
+
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct ChatChannel {
@@ -901,6 +931,15 @@ pub struct GuiState {
     pub dm_settings_popup_open: bool,
     pub groups_settings_popup_open: bool,
 
+    /// Pending unencrypted-DM confirmation (v0.199.0).
+    ///
+    /// When the user tries to send a DM but the recipient's ECDH key
+    /// is missing or encryption fails, we DO NOT silently send plaintext
+    /// (operator security audit B3 / 2026-04-30). Instead we stash the
+    /// would-be message here and pop a modal asking the user to either
+    /// confirm "Send unencrypted anyway" or cancel.
+    pub dm_unencrypted_confirm: Option<PendingUnencryptedDm>,
+
     // ── Channel edit modal ──
     pub show_channel_edit_modal: bool,
     pub edit_channel_id: String,
@@ -1305,6 +1344,7 @@ impl Default for GuiState {
             show_create_group_modal: false,
             dm_settings_popup_open: false,
             groups_settings_popup_open: false,
+            dm_unencrypted_confirm: None,
             new_group_name: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),

@@ -1,4 +1,12 @@
 {
+  "id": "sol",
+  "name": "Solar System",
+  "primary_star": "sun",
+  "galaxy_position_ly": [
+    0,
+    0,
+    0
+  ],
   "meta": {
     "epoch": "J2000.0",
     "source": "NASA/JPL Horizons, NASA Planetary Fact Sheets",
@@ -21,19 +29,26 @@
       "parent": null,
       "orbit": null,
       "physical": {
-        "mass_kg": 1.989e30,
+        "mass_kg": 1.989e+30,
         "radius_km": 695700,
-        "surface_gravity_ms2": 274.0,
+        "surface_gravity_ms2": 274,
         "rotation_period_hours": 609.12,
         "axial_tilt_deg": 7.25,
         "mean_temperature_k": 5778,
         "albedo": null,
         "spectral_type": "G2V",
-        "luminosity_watts": 3.828e26,
+        "luminosity_watts": 3.828e+26,
         "age_billion_years": 4.6
       },
       "atmosphere": {
-        "composition": {"H": 73.46, "He": 24.85, "O": 0.77, "C": 0.29, "Fe": 0.16, "Ne": 0.12},
+        "composition": {
+          "H": 73.46,
+          "He": 24.85,
+          "O": 0.77,
+          "C": 0.29,
+          "Fe": 0.16,
+          "Ne": 0.12
+        },
         "surface_pressure_atm": null
       },
       "rings": false,
@@ -56,7 +71,7 @@
         "argument_perihelion_deg": 29.124
       },
       "physical": {
-        "mass_kg": 3.301e23,
+        "mass_kg": 3.301e+23,
         "radius_km": 2439.7,
         "surface_gravity_ms2": 3.7,
         "rotation_period_hours": 1407.6,
@@ -65,7 +80,13 @@
         "albedo": 0.068
       },
       "atmosphere": {
-        "composition": {"O2": 42.0, "Na": 29.0, "H2": 22.0, "He": 6.0, "K": 0.5},
+        "composition": {
+          "O2": 42,
+          "Na": 29,
+          "H2": 22,
+          "He": 6,
+          "K": 0.5
+        },
         "surface_pressure_atm": 5e-15
       },
       "rings": false,
@@ -88,7 +109,7 @@
         "argument_perihelion_deg": 54.884
       },
       "physical": {
-        "mass_kg": 4.867e24,
+        "mass_kg": 4.867e+24,
         "radius_km": 6051.8,
         "surface_gravity_ms2": 8.87,
         "rotation_period_hours": -5832.5,
@@ -97,8 +118,11 @@
         "albedo": 0.77
       },
       "atmosphere": {
-        "composition": {"CO2": 96.5, "N2": 3.5},
-        "surface_pressure_atm": 92.0
+        "composition": {
+          "CO2": 96.5,
+          "N2": 3.5
+        },
+        "surface_pressure_atm": 92
       },
       "rings": false,
       "moons": [],
@@ -111,17 +135,17 @@
       "type": "terrestrial",
       "parent": "sun",
       "orbit": {
-        "semi_major_axis_au": 1.0,
+        "semi_major_axis_au": 1,
         "eccentricity": 0.0167,
-        "inclination_deg": 0.0,
+        "inclination_deg": 0,
         "orbital_period_days": 365.256,
         "mean_anomaly_deg": 357.517,
         "longitude_ascending_node_deg": 348.739,
         "argument_perihelion_deg": 114.208
       },
       "physical": {
-        "mass_kg": 5.972e24,
-        "radius_km": 6371.0,
+        "mass_kg": 5.972e+24,
+        "radius_km": 6371,
         "surface_gravity_ms2": 9.81,
         "rotation_period_hours": 23.934,
         "axial_tilt_deg": 23.44,
@@ -129,11 +153,18 @@
         "albedo": 0.306
       },
       "atmosphere": {
-        "composition": {"N2": 78.08, "O2": 20.95, "Ar": 0.93, "CO2": 0.04},
-        "surface_pressure_atm": 1.0
+        "composition": {
+          "N2": 78.08,
+          "O2": 20.95,
+          "Ar": 0.93,
+          "CO2": 0.04
+        },
+        "surface_pressure_atm": 1
       },
       "rings": false,
-      "moons": ["moon"],
+      "moons": [
+        "moon"
+      ],
       "discovery": null,
       "description": "Third planet from the Sun. Only known planet with liquid surface water and life."
     },
@@ -150,7 +181,7 @@
         "orbital_period_days": 27.322
       },
       "physical": {
-        "mass_kg": 7.342e22,
+        "mass_kg": 7.342e+22,
         "radius_km": 1737.4,
         "surface_gravity_ms2": 1.62,
         "rotation_period_hours": 655.73,
@@ -182,7 +213,7 @@
         "argument_perihelion_deg": 286.502
       },
       "physical": {
-        "mass_kg": 6.417e23,
+        "mass_kg": 6.417e+23,
         "radius_km": 3389.5,
         "surface_gravity_ms2": 3.72,
         "rotation_period_hours": 24.623,
@@ -191,11 +222,20 @@
         "albedo": 0.25
       },
       "atmosphere": {
-        "composition": {"CO2": 95.32, "N2": 2.7, "Ar": 1.6, "O2": 0.13, "CO": 0.08},
+        "composition": {
+          "CO2": 95.32,
+          "N2": 2.7,
+          "Ar": 1.6,
+          "O2": 0.13,
+          "CO": 0.08
+        },
         "surface_pressure_atm": 0.006
       },
       "rings": false,
-      "moons": ["phobos", "deimos"],
+      "moons": [
+        "phobos",
+        "deimos"
+      ],
       "discovery": null,
       "description": "Fourth planet from the Sun. Known as the Red Planet due to iron oxide on its surface. Home to Olympus Mons, the tallest volcano in the solar system."
     },
@@ -211,7 +251,7 @@
         "orbital_period_days": 0.3189
       },
       "physical": {
-        "mass_kg": 1.0659e16,
+        "mass_kg": 10659000000000000,
         "radius_km": 11.267,
         "surface_gravity_ms2": 0.0057,
         "rotation_period_hours": 7.654,
@@ -221,7 +261,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1877, "discoverer": "Asaph Hall"},
+      "discovery": {
+        "year": 1877,
+        "discoverer": "Asaph Hall"
+      },
       "description": "Larger and innermost moon of Mars. Irregularly shaped, heavily cratered. Orbiting closer to Mars over time and expected to be destroyed in 50 million years."
     },
     {
@@ -236,7 +279,7 @@
         "orbital_period_days": 1.263
       },
       "physical": {
-        "mass_kg": 1.4762e15,
+        "mass_kg": 1476200000000000,
         "radius_km": 6.2,
         "surface_gravity_ms2": 0.003,
         "rotation_period_hours": 30.312,
@@ -246,7 +289,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1877, "discoverer": "Asaph Hall"},
+      "discovery": {
+        "year": 1877,
+        "discoverer": "Asaph Hall"
+      },
       "description": "Smaller and outermost moon of Mars. Smoother than Phobos due to regolith filling craters."
     },
     {
@@ -264,7 +310,7 @@
         "argument_perihelion_deg": 273.867
       },
       "physical": {
-        "mass_kg": 1.898e27,
+        "mass_kg": 1.898e+27,
         "radius_km": 69911,
         "surface_gravity_ms2": 24.79,
         "rotation_period_hours": 9.925,
@@ -273,11 +319,25 @@
         "albedo": 0.503
       },
       "atmosphere": {
-        "composition": {"H2": 89.8, "He": 10.2},
+        "composition": {
+          "H2": 89.8,
+          "He": 10.2
+        },
         "surface_pressure_atm": null
       },
       "rings": true,
-      "moons": ["io", "europa", "ganymede", "callisto", "amalthea", "himalia", "thebe", "elara", "metis", "adrastea"],
+      "moons": [
+        "io",
+        "europa",
+        "ganymede",
+        "callisto",
+        "amalthea",
+        "himalia",
+        "thebe",
+        "elara",
+        "metis",
+        "adrastea"
+      ],
       "discovery": null,
       "description": "Largest planet in the solar system. A gas giant with a mass more than twice that of all other planets combined. Famous for the Great Red Spot storm."
     },
@@ -293,7 +353,7 @@
         "orbital_period_days": 1.769
       },
       "physical": {
-        "mass_kg": 8.932e22,
+        "mass_kg": 8.932e+22,
         "radius_km": 1821.6,
         "surface_gravity_ms2": 1.796,
         "rotation_period_hours": 42.459,
@@ -301,12 +361,17 @@
         "albedo": 0.63
       },
       "atmosphere": {
-        "composition": {"SO2": 90.0},
+        "composition": {
+          "SO2": 90
+        },
         "surface_pressure_atm": 3.3e-9
       },
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1610, "discoverer": "Galileo Galilei"},
+      "discovery": {
+        "year": 1610,
+        "discoverer": "Galileo Galilei"
+      },
       "description": "Innermost Galilean moon of Jupiter. Most volcanically active body in the solar system, with over 400 active volcanoes driven by tidal heating."
     },
     {
@@ -321,7 +386,7 @@
         "orbital_period_days": 3.551
       },
       "physical": {
-        "mass_kg": 4.8e22,
+        "mass_kg": 4.8e+22,
         "radius_km": 1560.8,
         "surface_gravity_ms2": 1.314,
         "rotation_period_hours": 85.228,
@@ -329,12 +394,17 @@
         "albedo": 0.67
       },
       "atmosphere": {
-        "composition": {"O2": 100.0},
+        "composition": {
+          "O2": 100
+        },
         "surface_pressure_atm": 1e-12
       },
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1610, "discoverer": "Galileo Galilei"},
+      "discovery": {
+        "year": 1610,
+        "discoverer": "Galileo Galilei"
+      },
       "description": "Second Galilean moon. Has a smooth ice shell covering a global subsurface ocean, making it a prime candidate for extraterrestrial life."
     },
     {
@@ -349,7 +419,7 @@
         "orbital_period_days": 7.155
       },
       "physical": {
-        "mass_kg": 1.4819e23,
+        "mass_kg": 1.4819e+23,
         "radius_km": 2634.1,
         "surface_gravity_ms2": 1.428,
         "rotation_period_hours": 171.71,
@@ -357,12 +427,17 @@
         "albedo": 0.43
       },
       "atmosphere": {
-        "composition": {"O2": 100.0},
+        "composition": {
+          "O2": 100
+        },
         "surface_pressure_atm": 1e-12
       },
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1610, "discoverer": "Galileo Galilei"},
+      "discovery": {
+        "year": 1610,
+        "discoverer": "Galileo Galilei"
+      },
       "description": "Largest moon in the solar system, bigger than Mercury. Only moon known to have its own magnetic field. Likely has a subsurface ocean."
     },
     {
@@ -377,7 +452,7 @@
         "orbital_period_days": 16.689
       },
       "physical": {
-        "mass_kg": 1.0759e23,
+        "mass_kg": 1.0759e+23,
         "radius_km": 2410.3,
         "surface_gravity_ms2": 1.235,
         "rotation_period_hours": 400.536,
@@ -385,12 +460,17 @@
         "albedo": 0.22
       },
       "atmosphere": {
-        "composition": {"CO2": 100.0},
+        "composition": {
+          "CO2": 100
+        },
         "surface_pressure_atm": 7.5e-12
       },
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1610, "discoverer": "Galileo Galilei"},
+      "discovery": {
+        "year": 1610,
+        "discoverer": "Galileo Galilei"
+      },
       "description": "Outermost Galilean moon. Most heavily cratered object in the solar system. May have a subsurface ocean."
     },
     {
@@ -405,7 +485,7 @@
         "orbital_period_days": 0.498
       },
       "physical": {
-        "mass_kg": 2.08e18,
+        "mass_kg": 2080000000000000000,
         "radius_km": 83.5,
         "surface_gravity_ms2": 0.02,
         "rotation_period_hours": 11.952,
@@ -415,7 +495,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1892, "discoverer": "Edward Emerson Barnard"},
+      "discovery": {
+        "year": 1892,
+        "discoverer": "Edward Emerson Barnard"
+      },
       "description": "Fifth largest moon of Jupiter. Irregularly shaped and reddish, the reddest object in the solar system."
     },
     {
@@ -430,7 +513,7 @@
         "orbital_period_days": 250.56
       },
       "physical": {
-        "mass_kg": 4.2e18,
+        "mass_kg": 4200000000000000000,
         "radius_km": 85,
         "surface_gravity_ms2": 0.062,
         "rotation_period_hours": 7.782,
@@ -440,7 +523,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1904, "discoverer": "Charles Dillon Perrine"},
+      "discovery": {
+        "year": 1904,
+        "discoverer": "Charles Dillon Perrine"
+      },
       "description": "Largest irregular moon of Jupiter. Leads the Himalia group of prograde irregular satellites."
     },
     {
@@ -455,7 +541,7 @@
         "orbital_period_days": 0.675
       },
       "physical": {
-        "mass_kg": 4.3e17,
+        "mass_kg": 430000000000000000,
         "radius_km": 49.3,
         "surface_gravity_ms2": 0.013,
         "rotation_period_hours": 16.2,
@@ -464,7 +550,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1979, "discoverer": "Stephen Synnott (Voyager 1)"},
+      "discovery": {
+        "year": 1979,
+        "discoverer": "Stephen Synnott (Voyager 1)"
+      },
       "description": "Inner moon of Jupiter. Irregularly shaped, tidally locked, and a source of material for Jupiter's gossamer ring."
     },
     {
@@ -479,16 +568,19 @@
         "orbital_period_days": 259.65
       },
       "physical": {
-        "mass_kg": 8.7e17,
+        "mass_kg": 870000000000000000,
         "radius_km": 43,
         "surface_gravity_ms2": 0.031,
-        "rotation_period_hours": 12.0,
+        "rotation_period_hours": 12,
         "albedo": 0.04
       },
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1905, "discoverer": "Charles Dillon Perrine"},
+      "discovery": {
+        "year": 1905,
+        "discoverer": "Charles Dillon Perrine"
+      },
       "description": "Prograde irregular moon of Jupiter, part of the Himalia group."
     },
     {
@@ -503,7 +595,7 @@
         "orbital_period_days": 0.295
       },
       "physical": {
-        "mass_kg": 3.6e16,
+        "mass_kg": 36000000000000000,
         "radius_km": 21.5,
         "surface_gravity_ms2": 0.005,
         "rotation_period_hours": 7.076,
@@ -512,7 +604,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1979, "discoverer": "Stephen Synnott (Voyager 1)"},
+      "discovery": {
+        "year": 1979,
+        "discoverer": "Stephen Synnott (Voyager 1)"
+      },
       "description": "Innermost known moon of Jupiter. Orbits within Jupiter's main ring."
     },
     {
@@ -527,7 +622,7 @@
         "orbital_period_days": 0.298
       },
       "physical": {
-        "mass_kg": 2e15,
+        "mass_kg": 2000000000000000,
         "radius_km": 8.2,
         "surface_gravity_ms2": 0.002,
         "rotation_period_hours": 7.155,
@@ -536,7 +631,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1979, "discoverer": "David Jewitt & G. Edward Danielson (Voyager 2)"},
+      "discovery": {
+        "year": 1979,
+        "discoverer": "David Jewitt & G. Edward Danielson (Voyager 2)"
+      },
       "description": "Second innermost moon of Jupiter. One of the smallest moons in the solar system."
     },
     {
@@ -554,7 +652,7 @@
         "argument_perihelion_deg": 339.392
       },
       "physical": {
-        "mass_kg": 5.683e26,
+        "mass_kg": 5.683e+26,
         "radius_km": 58232,
         "surface_gravity_ms2": 10.44,
         "rotation_period_hours": 10.656,
@@ -563,7 +661,10 @@
         "albedo": 0.342
       },
       "atmosphere": {
-        "composition": {"H2": 96.3, "He": 3.25},
+        "composition": {
+          "H2": 96.3,
+          "He": 3.25
+        },
         "surface_pressure_atm": null
       },
       "rings": true,
@@ -572,7 +673,17 @@
         "outer_radius_km": 480000,
         "composition": "water ice with trace rocky material"
       },
-      "moons": ["titan", "enceladus", "mimas", "tethys", "dione", "rhea", "hyperion", "iapetus", "phoebe"],
+      "moons": [
+        "titan",
+        "enceladus",
+        "mimas",
+        "tethys",
+        "dione",
+        "rhea",
+        "hyperion",
+        "iapetus",
+        "phoebe"
+      ],
       "discovery": null,
       "description": "Sixth planet from the Sun. Famous for its extensive ring system. Least dense planet, would float in water if a body of water large enough existed."
     },
@@ -588,7 +699,7 @@
         "orbital_period_days": 15.945
       },
       "physical": {
-        "mass_kg": 1.3452e23,
+        "mass_kg": 1.3452e+23,
         "radius_km": 2574.73,
         "surface_gravity_ms2": 1.352,
         "rotation_period_hours": 382.68,
@@ -596,12 +707,18 @@
         "albedo": 0.22
       },
       "atmosphere": {
-        "composition": {"N2": 98.4, "CH4": 1.4},
+        "composition": {
+          "N2": 98.4,
+          "CH4": 1.4
+        },
         "surface_pressure_atm": 1.47
       },
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1655, "discoverer": "Christiaan Huygens"},
+      "discovery": {
+        "year": 1655,
+        "discoverer": "Christiaan Huygens"
+      },
       "description": "Largest moon of Saturn, second largest in the solar system. Only moon with a dense atmosphere. Has liquid methane/ethane lakes on its surface."
     },
     {
@@ -613,10 +730,10 @@
         "semi_major_axis_km": 238042,
         "eccentricity": 0.0047,
         "inclination_deg": 0.009,
-        "orbital_period_days": 1.370
+        "orbital_period_days": 1.37
       },
       "physical": {
-        "mass_kg": 1.0802e20,
+        "mass_kg": 108020000000000000000,
         "radius_km": 252.1,
         "surface_gravity_ms2": 0.113,
         "rotation_period_hours": 32.885,
@@ -624,12 +741,20 @@
         "albedo": 0.99
       },
       "atmosphere": {
-        "composition": {"H2O": 91.0, "N2": 4.0, "CO2": 3.2, "CH4": 1.7},
+        "composition": {
+          "H2O": 91,
+          "N2": 4,
+          "CO2": 3.2,
+          "CH4": 1.7
+        },
         "surface_pressure_atm": 1e-12
       },
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1789, "discoverer": "William Herschel"},
+      "discovery": {
+        "year": 1789,
+        "discoverer": "William Herschel"
+      },
       "description": "Sixth-largest moon of Saturn. Has active water geysers at its south pole erupting from a global subsurface ocean. Highest albedo of any body in the solar system."
     },
     {
@@ -644,7 +769,7 @@
         "orbital_period_days": 0.942
       },
       "physical": {
-        "mass_kg": 3.749e19,
+        "mass_kg": 37490000000000000000,
         "radius_km": 198.2,
         "surface_gravity_ms2": 0.064,
         "rotation_period_hours": 22.613,
@@ -654,7 +779,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1789, "discoverer": "William Herschel"},
+      "discovery": {
+        "year": 1789,
+        "discoverer": "William Herschel"
+      },
       "description": "Smallest astronomical body known to be in hydrostatic equilibrium. Famous for the Herschel crater giving it a resemblance to the Death Star."
     },
     {
@@ -669,17 +797,20 @@
         "orbital_period_days": 1.888
       },
       "physical": {
-        "mass_kg": 6.174e20,
+        "mass_kg": 617400000000000000000,
         "radius_km": 531.1,
         "surface_gravity_ms2": 0.146,
         "rotation_period_hours": 45.307,
         "mean_temperature_k": 86,
-        "albedo": 0.80
+        "albedo": 0.8
       },
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1684, "discoverer": "Giovanni Cassini"},
+      "discovery": {
+        "year": 1684,
+        "discoverer": "Giovanni Cassini"
+      },
       "description": "Fifth-largest moon of Saturn. Composed almost entirely of water ice. Features a massive canyon system (Ithaca Chasma) spanning 2,000 km."
     },
     {
@@ -694,7 +825,7 @@
         "orbital_period_days": 2.737
       },
       "physical": {
-        "mass_kg": 1.0955e21,
+        "mass_kg": 1.0955e+21,
         "radius_km": 561.4,
         "surface_gravity_ms2": 0.232,
         "rotation_period_hours": 65.686,
@@ -702,12 +833,17 @@
         "albedo": 0.998
       },
       "atmosphere": {
-        "composition": {"O2": 100.0},
+        "composition": {
+          "O2": 100
+        },
         "surface_pressure_atm": 1e-12
       },
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1684, "discoverer": "Giovanni Cassini"},
+      "discovery": {
+        "year": 1684,
+        "discoverer": "Giovanni Cassini"
+      },
       "description": "Fourth-largest moon of Saturn. Has a tenuous oxygen atmosphere and may have a subsurface liquid water ocean."
     },
     {
@@ -722,7 +858,7 @@
         "orbital_period_days": 4.518
       },
       "physical": {
-        "mass_kg": 2.3065e21,
+        "mass_kg": 2.3065e+21,
         "radius_km": 763.8,
         "surface_gravity_ms2": 0.264,
         "rotation_period_hours": 108.42,
@@ -730,12 +866,18 @@
         "albedo": 0.949
       },
       "atmosphere": {
-        "composition": {"O2": 70.0, "CO2": 30.0},
+        "composition": {
+          "O2": 70,
+          "CO2": 30
+        },
         "surface_pressure_atm": 1e-11
       },
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1672, "discoverer": "Giovanni Cassini"},
+      "discovery": {
+        "year": 1672,
+        "discoverer": "Giovanni Cassini"
+      },
       "description": "Second-largest moon of Saturn. Heavily cratered and composed primarily of water ice. Has a very thin atmosphere of oxygen and carbon dioxide."
     },
     {
@@ -750,7 +892,7 @@
         "orbital_period_days": 21.277
       },
       "physical": {
-        "mass_kg": 5.62e18,
+        "mass_kg": 5620000000000000000,
         "radius_km": 135,
         "surface_gravity_ms2": 0.021,
         "rotation_period_hours": null,
@@ -760,7 +902,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1848, "discoverer": "William Cranch Bond, George Phillips Bond, William Lassell"},
+      "discovery": {
+        "year": 1848,
+        "discoverer": "William Cranch Bond, George Phillips Bond, William Lassell"
+      },
       "description": "Irregularly shaped moon of Saturn with a sponge-like appearance. Has chaotic rotation with no fixed rotational period."
     },
     {
@@ -775,7 +920,7 @@
         "orbital_period_days": 79.322
       },
       "physical": {
-        "mass_kg": 1.806e21,
+        "mass_kg": 1.806e+21,
         "radius_km": 734.5,
         "surface_gravity_ms2": 0.223,
         "rotation_period_hours": 1903.7,
@@ -785,7 +930,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1671, "discoverer": "Giovanni Cassini"},
+      "discovery": {
+        "year": 1671,
+        "discoverer": "Giovanni Cassini"
+      },
       "description": "Third-largest moon of Saturn. Famous for its two-toned coloring: one hemisphere is dark as coal, the other bright as snow. Has a prominent equatorial ridge."
     },
     {
@@ -800,7 +948,7 @@
         "orbital_period_days": 550.48
       },
       "physical": {
-        "mass_kg": 8.292e18,
+        "mass_kg": 8292000000000000000,
         "radius_km": 106.5,
         "surface_gravity_ms2": 0.049,
         "rotation_period_hours": 9.274,
@@ -810,7 +958,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1899, "discoverer": "William Henry Pickering"},
+      "discovery": {
+        "year": 1899,
+        "discoverer": "William Henry Pickering"
+      },
       "description": "Retrograde irregular moon of Saturn, likely a captured Kuiper Belt object. Has a heavily cratered, dark surface."
     },
     {
@@ -828,16 +979,20 @@
         "argument_perihelion_deg": 96.998
       },
       "physical": {
-        "mass_kg": 8.681e25,
+        "mass_kg": 8.681e+25,
         "radius_km": 25362,
         "surface_gravity_ms2": 8.87,
         "rotation_period_hours": -17.24,
         "axial_tilt_deg": 97.77,
         "mean_temperature_k": 76,
-        "albedo": 0.300
+        "albedo": 0.3
       },
       "atmosphere": {
-        "composition": {"H2": 82.5, "He": 15.2, "CH4": 2.3},
+        "composition": {
+          "H2": 82.5,
+          "He": 15.2,
+          "CH4": 2.3
+        },
         "surface_pressure_atm": null
       },
       "rings": true,
@@ -846,8 +1001,17 @@
         "outer_radius_km": 98000,
         "composition": "dark particles, likely radiation-processed organics"
       },
-      "moons": ["miranda", "ariel", "umbriel", "titania", "oberon"],
-      "discovery": {"year": 1781, "discoverer": "William Herschel"},
+      "moons": [
+        "miranda",
+        "ariel",
+        "umbriel",
+        "titania",
+        "oberon"
+      ],
+      "discovery": {
+        "year": 1781,
+        "discoverer": "William Herschel"
+      },
       "description": "Seventh planet from the Sun. Rotates nearly on its side with an axial tilt of 98 degrees. Coldest planetary atmosphere in the solar system."
     },
     {
@@ -862,7 +1026,7 @@
         "orbital_period_days": 1.413
       },
       "physical": {
-        "mass_kg": 6.59e19,
+        "mass_kg": 65900000000000000000,
         "radius_km": 235.8,
         "surface_gravity_ms2": 0.079,
         "rotation_period_hours": 33.923,
@@ -872,7 +1036,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1948, "discoverer": "Gerard Kuiper"},
+      "discovery": {
+        "year": 1948,
+        "discoverer": "Gerard Kuiper"
+      },
       "description": "Smallest and innermost of Uranus's five major moons. Has one of the most extreme and varied topographies in the solar system, including Verona Rupes, the tallest cliff."
     },
     {
@@ -884,10 +1051,10 @@
         "semi_major_axis_km": 190900,
         "eccentricity": 0.0012,
         "inclination_deg": 0.26,
-        "orbital_period_days": 2.520
+        "orbital_period_days": 2.52
       },
       "physical": {
-        "mass_kg": 1.353e21,
+        "mass_kg": 1.353e+21,
         "radius_km": 578.9,
         "surface_gravity_ms2": 0.269,
         "rotation_period_hours": 60.489,
@@ -897,7 +1064,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1851, "discoverer": "William Lassell"},
+      "discovery": {
+        "year": 1851,
+        "discoverer": "William Lassell"
+      },
       "description": "Fourth-largest moon of Uranus. Brightest of the Uranian moons with the youngest and most geologically active surface."
     },
     {
@@ -912,7 +1082,7 @@
         "orbital_period_days": 4.144
       },
       "physical": {
-        "mass_kg": 1.172e21,
+        "mass_kg": 1.172e+21,
         "radius_km": 584.7,
         "surface_gravity_ms2": 0.23,
         "rotation_period_hours": 99.46,
@@ -922,7 +1092,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1851, "discoverer": "William Lassell"},
+      "discovery": {
+        "year": 1851,
+        "discoverer": "William Lassell"
+      },
       "description": "Third-largest moon of Uranus. Darkest of the major Uranian moons, with a heavily cratered ancient surface."
     },
     {
@@ -937,7 +1110,7 @@
         "orbital_period_days": 8.706
       },
       "physical": {
-        "mass_kg": 3.527e21,
+        "mass_kg": 3.527e+21,
         "radius_km": 788.4,
         "surface_gravity_ms2": 0.379,
         "rotation_period_hours": 208.94,
@@ -947,7 +1120,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1787, "discoverer": "William Herschel"},
+      "discovery": {
+        "year": 1787,
+        "discoverer": "William Herschel"
+      },
       "description": "Largest moon of Uranus and eighth largest in the solar system. Surface features include canyons, scarps, and impact craters."
     },
     {
@@ -962,7 +1138,7 @@
         "orbital_period_days": 13.463
       },
       "physical": {
-        "mass_kg": 3.014e21,
+        "mass_kg": 3.014e+21,
         "radius_km": 761.4,
         "surface_gravity_ms2": 0.346,
         "rotation_period_hours": 323.117,
@@ -972,7 +1148,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1787, "discoverer": "William Herschel"},
+      "discovery": {
+        "year": 1787,
+        "discoverer": "William Herschel"
+      },
       "description": "Second-largest moon of Uranus. Outermost of the five major moons. Has a heavily cratered, old surface with some large fault structures."
     },
     {
@@ -984,22 +1163,26 @@
         "semi_major_axis_au": 30.07,
         "eccentricity": 0.0086,
         "inclination_deg": 1.77,
-        "orbital_period_days": 60182.0,
+        "orbital_period_days": 60182,
         "mean_anomaly_deg": 256.228,
         "longitude_ascending_node_deg": 131.784,
         "argument_perihelion_deg": 276.336
       },
       "physical": {
-        "mass_kg": 1.024e26,
+        "mass_kg": 1.024e+26,
         "radius_km": 24622,
         "surface_gravity_ms2": 11.15,
         "rotation_period_hours": 16.11,
         "axial_tilt_deg": 28.32,
         "mean_temperature_k": 72,
-        "albedo": 0.290
+        "albedo": 0.29
       },
       "atmosphere": {
-        "composition": {"H2": 80.0, "He": 19.0, "CH4": 1.5},
+        "composition": {
+          "H2": 80,
+          "He": 19,
+          "CH4": 1.5
+        },
         "surface_pressure_atm": null
       },
       "rings": true,
@@ -1008,8 +1191,15 @@
         "outer_radius_km": 62930,
         "composition": "dust and ice particles"
       },
-      "moons": ["triton", "nereid", "proteus"],
-      "discovery": {"year": 1846, "discoverer": "Johann Galle, Urbain Le Verrier, John Couch Adams"},
+      "moons": [
+        "triton",
+        "nereid",
+        "proteus"
+      ],
+      "discovery": {
+        "year": 1846,
+        "discoverer": "Johann Galle, Urbain Le Verrier, John Couch Adams"
+      },
       "description": "Eighth and farthest planet from the Sun. Has the strongest winds in the solar system, reaching 2,100 km/h."
     },
     {
@@ -1024,7 +1214,7 @@
         "orbital_period_days": 5.877
       },
       "physical": {
-        "mass_kg": 2.14e22,
+        "mass_kg": 2.14e+22,
         "radius_km": 1353.4,
         "surface_gravity_ms2": 0.779,
         "rotation_period_hours": 141.043,
@@ -1032,12 +1222,18 @@
         "albedo": 0.76
       },
       "atmosphere": {
-        "composition": {"N2": 99.9, "CH4": 0.01},
+        "composition": {
+          "N2": 99.9,
+          "CH4": 0.01
+        },
         "surface_pressure_atm": 0.000014
       },
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1846, "discoverer": "William Lassell"},
+      "discovery": {
+        "year": 1846,
+        "discoverer": "William Lassell"
+      },
       "description": "Largest moon of Neptune. Only large moon with a retrograde orbit, suggesting it was captured from the Kuiper Belt. Has nitrogen geysers."
     },
     {
@@ -1052,7 +1248,7 @@
         "orbital_period_days": 360.14
       },
       "physical": {
-        "mass_kg": 3.1e19,
+        "mass_kg": 31000000000000000000,
         "radius_km": 170,
         "surface_gravity_ms2": 0.071,
         "rotation_period_hours": 11.594,
@@ -1062,7 +1258,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1949, "discoverer": "Gerard Kuiper"},
+      "discovery": {
+        "year": 1949,
+        "discoverer": "Gerard Kuiper"
+      },
       "description": "Third-largest moon of Neptune. Has one of the most eccentric orbits of any known moon in the solar system."
     },
     {
@@ -1077,7 +1276,7 @@
         "orbital_period_days": 1.122
       },
       "physical": {
-        "mass_kg": 4.4e19,
+        "mass_kg": 44000000000000000000,
         "radius_km": 210,
         "surface_gravity_ms2": 0.07,
         "rotation_period_hours": 26.868,
@@ -1087,7 +1286,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1989, "discoverer": "Voyager 2 (Stephen Synnott)"},
+      "discovery": {
+        "year": 1989,
+        "discoverer": "Voyager 2 (Stephen Synnott)"
+      },
       "description": "Second-largest moon of Neptune. Nearly as large as Mimas but irregularly shaped, the largest irregularly shaped body in the solar system."
     },
     {
@@ -1099,13 +1301,13 @@
         "semi_major_axis_au": 39.482,
         "eccentricity": 0.2488,
         "inclination_deg": 17.16,
-        "orbital_period_days": 90560.0,
+        "orbital_period_days": 90560,
         "mean_anomaly_deg": 14.53,
         "longitude_ascending_node_deg": 110.299,
         "argument_perihelion_deg": 113.834
       },
       "physical": {
-        "mass_kg": 1.303e22,
+        "mass_kg": 1.303e+22,
         "radius_km": 1188.3,
         "surface_gravity_ms2": 0.62,
         "rotation_period_hours": -153.293,
@@ -1114,12 +1316,25 @@
         "albedo": 0.49
       },
       "atmosphere": {
-        "composition": {"N2": 99.0, "CH4": 0.5, "CO": 0.05},
+        "composition": {
+          "N2": 99,
+          "CH4": 0.5,
+          "CO": 0.05
+        },
         "surface_pressure_atm": 0.00001
       },
       "rings": false,
-      "moons": ["charon", "nix", "hydra", "kerberos", "styx"],
-      "discovery": {"year": 1930, "discoverer": "Clyde Tombaugh"},
+      "moons": [
+        "charon",
+        "nix",
+        "hydra",
+        "kerberos",
+        "styx"
+      ],
+      "discovery": {
+        "year": 1930,
+        "discoverer": "Clyde Tombaugh"
+      },
       "description": "Largest known dwarf planet in the Kuiper Belt. Has a heart-shaped nitrogen ice plain (Sputnik Planitia). Reclassified from planet to dwarf planet in 2006."
     },
     {
@@ -1134,7 +1349,7 @@
         "orbital_period_days": 6.387
       },
       "physical": {
-        "mass_kg": 1.586e21,
+        "mass_kg": 1.586e+21,
         "radius_km": 606,
         "surface_gravity_ms2": 0.288,
         "rotation_period_hours": 153.294,
@@ -1144,7 +1359,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1978, "discoverer": "James Christy"},
+      "discovery": {
+        "year": 1978,
+        "discoverer": "James Christy"
+      },
       "description": "Largest moon of Pluto. So large relative to Pluto that they are sometimes considered a binary system, orbiting a barycenter outside Pluto."
     },
     {
@@ -1159,7 +1377,7 @@
         "orbital_period_days": 24.856
       },
       "physical": {
-        "mass_kg": 4.5e16,
+        "mass_kg": 45000000000000000,
         "radius_km": 23,
         "surface_gravity_ms2": 0.003,
         "mean_temperature_k": 40,
@@ -1168,7 +1386,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 2005, "discoverer": "Hubble Space Telescope team"},
+      "discovery": {
+        "year": 2005,
+        "discoverer": "Hubble Space Telescope team"
+      },
       "description": "Third moon of Pluto. Irregularly shaped and has a chaotic rotation."
     },
     {
@@ -1183,7 +1404,7 @@
         "orbital_period_days": 38.206
       },
       "physical": {
-        "mass_kg": 4.8e16,
+        "mass_kg": 48000000000000000,
         "radius_km": 30.5,
         "surface_gravity_ms2": 0.003,
         "mean_temperature_k": 40,
@@ -1192,7 +1413,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 2005, "discoverer": "Hubble Space Telescope team"},
+      "discovery": {
+        "year": 2005,
+        "discoverer": "Hubble Space Telescope team"
+      },
       "description": "Outermost known moon of Pluto. Irregularly shaped with a highly reflective surface."
     },
     {
@@ -1207,7 +1431,7 @@
         "orbital_period_days": 32.168
       },
       "physical": {
-        "mass_kg": 1.65e16,
+        "mass_kg": 16500000000000000,
         "radius_km": 12,
         "surface_gravity_ms2": 0.001,
         "mean_temperature_k": 40,
@@ -1216,7 +1440,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 2011, "discoverer": "Hubble Space Telescope team (Mark Showalter)"},
+      "discovery": {
+        "year": 2011,
+        "discoverer": "Hubble Space Telescope team (Mark Showalter)"
+      },
       "description": "Fourth moon of Pluto. Has a double-lobed shape suggesting it may be two objects that merged."
     },
     {
@@ -1231,7 +1458,7 @@
         "orbital_period_days": 20.162
       },
       "physical": {
-        "mass_kg": 7.5e15,
+        "mass_kg": 7500000000000000,
         "radius_km": 8,
         "surface_gravity_ms2": 0.001,
         "mean_temperature_k": 40,
@@ -1240,7 +1467,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 2012, "discoverer": "Hubble Space Telescope team (Mark Showalter)"},
+      "discovery": {
+        "year": 2012,
+        "discoverer": "Hubble Space Telescope team (Mark Showalter)"
+      },
       "description": "Smallest known moon of Pluto. Discovered during a search for potential hazards for the New Horizons mission."
     },
     {
@@ -1252,12 +1482,12 @@
         "semi_major_axis_au": 67.781,
         "eccentricity": 0.4407,
         "inclination_deg": 44.04,
-        "orbital_period_days": 203830.0,
+        "orbital_period_days": 203830,
         "longitude_ascending_node_deg": 35.951,
         "argument_perihelion_deg": 151.639
       },
       "physical": {
-        "mass_kg": 1.66e22,
+        "mass_kg": 1.66e+22,
         "radius_km": 1163,
         "surface_gravity_ms2": 0.82,
         "rotation_period_hours": 25.9,
@@ -1266,8 +1496,13 @@
       },
       "atmosphere": null,
       "rings": false,
-      "moons": ["dysnomia"],
-      "discovery": {"year": 2005, "discoverer": "Mike Brown, Chad Trujillo, David Rabinowitz"},
+      "moons": [
+        "dysnomia"
+      ],
+      "discovery": {
+        "year": 2005,
+        "discoverer": "Mike Brown, Chad Trujillo, David Rabinowitz"
+      },
       "description": "Most massive known dwarf planet, 27% more massive than Pluto. Its discovery was a key factor in the reclassification of Pluto."
     },
     {
@@ -1282,7 +1517,7 @@
         "orbital_period_days": 15.774
       },
       "physical": {
-        "mass_kg": 8.2e19,
+        "mass_kg": 82000000000000000000,
         "radius_km": 350,
         "surface_gravity_ms2": 0.04,
         "albedo": 0.04
@@ -1290,7 +1525,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 2005, "discoverer": "Mike Brown, M.A. van Dam"},
+      "discovery": {
+        "year": 2005,
+        "discoverer": "Mike Brown, M.A. van Dam"
+      },
       "description": "Only known moon of Eris. Much darker than Eris itself."
     },
     {
@@ -1302,12 +1540,12 @@
         "semi_major_axis_au": 43.335,
         "eccentricity": 0.1912,
         "inclination_deg": 28.19,
-        "orbital_period_days": 104234.0,
+        "orbital_period_days": 104234,
         "longitude_ascending_node_deg": 122.167,
         "argument_perihelion_deg": 239.041
       },
       "physical": {
-        "mass_kg": 4.006e21,
+        "mass_kg": 4.006e+21,
         "radius_km": 816,
         "surface_gravity_ms2": 0.401,
         "rotation_period_hours": 3.915,
@@ -1316,8 +1554,14 @@
       },
       "atmosphere": null,
       "rings": true,
-      "moons": ["hiiaka", "namaka"],
-      "discovery": {"year": 2004, "discoverer": "Mike Brown, Chad Trujillo, David Rabinowitz"},
+      "moons": [
+        "hiiaka",
+        "namaka"
+      ],
+      "discovery": {
+        "year": 2004,
+        "discoverer": "Mike Brown, Chad Trujillo, David Rabinowitz"
+      },
       "description": "Elongated dwarf planet in the Kuiper Belt. Fastest known rotation of any large body in the solar system (under 4 hours). Has two moons and a ring system."
     },
     {
@@ -1332,7 +1576,7 @@
         "orbital_period_days": 49.462
       },
       "physical": {
-        "mass_kg": 1.79e19,
+        "mass_kg": 17900000000000000000,
         "radius_km": 160,
         "surface_gravity_ms2": 0.044,
         "albedo": 0.7
@@ -1340,7 +1584,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 2005, "discoverer": "Mike Brown, A.H. Bouchez, et al."},
+      "discovery": {
+        "year": 2005,
+        "discoverer": "Mike Brown, A.H. Bouchez, et al."
+      },
       "description": "Larger outer moon of Haumea. Surface covered in water ice."
     },
     {
@@ -1355,7 +1602,7 @@
         "orbital_period_days": 18.278
       },
       "physical": {
-        "mass_kg": 1.79e18,
+        "mass_kg": 1790000000000000000,
         "radius_km": 85,
         "surface_gravity_ms2": 0.016,
         "albedo": 0.7
@@ -1363,7 +1610,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 2005, "discoverer": "Mike Brown, A.H. Bouchez, et al."},
+      "discovery": {
+        "year": 2005,
+        "discoverer": "Mike Brown, A.H. Bouchez, et al."
+      },
       "description": "Smaller inner moon of Haumea. About one-tenth the mass of Hi'iaka."
     },
     {
@@ -1375,22 +1625,27 @@
         "semi_major_axis_au": 45.791,
         "eccentricity": 0.1559,
         "inclination_deg": 28.98,
-        "orbital_period_days": 113183.0,
+        "orbital_period_days": 113183,
         "longitude_ascending_node_deg": 79.382,
         "argument_perihelion_deg": 294.834
       },
       "physical": {
-        "mass_kg": 3.1e21,
+        "mass_kg": 3.1e+21,
         "radius_km": 715,
-        "surface_gravity_ms2": 0.40,
+        "surface_gravity_ms2": 0.4,
         "rotation_period_hours": 22.827,
         "mean_temperature_k": 32,
         "albedo": 0.81
       },
       "atmosphere": null,
       "rings": false,
-      "moons": ["s2015_136472_1"],
-      "discovery": {"year": 2005, "discoverer": "Mike Brown, Chad Trujillo, David Rabinowitz"},
+      "moons": [
+        "s2015_136472_1"
+      ],
+      "discovery": {
+        "year": 2005,
+        "discoverer": "Mike Brown, Chad Trujillo, David Rabinowitz"
+      },
       "description": "Second-largest known Kuiper Belt object after Pluto. Extremely cold surface covered in methane and ethane ices."
     },
     {
@@ -1400,7 +1655,7 @@
       "parent": "makemake",
       "orbit": {
         "semi_major_axis_km": 21100,
-        "eccentricity": 0.0,
+        "eccentricity": 0,
         "orbital_period_days": 12.4
       },
       "physical": {
@@ -1410,7 +1665,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 2015, "discoverer": "Alex Parker (Hubble Space Telescope)"},
+      "discovery": {
+        "year": 2015,
+        "discoverer": "Alex Parker (Hubble Space Telescope)"
+      },
       "description": "Only known moon of Makemake. Very dark compared to Makemake itself."
     },
     {
@@ -1428,11 +1686,11 @@
         "argument_perihelion_deg": 73.597
       },
       "physical": {
-        "mass_kg": 9.393e20,
+        "mass_kg": 939300000000000000000,
         "radius_km": 473,
         "surface_gravity_ms2": 0.28,
         "rotation_period_hours": 9.074,
-        "axial_tilt_deg": 4.0,
+        "axial_tilt_deg": 4,
         "mean_temperature_k": 168,
         "albedo": 0.09
       },
@@ -1442,7 +1700,10 @@
       },
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1801, "discoverer": "Giuseppe Piazzi"},
+      "discovery": {
+        "year": 1801,
+        "discoverer": "Giuseppe Piazzi"
+      },
       "description": "Largest object in the asteroid belt and the only dwarf planet in the inner solar system. Has bright salt deposits in Occator crater suggesting recent geological activity."
     },
     {
@@ -1457,7 +1718,7 @@
         "orbital_period_days": 1325.75
       },
       "physical": {
-        "mass_kg": 2.590e20,
+        "mass_kg": 259000000000000000000,
         "radius_km": 262.7,
         "surface_gravity_ms2": 0.25,
         "rotation_period_hours": 5.342,
@@ -1467,7 +1728,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1807, "discoverer": "Heinrich Wilhelm Olbers"},
+      "discovery": {
+        "year": 1807,
+        "discoverer": "Heinrich Wilhelm Olbers"
+      },
       "description": "Second-largest object in the asteroid belt. Has a differentiated interior with an iron core. Visited by NASA's Dawn spacecraft."
     },
     {
@@ -1482,7 +1746,7 @@
         "orbital_period_days": 1685.4
       },
       "physical": {
-        "mass_kg": 2.04e20,
+        "mass_kg": 204000000000000000000,
         "radius_km": 256,
         "surface_gravity_ms2": 0.21,
         "rotation_period_hours": 7.813,
@@ -1492,7 +1756,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1802, "discoverer": "Heinrich Wilhelm Olbers"},
+      "discovery": {
+        "year": 1802,
+        "discoverer": "Heinrich Wilhelm Olbers"
+      },
       "description": "Third-largest object in the asteroid belt. Has a highly inclined and eccentric orbit, making it difficult to visit with spacecraft."
     },
     {
@@ -1504,10 +1771,10 @@
         "semi_major_axis_au": 3.1415,
         "eccentricity": 0.1146,
         "inclination_deg": 3.832,
-        "orbital_period_days": 2034.0
+        "orbital_period_days": 2034
       },
       "physical": {
-        "mass_kg": 8.67e19,
+        "mass_kg": 86700000000000000000,
         "radius_km": 217,
         "surface_gravity_ms2": 0.12,
         "rotation_period_hours": 13.828,
@@ -1516,7 +1783,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1849, "discoverer": "Annibale de Gasparis"},
+      "discovery": {
+        "year": 1849,
+        "discoverer": "Annibale de Gasparis"
+      },
       "description": "Fourth-largest object in the asteroid belt. Nearly spherical, potentially qualifying as a dwarf planet. Largest member of the Hygiea asteroid family."
     },
     {
@@ -1528,10 +1798,10 @@
         "semi_major_axis_au": 2.672,
         "eccentricity": 0.2562,
         "inclination_deg": 12.982,
-        "orbital_period_days": 1594.0
+        "orbital_period_days": 1594
       },
       "physical": {
-        "mass_kg": 2.67e19,
+        "mass_kg": 26700000000000000000,
         "radius_km": 123.3,
         "surface_gravity_ms2": 0.12,
         "rotation_period_hours": 7.21,
@@ -1540,7 +1810,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1804, "discoverer": "Karl Ludwig Harding"},
+      "discovery": {
+        "year": 1804,
+        "discoverer": "Karl Ludwig Harding"
+      },
       "description": "One of the larger asteroids in the main belt. An S-type (stony) asteroid with a silicate composition."
     },
     {
@@ -1552,10 +1825,10 @@
         "semi_major_axis_au": 1.458,
         "eccentricity": 0.2229,
         "inclination_deg": 10.829,
-        "orbital_period_days": 643.0
+        "orbital_period_days": 643
       },
       "physical": {
-        "mass_kg": 6.687e15,
+        "mass_kg": 6687000000000000,
         "radius_km": 8.42,
         "surface_gravity_ms2": 0.006,
         "rotation_period_hours": 5.27,
@@ -1564,7 +1837,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1898, "discoverer": "Carl Gustav Witt, Auguste Charlois"},
+      "discovery": {
+        "year": 1898,
+        "discoverer": "Carl Gustav Witt, Auguste Charlois"
+      },
       "description": "Second-largest near-Earth asteroid. First asteroid to be orbited and landed upon by a spacecraft (NEAR Shoemaker, 2001)."
     },
     {
@@ -1579,7 +1855,7 @@
         "orbital_period_days": 436.65
       },
       "physical": {
-        "mass_kg": 7.329e10,
+        "mass_kg": 73290000000,
         "radius_km": 0.2445,
         "surface_gravity_ms2": 0.000006,
         "rotation_period_hours": 4.296,
@@ -1588,7 +1864,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1999, "discoverer": "LINEAR project"},
+      "discovery": {
+        "year": 1999,
+        "discoverer": "LINEAR project"
+      },
       "description": "Carbonaceous near-Earth asteroid. Target of NASA's OSIRIS-REx mission, which successfully collected and returned a sample to Earth in 2023."
     },
     {
@@ -1603,7 +1882,7 @@
         "orbital_period_days": 473.9
       },
       "physical": {
-        "mass_kg": 4.5e11,
+        "mass_kg": 450000000000,
         "radius_km": 0.45,
         "surface_gravity_ms2": 0.00011,
         "rotation_period_hours": 7.627,
@@ -1612,7 +1891,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1999, "discoverer": "LINEAR project"},
+      "discovery": {
+        "year": 1999,
+        "discoverer": "LINEAR project"
+      },
       "description": "Diamond-shaped carbonaceous near-Earth asteroid. Target of JAXA's Hayabusa2 mission, which returned samples to Earth in 2020."
     },
     {
@@ -1627,7 +1909,7 @@
         "orbital_period_days": 556.38
       },
       "physical": {
-        "mass_kg": 3.51e10,
+        "mass_kg": 35100000000,
         "radius_km": 0.165,
         "surface_gravity_ms2": 0.0001,
         "rotation_period_hours": 12.132,
@@ -1636,7 +1918,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1998, "discoverer": "LINEAR project"},
+      "discovery": {
+        "year": 1998,
+        "discoverer": "LINEAR project"
+      },
       "description": "Small peanut-shaped near-Earth asteroid. First asteroid from which samples were returned to Earth (Hayabusa, 2010)."
     },
     {
@@ -1648,10 +1933,10 @@
         "semi_major_axis_au": 2.9227,
         "eccentricity": 0.1339,
         "inclination_deg": 3.095,
-        "orbital_period_days": 1823.0
+        "orbital_period_days": 1823
       },
       "physical": {
-        "mass_kg": 2.29e19,
+        "mass_kg": 22900000000000000000,
         "radius_km": 113,
         "surface_gravity_ms2": 0.12,
         "rotation_period_hours": 4.196,
@@ -1660,7 +1945,10 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1852, "discoverer": "Annibale de Gasparis"},
+      "discovery": {
+        "year": 1852,
+        "discoverer": "Annibale de Gasparis"
+      },
       "description": "Metal-rich asteroid thought to be the exposed core of a protoplanet. Target of NASA's Psyche mission (launched 2023)."
     },
     {
@@ -1672,10 +1960,10 @@
         "semi_major_axis_au": 2.862,
         "eccentricity": 0.0452,
         "inclination_deg": 1.138,
-        "orbital_period_days": 1768.0
+        "orbital_period_days": 1768
       },
       "physical": {
-        "mass_kg": 4.2e16,
+        "mass_kg": 42000000000000000,
         "radius_km": 15.7,
         "surface_gravity_ms2": 0.011,
         "rotation_period_hours": 4.634,
@@ -1683,8 +1971,13 @@
       },
       "atmosphere": null,
       "rings": false,
-      "moons": ["dactyl"],
-      "discovery": {"year": 1884, "discoverer": "Johann Palisa"},
+      "moons": [
+        "dactyl"
+      ],
+      "discovery": {
+        "year": 1884,
+        "discoverer": "Johann Palisa"
+      },
       "description": "Main belt asteroid and member of the Koronis family. First asteroid confirmed to have a natural satellite (Dactyl)."
     },
     {
@@ -1705,66 +1998,11 @@
       "atmosphere": null,
       "rings": false,
       "moons": [],
-      "discovery": {"year": 1993, "discoverer": "Galileo spacecraft (Ann Harch)"},
+      "discovery": {
+        "year": 1993,
+        "discoverer": "Galileo spacecraft (Ann Harch)"
+      },
       "description": "Tiny moon of asteroid Ida. First asteroid moon ever discovered, found in images from the Galileo spacecraft flyby."
-    }
-  ],
-  "regions": [
-    {
-      "id": "asteroid_belt",
-      "name": "Asteroid Belt",
-      "type": "region",
-      "inner_radius_au": 2.2,
-      "outer_radius_au": 3.2,
-      "description": "Region between Mars and Jupiter containing rocky debris. Contains millions of objects but with a total mass less than 4% of the Moon."
-    },
-    {
-      "id": "kuiper_belt",
-      "name": "Kuiper Belt",
-      "type": "region",
-      "inner_radius_au": 30,
-      "outer_radius_au": 50,
-      "description": "A circumstellar disc beyond Neptune containing frozen volatiles (ices). Home to Pluto, Haumea, Makemake, and countless smaller icy bodies."
-    },
-    {
-      "id": "scattered_disc",
-      "name": "Scattered Disc",
-      "type": "region",
-      "inner_radius_au": 30,
-      "outer_radius_au": 100,
-      "description": "A distant circumstellar disc overlapping the Kuiper Belt but extending much farther with highly eccentric and inclined orbits. Home to Eris."
-    },
-    {
-      "id": "oort_cloud_inner",
-      "name": "Inner Oort Cloud (Hills Cloud)",
-      "type": "region",
-      "inner_radius_au": 2000,
-      "outer_radius_au": 20000,
-      "description": "Theoretical disc-shaped inner region of the Oort cloud. May contain significantly more objects than the outer Oort cloud."
-    },
-    {
-      "id": "oort_cloud_outer",
-      "name": "Outer Oort Cloud",
-      "type": "region",
-      "inner_radius_au": 20000,
-      "outer_radius_au": 100000,
-      "description": "Theoretical spherical shell of icy planetesimals surrounding the solar system. Believed to be the source of long-period comets. Extends to roughly 2 light-years."
-    },
-    {
-      "id": "heliosphere",
-      "name": "Heliosphere",
-      "type": "region",
-      "inner_radius_au": 0,
-      "outer_radius_au": 123,
-      "description": "The vast bubble-like region of space dominated by the Sun's solar wind. Protects the solar system from galactic cosmic rays."
-    },
-    {
-      "id": "heliopause",
-      "name": "Heliopause",
-      "type": "region",
-      "inner_radius_au": 121,
-      "outer_radius_au": 123,
-      "description": "The boundary where the solar wind is stopped by the interstellar medium. Voyager 1 crossed this boundary at about 121 AU in August 2012."
     }
   ]
 }

@@ -1,0 +1,16 @@
+{
+  "_comment": "Registry of all known bound star systems. Each entry references a per-system file at data/star_systems/{id}.json. galaxy_position_ly is light-years from Sol (Sol is the origin). Drop in new systems by adding an entry here + a {id}.json file with the system's bodies. See README.md for the per-system schema. Operator confirmed (2026-05-09): nothing depends on the old data/solar_system/bodies.json path so the restructure is safe.",
+  "epoch": "J2000.0",
+  "systems": [
+    {
+      "id": "sol",
+      "name": "Solar System",
+      "primary_star_name": "Sun",
+      "spectral_class": "G2V",
+      "galaxy_position_ly": [0, 0, 0],
+      "distance_from_sol_ly": 0,
+      "data_source": "hand_authored",
+      "data_file": "sol.json"
+    }
+  ]
+}

@@ -107,6 +107,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         draw_user_modal(ctx, theme, state);
     }
 
+    // ── UNENCRYPTED-DM CONFIRMATION MODAL (v0.199.0, B3 fix) ──
+    // Pops up when the user clicked Send on a DM that we couldn't
+    // encrypt (recipient ECDH key missing, etc.). User must explicitly
+    // confirm "Send unencrypted" or cancel — no silent plaintext fallback.
+    draw_unencrypted_dm_modal(ctx, theme, state);
+
     // ── CREATE CHANNEL MODAL ──
     if state.show_create_channel_modal {
         draw_create_channel_modal(ctx, theme, state);
@@ -2452,6 +2458,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .unwrap_or_default()
                             .as_millis() as u64;
 
+                        // B3 fix (v0.199.0): track whether the WS send was
+                        // aborted (DM unencryptable, awaiting modal confirm).
+                        // If aborted we ALSO skip the local message push so
+                        // the user doesn't see their own message echo for a
+                        // message that didn't actually send.
+                        let mut send_aborted = false;
+
                         // Send via WebSocket if connected
                         if let Some(ref client) = state.ws_client {
                             if client.is_connected() {
@@ -2465,51 +2478,70 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     "Anonymous".to_string()
                                 };
 
-                                let json_str = if channel.starts_with("dm:") {
-                                    // DM: send as type "dm" with target partner key.
-                                    // Attempt E2E encryption if we know the peer's ECDH public key.
+                                // v0.199.0 (B3 fix): build the WS payload as Option<String>
+                                // so the DM branch can SKIP the send if encryption isn't
+                                // possible. Previously the DM code silently fell back to
+                                // plaintext with only a log line — that's a downgrade
+                                // attack vector. Now we stash the unencryptable message
+                                // in state.dm_unencrypted_confirm and a modal asks the
+                                // user to explicitly confirm "Send unencrypted anyway"
+                                // or cancel.
+                                let json_str_opt: Option<String> = if channel.starts_with("dm:") {
                                     let partner_key = &channel[3..];
-                                    let mut dm_obj = serde_json::json!({
-                                        "type": "dm",
-                                        "from": state.profile_public_key,
-                                        "from_name": display_name,
-                                        "to": partner_key,
-                                        "content": content,
-                                        "timestamp": ts,
-                                    });
-                                    if !state.ecdh_private_hex.is_empty() {
-                                        if let Some(peer_ecdh) = state.peer_ecdh_keys.get(partner_key) {
-                                            if let Ok(sb) = hex::decode(&state.ecdh_private_hex) {
-                                                if sb.len() == 32 {
-                                                    let mut bytes = [0u8; 32];
-                                                    bytes.copy_from_slice(&sb);
-                                                    if let Ok(kp) = crate::net::dm_crypto::DmKeypair::from_secret_bytes(&bytes) {
-                                                        match crate::net::dm_crypto::encrypt_dm(&kp, peer_ecdh, &content) {
-                                                            Ok(enc) => {
-                                                                dm_obj["content"] = serde_json::Value::String(enc.content_b64);
-                                                                dm_obj["nonce"] = serde_json::Value::String(enc.nonce_b64);
-                                                                dm_obj["encrypted"] = serde_json::Value::Bool(true);
-                                                            }
-                                                            Err(e) => {
-                                                                log::warn!("DM encryption failed for {}: {} (sending plaintext)", partner_key, e);
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            log::debug!("No ECDH key for {}, sending plaintext", partner_key);
+                                    // Try to encrypt. Fail-reason strings line up with
+                                    // PendingUnencryptedDm::reason values in mod.rs.
+                                    let encrypt_outcome: Result<(String, String), &'static str> =
+                                        try_encrypt_dm(state, partner_key, &content);
+                                    match encrypt_outcome {
+                                        Ok((content_b64, nonce_b64)) => {
+                                            // Encrypted — build the DM JSON normally.
+                                            let dm_obj = serde_json::json!({
+                                                "type": "dm",
+                                                "from": state.profile_public_key,
+                                                "from_name": display_name,
+                                                "to": partner_key,
+                                                "content": content_b64,
+                                                "nonce": nonce_b64,
+                                                "encrypted": true,
+                                                "timestamp": ts,
+                                            });
+                                            Some(dm_obj.to_string())
+                                        }
+                                        Err(reason) => {
+                                            // B3: refuse the silent plaintext fallback.
+                                            // Stash for the confirmation modal. The
+                                            // pending DM holds the original plaintext
+                                            // + ts so the user's choice is preserved if
+                                            // they confirm later.
+                                            let partner_name = state.chat_dms.iter()
+                                                .find(|d| d.user_key == partner_key)
+                                                .map(|d| d.user_name.clone())
+                                                .unwrap_or_else(|| {
+                                                    let take = 8.min(partner_key.len());
+                                                    partner_key[..take].to_string()
+                                                });
+                                            log::warn!(
+                                                "DM to {} ({}) cannot be encrypted ({}). Asking user to confirm plaintext.",
+                                                partner_name, partner_key, reason
+                                            );
+                                            state.dm_unencrypted_confirm = Some(crate::gui::PendingUnencryptedDm {
+                                                partner_key: partner_key.to_string(),
+                                                partner_name,
+                                                content: content.clone(),
+                                                timestamp_ms: ts,
+                                                reason: reason.to_string(),
+                                            });
+                                            None
                                         }
                                     }
-                                    dm_obj.to_string()
                                 } else if channel.starts_with("group:") {
                                     // Group: send as type "group_msg"
                                     let group_id = &channel[6..];
-                                    serde_json::json!({
+                                    Some(serde_json::json!({
                                         "type": "group_msg",
                                         "group_id": group_id,
                                         "content": content,
-                                    }).to_string()
+                                    }).to_string())
                                 } else {
                                     // Normal channel chat. Include reply_to if a thread context is active.
                                     let mut chat_obj = serde_json::json!({
@@ -2528,19 +2560,34 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                             "timestamp": r.timestamp_ms,
                                         });
                                     }
-                                    chat_obj.to_string()
+                                    Some(chat_obj.to_string())
                                 };
-                                crate::debug::push_debug(format!("WS >>> {}", json_str));
-                                client.send(&json_str);
+                                if let Some(json_str) = json_str_opt {
+                                    crate::debug::push_debug(format!("WS >>> {}", json_str));
+                                    client.send(&json_str);
 
-                                // Track timestamp for dedup when server echoes it back
-                                state.chat_sent_timestamps.push(ts);
-                                // Keep only last 20 timestamps
-                                if state.chat_sent_timestamps.len() > 20 {
-                                    state.chat_sent_timestamps.remove(0);
+                                    // Track timestamp for dedup when server echoes it back
+                                    state.chat_sent_timestamps.push(ts);
+                                    // Keep only last 20 timestamps
+                                    if state.chat_sent_timestamps.len() > 20 {
+                                        state.chat_sent_timestamps.remove(0);
+                                    }
+                                } else {
+                                    // B3: send was aborted because DM is unencryptable.
+                                    // Skip the local message push too — modal will
+                                    // handle resend after user confirms.
+                                    send_aborted = true;
                                 }
                             }
                         }
+
+                        if send_aborted {
+                            // Don't add the local echo or clear input — the
+                            // pending DM is in state.dm_unencrypted_confirm.
+                            // Modal will deal with it on the next frame.
+                            // Returning the closure (early-out via continue
+                            // analog: just skip the rest of the if-block).
+                        } else {
 
                         // Store locally so user sees their own message immediately
                         let now = chrono_now_str();
@@ -2571,6 +2618,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                         state.chat_input.clear();
                         response.request_focus();
+                        } // end of `else` branch added by B3 fix (send_aborted == false)
                     }
 
                     if enter_pressed {
@@ -3902,5 +3950,216 @@ fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     });
     if !open {
         state.show_help_modal = false;
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// B3 fix (v0.199.0): DM crypto silent downgrade prevention.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// Attempt to encrypt a DM. Returns `Ok((content_b64, nonce_b64))` if
+/// encryption succeeds, `Err(reason)` if it can't be encrypted at all.
+/// The reason string flows into `PendingUnencryptedDm::reason` for the
+/// confirmation modal.
+///
+/// Failure reasons:
+///   - `"no_own_ecdh"`        — this client has no ECDH private key set
+///   - `"missing_peer_key"`   — recipient's ECDH public key isn't known
+///   - `"bad_own_ecdh_hex"`   — our key is set but malformed (hex error)
+///   - `"bad_own_ecdh_len"`   — our key is wrong length (not 32 bytes)
+///   - `"bad_own_ecdh_keypair"` — keypair construction failed
+///   - `"encryption_failed"`  — encrypt_dm() returned an error
+fn try_encrypt_dm(
+    state: &GuiState,
+    partner_key: &str,
+    content: &str,
+) -> Result<(String, String), &'static str> {
+    if state.ecdh_private_hex.is_empty() {
+        return Err("no_own_ecdh");
+    }
+    let peer_ecdh = state.peer_ecdh_keys.get(partner_key)
+        .ok_or("missing_peer_key")?;
+    let sb = hex::decode(&state.ecdh_private_hex)
+        .map_err(|_| "bad_own_ecdh_hex")?;
+    if sb.len() != 32 {
+        return Err("bad_own_ecdh_len");
+    }
+    let mut bytes = [0u8; 32];
+    bytes.copy_from_slice(&sb);
+    let kp = crate::net::dm_crypto::DmKeypair::from_secret_bytes(&bytes)
+        .map_err(|_| "bad_own_ecdh_keypair")?;
+    crate::net::dm_crypto::encrypt_dm(&kp, peer_ecdh, content)
+        .map(|enc| (enc.content_b64, enc.nonce_b64))
+        .map_err(|_| "encryption_failed")
+}
+
+/// Render the unencrypted-DM confirmation modal if one is pending.
+/// Pops up when the user clicked Send on a DM that we couldn't encrypt
+/// (B3 fix). User must explicitly confirm "Send unencrypted" or cancel
+/// — no silent plaintext fallback. Call from chat::draw.
+pub(crate) fn draw_unencrypted_dm_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let pending = match state.dm_unencrypted_confirm.clone() {
+        Some(p) => p,
+        None => return,
+    };
+
+    let reason_human = match pending.reason.as_str() {
+        "no_own_ecdh" => "Your device has no encryption key set.",
+        "missing_peer_key" => "We don't have the recipient's encryption key yet — they may not have come online with a current key, or their key broadcast hasn't reached us.",
+        "bad_own_ecdh_hex" | "bad_own_ecdh_len" | "bad_own_ecdh_keypair" =>
+            "Your encryption key on this device is malformed. Try Identity → Recover.",
+        "encryption_failed" => "Encryption failed unexpectedly.",
+        other => other,
+    };
+
+    let mut close_modal = false;
+    let mut send_anyway = false;
+    let mut cancel_clicked = false;
+
+    egui::Window::new("⚠ Unencrypted DM Confirmation")
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .fixed_size(egui::Vec2::new(440.0, 0.0))
+        .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
+        .show(ctx, |ui| {
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new(format!("Sending to: {}", pending.partner_name))
+                    .size(theme.font_size_body)
+                    .color(theme.text_primary())
+                    .strong(),
+            );
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new("This message CANNOT be end-to-end encrypted.")
+                    .size(theme.font_size_body)
+                    .color(theme.danger())
+                    .strong(),
+            );
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new(reason_human)
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new("Sending unencrypted means anyone with access to the relay server can read it. The recipient is NOT protected from a hostile or compromised relay. Continue?")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_sm);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new("Your message:")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            // Show a preview of the message body, truncated to keep the
+            // modal compact even for long drafts.
+            let preview = if pending.content.chars().count() > 240 {
+                let truncated: String = pending.content.chars().take(240).collect();
+                format!("{}…", truncated)
+            } else {
+                pending.content.clone()
+            };
+            egui::Frame::none()
+                .fill(theme.bg_panel())
+                .rounding(egui::Rounding::same(theme.border_radius as u8))
+                .inner_margin(theme.card_padding)
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new(&preview)
+                            .size(theme.font_size_small)
+                            .color(theme.text_primary())
+                            .monospace(),
+                    );
+                });
+            ui.add_space(theme.spacing_md);
+            ui.horizontal(|ui| {
+                if widgets::Button::secondary("Cancel — keep it private")
+                    .tooltip("Don't send. The message is restored to your input box so you can wait for the recipient's encryption key, edit, or copy it elsewhere.")
+                    .show(ui, theme)
+                {
+                    cancel_clicked = true;
+                    close_modal = true;
+                }
+                ui.add_space(theme.spacing_sm);
+                if widgets::Button::danger("Send unencrypted anyway")
+                    .tooltip("Send the plaintext message NOW. The relay (and anyone with access to it) will be able to read it.")
+                    .show(ui, theme)
+                {
+                    send_anyway = true;
+                    close_modal = true;
+                }
+            });
+            ui.add_space(theme.spacing_sm);
+        });
+
+    if cancel_clicked {
+        // Restore draft into the input box so the user can decide what to do.
+        state.chat_input = pending.content.clone();
+    }
+
+    if send_anyway {
+        // Build and send the plaintext DM directly. We bypass the normal
+        // send path because that path would re-trigger the confirm modal.
+        if let Some(ref client) = state.ws_client {
+            if client.is_connected() {
+                let display_name = if !state.user_name.is_empty() {
+                    state.user_name.clone()
+                } else if let Some(me) = state.chat_users.iter().find(|u| u.public_key == state.profile_public_key) {
+                    if !me.name.is_empty() && me.name != "Anonymous" { me.name.clone() } else { "Anonymous".to_string() }
+                } else {
+                    "Anonymous".to_string()
+                };
+                let dm_obj = serde_json::json!({
+                    "type": "dm",
+                    "from": state.profile_public_key,
+                    "from_name": display_name,
+                    "to": pending.partner_key,
+                    "content": pending.content,
+                    "timestamp": pending.timestamp_ms,
+                    // Explicit false so the relay + recipient can show
+                    // an "unencrypted" indicator if they want.
+                    "encrypted": false,
+                });
+                let json_str = dm_obj.to_string();
+                crate::debug::push_debug(format!("WS >>> [user-confirmed plaintext] {}", json_str));
+                client.send(&json_str);
+                state.chat_sent_timestamps.push(pending.timestamp_ms);
+                if state.chat_sent_timestamps.len() > 20 {
+                    state.chat_sent_timestamps.remove(0);
+                }
+                // Local echo so the user sees their own message immediately,
+                // matching the normal-send code path's behavior.
+                let local_name = if !state.user_name.is_empty() {
+                    state.user_name.clone()
+                } else {
+                    "You".to_string()
+                };
+                let now = chrono_now_str();
+                state.chat_messages.push(ChatMessage {
+                    sender_name: local_name,
+                    sender_key: state.profile_public_key.clone(),
+                    content: pending.content.clone(),
+                    timestamp: now,
+                    timestamp_ms: pending.timestamp_ms,
+                    channel: format!("dm:{}", pending.partner_key),
+                    reply_to: None,
+                    ..Default::default()
+                });
+                while state.chat_messages.len() > 200 {
+                    state.chat_messages.remove(0);
+                }
+                state.chat_input.clear();
+            }
+        }
+    }
+
+    if close_modal {
+        state.dm_unencrypted_confirm = None;
     }
 }

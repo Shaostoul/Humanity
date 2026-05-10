@@ -27,7 +27,11 @@ pub const ASTEROID_TYPES_CSV: &str = include_str!("../data/asteroids/types.csv")
 
 // ── JSON data ───────────────────────────────────────────────────────
 pub const GLOSSARY_JSON: &str = include_str!("../data/glossary.json");
-pub const SOLAR_SYSTEM_JSON: &str = include_str!("../data/solar_system/bodies.json");
+// v0.199.0: Sol moved to the multi-system shape under data/star_systems/.
+// SOLAR_SYSTEM_JSON now points at the new file. See
+// docs/design/cosmos-architecture.md for the schema.
+pub const SOLAR_SYSTEM_JSON: &str = include_str!("../data/star_systems/sol.json");
+pub const STAR_SYSTEMS_INDEX_JSON: &str = include_str!("../data/star_systems/index.json");
 pub const SOLAR_SYSTEM_LEGACY_JSON: &str = include_str!("../data/solar-system.json");
 pub const TOOLS_CATALOG_JSON: &str = include_str!("../data/tools/catalog.json");
 pub const CITIES_JSON: &str = include_str!("../data/cities.json");
@@ -133,7 +137,12 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
 
         // JSON
         "glossary.json" => Some(GLOSSARY_JSON),
+        // v0.199.0: bodies.json moved to star_systems/sol.json. The old
+        // path key is kept for backwards-compat with any cached load
+        // requests, but new code should use "star_systems/sol.json".
         "solar_system/bodies.json" => Some(SOLAR_SYSTEM_JSON),
+        "star_systems/sol.json" => Some(SOLAR_SYSTEM_JSON),
+        "star_systems/index.json" => Some(STAR_SYSTEMS_INDEX_JSON),
         "solar-system.json" => Some(SOLAR_SYSTEM_LEGACY_JSON),
         "tools/catalog.json" => Some(TOOLS_CATALOG_JSON),
         "cities.json" => Some(CITIES_JSON),
