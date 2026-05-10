@@ -653,6 +653,48 @@ impl Storage {
             INSERT OR IGNORE INTO server_settings (id) VALUES (1);"
         )?;
 
+        // ── v0.201.0 — split max_upload_mb into per-role columns ──
+        // Operator: upload size should be variable per rank. New columns
+        // default to a trust ladder (5/25/100/500 MB for unverified/
+        // verified/mod/admin). On a relay that already has the v0.200
+        // single-column row, we copy the existing max_upload_mb forward
+        // into all four new columns so the operator's tuning isn't lost.
+        // The old max_upload_mb column is RETAINED for backward compat
+        // with v0.200 clients but is no longer the source of truth.
+        if conn.prepare("SELECT max_upload_mb_unverified FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN max_upload_mb_unverified INTEGER NOT NULL DEFAULT 5;
+                 ALTER TABLE server_settings ADD COLUMN max_upload_mb_verified   INTEGER NOT NULL DEFAULT 25;
+                 ALTER TABLE server_settings ADD COLUMN max_upload_mb_mod        INTEGER NOT NULL DEFAULT 100;
+                 ALTER TABLE server_settings ADD COLUMN max_upload_mb_admin      INTEGER NOT NULL DEFAULT 500;"
+            )?;
+            // Data migration: if the relay was on v0.200 with a customized
+            // max_upload_mb (anything other than the default 25), forward
+            // that value into all four per-role columns so the operator's
+            // tuning is preserved. Pure defaults (25) stay defaulted.
+            let prev: i64 = conn.query_row(
+                "SELECT max_upload_mb FROM server_settings WHERE id = 1",
+                [],
+                |row| row.get(0),
+            ).unwrap_or(25);
+            if prev != 25 {
+                conn.execute(
+                    "UPDATE server_settings SET
+                        max_upload_mb_unverified = ?1,
+                        max_upload_mb_verified   = ?1,
+                        max_upload_mb_mod        = ?1,
+                        max_upload_mb_admin      = ?1
+                     WHERE id = 1",
+                    rusqlite::params![prev],
+                )?;
+                info!(
+                    "Migration: forwarded v0.200 max_upload_mb={} into all 4 per-role columns",
+                    prev
+                );
+            }
+            info!("Migration: split max_upload_mb into per-role columns (server_settings)");
+        }
+
         // Follows table (social system).
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS follows (

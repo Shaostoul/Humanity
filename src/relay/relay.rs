@@ -617,10 +617,11 @@ pub enum RelayMessage {
         settings: crate::relay::storage::ServerSettings,
     },
 
-    /// Admin updates server-wide settings (v0.200.0). Each Optional
-    /// field is applied independently — partial updates are fine.
-    /// Handler requires admin role; on success broadcasts the new
-    /// `server_settings_state` to every connected client.
+    /// Admin updates server-wide settings (v0.200.0, extended v0.201.0
+    /// with per-role upload limits). Each Optional field is applied
+    /// independently — partial updates are fine. Handler requires admin
+    /// role; on success broadcasts the new `server_settings_state` to
+    /// every connected client.
     #[serde(rename = "server_settings_update")]
     ServerSettingsUpdate {
         #[serde(default)]
@@ -635,8 +636,20 @@ pub enum RelayMessage {
         image_sharing_enabled: Option<bool>,
         #[serde(default)]
         file_sharing_enabled: Option<bool>,
+        /// Legacy single value (v0.200). New clients should send the
+        /// per-role variants below; we kept this field to accept v0.200
+        /// client payloads.
         #[serde(default)]
         max_upload_mb: Option<i64>,
+        /// Per-role upload caps in MB (v0.201).
+        #[serde(default)]
+        max_upload_mb_unverified: Option<i64>,
+        #[serde(default)]
+        max_upload_mb_verified: Option<i64>,
+        #[serde(default)]
+        max_upload_mb_mod: Option<i64>,
+        #[serde(default)]
+        max_upload_mb_admin: Option<i64>,
         #[serde(default)]
         voice_channels_enabled: Option<bool>,
         #[serde(default)]
@@ -4542,6 +4555,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             RelayMessage::ServerSettingsUpdate {
                                 max_chars_unverified, max_chars_verified, max_chars_mod, max_chars_admin,
                                 image_sharing_enabled, file_sharing_enabled, max_upload_mb,
+                                max_upload_mb_unverified, max_upload_mb_verified,
+                                max_upload_mb_mod, max_upload_mb_admin,
                                 voice_channels_enabled, video_streaming_enabled, allowed_file_extensions,
                             } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
@@ -4556,13 +4571,30 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     // Defensive bounds — stop the operator from typing
                                     // a negative or absurdly large char limit by accident.
                                     let clamp = |v: i64| v.clamp(1, 1_000_000);
+                                    let clamp_mb = |v: i64| v.clamp(1, 10_000);
                                     if let Some(v) = max_chars_unverified  { current.max_chars_unverified  = clamp(v); }
                                     if let Some(v) = max_chars_verified    { current.max_chars_verified    = clamp(v); }
                                     if let Some(v) = max_chars_mod         { current.max_chars_mod         = clamp(v); }
                                     if let Some(v) = max_chars_admin       { current.max_chars_admin       = clamp(v); }
                                     if let Some(v) = image_sharing_enabled { current.image_sharing_enabled = v; }
                                     if let Some(v) = file_sharing_enabled  { current.file_sharing_enabled  = v; }
-                                    if let Some(v) = max_upload_mb         { current.max_upload_mb         = v.clamp(1, 10_000); }
+                                    // v0.200 legacy single max_upload_mb — if a v0.200
+                                    // client sends only this field, propagate it to all
+                                    // four per-role columns so behavior matches what
+                                    // the operator presumably intended.
+                                    if let Some(v) = max_upload_mb {
+                                        let v = clamp_mb(v);
+                                        current.max_upload_mb_unverified = v;
+                                        current.max_upload_mb_verified   = v;
+                                        current.max_upload_mb_mod        = v;
+                                        current.max_upload_mb_admin      = v;
+                                    }
+                                    // v0.201 per-role upload caps. Override anything
+                                    // the legacy field above set if both were sent.
+                                    if let Some(v) = max_upload_mb_unverified { current.max_upload_mb_unverified = clamp_mb(v); }
+                                    if let Some(v) = max_upload_mb_verified   { current.max_upload_mb_verified   = clamp_mb(v); }
+                                    if let Some(v) = max_upload_mb_mod        { current.max_upload_mb_mod        = clamp_mb(v); }
+                                    if let Some(v) = max_upload_mb_admin      { current.max_upload_mb_admin      = clamp_mb(v); }
                                     if let Some(v) = voice_channels_enabled  { current.voice_channels_enabled  = v; }
                                     if let Some(v) = video_streaming_enabled { current.video_streaming_enabled = v; }
                                     if let Some(v) = allowed_file_extensions {

@@ -28,8 +28,24 @@ pub struct ServerSettings {
     pub image_sharing_enabled: bool,
     /// Whether file attachments are allowed (server-wide).
     pub file_sharing_enabled: bool,
-    /// Max upload size in megabytes. Applies to both images and files.
+    /// LEGACY (v0.200): single max upload MB. Kept for backward
+    /// compatibility with old clients that haven't been updated. New
+    /// code should use the per-role variants below. v0.201+ keeps this
+    /// in sync with `max_upload_mb_unverified` so old clients see at
+    /// least the most-conservative limit.
     pub max_upload_mb: i64,
+    /// Max upload size (MB) for unverified users. Default 5.
+    #[serde(default = "default_upload_unverified")]
+    pub max_upload_mb_unverified: i64,
+    /// Max upload size (MB) for verified users. Default 25.
+    #[serde(default = "default_upload_verified")]
+    pub max_upload_mb_verified: i64,
+    /// Max upload size (MB) for moderators. Default 100.
+    #[serde(default = "default_upload_mod")]
+    pub max_upload_mb_mod: i64,
+    /// Max upload size (MB) for admins. Default 500.
+    #[serde(default = "default_upload_admin")]
+    pub max_upload_mb_admin: i64,
     /// Whether voice channels can be created/used (server-wide).
     pub voice_channels_enabled: bool,
     /// Whether video streaming is enabled (server-wide). Default OFF
@@ -45,6 +61,13 @@ pub struct ServerSettings {
     pub updated_by: String,
 }
 
+// Per-role upload defaults (v0.201). Trust ladder — more trusted users
+// get more bandwidth. Operators can tune via Server Settings → Admin.
+fn default_upload_unverified() -> i64 { 5 }
+fn default_upload_verified() -> i64 { 25 }
+fn default_upload_mod() -> i64 { 100 }
+fn default_upload_admin() -> i64 { 500 }
+
 impl Default for ServerSettings {
     fn default() -> Self {
         Self {
@@ -54,7 +77,11 @@ impl Default for ServerSettings {
             max_chars_admin: 10000,
             image_sharing_enabled: true,
             file_sharing_enabled: true,
-            max_upload_mb: 25,
+            max_upload_mb: 25, // legacy mirror of unverified value
+            max_upload_mb_unverified: default_upload_unverified(),
+            max_upload_mb_verified: default_upload_verified(),
+            max_upload_mb_mod: default_upload_mod(),
+            max_upload_mb_admin: default_upload_admin(),
             voice_channels_enabled: true,
             video_streaming_enabled: false,
             allowed_file_extensions: "png,jpg,jpeg,gif,webp,pdf,txt,md".to_string(),
@@ -75,6 +102,17 @@ impl ServerSettings {
             _ => self.max_chars_unverified,
         }
     }
+
+    /// Lookup the max-upload-MB limit for a given role string (v0.201).
+    /// Falls back to `max_upload_mb_unverified` for any unknown role.
+    pub fn max_upload_mb_for_role(&self, role: &str) -> i64 {
+        match role {
+            "admin" | "owner" => self.max_upload_mb_admin,
+            "mod" => self.max_upload_mb_mod,
+            "verified" => self.max_upload_mb_verified,
+            _ => self.max_upload_mb_unverified,
+        }
+    }
 }
 
 impl Storage {
@@ -87,7 +125,9 @@ impl Storage {
                 "SELECT max_chars_unverified, max_chars_verified, max_chars_mod, max_chars_admin,
                         image_sharing_enabled, file_sharing_enabled, max_upload_mb,
                         voice_channels_enabled, video_streaming_enabled,
-                        allowed_file_extensions, updated_at, COALESCE(updated_by, '')
+                        allowed_file_extensions, updated_at, COALESCE(updated_by, ''),
+                        max_upload_mb_unverified, max_upload_mb_verified,
+                        max_upload_mb_mod, max_upload_mb_admin
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -108,6 +148,10 @@ impl Storage {
                         allowed_file_extensions: row.get(9)?,
                         updated_at: row.get(10)?,
                         updated_by: row.get(11)?,
+                        max_upload_mb_unverified: row.get(12)?,
+                        max_upload_mb_verified: row.get(13)?,
+                        max_upload_mb_mod: row.get(14)?,
+                        max_upload_mb_admin: row.get(15)?,
                     })
                 },
             ) {
@@ -121,6 +165,8 @@ impl Storage {
     /// Persist the server_settings row, stamping updated_at + updated_by.
     /// Returns true on success. Caller (WS handler) is responsible for
     /// admin-permission validation BEFORE calling this.
+    /// v0.201: also keeps the legacy `max_upload_mb` column synced with
+    /// `max_upload_mb_unverified` so old clients still see a useful value.
     pub fn set_server_settings(
         &self,
         s: &ServerSettings,
@@ -133,18 +179,22 @@ impl Storage {
                 .as_millis() as i64;
             let rows = conn.execute(
                 "UPDATE server_settings SET
-                    max_chars_unverified    = ?1,
-                    max_chars_verified      = ?2,
-                    max_chars_mod           = ?3,
-                    max_chars_admin         = ?4,
-                    image_sharing_enabled   = ?5,
-                    file_sharing_enabled    = ?6,
-                    max_upload_mb           = ?7,
-                    voice_channels_enabled  = ?8,
-                    video_streaming_enabled = ?9,
-                    allowed_file_extensions = ?10,
-                    updated_at              = ?11,
-                    updated_by              = ?12
+                    max_chars_unverified     = ?1,
+                    max_chars_verified       = ?2,
+                    max_chars_mod            = ?3,
+                    max_chars_admin          = ?4,
+                    image_sharing_enabled    = ?5,
+                    file_sharing_enabled     = ?6,
+                    max_upload_mb            = ?7,
+                    voice_channels_enabled   = ?8,
+                    video_streaming_enabled  = ?9,
+                    allowed_file_extensions  = ?10,
+                    max_upload_mb_unverified = ?11,
+                    max_upload_mb_verified   = ?12,
+                    max_upload_mb_mod        = ?13,
+                    max_upload_mb_admin      = ?14,
+                    updated_at               = ?15,
+                    updated_by               = ?16
                  WHERE id = 1",
                 params![
                     s.max_chars_unverified,
@@ -153,10 +203,15 @@ impl Storage {
                     s.max_chars_admin,
                     s.image_sharing_enabled as i32,
                     s.file_sharing_enabled as i32,
-                    s.max_upload_mb,
+                    // Legacy single column tracks unverified (most conservative).
+                    s.max_upload_mb_unverified,
                     s.voice_channels_enabled as i32,
                     s.video_streaming_enabled as i32,
                     s.allowed_file_extensions,
+                    s.max_upload_mb_unverified,
+                    s.max_upload_mb_verified,
+                    s.max_upload_mb_mod,
+                    s.max_upload_mb_admin,
                     now,
                     updated_by,
                 ],

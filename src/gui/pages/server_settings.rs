@@ -760,7 +760,10 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         kv_row(ui, theme, "Max chars — admin",      effective.max_chars_admin.to_string());
         kv_row(ui, theme, "Image sharing",  yesno(effective.image_sharing_enabled));
         kv_row(ui, theme, "File sharing",   yesno(effective.file_sharing_enabled));
-        kv_row(ui, theme, "Max upload (MB)", effective.max_upload_mb.to_string());
+        kv_row(ui, theme, "Max upload MB — unverified", effective.max_upload_mb_unverified.to_string());
+        kv_row(ui, theme, "Max upload MB — verified",   effective.max_upload_mb_verified.to_string());
+        kv_row(ui, theme, "Max upload MB — moderator",  effective.max_upload_mb_mod.to_string());
+        kv_row(ui, theme, "Max upload MB — admin",      effective.max_upload_mb_admin.to_string());
         kv_row(ui, theme, "Voice channels", yesno(effective.voice_channels_enabled));
         kv_row(ui, theme, "Video streaming", yesno(effective.video_streaming_enabled));
         kv_row(ui, theme, "Allowed extensions",
@@ -796,8 +799,17 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         widgets::form_row(ui, theme, "Max chars — admin (default 10000)", |ui| {
             int_input(ui, &mut draft.max_chars_admin, 1, 1_000_000);
         });
-        widgets::form_row(ui, theme, "Max upload (MB) (default 25)", |ui| {
-            int_input(ui, &mut draft.max_upload_mb, 1, 10_000);
+        widgets::form_row(ui, theme, "Max upload MB — unverified (default 5)", |ui| {
+            int_input(ui, &mut draft.max_upload_mb_unverified, 1, 10_000);
+        });
+        widgets::form_row(ui, theme, "Max upload MB — verified (default 25)", |ui| {
+            int_input(ui, &mut draft.max_upload_mb_verified, 1, 10_000);
+        });
+        widgets::form_row(ui, theme, "Max upload MB — moderator (default 100)", |ui| {
+            int_input(ui, &mut draft.max_upload_mb_mod, 1, 10_000);
+        });
+        widgets::form_row(ui, theme, "Max upload MB — admin (default 500)", |ui| {
+            int_input(ui, &mut draft.max_upload_mb_admin, 1, 10_000);
         });
         widgets::form_row(ui, theme, "Image sharing", |ui| {
             ui.checkbox(&mut draft.image_sharing_enabled, "");
@@ -849,7 +861,13 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                         "max_chars_admin":      draft.max_chars_admin,
                         "image_sharing_enabled": draft.image_sharing_enabled,
                         "file_sharing_enabled":  draft.file_sharing_enabled,
-                        "max_upload_mb":         draft.max_upload_mb,
+                        // v0.201: per-role upload caps. Legacy single
+                        // max_upload_mb omitted — server's v0.201 handler
+                        // applies the per-role values directly.
+                        "max_upload_mb_unverified": draft.max_upload_mb_unverified,
+                        "max_upload_mb_verified":   draft.max_upload_mb_verified,
+                        "max_upload_mb_mod":        draft.max_upload_mb_mod,
+                        "max_upload_mb_admin":      draft.max_upload_mb_admin,
                         "voice_channels_enabled":  draft.voice_channels_enabled,
                         "video_streaming_enabled": draft.video_streaming_enabled,
                         "allowed_file_extensions": draft.allowed_file_extensions,
