@@ -627,6 +627,32 @@ impl Storage {
             info!("Migration: added voice_enabled column to channels");
         }
 
+        // ── Server settings singleton table (v0.200.0) ──
+        // One row per server, identified by id=1. Holds operator-tunable
+        // policies that previously lived as compile-time constants or
+        // were entirely missing. UI exposes these in Server Settings →
+        // Admin section. WS protocol: server_settings_request /
+        // server_settings_update broadcast a fresh server_settings_state
+        // to all clients on change.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS server_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                max_chars_unverified      INTEGER NOT NULL DEFAULT 280,
+                max_chars_verified        INTEGER NOT NULL DEFAULT 1000,
+                max_chars_mod             INTEGER NOT NULL DEFAULT 4000,
+                max_chars_admin           INTEGER NOT NULL DEFAULT 10000,
+                image_sharing_enabled     INTEGER NOT NULL DEFAULT 1,
+                file_sharing_enabled      INTEGER NOT NULL DEFAULT 1,
+                max_upload_mb             INTEGER NOT NULL DEFAULT 25,
+                voice_channels_enabled    INTEGER NOT NULL DEFAULT 1,
+                video_streaming_enabled   INTEGER NOT NULL DEFAULT 0,
+                allowed_file_extensions   TEXT    NOT NULL DEFAULT 'png,jpg,jpeg,gif,webp,pdf,txt,md',
+                updated_at                INTEGER NOT NULL DEFAULT 0,
+                updated_by                TEXT
+            );
+            INSERT OR IGNORE INTO server_settings (id) VALUES (1);"
+        )?;
+
         // Follows table (social system).
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS follows (
@@ -1399,6 +1425,8 @@ mod system;
 mod uploads;
 mod reviews;
 mod members;
+mod server_settings;
+pub use server_settings::ServerSettings;
 mod agent_sessions;
 mod ai_status;
 mod credentials;

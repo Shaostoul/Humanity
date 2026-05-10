@@ -1367,6 +1367,28 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    Some("server_settings_state") => {
+                                        // v0.200.0: relay broadcasts current server-wide
+                                        // settings (per-role char limits, sharing toggles,
+                                        // etc.). Cache them so the admin UI can show
+                                        // current values + non-admin clients know what
+                                        // limits apply to their messages.
+                                        if let Some(s) = val.get("settings") {
+                                            match serde_json::from_value::<crate::relay::storage::ServerSettings>(s.clone()) {
+                                                Ok(settings) => {
+                                                    log::info!(
+                                                        "Server settings updated (max_chars: u={} v={} m={} a={})",
+                                                        settings.max_chars_unverified, settings.max_chars_verified,
+                                                        settings.max_chars_mod, settings.max_chars_admin
+                                                    );
+                                                    state.gui_state.server_settings = Some(settings);
+                                                }
+                                                Err(e) => {
+                                                    log::warn!("Failed to parse server_settings_state: {e}");
+                                                }
+                                            }
+                                        }
+                                    }
                                     Some("system") => {
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
                                             log::info!("Relay system message: {}", msg);

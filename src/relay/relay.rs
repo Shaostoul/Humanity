@@ -603,6 +603,48 @@ pub enum RelayMessage {
         federated: Option<bool>,
     },
 
+    /// Client requests the current server-wide settings (v0.200.0).
+    /// Anyone can request — the response is broadcast publicly so the
+    /// UI can show non-admins what limits apply to them.
+    #[serde(rename = "server_settings_request")]
+    ServerSettingsRequest {},
+
+    /// Server sends the current server-wide settings. Either as a
+    /// response to ServerSettingsRequest or as a broadcast after an
+    /// admin updates them.
+    #[serde(rename = "server_settings_state")]
+    ServerSettingsState {
+        settings: crate::relay::storage::ServerSettings,
+    },
+
+    /// Admin updates server-wide settings (v0.200.0). Each Optional
+    /// field is applied independently — partial updates are fine.
+    /// Handler requires admin role; on success broadcasts the new
+    /// `server_settings_state` to every connected client.
+    #[serde(rename = "server_settings_update")]
+    ServerSettingsUpdate {
+        #[serde(default)]
+        max_chars_unverified: Option<i64>,
+        #[serde(default)]
+        max_chars_verified: Option<i64>,
+        #[serde(default)]
+        max_chars_mod: Option<i64>,
+        #[serde(default)]
+        max_chars_admin: Option<i64>,
+        #[serde(default)]
+        image_sharing_enabled: Option<bool>,
+        #[serde(default)]
+        file_sharing_enabled: Option<bool>,
+        #[serde(default)]
+        max_upload_mb: Option<i64>,
+        #[serde(default)]
+        voice_channels_enabled: Option<bool>,
+        #[serde(default)]
+        video_streaming_enabled: Option<bool>,
+        #[serde(default)]
+        allowed_file_extensions: Option<String>,
+    },
+
     /// Typing indicator — broadcast to show who is composing a message.
     #[serde(rename = "typing")]
     Typing {
@@ -2928,6 +2970,28 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     continue;
                                 }
 
+                                // v0.200.0: enforce per-role message length limits
+                                // from server_settings. Reject (don't truncate) so
+                                // the user knows their message wasn't fully delivered.
+                                {
+                                    let settings = state_clone.db.get_server_settings().unwrap_or_default();
+                                    let limit = settings.max_chars_for_role(&user_role) as usize;
+                                    let len = content.chars().count();
+                                    if len > limit {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: format!(
+                                                "Message rejected: {} chars exceeds your tier's limit of {}. \
+                                                 (Your role: {}; admin can change limits in Server Settings.)",
+                                                len, limit,
+                                                if user_role.is_empty() { "unverified" } else { &user_role },
+                                            ),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                        continue;
+                                    }
+                                }
+
                                 // Rate limiting: skip for bots and admins.
                                 if !my_key_for_recv.starts_with("bot_") && user_role != "admin" {
                                     let now = Instant::now();
@@ -4461,6 +4525,81 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     // gets a fresh channel_list and updates
                                     // its local chat_channels accordingly.
                                     broadcast_channel_list(&state_clone);
+                                }
+                            }
+                            // Server settings — request current state (v0.200.0).
+                            // Anyone can request; the response is broadcast publicly
+                            // so non-admin clients can show what limits apply to them.
+                            RelayMessage::ServerSettingsRequest {} => {
+                                let settings = state_clone.db.get_server_settings().unwrap_or_default();
+                                let _ = state_clone.broadcast_tx.send(
+                                    RelayMessage::ServerSettingsState { settings }
+                                );
+                            }
+                            // Server settings — admin update (v0.200.0).
+                            // Each field is Optional. Missing fields stay at their
+                            // current values. Admin-only. Broadcasts new state on success.
+                            RelayMessage::ServerSettingsUpdate {
+                                max_chars_unverified, max_chars_verified, max_chars_mod, max_chars_admin,
+                                image_sharing_enabled, file_sharing_enabled, max_upload_mb,
+                                voice_channels_enabled, video_streaming_enabled, allowed_file_extensions,
+                            } => {
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if role != "admin" && role != "owner" {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins can update server settings.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    let mut current = state_clone.db.get_server_settings().unwrap_or_default();
+                                    // Defensive bounds — stop the operator from typing
+                                    // a negative or absurdly large char limit by accident.
+                                    let clamp = |v: i64| v.clamp(1, 1_000_000);
+                                    if let Some(v) = max_chars_unverified  { current.max_chars_unverified  = clamp(v); }
+                                    if let Some(v) = max_chars_verified    { current.max_chars_verified    = clamp(v); }
+                                    if let Some(v) = max_chars_mod         { current.max_chars_mod         = clamp(v); }
+                                    if let Some(v) = max_chars_admin       { current.max_chars_admin       = clamp(v); }
+                                    if let Some(v) = image_sharing_enabled { current.image_sharing_enabled = v; }
+                                    if let Some(v) = file_sharing_enabled  { current.file_sharing_enabled  = v; }
+                                    if let Some(v) = max_upload_mb         { current.max_upload_mb         = v.clamp(1, 10_000); }
+                                    if let Some(v) = voice_channels_enabled  { current.voice_channels_enabled  = v; }
+                                    if let Some(v) = video_streaming_enabled { current.video_streaming_enabled = v; }
+                                    if let Some(v) = allowed_file_extensions {
+                                        // Light hygiene — lowercase, strip whitespace, drop empties.
+                                        let cleaned: Vec<String> = v.split(',')
+                                            .map(|s| s.trim().to_lowercase())
+                                            .filter(|s| !s.is_empty())
+                                            .collect();
+                                        current.allowed_file_extensions = cleaned.join(",");
+                                    }
+                                    match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
+                                        Ok(true) => {
+                                            // Broadcast new state to everyone.
+                                            let _ = state_clone.broadcast_tx.send(
+                                                RelayMessage::ServerSettingsState { settings: current }
+                                            );
+                                            let sys = RelayMessage::System {
+                                                message: format!("Server settings updated by admin."),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(sys);
+                                        }
+                                        Ok(false) => {
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "Server settings row missing — relay restart needed.".to_string(),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("server_settings_update failed: {e}");
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: format!("Update failed: {e}"),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                        }
+                                    }
                                 }
                             }
                             // Pin request — pin a specific message by key + timestamp.

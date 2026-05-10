@@ -452,6 +452,13 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
+        // ── Server policy (v0.200.0): per-role limits, sharing toggles ──
+        draw_server_policy_admin(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
         // ── User management ──
         widgets::subsection_label(ui, theme, "User management");
         widgets::body_hint(
@@ -703,10 +710,184 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 /// Render a button inside a fixed-width spreadsheet cell with the
 /// shared CHANNEL_ROW_H height. Centralizes the alignment so Save and
-/// Delete (and any future row buttons) sit at IDENTICAL height — fixes
-/// operator bug 2026-05-08 where Save and Delete looked different
-/// heights because they were going through the default Button height
-/// (theme.button_height = 36) inside a 22px slot.
+/// Server-wide policy editor (admin only, lives inside the ADMIN tinted
+/// section). Per-role chat character limits + image/file/voice/streaming
+/// toggles + max upload + allowed extensions. v0.200.0.
+///
+/// Editing pattern: the displayed values come from
+/// `state.server_settings_draft` if set, otherwise from
+/// `state.server_settings` (the cached relay-broadcast state). Click
+/// "Edit" to copy the cache into the draft. "Save" sends a
+/// `server_settings_update` WS message; the relay broadcasts the new
+/// state which clears the draft on next receive. "Cancel" drops the draft.
+fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    widgets::subsection_label(ui, theme, "Server policy");
+    widgets::body_hint(
+        ui, theme,
+        "Per-role message length limits, file / image / voice / streaming toggles, and \
+         upload size cap. Apply to every member of this server. Changes broadcast to \
+         all connected clients on Save.",
+    );
+    ui.add_space(theme.spacing_sm);
+
+    // Effective view: draft (if editing) else cached state else defaults.
+    let editing = state.server_settings_draft.is_some();
+    let effective: crate::relay::storage::ServerSettings = state.server_settings_draft
+        .clone()
+        .or_else(|| state.server_settings.clone())
+        .unwrap_or_default();
+
+    // Last-updated badge (informational).
+    if let Some(ref s) = state.server_settings {
+        let updated_text = if s.updated_at == 0 {
+            "Never modified — defaults active.".to_string()
+        } else {
+            let by = if s.updated_by.is_empty() { "?".to_string() }
+                     else if s.updated_by.len() > 16 { format!("{}…{}", &s.updated_by[..6], &s.updated_by[s.updated_by.len()-6..]) }
+                     else { s.updated_by.clone() };
+            format!("Last updated: {} ms (by {})", s.updated_at, by)
+        };
+        widgets::body_hint(ui, theme, &updated_text);
+        ui.add_space(theme.spacing_sm);
+    }
+
+    if !editing {
+        // ── READ-ONLY MODE ──
+        // Show current values + an Edit button. No inputs visible.
+        kv_row(ui, theme, "Max chars — unverified", effective.max_chars_unverified.to_string());
+        kv_row(ui, theme, "Max chars — verified",   effective.max_chars_verified.to_string());
+        kv_row(ui, theme, "Max chars — moderator",  effective.max_chars_mod.to_string());
+        kv_row(ui, theme, "Max chars — admin",      effective.max_chars_admin.to_string());
+        kv_row(ui, theme, "Image sharing",  yesno(effective.image_sharing_enabled));
+        kv_row(ui, theme, "File sharing",   yesno(effective.file_sharing_enabled));
+        kv_row(ui, theme, "Max upload (MB)", effective.max_upload_mb.to_string());
+        kv_row(ui, theme, "Voice channels", yesno(effective.voice_channels_enabled));
+        kv_row(ui, theme, "Video streaming", yesno(effective.video_streaming_enabled));
+        kv_row(ui, theme, "Allowed extensions",
+               if effective.allowed_file_extensions.is_empty() {
+                   "(no restriction)".to_string()
+               } else {
+                   effective.allowed_file_extensions.clone()
+               });
+        ui.add_space(theme.spacing_sm);
+        if widgets::Button::secondary("Edit policy")
+            .tooltip("Begin editing server-wide policy. Nothing is saved until you \
+                      click Save Changes.")
+            .show(ui, theme)
+        {
+            state.server_settings_draft = Some(effective);
+        }
+    } else {
+        // ── EDIT MODE ──
+        // Borrow checker won't let us hold an &mut to state.server_settings_draft
+        // AND access state inside the Save click handler. Standard egui pattern:
+        // clone the draft into a local, do the UI with the local, write back at
+        // the end (and on Save/Cancel, mutate state).
+        let mut draft = state.server_settings_draft.clone().unwrap_or_default();
+        widgets::form_row(ui, theme, "Max chars — unverified (default 280)", |ui| {
+            int_input(ui, &mut draft.max_chars_unverified, 1, 1_000_000);
+        });
+        widgets::form_row(ui, theme, "Max chars — verified (default 1000)", |ui| {
+            int_input(ui, &mut draft.max_chars_verified, 1, 1_000_000);
+        });
+        widgets::form_row(ui, theme, "Max chars — moderator (default 4000)", |ui| {
+            int_input(ui, &mut draft.max_chars_mod, 1, 1_000_000);
+        });
+        widgets::form_row(ui, theme, "Max chars — admin (default 10000)", |ui| {
+            int_input(ui, &mut draft.max_chars_admin, 1, 1_000_000);
+        });
+        widgets::form_row(ui, theme, "Max upload (MB) (default 25)", |ui| {
+            int_input(ui, &mut draft.max_upload_mb, 1, 10_000);
+        });
+        widgets::form_row(ui, theme, "Image sharing", |ui| {
+            ui.checkbox(&mut draft.image_sharing_enabled, "");
+        });
+        widgets::form_row(ui, theme, "File sharing", |ui| {
+            ui.checkbox(&mut draft.file_sharing_enabled, "");
+        });
+        widgets::form_row(ui, theme, "Voice channels", |ui| {
+            ui.checkbox(&mut draft.voice_channels_enabled, "");
+        });
+        widgets::form_row(ui, theme, "Video streaming", |ui| {
+            ui.checkbox(&mut draft.video_streaming_enabled, "");
+        });
+        widgets::form_row(ui, theme, "Allowed extensions (csv, blank=any)", |ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut draft.allowed_file_extensions)
+                    .desired_width(280.0)
+                    .hint_text("png,jpg,pdf,…"),
+            );
+        });
+
+        ui.add_space(theme.spacing_md);
+        let mut save_clicked = false;
+        let mut cancel_clicked = false;
+        ui.horizontal(|ui| {
+            save_clicked = widgets::Button::primary("Save Changes")
+                .tooltip("Send the policy update to the relay. All connected clients \
+                          will see the new state immediately.")
+                .show(ui, theme);
+            ui.add_space(theme.spacing_sm);
+            cancel_clicked = widgets::Button::secondary("Cancel")
+                .tooltip("Discard your edits. Falls back to the live server state.")
+                .show(ui, theme);
+        });
+
+        // Persist the (possibly-edited) draft back to state. Without this
+        // every frame would overwrite the user's typing with the prior frame's
+        // value because the local `draft` is dropped at end of this block.
+        state.server_settings_draft = Some(draft.clone());
+
+        if save_clicked {
+            if let Some(ref client) = state.ws_client {
+                if client.is_connected() {
+                    let msg = serde_json::json!({
+                        "type": "server_settings_update",
+                        "max_chars_unverified": draft.max_chars_unverified,
+                        "max_chars_verified":   draft.max_chars_verified,
+                        "max_chars_mod":        draft.max_chars_mod,
+                        "max_chars_admin":      draft.max_chars_admin,
+                        "image_sharing_enabled": draft.image_sharing_enabled,
+                        "file_sharing_enabled":  draft.file_sharing_enabled,
+                        "max_upload_mb":         draft.max_upload_mb,
+                        "voice_channels_enabled":  draft.voice_channels_enabled,
+                        "video_streaming_enabled": draft.video_streaming_enabled,
+                        "allowed_file_extensions": draft.allowed_file_extensions,
+                    });
+                    client.send(&msg.to_string());
+                    state.server_settings_status = "Server policy update sent.".into();
+                } else {
+                    state.server_settings_status = "Not connected — can't save.".into();
+                }
+            }
+            state.server_settings_draft = None;
+        }
+        if cancel_clicked {
+            state.server_settings_draft = None;
+        }
+    }
+}
+
+/// Tiny "Yes" / "No" formatter for read-only boolean rows.
+fn yesno(b: bool) -> String { if b { "Yes".into() } else { "No".into() } }
+
+/// Compact int input with min/max bounds. Used for char-limit + upload-MB rows.
+fn int_input(ui: &mut egui::Ui, value: &mut i64, min: i64, max: i64) {
+    let mut text = value.to_string();
+    let resp = ui.add(
+        egui::TextEdit::singleline(&mut text)
+            .desired_width(120.0)
+            .char_limit(10),
+    );
+    if resp.changed() {
+        // Permissive parse — empty / non-numeric leaves the value unchanged
+        // so the user can keep typing. Clamp on commit.
+        if let Ok(n) = text.parse::<i64>() {
+            *value = n.clamp(min, max);
+        }
+    }
+}
+
 fn row_button<F: FnOnce()>(
     ui: &mut egui::Ui,
     theme: &Theme,

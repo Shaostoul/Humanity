@@ -605,6 +605,112 @@ implementation; capturing them here so we don't pretend they're settled.
 
 ---
 
+## 17a. Locked decisions (2026-05-10)
+
+Confirmed in the second design session, supersedes any earlier "tentative":
+
+### Time
+
+**Universal sim time, always 1× real time, never dilated, never accelerated.**
+
+Sim time always advances at the same rate as real time, gossiped from the
+relay, identical for every player on the server. No time speed regions, no
+fleet-controlled time, no fast-forward. Operator: *"We should stay synced
+with Earth regardless of the speed we're going or how close to the black
+hole we are."*
+
+Fast travel between systems still works — but via FTL drives that decouple
+**real-time journey duration** from **sim-time advance**:
+
+| FTL type | Real-time journey | Sim-time advance | Notes |
+|----------|------------------|-----------------|-------|
+| **Blink drive** (BSG-style FTL jump) | Instant (~0 s real) | 0 s sim | Tech-gated, resource-cost, cooldown. Container_swap directly: `Space{"sol"} → Space{"alpha_centauri"}`. Ship never enters `Deep`. |
+| **Sublight / slow FTL** | Real time = distance / drive speed | Same as real time | Continuous deep-space travel. Ship's container goes `Space{"sol"} → Deep{chunk_coord} → Space{"alpha_centauri"}` over the journey. Encounter rogue bodies en route. |
+
+Both keep `sim_time = real_time` globally. A 4-ly sublight trip at 1 ly/hour
+takes 4 hours real AND 4 hours sim. Players can do other gameplay during
+the journey (chat, craft, idle) or pay the blink-drive cost for instant.
+
+### Vessels nest; rooms don't
+
+Operator: *"a player home could be considered 1 room since it is in a
+giant mothership. However each home has a bunch of rooms. And each
+mothership has tons of rooms."*
+
+Resolution: **homes are sub-Vessels of the mothership.** Rooms within a
+home are NOT separate containers — they're spatial subdivisions of the
+home's layout file.
+
+```
+Player
+  → container: Vessel("alice-home-001")
+  → local_pos: (3.5, 0.0, 2.1) m within the home
+                                  ↓
+Vessel("alice-home-001")          ← Alice's home, customizable RON layout
+  → container: Vessel("mothership-pioneer")
+  → local_pos: (210.0, 0.0, 480.0) m within the mothership
+                                  ↓
+Vessel("mothership-pioneer")      ← The mothership, hand-authored or procedural layout with N home slots
+  → container: Space{system_id: "sol"}
+  → local_pos: orbital position in meters from Sol barycenter
+```
+
+Container nesting depth here is 3 (Home → Mothership → Space), well within
+the 4-level limit. Recursive position composition just walks the chain.
+
+Crossing a vessel boundary = container swap:
+- **Walk between rooms inside your home** → no swap, just `local_pos` update
+- **Walk out your home's front door** into the mothership corridor → `Vessel(home)` → `Vessel(mothership)`
+- **Step into the mothership's airlock** and spacewalk → `Vessel(mothership)` → `Space{system}`
+
+Boundary coordinates are defined in the layout file (front door position,
+airlock position). The ECS movement system detects boundary crossings and
+swaps containers atomically.
+
+**Why this satisfies infinite-of-x for homes:**
+- Each home is its own RON file at `data/homes/<player-key>/layout.ron`
+- Adding a home = drop in a file, no code change
+- Players customize their home freely without touching anyone else's
+- Homes are portable — transfer your home from Mothership-A to Mothership-B
+  by reparenting the Vessel
+- Mothership procedural generator allocates N "home slots" of bounded
+  volume; each slot mounts a home Vessel
+
+**Why this satisfies infinite-of-x for motherships:**
+- Each mothership is a Vessel layout file
+- Procedural mothership generator computes total floor area as
+  `sum(homes) + common_area + utilities + bridge + cargo` and emits a
+  layout that fits
+
+### Precision at every scale (f64 budget)
+
+The hierarchical container model preserves precision because every
+`local_pos` stays small. f64 has ~16 significant decimal digits. Local
+distances at every scale fit well within that:
+
+| Scale | Local distance range | f64 precision available |
+|-------|---------------------|------------------------|
+| Inside a vessel (room → corridor) | < 1 km = 10³ m | sub-nanometer (10⁻¹³ m) |
+| Within a system (Space) — outer planets | < 100 AU = 1.5 × 10¹³ m | sub-millimeter (10⁻³ m) |
+| Within a Deep chunk (1 ly cube) | < 9.46 × 10¹⁵ m | sub-meter (~1 m) |
+| Galaxy chunk coordinates | integer indices `[i64; 3]` | exact, no FP at all |
+
+**At no point does any `local_pos` field hold a value larger than ~10¹⁶.**
+Galactic-scale position is stored as integer chunk indices, which never
+lose precision regardless of how large the galaxy gets.
+
+The 4-light-year trip from Sol to Alpha Centauri:
+- Sol's chunk: `[0, 0, 0]`
+- Alpha Centauri's chunk: ~`[-1, -4, -2]` (each chunk is 1 ly cube)
+- During sublight FTL: ship's `chunk_coord` increments as it crosses chunk
+  boundaries; `local_pos` within the current chunk stays small
+- During blink drive: container_swap directly from `Space{"sol"}` to
+  `Space{"alpha_centauri"}` — never enters Deep, no chunk traversal needed
+
+Floating origin handles render-side precision separately (everything
+visible gets re-centered around the player to keep render coordinates
+near zero).
+
 ## 17b. Operator decisions (2026-05-09 session)
 
 Locked in during the design discussion that produced this doc:

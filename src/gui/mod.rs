@@ -940,6 +940,17 @@ pub struct GuiState {
     /// confirm "Send unencrypted anyway" or cancel.
     pub dm_unencrypted_confirm: Option<PendingUnencryptedDm>,
 
+    /// Cached server-wide settings received from the relay (v0.200.0).
+    /// Populated on `server_settings_state` WS message. None means we
+    /// haven't received the state yet (during initial connect, before
+    /// any modify happens). UI uses defaults until populated.
+    pub server_settings: Option<crate::relay::storage::ServerSettings>,
+    /// In-progress draft of server settings being edited in the admin
+    /// UI. None = not editing. Cloned from `server_settings` when admin
+    /// opens the editor. Save button sends a ServerSettingsUpdate WS
+    /// message and clears the draft.
+    pub server_settings_draft: Option<crate::relay::storage::ServerSettings>,
+
     // ── Channel edit modal ──
     pub show_channel_edit_modal: bool,
     pub edit_channel_id: String,
@@ -1345,6 +1356,8 @@ impl Default for GuiState {
             dm_settings_popup_open: false,
             groups_settings_popup_open: false,
             dm_unencrypted_confirm: None,
+            server_settings: None,
+            server_settings_draft: None,
             new_group_name: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),
