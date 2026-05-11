@@ -72,9 +72,19 @@ pub enum ContainerRef {
     /// system's barycenter (or its primary star, near enough at this scale).
     Space { system_id: String },
 
-    /// Free-floating in interstellar space. local_pos is meters within
-    /// a "deep-space chunk" identified by chunk_coord (see §10).
-    Deep { chunk_coord: GalaxyChunkCoord },
+    /// Free-floating in interstellar space. `galaxy_pos_ly` is a
+    /// continuous 3D vector in light-years from a chosen galactic
+    /// origin (Sol by default — we can change the origin later
+    /// without breaking the data model). f64 at 100 kly distance gives
+    /// ~1 mm precision, which is far more than needed for ship-scale
+    /// navigation. **No chunks at the data-model level.**
+    ///
+    /// Revised 2026-05-10 per operator pushback: the earlier chunk_coord
+    /// model conflated "procedural generation seeding" with "position
+    /// addressing." Position is now continuous; chunks are an internal
+    /// implementation detail of the procedural rogue generator and
+    /// sparse mutation persistence (§10), never surfaced here.
+    Deep { galaxy_pos_ly: glam::DVec3 },
 
     /// Pocket dimension — an isolated coordinate space disconnected from
     /// the normal galaxy. Use for tutorial spaces, tech demos, instanced
@@ -91,12 +101,14 @@ pub enum ContainerRef {
 pub type VesselId = String;        // e.g. "pioneer-001", "ford-f150-abc"
 pub type PocketId  = String;       // e.g. "tutorial-cave", "boss-arena-42"
 
-pub type GalaxyChunkCoord = [i64; 3]; // chunk indices in galaxy octree
+// (GalaxyChunkCoord removed in 2026-05-10 revision — Deep now uses
+//  continuous galaxy_pos_ly: DVec3. Chunks are an internal detail of
+//  the procedural rogue generator only.)
 ```
 
 Read this as **astronomical addressing**:
 > "I'm in the captain's chair on the bridge of *Pioneer*, which is in
-> orbit around Earth, which is in Sol, which is at galaxy chunk (0,0,0)."
+> orbit around Earth, which is in Sol, which is at galactic position (0, 0, 0) ly."
 
 Each level only knows about its parent. To get a player's "world
 position" for rendering, walk up the parent chain summing local frames.
@@ -114,7 +126,7 @@ fn world_position(pos: &PositionInUniverse, world: &World, sim_time: SimTime) ->
         ContainerRef::Ship(id) => world_position(&world.ships[id].position, world, sim_time),
         ContainerRef::Body { system_id, body_id } => body_position(system_id, body_id, sim_time),
         ContainerRef::Space { system_id } => system_barycenter(system_id),
-        ContainerRef::Deep { chunk_coord } => chunk_to_galaxy_pos(chunk_coord),
+        ContainerRef::Deep { galaxy_pos_ly } => *galaxy_pos_ly, // already in galactic frame
     };
     let parent_rot = ...; // analogous
     parent_world + parent_rot * pos.local_pos
@@ -127,8 +139,8 @@ Notes:
   answer. No need to sync body positions.
 - `world.ships[id].position` recurses; ship-in-ship (drone bay → fighter)
   works naturally up to whatever nesting depth we allow.
-- The chain terminates at `Deep` — chunks live in absolute galactic
-  coordinates.
+- The chain terminates at `Deep` — its `galaxy_pos_ly` IS the absolute
+  galactic position. No further unwrapping needed.
 
 ---
 
@@ -157,10 +169,11 @@ Notes:
   rigid body relationship.
 
 ### 4d. Fleet jumps to deep space
-- Each ship's container transitions `Space { system: "sol" }` → `Deep { chunk_coord }`.
-- Players' containers are still `Ship(...)` — no per-player update needed.
-- During transit, the ship's `chunk_coord` updates as it crosses chunk
-  boundaries.
+- Each ship's container transitions `Space { system: "sol" }` → `Deep { galaxy_pos_ly: ... }`.
+- Players' containers are still `Vessel(...)` — no per-player update needed.
+- During transit, the ship's `galaxy_pos_ly` updates continuously as it
+  moves through interstellar space. No discrete chunk crossings — the
+  vector just changes over time like any continuous physics simulation.
 
 ### 4e. Ship arrives at a new system
 - Ship's container transitions `Deep` → `Space { system: "alpha_centauri" }`.
@@ -185,7 +198,7 @@ appropriate scale:
 | `Ship(X)` | Ship interior layout (from RON) + crew + the view "out the windows" of the ship's own neighbors |
 | `Body { system, body }` | Local terrain around player + nearby surface entities; zoomable up to system view |
 | `Space { system }` | Player as a dot in the system; all bound bodies + ships in that system |
-| `Deep { chunk_coord }` | Player as a dot in deep space; rogue bodies within R light-years from the galaxy octree |
+| `Deep { galaxy_pos_ly }` | Player as a dot in deep space; rogue bodies within R light-years queried from the procedural generator + any stored mutations |
 
 The same UI handles all four cases by branching on `container` type. Zoom
 gestures cross the scale boundaries per `docs/design/maps-multi-scale.md`.
@@ -237,7 +250,7 @@ sim seconds.
 | Ship position when on autopilot | Relay-authoritative (NPC orchestrator) | Relay computes + broadcasts |
 | Ship container change | Relay validates + broadcasts | Event-driven |
 | Body position | Deterministic from orbital elements + sim_time | NEVER synced; computed locally |
-| Rogue body position (procedural) | Deterministic from seed + chunk + sim_time | NEVER synced; computed locally |
+| Rogue body position (procedural) | Deterministic from seed + galactic position + sim_time | NEVER synced; computed locally |
 | NPC ships | Relay-authoritative | Relay broadcasts |
 | Sim time + speed | Relay | Periodic gossip + on-change events |
 
@@ -296,7 +309,7 @@ By default a client subscribes to:
 
 **Computed, NOT stored:**
 - Body world positions at any sim_time.
-- Rogue body positions in any chunk.
+- Rogue body positions at any galactic point (procedural function).
 - Player world positions (always computed from container chain).
 
 **Universe state file growth:** scales with players + ships, not with
@@ -307,32 +320,71 @@ Manageable.
 
 ## 10. Galaxy spatial index + procedural rogues
 
-For "what's near my fleet right now in deep space" queries we need a
-spatial index over the entire galaxy. This index has two layers:
+Revised 2026-05-10 per operator: **the position model is continuous
+(galactic Cartesian DVec3); spatial indexing and procedural generation
+are internal implementation details, not part of the public model.**
+
+For "what's near my fleet right now in deep space" queries we need
+efficient lookups. Two layers, each with its own internal indexing
+strategy:
 
 **Layer 1 — Known bodies (bound to systems):**
 - Source: `data/star_systems/index.json` lists every system with its
-  `galaxy_position_ly`.
-- Built into an octree at startup. Fast point/sphere queries.
+  `galaxy_position_ly` (continuous DVec3).
+- Loaded into an **octree at startup**. Fast point / sphere / k-nearest
+  queries with O(log N) cost. Octree is right here because systems
+  cluster non-uniformly (most near the galactic plane / spiral arms;
+  empty void elsewhere) — adaptive subdivision matches the data.
+- The octree is an internal index structure, not a data-model concept.
+  The system positions themselves are still continuous DVec3 values.
 
 **Layer 2 — Rogue interstellar bodies (NOT bound to any system):**
-- Procedurally generated per chunk. A chunk is a 1 ly cube indexed by
-  `(i, j, k)` where each is `floor(galaxy_pos_ly / 1.0)`.
-- Per-chunk content is deterministic from `hash(galaxy_seed, i, j, k)`:
-  - 0-3 rogue asteroids per chunk (Poisson-distributed, density tunable).
-  - Occasional rogue planet (rare, ~1 per 1000 chunks).
-- This means **no rogue bodies are stored** — they're computed on demand
-  from seed + chunk coordinate. Two clients computing the contents of
-  chunk (5, 12, -3) get identical rogues.
-- Resource gathering from a rogue mutates per-chunk-state (stored sparsely
-  in the relay's `rogue_state` table) — only chunks with mutations get
-  storage rows.
+- Position is continuous; we never store the universe as a grid of
+  chunks. But the procedural generator needs a deterministic function
+  `bodies_near(p, r) → Vec<RogueBody>` that two different clients
+  evaluate identically.
+- Implementation: a deterministic **Poisson disc / noise field** keyed
+  by `galaxy_seed`. Given a query sphere `(center, radius)`, the
+  generator samples positions inside that sphere where the noise
+  function exceeds the body-spawn threshold. Result is the same set of
+  rogues regardless of who calls it.
+- Internally, the generator buckets queries into ~1 ly voxels for cache
+  efficiency (looking up the same region twice doesn't re-evaluate the
+  noise field). Voxels are an **internal optimization**, not exposed
+  in `ContainerRef` or any storage row.
+
+**Persistence of rogue mutations** (when a player mines a rogue):
+- Stored as `(quantized_position, mutation_payload)` rows in the relay's
+  `rogue_state` table — sparse, only mutated positions get a row.
+- The quantization (e.g. round to 0.01 ly = ~94 billion km) is fine
+  enough that no two real rogues collide, but coarse enough to keep
+  the row count bounded. Pure internal addressing — players see only
+  continuous galactic positions.
 
 **"What's nearby" query** (called when player container is `Deep`):
-1. Compute galaxy chunks within R ly of player.
-2. For each chunk: union of (known bodies in chunk) + (procedural rogues
-   from seed) + (any modifications from `rogue_state` table).
-3. Return as the indoor map's content.
+1. Compute systems within R ly via octree (Layer 1).
+2. Compute rogue bodies within R ly via procedural sampling (Layer 2).
+3. Apply any mutations from `rogue_state` to matching positions.
+4. Return as the indoor map's content.
+
+### Why this is better than the chunked model
+
+Operator pushback (2026-05-10): "Why do we have to do cubic chunks
+instead of relative positioning?" Answer: we don't. The earlier draft
+made chunks part of the data model, which:
+- forced ship positions to track `chunk_coord` and increment it on
+  every chunk boundary crossing (artificial discreteness),
+- made the universe LOOK gridded even though continuous physics is
+  natural,
+- conflated "procedural seeding bucket" with "position addressing".
+
+Continuous positions in light-years (f64 DVec3) give ~1 mm precision
+even at 100 kly galactic radius — far more than ship navigation needs.
+Procedural generation still needs SOME bucketing internally for cache
+efficiency and deterministic seeding, but that's a private detail of
+the generator, not part of the position model. Orbital motion, smooth
+FTL transit, and inter-system travel all become natural vector math
+with no special-case "what chunk am I in?" bookkeeping.
 
 ---
 
@@ -407,7 +459,7 @@ data/star_systems/
 data/galaxy/
   galaxy_seed.json       # deterministic seed for procedural rogues
   skybox_catalog.json    # named distant stars for skybox rendering
-  rogue_density.json     # tunable parameters: bodies per chunk, types
+  rogue_density.json     # tunable parameters: bodies-per-ly³, types
 
 data/ships/
   pioneer.ron            # ship layout (existing convention from src/ship/)
@@ -555,9 +607,9 @@ implementation; capturing them here so we don't pretend they're settled.
 
 8. **Coordinate precision strategy at the edges.** `f64` for `local_pos`
    inside `Space` (~AU scale) is fine — 15 digits gives meter precision at
-   AU. Inside `Deep`, chunks are 1 ly cubes; `f64` local_pos within a
-   chunk gives sub-millimeter precision. Inside `Body` surface, `f64`
-   gives sub-millimeter at planetary radii. **All good.**
+   AU. Inside `Deep`, `galaxy_pos_ly` is f64 ly; at galactic radius
+   (100 kly) f64 still gives ~1 mm precision. Inside `Body` surface,
+   `f64` gives sub-millimeter at planetary radii. **All good.**
 
 9. **Unit conventions.** Suggest: SI throughout (meters, seconds, kg) for
    storage and math. Convert to AU / ly / km only for display. The current
@@ -566,8 +618,9 @@ implementation; capturing them here so we don't pretend they're settled.
 10. **Asteroid belt vs individual asteroid.** The Sol asteroid belt has
     millions of bodies. Storing each is impractical. Strategy: belt is a
     `region` with density parameters; individual asteroids generated
-    procedurally per chunk like rogues. Major named asteroids (Ceres,
-    Vesta, etc.) stored explicitly; the rest are procedural.
+    procedurally from the noise field within the belt's volume. Major
+    named asteroids (Ceres, Vesta, etc.) stored explicitly; the rest
+    are procedural.
 
 ---
 
@@ -625,7 +678,7 @@ Fast travel between systems still works — but via FTL drives that decouple
 | FTL type | Real-time journey | Sim-time advance | Notes |
 |----------|------------------|-----------------|-------|
 | **Blink drive** (BSG-style FTL jump) | Instant (~0 s real) | 0 s sim | Tech-gated, resource-cost, cooldown. Container_swap directly: `Space{"sol"} → Space{"alpha_centauri"}`. Ship never enters `Deep`. |
-| **Sublight / slow FTL** | Real time = distance / drive speed | Same as real time | Continuous deep-space travel. Ship's container goes `Space{"sol"} → Deep{chunk_coord} → Space{"alpha_centauri"}` over the journey. Encounter rogue bodies en route. |
+| **Sublight / slow FTL** | Real time = distance / drive speed | Same as real time | Continuous deep-space travel. Ship's container goes `Space{"sol"} → Deep{galaxy_pos_ly}` (vector updates over time) `→ Space{"alpha_centauri"}` on arrival. Encounter rogue bodies en route via the procedural generator. |
 
 Both keep `sim_time = real_time` globally. A 4-ly sublight trip at 1 ly/hour
 takes 4 hours real AND 4 hours sim. Players can do other gameplay during
@@ -688,28 +741,36 @@ The hierarchical container model preserves precision because every
 `local_pos` stays small. f64 has ~16 significant decimal digits. Local
 distances at every scale fit well within that:
 
-| Scale | Local distance range | f64 precision available |
-|-------|---------------------|------------------------|
-| Inside a vessel (room → corridor) | < 1 km = 10³ m | sub-nanometer (10⁻¹³ m) |
-| Within a system (Space) — outer planets | < 100 AU = 1.5 × 10¹³ m | sub-millimeter (10⁻³ m) |
-| Within a Deep chunk (1 ly cube) | < 9.46 × 10¹⁵ m | sub-meter (~1 m) |
-| Galaxy chunk coordinates | integer indices `[i64; 3]` | exact, no FP at all |
+**Revised 2026-05-10 — continuous positions everywhere.** Earlier draft
+used chunk coordinates in Deep; that's gone. Every position is now a
+continuous DVec3 in its parent frame.
 
-**At no point does any `local_pos` field hold a value larger than ~10¹⁶.**
-Galactic-scale position is stored as integer chunk indices, which never
-lose precision regardless of how large the galaxy gets.
+| Scale | Local frame | f64 precision available |
+|-------|-------------|------------------------|
+| Inside a vessel (room → corridor) | meters from vessel origin (< 1 km) | sub-nanometer (10⁻¹³ m) |
+| Within a system (Space) — outer planets | meters from barycenter (< 100 AU = 1.5 × 10¹³ m) | sub-millimeter (10⁻³ m) |
+| In Deep — interstellar | light-years from galactic origin (< 100 kly) | sub-millimeter (~10⁻³ m) at galactic radius |
+| Pocket dimensions | local coordinate space, semantics per-Pocket | configurable |
+
+**The precision budget works at every scale because every local_pos is
+expressed in the units natural to its parent.** Meters inside a vessel,
+meters within a system, light-years at galactic scale. f64 gives 15-16
+significant digits, which is ample whether the value is 5.0 (meters in
+a room) or 27,400.0 (ly to the galactic center).
 
 The 4-light-year trip from Sol to Alpha Centauri:
-- Sol's chunk: `[0, 0, 0]`
-- Alpha Centauri's chunk: ~`[-1, -4, -2]` (each chunk is 1 ly cube)
-- During sublight FTL: ship's `chunk_coord` increments as it crosses chunk
-  boundaries; `local_pos` within the current chunk stays small
+- Sol's galactic position: `(0.0, 0.0, 0.0)` ly
+- Alpha Centauri's galactic position: `(-1.348, -3.972, -1.535)` ly
+- During sublight FTL: ship's `galaxy_pos_ly` updates continuously from
+  Sol's position toward Alpha Centauri's. No boundary crossings, no
+  special bookkeeping.
 - During blink drive: container_swap directly from `Space{"sol"}` to
-  `Space{"alpha_centauri"}` — never enters Deep, no chunk traversal needed
+  `Space{"alpha_centauri"}` — never enters Deep at all.
 
 Floating origin handles render-side precision separately (everything
 visible gets re-centered around the player to keep render coordinates
-near zero).
+near zero — so even at 100 kly galactic position, what gets passed to
+the GPU is small numbers near zero).
 
 ## 17b. Operator decisions (2026-05-09 session)
 
