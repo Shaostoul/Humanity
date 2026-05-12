@@ -735,6 +735,95 @@ A horizontal control strip at the top of the System view contains:
 > use either plain text labels (`"Play"`, `"Pause"`, `"<<"`, `">>"`)
 > or paint shapes via `widgets::icons::paint_*` SVG helpers.
 
+### Universal "world object label" widget (Phase 4d-bis + extraction in v0.213.0 + unification in v0.214.0)
+
+Operator feedback 2026-05-12 (after seeing v0.213): *"It should be a single thing, not three separate widgets. The body's planet icon remains on the original first one, the orange ring around it expands rightward to fit the name, then clicking the name expands/collapses the full card."*
+
+Also widened the scope: *"We could use it for viewing loot on the ground and vehicles in the distance and whatever else. Mostly in the FPS mode."*
+
+The widget now treats the three states as **one continuous outline anchored to the body's own rendered position** — circle → pill → card — with no duplicate visual elements at any state:
+
+- **Circle state**: just the body's own dot in the canvas (no widget output yet).
+- **Pill state**: the body becomes the pill's left semicircular cap. Pill height = `max(body_diameter + 2, MIN_PILL_HEIGHT)` so the body fits exactly in the cap when large enough; small bodies sit centered inside a slightly larger cap. The pill extends rightward to fit the name. **No second dot is drawn inside the pill.**
+- **Card state**: the pill stays in place; the rectangular card area extends downward from the pill's bottom edge, sharing the pill's left edge. The card's heading row is just the name + Close button. **No second dot is drawn inside the card heading.** The pill above is the card's visual anchor.
+
+If the card would clip the bottom of the canvas, it flips up and extends above the pill instead. If wider than the pill, the card shifts left to fit horizontally.
+
+Three target surfaces for cosmic bodies + four for general world objects (operator's expansion):
+
+| Surface | Object | Canvas | Screen-position source |
+|---------|--------|--------|------------------------|
+| Cosmos page (shipped) | Celestial bodies | egui Painter on the page's central rect | 3D camera (`project_to_screen`) |
+| Map Room HUD (planned) | Celestial bodies | Painter over FPS viewport | Player FPS camera + projection |
+| AR-glasses sky overlay (Phase 4g) | Real-sky bodies | Painter on AR passthrough | AR headset pose + projection |
+| FPS loot pickups | Items on ground | Painter over FPS viewport | FPS camera + projection |
+| FPS vehicle markers | Vehicles in distance | Painter over FPS viewport | FPS camera + projection |
+| FPS NPC/player nameplates | Entities in view | Painter over FPS viewport | FPS camera + projection |
+
+In every case the compute is identical — project a world position to a 2D screen position, render dot → pill → card at that anchor — only the source of `screen_pos` and the contents of the card differ.
+
+#### Two-phase rendering
+
+For the "body is the pill's left cap" trick to work, the body circle must be drawn **on top of** the pill background. The widget therefore exposes two phases that the caller invokes around its body draw:
+
+```rust
+// PHASE 1 — paint pill backgrounds (filled rounded-rects, no border, no text).
+// Returns layout with placed rects.
+let layout = body_pill::paint_pill_backgrounds(painter, theme, &pills);
+
+// Caller draws body circles + decorations (selected ring, conjunction
+// rings, eclipse highlights, etc.) on top of the backgrounds.
+for body in bodies { painter.circle_filled(body.screen, body.radius, body.color); /* ... */ }
+
+// PHASE 2 — paint pill borders + name text + handle clicks.
+// Returns Option<id> of the clicked pill this frame.
+let clicked_id = body_pill::paint_pill_overlays(ui, painter, theme, &layout, "cosmos_pill");
+
+// PHASE 3 — for the expanded pill (if any), paint the card extension.
+for pp in &layout.placed {
+    if pp.expanded {
+        let card_data = make_card_data_for(pp.id);
+        let resp = body_pill::paint_card_extension(ui, painter, theme, pp, &card_data, canvas_rect);
+        if resp.closed { /* collapse */ }
+        if let Some(action_idx) = resp.action_clicked { /* ... */ }
+    }
+}
+```
+
+#### Public API
+
+```rust
+pub struct BodyPill<'a> {
+    pub id: &'a str,
+    pub name: &'a str,
+    pub color: Color32,                  // body's render color
+    pub body_screen: Pos2,               // pill's left-cap is centered here
+    pub body_radius_px: f32,             // pill height matches when possible
+    pub priority: u8,                    // 0 = always shown, higher = collision-dodged
+    pub forced: bool,                    // hover/select/expanded — never hidden
+    pub expanded: bool,                  // styling differs (accent border)
+}
+
+pub struct BodyCardData<'a> {
+    pub subtitle: Option<String>,
+    pub stats: Vec<(String, String)>,
+    pub description: Option<&'a str>,
+    pub actions: Vec<(String, bool)>,    // (label, enabled)
+}
+
+pub fn paint_pill_backgrounds(painter: &Painter, theme: &Theme, pills: &[BodyPill])
+    -> PillsLayout;
+pub fn paint_pill_overlays(ui: &mut Ui, painter: &Painter, theme: &Theme,
+    layout: &PillsLayout, interact_id_salt: &str) -> Option<String>;
+pub fn paint_card_extension(ui: &mut Ui, painter: &Painter, theme: &Theme,
+    placed_pill: &PlacedPill, card: &BodyCardData, canvas_rect: Rect)
+    -> BodyCardResponse { closed, action_clicked: Option<usize> };
+```
+
+#### Why this matters for *infinite-of-x*
+
+A label widget hardcoded to one surface is the start of a UI maintenance nightmare. By the time we ship six "label a world object" surfaces (cosmos / map room / AR sky / loot / vehicles / NPCs), any inconsistency between them (different border radius here, different connector-line angle there) becomes user-visible noise. One widget = one source of truth, restyleable via the theme editor. The widget knows nothing about SolBody, ECS components, AR metadata, or loot stacks — it's pure presentation.
+
 ### Universal "body pill + info card" widget (Phase 4d-bis + extraction in v0.213.0)
 
 Operator insight 2026-05-12: *"This planet icon pill to card GUI thing could be used at the dedicated page, in the player home map room, and like when we're looking at the starry night sky with AR glasses."*

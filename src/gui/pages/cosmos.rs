@@ -1401,24 +1401,35 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 
     // ── Draw bodies (back-to-front, with depth-scaled radii) ──
-    // PASS 1: draw the body circles + hit-test for hover/click on bodies.
-    // PASS 2: pill labels (collision-dodging, priority-sorted) — see below.
-    // PASS 3: expanded info card for whichever body has cosmos_expanded_body.
+    //
+    // Render order (v0.214.0 — operator feedback: "it should be a single
+    // thing, not three separate widgets, so the planet icon remains on
+    // the original first one"):
+    //
+    //   1. Compute body radii up front (used for pill-cap sizing).
+    //   2. PHASE 1 — paint pill backgrounds (filled rounded-rects). The
+    //      body's screen-position is the pill's left-cap center, so the
+    //      body circle (drawn next) becomes the visible pill dot.
+    //   3. Draw body circles + selected ring + conjunction rings +
+    //      eclipse highlights — these all render ON TOP of pill backgrounds.
+    //      The body IS the pill's left cap.
+    //   4. PHASE 2 — paint pill borders + name text + click interaction.
+    //   5. PHASE 3 — for any expanded pill, paint the card extension
+    //      below it (flush with pill, sharing the left edge).
+    //
     // (`hover_pos` declared earlier — shared with the Lagrange overlay pass.)
     let mut hovered_body: Option<&SolBody> = None;
     let mut clicked_body: Option<&SolBody> = None;
-    // Cache body radii so the pill pass can reuse them as anchor offsets.
+
+    // PASS A — compute body radii up front (no paint yet). We need radii
+    // before we can lay out pills (the pill height matches the body's
+    // diameter so the body becomes the pill's left cap).
     let mut body_radii_px: Vec<f32> = Vec::with_capacity(projected.len());
     for pb in &projected {
-        // Apparent radius — based on real radius_km, projected through the
-        // camera distance. A planet's apparent angular size = radius / distance.
-        // Convert to pixels using the camera's vertical FOV + screen height.
         let body_radius_au = pb.body.radius_km / KM_PER_AU;
         let apparent_rad = (body_radius_au / pb.depth).abs();
         let pixels_per_rad = (rect.height() as f64) / (cam.fov_rad);
         let mut r_px = (apparent_rad * pixels_per_rad) as f32;
-        // Floor + ceil so even tiny bodies are visible (would otherwise be
-        // sub-pixel) and the Sun doesn't take over the entire screen.
         let min_r = if pb.body.id == "sun" { 8.0 }
                     else if pb.body.body_type == "moon" { 1.5 }
                     else if pb.body.body_type == "asteroid" { 1.0 }
@@ -1426,6 +1437,77 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         let max_r = if pb.body.id == "sun" { 80.0 } else { 40.0 };
         r_px = r_px.max(min_r).min(max_r);
         body_radii_px.push(r_px);
+    }
+
+    // PASS B — hit-test hover/click on body screen positions (still no
+    // paint). The pill widget owns the click handler for any pilled body
+    // (because the pill rect encompasses the body's left cap area), so
+    // body hits here only matter for non-pilled bodies that the user
+    // clicks on the canvas to select.
+    for (i, pb) in projected.iter().enumerate() {
+        let r_px = body_radii_px[i];
+        if let Some(hp) = hover_pos {
+            if (hp - pb.screen).length() < r_px + 4.0 {
+                hovered_body = Some(pb.body);
+                if response.clicked() {
+                    clicked_body = Some(pb.body);
+                }
+            }
+        }
+    }
+    let _suppress_unused: Option<glam::DVec3> = projected.first().map(|p| p.world_au);
+
+    // PASS C — build pill input list. Decide visibility (priority tier
+    // or forced via hover/select/expand) before any rendering happens.
+    //
+    // Priority key (lower = drawn first / always-visible):
+    //   0 = star (Sun)
+    //   1 = terrestrial / gas_giant / ice_giant (true planets)
+    //   2 = dwarf_planet (Pluto, Ceres, etc.)
+    //   3 = moon (shown only when hovered/selected/expanded)
+    //   4 = asteroid (shown only when hovered/selected/expanded)
+    use crate::gui::widgets::body_pill::{
+        BodyPill, paint_pill_backgrounds, paint_pill_overlays,
+    };
+    let mut pills: Vec<BodyPill> = Vec::with_capacity(projected.len());
+    for (i, pb) in projected.iter().enumerate() {
+        let r_px = body_radii_px[i];
+        let priority: u8 = match pb.body.body_type.as_str() {
+            "star" => 0,
+            "terrestrial" | "gas_giant" | "ice_giant" => 1,
+            "dwarf_planet" => 2,
+            "moon" => 3,
+            _ => 4,
+        };
+        let is_hovered = hovered_body.map(|b| b.id == pb.body.id).unwrap_or(false);
+        let is_selected = state.cosmos_selected_body.as_deref() == Some(pb.body.id.as_str());
+        let is_expanded = state.cosmos_expanded_body.as_deref() == Some(pb.body.id.as_str());
+        let is_forced = is_hovered || is_selected || is_expanded;
+        let should_show = priority <= 2 || is_forced;
+        if !should_show { continue; }
+        pills.push(BodyPill {
+            id: pb.body.id.as_str(),
+            name: pb.body.name.as_str(),
+            color: body_color(&pb.body.name),
+            body_screen: pb.screen,
+            body_radius_px: r_px,
+            priority,
+            forced: is_forced,
+            expanded: is_expanded,
+        });
+    }
+
+    // PHASE 1 — paint pill BACKGROUNDS only (filled rounded-rects).
+    // Body circles render on top of these and become the pills' left caps.
+    let pill_layout = paint_pill_backgrounds(&paint, theme, &pills);
+
+    // PASS D — draw body circles + selected ring + conjunction rings +
+    // eclipse highlights. These overlay the pill backgrounds, completing
+    // the "body IS the pill's left dot" visual trick. Order matters:
+    // pill background first, body circle on top of the cap area, then
+    // body decorations on top of body.
+    for (i, pb) in projected.iter().enumerate() {
+        let r_px = body_radii_px[i];
 
         paint.circle_filled(pb.screen, r_px, body_color(&pb.body.name));
         if state.cosmos_selected_body.as_deref() == Some(pb.body.id.as_str()) {
@@ -1439,8 +1521,6 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             let weight = t.weight();
             let outer_r = r_px + 6.0 + weight * 4.0;
             let inner_r = r_px + 3.0;
-            // Two concentric rings — a thick muted base + a thinner accent
-            // overlay; reads well against the starfield without being gaudy.
             paint.circle_stroke(
                 pb.screen,
                 outer_r,
@@ -1456,7 +1536,6 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // accent ring around Earth and a darker disc overlaid on the Sun.
         if let Some(ref ev) = eclipse {
             if pb.body.id == "earth" {
-                // Earth is the OBSERVER — show a "viewing eclipse" badge ring.
                 paint.circle_stroke(
                     pb.screen,
                     r_px + 8.0,
@@ -1471,13 +1550,10 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 );
                 let _ = ev;
             } else if pb.body.id == "sun" {
-                // Sun is the OCCULTED body — overlay a dark disc proportional
-                // to the eclipse coverage.
                 let dark_r = (r_px as f64 * ev.coverage.sqrt()).clamp(0.0, r_px as f64) as f32;
                 paint.circle_filled(pb.screen, dark_r, theme.bg_primary());
                 paint.circle_stroke(pb.screen, r_px + 2.0, Stroke::new(1.0, theme.danger()));
             } else if pb.body.id == "moon" {
-                // Moon is the OCCULTER — give it a danger ring to draw the eye.
                 paint.circle_stroke(
                     pb.screen,
                     r_px + 4.0,
@@ -1485,22 +1561,7 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 );
             }
         }
-
-        // Hit testing for hover/click on the body itself (the pill has its
-        // own hit-test below — they can both fire on the same click but the
-        // pill takes precedence since it's drawn on top).
-        if let Some(hp) = hover_pos {
-            if (hp - pb.screen).length() < r_px + 4.0 {
-                hovered_body = Some(pb.body);
-                if response.clicked() {
-                    clicked_body = Some(pb.body);
-                }
-            }
-        }
     }
-    // Suppress unused-field warning for world_au — kept on the struct so
-    // future label-collision-avoidance code can reference it.
-    let _suppress_unused: Option<glam::DVec3> = projected.first().map(|p| p.world_au);
 
     // ── Reference-orbit rings (Phase 4d-ref, v0.212.0) ──
     // Render LEO / MEO / GEO / etc rings around any supported planet
@@ -1531,63 +1592,15 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
     }
 
-    // ── PASS 2: Pill labels (Phase 4d-bis, v0.209.0 — extracted to
-    //    widgets::body_pill in v0.213.0 for reuse across the Cosmos page,
-    //    future in-ship Map Room HUD, and future AR-glasses sky overlay).
-    //
-    // Each visible body gets a pill: colored dot on left, name on right.
-    // Pills are priority-sorted; lower-priority pills hide on overlap with
-    // higher-priority ones so the canvas doesn't get cluttered when the
-    // camera zooms out.
-    //
-    // Priority key (lower = drawn first / always-visible):
-    //   0 = star (Sun)
-    //   1 = terrestrial / gas_giant / ice_giant (true planets)
-    //   2 = dwarf_planet (Pluto, Ceres, etc.)
-    //   3 = moon (only if parent planet's pill is visible OR moon is hovered/selected)
-    //   4 = asteroid (only if hovered, selected, or expanded)
-    //
-    // A pill is shown when:
-    //   - Its priority is ≤ 2 (always-visible tier)
-    //   - OR it is the hovered body, selected body, or expanded body
-    //   - AND its rect doesn't overlap a higher-priority placed rect
-    //     (with one exception: hovered/selected/expanded pills always show)
-
-    use crate::gui::widgets::body_pill::{BodyPill, place_and_draw_pills};
-
-    // We need to keep the body_color() result in stable storage so the
-    // BodyPill<'a> can borrow the SolBody name. Project bodies first.
-    let mut pills: Vec<BodyPill> = Vec::with_capacity(projected.len());
-    for (i, pb) in projected.iter().enumerate() {
-        let r_px = body_radii_px[i];
-        let priority: u8 = match pb.body.body_type.as_str() {
-            "star" => 0,
-            "terrestrial" | "gas_giant" | "ice_giant" => 1,
-            "dwarf_planet" => 2,
-            "moon" => 3,
-            _ => 4,
-        };
-        let is_hovered = hovered_body.map(|b| b.id == pb.body.id).unwrap_or(false);
-        let is_selected = state.cosmos_selected_body.as_deref() == Some(pb.body.id.as_str());
-        let is_expanded = state.cosmos_expanded_body.as_deref() == Some(pb.body.id.as_str());
-        let is_forced = is_hovered || is_selected || is_expanded;
-        let should_show = priority <= 2 || is_forced;
-        if !should_show { continue; }
-        pills.push(BodyPill {
-            id: pb.body.id.as_str(),
-            name: pb.body.name.as_str(),
-            color: body_color(&pb.body.name),
-            body_screen: pb.screen,
-            body_radius_px: r_px,
-            priority,
-            forced: is_forced,
-            expanded: is_expanded,
-        });
-    }
-    let pill_layout = place_and_draw_pills(ui, &paint, theme, &pills, "cosmos_pill");
-    let clicked_pill = pill_layout.clicked_id;
+    // ── PHASE 2: paint pill OVERLAYS (borders + name text + click handling).
+    // Pill borders render on top of body circles + their decorations, so
+    // the user sees a continuous outline that wraps the body's left cap.
+    let clicked_pill = paint_pill_overlays(ui, &paint, theme, &pill_layout, "cosmos_pill");
 
     // Apply click selection. Pill clicks take precedence over body clicks.
+    // (Clicks on the body's own circle area are captured by the pill if
+    // a pill exists for that body — the pill rect encompasses the body's
+    // left cap.)
     if let Some(pill_id) = clicked_pill {
         // Toggle expanded state on pill click.
         if state.cosmos_expanded_body.as_deref() == Some(pill_id.as_str()) {
@@ -1597,21 +1610,19 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             state.cosmos_selected_body = Some(pill_id);
         }
     } else if let Some(b) = clicked_body {
-        // Body click (not on a pill) updates selection without expanding.
+        // Body click (no pill on this body) — select it. Next frame the
+        // pill will appear because the body is now selected (forced=true).
         state.cosmos_selected_body = Some(b.id.clone());
     }
 
-    // ── PASS 3: Expanded info card for the currently-expanded body ──
+    // ── PHASE 3: card extension for the expanded pill, if any.
     if let Some(expanded_id) = state.cosmos_expanded_body.clone() {
-        // Find the expanded body's pill rect from this frame's placed list.
-        // If it wasn't placed (camera moved away), the card is suppressed.
-        let expanded_pos_and_body = projected.iter().enumerate().find_map(|(i, pb)| {
-            if pb.body.id == expanded_id {
-                Some((pb.screen, body_radii_px[i], pb.body))
-            } else { None }
-        });
-        if let Some((body_screen, body_r_px, body)) = expanded_pos_and_body {
-            draw_body_info_card(ui, &paint, theme, body, body_screen, body_r_px, rect, state);
+        // Find the expanded pill's placed rect (it may have been culled by
+        // collision-dodge or the camera may have moved off it).
+        let placed = pill_layout.placed.iter().find(|pp| pp.id == expanded_id).cloned();
+        let body = projected.iter().find(|pb| pb.body.id == expanded_id).map(|pb| pb.body);
+        if let (Some(pp), Some(body)) = (placed, body) {
+            draw_body_info_card_v2(ui, &paint, theme, body, &pp, rect, state);
         }
     }
 
@@ -2397,24 +2408,27 @@ fn detect_sky_events(sim_time_seconds: f64) -> (Vec<ConjunctionEvent>, Option<Ec
 
 // ─────────────────────── Body info card (Phase 4d-bis, v0.209.0) ───────────
 
-/// Render the expanded info card for a SolBody. Translates the SolBody
-/// into a generic `BodyCardData` and delegates to
-/// `widgets::body_pill::draw_body_card`. The widget handles the visual
-/// layout (anchor, auto-flip, frame, theme); this function owns the
-/// domain translation (formatting "5.2 AU from Sun" etc.) plus the
-/// Cosmos-specific actions (Focus, Track stub).
-#[allow(clippy::too_many_arguments)]
-fn draw_body_info_card(
+/// Render the expanded info card for a SolBody. v0.214.0 takes a
+/// `PlacedPill` (from the widget's phase-1 layout) so the card can attach
+/// FLUSH to the pill's bottom edge — no duplicate body dot in the card
+/// heading, no gap. The pill is the card's visual header; the card is
+/// just the pill's downward extension.
+///
+/// Translates the SolBody into a generic `BodyCardData` and delegates to
+/// `widgets::body_pill::paint_card_extension`. The widget owns the
+/// visual layout (anchor flush with pill, flip-up if clipping bottom,
+/// canvas clamp); this function owns the domain translation (formatting
+/// "5.2 AU from Sun" etc.) plus the Cosmos-specific actions.
+fn draw_body_info_card_v2(
     ui: &mut egui::Ui,
     paint: &egui::Painter,
     theme: &Theme,
     body: &SolBody,
-    body_screen: Pos2,
-    body_r_px: f32,
+    pp: &crate::gui::widgets::body_pill::PlacedPill,
     canvas_rect: Rect,
     state: &mut GuiState,
 ) {
-    use crate::gui::widgets::body_pill::{BodyCardData, draw_body_card};
+    use crate::gui::widgets::body_pill::{BodyCardData, paint_card_extension};
 
     let dist_str = if body.semi_major_axis_au > 0.0 {
         format!("{:.2} AU from Sun", body.semi_major_axis_au)
@@ -2465,36 +2479,29 @@ fn draw_body_info_card(
         Some(body.description.as_str())
     };
 
-    // Two actions: Focus (always enabled), Track (disabled stub for the
-    // future camera-follow-during-sim-time feature).
     let actions = vec![
         ("Focus".to_string(), true),
         ("Track".to_string(), false),
     ];
 
     let data = BodyCardData {
-        heading: &body.name,
-        color: body_color(&body.name),
         subtitle,
         stats,
         description,
         actions,
     };
 
-    let resp = draw_body_card(ui, paint, theme, &data, body_screen, body_r_px, canvas_rect);
+    let resp = paint_card_extension(ui, paint, theme, pp, &data, canvas_rect);
     if resp.closed {
         state.cosmos_expanded_body = None;
     }
     if let Some(idx) = resp.action_clicked {
         match idx {
             0 => {
-                // Focus — re-use the existing focus pipeline.
                 state.cosmos_focus_request = Some(body.id.clone());
                 state.cosmos_selected_body = Some(body.id.clone());
             }
-            1 => {
-                // Track (disabled stub — never fires until enabled).
-            }
+            1 => { /* Track stub */ }
             _ => {}
         }
     }
