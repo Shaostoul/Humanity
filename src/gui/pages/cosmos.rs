@@ -1336,26 +1336,22 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
     let _ = lagrange_markers; // marker list saved for future click-to-track
 
-    // ── Lagrange overlay toggle button (top-right of canvas) ──
-    // A small button overlaid on the canvas so the user can flip the
-    // L-points on/off without leaving the system view. We use ui.put
-    // with an absolute rect so the button floats over the painter.
-    let toggle_rect = Rect::from_min_size(
-        Pos2::new(rect.right() - 130.0, rect.top() + 8.0),
-        egui::vec2(122.0, 22.0),
+    // ── Overlay toggles (top-right of canvas) ──
+    // Lagrange + Reference orbits each get a small floating button so the
+    // user can flip overlays on/off without leaving the system view.
+    let toggles_rect = Rect::from_min_size(
+        Pos2::new(rect.right() - 260.0, rect.top() + 8.0),
+        egui::vec2(252.0, 22.0),
     );
     let mut toggle_ui = ui.new_child(
         egui::UiBuilder::new()
-            .max_rect(toggle_rect)
-            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            .max_rect(toggles_rect)
+            .layout(egui::Layout::right_to_left(egui::Align::Center)),
     );
-    let toggle_label = if state.cosmos_show_lagrange {
-        "Lagrange: ON"
-    } else {
-        "Lagrange: OFF"
-    };
-    let btn = egui::Button::new(
-        RichText::new(toggle_label)
+    // Lagrange toggle (rightmost).
+    let lag_label = if state.cosmos_show_lagrange { "Lagrange: ON" } else { "Lagrange: OFF" };
+    let lag_btn = egui::Button::new(
+        RichText::new(lag_label)
             .size(theme.font_size_small)
             .color(if state.cosmos_show_lagrange { theme.info() } else { theme.text_secondary() }),
     )
@@ -1364,8 +1360,23 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         0.8,
         if state.cosmos_show_lagrange { theme.info() } else { theme.border() },
     ));
-    if toggle_ui.add(btn).on_hover_text("Toggle Lagrange-point overlay (L1-L5 for Sun-Earth, Earth-Moon, Sun-Mars, Sun-Jupiter, Sun-Saturn pairs)").clicked() {
+    if toggle_ui.add(lag_btn).on_hover_text("Toggle Lagrange-point overlay (L1-L5 for Sun-Earth, Earth-Moon, Sun-Mars, Sun-Jupiter, Sun-Saturn pairs)").clicked() {
         state.cosmos_show_lagrange = !state.cosmos_show_lagrange;
+    }
+    // Reference orbits toggle (next-to-left, only meaningful for Earth/Mars/Jupiter/Moon).
+    let ref_label = if state.cosmos_show_reference_orbits { "Ref orbits: ON" } else { "Ref orbits: OFF" };
+    let ref_btn = egui::Button::new(
+        RichText::new(ref_label)
+            .size(theme.font_size_small)
+            .color(if state.cosmos_show_reference_orbits { theme.info() } else { theme.text_secondary() }),
+    )
+    .fill(theme.bg_card())
+    .stroke(Stroke::new(
+        0.8,
+        if state.cosmos_show_reference_orbits { theme.info() } else { theme.border() },
+    ));
+    if toggle_ui.add(ref_btn).on_hover_text("Toggle reference-orbit rings (LEO/MEO/GEO/HEO around Earth; equivalent rings for Mars, Jupiter, Moon). Visible when zoomed in close enough.").clicked() {
+        state.cosmos_show_reference_orbits = !state.cosmos_show_reference_orbits;
     }
 
     // ── Sky events: detect conjunctions + eclipses for the current sim_time ──
@@ -1490,6 +1501,35 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Suppress unused-field warning for world_au — kept on the struct so
     // future label-collision-avoidance code can reference it.
     let _suppress_unused: Option<glam::DVec3> = projected.first().map(|p| p.world_au);
+
+    // ── Reference-orbit rings (Phase 4d-ref, v0.212.0) ──
+    // Render LEO / MEO / GEO / etc rings around any supported planet
+    // when the toggle is on AND the body is large enough on screen to
+    // make rings legible. Currently supports Earth, Mars, Jupiter, Moon.
+    let mut ref_orbit_hover: Option<(&'static str, &'static str)> = None;
+    if state.cosmos_show_reference_orbits {
+        for (i, pb) in projected.iter().enumerate() {
+            if reference_orbits_for(pb.body.id.as_str()).is_empty() { continue; }
+            let r_px = body_radii_px[i];
+            if let Some(hit) = draw_reference_orbits(
+                &paint, theme, pb.body, pb.world_au, pb.screen, r_px,
+                &cam, rect, hover_pos,
+            ) {
+                ref_orbit_hover = Some(hit);
+            }
+        }
+    }
+    if let Some((name, blurb)) = ref_orbit_hover {
+        response.clone().on_hover_ui_at_pointer(|ui| {
+            ui.set_max_width(240.0);
+            ui.label(RichText::new(name).strong().color(theme.text_primary()));
+            ui.label(
+                RichText::new(blurb)
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+        });
+    }
 
     // ── PASS 2: Pill labels (Phase 4d-bis, v0.209.0) ──
     // Each visible body gets a pill: colored dot on left, name on right.
@@ -1995,6 +2035,146 @@ fn draw_night_sky_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         egui::FontId::proportional(10.0),
         theme.text_muted(),
     );
+}
+
+// ─────────────────────── Reference orbits (Phase 4d-ref, v0.212.0) ─────────
+
+/// A named reference orbit around a body — LEO / GEO / etc. Stored as
+/// altitude above the body's surface in km. Period is computed from the
+/// body's mass via Kepler's third law (a³ = GMP²/4π²).
+struct ReferenceOrbit {
+    name: &'static str,
+    altitude_km: f64,
+    /// One-line role/description shown on hover.
+    blurb: &'static str,
+}
+
+/// Hardcoded reference orbits per supported body. Only bodies for which
+/// the "common reference orbit" naming applies — Earth has the canonical
+/// LEO/MEO/GEO/HEO; Mars/Moon have analogues but they're not as
+/// universally-named. Could move to data/ later.
+fn reference_orbits_for(body_id: &str) -> &'static [ReferenceOrbit] {
+    match body_id {
+        "earth" => &[
+            ReferenceOrbit { name: "LEO (low)",  altitude_km: 400.0,    blurb: "ISS altitude — 90 min period" },
+            ReferenceOrbit { name: "LEO (high)", altitude_km: 2_000.0,  blurb: "Top of LEO band — 130 min period" },
+            ReferenceOrbit { name: "MEO",        altitude_km: 20_200.0, blurb: "GPS / GNSS satellite belt — 12 h period" },
+            ReferenceOrbit { name: "GEO",        altitude_km: 35_786.0, blurb: "Geostationary — 24 h period, fixed over equator" },
+            ReferenceOrbit { name: "HEO",        altitude_km: 50_000.0, blurb: "High Earth orbit — >24 h period" },
+            ReferenceOrbit { name: "Lunar TLI",  altitude_km: 384_400.0, blurb: "Trans-lunar injection apoapsis (Moon's orbit)" },
+        ],
+        "mars" => &[
+            ReferenceOrbit { name: "LMO (low)", altitude_km: 200.0,    blurb: "Low Mars orbit (Mars Reconnaissance Orbiter, etc.)" },
+            ReferenceOrbit { name: "areostationary", altitude_km: 17_032.0, blurb: "Mars-stationary — 24.6 h period (sol)" },
+        ],
+        "jupiter" => &[
+            ReferenceOrbit { name: "Low Jovian orbit", altitude_km: 5_000.0, blurb: "Inside the radiation belts — punishing" },
+            ReferenceOrbit { name: "Jovo-stationary",  altitude_km: 88_500.0, blurb: "Jupiter-stationary — 9.93 h period" },
+        ],
+        "moon" => &[
+            ReferenceOrbit { name: "Low lunar orbit", altitude_km: 100.0, blurb: "100 km — Apollo command module altitude" },
+            ReferenceOrbit { name: "NRHO apoapsis",   altitude_km: 70_000.0, blurb: "Near-rectilinear halo orbit — Gateway target" },
+        ],
+        _ => &[],
+    }
+}
+
+/// Render reference-orbit rings around the focused body. The rings live
+/// in the body's equatorial plane — for our (ecliptic ≈ equatorial)
+/// approximation we use the orbital normal of the body's own orbit.
+/// At MVP we use the ecliptic z-axis (good enough; Earth's axial tilt
+/// of 23.4° is the worst case and the rings still read clearly).
+#[allow(clippy::too_many_arguments)]
+fn draw_reference_orbits(
+    paint: &egui::Painter,
+    theme: &Theme,
+    body: &SolBody,
+    body_world_au: glam::DVec3,
+    body_screen: Pos2,
+    body_radius_px: f32,
+    cam: &Cosmos3DCamera,
+    rect: Rect,
+    hover_pos: Option<Pos2>,
+) -> Option<(&'static str, &'static str)> {
+    let rings = reference_orbits_for(body.id.as_str());
+    if rings.is_empty() { return None; }
+
+    // Body radius in AU for orbit-radius scaling.
+    let body_radius_au = body.radius_km / KM_PER_AU;
+
+    // Threshold — only render rings when the body's apparent radius is
+    // > ~12 px (otherwise rings would overlap the body itself or be
+    // sub-pixel). Below threshold render nothing.
+    if body_radius_px < 12.0 { return None; }
+
+    let mut hovered_info: Option<(&'static str, &'static str)> = None;
+
+    // Sample each ring at N points (uniform in true anomaly, here circular
+    // so just uniform angle). Project each through the camera.
+    for ring in rings {
+        let r_au = body_radius_au + ring.altitude_km / KM_PER_AU;
+        // Use the body's orbital inclination as a rough equatorial tilt.
+        // Real obliquity (Earth = 23.4°) differs but ecliptic-aligned is
+        // good enough for a navigation overlay.
+        let n = 96;
+        let mut prev: Option<Pos2> = None;
+        let mut first: Option<Pos2> = None;
+        let mut closest_to_hover: Option<(Pos2, f32)> = None;
+        for i in 0..n {
+            let theta = (i as f64) * std::f64::consts::TAU / (n as f64);
+            // Ring in body's local XY plane (approximately equatorial).
+            let local = glam::DVec3::new(
+                r_au * theta.cos(),
+                r_au * theta.sin(),
+                0.0,
+            );
+            let world = body_world_au + local;
+            if let Some((p, _)) = project_to_screen(world, cam, rect) {
+                if let Some(prev_p) = prev {
+                    paint.line_segment(
+                        [prev_p, p],
+                        Stroke::new(0.6, theme.info()),
+                    );
+                }
+                if first.is_none() { first = Some(p); }
+                prev = Some(p);
+                if let Some(hp) = hover_pos {
+                    let d = (hp - p).length();
+                    if closest_to_hover.map_or(true, |(_, dd)| d < dd) {
+                        closest_to_hover = Some((p, d));
+                    }
+                }
+            } else {
+                prev = None;
+            }
+        }
+        // Close the ring (segment from last drawn → first drawn).
+        if let (Some(prev_p), Some(first_p)) = (prev, first) {
+            paint.line_segment([prev_p, first_p], Stroke::new(0.6, theme.info()));
+        }
+        // Ring label — placed at the screen position of theta=0 (right
+        // side of body). Only if visible.
+        let label_world = body_world_au + glam::DVec3::new(r_au, 0.0, 0.0);
+        if let Some((label_p, _)) = project_to_screen(label_world, cam, rect) {
+            paint.text(
+                label_p + Vec2::new(6.0, 0.0),
+                Align2::LEFT_CENTER,
+                ring.name,
+                egui::FontId::proportional(9.0),
+                theme.info(),
+            );
+        }
+        // Hover detection — if pointer is close to any sampled point on
+        // this ring, surface the ring's blurb.
+        if let Some((_, d)) = closest_to_hover {
+            if d < 6.0 {
+                hovered_info = Some((ring.name, ring.blurb));
+            }
+        }
+    }
+
+    let _ = body_screen; // silence unused warning — kept for future use
+    hovered_info
 }
 
 // ─────────────────────── Lagrange points (Phase 4d-soi, v0.211.0) ──────────

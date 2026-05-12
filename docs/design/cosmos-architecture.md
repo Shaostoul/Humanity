@@ -902,12 +902,23 @@ that millions of people will be experiencing on the same day.*
 | 4d-bis | Pill-style body labels with expand-to-card | ✅ v0.209.0 |
 | 4d-tri | Conjunction + eclipse detection (current-moment, no scan) | ✅ v0.210.0 |
 | 4d-lag | Lagrange points overlay (L1-L5 for 5 interesting pairs) | ✅ v0.211.0 |
-| 4d-soi | Sphere-of-influence sort + reference-orbit rings | Next |
+| 4d-ref | Reference-orbit rings (LEO/MEO/GEO/HEO around Earth + analogues for Mars/Jupiter/Moon) | ✅ v0.212.0 |
+| 4d-soi | Sphere-of-influence sort (dynamic categorization for transient objects) | When ships/stations/dropped items move | 
 | 4d-quad | Eclipse umbra path on Earth's surface + Sky Events scan | After 4d-soi |
 | 4e | Tier-1 minor-body catalog (~10k) + streaming spatial index | After 4d |
 | 4f | Trajectory overrides + N-body impact for story arcs | When a story arc is being authored |
 | 4b | Sprite→mesh seamless LOD + wgpu-in-egui-canvas | When visual fidelity is worth the integration cost |
 | 4g | FPS AR-glasses orbit-path overlays | After 4b ships |
+
+### Phase 4d-ref implementation notes (landed v0.212.0)
+
+- `reference_orbits_for(body_id)` returns a `&'static [ReferenceOrbit]` for any body that has named navigation orbits. Currently Earth (LEO low/high, MEO, GEO, HEO, Lunar TLI), Mars (LMO, areostationary), Jupiter (low Jovian, Jovo-stationary), and the Moon (low lunar orbit, NRHO apoapsis). Empty for everything else — no rings draw on Pluto, the Sun, asteroids, etc.
+- Rings render as 96-segment polylines in the body's local XY plane (currently approximated as the ecliptic plane; real equatorial planes for tilted bodies like Earth's 23.4° obliquity are a later refinement).
+- Each ring is labeled at the screen-position of its theta=0 (right-side) point. Hovering near any ring segment surfaces a tooltip with the ring name and a one-line blurb explaining its role ("ISS altitude — 90 min period", "GPS / GNSS satellite belt — 12 h period", etc.).
+- Threshold: rings only render when the body's apparent radius is > 12 px on screen — below that the rings would overlap the body itself or be sub-pixel.
+- Toggle button next to the Lagrange toggle in the top-right of the canvas, off by default.
+- All theme tokens (info color for rings + labels).
+- **Note**: Phase 4d-soi (SoI-based dynamic categorization in the sidebar) was originally bundled with this work but split out — SoI sort only matters for transient objects (ships, stations, dropped items) which don't exist in the cosmos data yet. The infrastructure (`compute_lagrange_points` already uses mass ratios — same math as `r_hill = a * cbrt(mu/3)` from which the SoI parent walk derives) is in place; the sidebar grouping just doesn't need to change today.
 
 ### Phase 4d-lag implementation notes (landed v0.211.0)
 

@@ -998,6 +998,11 @@ pub struct GuiState {
     /// Off by default to keep the wide view clean. Toggled from the
     /// cosmos canvas overlay button. v0.211.0.
     pub cosmos_show_lagrange: bool,
+    /// Whether to render reference-orbit rings (LEO/MEO/GEO/etc) around
+    /// supported planets when zoomed close enough. Off by default —
+    /// rings only appear when the user explicitly enables AND the camera
+    /// is close enough that they're not microscopic on screen. v0.212.0.
+    pub cosmos_show_reference_orbits: bool,
 
     /// Cached server-wide settings received from the relay (v0.200.0).
     /// Populated on `server_settings_state` WS message. None means we
@@ -1430,6 +1435,7 @@ impl Default for GuiState {
             cosmos_sim_time_initialized: false,
             cosmos_expanded_body: None,
             cosmos_show_lagrange: false,
+            cosmos_show_reference_orbits: false,
             new_group_name: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),
