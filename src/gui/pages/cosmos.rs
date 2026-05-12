@@ -1223,6 +1223,27 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     }
 
+    // ── Sky events: detect conjunctions + eclipses for the current sim_time ──
+    // (Phase 4d-tri, v0.210.0.) Cheap O(n²) over ~11 named bodies — runs every
+    // frame; updates live as the user scrubs sim_time.
+    let (conjunctions, eclipse) = detect_sky_events(sim_time);
+    // Build a per-body conjunction-tightness map for visual highlighting.
+    // Each body in any conjunction gets the TIGHTEST tightness it's involved in.
+    let mut body_tightness: std::collections::HashMap<&str, ConjunctionTightness> =
+        std::collections::HashMap::new();
+    for ev in &conjunctions {
+        // Skip events involving the Sun if there's also an eclipse — the
+        // eclipse rendering handles Sun+Moon already.
+        if eclipse.is_some() && (ev.body_a_id == "sun" || ev.body_b_id == "sun")
+            && (ev.body_a_id == "moon" || ev.body_b_id == "moon") {
+            continue;
+        }
+        for id in [ev.body_a_id.as_str(), ev.body_b_id.as_str()] {
+            let entry = body_tightness.entry(id).or_insert(ev.tightness);
+            if ev.tightness > *entry { *entry = ev.tightness; }
+        }
+    }
+
     // ── Draw bodies (back-to-front, with depth-scaled radii) ──
     // PASS 1: draw the body circles + hit-test for hover/click on bodies.
     // PASS 2: pill labels (collision-dodging, priority-sorted) — see below.
@@ -1253,6 +1274,60 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         paint.circle_filled(pb.screen, r_px, body_color(&pb.body.name));
         if state.cosmos_selected_body.as_deref() == Some(pb.body.id.as_str()) {
             paint.circle_stroke(pb.screen, r_px + 3.0, Stroke::new(1.5, theme.accent()));
+        }
+
+        // Conjunction highlight ring — bodies currently in a conjunction
+        // pulse with a warm-tone ring. Tightness drives ring thickness
+        // and brightness. v0.210.0.
+        if let Some(t) = body_tightness.get(pb.body.id.as_str()) {
+            let weight = t.weight();
+            let outer_r = r_px + 6.0 + weight * 4.0;
+            let inner_r = r_px + 3.0;
+            // Two concentric rings — a thick muted base + a thinner accent
+            // overlay; reads well against the starfield without being gaudy.
+            paint.circle_stroke(
+                pb.screen,
+                outer_r,
+                Stroke::new(1.0 + weight * 2.0, theme.warning()),
+            );
+            paint.circle_stroke(
+                pb.screen,
+                inner_r,
+                Stroke::new(0.5, theme.warning()),
+            );
+        }
+        // Eclipse highlight on Earth — Sun-Moon overlap. Render a strong
+        // accent ring around Earth and a darker disc overlaid on the Sun.
+        if let Some(ref ev) = eclipse {
+            if pb.body.id == "earth" {
+                // Earth is the OBSERVER — show a "viewing eclipse" badge ring.
+                paint.circle_stroke(
+                    pb.screen,
+                    r_px + 8.0,
+                    Stroke::new(2.0, theme.danger()),
+                );
+                paint.text(
+                    pb.screen + Vec2::new(0.0, r_px + 22.0),
+                    Align2::CENTER_TOP,
+                    "ECLIPSE",
+                    egui::FontId::proportional(11.0),
+                    theme.danger(),
+                );
+                let _ = ev;
+            } else if pb.body.id == "sun" {
+                // Sun is the OCCULTED body — overlay a dark disc proportional
+                // to the eclipse coverage.
+                let dark_r = (r_px as f64 * ev.coverage.sqrt()).clamp(0.0, r_px as f64) as f32;
+                paint.circle_filled(pb.screen, dark_r, theme.bg_primary());
+                paint.circle_stroke(pb.screen, r_px + 2.0, Stroke::new(1.0, theme.danger()));
+            } else if pb.body.id == "moon" {
+                // Moon is the OCCULTER — give it a danger ring to draw the eye.
+                paint.circle_stroke(
+                    pb.screen,
+                    r_px + 4.0,
+                    Stroke::new(1.5, theme.danger()),
+                );
+            }
         }
 
         // Hit testing for hover/click on the body itself (the pill has its
@@ -1483,6 +1558,68 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         egui::FontId::proportional(10.0),
         theme.text_muted(),
     );
+
+    // ── Sky-events HUD (Phase 4d-tri, v0.210.0) ──
+    // Bottom-right corner readout. Shows up to 3 tightest conjunctions
+    // currently in progress + any solar eclipse. Empty when sky is quiet.
+    let sky_y_base = rect.bottom() - 8.0;
+    let mut sky_lines: Vec<(String, Color32)> = Vec::new();
+    if let Some(ref ev) = eclipse {
+        let pct = (ev.coverage * 100.0).round();
+        sky_lines.push((
+            format!(
+                "ECLIPSE: {} · {:.0}% coverage · Sun-Moon sep {:.3}°",
+                ev.kind.label(), pct, ev.separation_deg
+            ),
+            theme.danger(),
+        ));
+    }
+    for ev in conjunctions.iter().take(3) {
+        // Skip the Sun-Moon pair if there's an eclipse — already reported.
+        if eclipse.is_some()
+            && (ev.body_a_id == "sun" || ev.body_b_id == "sun")
+            && (ev.body_a_id == "moon" || ev.body_b_id == "moon")
+        {
+            continue;
+        }
+        let color = match ev.tightness {
+            ConjunctionTightness::Occultation => theme.danger(),
+            ConjunctionTightness::Tight => theme.warning(),
+            ConjunctionTightness::Conjunction => theme.warning(),
+            ConjunctionTightness::Close => theme.text_secondary(),
+        };
+        sky_lines.push((
+            format!(
+                "{} + {}  {:.2}°  ({})",
+                ev.body_a_name, ev.body_b_name, ev.angular_sep_deg, ev.tightness.label()
+            ),
+            color,
+        ));
+    }
+    if sky_lines.is_empty() {
+        sky_lines.push((
+            "Sky is quiet (no conjunctions within 5°)".to_string(),
+            theme.text_muted(),
+        ));
+    }
+    // Section header.
+    paint.text(
+        Pos2::new(rect.right() - 8.0, sky_y_base - sky_lines.len() as f32 * 14.0 - 18.0),
+        Align2::RIGHT_BOTTOM,
+        "Sky events (from Earth's POV)",
+        egui::FontId::proportional(10.0),
+        theme.text_primary(),
+    );
+    for (i, (line, color)) in sky_lines.iter().enumerate() {
+        let y = sky_y_base - (sky_lines.len() - 1 - i) as f32 * 14.0;
+        paint.text(
+            Pos2::new(rect.right() - 8.0, y),
+            Align2::RIGHT_BOTTOM,
+            line,
+            egui::FontId::proportional(10.0),
+            *color,
+        );
+    }
 }
 
 // ─────────────────────── Galactic view (Sol-centered, ly) ───────────────────
@@ -1713,6 +1850,192 @@ fn draw_night_sky_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         egui::FontId::proportional(10.0),
         theme.text_muted(),
     );
+}
+
+// ─────────────────────── Sky events: conjunctions + eclipses (Phase 4d-tri, v0.210.0) ──
+
+/// How tight a conjunction is. Tighter conjunctions get more visually
+/// prominent treatment (brighter ring + status badge).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum ConjunctionTightness {
+    Close,       // < 5°  — visible-naked-eye proximity
+    Conjunction, // < 1°  — newspaper-headline conjunction
+    Tight,       // < 0.5° — telescope-sharing-eyepiece tight
+    Occultation, // < 0.1° — one body passes in front of the other
+}
+
+impl ConjunctionTightness {
+    fn label(self) -> &'static str {
+        match self {
+            ConjunctionTightness::Close => "close",
+            ConjunctionTightness::Conjunction => "conjunction",
+            ConjunctionTightness::Tight => "tight",
+            ConjunctionTightness::Occultation => "occultation",
+        }
+    }
+    /// Visual emphasis multiplier — drives ring brightness + thickness.
+    fn weight(self) -> f32 {
+        match self {
+            ConjunctionTightness::Close => 0.3,
+            ConjunctionTightness::Conjunction => 0.55,
+            ConjunctionTightness::Tight => 0.8,
+            ConjunctionTightness::Occultation => 1.0,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ConjunctionEvent {
+    body_a_id: String,
+    body_a_name: String,
+    body_b_id: String,
+    body_b_name: String,
+    angular_sep_deg: f64,
+    tightness: ConjunctionTightness,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum EclipseKind {
+    SolarPartial, // Moon partially covers Sun from Earth
+    SolarAnnular, // Moon center on Sun, Moon angular size smaller (ring of fire)
+    SolarTotal,   // Moon fully covers Sun
+}
+
+impl EclipseKind {
+    fn label(self) -> &'static str {
+        match self {
+            EclipseKind::SolarPartial => "partial solar eclipse",
+            EclipseKind::SolarAnnular => "annular solar eclipse",
+            EclipseKind::SolarTotal => "total solar eclipse",
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct EclipseEvent {
+    kind: EclipseKind,
+    /// Fraction of Sun's disk covered by Moon (0.0 = none, 1.0 = full).
+    coverage: f64,
+    /// Sun-Moon angular separation in degrees from Earth's POV.
+    separation_deg: f64,
+}
+
+/// Compute current sky events (conjunctions between named bodies + any solar
+/// eclipse) as seen from Earth at the given sim_time.
+///
+/// All angles are computed from Earth's barycentric position — close enough
+/// to surface-observer accuracy at planetary scales (Earth's radius is ~4
+/// arcsec at lunar distance; we report to 0.01°). For eclipses we DO care
+/// about Earth's surface — but Phase 4d-tri ships a "is there an eclipse
+/// anywhere on Earth?" detector, not "is the umbra over this lat/lon"
+/// (which would require Earth's rotation phase + parallax; see Phase 4d-quad).
+fn detect_sky_events(sim_time_seconds: f64) -> (Vec<ConjunctionEvent>, Option<EclipseEvent>) {
+    let Some(earth) = find_body("earth") else {
+        return (Vec::new(), None);
+    };
+    let earth_pos = body_world_position_3d_au(earth, sim_time_seconds);
+
+    // Major bodies visible to the naked eye + dwarf planets. We exclude
+    // Earth itself (can't be in conjunction with yourself). The Moon is
+    // included because Sun-Moon conjunctions ARE eclipses, and Moon-
+    // planet conjunctions are exciting.
+    const INTERESTING: &[&str] = &[
+        "sun", "mercury", "venus", "mars", "jupiter",
+        "saturn", "uranus", "neptune", "moon", "pluto", "ceres",
+    ];
+
+    let positions: Vec<(String, String, glam::DVec3)> = INTERESTING
+        .iter()
+        .filter_map(|id| {
+            find_body(id).map(|b| {
+                (b.id.clone(), b.name.clone(), body_world_position_3d_au(b, sim_time_seconds))
+            })
+        })
+        .collect();
+
+    let mut events: Vec<ConjunctionEvent> = Vec::new();
+    for i in 0..positions.len() {
+        for j in (i + 1)..positions.len() {
+            let to_a = (positions[i].2 - earth_pos).normalize();
+            let to_b = (positions[j].2 - earth_pos).normalize();
+            let cos_angle = to_a.dot(to_b).clamp(-1.0, 1.0);
+            let angle_deg = cos_angle.acos().to_degrees();
+            let tightness = if angle_deg < 0.1 {
+                Some(ConjunctionTightness::Occultation)
+            } else if angle_deg < 0.5 {
+                Some(ConjunctionTightness::Tight)
+            } else if angle_deg < 1.0 {
+                Some(ConjunctionTightness::Conjunction)
+            } else if angle_deg < 5.0 {
+                Some(ConjunctionTightness::Close)
+            } else {
+                None
+            };
+            if let Some(t) = tightness {
+                events.push(ConjunctionEvent {
+                    body_a_id: positions[i].0.clone(),
+                    body_a_name: positions[i].1.clone(),
+                    body_b_id: positions[j].0.clone(),
+                    body_b_name: positions[j].1.clone(),
+                    angular_sep_deg: angle_deg,
+                    tightness: t,
+                });
+            }
+        }
+    }
+    // Sort tightest-first so the HUD shows the most exciting events.
+    events.sort_by(|a, b| a.angular_sep_deg.partial_cmp(&b.angular_sep_deg)
+        .unwrap_or(std::cmp::Ordering::Equal));
+
+    // Eclipse: Sun-Moon angular separation must be less than the sum of
+    // their apparent radii (so disks overlap from Earth's POV).
+    let eclipse = (|| {
+        let sun = find_body("sun")?;
+        let moon = find_body("moon")?;
+        let sun_pos = body_world_position_3d_au(sun, sim_time_seconds);
+        let moon_pos = body_world_position_3d_au(moon, sim_time_seconds);
+        let sun_dist_au = (sun_pos - earth_pos).length();
+        let moon_dist_au = (moon_pos - earth_pos).length();
+        if sun_dist_au <= 0.0 || moon_dist_au <= 0.0 { return None; }
+        let to_sun = (sun_pos - earth_pos) / sun_dist_au;
+        let to_moon = (moon_pos - earth_pos) / moon_dist_au;
+        let sep_rad = to_sun.dot(to_moon).clamp(-1.0, 1.0).acos();
+
+        let sun_radius_au = sun.radius_km / KM_PER_AU;
+        let moon_radius_au = moon.radius_km / KM_PER_AU;
+        let sun_apparent_rad = (sun_radius_au / sun_dist_au).atan();
+        let moon_apparent_rad = (moon_radius_au / moon_dist_au).atan();
+
+        if sep_rad >= sun_apparent_rad + moon_apparent_rad {
+            return None; // No disk overlap → no eclipse.
+        }
+
+        // Moon disk entirely inside Sun disk?
+        let kind = if sep_rad + moon_apparent_rad < sun_apparent_rad {
+            // Moon fully overlapped by Sun (Moon center within Sun radius)
+            if moon_apparent_rad >= sun_apparent_rad {
+                EclipseKind::SolarTotal
+            } else {
+                EclipseKind::SolarAnnular
+            }
+        } else {
+            EclipseKind::SolarPartial
+        };
+
+        // Coverage: rough fraction of Sun area obscured by Moon. Use a
+        // linear approximation (real area overlap requires lens formulas).
+        // Good enough for HUD readout.
+        let max_sep = sun_apparent_rad + moon_apparent_rad;
+        let coverage = ((max_sep - sep_rad) / max_sep).clamp(0.0, 1.0);
+
+        Some(EclipseEvent {
+            kind,
+            coverage: coverage as f64,
+            separation_deg: sep_rad.to_degrees() as f64,
+        })
+    })();
+
+    (events, eclipse)
 }
 
 // ─────────────────────── Body info card (Phase 4d-bis, v0.209.0) ───────────

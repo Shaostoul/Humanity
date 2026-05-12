@@ -899,13 +899,24 @@ that millions of people will be experiencing on the same day.*
 | 4a | 3D camera + perspective + cosmetic moon rings | ✅ v0.206.0 |
 | 4c | Real Kepler orbital elements + ellipses + asteroid subcat | ✅ v0.207.0 |
 | 4d-time | sim_time clock + time controls + scrubber + Now button | ✅ v0.208.0 |
-| 4d-bis | Pill-style body labels with expand-to-card | Next |
-| 4d-soi | Sphere-of-influence sort + Lagrange overlay + reference-orbit rings | Soon after |
-| 4d-tri | Conjunction + eclipse detection + Sky Events panel | After 4d-bis |
+| 4d-bis | Pill-style body labels with expand-to-card | ✅ v0.209.0 |
+| 4d-tri | Conjunction + eclipse detection (current-moment, no scan) | ✅ v0.210.0 |
+| 4d-soi | Sphere-of-influence sort + Lagrange overlay + reference-orbit rings | Next |
+| 4d-quad | Eclipse umbra path on Earth's surface + Sky Events scan | After 4d-soi |
 | 4e | Tier-1 minor-body catalog (~10k) + streaming spatial index | After 4d |
 | 4f | Trajectory overrides + N-body impact for story arcs | When a story arc is being authored |
 | 4b | Sprite→mesh seamless LOD + wgpu-in-egui-canvas | When visual fidelity is worth the integration cost |
 | 4g | FPS AR-glasses orbit-path overlays | After 4b ships |
+
+### Phase 4d-tri implementation notes (landed v0.210.0)
+
+- O(n²) pairwise scan of 11 named bodies (~55 pairs) per render frame. Each pair computes one acos for angular separation from Earth's barycentric position. Cheap enough to run every frame even as the user scrubs.
+- Conjunction tightness tiers — Close (< 5°), Conjunction (< 1°), Tight (< 0.5°), Occultation (< 0.1°). The tightest one any body is involved in drives its highlight ring color (warning tone) and ring thickness.
+- Solar eclipse detector: Sun-Moon apparent-radius math from Earth's POV. If disks overlap, classify Partial / Annular / Total based on whether the Moon disk is fully inside the Sun disk and whose apparent radius is larger. Coverage fraction approximated linearly from separation/(sum-of-apparent-radii); good enough for the HUD.
+- Visual treatments — Sun gets a dark disc overlay scaled by sqrt(coverage); Moon gets a danger-tone outline; Earth gets a thick danger-tone ring + "ECLIPSE" badge.
+- HUD readout in the bottom-right corner of the canvas: section header "Sky events (from Earth's POV)" + up to 3 tightest conjunctions + any eclipse line. Empty state reads "Sky is quiet (no conjunctions within 5°)".
+- **Limitation**: detection is current-moment only — there's no scan for "next eclipse" or "next great conjunction". Users have to scrub sim_time manually to find events. Phase 4d-quad will add a forward-search button + Sky Events panel listing upcoming events within a user-set window.
+- **Limitation**: eclipse detection is "is the Moon shadow geometry such that an eclipse exists somewhere on Earth?", not "is the umbra over this lat/lon?". The latter requires Earth's rotation phase + the observer's surface position; that ships in Phase 4d-quad along with in-game day/night system integration (sky-darkening over the umbra during real-world events).
 
 ---
 
