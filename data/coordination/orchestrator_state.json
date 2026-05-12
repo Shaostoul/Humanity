@@ -3,12 +3,12 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
 
   "current_orchestrator_session": {
-    "started_at": "2026-05-01",
-    "model": "claude-sonnet-4.5",
-    "primary_focus": "Gameplay loop arc (v0.159 → v0.172) — 14 minor releases. AI agents now have a complete 3-quest gameplay loop end-to-end against the live VPS."
+    "started_at": "2026-05-12",
+    "model": "claude-opus-4.7-1m",
+    "primary_focus": "Cosmos page Phase 4d arc (v0.208 → v0.212) — 5 minor releases. Operator's stated wishes (time controls, pill labels, real conjunctions/eclipses, Lagrange points, geostationary orbit) all shipped against the live cosmos page."
   },
 
-  "current_focus": "Operator AFK — shipped 14 minor releases this session. Gameplay loop validated end-to-end against live VPS in 8 seconds (explore_ship → meet_the_crew, with survey_storage chain visible). 25+ QA tasks queued in the Testing page. Operator should test on next return; no active work in flight.",
+  "current_focus": "Cosmos Phase 4d arc complete for the operator's explicitly-stated requests from 2026-05-12. Five minor releases this session: v0.208 sim_time + time controls, v0.209 pill labels with expand-to-card, v0.210 live conjunction + eclipse detection with HUD readout, v0.211 Lagrange-point overlay (L1-L5 for 5 pairs), v0.212 reference-orbit rings (LEO/MEO/GEO/HEO around Earth + analogues for Mars/Jupiter/Moon). Cosmos doc §17a-sexies captures the broader plan + implementation notes for each shipped phase. Pending Phase 4 work: 4d-quad (eclipse umbra lat/lon on Earth surface + forward Sky Events scan), 4b (sprite→mesh seamless LOD via wgpu-in-egui), 4g (FPS AR-glasses orbit overlays). 4d-soi (SoI sort) reframed as deferred-until-ships/stations-exist; math infrastructure already shipped via compute_lagrange_points.",
 
   "open_questions_for_human": [],
 
@@ -102,6 +102,11 @@
       "at": "2026-05-01",
       "decision": "Gameplay loop arc shipped v0.159 → v0.172 (14 minor releases). Closes Tier 1A (game systems stub completion) + Tier 1B (chat parity) and adds a 3-quest starter gameplay loop on top. AI agents now experience the loop end-to-end against the live VPS in 8 seconds: connect → identify → join → welcome (with quest + rooms) → perceive → talk to NPC → tour rooms → explore_ship completed (+100 XP) → meet_the_crew unlocked → talk to all 6 crew → meet_the_crew completed (+200 XP, 300 total) → survey_storage unlocked. World ticks 24/7, 6 NPCs per room with dialog/greetings/wander, ambient chatter every 45s. PERSIST_KEY bumped 8 times (v1 → v8). 196 tests passing. New pages: Testing (QA loop), Browser (curated bookmarks). New nav: two-tier preview (Reality/Sim/Tools/Settings), opt-in via [▤], persists.",
       "rationale": "Operator was AFK and asked Claude to 'keep developing'. Each release ships independently testable changes with QA tasks added to data/testing/qa_tasks.json (now 25 entries). Quest framework is data-driven (chain_next_quest matches on quest id, easily extensible). Live VPS validation each release confirmed real-world behavior. Bot demo shows complete gameplay loop in 8 seconds — operators see the system working end-to-end without manual play."
+    },
+    {
+      "at": "2026-05-12",
+      "decision": "Cosmos Phase 4d arc shipped v0.208 → v0.212 (5 minor releases). Closes all of the operator's explicitly-stated requests from 2026-05-12: time controls (play/pause/scrub/Now/speed presets/reverse + Howard Hinnant date conversion, no chrono dep), pill-style body labels with collision-dodging + expand-to-card, live conjunction + solar eclipse detection from Earth's POV with visual highlights + HUD readout, Lagrange-point overlay (L1-L5 for Sun-Earth/Earth-Moon/Sun-Mars/Sun-Jupiter/Sun-Saturn with notable-parking tooltips JWST/Trojans/Queqiao etc.), reference-orbit rings (LEO/MEO/GEO/HEO + Lunar TLI for Earth + areostationary/Jovo-stationary/NRHO for Mars/Jupiter/Moon). New GuiState fields: cosmos_sim_time_seconds + cosmos_sim_speed + cosmos_last_real_instant + cosmos_sim_time_initialized + cosmos_expanded_body + cosmos_show_lagrange + cosmos_show_reference_orbits. New helpers: compute_lagrange_points (cube-root-mass-ratio for L1/L2/L3 + Rodrigues for L4/L5) + detect_sky_events (pairwise angular separation O(11²)≈55 pairs per frame from Earth POV) + reference_orbits_for (const &[ReferenceOrbit] per body) + draw_reference_orbits (96-segment polylines) + draw_body_info_card (auto-positioning + auto-flip pill expand cards). Cosmos doc §17a-sexies updated to be a complete shipping log + roadmap. cosmos.rs grew from ~1500 to ~2100 lines.",
+      "rationale": "Operator quoted: 'as close to real as possible' + 'could we add a way to watch the orbits play fast forward, rewind, and skip/seek along days/weeks/years/etc' + 'all the planets line up in real life as they are today on May 12, 2026 then we could see what it'd look like on a great conjunction' + 'experience solar eclipses on the Earth' + 'pill UI for body labels — planet sprite on left, name on right, click expands to info card' + (earlier) 'include stuff like lagrange points and ... geostationary orbit'. All explicitly named features shipped. Three remaining Phase 4 items deferred with rationale in cosmos doc: 4d-quad (umbra lat/lon + forward scan), 4b (sprite→mesh wgpu integration), 4g (FPS AR-glasses overlay, requires player-in-world)."
     }
   ],
 
@@ -111,8 +116,8 @@
 
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "see `git describe --tags --abbrev=0`",
-    "last_release_summary": "v0.172.x — survey_storage chained quest (3rd quest in chain). v0.171.0 — quest rewards (XP + reputation). v0.170.0 — meet_the_crew chained from explore_ship. v0.169.0 — NPC greetings on first room entry. v0.168.0 — game_welcome.rooms + bot quest tour. v0.167.0 — explore_ship starter quest. v0.166.0 — nav layout persistence. v0.165.0 — ambient world chatter. v0.164.0 — two-tier nav preview. v0.163.0 — Browser bookmarks page. v0.162.0 — NPC dialog system. v0.161.0 — perception rate-limit per-action buckets. v0.160.0 — ambient NPC crew. v0.159.0 — async QA testing loop."
+    "latest_pushed_tag": "v0.212.1",
+    "last_release_summary": "Cosmos Phase 4d arc (this session, 2026-05-12): v0.208.0 sim_time + time controls + Now/play/pause/speed presets/scrubber. v0.209.0 pill-style body labels with expand-to-card + collision-dodging. v0.210.0 conjunction + solar eclipse detection (live, every-frame from Earth POV) + HUD readout + visual highlights (warning rings, eclipse danger overlay on Sun/Moon/Earth). v0.211.0 Lagrange-point overlay (L1-L5 for Sun-Earth/Earth-Moon/Sun-Mars/Sun-Jupiter/Sun-Saturn) with notable-parking tooltips. v0.212.0 reference-orbit rings (LEO/MEO/GEO/HEO around Earth + analogues for Mars/Jupiter/Moon) with hover blurbs. Earlier session (v0.159 → v0.172): gameplay loop arc — 14 minor releases, 3-quest chain validated against live VPS."
   },
 
   "files_in_flight_or_recently_changed": [
