@@ -86,6 +86,22 @@ struct SolBody {
     semi_major_axis_au: f64,
     /// Semi-major axis in km (only set for moons orbiting their planet).
     semi_major_axis_km: f64,
+    /// Orbital eccentricity. 0 = circle, 0..1 = ellipse, 1 = parabolic
+    /// escape, >1 = hyperbolic flyby. v0.207.0.
+    eccentricity: f64,
+    /// Orbital inclination in degrees (tilt of the orbit plane relative
+    /// to the reference plane — ecliptic for Sol-orbiters). v0.207.0.
+    inclination_deg: f64,
+    /// Longitude of the ascending node in degrees — where the orbit
+    /// crosses the reference plane going north. v0.207.0.
+    longitude_ascending_node_deg: f64,
+    /// Argument of periapsis in degrees — angle from ascending node to
+    /// the periapsis point. v0.207.0.
+    argument_perihelion_deg: f64,
+    /// Mean anomaly at epoch (J2000) in degrees. Combined with
+    /// `orbital_period_days` + sim_time, gives the body's snapshot
+    /// position. v0.207.0.
+    mean_anomaly_deg: f64,
     /// Body radius in km — for visual sizing.
     radius_km: f64,
     /// Mass in kg.
@@ -223,6 +239,20 @@ fn sol_bodies() -> &'static [SolBody] {
                 let semi_major_axis_au = orbit.and_then(|o| o.get("semi_major_axis_au")).and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let semi_major_axis_km = orbit.and_then(|o| o.get("semi_major_axis_km")).and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let orbital_period_days = orbit.and_then(|o| o.get("orbital_period_days")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let eccentricity = orbit.and_then(|o| o.get("eccentricity")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let inclination_deg = orbit.and_then(|o| o.get("inclination_deg")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let longitude_ascending_node_deg = orbit
+                    .and_then(|o| o.get("longitude_ascending_node_deg"))
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                let argument_perihelion_deg = orbit
+                    .and_then(|o| o.get("argument_perihelion_deg"))
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                let mean_anomaly_deg = orbit
+                    .and_then(|o| o.get("mean_anomaly_deg"))
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
                 let physical = body.get("physical");
                 let radius_km = physical.and_then(|p| p.get("radius_km")).and_then(|v| v.as_f64()).unwrap_or(1000.0);
                 let mass_kg = physical.and_then(|p| p.get("mass_kg")).and_then(|v| v.as_f64()).unwrap_or(0.0);
@@ -255,7 +285,10 @@ fn sol_bodies() -> &'static [SolBody] {
                     .unwrap_or((0, String::new()));
                 out.push(SolBody {
                     id, name, body_type, parent,
-                    semi_major_axis_au, semi_major_axis_km, orbital_period_days,
+                    semi_major_axis_au, semi_major_axis_km,
+                    eccentricity, inclination_deg,
+                    longitude_ascending_node_deg, argument_perihelion_deg, mean_anomaly_deg,
+                    orbital_period_days,
                     radius_km, mass_kg, surface_gravity_ms2, mean_temperature_k,
                     atmosphere_summary, description, discovery_year, discoverer,
                     children: Vec::new(), // populated in second pass below
@@ -402,49 +435,77 @@ fn project_to_screen(pos_au: glam::DVec3, cam: &Cosmos3DCamera, rect: Rect) -> O
 /// Conversion helper.
 const KM_PER_AU: f64 = 149_597_870.7;
 
-/// Compute a body's 3D position in AU within the Sol frame.
-/// Snapshot positions — uses a deterministic angle hash so each body
-/// stays put across frames (live orbital motion ships in a later
-/// phase alongside sim_time gossip). Honors orbital inclination so
-/// bodies aren't all in a perfectly flat plane.
-fn body_position_3d_au(body: &SolBody) -> glam::DVec3 {
-    // Determine semi-major axis IN AU.
+/// Solve Kepler's equation `M = E - e*sin(E)` for eccentric anomaly E
+/// given mean anomaly M (radians) and eccentricity e (0..1).
+/// Newton-Raphson iteration; converges in ~5 iterations for e < 0.9.
+/// v0.207.0 — real orbital mechanics.
+fn kepler_solve(mean_anom: f64, ecc: f64) -> f64 {
+    let mut e_anom = mean_anom;
+    for _ in 0..12 {
+        let delta = (e_anom - ecc * e_anom.sin() - mean_anom) / (1.0 - ecc * e_anom.cos());
+        e_anom -= delta;
+        if delta.abs() < 1e-12 { break; }
+    }
+    e_anom
+}
+
+/// Compute a body's position relative to its parent, in AU. Applies real
+/// Kepler orbital mechanics — eccentricity, inclination, argument of
+/// perihelion, longitude of ascending node, mean anomaly at epoch.
+/// Snapshot at sim_time = 0 for now (Phase 4d will advance mean anomaly
+/// over sim_time so planets actually orbit). v0.207.0.
+fn body_position_relative_au(body: &SolBody) -> glam::DVec3 {
     let a_au = if body.semi_major_axis_au > 0.0 {
         body.semi_major_axis_au
     } else if body.semi_major_axis_km > 0.0 {
         body.semi_major_axis_km / KM_PER_AU
     } else {
-        return glam::DVec3::ZERO; // Sun, or body with no orbit data.
+        return glam::DVec3::ZERO;
     };
-    // Snapshot mean anomaly = hash of the body name (deterministic, no jitter).
-    let theta = (body.name.bytes().fold(0u64, |a, b| a.wrapping_add(b as u64)) as f64) * 0.137;
-    // Position in orbital plane (treat eccentricity as 0 for snapshot view —
-    // we don't have it consistently in the data load, and it's an aesthetic
-    // detail not worth the complexity for a snapshot).
-    let plane_pos = glam::DVec3::new(
-        a_au * theta.cos(),
-        0.0,
-        a_au * theta.sin(),
-    );
-    // Apply inclination. We don't have inclination stored on SolBody yet;
-    // approximate with a small wobble per body so it's not all flat.
-    // TODO Phase 5: store inclination in SolBody from JSON, use real values.
-    let inclination_rad = ((body.name.bytes().fold(0u64, |a, b| a.wrapping_add(b as u64 * 7)) as f64 % 100.0 - 50.0) / 1000.0).clamp(-0.15, 0.15);
-    let cos_i = inclination_rad.cos();
-    let sin_i = inclination_rad.sin();
-    let inclined = glam::DVec3::new(
-        plane_pos.x,
-        plane_pos.z * sin_i,                 // out-of-plane Y component
-        plane_pos.z * cos_i,
-    );
-    inclined
+    let e = body.eccentricity.clamp(0.0, 0.99);
+    // Mean anomaly: prefer the body's real data value; fall back to a
+    // deterministic hash so untagged minor bodies still get a unique
+    // snapshot angle instead of all clustering at periapsis.
+    let m_deg = if body.mean_anomaly_deg != 0.0 {
+        body.mean_anomaly_deg
+    } else {
+        (body.name.bytes().fold(0u64, |a, b| a.wrapping_add(b as u64)) % 360) as f64
+    };
+    let m_rad = m_deg.to_radians();
+    let ea = kepler_solve(m_rad, e);
+    // Perifocal coordinates: periapsis along +X of the orbital plane.
+    //   x = a * (cos E - e)
+    //   y = a * sqrt(1 - e²) * sin E
+    let x_peri = a_au * (ea.cos() - e);
+    let y_peri = a_au * (1.0 - e * e).sqrt() * ea.sin();
+    // 3-1-3 Euler rotation: Rz(Ω) · Rx(i) · Rz(ω) applied to the
+    // perifocal (x, y, 0) vector. Combined rotation matrix entries:
+    let big_omega = body.longitude_ascending_node_deg.to_radians();
+    let inc = body.inclination_deg.to_radians();
+    let small_omega = body.argument_perihelion_deg.to_radians();
+    let (s_om, c_om) = big_omega.sin_cos();
+    let (s_inc, c_inc) = inc.sin_cos();
+    let (s_w, c_w) = small_omega.sin_cos();
+    let r11 = c_om * c_w - s_om * s_w * c_inc;
+    let r12 = -c_om * s_w - s_om * c_w * c_inc;
+    let r21 = s_om * c_w + c_om * s_w * c_inc;
+    let r22 = -s_om * s_w + c_om * c_w * c_inc;
+    let r31 = s_w * s_inc;
+    let r32 = c_w * s_inc;
+    // World convention: Y is up, ecliptic plane is XZ. Map perifocal X→X,
+    // perifocal Y→Z, perifocal Z (always 0 here) drops out. Out-of-plane
+    // component ends up in world Y via r31/r32.
+    let world_x = r11 * x_peri + r12 * y_peri;
+    let world_z = r21 * x_peri + r22 * y_peri;
+    let world_y = r31 * x_peri + r32 * y_peri;
+    glam::DVec3::new(world_x, world_y, world_z)
 }
 
 /// Compute world position in AU including parent recursion. Moons are
 /// positioned relative to their parent planet, and the parent's own
 /// position folds in. Recursion bottoms out at Sun (position = origin).
 fn body_world_position_3d_au(body: &SolBody) -> glam::DVec3 {
-    let local = body_position_3d_au(body);
+    let local = body_position_relative_au(body);
     if let Some(parent_id) = &body.parent {
         if parent_id == "sun" {
             local
@@ -456,6 +517,45 @@ fn body_world_position_3d_au(body: &SolBody) -> glam::DVec3 {
     } else {
         local // Sun itself
     }
+}
+
+/// Sample a body's orbit at N points around the orbital ellipse, in the
+/// PARENT's frame (parent at origin). Returns positions in AU.
+/// Used by orbit-line rendering. v0.207.0 — real ellipses + inclination.
+fn sample_orbit_points(body: &SolBody, n: usize) -> Vec<glam::DVec3> {
+    let a_au = if body.semi_major_axis_au > 0.0 {
+        body.semi_major_axis_au
+    } else if body.semi_major_axis_km > 0.0 {
+        body.semi_major_axis_km / KM_PER_AU
+    } else {
+        return Vec::new();
+    };
+    let e = body.eccentricity.clamp(0.0, 0.99);
+    let big_omega = body.longitude_ascending_node_deg.to_radians();
+    let inc = body.inclination_deg.to_radians();
+    let small_omega = body.argument_perihelion_deg.to_radians();
+    let (s_om, c_om) = big_omega.sin_cos();
+    let (s_inc, c_inc) = inc.sin_cos();
+    let (s_w, c_w) = small_omega.sin_cos();
+    let r11 = c_om * c_w - s_om * s_w * c_inc;
+    let r12 = -c_om * s_w - s_om * c_w * c_inc;
+    let r21 = s_om * c_w + c_om * s_w * c_inc;
+    let r22 = -s_om * s_w + c_om * c_w * c_inc;
+    let r31 = s_w * s_inc;
+    let r32 = c_w * s_inc;
+    let mut out = Vec::with_capacity(n + 1);
+    for i in 0..=n {
+        // Sample uniformly in eccentric anomaly so high-e ellipses still
+        // produce well-spaced points around the curve.
+        let ea = (i as f64 / n as f64) * std::f64::consts::TAU;
+        let x_peri = a_au * (ea.cos() - e);
+        let y_peri = a_au * (1.0 - e * e).sqrt() * ea.sin();
+        let wx = r11 * x_peri + r12 * y_peri;
+        let wz = r21 * x_peri + r22 * y_peri;
+        let wy = r31 * x_peri + r32 * y_peri;
+        out.push(glam::DVec3::new(wx, wy, wz));
+    }
+    out
 }
 
 // ─────────────────────── Page entry point ───────────────────────────────────
@@ -549,38 +649,65 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
 /// Region groups for the body browser. Each variant holds the body ids
 /// that fall in that region; population happens lazily.
+///
+/// v0.207.0: Asteroids further subdivided by semi-major axis into the
+/// real-astronomy regions so users can see WHICH region a body lives in
+/// rather than all asteroids being lumped together (which made it
+/// confusing why Ryugu showed up between Earth and Mars vs. Vesta out
+/// past the main belt). The cutoffs follow standard convention:
+///   - **Near-Earth Asteroids (NEA)**: semi-major axis < 1.3 AU
+///   - **Main Belt**: 1.3 ≤ a < 4.0 AU (covers Hildas + Trojans too;
+///     we'll split those once we have sample bodies in those regions)
+///   - **Trans-Neptunian / Outer Belt**: a ≥ 4.0 AU (Kuiper Belt + scattered disk)
+/// Same buckets a planetary scientist would use.
 fn body_regions() -> Vec<(&'static str, Vec<&'static SolBody>)> {
     let bodies = sol_bodies();
     let mut star = Vec::new();
-    let mut inner = Vec::new(); // terrestrial planets orbiting Sun
-    let mut outer = Vec::new(); // gas/ice giants orbiting Sun
-    let mut dwarfs = Vec::new(); // dwarf planets
-    let mut asteroids = Vec::new(); // asteroids orbiting Sun directly
+    let mut inner = Vec::new();
+    let mut outer = Vec::new();
+    let mut dwarfs = Vec::new();
+    let mut nea = Vec::new();         // Near-Earth asteroids (< 1.3 AU)
+    let mut main_belt = Vec::new();   // Main belt (1.3 ≤ a < 4.0 AU)
+    let mut trans_nep = Vec::new();   // Trans-Neptunian / outer (≥ 4.0 AU)
 
     for b in bodies {
         match (b.body_type.as_str(), b.parent.as_deref()) {
-            ("star", _)                     => star.push(b),
-            ("terrestrial", Some("sun"))    => inner.push(b),
+            ("star", _)                  => star.push(b),
+            ("terrestrial", Some("sun")) => inner.push(b),
             ("gas_giant",   Some("sun")) |
-            ("ice_giant",   Some("sun"))    => outer.push(b),
-            ("dwarf_planet", _)             => dwarfs.push(b),
-            ("asteroid",    Some("sun"))    => asteroids.push(b),
-            _ => {} // moons handled per-parent
+            ("ice_giant",   Some("sun")) => outer.push(b),
+            ("dwarf_planet", _)          => dwarfs.push(b),
+            ("asteroid", Some("sun")) => {
+                let a = b.semi_major_axis_au;
+                if a < 1.3 { nea.push(b); }
+                else if a < 4.0 { main_belt.push(b); }
+                else { trans_nep.push(b); }
+            }
+            _ => {} // moons handled per-parent in the sidebar tree
         }
     }
-    // Sort each list by AU distance for a natural inside-out order.
-    let by_au = |a: &&SolBody, b: &&SolBody| a.semi_major_axis_au.partial_cmp(&b.semi_major_axis_au).unwrap_or(std::cmp::Ordering::Equal);
+    let by_au = |a: &&SolBody, b: &&SolBody|
+        a.semi_major_axis_au.partial_cmp(&b.semi_major_axis_au)
+            .unwrap_or(std::cmp::Ordering::Equal);
     inner.sort_by(by_au);
     outer.sort_by(by_au);
     dwarfs.sort_by(by_au);
-    asteroids.sort_by(by_au);
-    vec![
+    nea.sort_by(by_au);
+    main_belt.sort_by(by_au);
+    trans_nep.sort_by(by_au);
+
+    let mut regions: Vec<(&'static str, Vec<&'static SolBody>)> = vec![
         ("Star",          star),
         ("Inner Planets", inner),
         ("Outer Planets", outer),
         ("Dwarf Planets", dwarfs),
-        ("Asteroids",     asteroids),
-    ]
+    ];
+    // Only show non-empty asteroid sub-regions so users don't see "Main
+    // Belt (0)" cluttering the sidebar.
+    if !nea.is_empty()       { regions.push(("Near-Earth Asteroids", nea)); }
+    if !main_belt.is_empty() { regions.push(("Main Belt", main_belt)); }
+    if !trans_nep.is_empty() { regions.push(("Trans-Neptunian", trans_nep)); }
+    regions
 }
 
 fn draw_body_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
@@ -1018,46 +1145,38 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Back-to-front: largest depth first (farther from camera).
     projected.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal));
 
-    // ── Draw orbit ellipses for each direct sun-orbiter ──
-    // Sample N points around each orbit, project, draw line segments.
-    // Inclination affects out-of-plane motion but for now (snapshot model)
-    // we use a simple co-planar circle scaled by semi-major axis.
+    // ── Draw orbit ellipses (v0.207.0: real ellipses with eccentricity
+    //    + inclination + argument of perihelion + longitude of ascending
+    //    node). Uses sample_orbit_points for the math; same code path
+    //    handles direct sun-orbiters AND moons because both are just
+    //    "body in parent's frame" — the parent's world position is
+    //    folded in by adding it after projection.
     for body in bodies {
-        if body.parent.as_deref() != Some("sun") || body.semi_major_axis_au <= 0.0 { continue; }
-        const N: usize = 96;
-        let mut prev: Option<Pos2> = None;
-        for i in 0..=N {
-            let t = (i as f64 / N as f64) * std::f64::consts::TAU;
-            let p = glam::DVec3::new(
-                body.semi_major_axis_au * t.cos(),
-                0.0,
-                body.semi_major_axis_au * t.sin(),
-            );
-            if let Some((pp, _)) = project_to_screen(p, &cam, rect) {
-                if let Some(prev_p) = prev {
-                    paint.line_segment([prev_p, pp], Stroke::new(0.6, Color32::from_rgb(45, 45, 70)));  // theme-exempt: orbital ellipse — faint backdrop
-                }
-                prev = Some(pp);
+        let parent_world = if let Some(parent_id) = &body.parent {
+            if parent_id == "sun" {
+                glam::DVec3::ZERO
+            } else if let Some(parent) = find_body(parent_id) {
+                body_world_position_3d_au(parent)
             } else {
-                prev = None;
+                continue;
             }
-        }
-    }
-    // Moon orbits (relative to parent).
-    for body in bodies {
-        if body.body_type != "moon" || body.semi_major_axis_km <= 0.0 { continue; }
-        let parent_id = match &body.parent { Some(p) => p, None => continue };
-        let parent = match find_body(parent_id) { Some(p) => p, None => continue };
-        let parent_world = body_world_position_3d_au(parent);
-        let r_au = body.semi_major_axis_km / KM_PER_AU;
-        const N: usize = 48;
+        } else {
+            continue; // Sun has no orbit
+        };
+        let n = if body.body_type == "moon" { 48 } else { 96 };
+        let points = sample_orbit_points(body, n);
+        if points.is_empty() { continue; }
+        let stroke = if body.body_type == "moon" {
+            Stroke::new(0.4, Color32::from_rgb(35, 35, 55))  // theme-exempt: moon orbit — faintest
+        } else {
+            Stroke::new(0.6, Color32::from_rgb(45, 45, 70))  // theme-exempt: planet orbit — faint
+        };
         let mut prev: Option<Pos2> = None;
-        for i in 0..=N {
-            let t = (i as f64 / N as f64) * std::f64::consts::TAU;
-            let p = parent_world + glam::DVec3::new(r_au * t.cos(), 0.0, r_au * t.sin());
-            if let Some((pp, _)) = project_to_screen(p, &cam, rect) {
+        for p in &points {
+            let world_pos = parent_world + *p;
+            if let Some((pp, _)) = project_to_screen(world_pos, &cam, rect) {
                 if let Some(prev_p) = prev {
-                    paint.line_segment([prev_p, pp], Stroke::new(0.4, Color32::from_rgb(35, 35, 55)));  // theme-exempt: moon orbit — faintest backdrop
+                    paint.line_segment([prev_p, pp], stroke);
                 }
                 prev = Some(pp);
             } else {

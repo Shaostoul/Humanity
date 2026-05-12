@@ -658,6 +658,198 @@ implementation; capturing them here so we don't pretend they're settled.
 
 ---
 
+## 17a-quinque. Real astronomy, infinite asteroids, and story-arc support (2026-05-10)
+
+Operator vision: "as close to realistic as we can ... eventually include
+a crazy story arc that involves an alien species redirecting a planet
+to crash into another planet. Maybe we should also include stuff like
+lagrange points and ... geostationary orbit ... sort them in a nested
+list based on distance from main gravitational body ... include
+theoretically infinite planets/asteroids/etc. ... include all the
+real-life asteroids ... seamless."
+
+### Real orbital mechanics — landed in v0.207.0
+
+Every body's position is now computed from its real orbital elements:
+**semi-major axis, eccentricity, inclination, longitude of ascending
+node, argument of perihelion, mean anomaly at epoch**. Snapshot
+positions today (mean anomaly fixed at J2000); Phase 4d advances mean
+anomaly over sim_time so bodies actually orbit. Kepler's equation
+solved via Newton-Raphson per render. Orbit ellipses now show real
+eccentricity and inclination (Pluto's tilted ~17° orbit, Ryugu's
+elongated path that crosses Earth's orbit at perihelion, etc.).
+
+### Asteroid sub-categorization — landed in v0.207.0
+
+Sidebar groups asteroids by region — **Near-Earth Asteroids** (a < 1.3 AU,
+e.g. Ryugu, Bennu, Itokawa, Eros — these were what confused users when
+lumped with main-belt rocks), **Main Belt** (1.3 ≤ a < 4 AU, e.g. Vesta,
+Pallas, Juno, Psyche, Hygiea), **Trans-Neptunian** (a ≥ 4 AU, currently
+empty — will populate when we add Kuiper Belt objects + scattered disk
++ Sedna-class bodies). Buckets follow standard planetary-science
+convention. Empty sub-regions are hidden so the sidebar doesn't grow
+to show categories we have no data for.
+
+### Sphere-of-influence sorting (planned Phase 4d)
+
+Currently bodies are categorized by their direct parent (Sun for most,
+the planet for moons). The operator's request: "sort them in a nested
+list based on distance from main gravitational body — if near Earth,
+it'd be Earth but out far enough it'd just become the sun."
+
+This is the **Hill sphere / sphere of influence (SoI)** concept from
+real astrodynamics. A body's SoI radius is approximately
+`a × (m_body / m_parent)^(2/5)`. Inside that radius, the body's gravity
+dominates; outside, the parent's does. Practical effects:
+
+- An object 100,000 km from Earth is in Earth's SoI → list it under "Earth"
+- The same object 2 million km from Earth is outside Earth's SoI → list it under "Sun"
+- A ship in transit between systems is in interstellar space (no SoI) →
+  list it under the galactic frame
+
+Implementation plan for Phase 4d:
+- Each body gets a derived `hill_sphere_au` field (computed once at
+  load time from mass ratios)
+- A spatial query "what's the deepest SoI this point is inside?" walks
+  the parent chain. For a position P:
+  1. Start at the top (Sun)
+  2. For each child of the current parent, if P is inside that child's SoI,
+     recurse into the child
+  3. The deepest match is P's effective gravitational parent
+- The sidebar then groups dynamically: each entry's category is its
+  SoI-parent, not its fixed orbital parent
+- Useful for ships, stations, missions, marker buoys, dropped items —
+  anything that moves
+
+### Lagrange points (planned Phase 4d)
+
+Five gravitational sweet spots in any two-body system (Sun-Earth, Earth-
+Moon, Sun-Jupiter, etc.). L1/L2/L3 are unstable (need active station-
+keeping); L4/L5 are stable (objects naturally accumulate there — Jupiter's
+**Trojan asteroids** at Sun-Jupiter L4 and L5 are the classic example).
+
+For HumanityOS this is a navigation + content opportunity. JWST sits at
+Sun-Earth L2. SOHO sits at Sun-Earth L1. Future colonies / megastructures
+in stable orbits use L4/L5. Real positions are formulas:
+- L1, L2, L3: along the line through the two bodies, computed via the
+  five-roots-of-a-quintic (numerical solve)
+- L4, L5: 60° ahead / behind the smaller body in its orbit
+
+Phase 4d will:
+1. Add a "Lagrange Points" overlay toggle in the Cosmos page
+2. Compute L1-L5 for selected interesting pairs (Sun-Earth, Earth-Moon, Sun-Mars, Sun-Jupiter)
+3. Render them as small × markers with labels
+4. Make them clickable (open details: "Sun-Earth L2 — JWST's home, ~1.5M km from Earth")
+
+### Reference orbits (planned Phase 4d)
+
+Standard altitudes / orbits commonly used IRL — show them as concentric
+rings around a focused planet when the camera is close enough:
+
+| Orbit | Altitude above Earth | Period |
+|-------|---------------------|--------|
+| **LEO** (Low Earth Orbit) | 160 – 2,000 km | 90 – 130 min |
+| **MEO** (Medium Earth Orbit) | 2,000 – 35,786 km | 2 – 24 h |
+| **GEO** (Geostationary) | 35,786 km | 24 h (matches Earth's rotation) |
+| **GSO** (Geosynchronous) | 35,786 km | 24 h (inclined variants of GEO) |
+| **HEO** (High Earth Orbit) | > 35,786 km | > 24 h |
+| **Lunar transfer** | ~384,400 km apoapsis | 5 days transit |
+
+Same approach scales to other bodies: Mars-GSO is at a different altitude
+(20,427 km because Mars's day is 24.6 hr but its gravity is weaker).
+Useful for satellite gameplay, station placement, navigation training.
+
+### Theoretically infinite asteroids (planned Phase 4e)
+
+Operator: "If we could add all the real-life asteroids to our video
+game then people could naturally explore our real solar system and see
+what places people end up establishing permanent bases in game
+throughout our solar system."
+
+The JPL Small-Body Database has **~1.3 million known asteroids** with
+catalogued orbits. Bundling all 1.3M is impractical — the data alone
+is hundreds of MB, render cost is huge — but we don't have to bundle
+or render them all at once. Streaming strategy:
+
+1. **Tier-0 (always loaded, ~64 bodies)**: planets, moons, dwarf
+   planets, named/notable asteroids (Ceres, Vesta, Eros, Ryugu, etc.).
+   Stays in `data/star_systems/sol.json`. Today's behavior.
+2. **Tier-1 (region streaming, ~10k bodies)**: every named or
+   numbered minor body within a given AU range. Stored in
+   `data/star_systems/sol/minor_bodies.csv` (~5-20 MB). Loaded on
+   first cosmos-page open into a spatial index.
+3. **Tier-2 (full catalog, ~1.3M bodies)**: full JPL SBDB. Stored as a
+   separate downloadable asset bundle (`humanity-asteroids.tar.zst`,
+   ~50-100 MB). User opts in via Settings. Loaded into a chunked
+   spatial index — only chunks near the camera get bodies loaded.
+4. **Tier-3 (procedural fill)**: between tier-2 catalogued bodies,
+   procedural minor bodies generated from `hash(seed, position)` so
+   density looks physically reasonable (BAO correlation baked in for
+   any galactic-scale generation; for in-system asteroids the
+   distribution follows the real heliocentric density profile).
+
+Rendering: at solar-system zoom, only show bright/notable ones. As the
+camera zooms into a region, more catalog bodies pop in. As you zoom into
+a single asteroid, its procedural surface (Phase 4b/5) loads. **Seamless
+transition from "the asteroid belt is a vague cloud" at wide zoom to
+"this specific rock is here, mineable, with these surface features" at
+close zoom.**
+
+Gameplay payoff: players establish bases on real asteroids (Ryugu has
+real-world significance — JAXA visited it; Psyche is a planned NASA
+target; Ceres might harbor sub-surface water ice). Test-flight + FTL
+training between named locations becomes real navigation practice.
+
+### Trajectory overrides for story arcs (planned Phase 4f)
+
+Operator: "an alien species redirecting a planet to crash into another
+planet" — supported by treating orbital elements as **mutable per-body
+state**, not immutable physics constants.
+
+Data model: each body has its *default* orbital elements from the data
+file. The relay can broadcast a **trajectory override** event:
+
+```json
+{
+  "type": "trajectory_override",
+  "body_id": "mars",
+  "effective_sim_time": 1234567890000,
+  "new_elements": {
+    "semi_major_axis_au": 1.524,
+    "eccentricity": 0.9,        // alien deflection cranks up eccentricity
+    "inclination_deg": 25.0,
+    // ... new mean anomaly, etc.
+  },
+  "narrative": "Alien dreadnought-class vessel deploys gravitational manipulation array; Mars orbit destabilized."
+}
+```
+
+Every client applies the override to their local SolBody state. From
+that sim_time forward, Mars renders along its new orbit instead of its
+default. Persistence: overrides stored in the relay's `body_overrides`
+table so a fresh connect catches up.
+
+For the actual "planet crashes into planet" arc: we'd add
+**N-body simulation** for the affected bodies during the impact window
+(~weeks of sim_time), then snap back to Kepler orbits for the survivors.
+Computationally expensive but bounded — only the 2-3 bodies in the
+collision region need N-body; everything else stays Kepler.
+
+This whole subsystem is **infinite-of-x compatible** — story arcs are
+just data files describing trajectory overrides keyed by sim_time. New
+arcs ship as JSON, no code change.
+
+### What ships when
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| 4a | 3D camera + perspective + cosmetic moon rings | ✅ v0.206.0 |
+| 4c | Real Kepler orbital elements + ellipses + asteroid subcat | ✅ v0.207.0 |
+| 4d | Sphere-of-influence sort + Lagrange overlay + reference-orbit rings + sim_time orbit evolution | Next |
+| 4e | Tier-1 minor-body catalog (~10k) + streaming spatial index | Soon after |
+| 4f | Trajectory overrides + N-body impact simulation for story arcs | When a story arc is being authored |
+| 4b | wgpu-in-egui-canvas for textured planets / sun lighting / skybox | When the visual fidelity is worth the integration cost |
+
 ## 17a-quater. Cosmos UI: 3D System view shipped (Phase 4, v0.206.0)
 
 ### Phase 3 was 2D top-down (replaced)
