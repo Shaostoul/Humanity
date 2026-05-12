@@ -1224,9 +1224,14 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 
     // ── Draw bodies (back-to-front, with depth-scaled radii) ──
+    // PASS 1: draw the body circles + hit-test for hover/click on bodies.
+    // PASS 2: pill labels (collision-dodging, priority-sorted) — see below.
+    // PASS 3: expanded info card for whichever body has cosmos_expanded_body.
     let hover_pos = ui.input(|i| i.pointer.hover_pos());
     let mut hovered_body: Option<&SolBody> = None;
     let mut clicked_body: Option<&SolBody> = None;
+    // Cache body radii so the pill pass can reuse them as anchor offsets.
+    let mut body_radii_px: Vec<f32> = Vec::with_capacity(projected.len());
     for pb in &projected {
         // Apparent radius — based on real radius_km, projected through the
         // camera distance. A planet's apparent angular size = radius / distance.
@@ -1243,13 +1248,16 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     else { 2.5 };
         let max_r = if pb.body.id == "sun" { 80.0 } else { 40.0 };
         r_px = r_px.max(min_r).min(max_r);
+        body_radii_px.push(r_px);
 
         paint.circle_filled(pb.screen, r_px, body_color(&pb.body.name));
         if state.cosmos_selected_body.as_deref() == Some(pb.body.id.as_str()) {
             paint.circle_stroke(pb.screen, r_px + 3.0, Stroke::new(1.5, theme.accent()));
         }
 
-        // Hit testing for hover/click.
+        // Hit testing for hover/click on the body itself (the pill has its
+        // own hit-test below — they can both fire on the same click but the
+        // pill takes precedence since it's drawn on top).
         if let Some(hp) = hover_pos {
             if (hp - pb.screen).length() < r_px + 4.0 {
                 hovered_body = Some(pb.body);
@@ -1258,30 +1266,177 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             }
         }
-
-        // Label — only show for "important enough" bodies to avoid clutter.
-        // Always-label criteria: planet / dwarf-planet / star, or hovered, or selected.
-        let always_label = matches!(pb.body.body_type.as_str(),
-            "star" | "terrestrial" | "gas_giant" | "ice_giant" | "dwarf_planet");
-        let highlight = hovered_body.map(|b| b.id == pb.body.id).unwrap_or(false)
-            || state.cosmos_selected_body.as_deref() == Some(pb.body.id.as_str());
-        if always_label || highlight {
-            paint.text(
-                pb.screen + Vec2::new(0.0, -(r_px + 4.0)),
-                Align2::CENTER_BOTTOM,
-                &pb.body.name,
-                egui::FontId::proportional(10.0),
-                if highlight { theme.text_primary() } else { theme.text_secondary() },
-            );
-        }
     }
     // Suppress unused-field warning for world_au — kept on the struct so
     // future label-collision-avoidance code can reference it.
     let _suppress_unused: Option<glam::DVec3> = projected.first().map(|p| p.world_au);
 
-    // Apply click selection.
-    if let Some(b) = clicked_body {
+    // ── PASS 2: Pill labels (Phase 4d-bis, v0.209.0) ──
+    // Each visible body gets a pill: colored dot on left, name on right.
+    // Pills are priority-sorted; lower-priority pills hide on overlap with
+    // higher-priority ones so the canvas doesn't get cluttered when the
+    // camera zooms out.
+    //
+    // Priority key (lower = drawn first / always-visible):
+    //   0 = star (Sun)
+    //   1 = terrestrial / gas_giant / ice_giant (true planets)
+    //   2 = dwarf_planet (Pluto, Ceres, etc.)
+    //   3 = moon (only if parent planet's pill is visible OR moon is hovered/selected)
+    //   4 = asteroid (only if hovered, selected, or expanded)
+    //
+    // A pill is shown when:
+    //   - Its priority is ≤ 2 (always-visible tier)
+    //   - OR it is the hovered body, selected body, or expanded body
+    //   - AND its rect doesn't overlap a higher-priority placed rect
+    //     (with one exception: hovered/selected/expanded pills always show)
+
+    #[derive(Clone)]
+    struct PillCandidate<'a> {
+        body: &'a SolBody,
+        body_screen: Pos2,
+        body_r_px: f32,
+        priority: u8,
+        is_forced: bool, // hover/select/expanded — never hidden by collision
+    }
+
+    let mut pill_candidates: Vec<PillCandidate> = Vec::with_capacity(projected.len());
+    for (i, pb) in projected.iter().enumerate() {
+        let r_px = body_radii_px[i];
+        let priority: u8 = match pb.body.body_type.as_str() {
+            "star" => 0,
+            "terrestrial" | "gas_giant" | "ice_giant" => 1,
+            "dwarf_planet" => 2,
+            "moon" => 3,
+            _ => 4,
+        };
+        let is_hovered = hovered_body.map(|b| b.id == pb.body.id).unwrap_or(false);
+        let is_selected = state.cosmos_selected_body.as_deref() == Some(pb.body.id.as_str());
+        let is_expanded = state.cosmos_expanded_body.as_deref() == Some(pb.body.id.as_str());
+        let is_forced = is_hovered || is_selected || is_expanded;
+        let should_show = priority <= 2 || is_forced;
+        if !should_show { continue; }
+        pill_candidates.push(PillCandidate {
+            body: pb.body,
+            body_screen: pb.screen,
+            body_r_px: r_px,
+            priority,
+            is_forced,
+        });
+    }
+
+    // Sort: forced pills first (so they always claim their slot), then by
+    // priority. Stable sort keeps draw-order deterministic frame-to-frame.
+    pill_candidates.sort_by_key(|c| (!c.is_forced as u8, c.priority));
+
+    // Collision-dodge: walk in priority order, skip any non-forced pill
+    // whose rect overlaps an already-placed rect.
+    let mut placed_pill_rects: Vec<Rect> = Vec::with_capacity(pill_candidates.len());
+    let mut clicked_pill: Option<String> = None;
+    for c in &pill_candidates {
+        // Anchor pill above + right of the body, with a small gap. This
+        // keeps the pill near its body but out of the body's own circle.
+        let pill_anchor = c.body_screen + Vec2::new(c.body_r_px + 4.0, -(c.body_r_px + 16.0));
+
+        // Pre-measure pill size for the collision check before painting.
+        let font = egui::FontId::proportional(11.0);
+        let text_galley = paint.layout_no_wrap(
+            c.body.name.clone(),
+            font.clone(),
+            theme.text_primary(),
+        );
+        let dot_r = 5.0_f32;
+        let h_pad = 8.0_f32;
+        let v_pad = 4.0_f32;
+        let inner_gap = 6.0_f32;
+        let pill_w = h_pad + dot_r * 2.0 + inner_gap + text_galley.size().x + h_pad;
+        let pill_h = (dot_r * 2.0).max(text_galley.size().y) + v_pad * 2.0;
+        let pill_rect = Rect::from_min_size(pill_anchor, egui::vec2(pill_w, pill_h));
+
+        // Collision check — only forced pills override.
+        if !c.is_forced && placed_pill_rects.iter().any(|r| r.intersects(pill_rect)) {
+            continue;
+        }
+        placed_pill_rects.push(pill_rect);
+
+        // Interact: clicking a pill toggles the expanded body. ui.interact
+        // gives us a proper egui Response on an arbitrary screen-space rect.
+        let pill_id = ui.id().with(("cosmos_pill", c.body.id.as_str()));
+        let pill_response = ui.interact(pill_rect, pill_id, egui::Sense::click());
+        let pill_hovered = pill_response.hovered();
+        let pill_is_expanded = state.cosmos_expanded_body.as_deref() == Some(c.body.id.as_str());
+
+        // Draw the pill: rounded-rect background + thin border, dot on
+        // left, name on right. Hover lightens the bg; expanded gets the
+        // accent border. Theme tokens only — no hardcoded Color32::from_rgb.
+        let bg = if pill_hovered { theme.bg_secondary() } else { theme.bg_card() };
+        let border_stroke = if pill_is_expanded {
+            Stroke::new(1.5, theme.accent())
+        } else if c.is_forced {
+            Stroke::new(0.8, theme.border_focus())
+        } else {
+            Stroke::new(0.5, theme.border())
+        };
+        let radius = pill_h * 0.5;
+        paint.rect_filled(pill_rect, radius, bg);
+        paint.rect_stroke(pill_rect, radius, border_stroke, egui::StrokeKind::Outside);
+
+        // Color dot (the body's render color).
+        let dot_center = Pos2::new(
+            pill_rect.left() + h_pad + dot_r,
+            pill_rect.center().y,
+        );
+        paint.circle_filled(dot_center, dot_r, body_color(&c.body.name));
+        paint.circle_stroke(dot_center, dot_r, Stroke::new(0.5, theme.border()));
+
+        // Name text — laid out from the dot's right edge.
+        let text_pos = Pos2::new(
+            dot_center.x + dot_r + inner_gap,
+            pill_rect.center().y - text_galley.size().y * 0.5,
+        );
+        paint.galley(text_pos, text_galley, theme.text_primary());
+
+        // Faint connector line from body edge to pill if the body is
+        // far enough below the pill that the relationship isn't obvious.
+        let connector_start = c.body_screen + Vec2::new(c.body_r_px * 0.7, -c.body_r_px * 0.7);
+        let connector_end = Pos2::new(pill_rect.left() + 2.0, pill_rect.bottom() - 1.0);
+        if (connector_end - connector_start).length() > 8.0 {
+            paint.line_segment(
+                [connector_start, connector_end],
+                Stroke::new(0.5, theme.border()),
+            );
+        }
+
+        if pill_response.clicked() {
+            clicked_pill = Some(c.body.id.clone());
+        }
+    }
+
+    // Apply click selection. Pill clicks take precedence over body clicks.
+    if let Some(pill_id) = clicked_pill {
+        // Toggle expanded state on pill click.
+        if state.cosmos_expanded_body.as_deref() == Some(pill_id.as_str()) {
+            state.cosmos_expanded_body = None;
+        } else {
+            state.cosmos_expanded_body = Some(pill_id.clone());
+            state.cosmos_selected_body = Some(pill_id);
+        }
+    } else if let Some(b) = clicked_body {
+        // Body click (not on a pill) updates selection without expanding.
         state.cosmos_selected_body = Some(b.id.clone());
+    }
+
+    // ── PASS 3: Expanded info card for the currently-expanded body ──
+    if let Some(expanded_id) = state.cosmos_expanded_body.clone() {
+        // Find the expanded body's pill rect from this frame's placed list.
+        // If it wasn't placed (camera moved away), the card is suppressed.
+        let expanded_pos_and_body = projected.iter().enumerate().find_map(|(i, pb)| {
+            if pb.body.id == expanded_id {
+                Some((pb.screen, body_radii_px[i], pb.body))
+            } else { None }
+        });
+        if let Some((body_screen, body_r_px, body)) = expanded_pos_and_body {
+            draw_body_info_card(ui, &paint, theme, body, body_screen, body_r_px, rect, state);
+        }
     }
 
     // ── Hover tooltip ──
@@ -1557,6 +1712,203 @@ fn draw_night_sky_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         format!("Equirectangular celestial sphere · {} bright stars · {} constellations", stars.len(), cons.len()),
         egui::FontId::proportional(10.0),
         theme.text_muted(),
+    );
+}
+
+// ─────────────────────── Body info card (Phase 4d-bis, v0.209.0) ───────────
+
+/// Render the expanded info card for a body. Anchors below+right of the
+/// body's screen position, with a faint connector line. Card content:
+/// name (heading), type · distance · period, brief description (truncated),
+/// and three buttons: Focus, Track, Close.
+///
+/// Card stays clamped to the canvas rect — if the natural anchor would
+/// push it off-screen, we flip / nudge it inside.
+#[allow(clippy::too_many_arguments)]
+fn draw_body_info_card(
+    ui: &mut egui::Ui,
+    paint: &egui::Painter,
+    theme: &Theme,
+    body: &SolBody,
+    body_screen: Pos2,
+    body_r_px: f32,
+    canvas_rect: Rect,
+    state: &mut GuiState,
+) {
+    // Layout the card via an offscreen ui — we want egui's measure/wrap to
+    // handle text sizing, then we anchor the result near the body.
+    let card_max_w = 260.0_f32;
+    let card_min_w = 200.0_f32;
+
+    // Compute the description string up front (used to size the card).
+    let dist_str = if body.semi_major_axis_au > 0.0 {
+        format!("{:.2} AU from Sun", body.semi_major_axis_au)
+    } else if body.semi_major_axis_km > 0.0 {
+        format!(
+            "{} km from {}",
+            format_with_commas(body.semi_major_axis_km as i64),
+            body.parent.as_deref().map(titlecase).unwrap_or_default(),
+        )
+    } else {
+        String::new()
+    };
+    let period_str = if body.orbital_period_days > 365.25 {
+        format!("{:.2} y period", body.orbital_period_days / 365.25)
+    } else if body.orbital_period_days > 1.0 {
+        format!("{:.1} d period", body.orbital_period_days)
+    } else if body.orbital_period_days > 0.0 {
+        format!("{:.1} h period", body.orbital_period_days * 24.0)
+    } else {
+        String::new()
+    };
+
+    // Anchor the card just to the right of the body, slightly below the
+    // pill (which sits above-right). If that would clip, flip to the left.
+    let preferred_x = body_screen.x + body_r_px + 8.0;
+    let preferred_y = body_screen.y + body_r_px * 0.5;
+
+    let mut anchor = Pos2::new(preferred_x, preferred_y);
+    // Reserve roughly card_max_w × ~160 px; clamp to canvas with 8 px margin.
+    let estimate_h = 160.0_f32;
+    if anchor.x + card_max_w > canvas_rect.right() - 8.0 {
+        // Flip to left of body.
+        anchor.x = body_screen.x - body_r_px - 8.0 - card_max_w;
+    }
+    if anchor.x < canvas_rect.left() + 8.0 {
+        anchor.x = canvas_rect.left() + 8.0;
+    }
+    if anchor.y + estimate_h > canvas_rect.bottom() - 8.0 {
+        anchor.y = canvas_rect.bottom() - 8.0 - estimate_h;
+    }
+    if anchor.y < canvas_rect.top() + 8.0 {
+        anchor.y = canvas_rect.top() + 8.0;
+    }
+
+    // Place a child UI at the anchor.
+    let card_rect = Rect::from_min_size(anchor, egui::vec2(card_max_w, estimate_h));
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(card_rect)
+            .layout(egui::Layout::top_down(egui::Align::LEFT)),
+    );
+
+    // Frame the card with rounded background + accent border so it reads
+    // clearly against the starry void. Frame::group draws its own bg/border;
+    // we override via egui::Frame to use theme tokens.
+    egui::Frame::NONE
+        .fill(theme.bg_panel())
+        .stroke(Stroke::new(1.5, theme.accent()))
+        .corner_radius(egui::CornerRadius::same(8))
+        .inner_margin(egui::Margin::same(10))
+        .show(&mut child, |ui| {
+            ui.set_min_width(card_min_w);
+            ui.set_max_width(card_max_w - 20.0);
+
+            // Heading row: dot + name + close button.
+            ui.horizontal(|ui| {
+                let (rect, _) = ui.allocate_exact_size(
+                    egui::vec2(14.0, 14.0),
+                    egui::Sense::hover(),
+                );
+                let p = ui.painter();
+                p.circle_filled(rect.center(), 6.0, body_color(&body.name));
+                p.circle_stroke(rect.center(), 6.0, Stroke::new(0.5, theme.border()));
+                ui.label(
+                    RichText::new(&body.name)
+                        .size(theme.font_size_heading)
+                        .color(theme.text_primary())
+                        .strong(),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.small_button("Close").clicked() {
+                        state.cosmos_expanded_body = None;
+                    }
+                });
+            });
+
+            // Type + distance + period — single muted line, separators.
+            let mut meta_parts: Vec<String> = Vec::new();
+            meta_parts.push(titlecase(&body.body_type));
+            if !dist_str.is_empty() { meta_parts.push(dist_str.clone()); }
+            if !period_str.is_empty() { meta_parts.push(period_str.clone()); }
+            ui.label(
+                RichText::new(meta_parts.join(" · "))
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+
+            // Physical stats.
+            if body.radius_km > 0.0 {
+                ui.label(
+                    RichText::new(format!("Radius: {}", format_km(body.radius_km)))
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            }
+            // Mean temperature is stored in Kelvin; show Celsius for
+            // intuition. 0 K is the "unknown" sentinel.
+            if body.mean_temperature_k > 0.0 {
+                let temp_c = body.mean_temperature_k - 273.15;
+                ui.label(
+                    RichText::new(format!("Mean temp: {:.0} °C ({:.0} K)",
+                        temp_c, body.mean_temperature_k))
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            }
+            if body.surface_gravity_ms2 > 0.0 {
+                ui.label(
+                    RichText::new(format!("Surface gravity: {:.2} m/s²",
+                        body.surface_gravity_ms2))
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            }
+
+            // Description (truncated — full text lives in the right sidebar).
+            if !body.description.is_empty() {
+                ui.add_space(4.0);
+                let desc = if body.description.chars().count() > 180 {
+                    let trunc: String = body.description.chars().take(180).collect();
+                    format!("{}…", trunc)
+                } else {
+                    body.description.clone()
+                };
+                ui.label(
+                    RichText::new(desc)
+                        .size(theme.font_size_small)
+                        .color(theme.text_secondary()),
+                );
+            }
+
+            ui.add_space(6.0);
+            ui.separator();
+            ui.add_space(4.0);
+
+            // Action row: Focus + Track.
+            ui.horizontal(|ui| {
+                if ui.button("Focus").clicked() {
+                    // Re-use the existing focus pipeline.
+                    state.cosmos_focus_request = Some(body.id.clone());
+                    state.cosmos_selected_body = Some(body.id.clone());
+                }
+                // Track: future feature (camera follows body during sim
+                // time advance). For now just a stub button.
+                let track_btn = ui.add_enabled(
+                    false,
+                    egui::Button::new("Track"),
+                );
+                if track_btn.hovered() {
+                    track_btn.on_hover_text("Camera-follow during sim time — coming soon");
+                }
+            });
+        });
+
+    // Subtle connector from body to card top-left corner.
+    let card_corner = Pos2::new(card_rect.left() + 4.0, card_rect.top() + 6.0);
+    paint.line_segment(
+        [body_screen, card_corner],
+        Stroke::new(0.6, theme.accent()),
     );
 }
 

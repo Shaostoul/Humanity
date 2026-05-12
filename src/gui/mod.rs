@@ -987,6 +987,12 @@ pub struct GuiState {
     /// Whether the cosmos sim_time has been initialized (sets to "now"
     /// on first cosmos page draw). v0.208.0.
     pub cosmos_sim_time_initialized: bool,
+    /// Which body's pill is currently expanded into an info card on the
+    /// 3D System view. Only one body can be expanded at a time — clicking
+    /// a different body's pill swaps the expansion; clicking the same
+    /// pill collapses it. Independent of `cosmos_selected_body` which
+    /// drives the right-side details panel. v0.209.0.
+    pub cosmos_expanded_body: Option<String>,
 
     /// Cached server-wide settings received from the relay (v0.200.0).
     /// Populated on `server_settings_state` WS message. None means we
@@ -1417,6 +1423,7 @@ impl Default for GuiState {
             cosmos_sim_speed: 0.0, // Paused by default — operator scrubs / plays.
             cosmos_last_real_instant: None,
             cosmos_sim_time_initialized: false,
+            cosmos_expanded_body: None,
             new_group_name: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),
