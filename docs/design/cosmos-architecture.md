@@ -735,6 +735,68 @@ A horizontal control strip at the top of the System view contains:
 > use either plain text labels (`"Play"`, `"Pause"`, `"<<"`, `">>"`)
 > or paint shapes via `widgets::icons::paint_*` SVG helpers.
 
+### Universal "body pill + info card" widget (Phase 4d-bis + extraction in v0.213.0)
+
+Operator insight 2026-05-12: *"This planet icon pill to card GUI thing could be used at the dedicated page, in the player home map room, and like when we're looking at the starry night sky with AR glasses."*
+
+The pill-to-card pattern was first built inline on the Cosmos page (v0.209.0), but the same data shape works on every surface that needs to label celestial bodies:
+
+| Surface | Canvas | Screen-position source |
+|---------|--------|------------------------|
+| Cosmos page (shipped) | egui Painter on the page's central rect | `project_to_screen` via the 3D camera (yaw/pitch/distance + perspective) |
+| In-ship Map Room HUD (planned) | egui Painter on top of the FPS viewport | Player's first-person camera view + projection (the room is a hologram tank — bodies project onto a contained volume around the player) |
+| AR-glasses sky overlay (planned, Phase 4g) | Painter on a camera-passthrough texture | AR headset's pose + projection matrices |
+
+In every case the compute is identical: project a body's world position to 2D screen, render a pill at that anchor, hit-test, optionally expand into an info card. Only the source of `screen_pos` differs.
+
+**Extracted to `src/gui/widgets/body_pill.rs` in v0.213.0.** The widget owns the visual layout (collision-dodge, rounded-rect bg with theme tokens, info-card auto-position with canvas clamping) so callers just produce input data and consume the response.
+
+Public API:
+
+```rust
+pub struct BodyPill<'a> {
+    pub id: &'a str,
+    pub name: &'a str,
+    pub color: Color32,
+    pub body_screen: Pos2,
+    pub body_radius_px: f32,
+    pub priority: u8,     // collision-dodge sort key
+    pub forced: bool,     // hover/select/expanded — never hidden
+    pub expanded: bool,   // styling differs (accent border)
+}
+
+pub fn place_and_draw_pills(
+    ui: &mut Ui,
+    painter: &Painter,
+    theme: &Theme,
+    pills: &[BodyPill],
+    interact_id_salt: &str,  // scopes interaction ids per-canvas
+) -> PillsLayout {
+    pub placed: Vec<PlacedPill { id, rect }>,
+    pub clicked_id: Option<String>,
+}
+
+pub struct BodyCardData<'a> {
+    pub heading: &'a str,
+    pub color: Color32,
+    pub subtitle: Option<String>,
+    pub stats: Vec<(String, String)>,
+    pub description: Option<&'a str>,
+    pub actions: Vec<(String, bool)>,  // (label, enabled)
+}
+
+pub fn draw_body_card(
+    ui: &mut Ui, painter: &Painter, theme: &Theme,
+    data: &BodyCardData,
+    body_screen: Pos2, body_radius_px: f32,
+    canvas_rect: Rect,
+) -> BodyCardResponse { closed, action_clicked: Option<usize> }
+```
+
+The Cosmos page now uses these widgets; the v0.209.0 inline code (~200 lines) moved verbatim into the widget module. Future surfaces (Map Room HUD, AR-glasses) will produce their own `Vec<BodyPill>` + `BodyCardData` from their domain types (ECS components / AR headset metadata) and consume the same response shape.
+
+Why this matters for *infinite-of-x*: a label widget that's hardcoded to one surface is the start of a UI maintenance nightmare. By the time we ship three "list a celestial body" surfaces, any inconsistency between them (a different border-radius here, a different connector-line angle there) becomes user-visible noise. One widget = one source of truth, restyleable via the theme editor.
+
 ### Pill-style body labels with expand-to-card (Phase 4d-bis)
 
 Operator: each label should be a **pill UI — planet sprite on the

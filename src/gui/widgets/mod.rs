@@ -21,6 +21,7 @@ pub mod form_row;
 pub mod alert;
 pub mod dialog;
 pub mod tree;
+pub mod body_pill;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;
