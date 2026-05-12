@@ -772,6 +772,90 @@ visible gets re-centered around the player to keep render coordinates
 near zero — so even at 100 kly galactic position, what gets passed to
 the GPU is small numbers near zero).
 
+## 17a-ter. Cosmological structure + intergalactic frame (2026-05-10 part 3)
+
+For the eventual move to intergalactic gameplay (when Sol-frame
+coordinates become awkwardly large), here's what real cosmology gives
+us. Most of this also has a teaching role — these concepts get
+glossary entries so the UX/UI can surface them naturally on hover.
+
+### Comoving coordinates — the intergalactic frame
+
+In an expanding universe, two galaxies' physical distance grows over
+time even when neither is "moving." The standard solution is **comoving
+coordinates**: a reference frame that stretches with the universe's
+expansion, so a galaxy at fixed comoving position stays at that
+position even as the physical distance to other galaxies grows.
+
+We adopt comoving coordinates whenever multi-galaxy gameplay arrives.
+The data model is unchanged — `galaxy_pos_ly: DVec3` still works; we
+just interpret the values as comoving distances and apply the cosmic
+scale factor `a(t)` when converting to physical distance for any
+particular sim_time. For everything inside a single galaxy (where we
+work today), the distinction doesn't matter — Hubble expansion is
+negligible at galactic scale.
+
+### Baryon Acoustic Oscillations (BAO)
+
+In the first ~380,000 years after the Big Bang, the universe was a
+hot dense plasma where pressure waves (literal sound) propagated.
+When the universe cooled enough for atoms to form, photons decoupled
+from matter, the pressure dropped to ~zero, and the sound waves
+froze in place at their then-current radius — about 150 megaparsecs
+in today's expanded coordinates.
+
+Galaxies today show a slight statistical preference (~1%) for being
+that distance apart from each other. **BAO are not navigable
+structures** — they're a statistical correlation pattern across the
+entire galaxy distribution, not bubbles you can fly into. They're
+useful as a "standard ruler" for measuring the expansion of the
+universe at different epochs.
+
+**For us:** when we eventually generate procedural galaxy
+distributions (multi-galaxy gameplay, cosmic web visualizations),
+**bake the BAO correlation into the distribution** so it looks
+physically realistic rather than uniform random. Real galaxy survey
+maps have a faint ~150-Mpc bump in their two-point correlation
+function; ours should too.
+
+### Cosmic voids and the cosmic web
+
+The visible bubble-like structure of the universe: galaxies cluster
+in **filaments** and **walls** around vast underdense **voids**.
+Examples: Boötes Void (~330 Mly across), Local Void (~150 Mly).
+Together they form the **cosmic web** — the largest visible structure
+in the universe.
+
+These look like bubbles in 3D maps, but they don't have well-defined
+centers. They're irregular blob shapes, fractal-like (sub-voids in
+voids), and they expand with the universe. Useful as visual content
+in the multi-scale map; not useful as coordinate origins.
+
+### CMB rest frame
+
+The cosmic microwave background looks isotropic (the same in every
+direction) only from one particular reference frame — the **CMB rest
+frame**. Earth is moving relative to it at ~370 km/s, which we can
+measure from the CMB's dipole anisotropy.
+
+This is the closest thing the universe has to an "absolute rest
+frame." When we adopt comoving coordinates for intergalactic gameplay,
+the CMB rest frame is the natural anchor for the frame's velocity
+calibration. Practical effect on the game: invisible. Educational
+effect: a fun thing to surface in glossary tooltips.
+
+### Educational opportunity
+
+All of these concepts get glossary entries (`data/glossary.json`,
+"cosmology" category) so the in-app dictionary widget
+(`widgets::definition_text` / Alt+hover) surfaces them naturally
+wherever they appear in the UI. When the user opens a galaxy map
+and sees "Local Group" or "Boötes Void" or "comoving coordinate frame"
+in a label, holding Alt + hovering should give them a 2-3 sentence
+explanation. This is part of the broader "teach naturally through UX"
+goal — every novel concept the app exposes should be one hover away
+from a definition.
+
 ## 17a-bis. Locked decisions (2026-05-10 part 2)
 
 Captured in the same session that landed Phase 2 of the implementation:
