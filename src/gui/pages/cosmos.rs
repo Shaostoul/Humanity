@@ -70,19 +70,43 @@ struct Constellation {
     objects: Vec<String>,
 }
 
-/// One Sol-system body for the system view. Snapshot positions until
-/// real orbital math arrives in a later phase.
+/// One Sol-system body for the system view + body browser sidebar +
+/// details panel. Phase 3 (v0.203.2): expanded with the fields needed
+/// for the right-side details panel (radius, mass, gravity, atmosphere
+/// composition, orbital period, mean temperature, discovery info,
+/// description).
 #[derive(Debug, Clone)]
 struct SolBody {
     id: String,
     name: String,
     body_type: String,
-    /// Parent body id (e.g. "sun" for planets, "earth" for moon).
+    /// Parent body id (e.g. "sun" for planets, "earth" for "moon").
     parent: Option<String>,
-    /// Semi-major axis in AU (orbital distance).
+    /// Semi-major axis in AU (only set for direct sun-orbiters).
     semi_major_axis_au: f64,
+    /// Semi-major axis in km (only set for moons orbiting their planet).
+    semi_major_axis_km: f64,
     /// Body radius in km — for visual sizing.
     radius_km: f64,
+    /// Mass in kg.
+    mass_kg: f64,
+    /// Surface gravity in m/s².
+    surface_gravity_ms2: f64,
+    /// Mean surface / cloud-top temperature in Kelvin.
+    mean_temperature_k: f64,
+    /// Orbital period in days.
+    orbital_period_days: f64,
+    /// Atmosphere composition summary (top 3 components, formatted).
+    /// Empty string if no atmosphere.
+    atmosphere_summary: String,
+    /// Free-form description (1-2 sentences).
+    description: String,
+    /// Discovery year, if known. 0 = ancient / no record.
+    discovery_year: i32,
+    /// Discoverer name, if known.
+    discoverer: String,
+    /// IDs of bodies orbiting this one (e.g. moons of a planet).
+    children: Vec<String>,
 }
 
 static NEARBY_STARS: OnceLock<Vec<NearbyStar>> = OnceLock::new();
@@ -187,7 +211,7 @@ fn sol_bodies() -> &'static [SolBody] {
     SOL_BODIES.get_or_init(|| {
         let json = crate::embedded_data::SOLAR_SYSTEM_JSON;
         let parsed: serde_json::Value = serde_json::from_str(json).unwrap_or(serde_json::Value::Null);
-        let mut out = Vec::new();
+        let mut out: Vec<SolBody> = Vec::new();
         if let Some(arr) = parsed.get("bodies").and_then(|b| b.as_array()) {
             for body in arr {
                 let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -196,20 +220,71 @@ fn sol_bodies() -> &'static [SolBody] {
                 if body_type == "region" { continue; } // skip belts as positionable bodies
                 let parent = body.get("parent").and_then(|v| v.as_str()).map(String::from);
                 let orbit = body.get("orbit");
-                let semi_major_axis_au = orbit
-                    .and_then(|o| o.get("semi_major_axis_au"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-                let radius_km = body.get("physical")
-                    .and_then(|p| p.get("radius_km"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(1000.0);
-                out.push(SolBody { id, name, body_type, parent, semi_major_axis_au, radius_km });
+                let semi_major_axis_au = orbit.and_then(|o| o.get("semi_major_axis_au")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let semi_major_axis_km = orbit.and_then(|o| o.get("semi_major_axis_km")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let orbital_period_days = orbit.and_then(|o| o.get("orbital_period_days")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let physical = body.get("physical");
+                let radius_km = physical.and_then(|p| p.get("radius_km")).and_then(|v| v.as_f64()).unwrap_or(1000.0);
+                let mass_kg = physical.and_then(|p| p.get("mass_kg")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let surface_gravity_ms2 = physical.and_then(|p| p.get("surface_gravity_ms2")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let mean_temperature_k = physical.and_then(|p| p.get("mean_temperature_k")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                // Build a compact atmosphere summary from the composition map
+                // ("78% N₂ · 21% O₂ · …"). Empty string if no atmosphere.
+                let atmosphere_summary = body.get("atmosphere")
+                    .and_then(|a| a.get("composition"))
+                    .and_then(|c| c.as_object())
+                    .map(|comp| {
+                        let mut pairs: Vec<(String, f64)> = comp.iter()
+                            .filter_map(|(k, v)| Some((k.clone(), v.as_f64()?)))
+                            .collect();
+                        // Highest concentration first.
+                        pairs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                        pairs.iter().take(3)
+                            .map(|(k, v)| format!("{:.1}% {}", v, k))
+                            .collect::<Vec<_>>()
+                            .join(" · ")
+                    })
+                    .unwrap_or_default();
+                let description = body.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let (discovery_year, discoverer) = body.get("discovery")
+                    .and_then(|d| {
+                        let y = d.get("year").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                        let who = d.get("discoverer").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        Some((y, who))
+                    })
+                    .unwrap_or((0, String::new()));
+                out.push(SolBody {
+                    id, name, body_type, parent,
+                    semi_major_axis_au, semi_major_axis_km, orbital_period_days,
+                    radius_km, mass_kg, surface_gravity_ms2, mean_temperature_k,
+                    atmosphere_summary, description, discovery_year, discoverer,
+                    children: Vec::new(), // populated in second pass below
+                });
             }
         }
-        log::info!("Cosmos: loaded {} Sol bodies", out.len());
+        // Second pass: populate `children` lists by inverting the parent
+        // relationship. This is what lets the body browser sidebar nest
+        // moons under their planet without re-scanning every frame.
+        let mut child_lists: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        for b in &out {
+            if let Some(p) = &b.parent {
+                child_lists.entry(p.clone()).or_default().push(b.id.clone());
+            }
+        }
+        for b in &mut out {
+            if let Some(kids) = child_lists.get(&b.id) {
+                b.children = kids.clone();
+            }
+        }
+        log::info!("Cosmos: loaded {} Sol bodies (with parent-child links)", out.len());
         out
     })
+}
+
+/// Look up a body by id. O(N) scan, but the dataset is ~64 entries so
+/// it's fine to call this from per-frame UI code.
+fn find_body(id: &str) -> Option<&'static SolBody> {
+    sol_bodies().iter().find(|b| b.id == id)
 }
 
 // ─────────────────────── Spectral-class → color ─────────────────────────────
@@ -266,6 +341,35 @@ pub enum CosmosView {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    // v0.203.2: System view gets left + right side panels (browser + details);
+    // Galactic and Night Sky stay full-width since they're a single canvas
+    // and don't have a discrete object hierarchy worth browsing.
+    let in_system_view = state.cosmos_view == CosmosView::System;
+
+    if in_system_view {
+        // Left: collapsible body browser tree.
+        egui::SidePanel::left("cosmos_body_browser")
+            .resizable(true)
+            .min_width(220.0)
+            .max_width(360.0)
+            .default_width(260.0)
+            .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.spacing_sm))
+            .show(ctx, |ui| {
+                draw_body_browser(ui, theme, state);
+            });
+
+        // Right: details for the selected body.
+        egui::SidePanel::right("cosmos_body_details")
+            .resizable(true)
+            .min_width(260.0)
+            .max_width(420.0)
+            .default_width(300.0)
+            .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.spacing_md))
+            .show(ctx, |ui| {
+                draw_body_details(ui, theme, state);
+            });
+    }
+
     egui::CentralPanel::default()
         .frame(Frame::NONE.fill(Color32::from_rgb(8, 8, 14)).inner_margin(0.0))  // theme-exempt: deep-space backdrop — domain aesthetic, not theme
         .show(ctx, |ui| {
@@ -279,13 +383,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .strong(),
                 );
                 ui.add_space(theme.spacing_lg);
-                view_tab(ui, theme, state, CosmosView::System,    "System",          "Sol's Sun + planets, AU scale.");
+                view_tab(ui, theme, state, CosmosView::System,    "System",          "Sol's Sun + planets + moons, AU scale (top-down 2D).");
                 view_tab(ui, theme, state, CosmosView::Galactic,  "Galactic",        "Sol-centered map of nearby stars, light-year scale.");
                 view_tab(ui, theme, state, CosmosView::NightSky,  "Night Sky",       "Earth-centered celestial sphere with constellation lines.");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(theme.spacing_md);
                     ui.label(
-                        RichText::new("Tip: scroll to zoom, click-drag to pan, hover stars for details.")
+                        RichText::new("Scroll to zoom · click-drag to pan · 2D top-down (3D rotation in Phase 4).")
                             .size(theme.font_size_small)
                             .color(theme.text_muted())
                             .italics(),
@@ -300,6 +404,289 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 CosmosView::NightSky  => draw_night_sky_view(ui, theme, state),
             }
         });
+}
+
+// ─────────────────────── Body browser (left sidebar) ────────────────────────
+
+/// Region groups for the body browser. Each variant holds the body ids
+/// that fall in that region; population happens lazily.
+fn body_regions() -> Vec<(&'static str, Vec<&'static SolBody>)> {
+    let bodies = sol_bodies();
+    let mut star = Vec::new();
+    let mut inner = Vec::new(); // terrestrial planets orbiting Sun
+    let mut outer = Vec::new(); // gas/ice giants orbiting Sun
+    let mut dwarfs = Vec::new(); // dwarf planets
+    let mut asteroids = Vec::new(); // asteroids orbiting Sun directly
+
+    for b in bodies {
+        match (b.body_type.as_str(), b.parent.as_deref()) {
+            ("star", _)                     => star.push(b),
+            ("terrestrial", Some("sun"))    => inner.push(b),
+            ("gas_giant",   Some("sun")) |
+            ("ice_giant",   Some("sun"))    => outer.push(b),
+            ("dwarf_planet", _)             => dwarfs.push(b),
+            ("asteroid",    Some("sun"))    => asteroids.push(b),
+            _ => {} // moons handled per-parent
+        }
+    }
+    // Sort each list by AU distance for a natural inside-out order.
+    let by_au = |a: &&SolBody, b: &&SolBody| a.semi_major_axis_au.partial_cmp(&b.semi_major_axis_au).unwrap_or(std::cmp::Ordering::Equal);
+    inner.sort_by(by_au);
+    outer.sort_by(by_au);
+    dwarfs.sort_by(by_au);
+    asteroids.sort_by(by_au);
+    vec![
+        ("Star",          star),
+        ("Inner Planets", inner),
+        ("Outer Planets", outer),
+        ("Dwarf Planets", dwarfs),
+        ("Asteroids",     asteroids),
+    ]
+}
+
+fn draw_body_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    ui.label(
+        RichText::new("Celestial Bodies")
+            .size(theme.font_size_heading)
+            .color(theme.text_primary())
+            .strong(),
+    );
+    ui.label(
+        RichText::new("Click a body to focus. Click a planet's ▸ to expand its moons.")
+            .size(theme.font_size_small)
+            .color(theme.text_muted()),
+    );
+    ui.add_space(theme.spacing_sm);
+
+    ScrollArea::vertical().show(ui, |ui| {
+        for (region_label, members) in body_regions() {
+            if members.is_empty() { continue; }
+            ui.label(
+                RichText::new(region_label)
+                    .size(theme.font_size_small)
+                    .color(theme.accent())
+                    .strong(),
+            );
+            for body in &members {
+                draw_browser_row(ui, theme, state, body, /* depth */ 0);
+                // For planets / dwarf planets, expand to show moons if requested.
+                if !body.children.is_empty() && state.cosmos_expanded_planets.contains(&body.id) {
+                    for moon_id in &body.children {
+                        if let Some(moon) = find_body(moon_id) {
+                            draw_browser_row(ui, theme, state, moon, /* depth */ 1);
+                        }
+                    }
+                }
+            }
+            ui.add_space(theme.spacing_xs);
+        }
+    });
+}
+
+fn draw_browser_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, body: &SolBody, depth: usize) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        ui.add_space(depth as f32 * 14.0);
+        // Expand chevron only if the body has children (planets / dwarf planets with moons).
+        if !body.children.is_empty() {
+            let expanded = state.cosmos_expanded_planets.contains(&body.id);
+            let chevron = if expanded { "▾" } else { "▸" };
+            let resp = ui.add(egui::Label::new(
+                RichText::new(chevron)
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted())
+                    .monospace(),
+            ).sense(Sense::click()));
+            if resp.clicked() {
+                if expanded {
+                    state.cosmos_expanded_planets.remove(&body.id);
+                } else {
+                    state.cosmos_expanded_planets.insert(body.id.clone());
+                }
+            }
+        } else {
+            ui.add_space(10.0);
+        }
+        // Color dot matching the body's display color.
+        let (rect, _r) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
+        ui.painter().circle_filled(rect.center(), 4.0, body_color(&body.name));
+        // Name — clickable to select.
+        let selected = state.cosmos_selected_body.as_deref() == Some(body.id.as_str());
+        let label_color = if selected { theme.accent() } else { theme.text_primary() };
+        let resp = ui.add(egui::Label::new(
+            RichText::new(&body.name).size(theme.font_size_small).color(label_color),
+        ).sense(Sense::click()));
+        if resp.clicked() {
+            state.cosmos_selected_body = Some(body.id.clone());
+        }
+    });
+}
+
+// ─────────────────────── Body details (right sidebar) ───────────────────────
+
+fn draw_body_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let body = match state.cosmos_selected_body.as_deref().and_then(find_body) {
+        Some(b) => b,
+        None => {
+            ui.label(
+                RichText::new("Select a body")
+                    .size(theme.font_size_heading)
+                    .color(theme.text_secondary()),
+            );
+            ui.label(
+                RichText::new("Click any planet, moon, or dwarf planet in the left-side browser — its details appear here.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            return;
+        }
+    };
+
+    ui.label(
+        RichText::new(&body.name)
+            .size(theme.font_size_title)
+            .color(theme.text_primary())
+            .strong(),
+    );
+    ui.label(
+        RichText::new(format!("{} · {}", titlecase(&body.body_type),
+            body.parent.as_deref().map(|p| format!("orbits {}", titlecase(p))).unwrap_or_else(|| "—".to_string())))
+            .size(theme.font_size_small)
+            .color(theme.accent()),
+    );
+    ui.add_space(theme.spacing_sm);
+
+    ScrollArea::vertical().show(ui, |ui| {
+        // Physical properties.
+        section_heading(ui, theme, "Physical");
+        if body.radius_km > 0.0 {
+            kv(ui, theme, "Radius", &format_km(body.radius_km));
+        }
+        if body.mass_kg > 0.0 {
+            kv(ui, theme, "Mass", &format_mass(body.mass_kg));
+        }
+        if body.surface_gravity_ms2 > 0.0 {
+            kv(ui, theme, "Surface gravity", &format!("{:.2} m/s² ({:.2} g)",
+                body.surface_gravity_ms2, body.surface_gravity_ms2 / 9.81));
+        }
+        if body.mean_temperature_k > 0.0 {
+            kv(ui, theme, "Mean temperature", &format_temperature(body.mean_temperature_k));
+        }
+
+        // Orbital properties.
+        if body.semi_major_axis_au > 0.0 || body.semi_major_axis_km > 0.0 || body.orbital_period_days > 0.0 {
+            ui.add_space(theme.spacing_sm);
+            section_heading(ui, theme, "Orbit");
+            if body.semi_major_axis_au > 0.0 {
+                kv(ui, theme, "Semi-major axis", &format!("{:.3} AU", body.semi_major_axis_au));
+            } else if body.semi_major_axis_km > 0.0 {
+                kv(ui, theme, "Semi-major axis", &format_km(body.semi_major_axis_km));
+            }
+            if body.orbital_period_days > 0.0 {
+                kv(ui, theme, "Orbital period", &format_period(body.orbital_period_days));
+            }
+        }
+
+        // Atmosphere.
+        if !body.atmosphere_summary.is_empty() {
+            ui.add_space(theme.spacing_sm);
+            section_heading(ui, theme, "Atmosphere");
+            ui.label(
+                RichText::new(&body.atmosphere_summary)
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+        } else {
+            ui.add_space(theme.spacing_sm);
+            section_heading(ui, theme, "Atmosphere");
+            ui.label(
+                RichText::new("None").size(theme.font_size_small).color(theme.text_muted()).italics(),
+            );
+        }
+
+        // Discovery.
+        if body.discovery_year > 0 || !body.discoverer.is_empty() {
+            ui.add_space(theme.spacing_sm);
+            section_heading(ui, theme, "Discovery");
+            if body.discovery_year > 0 {
+                kv(ui, theme, "Year", &body.discovery_year.to_string());
+            }
+            if !body.discoverer.is_empty() {
+                kv(ui, theme, "Discoverer", &body.discoverer);
+            }
+        }
+
+        // Description / flavor.
+        if !body.description.is_empty() {
+            ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new(&body.description)
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+        }
+
+        // Children list (moons of a planet).
+        if !body.children.is_empty() {
+            ui.add_space(theme.spacing_md);
+            section_heading(ui, theme, &format!("Moons ({})", body.children.len()));
+            for moon_id in &body.children {
+                if let Some(moon) = find_body(moon_id) {
+                    let resp = ui.add(egui::Label::new(
+                        RichText::new(format!("• {}", &moon.name))
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    ).sense(Sense::click()));
+                    if resp.clicked() {
+                        state.cosmos_selected_body = Some(moon.id.clone());
+                    }
+                }
+            }
+        }
+    });
+}
+
+fn section_heading(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+    ui.label(
+        RichText::new(text)
+            .size(theme.font_size_small)
+            .color(theme.accent())
+            .strong(),
+    );
+    ui.add_space(2.0);
+}
+
+fn kv(ui: &mut egui::Ui, theme: &Theme, key: &str, value: &str) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(format!("{}:", key)).size(theme.font_size_small).color(theme.text_muted()));
+        ui.label(RichText::new(value).size(theme.font_size_small).color(theme.text_primary()));
+    });
+}
+
+fn format_km(km: f64) -> String {
+    if km >= 1.0e6 { format!("{:.2} million km", km / 1.0e6) }
+    else if km >= 1.0e3 { format!("{} km", format_with_commas(km as i64)) }
+    else { format!("{:.1} km", km) }
+}
+
+fn format_mass(kg: f64) -> String {
+    if kg >= 1.0e24 { format!("{:.3e} kg ({:.2} Earth masses)", kg, kg / 5.972e24) }
+    else if kg >= 1.0e20 { format!("{:.3e} kg", kg) }
+    else { format!("{:.3e} kg", kg) }
+}
+
+fn format_temperature(k: f64) -> String {
+    let celsius = k - 273.15;
+    let fahrenheit = celsius * 9.0 / 5.0 + 32.0;
+    format!("{:.0} K  ({:.0} °C / {:.0} °F)", k, celsius, fahrenheit)
+}
+
+fn format_period(days: f64) -> String {
+    if days.abs() >= 365.0 { format!("{:.2} years ({:.0} days)", days / 365.25, days) }
+    else if days.abs() >= 1.0 { format!("{:.2} days", days) }
+    else { format!("{:.2} hours", days * 24.0) }
 }
 
 fn view_tab(
@@ -354,9 +741,10 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let scale = ((rect.width().min(rect.height()) as f64 / 2.0 - 20.0) / max_au) * zoom as f64;
 
     // Sun at center.
-    paint.circle_filled(center, (8.0 * zoom).clamp(4.0, 30.0), body_color("sun"));
+    let sun_r = (8.0 * zoom).clamp(4.0, 30.0);
+    paint.circle_filled(center, sun_r, body_color("sun"));
     paint.text(
-        center + Vec2::new(0.0, -((8.0 * zoom).clamp(4.0, 30.0) + 8.0)),
+        center + Vec2::new(0.0, -(sun_r + 8.0)),
         Align2::CENTER_BOTTOM,
         "Sun",
         egui::FontId::proportional(11.0),
@@ -365,9 +753,13 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     let hover_pos = ui.input(|i| i.pointer.hover_pos());
     let mut hovered_body: Option<&SolBody> = None;
+    let mut clicked_body: Option<&SolBody> = None;
 
-    // Planets on circular orbits (snapshot positions — angle based on body
-    // index for now; swap in real Kepler positions in a later phase).
+    // Track each planet's screen position so moons + ship icons + future
+    // overlays can position relative to them without recomputing.
+    let mut planet_positions: std::collections::HashMap<String, Pos2> = std::collections::HashMap::new();
+
+    // First pass: planets + dwarf planets + asteroids that orbit Sun directly.
     for body in bodies.iter() {
         if body.parent.as_deref() != Some("sun") || body.semi_major_axis_au <= 0.0 {
             continue;
@@ -380,25 +772,31 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         paint.circle_stroke(center, orbit_r, Stroke::new(0.8, Color32::from_rgb(40, 40, 60)));  // theme-exempt: orbital ring — faint backdrop element
         // Snapshot angle (deterministic: hash of name → angle). Looks
         // static across frames, which is fine for a chart UI; live orbital
-        // motion ships in Phase 5 alongside sim_time gossip.
+        // motion ships in a later phase alongside sim_time gossip.
         let angle = body.name.bytes().fold(0u64, |a, b| a.wrapping_add(b as u64)) as f32 * 0.137;
         let px = center.x + orbit_r * angle.cos();
         let py = center.y + orbit_r * angle.sin();
         let pos = Pos2::new(px, py);
+        planet_positions.insert(body.id.clone(), pos);
 
         let r = if body.radius_km > 30000.0 { (5.0 * zoom).clamp(3.0, 14.0) }
                 else if body.radius_km > 5000.0 { (3.5 * zoom).clamp(2.5, 9.0) }
                 else { (2.5 * zoom).clamp(2.0, 6.0) };
         paint.circle_filled(pos, r, body_color(&body.name));
 
-        // Hover detection.
+        // Highlight ring for the selected body.
+        if state.cosmos_selected_body.as_deref() == Some(body.id.as_str()) {
+            paint.circle_stroke(pos, r + 3.0, Stroke::new(1.5, theme.accent()));
+        }
+
         if let Some(hp) = hover_pos {
             if (hp - pos).length() < r + 4.0 {
                 hovered_body = Some(body);
+                if response.clicked() {
+                    clicked_body = Some(body);
+                }
             }
         }
-
-        // Label only at decent zoom to avoid clutter.
         if zoom > 0.6 {
             paint.text(
                 pos + Vec2::new(0.0, -(r + 4.0)),
@@ -410,15 +808,88 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     }
 
-    // Hover tooltip for the body the cursor is over.
+    // Second pass: moons. Rendered in a small ring AROUND their parent
+    // planet's screen position. The ring radius is purely cosmetic
+    // (planets-and-moons-to-scale would have moons sub-pixel close to
+    // their planet); offsetting them by ~14-22 px makes them clickable
+    // without needing to zoom into a single planet. Operator note
+    // 2026-05-10: this addresses "what if a moon is directly underneath
+    // the planet at the southern pole" in 2D top-down — moons are NEVER
+    // rendered overlapping their parent here; they always get a visible
+    // ring slot. Real 3D rotation will replace this when wgpu-in-egui
+    // integration ships in Phase 4.
+    for body in bodies.iter() {
+        if body.body_type != "moon" { continue; }
+        let parent_id = match &body.parent { Some(p) => p, None => continue };
+        let parent_pos = match planet_positions.get(parent_id) { Some(p) => *p, None => continue };
+        // Determine moon's slot in the ring around the parent.
+        // Use index of this moon in its parent's children list for stable angles.
+        let parent_body = match find_body(parent_id) { Some(p) => p, None => continue };
+        let slot_idx = parent_body.children.iter().position(|m| m == &body.id).unwrap_or(0);
+        let slot_count = parent_body.children.len().max(1) as f32;
+        let angle = (slot_idx as f32 / slot_count) * std::f32::consts::TAU;
+        let ring_r = 14.0_f32 + (slot_idx as f32 * 0.5).min(8.0);
+        let mp = Pos2::new(
+            parent_pos.x + ring_r * angle.cos(),
+            parent_pos.y + ring_r * angle.sin(),
+        );
+        let mr = (1.5 * zoom).clamp(1.5, 4.0);
+        paint.circle_filled(mp, mr, body_color(&body.name));
+        if state.cosmos_selected_body.as_deref() == Some(body.id.as_str()) {
+            paint.circle_stroke(mp, mr + 2.0, Stroke::new(1.0, theme.accent()));
+        }
+        if let Some(hp) = hover_pos {
+            if (hp - mp).length() < mr + 3.0 {
+                hovered_body = Some(body);
+                if response.clicked() {
+                    clicked_body = Some(body);
+                }
+            }
+        }
+    }
+
+    // Click on Sun selects it too.
+    if let Some(hp) = hover_pos {
+        if (hp - center).length() < sun_r + 3.0 {
+            if let Some(sun) = find_body("sun") {
+                hovered_body = Some(sun);
+                if response.clicked() {
+                    clicked_body = Some(sun);
+                }
+            }
+        }
+    }
+
+    // Apply click selection — drives the right-side details panel.
+    if let Some(b) = clicked_body {
+        state.cosmos_selected_body = Some(b.id.clone());
+    }
+
+    // Hover tooltip.
     if let (Some(body), Some(_)) = (hovered_body, hover_pos) {
         response.on_hover_ui_at_pointer(|ui| {
             ui.set_max_width(280.0);
             ui.label(RichText::new(&body.name).size(theme.font_size_body).color(theme.text_primary()).strong());
-            ui.label(RichText::new(format!("{}  ·  {} AU from Sun", titlecase(&body.body_type), body.semi_major_axis_au))
+            let dist_str = if body.semi_major_axis_au > 0.0 {
+                format!("{:.2} AU from Sun", body.semi_major_axis_au)
+            } else if body.semi_major_axis_km > 0.0 {
+                format!("{} km from {}", format_with_commas(body.semi_major_axis_km as i64),
+                    body.parent.as_deref().map(titlecase).unwrap_or_default())
+            } else {
+                String::new()
+            };
+            ui.label(RichText::new(format!("{} · {}", titlecase(&body.body_type), dist_str))
                 .size(theme.font_size_small).color(theme.text_secondary()));
-            ui.label(RichText::new(format!("Radius: {} km", format_with_commas(body.radius_km as i64)))
-                .size(theme.font_size_small).color(theme.text_muted()));
+            if body.radius_km > 0.0 {
+                ui.label(RichText::new(format!("Radius: {}", format_km(body.radius_km)))
+                    .size(theme.font_size_small).color(theme.text_muted()));
+            }
+            ui.label(
+                RichText::new("Click to open details →")
+                    .size(theme.font_size_small)
+                    .color(theme.accent())
+                    .italics(),
+            );
         });
     }
 }

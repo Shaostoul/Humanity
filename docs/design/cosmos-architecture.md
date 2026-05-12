@@ -658,6 +658,47 @@ implementation; capturing them here so we don't pretend they're settled.
 
 ---
 
+## 17a-quater. Cosmos UI: 2D for now, 3D in Phase 4
+
+### Phase 3 ships 2D top-down (current)
+
+The Cosmos page renders 2D top-down using egui's `Painter`. Three views
+share one canvas: System (Sol's planets, AU scale), Galactic (Sol-centered
+nearby stars, ly scale), Night Sky (Earth-centered RA/Dec celestial sphere
+with constellations). Pan + zoom + click-to-select via the body browser
+sidebar.
+
+**The limitation** (operator question 2026-05-10): in a strict top-down
+2D projection, a moon directly "below" its planet would render on top of
+the planet and be unclickable. Same for any spaceship at an inclined
+orbit, or anything off the ecliptic plane.
+
+**Mitigation in Phase 3:** moons render in a small **cosmetic ring**
+around their parent planet rather than at scaled true positions —
+guarantees every moon is visible and clickable regardless of the
+real orbital geometry. This loses positional accuracy on purpose
+(scale would put moons sub-pixel close to their planet anyway) but
+keeps every body interactive. Real orbital positions of moons within
+their parent's frame land in Phase 7 alongside live sim_time gossip,
+and are presented via planet-zoom (clicking a planet zooms into its
+moon system at AU-fraction scale).
+
+### Phase 4 will add real 3D camera
+
+When wgpu-in-egui-canvas integration ships in Phase 4, the System view
+moves to a true 3D rendering pipeline:
+- Free camera with mouse-drag rotation, scroll-wheel zoom, middle-click
+  pan (matches Blender / KSP / Star Citizen camera conventions)
+- Real orbital geometry — moons at their actual offsets, ships at
+  inclined orbits, etc. No more cosmetic ring tricks.
+- The existing `src/renderer/floating_origin.rs` handles the precision
+  half (re-centers world coords near origin per frame).
+- Per-body "look at" presets — click a planet, camera dollies to it.
+
+The 2D Galactic + Night Sky views stay in 2D — those are inherently
+flat presentations (galactic plane projection, celestial sphere
+projection). 3D would add nothing.
+
 ## 17a. Locked decisions (2026-05-10)
 
 Confirmed in the second design session, supersedes any earlier "tentative":

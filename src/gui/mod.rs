@@ -953,6 +953,13 @@ pub struct GuiState {
     /// Zoom factor — 1.0 = default, > 1.0 = zoomed in, < 1.0 = zoomed out.
     /// Updated by mouse wheel scroll. Clamped in allocate_canvas.
     pub cosmos_zoom: f32,
+    /// Currently selected body id in the System view (for the right-side
+    /// details panel + map highlight). v0.203.2 — populated by clicking
+    /// a body in the left-side browser sidebar OR clicking it on the map.
+    pub cosmos_selected_body: Option<String>,
+    /// Which planet groups are expanded in the body browser sidebar.
+    /// Stored as ids of planets whose moon list is expanded. v0.203.2.
+    pub cosmos_expanded_planets: std::collections::HashSet<String>,
 
     /// Cached server-wide settings received from the relay (v0.200.0).
     /// Populated on `server_settings_state` WS message. None means we
@@ -1375,6 +1382,8 @@ impl Default for GuiState {
             cosmos_view: crate::gui::pages::cosmos::CosmosView::System,
             cosmos_pan: egui::Vec2::ZERO,
             cosmos_zoom: 1.0,
+            cosmos_selected_body: None,
+            cosmos_expanded_planets: std::collections::HashSet::new(),
             new_group_name: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),

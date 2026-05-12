@@ -58,7 +58,7 @@ mod native_app {
     use crate::gui::theme::Theme;
     use crate::gui::pages::{
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
-        tasks, profile, maps, market, calculator, calendar, notes, civilization,
+        tasks, profile, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
         browser, category_overview, settings_pages, cosmos,
@@ -2258,7 +2258,7 @@ mod native_app {
                                     }
                                     // Placeholder pages (web versions exist, native coming)
                                     GuiPage::Tasks => tasks::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Maps => maps::draw(ctx, &state.theme, &mut state.gui_state),
+                                    // v0.203.2: GuiPage::Maps routed below to the new Cosmos page.
                                     GuiPage::Market => market::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Profile => profile::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Civilization => civilization::draw(ctx, &state.theme, &mut state.gui_state),
@@ -2282,6 +2282,14 @@ mod native_app {
                                     GuiPage::Recovery => recovery::draw(ctx, &state.theme, &mut state.gui_state),
                                     // v0.197.0: GuiPage::Agents and GuiPage::AiUsage removed.
                                     GuiPage::Cosmos => cosmos::draw(ctx, &state.theme, &mut state.gui_state),
+                                    // v0.203.2: GuiPage::Maps now forwards to the new
+                                    // Cosmos page. Operator clicked "Maps" in the
+                                    // single-row nav (which still listed the OLD
+                                    // pages/maps.rs page that was just an empty
+                                    // placeholder + dead-code orbit visualization
+                                    // since v0.197 dropped the Real/Sim toggle).
+                                    // The new Cosmos page IS the universal map.
+                                    GuiPage::Maps => cosmos::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Testing => testing::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Browser => browser::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::OverviewReality  => category_overview::draw(ctx, &state.theme, &mut state.gui_state, "reality"),
