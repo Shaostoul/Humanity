@@ -518,6 +518,10 @@ fn draw_browser_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, body
         ).sense(Sense::click()));
         if resp.clicked() {
             state.cosmos_selected_body = Some(body.id.clone());
+            // v0.205.0: sidebar clicks also focus the map. The user
+            // explicitly said "show me X" by clicking it in the
+            // browser — natural to follow up by centering on it.
+            state.cosmos_focus_request = Some(body.id.clone());
         }
     });
 }
@@ -542,12 +546,26 @@ fn draw_body_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     };
 
-    ui.label(
-        RichText::new(&body.name)
-            .size(theme.font_size_title)
-            .color(theme.text_primary())
-            .strong(),
-    );
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(&body.name)
+                .size(theme.font_size_title)
+                .color(theme.text_primary())
+                .strong(),
+        );
+        // v0.205.0: "Focus" button moves the map view to center on this
+        // body. Especially useful when zooming with the cursor parked
+        // elsewhere — one click re-centers without manual panning.
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if widgets::Button::secondary("Focus")
+                .tooltip("Center the map view on this body. Combine with scroll-wheel zoom to look closer.")
+                .show(ui, theme)
+            {
+                state.cosmos_focus_request = Some(body.id.clone());
+                ui.ctx().request_repaint();
+            }
+        });
+    });
     ui.label(
         RichText::new(format!("{} · {}", titlecase(&body.body_type),
             body.parent.as_deref().map(|p| format!("orbits {}", titlecase(p))).unwrap_or_else(|| "—".to_string())))
@@ -641,6 +659,10 @@ fn draw_body_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ).sense(Sense::click()));
                     if resp.clicked() {
                         state.cosmos_selected_body = Some(moon.id.clone());
+                        // v0.205.0: also focus on the moon (which falls
+                        // back to its parent planet via the focus_request
+                        // handler since moons live in the cosmetic ring).
+                        state.cosmos_focus_request = Some(moon.id.clone());
                     }
                 }
             }
@@ -710,6 +732,17 @@ fn view_tab(
 
 /// Common pan/zoom interaction — returns `(rect, response, center, zoom)`
 /// for the canvas region.
+///
+/// v0.205.0 fixes (operator pushback 2026-05-10):
+///   1. **Multiplicative zoom** instead of additive. At zoom=50, additive
+///      `+= 0.005 * scroll` was a 0.01% step per scroll tick — basically
+///      invisible. Multiplicative `*= 1.05^ticks` gives the same percent
+///      change at every zoom level, so scroll feels consistent from 0.1×
+///      to 50×.
+///   2. **Zoom toward cursor.** The point under the cursor stays anchored
+///      during zoom. Without this, every zoom-in re-centers on whatever
+///      is at canvas center (usually the Sun). Standard map-UI convention
+///      (Google Maps, Blender, Photoshop, etc.) is to anchor on cursor.
 fn allocate_canvas(
     ui: &mut egui::Ui,
     state: &mut GuiState,
@@ -717,15 +750,34 @@ fn allocate_canvas(
     let available = ui.available_size();
     let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
 
-    // Zoom — mouse wheel.
-    let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
-    if scroll_delta != 0.0 && ui.rect_contains_pointer(rect) {
-        state.cosmos_zoom = (state.cosmos_zoom + scroll_delta * 0.005).clamp(0.1, 50.0);
-    }
-    // Pan — click-drag.
+    // Pan — click-drag (apply BEFORE zoom so cursor-anchored zoom uses
+    // the latest pan).
     if response.dragged() {
         state.cosmos_pan += response.drag_delta();
     }
+
+    // Zoom — multiplicative + cursor-anchored.
+    let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
+    if scroll_delta != 0.0 && ui.rect_contains_pointer(rect) {
+        let cursor = ui.input(|i| i.pointer.hover_pos()).unwrap_or(rect.center());
+
+        // 1.0015 per scroll-pixel = ~1.08× per typical 50-px scroll tick.
+        // Picked to feel responsive without being jumpy.
+        let zoom_before = state.cosmos_zoom;
+        let zoom_after = (zoom_before * (1.0015_f32).powf(scroll_delta)).clamp(0.05, 200.0);
+
+        // Cursor-anchored: shift pan so the world point under the cursor
+        // ends up at the same screen position after the zoom change. Math:
+        //   cursor_offset = cursor - rect.center()  (cursor relative to canvas center)
+        //   ratio = zoom_after / zoom_before
+        //   new_pan = cursor_offset * (1 - ratio) + old_pan * ratio
+        // Derivation in the cosmos doc / commit message.
+        let ratio = zoom_after / zoom_before;
+        let cursor_offset = cursor - rect.center();
+        state.cosmos_pan = cursor_offset * (1.0 - ratio) + state.cosmos_pan * ratio;
+        state.cosmos_zoom = zoom_after;
+    }
+
     let center = rect.center() + state.cosmos_pan;
     (rect, response, center, state.cosmos_zoom)
 }
@@ -863,6 +915,38 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Apply click selection — drives the right-side details panel.
     if let Some(b) = clicked_body {
         state.cosmos_selected_body = Some(b.id.clone());
+    }
+
+    // v0.205.0: handle focus requests. When a body is requested as the
+    // focus target (sidebar click or "Focus" button), shift cosmos_pan
+    // so that body lands at the canvas center on this frame, then clear
+    // the request. Lookup uses planet_positions which we populated above
+    // with the body's screen position at current zoom + pan.
+    if let Some(focus_id) = state.cosmos_focus_request.take() {
+        let body_screen_pos = if focus_id == "sun" {
+            Some(center)
+        } else if let Some(p) = planet_positions.get(&focus_id) {
+            Some(*p)
+        } else {
+            // Moon / asteroid not directly tracked — focus on its parent
+            // (which is what the user probably expects since moons live
+            // in the cosmetic ring around their planet).
+            find_body(&focus_id)
+                .and_then(|b| b.parent.as_ref())
+                .and_then(|p| planet_positions.get(p))
+                .copied()
+        };
+        if let Some(target) = body_screen_pos {
+            // Translate pan so target moves from its current screen
+            // position to the canvas center.
+            let canvas_center = rect.center();
+            let shift = canvas_center - target;
+            state.cosmos_pan += shift;
+        }
+        // Note: pan changed mid-frame so the bodies just rendered are at
+        // the OLD position. Egui repaints next frame so the visual lands
+        // immediately. The one-frame stagger is imperceptible.
+        ui.ctx().request_repaint();
     }
 
     // Hover tooltip.

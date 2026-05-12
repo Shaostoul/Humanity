@@ -960,6 +960,11 @@ pub struct GuiState {
     /// Which planet groups are expanded in the body browser sidebar.
     /// Stored as ids of planets whose moon list is expanded. v0.203.2.
     pub cosmos_expanded_planets: std::collections::HashSet<String>,
+    /// Pending focus request — when Some, the next System view render
+    /// computes the pan needed to center this body on screen, then
+    /// clears the request. Set by sidebar click or "Focus" button.
+    /// v0.205.0 (operator pushback on zoom always centering on Sun).
+    pub cosmos_focus_request: Option<String>,
 
     /// Cached server-wide settings received from the relay (v0.200.0).
     /// Populated on `server_settings_state` WS message. None means we
@@ -1384,6 +1389,7 @@ impl Default for GuiState {
             cosmos_zoom: 1.0,
             cosmos_selected_body: None,
             cosmos_expanded_planets: std::collections::HashSet::new(),
+            cosmos_focus_request: None,
             new_group_name: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),
