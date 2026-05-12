@@ -772,6 +772,68 @@ visible gets re-centered around the player to keep render coordinates
 near zero — so even at 100 kly galactic position, what gets passed to
 the GPU is small numbers near zero).
 
+## 17a-bis. Locked decisions (2026-05-10 part 2)
+
+Captured in the same session that landed Phase 2 of the implementation:
+
+### Origin convention
+
+**Technical origin: Sol at J2000.0**, fixed in space. Sol's galactic
+motion (~0.0007 ly/yr around the galactic center) is ignored on game
+timescales. All system positions in `data/star_systems/index.json` are
+light-years from Sol.
+
+**UI default center: Earth.** The map opens centered on Earth. Display
+layer translates from the technical frame to whatever frame the user
+needs.
+
+This separation is deliberate: technical origin needs a fixed point
+(orbital math, distances). UI origin can be wherever the player
+expects (Earth, their ship, anywhere). They don't have to be the same.
+
+For intergalactic (far future): when Sol-frame coordinates become
+inconvenient (e.g. travel toward Andromeda where Sol-relative numbers
+get awkwardly large), shift the technical frame to **CMB rest frame**
+or **Local Group barycenter** — both are standard cosmology conventions.
+The data model already supports this; only the loader needs an updated
+frame-of-reference field.
+
+### Rogue interstellar bodies = transient travel encounters
+
+Operator 2026-05-10: *"I figured the rogue asteroids and stuff would
+be temp objects in some situations. Like traveling between stars we
+could spawn asteroids within the travel distance of the mothership/fleet."*
+
+Locked. Replaces the original "infinite procedural rogue field" model
+with something simpler and more practical:
+
+- **Star systems**: persistent, in `data/star_systems/{id}.json`.
+- **Persistent interstellar bodies**: small hand-authored set (named
+  probes — Voyager 1/2, Pioneer 10/11; named drifting asteroids if
+  astronomers find any; flavor content). Stored in
+  `data/galaxy/persistent_drifters.json`. Small file, ~dozens of
+  entries, not procedural.
+- **Transient travel encounters**: when a vessel is in
+  `Deep { galaxy_pos_ly }` actively transiting between systems, the
+  FTL/travel system spawns ephemeral encounter content along the
+  route — asteroids, debris, signal anomalies, derelicts. **Not
+  persisted.** Each journey can have its own encounter density and
+  difficulty.
+
+Implications for the model:
+- **No `rogue_state` mutation table needed.** A "mined" rogue during
+  travel just yields its resources and the encounter is over.
+- **No infinite-procedural-field complexity** for free-floating bodies.
+- **Mark-and-return doesn't work for transients** — by design. Players
+  who want a permanent reference point in interstellar space have to
+  ask astronomers to add an entry to `persistent_drifters.json`
+  (Voyager-style probes count) or wait until we ship marker buoys
+  (deployable artifacts that anchor a coordinate).
+
+This is in the spirit of the operator's earlier "we want fewer pages,
+condensed simpler experiences" — it cuts a whole subsystem of
+persistent-procedural-content that wasn't earning its complexity.
+
 ## 17b. Operator decisions (2026-05-09 session)
 
 Locked in during the design discussion that produced this doc:

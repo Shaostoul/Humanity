@@ -2,6 +2,7 @@
 
 pub mod systems;
 pub mod components;
+pub mod cosmos;
 
 /// Game world wrapping hecs::World.
 pub struct GameWorld {
