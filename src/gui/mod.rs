@@ -970,6 +970,24 @@ pub struct GuiState {
     /// drag rotates, scroll zooms, sidebar click re-centers the target.
     pub cosmos_camera_3d: crate::gui::pages::cosmos::Cosmos3DCamera,
 
+    /// Cosmos sim-time in seconds since the J2000.0 epoch
+    /// (2000-01-01 12:00:00 UTC). Drives Kepler-evolved body positions.
+    /// Initialized to "current real-world time" on first cosmos page
+    /// open so the user immediately sees today's planetary configuration.
+    /// v0.208.0.
+    pub cosmos_sim_time_seconds: f64,
+    /// Sim speed multiplier — 0 = paused, 1 = real-time (1 second sim =
+    /// 1 second real), 86400 = 1 day per real second, etc. Negative
+    /// values rewind. v0.208.0.
+    pub cosmos_sim_speed: f64,
+    /// Wall-clock Instant of the previous frame, used to compute dt for
+    /// sim_time advancement. None on first frame. v0.208.0.
+    #[allow(clippy::type_complexity)]
+    pub cosmos_last_real_instant: Option<std::time::Instant>,
+    /// Whether the cosmos sim_time has been initialized (sets to "now"
+    /// on first cosmos page draw). v0.208.0.
+    pub cosmos_sim_time_initialized: bool,
+
     /// Cached server-wide settings received from the relay (v0.200.0).
     /// Populated on `server_settings_state` WS message. None means we
     /// haven't received the state yet (during initial connect, before
@@ -1395,6 +1413,10 @@ impl Default for GuiState {
             cosmos_expanded_planets: std::collections::HashSet::new(),
             cosmos_focus_request: None,
             cosmos_camera_3d: crate::gui::pages::cosmos::Cosmos3DCamera::default(),
+            cosmos_sim_time_seconds: 0.0,
+            cosmos_sim_speed: 0.0, // Paused by default — operator scrubs / plays.
+            cosmos_last_real_instant: None,
+            cosmos_sim_time_initialized: false,
             new_group_name: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),

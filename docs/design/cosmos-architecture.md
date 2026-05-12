@@ -658,6 +658,257 @@ implementation; capturing them here so we don't pretend they're settled.
 
 ---
 
+## 17a-sexies. Time controls + seamless scale + AR overlays (2026-05-12)
+
+Operator vision: *"could we add a way to watch the orbits play fast
+forward, rewind, and skip/seek along days/weeks/years/etc? Like, if we
+could have all the planets line up in real life as they are today on May
+12, 2026 then we could see what it'd look like on a great conjunction.
+Then they could see the conjunction in real life and in game. We also
+would love to experience solar eclipses on the Earth ... the whole
+experience to be seamless."*
+
+This section lays out the sim_time / scrubber UX (shipped v0.208.0), the
+sprite→mesh seamless-scale plan, the pill-style body labels with
+expand-to-card, the AR FPS-mode overlay plan, and the conjunction +
+eclipse detection plan.
+
+### Universal sim_time clock — landed in v0.208.0
+
+The cosmos page owns a `sim_time_seconds` clock measured in **seconds
+since the J2000.0 epoch** (2000-01-01 12:00:00 UTC = UNIX timestamp
+946,728,000). J2000 is the standard astronomical epoch — every orbital
+element in `data/star_systems/sol.json` references it, so position math
+is "advance the body's mean anomaly by `n × sim_time`" where `n = 360°
+/ (period_days × 86,400)` is the mean motion.
+
+State (added to `GuiState`):
+
+```rust
+pub cosmos_sim_time_seconds: f64,            // J2000-relative
+pub cosmos_sim_speed: f64,                   // 0 = paused, 1 = real-time, 86400 = 1 day/sec
+pub cosmos_last_real_instant: Option<Instant>,
+pub cosmos_sim_time_initialized: bool,
+```
+
+On the first frame the System view is shown, `sim_time` is initialized
+to **the user's real wall-clock time** (`SystemTime::UNIX_EPOCH` minus
+J2000), so planets render where they actually are right now. From then
+on, each frame:
+
+```rust
+let dt_real = now - last_real_instant;
+sim_time_seconds += dt_real * sim_speed;
+```
+
+Pause = `sim_speed = 0`. Reverse = negative speed. Step = bump
+`sim_time_seconds` by a constant (1 day = 86,400 s, 1 week = 604,800 s,
+1 year ≈ 31,557,600 s). All body positions are pure functions of
+`sim_time`, so changing it freely re-renders the whole system without
+any state to invalidate.
+
+### Time-controls UI — landed in v0.208.0
+
+A horizontal control strip at the top of the System view contains:
+
+1. **Date display** — formatted via Howard Hinnant's days-from-civil
+   algorithm (no `chrono` dependency, accurate for any proleptic-
+   Gregorian date). Shows `YYYY-MM-DD HH:MM UTC` with a hairline
+   monospace render.
+2. **Now button** — snaps `sim_time` back to real-world wall clock.
+   Critical for the operator's stated use case ("see what it looks
+   like today, May 12 2026").
+3. **Transport** — ⏮ rewind 1 yr / ⏪ rewind 1 mo / Play|Pause / ⏩
+   advance 1 mo / ⏭ advance 1 yr (using only **lint-safe glyphs**:
+   plain ASCII ←/→ via the keyboard fallback when needed).
+4. **Speed presets** — 1 h/s · 1 d/s · 1 mo/s · 1 y/s · 10 y/s. Each
+   button sets `sim_speed` directly; the current preset highlights.
+5. **Reverse toggle** — flips the sign of `sim_speed` (works with any
+   preset, so "Reverse + 1 y/s" reads as "−1 year per real second").
+6. **Scrubber slider** — drag along a ±10-year range centered on today
+   to seek to any date. Releases of the drag snap `sim_time` to the
+   chosen offset from real-now. Hold Shift to drag at hour-precision;
+   default is day-precision.
+
+> Glyph note: avoid the `U+FE0F` variation selector and `Dingbats`
+> tofu hazards (see `tests/icon_glyph_lint.rs`). The transport icons
+> use either plain text labels (`"Play"`, `"Pause"`, `"<<"`, `">>"`)
+> or paint shapes via `widgets::icons::paint_*` SVG helpers.
+
+### Pill-style body labels with expand-to-card (Phase 4d-bis)
+
+Operator: each label should be a **pill UI — planet sprite on the
+left, name on the right, click expands to an info card.**
+
+Current Phase 4 renders each body as a colored dot plus a text label
+adrift in canvas space. The pill replaces the dot+label with a single
+rounded-rect widget:
+
+```
+┌────────────────┐
+│ 🪐  Jupiter    │   ← collapsed (~24 px tall)
+└────────────────┘
+
+┌─────────────────────────────────┐
+│ 🪐  Jupiter                     │
+│ Gas giant · 5.20 AU · 11.86 y   │   ← expanded card
+│ 79 moons · Galilean: Io, Europa,│
+│ Ganymede, Callisto · Great Red  │
+│ Spot · No solid surface         │
+│ [Focus] [Track]  [Open page]    │
+└─────────────────────────────────┘
+```
+
+Implementation: each body draws its own pill via egui's
+`Frame::popup` + `Sense::click()`. State for "which body is expanded"
+lives in `GuiState::cosmos_expanded_body: Option<String>`. Only one
+pill expands at a time. The card content reuses the existing sidebar
+detail-panel renderer (DRY). `Open page` jumps to a body-specific
+wiki page if available.
+
+Pills also avoid label-overlap collisions — when two bodies are
+within label-bbox of each other on screen, the smaller-magnitude
+body's pill hides until the camera pans or one of them is clicked
+(similar to KSP's overlap dodge). Implementation uses egui's painter
+to layout pills, then a per-frame `Vec<Rect>` is checked for overlap
+before each pill is drawn.
+
+### Sprite-to-mesh seamless LOD (Phase 4b)
+
+Operator: *"2D sprite at distance, transitions to 3D mesh when close
+enough (seamless loading)."*
+
+Bodies render in three regimes depending on **screen-space radius**
+(pixels covered):
+
+| Regime | Screen radius | Render |
+|--------|---------------|--------|
+| Far | < 2 px | A single bright dot, magnitude-scaled. ~119k stars from `data/cosmos/stars.csv` (Hipparcos catalog, planned Phase 4b) render exclusively in this regime. |
+| Sprite | 2 – 64 px | Pre-rendered RGBA texture of the body (round disk with shading, low-cost). Loaded from `assets/bodies/<id>.png`, falls back to procedural disk colored by `SolBody::color`. Lit by the Sun's screen-position via a single directional-light shader uniform. |
+| Mesh | ≥ 64 px | Full 3D textured sphere mesh — wgpu pipeline, PBR shader, planet texture + normal + roughness maps, sun-as-directional-light. |
+
+The transition zone (around 64 px) cross-fades sprite-α down to 0 as
+mesh-α ramps to 1 over ~10 frames, hiding the swap. Below ~4 px the
+sprite also cross-fades into the bright dot.
+
+Mesh data is **streamed**: first time a body crosses the 64-px
+threshold, the engine kicks off an async load of its mesh + textures
+from `assets/bodies/<id>/`. While loading, the sprite continues to
+render. Once loaded, the cross-fade begins. Unloads are lazy —
+meshes outside a ring of ~3× their pop-in radius get evicted after
+30 s of inactivity.
+
+This integrates with **Phase 4b's wgpu-in-egui-canvas integration**
+(currently the System view is pure egui `Painter` 2D, no wgpu). Two
+viable paths:
+
+1. **Render to texture, blit into egui** — render wgpu scene to an
+   offscreen texture, then `Painter::image()` it as a layer. Egui
+   draws pills + labels on top. Simpler, slight latency cost.
+2. **Custom egui callback** — `egui_wgpu::CallbackTrait` lets us
+   inject a wgpu pass mid-paint. Lower latency, more wiring.
+
+Path 1 ships first because it's strictly simpler and the latency cost
+is invisible at 60 fps. Path 2 is a later optimization if needed.
+
+### FPS AR-glasses overlays (Phase 4g)
+
+Operator: *"FPS AR-glasses style overlays — faintly see orbital paths
+while in FPS mode, with asteroid trajectories highlighted (no Blender-
+style controls, just there visually)."*
+
+In FPS mode (player walking on a ship deck or planet surface), the
+HUD overlays:
+
+- **Orbital paths** of nearby bodies, projected onto the player's
+  screen via the camera transform. Drawn with **low alpha** (~10%)
+  and a **subtle pulse** so they don't fight the scene. The same
+  Kepler solve that draws the Cosmos page generates these — the
+  shader just projects (x,y,z)_sim into (u,v)_screen using the
+  player camera's view + projection matrices.
+- **Asteroid trajectories highlighted** when an NEA or other tracked
+  body is on a near-Earth approach. Color brightens with proximity
+  ('near' < 100 lunar distances pulls a thicker line + label).
+- **Conjunction predictions** (see next section) shown as a discrete
+  "next event" badge with a countdown timer.
+
+No controls — overlays are purely informational. A single FPS HUD
+toggle (`H` key, already used for the HUD) cycles: full HUD → minimal
+HUD → no HUD. Orbit overlays are part of the full HUD only.
+
+Performance: nearby orbital paths only — never the full ~10k Tier-1
+asteroids, only those within 0.5 AU of the player. Filter by
+sphere-of-influence (Phase 4d): only show bodies whose SoI we're in
+or adjacent to.
+
+### Conjunction + eclipse detection (Phase 4d-tri)
+
+A **conjunction** is when two bodies appear close in the sky from a
+third observer's viewpoint. Two key angles:
+
+1. **Geocentric angular separation** between two bodies as seen
+   from Earth — for a great conjunction (Jupiter-Saturn 2020, etc.)
+2. **Heliocentric longitude** — when planets are at the same orbital
+   longitude (true syzygy)
+
+A **solar eclipse** is the special case where the Moon's angular size
+covers the Sun's from Earth, with the Moon's shadow tracing a path on
+Earth's surface.
+
+Algorithm (planned Phase 4d-tri):
+
+```rust
+fn angular_separation(observer: DVec3, a: DVec3, b: DVec3) -> f64 {
+    let to_a = (a - observer).normalize();
+    let to_b = (b - observer).normalize();
+    to_a.dot(to_b).acos()    // radians
+}
+```
+
+For conjunctions: every N sim_time-seconds (N adaptive, ~1 game-day at
+1× speed), check every (body_a, body_b) pair from Earth's POV. If
+their angular separation drops below a threshold (~1° = "conjunction",
+~0.1° = "tight conjunction", ~0° = "occultation"), emit a
+`ConjunctionEvent` with the bodies, the angle, and the sim_time.
+
+For eclipses: a solar eclipse happens when the **Moon's center**
+appears within the **Sun's angular radius** as seen from a point on
+Earth's surface. The umbra path is the locus of Earth-surface points
+where the Moon fully occludes the Sun. Real-world ephemerides match
+this to ~1 km accuracy; ours should match to ~100 km (visible-from-
+this-continent precision) at first.
+
+UI surface: a **"Sky Events" panel** in the Cosmos page listing
+upcoming events. Click → set sim_time to ~1 hour before the event,
+play at 1 h/s, watch it unfold. From FPS mode, the next event shows
+as a HUD badge.
+
+Eclipses also drive **gameplay**: the day/night system already exists
+(`src/systems/time.rs`); an eclipse darkens the sky over the umbra
+path. The ECS reads the cosmos sim_time → checks if Earth's player
+position is under the Moon's shadow → applies a sky-darkening
+modulation. Players in the umbra at the right sim_time see totality
+in-game; their location on the umbra map is shareable. *Compelling
+because it ties the game's clock to a real-world astronomical event
+that millions of people will be experiencing on the same day.*
+
+### What ships when (updated)
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| 4a | 3D camera + perspective + cosmetic moon rings | ✅ v0.206.0 |
+| 4c | Real Kepler orbital elements + ellipses + asteroid subcat | ✅ v0.207.0 |
+| 4d-time | sim_time clock + time controls + scrubber + Now button | ✅ v0.208.0 |
+| 4d-bis | Pill-style body labels with expand-to-card | Next |
+| 4d-soi | Sphere-of-influence sort + Lagrange overlay + reference-orbit rings | Soon after |
+| 4d-tri | Conjunction + eclipse detection + Sky Events panel | After 4d-bis |
+| 4e | Tier-1 minor-body catalog (~10k) + streaming spatial index | After 4d |
+| 4f | Trajectory overrides + N-body impact for story arcs | When a story arc is being authored |
+| 4b | Sprite→mesh seamless LOD + wgpu-in-egui-canvas | When visual fidelity is worth the integration cost |
+| 4g | FPS AR-glasses orbit-path overlays | After 4b ships |
+
+---
+
 ## 17a-quinque. Real astronomy, infinite asteroids, and story-arc support (2026-05-10)
 
 Operator vision: "as close to realistic as we can ... eventually include
