@@ -993,6 +993,11 @@ pub struct GuiState {
     /// pill collapses it. Independent of `cosmos_selected_body` which
     /// drives the right-side details panel. v0.209.0.
     pub cosmos_expanded_body: Option<String>,
+    /// Whether to render Lagrange-point overlay markers (L1-L5 for
+    /// Sun-Earth, Earth-Moon, Sun-Mars, Sun-Jupiter, Sun-Saturn pairs).
+    /// Off by default to keep the wide view clean. Toggled from the
+    /// cosmos canvas overlay button. v0.211.0.
+    pub cosmos_show_lagrange: bool,
 
     /// Cached server-wide settings received from the relay (v0.200.0).
     /// Populated on `server_settings_state` WS message. None means we
@@ -1424,6 +1429,7 @@ impl Default for GuiState {
             cosmos_last_real_instant: None,
             cosmos_sim_time_initialized: false,
             cosmos_expanded_body: None,
+            cosmos_show_lagrange: false,
             new_group_name: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),

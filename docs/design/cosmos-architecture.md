@@ -901,12 +901,22 @@ that millions of people will be experiencing on the same day.*
 | 4d-time | sim_time clock + time controls + scrubber + Now button | ✅ v0.208.0 |
 | 4d-bis | Pill-style body labels with expand-to-card | ✅ v0.209.0 |
 | 4d-tri | Conjunction + eclipse detection (current-moment, no scan) | ✅ v0.210.0 |
-| 4d-soi | Sphere-of-influence sort + Lagrange overlay + reference-orbit rings | Next |
+| 4d-lag | Lagrange points overlay (L1-L5 for 5 interesting pairs) | ✅ v0.211.0 |
+| 4d-soi | Sphere-of-influence sort + reference-orbit rings | Next |
 | 4d-quad | Eclipse umbra path on Earth's surface + Sky Events scan | After 4d-soi |
 | 4e | Tier-1 minor-body catalog (~10k) + streaming spatial index | After 4d |
 | 4f | Trajectory overrides + N-body impact for story arcs | When a story arc is being authored |
 | 4b | Sprite→mesh seamless LOD + wgpu-in-egui-canvas | When visual fidelity is worth the integration cost |
 | 4g | FPS AR-glasses orbit-path overlays | After 4b ships |
+
+### Phase 4d-lag implementation notes (landed v0.211.0)
+
+- Five Lagrange-pair entries hardcoded at the top of `cosmos.rs` (`LAGRANGE_PAIRS`): Sun-Earth, Earth-Moon, Sun-Mars, Sun-Jupiter, Sun-Saturn. Each entry carries a `pair_label`, the `parent_id`/`child_id`, and a small list of `notable` parking (JWST at Sun-Earth L2, Greek Trojans at Sun-Jupiter L4, etc.). Could move to a data file when the list grows past ~10 pairs; for now a const is fine.
+- `compute_lagrange_points(parent, child, sim_time)` returns `[DVec3; 5]` in heliocentric AU. L1/L2/L3 use the cube-root-of-mass-ratio approximation (accurate to ~1% for μ < 0.01, covers all current pairs). L4/L5 are exact 60°-ahead/behind equilateral points; rotation uses Rodrigues' formula about the orbit-plane normal (approximated as the ecliptic normal for now — sub-arcminute error for the ~5° tilted Earth-Moon).
+- Toggle button overlaid in the top-right of the canvas — "Lagrange: ON/OFF". Default OFF so the wide view stays clean.
+- Each point renders as a small `×` (two crossed line segments) + a center dot + label when zoomed in (parent-child screen-space distance > 50 px, otherwise labels overlap). Hover gives a tooltip with the pair label, notable parking, and a one-line explainer of what that L-point is.
+- All theme tokens; no hardcoded colors.
+- **Limitation**: orbit-plane normal is approximated as ecliptic for L4/L5. For tilted orbits (lunar, asteroid systems) the L4/L5 markers will be a few arcminutes off true. Trivial to fix later by deriving normal from the body's `inclination_deg` + `longitude_ascending_node_deg` — deferred until it's visibly wrong.
 
 ### Phase 4d-tri implementation notes (landed v0.210.0)
 

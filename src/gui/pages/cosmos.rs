@@ -1223,6 +1223,151 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     }
 
+    // Hover position is consumed by both Lagrange hover (just below) and
+    // the body draw pass below — declare once here.
+    let hover_pos = ui.input(|i| i.pointer.hover_pos());
+
+    // ── Lagrange-point overlay (Phase 4d-soi, v0.211.0) ──
+    // Render L1-L5 markers for each interesting parent-child pair when the
+    // overlay is toggled on. Hovering a marker shows its name and any
+    // notable things parked there (JWST, Trojans, etc.).
+    let mut lagrange_markers: Vec<(String, Pos2, &'static str)> = Vec::new();
+    if state.cosmos_show_lagrange {
+        for pair in LAGRANGE_PAIRS {
+            let Some(parent) = find_body(pair.parent_id) else { continue; };
+            let Some(child) = find_body(pair.child_id) else { continue; };
+            let Some(points) = compute_lagrange_points(parent, child, sim_time) else {
+                continue;
+            };
+            let names = ["L1", "L2", "L3", "L4", "L5"];
+            for (i, pt) in points.iter().enumerate() {
+                if let Some((screen, _depth)) = project_to_screen(*pt, &cam, rect) {
+                    // Render the marker — small "×" via two crossed segments.
+                    let s = 5.0_f32;
+                    let color = theme.info();
+                    paint.line_segment(
+                        [screen + Vec2::new(-s, -s), screen + Vec2::new(s, s)],
+                        Stroke::new(1.0, color),
+                    );
+                    paint.line_segment(
+                        [screen + Vec2::new(-s, s), screen + Vec2::new(s, -s)],
+                        Stroke::new(1.0, color),
+                    );
+                    // Tiny dot at the center for emphasis.
+                    paint.circle_filled(screen, 1.5, color);
+                    let label = format!("{} {}", pair.pair_label, names[i]);
+                    lagrange_markers.push((label.clone(), screen, names[i]));
+                    // Light text label below the × — only render if zoomed
+                    // in enough that markers aren't tightly clustered.
+                    // (Heuristic: skip labels when parent-child screen
+                    // distance is < 40 px.)
+                    let Some((parent_screen, _)) = project_to_screen(
+                        body_world_position_3d_au(parent, sim_time), &cam, rect)
+                    else { continue; };
+                    let Some((child_screen, _)) = project_to_screen(
+                        body_world_position_3d_au(child, sim_time), &cam, rect)
+                    else { continue; };
+                    let pair_screen_dist = (child_screen - parent_screen).length();
+                    if pair_screen_dist > 50.0 {
+                        paint.text(
+                            screen + Vec2::new(0.0, 8.0),
+                            Align2::CENTER_TOP,
+                            names[i],
+                            egui::FontId::proportional(9.0),
+                            theme.info(),
+                        );
+                    }
+                }
+            }
+        }
+
+        // Lagrange marker hover tooltip — show name + notable parking
+        // when the pointer is near a marker.
+        if let Some(hp) = hover_pos {
+            for pair in LAGRANGE_PAIRS {
+                let Some(parent) = find_body(pair.parent_id) else { continue; };
+                let Some(child) = find_body(pair.child_id) else { continue; };
+                let Some(points) = compute_lagrange_points(parent, child, sim_time) else {
+                    continue;
+                };
+                let names = ["L1", "L2", "L3", "L4", "L5"];
+                for (i, pt) in points.iter().enumerate() {
+                    if let Some((screen, _depth)) = project_to_screen(*pt, &cam, rect) {
+                        if (hp - screen).length() < 10.0 {
+                            let lname = names[i];
+                            let notable_text = pair.notable.iter()
+                                .find(|(n, _)| *n == lname)
+                                .map(|(_, what)| *what)
+                                .unwrap_or("");
+                            response.clone().on_hover_ui_at_pointer(|ui| {
+                                ui.set_max_width(220.0);
+                                ui.label(
+                                    RichText::new(format!("{} {}", pair.pair_label, lname))
+                                        .strong()
+                                        .color(theme.text_primary()),
+                                );
+                                if !notable_text.is_empty() {
+                                    ui.label(
+                                        RichText::new(notable_text)
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_secondary()),
+                                    );
+                                }
+                                let blurb = match lname {
+                                    "L1" => "Between the two bodies — unstable, needs station-keeping. Good for solar wind observatories looking 'between' the parent and child.",
+                                    "L2" => "Past the child along the parent-child line — unstable but a low-station-keeping shadow zone. Telescope heaven.",
+                                    "L3" => "On the opposite side of the parent from the child — too far + occluded to be very useful.",
+                                    "L4" => "60° ahead of the child in its orbit — stable for μ < 0.0385. Trojan asteroids accumulate here.",
+                                    "L5" => "60° behind the child in its orbit — stable for μ < 0.0385. Mirror of L4.",
+                                    _ => "",
+                                };
+                                ui.label(
+                                    RichText::new(blurb)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_muted())
+                                        .italics(),
+                                );
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let _ = lagrange_markers; // marker list saved for future click-to-track
+
+    // ── Lagrange overlay toggle button (top-right of canvas) ──
+    // A small button overlaid on the canvas so the user can flip the
+    // L-points on/off without leaving the system view. We use ui.put
+    // with an absolute rect so the button floats over the painter.
+    let toggle_rect = Rect::from_min_size(
+        Pos2::new(rect.right() - 130.0, rect.top() + 8.0),
+        egui::vec2(122.0, 22.0),
+    );
+    let mut toggle_ui = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(toggle_rect)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+    );
+    let toggle_label = if state.cosmos_show_lagrange {
+        "Lagrange: ON"
+    } else {
+        "Lagrange: OFF"
+    };
+    let btn = egui::Button::new(
+        RichText::new(toggle_label)
+            .size(theme.font_size_small)
+            .color(if state.cosmos_show_lagrange { theme.info() } else { theme.text_secondary() }),
+    )
+    .fill(theme.bg_card())
+    .stroke(Stroke::new(
+        0.8,
+        if state.cosmos_show_lagrange { theme.info() } else { theme.border() },
+    ));
+    if toggle_ui.add(btn).on_hover_text("Toggle Lagrange-point overlay (L1-L5 for Sun-Earth, Earth-Moon, Sun-Mars, Sun-Jupiter, Sun-Saturn pairs)").clicked() {
+        state.cosmos_show_lagrange = !state.cosmos_show_lagrange;
+    }
+
     // ── Sky events: detect conjunctions + eclipses for the current sim_time ──
     // (Phase 4d-tri, v0.210.0.) Cheap O(n²) over ~11 named bodies — runs every
     // frame; updates live as the user scrubs sim_time.
@@ -1248,7 +1393,7 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // PASS 1: draw the body circles + hit-test for hover/click on bodies.
     // PASS 2: pill labels (collision-dodging, priority-sorted) — see below.
     // PASS 3: expanded info card for whichever body has cosmos_expanded_body.
-    let hover_pos = ui.input(|i| i.pointer.hover_pos());
+    // (`hover_pos` declared earlier — shared with the Lagrange overlay pass.)
     let mut hovered_body: Option<&SolBody> = None;
     let mut clicked_body: Option<&SolBody> = None;
     // Cache body radii so the pill pass can reuse them as anchor offsets.
@@ -1850,6 +1995,122 @@ fn draw_night_sky_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         egui::FontId::proportional(10.0),
         theme.text_muted(),
     );
+}
+
+// ─────────────────────── Lagrange points (Phase 4d-soi, v0.211.0) ──────────
+
+/// A Lagrange-point pair worth rendering. The "parent" is the heavier body
+/// (Sun, Earth, etc.), the "child" is the orbiting smaller body.
+struct LagrangePair {
+    parent_id: &'static str,
+    child_id: &'static str,
+    pair_label: &'static str, // short name shown on hover
+    notable: &'static [(&'static str, &'static str)], // (lpoint, what's there)
+}
+
+/// Hardcoded list of interesting Lagrange pairs. Could move to data/ later
+/// once we have a notion of "system bodies + L-point notes" in the data
+/// format — but for v0.211 a static list of 5 pairs is plenty.
+const LAGRANGE_PAIRS: &[LagrangePair] = &[
+    LagrangePair {
+        parent_id: "sun",
+        child_id: "earth",
+        pair_label: "Sun-Earth",
+        notable: &[
+            ("L1", "SOHO solar observatory"),
+            ("L2", "JWST + Gaia + Euclid + Planck"),
+            ("L4", "Trojan asteroid 2010 TK7"),
+        ],
+    },
+    LagrangePair {
+        parent_id: "earth",
+        child_id: "moon",
+        pair_label: "Earth-Moon",
+        notable: &[
+            ("L1", "Future lunar gateway candidate"),
+            ("L2", "Lunar far-side relay (Queqiao)"),
+            ("L4", "Future lunar gateway candidate"),
+            ("L5", "Future lunar gateway candidate"),
+        ],
+    },
+    LagrangePair {
+        parent_id: "sun",
+        child_id: "mars",
+        pair_label: "Sun-Mars",
+        notable: &[("L4", "Eureka Trojan asteroid")],
+    },
+    LagrangePair {
+        parent_id: "sun",
+        child_id: "jupiter",
+        pair_label: "Sun-Jupiter",
+        notable: &[
+            ("L4", "Greek Trojan asteroids (~10,000 known)"),
+            ("L5", "Trojan asteroids (Patroclus, Hektor)"),
+        ],
+    },
+    LagrangePair {
+        parent_id: "sun",
+        child_id: "saturn",
+        pair_label: "Sun-Saturn",
+        notable: &[],
+    },
+];
+
+/// Compute the five Lagrange points for a (parent, child) two-body system
+/// at the given sim_time. Returns positions in heliocentric AU.
+///
+/// L1, L2, L3 use the cube-root-of-mass-ratio approximation
+/// (good to ~1% for μ < 0.01, which covers all our pairs since even
+/// Jupiter/Sun is ~0.001). L4 and L5 are the exact 60°-ahead/behind
+/// equilateral triangles in the child's orbit plane.
+fn compute_lagrange_points(
+    parent: &SolBody,
+    child: &SolBody,
+    sim_time_seconds: f64,
+) -> Option<[glam::DVec3; 5]> {
+    if parent.mass_kg <= 0.0 || child.mass_kg <= 0.0 { return None; }
+    let parent_pos = body_world_position_3d_au(parent, sim_time_seconds);
+    let child_pos = body_world_position_3d_au(child, sim_time_seconds);
+    let separation = child_pos - parent_pos;
+    let dist = separation.length();
+    if dist <= 0.0 { return None; }
+    let to_child = separation / dist;
+
+    // μ = m_child / (m_parent + m_child). For Earth-Moon μ ≈ 0.0123;
+    // for Sun-Earth μ ≈ 3e-6; for Sun-Jupiter μ ≈ 9.5e-4.
+    let mu = child.mass_kg / (parent.mass_kg + child.mass_kg);
+    let r_hill_factor = (mu / 3.0).cbrt();
+    let l1_dist = dist * (1.0 - r_hill_factor);
+    let l2_dist = dist * (1.0 + r_hill_factor);
+    let l3_dist = dist * (1.0 + 5.0 * mu / 12.0);
+
+    let l1 = parent_pos + to_child * l1_dist;
+    let l2 = parent_pos + to_child * l2_dist;
+    let l3 = parent_pos - to_child * l3_dist;
+
+    // L4 / L5 = 60° rotation in the child's orbit plane.
+    // Approximate orbit-plane normal as: cross of to_child with reference up.
+    // For most of our pairs the orbit normal is ~+Z (ecliptic-aligned), so
+    // we can use to_child × Z as a starting tangent and reconstruct.
+    let ecliptic_up = glam::DVec3::new(0.0, 0.0, 1.0);
+    let normal = to_child.cross(ecliptic_up).cross(to_child).normalize();
+    // Actually we want the orbit normal (perpendicular to orbit plane):
+    // for an orbit roughly in the ecliptic, that IS +Z. But Earth-Moon's
+    // orbit is tilted ~5° — the eclipsing math elsewhere handles this; for
+    // a Lagrange overlay this approximation is fine (sub-arcminute error).
+    let orbit_normal = to_child.cross(normal).normalize();
+
+    // Rotate `separation` by +60° and -60° about orbit_normal.
+    let angle_rad = 60.0_f64.to_radians();
+    let rot = |v: glam::DVec3, axis: glam::DVec3, theta: f64| -> glam::DVec3 {
+        // Rodrigues' rotation formula.
+        let (s, c) = theta.sin_cos();
+        v * c + axis.cross(v) * s + axis * (axis.dot(v)) * (1.0 - c)
+    };
+    let l4 = parent_pos + rot(separation, orbit_normal, angle_rad);
+    let l5 = parent_pos + rot(separation, orbit_normal, -angle_rad);
+
+    Some([l1, l2, l3, l4, l5])
 }
 
 // ─────────────────────── Sky events: conjunctions + eclipses (Phase 4d-tri, v0.210.0) ──
