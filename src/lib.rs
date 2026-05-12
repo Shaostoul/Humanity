@@ -61,7 +61,7 @@ mod native_app {
         tasks, profile, maps, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
-        browser, category_overview, settings_pages,
+        browser, category_overview, settings_pages, cosmos,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -2281,6 +2281,7 @@ mod native_app {
                                     GuiPage::Governance => governance::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Recovery => recovery::draw(ctx, &state.theme, &mut state.gui_state),
                                     // v0.197.0: GuiPage::Agents and GuiPage::AiUsage removed.
+                                    GuiPage::Cosmos => cosmos::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Testing => testing::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Browser => browser::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::OverviewReality  => category_overview::draw(ctx, &state.theme, &mut state.gui_state, "reality"),

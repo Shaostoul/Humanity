@@ -112,6 +112,11 @@ pub enum GuiPage {
     // data/coordination/* + the relay agent_sessions table — the UI
     // pages weren't pulling their weight. The page modules + state
     // fields were removed in the same release.
+    /// Cosmos page (v0.203.0, Phase 3). Three-mode astronomical map:
+    /// System (Sol planets), Galactic (Sol-centered nearby stars in ly),
+    /// Night Sky (Earth-centered celestial sphere with constellations).
+    /// Lives under Sim category in the nav. See pages/cosmos.rs.
+    Cosmos,
     /// QA testing tasks — operator-facing checklist of features to manually verify.
     /// Each task has Mark Passed / Report Issue buttons that post results to chat.
     Testing,
@@ -940,6 +945,15 @@ pub struct GuiState {
     /// confirm "Send unencrypted anyway" or cancel.
     pub dm_unencrypted_confirm: Option<PendingUnencryptedDm>,
 
+    // ── Cosmos page state (v0.203.0, Phase 3) ──
+    /// Which view the Cosmos page is currently rendering.
+    pub cosmos_view: crate::gui::pages::cosmos::CosmosView,
+    /// Pan offset (screen pixels). Updated by click-drag on the canvas.
+    pub cosmos_pan: egui::Vec2,
+    /// Zoom factor — 1.0 = default, > 1.0 = zoomed in, < 1.0 = zoomed out.
+    /// Updated by mouse wheel scroll. Clamped in allocate_canvas.
+    pub cosmos_zoom: f32,
+
     /// Cached server-wide settings received from the relay (v0.200.0).
     /// Populated on `server_settings_state` WS message. None means we
     /// haven't received the state yet (during initial connect, before
@@ -1358,6 +1372,9 @@ impl Default for GuiState {
             dm_unencrypted_confirm: None,
             server_settings: None,
             server_settings_draft: None,
+            cosmos_view: crate::gui::pages::cosmos::CosmosView::System,
+            cosmos_pan: egui::Vec2::ZERO,
+            cosmos_zoom: 1.0,
             new_group_name: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),

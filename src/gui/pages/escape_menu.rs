@@ -488,6 +488,7 @@ fn sub_pages_for(category: &str) -> Vec<NavItem> {
             NavItem { label: "Identity",     page: GuiPage::Identity,     description: "DID, Verifiable Credentials, trust score, AI status." },
         ],
         "sim" => vec![
+            NavItem { label: "Cosmos",    page: GuiPage::Cosmos,    description: "Solar system + galactic map + night sky with constellations." },
             NavItem { label: "Inventory", page: GuiPage::Inventory, description: "Item grid, equipment slots, weight tracking." },
             NavItem { label: "Crafting",  page: GuiPage::Crafting,  description: "Recipes by category with craft queue + progress." },
             NavItem { label: "Studio",    page: GuiPage::Studio,    description: "OBS-style scene + source manager for streams." },
