@@ -327,12 +327,146 @@ fn body_color(name: &str) -> Color32 {
     }
 }
 
+// ─────────────────────── 3D camera (Phase 4, v0.206.0) ─────────────────────
+
+/// 3D orbital camera for the System view. Looks at `target` from
+/// `distance_au` units away, rotated by `yaw_rad` (azimuth around Y)
+/// and `pitch_rad` (elevation). Standard turntable camera convention
+/// (Blender / KSP / Star Citizen).
+#[derive(Debug, Clone, Copy)]
+pub struct Cosmos3DCamera {
+    /// Look-at point in AU, in the system frame (Sun at origin).
+    pub target_au: glam::DVec3,
+    /// Azimuthal angle around the Y (vertical) axis. Radians.
+    pub yaw_rad: f64,
+    /// Elevation angle. Radians. Clamped to (-π/2, π/2) excl. poles.
+    pub pitch_rad: f64,
+    /// Distance from target in AU. Effective zoom — smaller = closer.
+    pub distance_au: f64,
+    /// Vertical field of view in radians.
+    pub fov_rad: f64,
+}
+
+impl Default for Cosmos3DCamera {
+    fn default() -> Self {
+        // Default: looking down at the ecliptic from a slight tilt,
+        // 60 AU away — frames the whole solar system out to Pluto.
+        Self {
+            target_au: glam::DVec3::ZERO,
+            yaw_rad: 0.0,
+            pitch_rad: -1.2,                       // ~ -69° (looking down at the ecliptic)
+            distance_au: 60.0,
+            fov_rad: 60.0_f64.to_radians(),
+        }
+    }
+}
+
+impl Cosmos3DCamera {
+    /// Camera world position derived from target + spherical offset.
+    pub fn position(&self) -> glam::DVec3 {
+        let cp = self.pitch_rad.cos();
+        let offset = glam::DVec3::new(
+            self.distance_au * cp * self.yaw_rad.cos(),
+            self.distance_au * self.pitch_rad.sin(),
+            self.distance_au * cp * self.yaw_rad.sin(),
+        );
+        self.target_au + offset
+    }
+}
+
+/// Perspective-project a 3D world position (AU) to a 2D screen pixel.
+/// Returns Some((screen_pos, depth)) where depth is camera-space Z
+/// (used for back-to-front sorting) or None if the point is behind
+/// the camera (clipped).
+fn project_to_screen(pos_au: glam::DVec3, cam: &Cosmos3DCamera, rect: Rect) -> Option<(Pos2, f64)> {
+    let cam_pos = cam.position();
+    // View matrix — look from cam_pos to target, with +Y as up. f64 throughout.
+    let view = glam::DMat4::look_at_rh(cam_pos, cam.target_au, glam::DVec3::Y);
+    let aspect = (rect.width() / rect.height().max(1.0)) as f64;
+    let proj = glam::DMat4::perspective_rh(cam.fov_rad, aspect, 0.01_f64, 10_000.0_f64);
+
+    let view_pos = view.transform_point3(pos_au);
+    if view_pos.z >= 0.0 {
+        // Behind camera (RH look_at puts forward as -Z).
+        return None;
+    }
+    let clip = proj * glam::DVec4::new(view_pos.x, view_pos.y, view_pos.z, 1.0);
+    if clip.w.abs() < 1e-6 { return None; }
+    let ndc = glam::DVec3::new(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
+    // NDC y is up; screen y is down — flip.
+    let sx = rect.left() + ((ndc.x as f32 + 1.0) * 0.5) * rect.width();
+    let sy = rect.top() + ((1.0 - (ndc.y as f32 + 1.0) * 0.5)) * rect.height();
+    Some((Pos2::new(sx, sy), -view_pos.z))
+}
+
+/// Conversion helper.
+const KM_PER_AU: f64 = 149_597_870.7;
+
+/// Compute a body's 3D position in AU within the Sol frame.
+/// Snapshot positions — uses a deterministic angle hash so each body
+/// stays put across frames (live orbital motion ships in a later
+/// phase alongside sim_time gossip). Honors orbital inclination so
+/// bodies aren't all in a perfectly flat plane.
+fn body_position_3d_au(body: &SolBody) -> glam::DVec3 {
+    // Determine semi-major axis IN AU.
+    let a_au = if body.semi_major_axis_au > 0.0 {
+        body.semi_major_axis_au
+    } else if body.semi_major_axis_km > 0.0 {
+        body.semi_major_axis_km / KM_PER_AU
+    } else {
+        return glam::DVec3::ZERO; // Sun, or body with no orbit data.
+    };
+    // Snapshot mean anomaly = hash of the body name (deterministic, no jitter).
+    let theta = (body.name.bytes().fold(0u64, |a, b| a.wrapping_add(b as u64)) as f64) * 0.137;
+    // Position in orbital plane (treat eccentricity as 0 for snapshot view —
+    // we don't have it consistently in the data load, and it's an aesthetic
+    // detail not worth the complexity for a snapshot).
+    let plane_pos = glam::DVec3::new(
+        a_au * theta.cos(),
+        0.0,
+        a_au * theta.sin(),
+    );
+    // Apply inclination. We don't have inclination stored on SolBody yet;
+    // approximate with a small wobble per body so it's not all flat.
+    // TODO Phase 5: store inclination in SolBody from JSON, use real values.
+    let inclination_rad = ((body.name.bytes().fold(0u64, |a, b| a.wrapping_add(b as u64 * 7)) as f64 % 100.0 - 50.0) / 1000.0).clamp(-0.15, 0.15);
+    let cos_i = inclination_rad.cos();
+    let sin_i = inclination_rad.sin();
+    let inclined = glam::DVec3::new(
+        plane_pos.x,
+        plane_pos.z * sin_i,                 // out-of-plane Y component
+        plane_pos.z * cos_i,
+    );
+    inclined
+}
+
+/// Compute world position in AU including parent recursion. Moons are
+/// positioned relative to their parent planet, and the parent's own
+/// position folds in. Recursion bottoms out at Sun (position = origin).
+fn body_world_position_3d_au(body: &SolBody) -> glam::DVec3 {
+    let local = body_position_3d_au(body);
+    if let Some(parent_id) = &body.parent {
+        if parent_id == "sun" {
+            local
+        } else if let Some(parent) = find_body(parent_id) {
+            body_world_position_3d_au(parent) + local
+        } else {
+            local
+        }
+    } else {
+        local // Sun itself
+    }
+}
+
 // ─────────────────────── Page entry point ───────────────────────────────────
 
 /// View mode — operator selectable via tab bar at the top of the page.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CosmosView {
-    /// Top-down 2D map of Sol — Sun + planets at fixed snapshot positions.
+    /// 3D System view of Sol — Sun at origin, planets in their orbits,
+    /// moons in real positions relative to their planets. Rotatable
+    /// camera (drag), zoomable (scroll), pannable target (shift+drag).
+    /// v0.206.0: replaced the v0.203 2D top-down with proper 3D.
     System,
     /// Top-down 2D map of stars within ~50 ly of Sol (light-year scale).
     Galactic,
@@ -383,13 +517,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .strong(),
                 );
                 ui.add_space(theme.spacing_lg);
-                view_tab(ui, theme, state, CosmosView::System,    "System",          "Sol's Sun + planets + moons, AU scale (top-down 2D).");
-                view_tab(ui, theme, state, CosmosView::Galactic,  "Galactic",        "Sol-centered map of nearby stars, light-year scale.");
-                view_tab(ui, theme, state, CosmosView::NightSky,  "Night Sky",       "Earth-centered celestial sphere with constellation lines.");
+                view_tab(ui, theme, state, CosmosView::System,    "System",          "Sol — Sun + planets + moons in 3D. Drag to rotate, scroll to zoom, shift+drag to pan.");
+                view_tab(ui, theme, state, CosmosView::Galactic,  "Galactic",        "Sol-centered map of nearby stars, light-year scale (2D top-down).");
+                view_tab(ui, theme, state, CosmosView::NightSky,  "Night Sky",       "Earth-centered celestial sphere with constellation lines (2D RA/Dec projection).");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(theme.spacing_md);
+                    let hint = match state.cosmos_view {
+                        CosmosView::System    => "3D camera · drag to rotate · scroll to zoom · shift+drag to pan",
+                        CosmosView::Galactic  => "2D top-down · scroll to zoom · click-drag to pan",
+                        CosmosView::NightSky  => "2D celestial sphere · scroll to zoom · click-drag to pan",
+                    };
                     ui.label(
-                        RichText::new("Scroll to zoom · click-drag to pan · 2D top-down (3D rotation in Phase 4).")
+                        RichText::new(hint)
                             .size(theme.font_size_small)
                             .color(theme.text_muted())
                             .italics(),
@@ -785,171 +924,210 @@ fn allocate_canvas(
 // ─────────────────────── System view ────────────────────────────────────────
 
 fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let (rect, response, center, zoom) = allocate_canvas(ui, state);
+    // ── Allocate the canvas + handle 3D camera input ──
+    let available = ui.available_size();
+    let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
     let paint = ui.painter_at(rect);
-    paint.rect_filled(rect, Rounding::ZERO, Color32::from_rgb(8, 8, 14));  // theme-exempt: deep-space backdrop — domain aesthetic
+    paint.rect_filled(rect, Rounding::ZERO, Color32::from_rgb(8, 8, 14));  // theme-exempt: deep-space backdrop
+
+    // Mouse-drag controls:
+    //   - plain drag: rotate camera (yaw + pitch)
+    //   - shift+drag: pan target in the camera's local plane
+    //   - middle-drag: same as shift (alternative for trackpads)
+    if response.dragged() {
+        let modifiers = ui.input(|i| i.modifiers);
+        let middle = response.dragged_by(egui::PointerButton::Middle);
+        if modifiers.shift || middle {
+            // Pan target in screen-relative XZ plane scaled by camera distance.
+            // Drag right → camera looks further right → target moves left.
+            let drag = response.drag_delta();
+            let scale = (state.cosmos_camera_3d.distance_au * 0.002) as f32;
+            let yaw = state.cosmos_camera_3d.yaw_rad as f32;
+            // Camera right vector = perpendicular to forward in XZ plane.
+            let right = glam::DVec3::new(-yaw.sin() as f64, 0.0, yaw.cos() as f64);
+            let up = glam::DVec3::new(0.0, 1.0, 0.0);
+            state.cosmos_camera_3d.target_au -= right * (drag.x * scale) as f64;
+            state.cosmos_camera_3d.target_au += up    * (drag.y * scale) as f64;
+        } else {
+            // Rotate. Sensitivity: 1 px = 0.005 rad (~0.3°).
+            let drag = response.drag_delta();
+            state.cosmos_camera_3d.yaw_rad   -= (drag.x * 0.005) as f64;
+            state.cosmos_camera_3d.pitch_rad += (drag.y * 0.005) as f64;
+            // Clamp pitch to (-π/2 + ε, π/2 - ε) to avoid gimbal flip.
+            let lim = std::f64::consts::FRAC_PI_2 - 0.01;
+            state.cosmos_camera_3d.pitch_rad = state.cosmos_camera_3d.pitch_rad.clamp(-lim, lim);
+        }
+    }
+
+    // Scroll = multiplicative zoom (decreases distance).
+    let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
+    if scroll_delta != 0.0 && ui.rect_contains_pointer(rect) {
+        let factor = (1.0015_f64).powf(-scroll_delta as f64);
+        state.cosmos_camera_3d.distance_au = (state.cosmos_camera_3d.distance_au * factor)
+            .clamp(0.001, 10_000.0);
+    }
+
     let bodies = sol_bodies();
-    let max_au = 35.0_f64; // Pluto-ish range
-    let scale = ((rect.width().min(rect.height()) as f64 / 2.0 - 20.0) / max_au) * zoom as f64;
 
-    // Sun at center.
-    let sun_r = (8.0 * zoom).clamp(4.0, 30.0);
-    paint.circle_filled(center, sun_r, body_color("sun"));
-    paint.text(
-        center + Vec2::new(0.0, -(sun_r + 8.0)),
-        Align2::CENTER_BOTTOM,
-        "Sun",
-        egui::FontId::proportional(11.0),
-        theme.text_primary(),
-    );
+    // ── Handle focus requests BEFORE projection (so the request takes
+    //    effect on this frame's render, not next frame). Focus simply
+    //    moves the camera target to the body's world position; the user
+    //    can adjust distance with scroll. ──
+    if let Some(focus_id) = state.cosmos_focus_request.take() {
+        if let Some(body) = find_body(&focus_id) {
+            state.cosmos_camera_3d.target_au = body_world_position_3d_au(body);
+            // For moons (small bodies orbiting close to their parent),
+            // also auto-zoom in close so the moon is meaningfully visible.
+            // Without this, focusing on Phobos would just put Mars in
+            // the center — Phobos itself sub-pixel.
+            if body.body_type == "moon" && body.semi_major_axis_km > 0.0 {
+                let moon_orbit_au = body.semi_major_axis_km / KM_PER_AU;
+                // 8x the moon's orbital radius gives a comfortable view.
+                state.cosmos_camera_3d.distance_au = (moon_orbit_au * 8.0).max(0.001);
+            } else if body.semi_major_axis_au > 0.0 {
+                // For planets — auto-distance proportional to AU so Mercury
+                // doesn't end up the same view-distance as Pluto.
+                let auto_d = (body.semi_major_axis_au * 0.3).clamp(0.5, 80.0);
+                // Only shrink, never grow — preserves user's preferred
+                // wide view if they were already zoomed out.
+                if state.cosmos_camera_3d.distance_au > auto_d * 5.0 {
+                    state.cosmos_camera_3d.distance_au = auto_d;
+                }
+            }
+        }
+        ui.ctx().request_repaint();
+    }
 
+    // ── Project all bodies, sort by depth for back-to-front draw ──
+    // Re-read the camera AFTER focus may have moved the target on this frame.
+    let cam = state.cosmos_camera_3d;
+    let _cam_pos = cam.position(); // computed once for any future overlays
+    struct ProjectedBody<'a> {
+        body: &'a SolBody,
+        screen: Pos2,
+        depth: f64,
+        world_au: glam::DVec3,
+    }
+    let mut projected: Vec<ProjectedBody> = Vec::with_capacity(bodies.len());
+    for body in bodies {
+        let world = body_world_position_3d_au(body);
+        if let Some((screen, depth)) = project_to_screen(world, &cam, rect) {
+            projected.push(ProjectedBody { body, screen, depth, world_au: world });
+        }
+    }
+    // Back-to-front: largest depth first (farther from camera).
+    projected.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal));
+
+    // ── Draw orbit ellipses for each direct sun-orbiter ──
+    // Sample N points around each orbit, project, draw line segments.
+    // Inclination affects out-of-plane motion but for now (snapshot model)
+    // we use a simple co-planar circle scaled by semi-major axis.
+    for body in bodies {
+        if body.parent.as_deref() != Some("sun") || body.semi_major_axis_au <= 0.0 { continue; }
+        const N: usize = 96;
+        let mut prev: Option<Pos2> = None;
+        for i in 0..=N {
+            let t = (i as f64 / N as f64) * std::f64::consts::TAU;
+            let p = glam::DVec3::new(
+                body.semi_major_axis_au * t.cos(),
+                0.0,
+                body.semi_major_axis_au * t.sin(),
+            );
+            if let Some((pp, _)) = project_to_screen(p, &cam, rect) {
+                if let Some(prev_p) = prev {
+                    paint.line_segment([prev_p, pp], Stroke::new(0.6, Color32::from_rgb(45, 45, 70)));  // theme-exempt: orbital ellipse — faint backdrop
+                }
+                prev = Some(pp);
+            } else {
+                prev = None;
+            }
+        }
+    }
+    // Moon orbits (relative to parent).
+    for body in bodies {
+        if body.body_type != "moon" || body.semi_major_axis_km <= 0.0 { continue; }
+        let parent_id = match &body.parent { Some(p) => p, None => continue };
+        let parent = match find_body(parent_id) { Some(p) => p, None => continue };
+        let parent_world = body_world_position_3d_au(parent);
+        let r_au = body.semi_major_axis_km / KM_PER_AU;
+        const N: usize = 48;
+        let mut prev: Option<Pos2> = None;
+        for i in 0..=N {
+            let t = (i as f64 / N as f64) * std::f64::consts::TAU;
+            let p = parent_world + glam::DVec3::new(r_au * t.cos(), 0.0, r_au * t.sin());
+            if let Some((pp, _)) = project_to_screen(p, &cam, rect) {
+                if let Some(prev_p) = prev {
+                    paint.line_segment([prev_p, pp], Stroke::new(0.4, Color32::from_rgb(35, 35, 55)));  // theme-exempt: moon orbit — faintest backdrop
+                }
+                prev = Some(pp);
+            } else {
+                prev = None;
+            }
+        }
+    }
+
+    // ── Draw bodies (back-to-front, with depth-scaled radii) ──
     let hover_pos = ui.input(|i| i.pointer.hover_pos());
     let mut hovered_body: Option<&SolBody> = None;
     let mut clicked_body: Option<&SolBody> = None;
+    for pb in &projected {
+        // Apparent radius — based on real radius_km, projected through the
+        // camera distance. A planet's apparent angular size = radius / distance.
+        // Convert to pixels using the camera's vertical FOV + screen height.
+        let body_radius_au = pb.body.radius_km / KM_PER_AU;
+        let apparent_rad = (body_radius_au / pb.depth).abs();
+        let pixels_per_rad = (rect.height() as f64) / (cam.fov_rad);
+        let mut r_px = (apparent_rad * pixels_per_rad) as f32;
+        // Floor + ceil so even tiny bodies are visible (would otherwise be
+        // sub-pixel) and the Sun doesn't take over the entire screen.
+        let min_r = if pb.body.id == "sun" { 8.0 }
+                    else if pb.body.body_type == "moon" { 1.5 }
+                    else if pb.body.body_type == "asteroid" { 1.0 }
+                    else { 2.5 };
+        let max_r = if pb.body.id == "sun" { 80.0 } else { 40.0 };
+        r_px = r_px.max(min_r).min(max_r);
 
-    // Track each planet's screen position so moons + ship icons + future
-    // overlays can position relative to them without recomputing.
-    let mut planet_positions: std::collections::HashMap<String, Pos2> = std::collections::HashMap::new();
-
-    // First pass: planets + dwarf planets + asteroids that orbit Sun directly.
-    for body in bodies.iter() {
-        if body.parent.as_deref() != Some("sun") || body.semi_major_axis_au <= 0.0 {
-            continue;
-        }
-        let orbit_r = (body.semi_major_axis_au * scale) as f32;
-        if orbit_r < 3.0 || orbit_r > rect.width() {
-            continue;
-        }
-        // Faint orbit ring.
-        paint.circle_stroke(center, orbit_r, Stroke::new(0.8, Color32::from_rgb(40, 40, 60)));  // theme-exempt: orbital ring — faint backdrop element
-        // Snapshot angle (deterministic: hash of name → angle). Looks
-        // static across frames, which is fine for a chart UI; live orbital
-        // motion ships in a later phase alongside sim_time gossip.
-        let angle = body.name.bytes().fold(0u64, |a, b| a.wrapping_add(b as u64)) as f32 * 0.137;
-        let px = center.x + orbit_r * angle.cos();
-        let py = center.y + orbit_r * angle.sin();
-        let pos = Pos2::new(px, py);
-        planet_positions.insert(body.id.clone(), pos);
-
-        let r = if body.radius_km > 30000.0 { (5.0 * zoom).clamp(3.0, 14.0) }
-                else if body.radius_km > 5000.0 { (3.5 * zoom).clamp(2.5, 9.0) }
-                else { (2.5 * zoom).clamp(2.0, 6.0) };
-        paint.circle_filled(pos, r, body_color(&body.name));
-
-        // Highlight ring for the selected body.
-        if state.cosmos_selected_body.as_deref() == Some(body.id.as_str()) {
-            paint.circle_stroke(pos, r + 3.0, Stroke::new(1.5, theme.accent()));
+        paint.circle_filled(pb.screen, r_px, body_color(&pb.body.name));
+        if state.cosmos_selected_body.as_deref() == Some(pb.body.id.as_str()) {
+            paint.circle_stroke(pb.screen, r_px + 3.0, Stroke::new(1.5, theme.accent()));
         }
 
+        // Hit testing for hover/click.
         if let Some(hp) = hover_pos {
-            if (hp - pos).length() < r + 4.0 {
-                hovered_body = Some(body);
+            if (hp - pb.screen).length() < r_px + 4.0 {
+                hovered_body = Some(pb.body);
                 if response.clicked() {
-                    clicked_body = Some(body);
+                    clicked_body = Some(pb.body);
                 }
             }
         }
-        if zoom > 0.6 {
+
+        // Label — only show for "important enough" bodies to avoid clutter.
+        // Always-label criteria: planet / dwarf-planet / star, or hovered, or selected.
+        let always_label = matches!(pb.body.body_type.as_str(),
+            "star" | "terrestrial" | "gas_giant" | "ice_giant" | "dwarf_planet");
+        let highlight = hovered_body.map(|b| b.id == pb.body.id).unwrap_or(false)
+            || state.cosmos_selected_body.as_deref() == Some(pb.body.id.as_str());
+        if always_label || highlight {
             paint.text(
-                pos + Vec2::new(0.0, -(r + 4.0)),
+                pb.screen + Vec2::new(0.0, -(r_px + 4.0)),
                 Align2::CENTER_BOTTOM,
-                &body.name,
+                &pb.body.name,
                 egui::FontId::proportional(10.0),
-                theme.text_secondary(),
+                if highlight { theme.text_primary() } else { theme.text_secondary() },
             );
         }
     }
+    // Suppress unused-field warning for world_au — kept on the struct so
+    // future label-collision-avoidance code can reference it.
+    let _suppress_unused: Option<glam::DVec3> = projected.first().map(|p| p.world_au);
 
-    // Second pass: moons. Rendered in a small ring AROUND their parent
-    // planet's screen position. The ring radius is purely cosmetic
-    // (planets-and-moons-to-scale would have moons sub-pixel close to
-    // their planet); offsetting them by ~14-22 px makes them clickable
-    // without needing to zoom into a single planet. Operator note
-    // 2026-05-10: this addresses "what if a moon is directly underneath
-    // the planet at the southern pole" in 2D top-down — moons are NEVER
-    // rendered overlapping their parent here; they always get a visible
-    // ring slot. Real 3D rotation will replace this when wgpu-in-egui
-    // integration ships in Phase 4.
-    for body in bodies.iter() {
-        if body.body_type != "moon" { continue; }
-        let parent_id = match &body.parent { Some(p) => p, None => continue };
-        let parent_pos = match planet_positions.get(parent_id) { Some(p) => *p, None => continue };
-        // Determine moon's slot in the ring around the parent.
-        // Use index of this moon in its parent's children list for stable angles.
-        let parent_body = match find_body(parent_id) { Some(p) => p, None => continue };
-        let slot_idx = parent_body.children.iter().position(|m| m == &body.id).unwrap_or(0);
-        let slot_count = parent_body.children.len().max(1) as f32;
-        let angle = (slot_idx as f32 / slot_count) * std::f32::consts::TAU;
-        let ring_r = 14.0_f32 + (slot_idx as f32 * 0.5).min(8.0);
-        let mp = Pos2::new(
-            parent_pos.x + ring_r * angle.cos(),
-            parent_pos.y + ring_r * angle.sin(),
-        );
-        let mr = (1.5 * zoom).clamp(1.5, 4.0);
-        paint.circle_filled(mp, mr, body_color(&body.name));
-        if state.cosmos_selected_body.as_deref() == Some(body.id.as_str()) {
-            paint.circle_stroke(mp, mr + 2.0, Stroke::new(1.0, theme.accent()));
-        }
-        if let Some(hp) = hover_pos {
-            if (hp - mp).length() < mr + 3.0 {
-                hovered_body = Some(body);
-                if response.clicked() {
-                    clicked_body = Some(body);
-                }
-            }
-        }
-    }
-
-    // Click on Sun selects it too.
-    if let Some(hp) = hover_pos {
-        if (hp - center).length() < sun_r + 3.0 {
-            if let Some(sun) = find_body("sun") {
-                hovered_body = Some(sun);
-                if response.clicked() {
-                    clicked_body = Some(sun);
-                }
-            }
-        }
-    }
-
-    // Apply click selection — drives the right-side details panel.
+    // Apply click selection.
     if let Some(b) = clicked_body {
         state.cosmos_selected_body = Some(b.id.clone());
     }
 
-    // v0.205.0: handle focus requests. When a body is requested as the
-    // focus target (sidebar click or "Focus" button), shift cosmos_pan
-    // so that body lands at the canvas center on this frame, then clear
-    // the request. Lookup uses planet_positions which we populated above
-    // with the body's screen position at current zoom + pan.
-    if let Some(focus_id) = state.cosmos_focus_request.take() {
-        let body_screen_pos = if focus_id == "sun" {
-            Some(center)
-        } else if let Some(p) = planet_positions.get(&focus_id) {
-            Some(*p)
-        } else {
-            // Moon / asteroid not directly tracked — focus on its parent
-            // (which is what the user probably expects since moons live
-            // in the cosmetic ring around their planet).
-            find_body(&focus_id)
-                .and_then(|b| b.parent.as_ref())
-                .and_then(|p| planet_positions.get(p))
-                .copied()
-        };
-        if let Some(target) = body_screen_pos {
-            // Translate pan so target moves from its current screen
-            // position to the canvas center.
-            let canvas_center = rect.center();
-            let shift = canvas_center - target;
-            state.cosmos_pan += shift;
-        }
-        // Note: pan changed mid-frame so the bodies just rendered are at
-        // the OLD position. Egui repaints next frame so the visual lands
-        // immediately. The one-frame stagger is imperceptible.
-        ui.ctx().request_repaint();
-    }
-
-    // Hover tooltip.
+    // ── Hover tooltip ──
     if let (Some(body), Some(_)) = (hovered_body, hover_pos) {
         response.on_hover_ui_at_pointer(|ui| {
             ui.set_max_width(280.0);
@@ -969,13 +1147,30 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .size(theme.font_size_small).color(theme.text_muted()));
             }
             ui.label(
-                RichText::new("Click to open details →")
+                RichText::new("Click to open details · drag to rotate · scroll to zoom · shift+drag to pan")
                     .size(theme.font_size_small)
                     .color(theme.accent())
                     .italics(),
             );
         });
     }
+
+    // ── HUD overlay: camera state for the operator ──
+    paint.text(
+        Pos2::new(rect.left() + 8.0, rect.bottom() - 24.0),
+        Align2::LEFT_BOTTOM,
+        format!("Cam: {:.1} AU from target · yaw {:+.0}° · pitch {:+.0}°",
+            cam.distance_au, cam.yaw_rad.to_degrees(), cam.pitch_rad.to_degrees()),
+        egui::FontId::proportional(10.0),
+        theme.text_muted(),
+    );
+    paint.text(
+        Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0),
+        Align2::LEFT_BOTTOM,
+        "Drag to rotate · scroll to zoom · shift+drag to pan target · click body to select · Focus button in details panel",
+        egui::FontId::proportional(10.0),
+        theme.text_muted(),
+    );
 }
 
 // ─────────────────────── Galactic view (Sol-centered, ly) ───────────────────

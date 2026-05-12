@@ -658,9 +658,9 @@ implementation; capturing them here so we don't pretend they're settled.
 
 ---
 
-## 17a-quater. Cosmos UI: 2D for now, 3D in Phase 4
+## 17a-quater. Cosmos UI: 3D System view shipped (Phase 4, v0.206.0)
 
-### Phase 3 ships 2D top-down (current)
+### Phase 3 was 2D top-down (replaced)
 
 The Cosmos page renders 2D top-down using egui's `Painter`. Three views
 share one canvas: System (Sol's planets, AU scale), Galactic (Sol-centered
@@ -683,21 +683,49 @@ their parent's frame land in Phase 7 alongside live sim_time gossip,
 and are presented via planet-zoom (clicking a planet zooms into its
 moon system at AU-fraction scale).
 
-### Phase 4 will add real 3D camera
+### Phase 4 (v0.206.0) — pseudo-3D System view shipped
 
-When wgpu-in-egui-canvas integration ships in Phase 4, the System view
-moves to a true 3D rendering pipeline:
-- Free camera with mouse-drag rotation, scroll-wheel zoom, middle-click
-  pan (matches Blender / KSP / Star Citizen camera conventions)
-- Real orbital geometry — moons at their actual offsets, ships at
-  inclined orbits, etc. No more cosmetic ring tricks.
-- The existing `src/renderer/floating_origin.rs` handles the precision
-  half (re-centers world coords near origin per frame).
-- Per-body "look at" presets — click a planet, camera dollies to it.
+The System view is now a true 3D scene:
+- **`Cosmos3DCamera`** with target / yaw / pitch / distance — turntable
+  camera matching Blender / KSP / Star Citizen conventions.
+- **Real 3D body positions** — planets at their actual semi-major-axis
+  distances + slight inclination wobbles. Moons at their actual
+  km-scale offsets relative to their parent planet (Earth-Moon = 384,400 km
+  = 0.00257 AU = sub-pixel at solar-system scale, but visible as soon
+  as you zoom in close).
+- **Perspective projection** — apparent body size scales with depth.
+  Pluto looks tiny when viewed from above the ecliptic; Earth looks
+  big when you zoom into it.
+- **Mouse interaction:**
+  - Drag = rotate camera (yaw + pitch)
+  - Scroll = zoom (multiplicative, multi-orders-of-magnitude range)
+  - Shift+drag or middle-drag = pan target across the scene
+- **Orbit ellipses** drawn as 96-segment polylines through 3D-projected
+  points (so they correctly tilt as the camera rotates).
+- **Auto-zoom on focus** — clicking Phobos in the sidebar moves the
+  camera to Mars + zooms to 8× Phobos's orbital radius (so the moon
+  is meaningfully visible). Clicking Earth zooms to ~0.3 AU view.
+- **Depth-sorted draw order** — bodies sorted back-to-front so closer
+  ones occlude farther ones.
 
 The 2D Galactic + Night Sky views stay in 2D — those are inherently
 flat presentations (galactic plane projection, celestial sphere
 projection). 3D would add nothing.
+
+### What's still missing — Phase 4b (textures + lighting)
+
+The current implementation uses egui's 2D `Painter` with perspective
+math. Bodies are flat-shaded colored disks. Phase 4b adds:
+- **wgpu-in-egui-canvas integration** — render a real 3D scene to a
+  texture inside the cosmos canvas using egui's `PaintCallback`
+- **Textured planets** — Earth's coastlines, Mars's surface, Jupiter's
+  bands. The existing renderer pipeline already has these; just needs
+  to be hooked into the cosmos panel.
+- **Sun lighting** — phase shadows (the night side of Earth is dark).
+- **True skybox** — the 119k stars from `data/stars.csv` rendered as
+  a backdrop sphere instead of a flat dark color.
+- **Real orbital mechanics** — Kepler's equations evolved over sim_time
+  so planets actually move along their orbits.
 
 ## 17a. Locked decisions (2026-05-10)
 

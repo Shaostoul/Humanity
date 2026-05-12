@@ -965,6 +965,10 @@ pub struct GuiState {
     /// clears the request. Set by sidebar click or "Focus" button.
     /// v0.205.0 (operator pushback on zoom always centering on Sun).
     pub cosmos_focus_request: Option<String>,
+    /// 3D camera state for System view (Phase 4, v0.206.0).
+    /// Yaw + pitch + distance + look-at target define the camera; mouse
+    /// drag rotates, scroll zooms, sidebar click re-centers the target.
+    pub cosmos_camera_3d: crate::gui::pages::cosmos::Cosmos3DCamera,
 
     /// Cached server-wide settings received from the relay (v0.200.0).
     /// Populated on `server_settings_state` WS message. None means we
@@ -1390,6 +1394,7 @@ impl Default for GuiState {
             cosmos_selected_body: None,
             cosmos_expanded_planets: std::collections::HashSet::new(),
             cosmos_focus_request: None,
+            cosmos_camera_3d: crate::gui::pages::cosmos::Cosmos3DCamera::default(),
             new_group_name: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),
