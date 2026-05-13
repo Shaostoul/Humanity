@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HumanityOS: Own your tools. Own your life. Own your future.</title>
-  <meta name="description" content="A free app where people chat, plan, trade, and build together. No accounts, no owner, public domain. 150+ features live right now.">
+  <title>HumanityOS: Free water. Free energy. Free food. Forever.</title>
+  <meta name="description" content="Open-source tools and step-by-step guides to grow your own food, generate your own power, and collect your own water. No corporations, no subscriptions, no permission needed.">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="HumanityOS: Own your tools. Own your life. Own your future.">
-  <meta property="og:description" content="A free app where people chat, plan, trade, and build together. No accounts, no owner, public domain. 150+ features live right now.">
+  <meta property="og:title" content="HumanityOS: Free water. Free energy. Free food. Forever.">
+  <meta property="og:description" content="Open-source tools and step-by-step guides to grow your own food, generate your own power, and collect your own water. No corporations, no subscriptions, no permission needed.">
   <meta property="og:url" content="https://united-humanity.us">
   <meta property="og:image" content="https://shaostoul.github.io/Humanity/assets/img/brand/logo/logo.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="HumanityOS: Own your tools. Own your life. Own your future.">
-  <meta name="twitter:description" content="A free app where people chat, plan, trade, and build together. No accounts, no owner, public domain. 150+ features live right now.">
+  <meta name="twitter:title" content="HumanityOS: Free water. Free energy. Free food. Forever.">
+  <meta name="twitter:description" content="Open-source tools and step-by-step guides to grow your own food, generate your own power, and collect your own water.">
   <meta name="twitter:image" content="https://shaostoul.github.io/Humanity/assets/img/brand/logo/logo.png">
 
   <link rel="manifest" href="/shared/manifest.json">
@@ -28,14 +28,13 @@
   <link rel="stylesheet" href="/shared/theme.css">
 
   <style>
-    body { line-height: 1.7; min-height: 100vh; padding-bottom: 80px; }
+    body { line-height: 1.7; min-height: 100vh; padding-bottom: 80px; color: #e8e8e8; background: #1a1a1a; }
     a { transition: color 0.2s; }
-
     .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
 
-    /* ── Hero ── */
+    /* Hero */
     .hero {
-      padding: 80px 0 70px;
+      padding: 80px 0 60px;
       text-align: center;
     }
     .mission-eyebrow {
@@ -51,25 +50,24 @@
       font-size: clamp(2rem, 5vw, 3.2rem);
       font-weight: 800;
       line-height: 1.15;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
     .hero h1 em { font-style: normal; color: var(--accent); }
-    .hero .what-is-it {
-      font-size: 1.1rem;
+    .hero .subtitle {
+      font-size: 1.15rem;
       color: var(--text-muted);
-      max-width: 640px;
+      max-width: 680px;
       margin: 0 auto 36px;
+      line-height: 1.6;
     }
-    .hero .what-is-it strong { color: var(--text); }
     .hero-ctas {
       display: flex;
       gap: 12px;
       justify-content: center;
       flex-wrap: wrap;
-      margin-bottom: 48px;
     }
 
-    /* ── Buttons ── */
+    /* Buttons */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -81,6 +79,7 @@
       text-decoration: none;
       transition: all 0.2s;
       cursor: pointer;
+      border: none;
     }
     .btn-primary {
       background: var(--accent);
@@ -98,81 +97,7 @@
       transform: translateY(-1px);
     }
 
-    /* ── Three Paths ── */
-    .paths {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-    .path-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 24px;
-      text-decoration: none;
-      color: var(--text);
-      transition: all 0.2s;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .path-card:hover {
-      border-color: var(--accent);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 20px rgba(255,136,17,0.1);
-    }
-    .path-card .path-icon-wrap {
-      color: var(--accent);
-      margin-bottom: 4px;
-    }
-    .path-card .path-label {
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--accent);
-    }
-    .path-card h3 { font-size: 1.1rem; margin: 0; }
-    .path-card p { font-size: 0.88rem; color: var(--text-muted); margin: 0; }
-    .path-card .path-action {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--accent);
-      margin-top: auto;
-      padding-top: 8px;
-    }
-
-    /* ── Use cases ── */
-    .use-cases {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 16px;
-      margin-top: 28px;
-    }
-    .use-case {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 22px;
-    }
-    .use-case h3 {
-      font-size: 1rem;
-      font-weight: 700;
-      margin: 0 0 8px;
-    }
-    .use-case p {
-      font-size: 0.9rem;
-      color: var(--text-muted);
-      margin: 0;
-    }
-    .use-case .uc-icon-wrap {
-      color: var(--accent);
-      margin-bottom: 10px;
-      height: 28px;
-    }
-
-    /* ── Section headers ── */
+    /* Sections */
     section { padding: 60px 0; }
     .section-label {
       font-size: 0.72rem;
@@ -193,22 +118,194 @@
       margin-bottom: 12px;
     }
 
-    /* ── What-is-it block ── */
-    .what-block {
+    /* Wake-up block */
+    .wakeup {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--danger, #e55);
+      border-radius: 10px;
+      padding: 28px 32px;
+      margin-bottom: 40px;
+    }
+    .wakeup p {
+      font-size: 1rem;
+      color: var(--text);
+      margin: 0 0 12px;
+      max-width: none;
+    }
+    .wakeup p:last-child { margin-bottom: 0; }
+
+    /* Pillar cards */
+    .pillars {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+      margin-top: 28px;
+    }
+    .pillar {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .pillar:hover {
+      border-color: var(--accent);
+      box-shadow: 0 4px 20px rgba(255,136,17,0.08);
+    }
+    .pillar-icon {
+      font-size: 2rem;
+      line-height: 1;
+    }
+    .pillar h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 0;
+    }
+    .pillar p {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.6;
+    }
+    .pillar .highlight {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: auto;
+      padding-top: 4px;
+    }
+
+    /* How it works */
+    .how-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 28px;
+    }
+    .how-item {
+      padding: 22px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .how-item .how-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #000;
+      font-weight: 800;
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+    }
+    .how-item h4 { font-size: 0.98rem; font-weight: 700; margin-bottom: 6px; }
+    .how-item p { font-size: 0.88rem; color: var(--text-muted); margin: 0; }
+
+    /* Quest preview */
+    .quest-preview {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 32px;
+      margin-top: 28px;
     }
-    .what-block p {
-      font-size: 1.02rem;
+    .quest-preview h4 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 0 0 4px;
+    }
+    .quest-preview .quest-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin: 0 0 20px;
+    }
+    .quest-steps {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .quest-steps li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 0.92rem;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .quest-steps .step-check {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .quest-steps .step-text {
+      flex: 1;
+    }
+    .quest-steps .step-text strong {
+      display: block;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .quest-steps .step-text span {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+    }
+
+    /* Vision block */
+    .vision-block {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 10px;
+      padding: 28px 32px;
+    }
+    .vision-block p {
+      font-size: 1rem;
       color: var(--text);
       margin: 0 0 14px;
       max-width: none;
+      line-height: 1.7;
     }
-    .what-block p:last-child { margin-bottom: 0; color: var(--text-muted); font-size: 0.92rem; }
+    .vision-block p:last-child { margin-bottom: 0; }
 
-    /* ── Proof strip ── */
+    /* Built today */
+    .built-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .built-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+    .built-item .bi-check {
+      color: var(--success, #4a4);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* Proof strip */
     .proof-strip {
       display: flex;
       align-items: center;
@@ -220,11 +317,13 @@
       border-radius: 10px;
       text-align: center;
       flex-wrap: wrap;
+      margin-top: 20px;
     }
     .proof-strip p {
       margin: 0;
       font-size: 0.92rem;
       color: var(--text-muted);
+      max-width: none;
     }
     .proof-strip a { color: var(--accent); text-decoration: none; }
     .proof-strip a:hover { text-decoration: underline; }
@@ -241,98 +340,48 @@
       50% { opacity: 0.5; transform: scale(1.3); }
     }
 
-    /* ── How it differs ── */
-    .diff-grid {
+    /* Get started paths */
+    .paths {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 16px;
-      margin-top: 28px;
-    }
-    .diff-item {
-      padding: 22px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-    }
-    .diff-item .diff-icon { color: var(--accent); margin-bottom: 10px; }
-    .diff-item h4 { font-size: 0.98rem; font-weight: 700; margin-bottom: 6px; }
-    .diff-item p { font-size: 0.88rem; color: var(--text-muted); margin: 0; }
-
-    /* ── Plain-English block ── */
-    .plain-english {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--accent);
-      border-radius: 10px;
-      padding: 28px 32px;
-    }
-    .plain-english p {
-      font-size: 1rem;
-      color: var(--text);
-      margin: 0 0 14px;
-      max-width: none;
-    }
-    .plain-english p:last-child { margin-bottom: 0; }
-
-    /* ── Status split ── */
-    .status-split {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-top: 24px;
-    }
-    .status-col {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 22px;
-    }
-    .status-col h4 {
-      font-size: 0.98rem;
-      font-weight: 700;
-      margin: 0 0 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .status-col.works h4 { color: var(--success); }
-    .status-col.early h4 { color: #f90; }
-    .status-col ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      font-size: 0.9rem;
-      color: var(--text-muted);
-    }
-    .status-col li {
-      padding: 4px 0;
-    }
-    .status-footer {
-      font-size: 0.9rem;
-      color: var(--text-muted);
       margin-top: 20px;
-      font-style: italic;
     }
-    @media (max-width: 600px) {
-      .status-split { grid-template-columns: 1fr; }
-    }
-
-    /* ── Dev spec block ── */
-    .dev-spec {
+    .path-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 24px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 0.88rem;
-      line-height: 1.7;
-      color: var(--text-muted);
-      margin-bottom: 20px;
+      text-decoration: none;
+      color: var(--text);
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
-    .dev-spec strong { color: var(--text); font-weight: 600; }
-    .dev-cta { display: flex; gap: 12px; flex-wrap: wrap; }
+    .path-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(255,136,17,0.1);
+    }
+    .path-card .path-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .path-card h3 { font-size: 1.1rem; margin: 0; }
+    .path-card p { font-size: 0.88rem; color: var(--text-muted); margin: 0; }
+    .path-card .path-action {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: auto;
+      padding-top: 8px;
+    }
 
-    /* ── Get involved ── */
+    /* Involve grid */
     .involve-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -369,15 +418,39 @@
     }
     .follow-line a:hover { color: var(--accent); border-color: var(--accent); }
 
-    /* ── Donate ── */
+    /* Donate */
     .donate-section { text-align: center; padding: 60px 0; }
     .donate-section p { max-width: 500px; margin: 0 auto 28px; color: var(--text-muted); }
     .donate-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
+    /* Dev details (collapsed) */
+    .dev-details { margin-top: 24px; }
+    .dev-details summary {
+      cursor: pointer;
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 12px 0;
+    }
+    .dev-details summary:hover { color: var(--accent); }
+    .dev-spec {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.85rem;
+      line-height: 1.7;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+    .dev-spec strong { color: var(--text); font-weight: 600; }
+
     @media (max-width: 600px) {
       .hero { padding: 50px 0 40px; }
       section { padding: 44px 0; }
-      .paths, .use-cases { grid-template-columns: 1fr; }
+      .pillars, .how-grid, .paths { grid-template-columns: 1fr; }
+      .wakeup, .vision-block, .quest-preview { padding: 20px; }
     }
   </style>
 </head>
@@ -388,67 +461,47 @@
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js"></script>
 
-  <!--
-    v0.196.0: sign-in banner shown only when /chat redirected here
-    because the visitor has no identity yet (?welcome=1 in URL). Lets
-    the user pick a name and join in one click without leaving the
-    landing page. Generates an Ed25519 keypair locally, saves the
-    PKCS8-wrapped private key + the chosen name to localStorage, then
-    bounces back to /chat#joined (the hash flag tells chat's pre-flight
-    to skip the redirect-back-to-landing check).
-
-    The whole identity creation runs in the browser — no server call,
-    no signup form data sent anywhere. The "humanity_key_backup" entry
-    is exactly the format chat/crypto.js expects, so the chat client
-    picks it up on next load like any returning user.
-  -->
+  <!-- v0.196.0: sign-in banner, shown only when /chat redirected here (?welcome=1) -->
   <section id="welcome-signin" style="display: none; padding: 32px 24px; background: linear-gradient(180deg, rgba(237,140,36,0.08), transparent);">
     <div style="max-width: 720px; margin: 0 auto; text-align: center;">
       <div style="font-size: 0.85rem; color: var(--accent); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;">First time here?</div>
       <h2 style="font-size: clamp(1.5rem, 3vw, 2rem); margin: 0 0 12px; font-weight: 800;">Welcome to HumanityOS</h2>
       <p style="color: var(--text-muted); margin: 0 0 8px; line-height: 1.6;">
-        A free app where anyone can chat, plan, trade, and build together. No ads, no accounts, no owner.
-        Read about it below — or pick a name and jump straight into the chat.
+        A free platform where anyone can learn self-sufficiency, share knowledge, trade, and build together. No ads, no accounts, no owner.
+        Read about it below, or pick a name and jump straight into the community.
       </p>
       <p style="color: var(--text-muted); margin: 0 0 20px; line-height: 1.6; font-size: 0.9rem;">
         Your "name" is just a label other members see. There's no password, no email, no profile to fill in.
-        Your computer creates a private signing key for you so messages prove they're yours. The key never leaves this device.
+        Your computer creates a private signing key so messages prove they're yours. The key never leaves this device.
       </p>
       <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; max-width: 480px; margin: 0 auto;">
         <input id="welcome-name" type="text" placeholder="Your chosen name (letters, numbers, _ -)"
                style="flex: 1; min-width: 220px; padding: 12px 14px; font-size: 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-primary);"
                maxlength="24" autofocus>
         <button id="welcome-join" style="padding: 12px 22px; font-size: 1rem; font-weight: 700; border: none; border-radius: 8px; background: var(--accent); color: var(--text-on-accent, #000); cursor: pointer;">
-          Join the chat →
+          Join the community
         </button>
       </div>
       <p id="welcome-error" style="color: var(--danger); margin: 10px 0 0; font-size: 0.9rem; min-height: 1.2em;"></p>
       <p style="color: var(--text-muted); margin-top: 18px; font-size: 0.85rem;">
-        Want to read more first? Scroll down — everything HumanityOS does is documented below.
-        Already have an identity from another device? <a href="/identity" style="color: var(--accent);">Restore from your seed phrase →</a>
+        Want to read more first? Scroll down.
+        Already have an identity from another device? <a href="/identity" style="color: var(--accent);">Restore from your seed phrase</a>
       </p>
     </div>
   </section>
 
   <script>
-    // v0.196.0: only show the welcome banner when ?welcome=1 is set
-    // (i.e. /chat redirected here because the visitor has no identity).
-    // This keeps the landing page clean for return visitors who came
-    // for the marketing copy rather than to sign up.
     (function welcomeBanner() {
       var params = new URLSearchParams(location.search);
       if (params.get('welcome') !== '1') return;
       var sec = document.getElementById('welcome-signin');
       if (!sec) return;
       sec.style.display = 'block';
-      // Scroll into view so the user sees the sign-up immediately even
-      // if they were deep in the page from a previous visit.
       sec.scrollIntoView({ behavior: 'auto', block: 'start' });
       var nameInput = document.getElementById('welcome-name');
       var joinBtn = document.getElementById('welcome-join');
       var err = document.getElementById('welcome-error');
 
-      // Pre-fill from any saved name (for users who clear keys but keep name).
       var saved = localStorage.getItem('humanity_name');
       if (saved) nameInput.value = saved;
       nameInput.focus();
@@ -466,15 +519,10 @@
         joinBtn.disabled = true;
         joinBtn.textContent = 'Setting up your identity...';
         try {
-          // Generate Ed25519 keypair via Web Crypto API. Same algorithm
-          // chat/crypto.js uses — see generateKeypair() there.
           var kp = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
           var rawPub = await crypto.subtle.exportKey('raw', kp.publicKey);
           var publicKeyHex = Array.from(new Uint8Array(rawPub))
             .map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
-          // Save PKCS8-wrapped private key + pubkey to localStorage in
-          // the format chat/crypto.js's restoreKeyFromLocalStorage()
-          // expects. Chat picks it up on next load like a returning user.
           var pkcs8 = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
           var b64 = btoa(String.fromCharCode.apply(null, new Uint8Array(pkcs8)));
           localStorage.setItem('humanity_key_backup', JSON.stringify({
@@ -482,15 +530,13 @@
             privateKeyPkcs8: b64
           }));
           localStorage.setItem('humanity_name', name);
-          // Bounce to chat. The #joined hash tells the pre-flight check
-          // to skip its first-time redirect (otherwise we'd loop).
           var ret = params.get('return') || '/chat';
           location.replace(ret + '#joined');
         } catch (e) {
           console.error('Identity generation failed:', e);
-          setError('Could not create your identity in this browser. Try a different browser (Chrome, Firefox, Safari latest).');
+          setError('Could not create your identity in this browser. Try Chrome, Firefox, or Safari.');
           joinBtn.disabled = false;
-          joinBtn.textContent = 'Join the chat →';
+          joinBtn.textContent = 'Join the community';
         }
       }
 
@@ -502,256 +548,312 @@
   </script>
 
   <div class="eli5-block" style="max-width:900px;margin:0 auto;padding-left:24px;padding-right:24px;">
-    <div class="eli5-simple">A free app where people chat, plan, trade, and build together. No accounts, no owner, everyone's software.</div>
-    <div class="eli5-expert">Rust/axum relay. Post-quantum self-custody identity (ML-DSA-65 / Dilithium3). DIDs + Verifiable Credentials. Multi-layer trust score. Local+civilization governance. Social key recovery. ML-KEM-768 + AES-256-GCM E2E. WebRTC voice/video. wgpu 3D engine. Federated, local-first, CC0 public domain.</div>
+    <div class="eli5-simple">Free guides to grow your own food, make your own electricity, and collect your own water. Plus a community to help you do it.</div>
+    <div class="eli5-expert">Data-driven quest chains for real-world self-sufficiency (aeroponics, solar, rainwater, micro-hydro). Federated community platform with E2E encrypted chat, task management, marketplace, and 3D simulation. Rust/axum relay, post-quantum identity (ML-DSA-65), CC0 public domain.</div>
   </div>
 
-  <!-- ── Hero ── -->
+  <!-- ══ HERO ══ -->
   <header class="hero">
     <div class="container">
-      <div class="mission-eyebrow">Our mission: End poverty. Unite humanity.</div>
-      <h1>Own your tools.<br>Own your life.<br><em>Own your future.</em></h1>
-      <p class="what-is-it">
-        A free app where people chat, plan, trade, and build together. No ads, no accounts, no owner. Everyone's software, forever.
+      <div class="mission-eyebrow">End poverty. Unite humanity.</div>
+      <h1>Your water. Your power.<br><em>Your food. Your future.</em></h1>
+      <p class="subtitle">
+        Corporations are buying up your water, redirecting your electricity, and raising your food prices.
+        You don't have to accept this. HumanityOS is a free platform that teaches you how to provide for yourself
+        and your community, step by step, with real tools and real people helping each other.
       </p>
       <div class="hero-ctas">
-        <a href="/chat" class="btn btn-primary"><span class="pg-ico" data-icon="chat" data-size="20"></span> Open the Chat</a>
-        <a href="#use-cases" class="btn btn-secondary">See What You Can Do</a>
-        <a href="https://github.com/Shaostoul/Humanity" class="btn btn-secondary" target="_blank" rel="noopener"><span class="pg-ico" data-icon="github" data-size="20"></span> View on GitHub</a>
+        <a href="#pillars" class="btn btn-primary">Show me how</a>
+        <a href="/chat" class="btn btn-secondary"><span class="pg-ico" data-icon="chat" data-size="20"></span> Join the community</a>
+        <a href="/download" class="btn btn-secondary">Download the app</a>
       </div>
-      <p style="margin-top: 4px; font-size: 0.9rem; color: var(--text-muted);">
-        First time here? <a href="/onboarding" style="color: var(--accent); font-weight: 600;">Take the five-minute tour →</a>
-      </p>
     </div>
   </header>
 
-  <!-- ── What is this? ── -->
-  <section id="what">
+  <!-- ══ THE PROBLEM ══ -->
+  <section id="problem">
     <div class="container">
-      <div class="section-label">What is this?</div>
-      <h2>A shared toolkit for working together</h2>
-      <div class="what-block">
-        <p>HumanityOS is for people who want to work together on anything: a neighborhood project, a small business, a study group, a worldwide movement. It puts messaging, task boards, a marketplace, notes, a calendar, and a digital wallet into one app that anyone can run, nobody can shut down, and everyone owns.</p>
-        <p>7 years in. 150+ features live. Completely in the public domain.</p>
+      <div class="wakeup">
+        <p>Entire communities are losing access to electricity so data centers can power AI servers. Drinkable water is being bottled and sold back to the people it was taken from. The cost of food keeps climbing while wages stay flat.</p>
+        <p>These aren't distant problems. They're happening right now, to real families, in real towns.</p>
+        <p>But here's what they don't want you to know: the solutions already exist. You can collect rain. You can generate power. You can grow food indoors, year-round, in a space the size of a closet. The knowledge is free. The materials are affordable. The only thing missing is someone showing you how.</p>
+        <p><strong>That's what we built.</strong></p>
       </div>
     </div>
   </section>
 
-  <!-- ── What you can do today ── -->
-  <section id="use-cases">
+  <!-- ══ THREE PILLARS ══ -->
+  <section id="pillars">
     <div class="container">
-      <div class="section-label">What you can do today</div>
-      <h2>Five things, not a list of parts</h2>
-      <div class="use-cases">
-        <div class="use-case">
-          <div class="uc-icon-wrap"><span class="pg-ico" data-icon="chat" data-size="28"></span></div>
-          <h3>Talk to anyone, privately.</h3>
-          <p>Text, voice, and video calls. Messages are locked with math only the people in the conversation can unlock. Screen share, threads, search, reactions.</p>
+      <div class="section-label">Three paths to self-sufficiency</div>
+      <h2>Water. Energy. Food.</h2>
+      <p>Each one has a quest chain: a step-by-step guide that walks you through the real build, with real materials, real costs, and real results.</p>
+      <div class="pillars">
+
+        <div class="pillar">
+          <div class="pillar-icon">&#x1F4A7;</div>
+          <h3>Collect your own water</h3>
+          <p>A basic rooftop rainwater collection system can capture thousands of gallons per year. Add a simple filter and you have clean drinking water that no corporation can bill you for or shut off.</p>
+          <p>The quest chain covers: gutters and downspouts, first-flush diverters, storage tanks, sediment and carbon filtration, and solar distillation for purification.</p>
+          <div class="highlight">Starting cost: $50 to $200 in materials</div>
         </div>
-        <div class="use-case">
-          <div class="uc-icon-wrap"><span class="pg-ico" data-icon="tasks" data-size="28"></span></div>
-          <h3>Organize any project.</h3>
-          <p>Kanban boards, calendars, shared notes, skills tracking. Run a team, a club, or your own life from one place.</p>
+
+        <div class="pillar">
+          <div class="pillar-icon">&#x26A1;</div>
+          <h3>Generate your own power</h3>
+          <p>Solar panels, small wind turbines, and micro-hydro generators are more accessible than ever. A basic solar setup can run lights, charge devices, and power small appliances. Scale it up over time as your needs grow.</p>
+          <p>The quest chain covers: choosing your energy source, sizing your system, battery storage basics, wiring safely, and connecting multiple sources together.</p>
+          <div class="highlight">Solar starter kit: a few hundred dollars</div>
         </div>
-        <div class="use-case">
-          <div class="uc-icon-wrap"><span class="pg-ico" data-icon="market" data-size="28"></span></div>
-          <h3>Buy, sell, and tip.</h3>
-          <p>A built-in marketplace with listings, reviews, and a multi-layer trust score that fights bots and fake reviews without surveillance. Optional Solana wallet for payments, staking, and tips.</p>
+
+        <div class="pillar">
+          <div class="pillar-icon">&#x1F331;</div>
+          <h3>Grow your own food</h3>
+          <p>Indoor aeroponic towers use 90% less water than soil farming and grow food year-round regardless of climate. They fit in a corner of any room. They purify your indoor air while they grow. And they can connect to other systems (like fish tanks) to create a closed loop where almost nothing is wasted.</p>
+          <p>Have a 3D printer? The simulation includes printable models for tower parts, connectors, and net pots. Design it in the app, print it at home, grow food in it by next week.</p>
+          <p>The quest chain covers: building your first tower (PVC or 3D printed), choosing plants, mixing nutrients, managing light cycles, scaling up, and integrating with aquaponics.</p>
+          <div class="highlight">First tower build: $100 to $300 (less with a 3D printer)</div>
         </div>
-        <div class="use-case">
-          <div class="uc-icon-wrap"><span class="pg-ico" data-icon="save" data-size="28"></span></div>
-          <h3>Work offline, own your data.</h3>
-          <p>Install the desktop app and everything keeps working without internet. When you reconnect, it syncs.</p>
-        </div>
-        <div class="use-case">
-          <div class="uc-icon-wrap"><span class="pg-ico" data-icon="globe" data-size="28"></span></div>
-          <h3>Run your own copy.</h3>
-          <p>One small program is the app, the server, and the game engine. Host it for your community, or join the shared network.</p>
-        </div>
+
       </div>
     </div>
   </section>
 
-  <!-- ── Proof of realness ── -->
-  <section id="live">
+  <!-- ══ HOW IT WORKS ══ -->
+  <section id="how">
     <div class="container">
+      <div class="section-label">How it works</div>
+      <h2>Free tools, real community, no catch</h2>
+      <p>HumanityOS is the platform that ties it all together. Everything here is free and open source. No subscriptions, no ads, no data harvesting. Public domain forever.</p>
+      <div class="how-grid">
+
+        <div class="how-item">
+          <div class="how-number">1</div>
+          <h4>Pick a quest chain</h4>
+          <p>Step-by-step guides for water, energy, food, and more. Each step tells you exactly what to buy, how to build it, and what to expect.</p>
+        </div>
+
+        <div class="how-item">
+          <div class="how-number">2</div>
+          <h4>Learn with the community</h4>
+          <p>Chat with people who've already done it. Ask questions, share photos of your build, get help when you're stuck. Encrypted and private by default.</p>
+        </div>
+
+        <div class="how-item">
+          <div class="how-number">3</div>
+          <h4>Trade and share surplus</h4>
+          <p>Growing more food than you need? The built-in marketplace lets you sell, trade, or give away your surplus to neighbors. No middleman fees.</p>
+        </div>
+
+        <div class="how-item">
+          <div class="how-number">4</div>
+          <h4>Teach what you know</h4>
+          <p>Your experience becomes someone else's guide. Write quest steps, answer questions, vouch for good builds. The knowledge grows with every person who joins.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PRIVACY ══ -->
+  <section id="privacy">
+    <div class="container">
+      <div class="section-label">Your data stays yours</div>
+      <h2>No data to collect means no data to exploit</h2>
+      <p>The explosion of data centers isn't just about AI. It's driven by the staggering volume of personal data harvested by platforms like Meta, TikTok, Google, Amazon, and X. Every message, every search, every photo, every purchase feeds a surveillance infrastructure that requires massive energy and water to operate.</p>
+      <p>Many people are rightly worried about AI being used for mass surveillance. HumanityOS takes a fundamentally different approach: if the data doesn't exist on a central server, there's nothing for anyone to surveil.</p>
+      <div class="how-grid">
+
+        <div class="how-item">
+          <h4>Peer-to-peer, end-to-end encrypted</h4>
+          <p>Your messages are encrypted on your device before they leave. Nobody in between can read them. Not us, not a government, not an AI scraping for training data.</p>
+        </div>
+
+        <div class="how-item">
+          <h4>Direct connections, no middleman</h4>
+          <p>Once two people connect, their messages travel directly between devices using WebRTC. No server in the middle. If united-humanity.us went offline tomorrow, those conversations would keep going.</p>
+        </div>
+
+        <div class="how-item">
+          <h4>AI can't spy on what doesn't exist</h4>
+          <p>Mass surveillance requires mass data collection. Your data never sits on a central server waiting to be harvested, sold, or subpoenaed. No profiles to build. No patterns to extract. Nothing for surveillance systems to process.</p>
+        </div>
+
+        <div class="how-item">
+          <h4>Built to protect your rights</h4>
+          <p>Freedom of speech without censorship. The right to keep and bear arms and share knowledge freely. Security against warrantless search of your private communications. These aren't policies that can be changed. They're properties of the architecture.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ QUEST PREVIEW ══ -->
+  <section id="quest-example">
+    <div class="container">
+      <div class="section-label">What a quest chain looks like</div>
+      <h2>Build Your First Aeroponic Tower</h2>
+      <p>This is a real quest from the platform. Each step links to detailed instructions, material lists, and community discussion.</p>
+      <div class="quest-preview">
+        <h4>Quest: Indoor Food Tower (Beginner)</h4>
+        <p class="quest-desc">Grow leafy greens, herbs, and strawberries indoors using 90% less water than soil. No yard needed.</p>
+        <ol class="quest-steps">
+          <li>
+            <div class="step-check"></div>
+            <div class="step-text">
+              <strong>Gather your materials</strong>
+              <span>PVC pipes, a tower kit, or 3D print your own parts (models included). Plus a small water pump, net pots, grow medium, and nutrients. Full list with links provided.</span>
+            </div>
+          </li>
+          <li>
+            <div class="step-check"></div>
+            <div class="step-text">
+              <strong>Assemble the tower frame</strong>
+              <span>Cut, drill, and stack. The guide includes measurements for 4-foot and 6-foot versions.</span>
+            </div>
+          </li>
+          <li>
+            <div class="step-check"></div>
+            <div class="step-text">
+              <strong>Set up the pump and timer</strong>
+              <span>Water cycles on and off automatically. Roots get misted, not drowned. Uses about 2 gallons per day total.</span>
+            </div>
+          </li>
+          <li>
+            <div class="step-check"></div>
+            <div class="step-text">
+              <strong>Plant your first seedlings</strong>
+              <span>Lettuce, basil, cilantro, and spinach are the easiest starters. You'll see roots within a week.</span>
+            </div>
+          </li>
+          <li>
+            <div class="step-check"></div>
+            <div class="step-text">
+              <strong>First harvest</strong>
+              <span>Lettuce is ready in 3 to 4 weeks. Herbs in about 4 to 6 weeks. Cut and it grows back.</span>
+            </div>
+          </li>
+          <li>
+            <div class="step-check"></div>
+            <div class="step-text">
+              <strong>Scale up: connect to aquaponics</strong>
+              <span>Add a fish tank. Fish waste feeds the plants, plants clean the water. A closed loop that feeds you protein and produce.</span>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ EARLY ACCESS ══ -->
+  <section id="early-access">
+    <div class="container">
+      <div class="section-label">Honest status</div>
+      <h2>This is early access</h2>
+      <div class="vision-block" style="border-left-color: var(--warning, #f90);">
+        <p>Our goal is to put everything into one app that works completely offline: every guide, every tool, every 3D-printable design. We're not there yet.</p>
+        <p>Until we are, quest chains link to the best third-party guides, open-source tools, and community resources we can find. The same way we point people to Blender for 3D modeling or Audacity for audio editing, we connect you to what already works while we build what doesn't exist yet.</p>
+        <p>What IS working right now: encrypted chat, voice and video calls, task management, a marketplace, a desktop app with offline support, community governance, and the beginnings of a 3D simulation world. The self-sufficiency quest content is actively being built, and we ship updates constantly.</p>
+        <p><strong>We would rather tell you what's half-built than pretend it's finished.</strong></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ THE VISION ══ -->
+  <section id="vision">
+    <div class="container">
+      <div class="section-label">The bigger picture</div>
+      <h2>This is about more than survival</h2>
+      <div class="vision-block">
+        <p>When people can feed themselves, power their own homes, and collect their own water, they stop being dependent on systems that profit from their dependence. That changes everything.</p>
+        <p>HumanityOS exists to build a world without artificial scarcity. No corruption. No fraud. No tyranny. No one enslaved by debt or hunger. No organizations selling cures for problems they created. No wars fought over resources that could be shared.</p>
+        <p>That sounds impossible until you realize that the tools already exist. Solar panels work. Aeroponic towers work. Rainwater collection works. What's been missing is a way to organize this knowledge, make it accessible to everyone, and connect people who want to help each other.</p>
+      </div>
+
+      <div class="vision-block" style="margin-top: 20px;">
+        <p><strong>And it doesn't stop at food, water, and power.</strong></p>
+        <p>HumanityOS is designed to replace the systems that currently depend on corporate or government infrastructure. Voting. Lawmaking. Governance. All of it transparent, verifiable, and owned by the people using it. Not controlled by any single company, party, or nation.</p>
+        <p>Install it on any device: your phone, your laptop, your fridge, your car, your TV. Every device you own becomes part of a personal network that syncs and communicates directly, without routing through a corporation's servers. No one dictates what software you're allowed to run on hardware you already paid for. No backdoors for hackers to exploit. No company deciding which features you get to use this month.</p>
+        <p>One platform for all of it. Communication, coordination, education, governance, commerce, survival. The same tools whether you're in an apartment in Ohio or a village in Kenya.</p>
+      </div>
+
+      <div class="vision-block" style="margin-top: 20px;">
+        <p><strong>Now scale that up one more level.</strong></p>
+        <p>Humanity is on the edge of establishing colonies on other worlds. We're talking about Mars, the Moon, stations in orbit. Eventually, generation ships between stars. On a colony, there is no utility company. There is no grocery store. There is no government bailout. If you can't grow food, recycle water, and generate power in a closed system, people die.</p>
+        <p>Every skill you learn here on Earth, where failure means a higher grocery bill, is the same skill a colony needs to survive where failure means everyone dies. The aeroponic tower in your apartment works the same way as one on a ship between stars. The water recycling system in your garage is the same engineering a habitat on Europa needs.</p>
+        <p>The simulation built into HumanityOS isn't a game. It's training. The story follows humanity's first interstellar fleet on a mission to explore and settle new worlds. The 3D models you design in the simulation can be 3D printed into real tools and systems. What you learn in the sim, you can build in your home today.</p>
+        <p>We can't afford poverty. We can't afford war. Not because it's morally wrong (it is), but because cooperation is an engineering requirement for our survival as a species. Selfishness doesn't scale to space. A divided humanity doesn't make it to the stars.</p>
+        <p><strong>This is a free platform for humanity to teach itself how to thrive, on this world and every one after it.</strong></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ WHAT'S BUILT ══ -->
+  <section id="built">
+    <div class="container">
+      <div class="section-label">Already working</div>
+      <h2>This isn't a pitch deck. It's live software.</h2>
+      <p>Seven years of development. 150+ features shipped. Every line of code is public.</p>
+      <div class="built-grid">
+        <div class="built-item"><span class="bi-check">&#10003;</span> Encrypted chat, voice, video</div>
+        <div class="built-item"><span class="bi-check">&#10003;</span> Task boards and calendar</div>
+        <div class="built-item"><span class="bi-check">&#10003;</span> Marketplace with trust scores</div>
+        <div class="built-item"><span class="bi-check">&#10003;</span> Encrypted notes</div>
+        <div class="built-item"><span class="bi-check">&#10003;</span> Desktop app (works offline)</div>
+        <div class="built-item"><span class="bi-check">&#10003;</span> Self-hostable servers</div>
+        <div class="built-item"><span class="bi-check">&#10003;</span> Community governance</div>
+        <div class="built-item"><span class="bi-check">&#10003;</span> No accounts or passwords</div>
+        <div class="built-item"><span class="bi-check">&#10003;</span> 3D simulation world</div>
+        <div class="built-item"><span class="bi-check">&#10003;</span> Public domain (CC0)</div>
+      </div>
       <div class="proof-strip">
         <span class="pulse" aria-hidden="true"></span>
-        <p>Live right now at <a href="/chat">united-humanity.us/chat</a>. 150+ features shipped. Every line on <a href="https://github.com/Shaostoul/Humanity" target="_blank" rel="noopener">GitHub</a>. No corporation, no VCs. Built in the open since 2019.</p>
+        <p>Live right now at <a href="/chat">united-humanity.us/chat</a>. Every line on <a href="https://github.com/Shaostoul/Humanity" target="_blank" rel="noopener">GitHub</a>. No corporation, no VCs. Built in the open since 2019.</p>
       </div>
     </div>
   </section>
 
-  <!-- ── Where do you fit ── -->
+  <!-- ══ GET STARTED ══ -->
   <section id="start">
     <div class="container">
-      <div class="section-label">Get Started</div>
-      <h2>Where do you fit?</h2>
+      <div class="section-label">Get started</div>
+      <h2>Pick your path</h2>
       <div class="paths">
         <a href="/onboarding" class="path-card">
-          <div class="path-icon-wrap"><span class="pg-ico" data-icon="chat" data-size="28"></span></div>
-          <div class="path-label">I want to use it</div>
-          <h3>Get oriented</h3>
-          <p>Take the five-minute tour. Learn the four core concepts, pick a page to try, and start your first quest chain.</p>
-          <div class="path-action">Start the tour →</div>
+          <div class="path-label">I want to learn</div>
+          <h3>Start a quest chain</h3>
+          <p>Water, energy, food, or the platform itself. Pick a topic and follow the steps. No experience needed.</p>
+          <div class="path-action">Begin the tour</div>
         </a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/ONBOARDING.md" class="path-card" target="_blank" rel="noopener">
-          <div class="path-icon-wrap"><span class="pg-ico" data-icon="dev" data-size="28"></span></div>
+        <a href="/chat" class="path-card">
+          <div class="path-label">I want to connect</div>
+          <h3>Join the community</h3>
+          <p>Talk to people building the same things. Ask questions, share progress, find local collaborators.</p>
+          <div class="path-action">Open the chat</div>
+        </a>
+        <a href="https://github.com/Shaostoul/Humanity" class="path-card" target="_blank" rel="noopener">
           <div class="path-label">I want to build it</div>
           <h3>Contribute</h3>
-          <p>Rust on the back, plain JavaScript on the front, no build step. Writers, designers, translators, and educators are as welcome as coders.</p>
-          <div class="path-action">Read the onboarding guide →</div>
-        </a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md" class="path-card" target="_blank" rel="noopener">
-          <div class="path-icon-wrap"><span class="pg-ico" data-icon="ops" data-size="28"></span></div>
-          <div class="path-label">I want to host it</div>
-          <h3>Run Your Own Server</h3>
-          <p>One small binary runs a whole server. Under 10 minutes from zero to live. Your users keep their identity when they move between servers.</p>
-          <div class="path-action">Self-hosting guide →</div>
+          <p>Writers, designers, developers, educators, translators. The code is public domain. Jump in anywhere.</p>
+          <div class="path-action">View on GitHub</div>
         </a>
       </div>
       <p style="margin-top: 20px; font-size: 0.92rem;">
-        Prefer the desktop app? <a href="/download" style="color: var(--accent);">Download it here.</a>
+        Want the desktop app? <a href="/download" style="color: var(--accent);">Download it here.</a>
       </p>
     </div>
   </section>
 
-  <!-- ── How It Differs ── -->
-  <section id="different">
+  <!-- ══ COMMUNITY ══ -->
+  <section id="community">
     <div class="container">
-      <div class="section-label">Why This Exists</div>
-      <h2>What makes it different</h2>
-      <div class="diff-grid">
-        <div class="diff-item">
-          <div class="diff-icon"><span class="pg-ico" data-icon="key" data-size="28"></span></div>
-          <h4>You own your identity</h4>
-          <p>No username-and-password account a company can lock or delete. A single key, stored on your device, is your login everywhere. Back it up with a short word-list.</p>
-        </div>
-        <div class="diff-item">
-          <div class="diff-icon"><span class="pg-ico" data-icon="lock" data-size="28"></span></div>
-          <h4>Encrypted by default</h4>
-          <p>Private messages are scrambled on your device before they leave. The server never sees what you said. No ads, no tracking, no IP logs.</p>
-        </div>
-        <div class="diff-item">
-          <div class="diff-icon"><span class="pg-ico" data-icon="globe" data-size="28"></span></div>
-          <h4>No central owner</h4>
-          <p>Anyone can run a server. They all talk to each other. If one goes down, the network keeps working.</p>
-        </div>
-        <div class="diff-item">
-          <div class="diff-icon"><span class="pg-ico" data-icon="save" data-size="28"></span></div>
-          <h4>Works offline</h4>
-          <p>The desktop app keeps running without internet. Catches up when you reconnect.</p>
-        </div>
-        <div class="diff-item">
-          <div class="diff-icon"><span class="pg-ico" data-icon="games" data-size="28"></span></div>
-          <h4>A 3D world, built in</h4>
-          <p>A simulated universe for learning, playing, and prototyping: planets, farming, crafting, construction. Early, but already renders and runs.</p>
-        </div>
-        <div class="diff-item">
-          <div class="diff-icon"><span class="pg-ico" data-icon="dev" data-size="28"></span></div>
-          <h4>Public domain</h4>
-          <p>No license fee, no attribution required, no permission to ask. Copy it, sell it, teach from it. It belongs to everyone.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Plain English ── -->
-  <section id="plain-english">
-    <div class="container">
-      <div class="section-label">Still following?</div>
-      <h2>Still not sure what this is?</h2>
-      <div class="plain-english">
-        <p>Think of it as Discord, Slack, Trello, Etsy, and a Google-Docs-style offline notebook, rolled into one app, with a video-game world attached. No company owns any of it. You run it from your phone, laptop, or your own server. Your identity is a post-quantum cryptographic key on your device — recoverable through trusted friends if you lose your phone.</p>
-        <p>The mission is simple. Poverty is mostly a shortage of tools, knowledge, and trusted community. So we are building those, for free, forever.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Why It Exists ── -->
-  <section id="why">
-    <div class="container">
-      <div class="section-label">The Mission</div>
-      <h2>Poverty is lack of capability</h2>
-      <p>Not just lack of money. People trapped in systems they can't understand, knowledge they can't reach, skills they never had a chance to learn.</p>
-      <p>In 2017, Michael Boisson nearly died. That experience stripped away the noise and left one answer: help people become capable of helping themselves. Education is the foundation. Tools are the path. Community is the engine.</p>
-      <p>Everything here is public domain. No permission needed. This belongs to everyone.</p>
-      <p style="margin-top: 24px;">
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/accord/humanity_accord.md" class="btn btn-secondary" target="_blank" rel="noopener">Read the Humanity Accord</a>
-      </p>
-    </div>
-  </section>
-
-  <!-- ── What works, what's early ── -->
-  <section id="status">
-    <div class="container">
-      <div class="section-label">Honest Status</div>
-      <h2>What works, what's still early</h2>
-      <div class="status-split">
-        <div class="status-col works">
-          <h4><span class="pulse" aria-hidden="true"></span> Working well today</h4>
-          <ul>
-            <li>Chat, voice, video, screen share</li>
-            <li>Tasks, calendar, notes, dashboard, skills</li>
-            <li>Marketplace, reviews, optional Solana wallet</li>
-            <li>Desktop app, offline mode</li>
-            <li>Federated servers</li>
-            <li>Post-quantum identity, DIDs, Verifiable Credentials</li>
-            <li>Multi-layer trust score, local + civilization governance</li>
-            <li>Social key recovery via trusted guardians</li>
-            <li>AI-as-citizen with mandatory transparency</li>
-          </ul>
-        </div>
-        <div class="status-col early">
-          <h4>Still cooking</h4>
-          <ul>
-            <li>3D multiplayer world (renders planets, no persistence yet)</li>
-            <li>Native mobile app (the web version works on phones)</li>
-            <li>Map rework</li>
-            <li>Construction and building inside the 3D world</li>
-          </ul>
-        </div>
-      </div>
-      <p class="status-footer">We would rather tell you what's half-built than pretend it's finished.</p>
-    </div>
-  </section>
-
-  <!-- ── For Developers (jargon quarantine) ── -->
-  <section id="dev">
-    <div class="container">
-      <div class="section-label">For Developers</div>
-      <h2>The technical stack</h2>
-      <div class="dev-spec">
-        <strong>Server:</strong> Rust / axum / tokio relay. SQLite storage. Federated server-to-server WebSocket relay.<br>
-        <strong>Identity:</strong> Post-quantum ML-DSA-65 (Dilithium3) self-custody keys. DID format <code>did:hum:&lt;base58&gt;</code>. BIP39 seed backup with deterministic PQ key derivation. Optional Solana wallet derived from the same seed via separate path.<br>
-        <strong>Crypto:</strong> ML-KEM-768 (Kyber768) KEM for key exchange. AES-256-GCM and XChaCha20-Poly1305 for symmetric. Argon2id for password KDF. BLAKE3 for hashing. WebRTC voice and video.<br>
-        <strong>Trust layer:</strong> W3C Verifiable Credentials over a canonical-CBOR signed-object substrate. Multi-layer trust score (vouches, VCs, activity, age, stake). Local + civilization governance with weighted voting. Social key recovery via Shamir-shared guardians.<br>
-        <strong>AI participation:</strong> First-class agents with mandatory <code>subject_class_v1</code> + <code>controlled_by_v1</code> declarations. Same trust curve as humans, no governance vote, full transparency.<br>
-        <strong>Client:</strong> Plain JS frontend, no build step. Native desktop app with wgpu + WGSL 3D renderer.<br>
-        <strong>License:</strong> CC0 public domain, every commit on GitHub.
-      </div>
-      <div class="dev-cta">
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/ONBOARDING.md" class="btn btn-secondary" target="_blank" rel="noopener">Onboarding Guide</a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md" class="btn btn-secondary" target="_blank" rel="noopener">Self-Hosting Guide</a>
-        <a href="https://github.com/Shaostoul/Humanity" class="btn btn-secondary" target="_blank" rel="noopener"><span class="pg-ico" data-icon="github" data-size="18"></span> GitHub</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Get Involved ── -->
-  <section id="involved">
-    <div class="container">
-      <div class="section-label">Get Involved</div>
-      <h2>This is a community project</h2>
-      <p>Writers, designers, developers, educators, translators, or just someone who cares. There's a place for you here. The easiest way to start is to show up in the chat and ask what needs doing.</p>
-
+      <div class="section-label">Community</div>
+      <h2>Find us</h2>
       <div class="involve-grid">
         <a href="/chat" class="involve-item"><span class="ii-ico"><span class="pg-ico" data-icon="chat" data-size="18"></span></span> HumanityOS Chat</a>
         <a href="https://discord.gg/9XxmmeQnWC" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="chat" data-size="18"></span></span> Discord</a>
         <a href="https://github.com/Shaostoul/Humanity" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="github" data-size="18"></span></span> GitHub</a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/ONBOARDING.md" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="codex" data-size="18"></span></span> Onboarding Guide</a>
         <a href="https://github.com/Shaostoul/Humanity/blob/main/CONTRIBUTING.md" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="dev" data-size="18"></span></span> Contributing</a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="ops" data-size="18"></span></span> Self-Hosting</a>
       </div>
 
       <div class="follow-line">
@@ -759,25 +861,82 @@
         <a href="https://youtube.com/@Shaostoul" target="_blank" rel="noopener">YouTube</a>
         <a href="https://twitch.tv/Shaostoul" target="_blank" rel="noopener">Twitch</a>
         <a href="https://x.com/Shaostoul" target="_blank" rel="noopener">X</a>
-        <a href="https://bsky.app/profile/shaostoul.bsky.social" target="_blank" rel="noopener">Bluesky</a>
-        <a href="https://reddit.com/user/Shaostoul" target="_blank" rel="noopener">Reddit</a>
         <a href="https://instagram.com/shaostoul" target="_blank" rel="noopener">Instagram</a>
         <a href="https://rumble.com/user/Shaostoul" target="_blank" rel="noopener">Rumble</a>
         <a href="https://www.facebook.com/2571477392923654" target="_blank" rel="noopener">Facebook</a>
         <a href="https://steamcommunity.com/id/Shaostoul" target="_blank" rel="noopener">Steam</a>
-        <a href="https://shaostoul.itch.io" target="_blank" rel="noopener">itch.io</a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══ TECH STACK ══ -->
+  <section id="tech">
+    <div class="container">
+      <div class="section-label">Under the hood</div>
+      <h2>The technical stack</h2>
+      <p>For developers, security researchers, and anyone who wants to know exactly what they're running. Every line is on GitHub.</p>
+
+      <div class="pillars" style="margin-top: 24px;">
+
+        <div class="pillar">
+          <h3>Server</h3>
+          <p>Written in Rust using axum and tokio. SQLite for storage. A single binary runs the full relay server. Federated by design: servers discover and talk to each other over WebSocket, so no single point of failure.</p>
+          <p>Run it on a Raspberry Pi, a VPS, or a spare laptop. Under 10 minutes from zero to live.</p>
+        </div>
+
+        <div class="pillar">
+          <h3>Identity and Cryptography</h3>
+          <p>Post-quantum ML-DSA-65 (Dilithium3) self-custody keys for federation. Ed25519 for chat signing and Solana wallet compatibility. Your identity is a key on your device, not an account on someone else's server.</p>
+          <p>BIP39 seed phrase backup (24 words). Social key recovery through trusted guardians using Shamir secret sharing. DID format: <code>did:hum:&lt;base58&gt;</code>.</p>
+        </div>
+
+        <div class="pillar">
+          <h3>Encryption</h3>
+          <p>ML-KEM-768 (Kyber768) for post-quantum key exchange. AES-256-GCM for symmetric encryption. Argon2id for password-derived keys. BLAKE3 for hashing. WebRTC for voice and video calls.</p>
+          <p>Private messages are encrypted on your device. The server never has access to plaintext. No IP logging, no metadata harvesting.</p>
+        </div>
+
+        <div class="pillar">
+          <h3>Trust and Governance</h3>
+          <p>W3C Verifiable Credentials issued peer-to-peer. Multi-layer trust score built from vouches, credentials, activity, age, and stake. Community governance with weighted voting (capped at 0.95 to prevent single-actor dominance).</p>
+          <p>AI agents are first-class citizens with mandatory transparency declarations. They cannot vote but participate openly.</p>
+        </div>
+
+        <div class="pillar">
+          <h3>Desktop App and 3D Engine</h3>
+          <p>Native desktop app built with wgpu and WGSL shaders. PBR rendering, bloom, particles, and a full planetary simulation with icosphere LOD terrain. The same binary that runs the server also runs the desktop app.</p>
+          <p>3D models in the simulation can be exported for 3D printing. Design it in the game, print it in real life.</p>
+        </div>
+
+        <div class="pillar">
+          <h3>Web Frontend</h3>
+          <p>Plain HTML, CSS, and JavaScript. No build step, no framework, no npm. Open any page source and read it. The web client connects to the same relay server as the desktop app.</p>
+          <p>Progressive Web App support for mobile. Works on any modern browser.</p>
+        </div>
+
+      </div>
+
+      <div class="proof-strip" style="margin-top: 24px;">
+        <p>License: <strong>CC0 Public Domain</strong>. No permission needed. Copy it, modify it, sell it, teach from it. It belongs to everyone.</p>
+      </div>
+
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px;">
+        <a href="https://github.com/Shaostoul/Humanity" class="btn btn-secondary" target="_blank" rel="noopener"><span class="pg-ico" data-icon="github" data-size="18"></span> View Source on GitHub</a>
+        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/ONBOARDING.md" class="btn btn-secondary" target="_blank" rel="noopener">Developer Onboarding</a>
+        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md" class="btn btn-secondary" target="_blank" rel="noopener">Self-Hosting Guide</a>
       </div>
     </div>
   </section>
 
-  <!-- ── Donate ── -->
+  <!-- ══ DONATE ══ -->
   <section class="donate-section">
     <div class="container">
-      <div class="section-label">Support the Project</div>
+      <div class="section-label">Support the project</div>
       <h2>Keep it running</h2>
-      <p>Servers and infrastructure cost money. Every dollar goes toward development and hosting. No venture capital, no ads. Just people who believe in this.</p>
+      <p>Servers and development cost money. Every dollar goes toward infrastructure and building more quest content. No venture capital, no ads. Just people who believe in this.</p>
       <div class="donate-buttons">
-        <a href="/donate" class="btn btn-primary">View Donation Options →</a>
+        <a href="/donate" class="btn btn-primary">Donate</a>
         <a href="https://github.com/sponsors/Shaostoul" class="btn btn-secondary" target="_blank" rel="noopener">GitHub Sponsors</a>
       </div>
     </div>

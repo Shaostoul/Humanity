@@ -682,16 +682,13 @@ mod native_app {
                 gui_state.updater.check_now();
             }
 
-            // Post-identity routing (v0.198.0):
+            // Post-identity routing (v0.198.0, v0.220.0 boot page):
             //   - !onboarding_complete: stay on MainMenu (identity / seed setup)
             //   - onboarding_complete && !concept_tour_seen: land on Onboarding
-            //     (the concept tour explains what HumanityOS IS before
-            //     dropping the user into a chat they don't yet understand)
-            //   - onboarding_complete && concept_tour_seen: straight to Chat
-            //     (returning users — Chat is the daily driver)
+            //   - onboarding_complete && concept_tour_seen: user's chosen boot page
             if gui_state.onboarding_complete {
                 gui_state.active_page = if gui_state.concept_tour_seen {
-                    GuiPage::Chat
+                    gui_state.default_page
                 } else {
                     GuiPage::Onboarding
                 };

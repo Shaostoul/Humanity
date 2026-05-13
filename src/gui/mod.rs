@@ -155,6 +155,49 @@ pub enum GuiPage {
     SettingsUpdates,
 }
 
+/// Pages that can be selected as the startup boot page.
+#[cfg(feature = "native")]
+pub const BOOT_PAGE_OPTIONS: &[(GuiPage, &str)] = &[
+    (GuiPage::Onboarding, "Landing / Onboarding"),
+    (GuiPage::Chat, "Chat"),
+    (GuiPage::Tasks, "Tasks"),
+    (GuiPage::Maps, "Maps"),
+    (GuiPage::Notes, "Notes"),
+    (GuiPage::Calendar, "Calendar"),
+    (GuiPage::Cosmos, "Cosmos"),
+    (GuiPage::Resources, "Resources"),
+];
+
+#[cfg(feature = "native")]
+pub fn page_to_config_str(page: GuiPage) -> &'static str {
+    match page {
+        GuiPage::Onboarding => "onboarding",
+        GuiPage::Chat => "chat",
+        GuiPage::Tasks => "tasks",
+        GuiPage::Maps => "maps",
+        GuiPage::Notes => "notes",
+        GuiPage::Calendar => "calendar",
+        GuiPage::Cosmos => "cosmos",
+        GuiPage::Resources => "resources",
+        _ => "onboarding",
+    }
+}
+
+#[cfg(feature = "native")]
+pub fn config_str_to_page(s: &str) -> GuiPage {
+    match s {
+        "onboarding" => GuiPage::Onboarding,
+        "chat" => GuiPage::Chat,
+        "tasks" => GuiPage::Tasks,
+        "maps" => GuiPage::Maps,
+        "notes" => GuiPage::Notes,
+        "calendar" => GuiPage::Calendar,
+        "cosmos" => GuiPage::Cosmos,
+        "resources" => GuiPage::Resources,
+        _ => GuiPage::Onboarding,
+    }
+}
+
 /// Item slot data bridged from ECS Inventory for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -1245,7 +1288,7 @@ impl Default for GuiState {
             server_connected: false,
             user_name: "Player".to_string(),
             concept_tour_seen: false,
-            default_page: GuiPage::Chat,
+            default_page: GuiPage::Onboarding,
 
             // Task board defaults
             tasks: Vec::new(),

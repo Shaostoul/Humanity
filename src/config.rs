@@ -113,9 +113,16 @@ pub struct AppConfig {
     /// Active top-tier category when nav_two_tier is on.
     #[serde(default = "default_nav_top_category")]
     pub nav_top_category: String,
+    /// Which page to show after startup (v0.220.0). Stored as a string
+    /// key ("chat", "onboarding", "tasks", etc.) so the config file
+    /// stays readable. Defaults to "onboarding" for new installs;
+    /// existing configs without this field also get "onboarding".
+    #[serde(default = "default_boot_page")]
+    pub default_page: String,
 }
 
 fn default_nav_top_category() -> String { "reality".to_string() }
+fn default_boot_page() -> String { "onboarding".to_string() }
 
 /// Serializable donation address entry for config persistence.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -343,6 +350,7 @@ impl AppConfig {
             }).collect(),
             nav_two_tier: state.nav_two_tier,
             nav_top_category: state.nav_top_category.clone(),
+            default_page: crate::gui::page_to_config_str(state.default_page).to_string(),
         }
     }
 
@@ -387,6 +395,9 @@ impl AppConfig {
         state.nav_two_tier = self.nav_two_tier;
         if !self.nav_top_category.is_empty() {
             state.nav_top_category = self.nav_top_category.clone();
+        }
+        if !self.default_page.is_empty() {
+            state.default_page = crate::gui::config_str_to_page(&self.default_page);
         }
         state.donate_addresses = self.donate_addresses.iter().map(|a| crate::gui::DonateAddress {
             network: a.network.clone(),

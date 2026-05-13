@@ -272,6 +272,23 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             ui.add(egui::TextEdit::singleline(&mut state.user_name).desired_width(200.0));
         });
 
+        widgets::form_row(ui, theme, "Boot page", |ui| {
+            let current_label = crate::gui::BOOT_PAGE_OPTIONS.iter()
+                .find(|(p, _)| *p == state.default_page)
+                .map(|(_, l)| *l)
+                .unwrap_or("Onboarding");
+            egui::ComboBox::from_id_salt("boot_page_combo")
+                .selected_text(current_label)
+                .width(200.0)
+                .show_ui(ui, |ui| {
+                    for &(page, label) in crate::gui::BOOT_PAGE_OPTIONS {
+                        if ui.selectable_value(&mut state.default_page, page, label).changed() {
+                            crate::config::AppConfig::from_gui_state(state).save();
+                        }
+                    }
+                });
+        });
+
         widgets::form_row(ui, theme, "Public key", |ui| {
             let key_display = if state.profile_public_key.is_empty() {
                 "No key generated".to_string()
