@@ -636,11 +636,8 @@
         navTab('/dev',      'dev',       'Dev',       'dev') +
       '</span>' +
 
-      /* Spacer pushes context toggle to the right */
+      /* Spacer pushes hamburger to the right */
       '<div class="spacer"></div>' +
-
-      /* Context toggle — right-aligned */
-      buildContextToggle() +
 
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
@@ -687,9 +684,6 @@
       mobileLink('/settings',             'Settings') +
       mobileLink('/bugs',                  'Bug Reports') +
       mobileLink('/download',   'Download') +
-    '</div>' +
-    '<div class="mobile-hub-group"><h4>Context</h4>' +
-      '<div style="padding:0.5rem 0.55rem;">' + buildContextToggle() + '</div>' +
     '</div>';
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
@@ -1256,7 +1250,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.220.1';
+    var CURRENT_VERSION = '0.220.2';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
