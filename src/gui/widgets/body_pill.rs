@@ -67,9 +67,12 @@ use crate::gui::theme::Theme;
 /// (cap around body + pill top-left corner + panel top-left corner) so
 /// they're always the same size at every zoom level (operator feedback
 /// 2026-05-12 — "It should be like 3 overlapping circles of the same
-/// size"). When the body's natural radius is larger than this, the
-/// widget radius scales up with it.
-const MIN_WIDGET_RADIUS: f32 = 9.0;
+/// size, predictable size such as 21px even if the planet/object is
+/// only 1 px in the center"). When the body's natural radius is larger
+/// than this, the widget radius scales up with it.
+///
+/// 10.5 px → 21 px diameter, matches operator's stated target.
+const MIN_WIDGET_RADIUS: f32 = 10.5;
 
 /// Per-pill input. Caller produces a `Vec<BodyPill>` per frame; the
 /// widget runs collision-dodge + renders the survivors.
@@ -190,42 +193,27 @@ pub fn compute_pill_layout(
     PillsLayout { placed }
 }
 
-/// PHASE 2 — Paint the pill BACKGROUNDS for the given layout. Includes
-/// the body-colored cap fill so the cap visually appears AS the body
-/// (no "tiny body floating in big empty cap" look — operator feedback
-/// 2026-05-12). Render order is:
+/// PHASE 2 — Paint the pill BACKGROUNDS for the given layout. Just a
+/// `bg_card` filled rounded rect — no body-colored fill in the cap area.
 ///
-///   PHASE 1 (panel, if expanded — UNDER everything)
-///   PHASE 2 (this — pill bg with body-colored cap)
-///   caller draws body circles + decorations (selected ring, conjunction
-///       rings, eclipse highlights — these layer ON TOP of the cap fill)
-///   PHASE 3 (pill borders + name + interaction — ON TOP of bodies)
+/// Operator feedback 2026-05-12 (after v0.218.1): the body-colored cap
+/// fill was making small bodies LOOK much bigger than their natural
+/// sprite size ("a bunch of the planets are larger than they should be
+/// instead of their actual size"). Now the cap area is just dark bg_card,
+/// and the body sprite renders on top at its NATURAL radius — so a 1px
+/// body looks like a 1px body, not a 22px disk.
 ///
-/// The body-colored cap is just a filled circle at body_screen with
-/// radius = `cap_radius - 0.5`. The rest of the pill (where the name
-/// goes) is filled with `bg_card` for legibility.
+/// The orange ring around the body comes from the pill border (drawn in
+/// PHASE 3), which has corner radius = widget_radius. So the visible
+/// "ring around a small body" is the pill border's left semicircle.
 pub fn paint_pill_backgrounds(
     painter: &egui::Painter,
     theme: &Theme,
     layout: &PillsLayout,
 ) {
     for pp in &layout.placed {
-        let pill_h = pp.rect.height();
-        let half_h = pill_h * 0.5;
-        let radius = half_h;
-
-        // Step 1: fill the entire pill rect with the dark bg_card. This
-        // gives the name area its background.
+        let radius = pp.rect.height() * 0.5;
         painter.rect_filled(pp.rect, radius, theme.bg_card());
-
-        // Step 2: fill the cap area (left semicircle) with the body's
-        // color. This is the "cap visually = body" trick — when the
-        // body is then drawn at its natural smaller radius on top, it's
-        // invisible against this colored fill, so the cap reads as one
-        // solid body-colored disk regardless of how small the body's
-        // natural radius is.
-        let cap_center = Pos2::new(pp.rect.left() + half_h, pp.rect.center().y);
-        painter.circle_filled(cap_center, radius - 0.5, pp.color);
     }
 }
 
@@ -256,6 +244,13 @@ pub fn paint_pill_overlays(
 
         let pill_h = pp.rect.height();
         let half_h = pill_h * 0.5;
+        // Cap right edge = body_screen.x + half_h (where the cap circle
+        // ends and the name area begins). Use body_screen as the anchor
+        // so this matches the layout's name_start_x computation exactly
+        // (was previously broken — used pp.rect.left() + half_h which
+        // equals body_screen.x, the cap CENTER, causing the divider to
+        // be in the wrong place and the text to overlap the cap area).
+        let cap_right_x = pp.body_screen.x + half_h;
 
         // Border: STRONG accent for any forced/hovered/expanded state
         // (the user is "looking at" or interacting with this body).
@@ -269,12 +264,9 @@ pub fn paint_pill_overlays(
         };
         painter.rect_stroke(pp.rect, half_h, border_stroke, egui::StrokeKind::Outside);
 
-        // Vertical divider line between cap and name area (per operator's
-        // sketch 2026-05-12 — "There's no line between the icon and title
-        // text like on my paint drawing example"). The line sits at the
-        // cap's right edge (which is where the body color ends and the
-        // bg_card name area begins).
-        let divider_x = pp.rect.left() + half_h;
+        // Vertical divider line at the cap's right edge — separates
+        // the body+cap area from the name text area (per operator's
+        // sketch 2026-05-12).
         let divider_color = if pp.forced || pp.expanded || pill_hovered {
             theme.accent()
         } else {
@@ -282,13 +274,14 @@ pub fn paint_pill_overlays(
         };
         painter.line_segment(
             [
-                Pos2::new(divider_x, pp.rect.top() + 2.0),
-                Pos2::new(divider_x, pp.rect.bottom() - 2.0),
+                Pos2::new(cap_right_x, pp.rect.top() + 2.0),
+                Pos2::new(cap_right_x, pp.rect.bottom() - 2.0),
             ],
             Stroke::new(0.8, divider_color),
         );
 
-        // Name text — positioned just past the cap's right edge.
+        // Name text — positioned just past the cap's right edge with
+        // a 6 px gap. Matches `compute_pill_layout`'s name_start_x.
         let font = egui::FontId::proportional(11.0);
         let text_galley = painter.layout_no_wrap(
             pp.name.clone(),
@@ -296,7 +289,7 @@ pub fn paint_pill_overlays(
             theme.text_primary(),
         );
         let text_pos = Pos2::new(
-            pp.rect.left() + half_h + 6.0,
+            cap_right_x + 6.0,
             pp.rect.center().y - text_galley.size().y * 0.5,
         );
         painter.galley(text_pos, text_galley, theme.text_primary());
