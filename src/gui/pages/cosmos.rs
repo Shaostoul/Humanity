@@ -1467,7 +1467,7 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     //   3 = moon (shown only when hovered/selected/expanded)
     //   4 = asteroid (shown only when hovered/selected/expanded)
     use crate::gui::widgets::body_pill::{
-        BodyPill, paint_pill_backgrounds, paint_pill_overlays,
+        BodyPill, compute_pill_layout, paint_pill_backgrounds, paint_pill_overlays,
     };
     let mut pills: Vec<BodyPill> = Vec::with_capacity(projected.len());
     for (i, pb) in projected.iter().enumerate() {
@@ -1497,9 +1497,27 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
     }
 
-    // PHASE 1 — paint pill BACKGROUNDS only (filled rounded-rects).
-    // Body circles render on top of these and become the pills' left caps.
-    let pill_layout = paint_pill_backgrounds(&paint, theme, &pills);
+    // PHASE 0 — pure layout (no paint). Compute pill rects with collision-
+    // dodge so the panel + pill bg + body draws can all reference them.
+    let pill_layout = compute_pill_layout(&paint, theme, &pills);
+
+    // PHASE 1 — paint the panel BEHIND the expanded pill (if any). Must
+    // come before body draw + pill backgrounds so the body and pill cap
+    // render ON TOP of the panel (operator feedback 2026-05-12 - "when
+    // the panel is up the icon and circle around where the icon is is
+    // missing"; that was a layering bug fixed here).
+    if let Some(expanded_id) = state.cosmos_expanded_body.clone() {
+        let placed = pill_layout.placed.iter().find(|pp| pp.id == expanded_id).cloned();
+        let body = projected.iter().find(|pb| pb.body.id == expanded_id).map(|pb| pb.body);
+        if let (Some(pp), Some(body)) = (placed, body) {
+            draw_body_info_card_v2(ui, &paint, theme, body, &pp, rect, state);
+        }
+    }
+
+    // PHASE 2 — paint pill backgrounds (rect fill + body-colored cap).
+    // The body-colored cap fill makes the cap visually appear AS the
+    // body, so small bodies don't look "lost" inside an oversized cap.
+    paint_pill_backgrounds(&paint, theme, &pill_layout);
 
     // PASS D — draw body circles + selected ring + conjunction rings +
     // eclipse highlights. These overlay the pill backgrounds, completing
@@ -1592,27 +1610,11 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
     }
 
-    // ── PHASE 3 (called BEFORE Phase 2 — see widget docstring):
-    //    paint the details PANEL behind the expanded pill so the pill
-    //    border layers on top of the panel border. The panel uses a SOFT
-    //    gray border; the pill uses a STRONG accent border. Per operator
-    //    feedback 2026-05-12 ("notice that this section has a off color
-    //    border compared to the top — black is strong, gray is soft").
-    if let Some(expanded_id) = state.cosmos_expanded_body.clone() {
-        let placed = pill_layout.placed.iter().find(|pp| pp.id == expanded_id).cloned();
-        let body = projected.iter().find(|pb| pb.body.id == expanded_id).map(|pb| pb.body);
-        if let (Some(pp), Some(body)) = (placed, body) {
-            draw_body_info_card_v2(ui, &paint, theme, body, &pp, rect, state);
-        }
-    }
-
-    // ── PHASE 2: paint pill OVERLAYS (borders + name text + click handling).
+    // ── PHASE 3: paint pill OVERLAYS (borders + divider + name + click).
     // Pill borders render on top of body circles + their decorations AND
-    // on top of any panel border drawn by Phase 3 above. The user sees:
-    //   • The body, with the pill's strong accent border wrapping it.
-    //   • The pill name to the right of the body.
-    //   • If expanded, a soft-gray panel extending right + down from the
-    //     pill's bottom-right corner.
+    // on top of the panel border (drawn in PHASE 1). Strong accent border
+    // for any forced/hovered pill so the body always reads as "wrapped in
+    // an orange ring" when the user is interacting with it.
     let clicked_pill = paint_pill_overlays(ui, &paint, theme, &pill_layout, "cosmos_pill");
 
     // Apply click selection. Pill clicks take precedence over body clicks.

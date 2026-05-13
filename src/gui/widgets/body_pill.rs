@@ -64,7 +64,12 @@ use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2};
 use crate::gui::theme::Theme;
 
 /// Minimum pill height in px — enough to fit the name text + padding.
-const MIN_PILL_HEIGHT: f32 = 22.0;
+/// Tuned 2026-05-12 (operator feedback) — smaller cap so small bodies
+/// don't look "lost" inside an oversized cap. The body-colored cap fill
+/// (see `paint_pill_backgrounds`) makes the cap visually appear AS the
+/// body's left dot, regardless of natural body radius, so this can be
+/// kept tight.
+const MIN_PILL_HEIGHT: f32 = 18.0;
 
 /// Per-pill input. Caller produces a `Vec<BodyPill>` per frame; the
 /// widget runs collision-dodge + renders the survivors.
@@ -115,21 +120,17 @@ pub struct PillsLayout {
     pub placed: Vec<PlacedPill>,
 }
 
-/// PHASE 1 — Compute pill layout (with priority-sorted collision-dodge)
-/// AND paint just the filled rounded-rect backgrounds. Call BEFORE
-/// drawing the body circles so they render ON TOP of the backgrounds
-/// and become the pills' left caps.
-///
-/// The pill is laid out such that its left semicircular cap is exactly
-/// centered on the body. Height = `max(body_diameter + 2, MIN_PILL_HEIGHT)`.
-/// Corner radius = height/2 (so left and right ends are fully rounded).
-pub fn paint_pill_backgrounds(
+/// PHASE 0 — pure layout computation (no paint). Returns the placed
+/// pill rects with priority-sorted collision-dodge applied. The caller
+/// uses this layout to drive PHASE 1 (panel), PHASE 2 (pill backgrounds),
+/// and PHASE 3 (pill overlays). Splitting compute from paint lets the
+/// caller order the paint phases freely (panel must render UNDER pill
+/// + body, so the order is panel → pill bg → body → pill border + text).
+pub fn compute_pill_layout(
     painter: &egui::Painter,
     theme: &Theme,
     pills: &[BodyPill<'_>],
 ) -> PillsLayout {
-    // Sort: forced pills first (so they always claim their slot), then by
-    // priority. Stable sort keeps draw-order deterministic frame-to-frame.
     let mut sorted: Vec<&BodyPill<'_>> = pills.iter().collect();
     sorted.sort_by_key(|c| (!c.forced as u8, c.priority));
 
@@ -150,10 +151,10 @@ pub fn paint_pill_backgrounds(
             font,
             theme.text_primary(),
         );
-        // The name starts at body_center.x + body_radius + small gap, so
-        // even when the pill cap is larger than the body, the name sits
-        // just past the visual body. Padding adds a little air on the right.
-        let name_start_x = c.body_screen.x + c.body_radius_px + 6.0;
+        // Name starts just past the cap's right edge (NOT the body's
+        // edge — the cap is what the user perceives as the body when the
+        // pill is visible).
+        let name_start_x = c.body_screen.x + half_h + 6.0;
         let h_pad_right = 10.0;
         let pill_right = name_start_x + text_galley.size().x + h_pad_right;
 
@@ -164,18 +165,10 @@ pub fn paint_pill_backgrounds(
             Vec2::new(pill_right - pill_left, pill_height),
         );
 
-        // Collision check — only forced pills override.
         if !c.forced && placed_rects.iter().any(|r| r.intersects(pill_rect)) {
             continue;
         }
         placed_rects.push(pill_rect);
-
-        // Paint the background fill. The body circle (drawn by the
-        // caller, on top of this) becomes the pill's visible left cap.
-        // We use theme.bg_card() — opaque so the body reads cleanly.
-        let bg = theme.bg_card();
-        let radius = half_h;
-        painter.rect_filled(pill_rect, radius, bg);
 
         placed.push(PlacedPill {
             id: c.id.to_string(),
@@ -192,12 +185,56 @@ pub fn paint_pill_backgrounds(
     PillsLayout { placed }
 }
 
-/// PHASE 2 — Paint pill borders + name text, and handle click interaction.
-/// Call AFTER the body draw pass so the borders render on top of body
-/// circles + conjunction/eclipse decorations.
+/// PHASE 2 — Paint the pill BACKGROUNDS for the given layout. Includes
+/// the body-colored cap fill so the cap visually appears AS the body
+/// (no "tiny body floating in big empty cap" look — operator feedback
+/// 2026-05-12). Render order is:
 ///
-/// Returns the id of the pill clicked this frame, if any. The caller
-/// inspects this to drive expanded-state toggling.
+///   PHASE 1 (panel, if expanded — UNDER everything)
+///   PHASE 2 (this — pill bg with body-colored cap)
+///   caller draws body circles + decorations (selected ring, conjunction
+///       rings, eclipse highlights — these layer ON TOP of the cap fill)
+///   PHASE 3 (pill borders + name + interaction — ON TOP of bodies)
+///
+/// The body-colored cap is just a filled circle at body_screen with
+/// radius = `cap_radius - 0.5`. The rest of the pill (where the name
+/// goes) is filled with `bg_card` for legibility.
+pub fn paint_pill_backgrounds(
+    painter: &egui::Painter,
+    theme: &Theme,
+    layout: &PillsLayout,
+) {
+    for pp in &layout.placed {
+        let pill_h = pp.rect.height();
+        let half_h = pill_h * 0.5;
+        let radius = half_h;
+
+        // Step 1: fill the entire pill rect with the dark bg_card. This
+        // gives the name area its background.
+        painter.rect_filled(pp.rect, radius, theme.bg_card());
+
+        // Step 2: fill the cap area (left semicircle) with the body's
+        // color. This is the "cap visually = body" trick — when the
+        // body is then drawn at its natural smaller radius on top, it's
+        // invisible against this colored fill, so the cap reads as one
+        // solid body-colored disk regardless of how small the body's
+        // natural radius is.
+        let cap_center = Pos2::new(pp.rect.left() + half_h, pp.rect.center().y);
+        painter.circle_filled(cap_center, radius - 0.5, pp.color);
+    }
+}
+
+/// PHASE 3 — Paint pill borders + vertical divider + name text, and
+/// handle click interaction. Call AFTER the body draw pass so the
+/// borders render on top of body circles + conjunction/eclipse rings.
+///
+/// Border colors: ALL pills with `forced` or `expanded` get the strong
+/// accent border (matches operator's "the orange circle should be
+/// encompassing the object" feedback 2026-05-12). Non-forced pills
+/// (always-visible planets that the user isn't interacting with) get a
+/// subtle muted border.
+///
+/// Returns the id of the pill clicked this frame, if any.
 pub fn paint_pill_overlays(
     ui: &mut Ui,
     painter: &egui::Painter,
@@ -212,23 +249,41 @@ pub fn paint_pill_overlays(
         let pill_response = ui.interact(pp.rect, pill_id, Sense::click());
         let pill_hovered = pill_response.hovered();
 
-        // Border styling: expanded = thicker accent; forced (hovered/
-        // selected) = focus tone; otherwise = subtle border.
-        // (The body circle covers the LEFT portion of the border, so what
-        // the user sees is effectively a ring around the body + an outline
-        // around the name extension. That's what we want.)
+        let pill_h = pp.rect.height();
+        let half_h = pill_h * 0.5;
+
+        // Border: STRONG accent for any forced/hovered/expanded state
+        // (the user is "looking at" or interacting with this body).
+        // Subtle for non-interacting always-shown planets.
         let border_stroke = if pp.expanded {
-            Stroke::new(1.8, theme.accent())
+            Stroke::new(2.0, theme.accent())
         } else if pp.forced || pill_hovered {
-            Stroke::new(1.0, theme.border_focus())
+            Stroke::new(1.4, theme.accent())
         } else {
             Stroke::new(0.5, theme.border())
         };
-        let radius = pp.rect.height() * 0.5;
-        painter.rect_stroke(pp.rect, radius, border_stroke, egui::StrokeKind::Outside);
+        painter.rect_stroke(pp.rect, half_h, border_stroke, egui::StrokeKind::Outside);
 
-        // Name text — positioned just past the body's right edge so it's
-        // immediately adjacent to whatever the user is looking at.
+        // Vertical divider line between cap and name area (per operator's
+        // sketch 2026-05-12 — "There's no line between the icon and title
+        // text like on my paint drawing example"). The line sits at the
+        // cap's right edge (which is where the body color ends and the
+        // bg_card name area begins).
+        let divider_x = pp.rect.left() + half_h;
+        let divider_color = if pp.forced || pp.expanded || pill_hovered {
+            theme.accent()
+        } else {
+            theme.border()
+        };
+        painter.line_segment(
+            [
+                Pos2::new(divider_x, pp.rect.top() + 2.0),
+                Pos2::new(divider_x, pp.rect.bottom() - 2.0),
+            ],
+            Stroke::new(0.8, divider_color),
+        );
+
+        // Name text — positioned just past the cap's right edge.
         let font = egui::FontId::proportional(11.0);
         let text_galley = painter.layout_no_wrap(
             pp.name.clone(),
@@ -236,7 +291,7 @@ pub fn paint_pill_overlays(
             theme.text_primary(),
         );
         let text_pos = Pos2::new(
-            pp.body_screen.x + pp.body_radius_px + 6.0,
+            pp.rect.left() + half_h + 6.0,
             pp.rect.center().y - text_galley.size().y * 0.5,
         );
         painter.galley(text_pos, text_galley, theme.text_primary());
@@ -465,13 +520,8 @@ pub fn paint_card_extension(
             }
         });
 
-    // Re-paint the pill BACKGROUND fill so the panel's bg/border (just
-    // drawn) doesn't show through behind the pill area. This keeps the
-    // pill cleanly atop the panel.
-    let pill_radius = pill_h * 0.5;
-    painter.rect_filled(pp.rect, pill_radius, theme.bg_card());
-
-    // Use `_` to silence unused-pp.color warning.
+    // Use `_` to silence unused-pp.color warning. (Caller can use this
+    // when rendering loot-rarity-tinted card variants etc.)
     let _ = pp.color;
 
     response
