@@ -1592,15 +1592,30 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
     }
 
+    // ── PHASE 3 (called BEFORE Phase 2 — see widget docstring):
+    //    paint the details PANEL behind the expanded pill so the pill
+    //    border layers on top of the panel border. The panel uses a SOFT
+    //    gray border; the pill uses a STRONG accent border. Per operator
+    //    feedback 2026-05-12 ("notice that this section has a off color
+    //    border compared to the top — black is strong, gray is soft").
+    if let Some(expanded_id) = state.cosmos_expanded_body.clone() {
+        let placed = pill_layout.placed.iter().find(|pp| pp.id == expanded_id).cloned();
+        let body = projected.iter().find(|pb| pb.body.id == expanded_id).map(|pb| pb.body);
+        if let (Some(pp), Some(body)) = (placed, body) {
+            draw_body_info_card_v2(ui, &paint, theme, body, &pp, rect, state);
+        }
+    }
+
     // ── PHASE 2: paint pill OVERLAYS (borders + name text + click handling).
-    // Pill borders render on top of body circles + their decorations, so
-    // the user sees a continuous outline that wraps the body's left cap.
+    // Pill borders render on top of body circles + their decorations AND
+    // on top of any panel border drawn by Phase 3 above. The user sees:
+    //   • The body, with the pill's strong accent border wrapping it.
+    //   • The pill name to the right of the body.
+    //   • If expanded, a soft-gray panel extending right + down from the
+    //     pill's bottom-right corner.
     let clicked_pill = paint_pill_overlays(ui, &paint, theme, &pill_layout, "cosmos_pill");
 
     // Apply click selection. Pill clicks take precedence over body clicks.
-    // (Clicks on the body's own circle area are captured by the pill if
-    // a pill exists for that body — the pill rect encompasses the body's
-    // left cap.)
     if let Some(pill_id) = clicked_pill {
         // Toggle expanded state on pill click.
         if state.cosmos_expanded_body.as_deref() == Some(pill_id.as_str()) {
@@ -1613,17 +1628,6 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // Body click (no pill on this body) — select it. Next frame the
         // pill will appear because the body is now selected (forced=true).
         state.cosmos_selected_body = Some(b.id.clone());
-    }
-
-    // ── PHASE 3: card extension for the expanded pill, if any.
-    if let Some(expanded_id) = state.cosmos_expanded_body.clone() {
-        // Find the expanded pill's placed rect (it may have been culled by
-        // collision-dodge or the camera may have moved off it).
-        let placed = pill_layout.placed.iter().find(|pp| pp.id == expanded_id).cloned();
-        let body = projected.iter().find(|pb| pb.body.id == expanded_id).map(|pb| pb.body);
-        if let (Some(pp), Some(body)) = (placed, body) {
-            draw_body_info_card_v2(ui, &paint, theme, body, &pp, rect, state);
-        }
     }
 
     // ── Hover tooltip ──

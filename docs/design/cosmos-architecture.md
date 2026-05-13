@@ -735,9 +735,31 @@ A horizontal control strip at the top of the System view contains:
 > use either plain text labels (`"Play"`, `"Pause"`, `"<<"`, `">>"`)
 > or paint shapes via `widgets::icons::paint_*` SVG helpers.
 
-### Universal "world object label" widget (Phase 4d-bis + extraction in v0.213.0 + unification in v0.214.0)
+### Universal "world object label" widget (Phase 4d-bis + extraction in v0.213.0 + unification in v0.214.0 + panel-behind-pill in v0.215.0)
 
 Operator feedback 2026-05-12 (after seeing v0.213): *"It should be a single thing, not three separate widgets. The body's planet icon remains on the original first one, the orange ring around it expands rightward to fit the name, then clicking the name expands/collapses the full card."*
+
+Follow-up sketch 2026-05-12 (after seeing v0.214): the details panel should sit BEHIND the pill, sharing the top-left corner, extending further right than the pill if the name is short. The panel has a SOFT gray border; the pill has a STRONG accent border. From the sketch:
+
+```text
+┌─[pill]──┐                              ← pill (strong/accent border)
+│ ⊙  Name │                                sits ON TOP of panel
+└─────────┘                              ← pill bottom = divider line
+     ┌────────── panel ──────────────┐    inside the panel
+     │ extends right past pill       │
+     │ panel border is SOFT (gray)   │  ← visible only where pill doesn't overlap
+     │ details content here          │
+     └───────────────────────────────┘
+```
+
+In v0.215.0 the panel is rendered BEFORE the pill border (so the pill border layers on top in the overlap region). Phase ordering is now:
+
+  1. `paint_pill_backgrounds` (pill fills — bodies render on top).
+  2. caller draws bodies + decorations.
+  3. `paint_card_extension` (panel BEHIND pill — fill + soft gray border).
+  4. `paint_pill_overlays` (pill borders + name on top of panel).
+
+The pill's top-left and the panel's top-left are the same point. The panel width = `max(pill_width, panel_min_width 240)` so the panel can extend further right than the pill when the name is short. The panel's top-right corner is rounded (8 px). If the panel would clip the canvas bottom, it flips: pill goes to the panel's BOTTOM edge instead of its top, and content renders above the pill.
 
 Also widened the scope: *"We could use it for viewing loot on the ground and vehicles in the distance and whatever else. Mostly in the FPS mode."*
 

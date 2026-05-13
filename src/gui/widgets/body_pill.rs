@@ -276,15 +276,41 @@ pub struct BodyCardResponse {
     pub action_clicked: Option<usize>,
 }
 
-/// PHASE 3 — Paint the card extension below an expanded pill.
+/// PHASE 3 — Paint the details PANEL behind an expanded pill.
 ///
-/// The card grows DOWNWARD from the pill's bottom edge, sharing the
-/// pill's left edge so the user sees one continuous outline (pill on
-/// top, card below, connected). If extending down would clip the bottom
-/// of the canvas, the card flips up and extends above the pill instead.
+/// **MUST be called BEFORE `paint_pill_overlays`** so the pill border
+/// layers ON TOP of the panel border. The render order is:
 ///
-/// The card's heading row reuses the pill's name + body color as the
-/// visual anchor — there is NO duplicate body dot inside the card.
+///   1. `paint_pill_backgrounds` — pill fills (caller draws bodies on top).
+///   2. caller draws bodies + decorations.
+///   3. `paint_card_extension` — the details panel (BEHIND pill).
+///   4. `paint_pill_overlays` — pill borders + name (ON TOP of panel border).
+///
+/// Layout (matches operator's 2026-05-12 sketch):
+///
+/// ```text
+///   ┌─[pill]──┐ ←──── pill (strong/accent border) sits on top
+///   │ ⊙  Name │
+///   └─────────┘
+///        ┌───────────────────────── panel ──────────┐
+///        │ extends right past pill if content needs │
+///        │ panel border is SOFT (gray); pill border │
+///        │ is STRONG (accent). They overlap in the  │
+///        │ pill area; pill border covers panel here │
+///        │                                          │
+///        └──────────────────────────────────────────┘
+/// ```
+///
+/// The pill's top-left is the same as the panel's top-left — they share
+/// the top-left corner. The pill's bottom edge stays visible inside the
+/// panel, acting as a divider between title and content.
+///
+/// Width: `max(pill_width, panel_min_width)` so the panel can extend
+/// further right than the pill when the name is short.
+///
+/// Auto-flip: if the panel would extend past the canvas bottom, it
+/// flips up so the pill is at the panel's BOTTOM edge instead of its
+/// top edge, with content rendered ABOVE the pill.
 pub fn paint_card_extension(
     ui: &mut Ui,
     painter: &egui::Painter,
@@ -293,89 +319,102 @@ pub fn paint_card_extension(
     card: &BodyCardData<'_>,
     canvas_rect: Rect,
 ) -> BodyCardResponse {
-    let card_w_min = 220.0_f32;
-    // Card width: at least the pill's width (so it never looks narrower
-    // than its header), at least card_w_min for content legibility.
-    let card_w = pp.rect.width().max(card_w_min);
-    let card_h_est = 160.0_f32;
+    let panel_min_w = 240.0_f32;
+    let pill_h = pp.rect.height();
+    let content_h_est = 150.0_f32;
+    let panel_h = pill_h + content_h_est;
 
-    // Try to extend down from pill.bottom. Flip up if it would clip.
+    // Width: at least the pill's width, at least panel_min_w. If the
+    // panel would extend past the canvas right edge, clamp the width
+    // (don't shift the panel left, because that would detach it from
+    // the pill which is anchored to the body).
+    let mut panel_w = pp.rect.width().max(panel_min_w);
+    let max_w_from_canvas = (canvas_rect.right() - 8.0 - pp.rect.left()).max(panel_min_w);
+    panel_w = panel_w.min(max_w_from_canvas);
+
+    // Vertical: prefer extending down (panel.top = pill.top); flip up if
+    // it would clip the canvas bottom (panel.bottom = pill.bottom; content
+    // renders above the pill).
     let mut extend_down = true;
-    let mut card_top = pp.rect.bottom();
-    if card_top + card_h_est > canvas_rect.bottom() - 8.0 {
-        extend_down = false;
-        card_top = pp.rect.top() - card_h_est;
-    }
-    // If flipping up still clips, fall back to extending down with bottom
-    // clamped (the card will overflow the canvas a little, but staying
-    // attached to the pill is more important than fitting perfectly).
-    if !extend_down && card_top < canvas_rect.top() + 8.0 {
-        extend_down = true;
-        card_top = pp.rect.bottom();
+    if pp.rect.top() + panel_h > canvas_rect.bottom() - 8.0 {
+        // Try flipping up: panel ends at pill.bottom, extends upward.
+        let panel_top_if_up = pp.rect.bottom() - panel_h;
+        if panel_top_if_up >= canvas_rect.top() + 8.0 {
+            extend_down = false;
+        }
+        // Else: stay extending down, accept the clip.
     }
 
-    // Card horizontal position: align left with pill. If the card is
-    // wider than the pill and would extend past the canvas right edge,
-    // shift the whole card left so it fits.
-    let mut card_left = pp.rect.left();
-    if card_left + card_w > canvas_rect.right() - 8.0 {
-        card_left = canvas_rect.right() - 8.0 - card_w;
-    }
-    if card_left < canvas_rect.left() + 8.0 {
-        card_left = canvas_rect.left() + 8.0;
-    }
-
-    let card_rect = Rect::from_min_size(
-        Pos2::new(card_left, card_top),
-        Vec2::new(card_w, card_h_est),
+    let panel_top = if extend_down {
+        pp.rect.top()
+    } else {
+        pp.rect.bottom() - panel_h
+    };
+    let panel_rect = Rect::from_min_size(
+        Pos2::new(pp.rect.left(), panel_top),
+        Vec2::new(panel_w, panel_h),
     );
 
-    let mut child = ui.new_child(
-        egui::UiBuilder::new()
-            .max_rect(card_rect)
-            .layout(egui::Layout::top_down(egui::Align::LEFT)),
+    // Paint the panel background + SOFT (gray) border.
+    let panel_corner_radius = 8.0_f32;
+    painter.rect_filled(panel_rect, panel_corner_radius, theme.bg_card());
+    painter.rect_stroke(
+        panel_rect,
+        panel_corner_radius,
+        Stroke::new(1.0, theme.border()),
+        egui::StrokeKind::Outside,
     );
 
+    // Content area: below the pill (when extending down) or above the
+    // pill (when flipped up). Inset by 10 px on left/right; pill height
+    // worth of vertical inset on the appropriate side.
+    let content_top = if extend_down {
+        pp.rect.bottom() + 6.0
+    } else {
+        panel_rect.top() + 10.0
+    };
+    let content_bottom = if extend_down {
+        panel_rect.bottom() - 10.0
+    } else {
+        pp.rect.top() - 6.0
+    };
+    let content_rect = Rect::from_min_max(
+        Pos2::new(panel_rect.left() + 10.0, content_top),
+        Pos2::new(panel_rect.right() - 10.0, content_bottom),
+    );
+
+    // Close button overlay — top-right of the panel, ABOVE the content.
+    // We place it in the top-right corner where the panel extends past
+    // the pill (or in the top-right of the panel if the panel and pill
+    // are the same width).
     let mut response = BodyCardResponse {
         closed: false,
         action_clicked: None,
     };
+    let close_rect = Rect::from_min_size(
+        Pos2::new(panel_rect.right() - 50.0, panel_rect.top() + 4.0),
+        Vec2::new(44.0, pill_h - 6.0),
+    );
+    let mut close_ui = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(close_rect)
+            .layout(egui::Layout::centered_and_justified(egui::Direction::TopDown)),
+    );
+    if close_ui.small_button("Close").clicked() {
+        response.closed = true;
+    }
 
-    // Card frame: rounded only on the OPPOSITE end from the pill. When
-    // extending down, the card's TOP corners are square (they merge with
-    // the pill's bottom), the BOTTOM corners are rounded. When extending
-    // up, vice versa.
-    let corner_radius = if extend_down {
-        egui::CornerRadius { nw: 0, ne: 0, sw: 8, se: 8 }
-    } else {
-        egui::CornerRadius { nw: 8, ne: 8, sw: 0, se: 0 }
-    };
-
+    // Render content inside the content area (below or above the pill).
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(content_rect)
+            .layout(egui::Layout::top_down(egui::Align::LEFT)),
+    );
     egui::Frame::NONE
-        .fill(theme.bg_card())
-        .stroke(Stroke::new(1.8, theme.accent()))
-        .corner_radius(corner_radius)
-        .inner_margin(egui::Margin::same(10))
+        .inner_margin(egui::Margin::ZERO)
         .show(&mut child, |ui| {
-            ui.set_min_width(card_w - 20.0);
-            ui.set_max_width(card_w - 20.0);
-
-            // Heading row — NO duplicate body dot. The pill above (with
-            // the body as its left cap) already serves as the visual
-            // anchor. Just show the name + Close button.
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(&pp.name)
-                        .size(theme.font_size_heading)
-                        .color(theme.text_primary())
-                        .strong(),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button("Close").clicked() {
-                        response.closed = true;
-                    }
-                });
-            });
+            ui.set_min_width(content_rect.width());
+            ui.set_max_width(content_rect.width());
 
             if let Some(ref s) = card.subtitle {
                 ui.label(
@@ -426,30 +465,13 @@ pub fn paint_card_extension(
             }
         });
 
-    // Paint a seam-hiding overlay where the pill meets the card. Because
-    // the pill has rounded bottom corners and the card has square top
-    // corners (when extending down), there'd be a small "notch" at the
-    // join where the pill's bottom-rounding cuts back inside. We hide it
-    // by drawing a thin rectangle in the card's bg color across the seam.
-    let seam_y = if extend_down {
-        pp.rect.bottom()
-    } else {
-        pp.rect.top() - 1.0
-    };
-    let seam_left = card_rect.left().max(pp.rect.left()) + 1.0;
-    let seam_right = card_rect.right().min(pp.rect.right()) - 1.0;
-    if seam_right > seam_left {
-        let seam_rect = Rect::from_min_size(
-            Pos2::new(seam_left, seam_y - 1.0),
-            Vec2::new(seam_right - seam_left, 3.0),
-        );
-        painter.rect_filled(seam_rect, 0.0, theme.bg_card());
-    }
+    // Re-paint the pill BACKGROUND fill so the panel's bg/border (just
+    // drawn) doesn't show through behind the pill area. This keeps the
+    // pill cleanly atop the panel.
+    let pill_radius = pill_h * 0.5;
+    painter.rect_filled(pp.rect, pill_radius, theme.bg_card());
 
-    // Use `_` to silence the unused-pp.color warning — color is exposed
-    // on PlacedPill for callers that want to draw their own card variants
-    // (e.g. loot-rarity-tinted cards) even though our default heading
-    // doesn't render a dot anymore.
+    // Use `_` to silence unused-pp.color warning.
     let _ = pp.color;
 
     response
