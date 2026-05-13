@@ -63,13 +63,13 @@
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2};
 use crate::gui::theme::Theme;
 
-/// Minimum pill height in px — enough to fit the name text + padding.
-/// Tuned 2026-05-12 (operator feedback) — smaller cap so small bodies
-/// don't look "lost" inside an oversized cap. The body-colored cap fill
-/// (see `paint_pill_backgrounds`) makes the cap visually appear AS the
-/// body's left dot, regardless of natural body radius, so this can be
-/// kept tight.
-const MIN_PILL_HEIGHT: f32 = 18.0;
+/// Minimum widget radius in px. Drives ALL THREE matching circles
+/// (cap around body + pill top-left corner + panel top-left corner) so
+/// they're always the same size at every zoom level (operator feedback
+/// 2026-05-12 — "It should be like 3 overlapping circles of the same
+/// size"). When the body's natural radius is larger than this, the
+/// widget radius scales up with it.
+const MIN_WIDGET_RADIUS: f32 = 9.0;
 
 /// Per-pill input. Caller produces a `Vec<BodyPill>` per frame; the
 /// widget runs collision-dodge + renders the survivors.
@@ -138,11 +138,16 @@ pub fn compute_pill_layout(
     let mut placed_rects: Vec<Rect> = Vec::with_capacity(sorted.len());
 
     for c in &sorted {
-        // Pill height: prefer the body's natural diameter so the left cap
-        // matches the body's silhouette exactly; floor at MIN_PILL_HEIGHT
-        // so small bodies (e.g. asteroids) still have a legible label.
-        let pill_height = (c.body_radius_px * 2.0 + 2.0).max(MIN_PILL_HEIGHT);
-        let half_h = pill_height * 0.5;
+        // Widget radius — drives the cap, pill corner, AND panel corner.
+        // Always at least MIN_WIDGET_RADIUS, otherwise scales with body
+        // (body_radius + 1 so the cap is exactly 1 px outside the body
+        // when the body is larger than the minimum). All three circles
+        // (cap around body, pill top-left corner, panel top-left corner)
+        // use this same radius — operator's "3 overlapping circles of
+        // the same size" requirement.
+        let widget_radius = (c.body_radius_px + 1.0).max(MIN_WIDGET_RADIUS);
+        let pill_height = widget_radius * 2.0;
+        let half_h = widget_radius;
 
         // Measure name text to determine pill width.
         let font = egui::FontId::proportional(11.0);
@@ -408,7 +413,12 @@ pub fn paint_card_extension(
     // Paint the panel: filled rounded rect with all 4 corners rounded,
     // soft gray border. Fully self-contained — pill area is NOT inside
     // this rect, so the panel's padding/margin don't affect the cap.
-    let panel_corner_radius = 8.0_f32;
+    //
+    // Corner radius matches the pill's corner radius (which equals the
+    // cap radius) so all three "circles" — cap around body, pill top-
+    // left, panel top-left — are the same size (operator feedback
+    // 2026-05-12 — "3 overlapping circles of the same size").
+    let panel_corner_radius = pp.rect.height() * 0.5;
     painter.rect_filled(panel_rect, panel_corner_radius, theme.bg_card());
     painter.rect_stroke(
         panel_rect,

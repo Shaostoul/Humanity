@@ -1528,9 +1528,13 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         let r_px = body_radii_px[i];
 
         paint.circle_filled(pb.screen, r_px, body_color(&pb.body.name));
-        if state.cosmos_selected_body.as_deref() == Some(pb.body.id.as_str()) {
-            paint.circle_stroke(pb.screen, r_px + 3.0, Stroke::new(1.5, theme.accent()));
-        }
+        // Note: removed the v0.214-era selected accent ring at r_px + 3
+        // (operator feedback 2026-05-12 — "the orange circle around the
+        // sprite was smaller than the pill top-left corner"). The pill
+        // border's left semicircle (drawn in paint_pill_overlays) is the
+        // single canonical "orange ring around the body" now, with
+        // radius = widget_radius which also matches the pill + panel
+        // corner radii. All three circles are the same size.
 
         // Conjunction highlight ring — bodies currently in a conjunction
         // pulse with a warm-tone ring. Tightness drives ring thickness
