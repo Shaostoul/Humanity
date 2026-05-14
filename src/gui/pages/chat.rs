@@ -1954,12 +1954,28 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // them — so hovering message body opened the popup.
                         // (Operator-reported bug 2026-05-04.)
                         let pointer = ui.ctx().input(|i| i.pointer.hover_pos());
+                        // Block the popup whenever a foreground modal is
+                        // open over the chat. Egui's positional `.contains()`
+                        // checks don't respect z-ordering, so without this
+                        // gate the popup opens when the cursor is over a
+                        // modal that happens to sit above a message's pill
+                        // region — blocking the modal's own buttons.
+                        // Operator-reported bug 2026-05-12 - "The reaction
+                        // pill keeps coming up even though my mouse is no
+                        // where near the Þ icon. It is preventing me from
+                        // being able to click the kick button."
+                        let modal_blocking = state.chat_user_modal_open
+                            || state.show_create_group_modal
+                            || state.show_join_group_modal
+                            || state.image_viewer_url.is_some();
                         // Hover is gated on the Þ icon's rect (NOT the full
                         // pill) so hovering the message text won't open the
                         // popup (operator feedback 2026-05-12).
-                        let thorn_hovered = thorn_rect_for_msg != egui::Rect::NOTHING
+                        let thorn_hovered = !modal_blocking
+                            && thorn_rect_for_msg != egui::Rect::NOTHING
                             && pointer.map(|p| thorn_rect_for_msg.contains(p)).unwrap_or(false);
-                        let popup_hovered = pointer.map(|p| est_popup_rect.contains(p)).unwrap_or(false);
+                        let popup_hovered = !modal_blocking
+                            && pointer.map(|p| est_popup_rect.contains(p)).unwrap_or(false);
                         let combined_hovered = thorn_hovered || popup_hovered;
 
                         if combined_hovered {
