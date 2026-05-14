@@ -200,17 +200,19 @@ pub fn message_row(
         0.0
     };
 
-    // Row height = max(text height, icon size + padding) on HEADER rows so
-    // the avatar circle fits comfortably and message blocks aren't cramped.
-    // Continuation rows (no avatar) stay tight against text so a sender's
-    // multi-message block reads as one block, not a series of gaps.
-    // Operator request 2026-05-04: avatars are ~2 text lines tall so there
-    // should be visible breathing room between sender groups.
-    let min_h = if show_header {
-        (theme.icon_size + 6.0).max(16.0)
-    } else {
-        16.0
-    };
+    // Row height = just (text_h + 4), no avatar floor. The avatar is
+    // painted in a DEFERRED post-pass (caller iterates over returned
+    // `MessageRowResponse.deferred_avatar` after the message loop ends
+    // and calls `paint_avatar` for each), so it can overflow into the
+    // next row's territory without leaving an empty gap below short
+    // single-line header rows. Operator feedback 2026-05-12 — "Yeah
+    // Just working ... [GAP] As updates happen ... we want to get rid
+    // of that gap / extra row".
+    //
+    // The previous behaviour was `min_h = icon_size + 6 = 38 px`, which
+    // padded EVERY short header row to fit the 32×32 avatar — that's
+    // what produced the visible gap below short messages.
+    let min_h = 16.0;
     let row_h = (text_h + 4.0).max(min_h);
 
     let (full_rect, response) =
@@ -224,6 +226,7 @@ pub fn message_row(
             response,
             userbox_rect: Rect::NOTHING,
             pill_rect: Rect::NOTHING,
+            deferred_avatar: None,
         };
     }
 
@@ -234,64 +237,30 @@ pub fn message_row(
     let hy = full_rect.min.y;
 
     let mut userbox_hit = Rect::NOTHING;
+    let mut deferred_avatar: Option<DeferredAvatar> = None;
 
     if show_header {
         // Userbox is a FIXED SQUARE (USERBOX_SIZE × USERBOX_SIZE) anchored
-        // to the top-left of the row. Previously its height = row_h
-        // which meant multi-line messages got a tall rectangle while
-        // single-line messages got a short one — the avatar boxes
-        // looked inconsistently sized even though theme.icon_size
-        // (which drives the inner circle) hadn't changed. Operator
-        // 2026-05-08: "they should just be the size they're set at in
-        // the settings, not have this dynamic size." A fixed square
-        // gives a consistent visual anchor regardless of how the
-        // message text wraps. Width still equals USERBOX_SIZE so
-        // message indents stay aligned across senders.
+        // to the top-left of the row. May extend BELOW row_h when the
+        // header row contains short single-line text (because we dropped
+        // the avatar floor on row_h to eliminate the gap). The avatar
+        // gets painted in a DEFERRED post-pass after all rows are
+        // rendered, so the overflow into the next row's bg is invisible
+        // (overflow gets painted on top of subsequent row bgs).
         userbox_hit = Rect::from_min_size(
             egui::pos2(hx, hy),
             Vec2::splat(USERBOX_SIZE),
         );
-
-        let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
-        let userbox_hovered = pointer_pos
-            .map(|p| userbox_hit.contains(p))
-            .unwrap_or(false);
-
-        let border_stroke = if channeling {
-            rgb_from_time(ctx_time)
-        } else if userbox_hovered {
-            HOVER_BLUE
-        } else {
-            border_color
-        };
-        painter.rect_stroke(
-            userbox_hit,
-            theme.border_radius_widget,
-            egui::Stroke::new(bw, border_stroke),
-            StrokeKind::Inside,
-        );
-
-        // Filled circle with the sender's first letter — constant size
-        // across every message regardless of row height. Centered in
-        // the (now fixed-square) userbox so positioning is symmetric.
-        // Settings → Widgets → Icon Size still controls the inner
-        // circle radius so the operator can scale the avatars without
-        // affecting the message indent.
-        let icon_r = (theme.icon_size * 0.38).max(6.0);
-        let icon_center = userbox_hit.center();
-        painter.circle_filled(icon_center, icon_r, icon_color);
-        painter.text(
-            icon_center,
-            egui::Align2::CENTER_CENTER,
-            &icon_letter.to_uppercase().to_string(),
-            egui::FontId::proportional(side_font),
-            Color32::WHITE,
-        );
-
-        if channeling {
-            ui.ctx().request_repaint();
-        }
+        deferred_avatar = Some(DeferredAvatar {
+            rect: userbox_hit,
+            letter: icon_letter,
+            icon_color,
+            channeling,
+        });
     }
+    let _ = side_font;
+    let _ = bw;
+    let _ = border_color;
 
     // Text content — fixed x offset for everyone so alignment is consistent.
     let content_x = hx + content_left_offset;
@@ -315,6 +284,7 @@ pub fn message_row(
         response,
         userbox_rect: userbox_hit,
         pill_rect,
+        deferred_avatar,
     }
 }
 
@@ -326,6 +296,70 @@ pub struct MessageRowResponse {
     /// `pill_width > 0` was passed in). Empty rect when the pill was
     /// not requested.
     pub pill_rect: Rect,
+    /// Avatar paint info for header rows. The caller MUST collect these
+    /// and call `paint_avatar` for each after the message loop ends so
+    /// the avatar's bottom isn't clipped by subsequent rows' bg fills
+    /// (avatars are 32×32 but rows can now be as short as a single
+    /// text line; the avatar overflows but post-pass paint covers it).
+    pub deferred_avatar: Option<DeferredAvatar>,
+}
+
+/// Avatar info captured during a header row render, painted later in a
+/// post-pass so the avatar's overflow into the next row stays visible.
+#[derive(Clone)]
+pub struct DeferredAvatar {
+    pub rect: Rect,
+    pub letter: char,
+    pub icon_color: Color32,
+    pub channeling: bool,
+}
+
+/// Paint a deferred avatar (stroke + filled circle + letter) at its
+/// captured position. Call this for each `DeferredAvatar` AFTER the
+/// message loop has finished so the avatar renders on top of any
+/// subsequent row bgs that would otherwise clip its bottom edge.
+pub fn paint_avatar(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    avatar: &DeferredAvatar,
+    ctx_time: f64,
+) {
+    let painter = ui.painter();
+    let bw = theme.border_width;
+
+    let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
+    let hovered = pointer_pos
+        .map(|p| avatar.rect.contains(p))
+        .unwrap_or(false);
+
+    let border_stroke = if avatar.channeling {
+        rgb_from_time(ctx_time)
+    } else if hovered {
+        HOVER_BLUE
+    } else {
+        theme.border()
+    };
+    painter.rect_stroke(
+        avatar.rect,
+        theme.border_radius_widget,
+        egui::Stroke::new(bw, border_stroke),
+        StrokeKind::Inside,
+    );
+
+    let icon_r = (theme.icon_size * 0.38).max(6.0);
+    let icon_center = avatar.rect.center();
+    painter.circle_filled(icon_center, icon_r, avatar.icon_color);
+    painter.text(
+        icon_center,
+        egui::Align2::CENTER_CENTER,
+        &avatar.letter.to_uppercase().to_string(),
+        egui::FontId::proportional(theme.name_size),
+        Color32::WHITE,
+    );
+
+    if avatar.channeling {
+        ui.ctx().request_repaint();
+    }
 }
 
 impl MessageRowResponse {

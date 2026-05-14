@@ -645,13 +645,14 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let collapsed = state.chat_groups_collapsed;
     let group_count = state.chat_groups.len();
 
-    // Track button clicks from the header
+    // Track button clicks from the header.
+    // Note: the Groups-level "settings" cog was REMOVED in v0.223
+    // (operator feedback 2026-05-12 — "The settings button does nothing
+    // ... Group notifications are handled per group. Rearranging groups
+    // can be done by simply dragging and dropping..."). Only the
+    // Create + Join buttons remain.
     let mut create_clicked = false;
     let mut join_clicked = false;
-    let mut groups_cog_clicked = false;
-    // Capture the cog's rect from inside the closure for the floating
-    // popup anchor — same pattern as the DM section.
-    let groups_cog_rect_cell: std::cell::Cell<Option<egui::Rect>> = std::cell::Cell::new(None);
 
     if tinted_section_header_with_buttons(
         ui,
@@ -659,16 +660,6 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         collapsed,
         theme.group_bg(),
         |ui| {
-            // Cog button (group settings)
-            {
-                let (cog_rect, cog_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
-                let cog_color = if cog_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
-                crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
-                groups_cog_rect_cell.set(Some(cog_rect));
-                if cog_resp.on_hover_text("Group Settings").clicked() {
-                    groups_cog_clicked = true;
-                }
-            }
             // + button (create group)
             {
                 let (plus_rect, plus_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
@@ -691,45 +682,6 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ) {
         state.chat_groups_collapsed = !state.chat_groups_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
-    }
-    // Groups settings popup — manual Area, same pattern as DM cog.
-    // Fixes the same flicker bug where popup_below_widget + CloseOnClick
-    // self-closed on the trigger click frame.
-    if groups_cog_clicked {
-        state.groups_settings_popup_open = !state.groups_settings_popup_open;
-    }
-    if state.groups_settings_popup_open {
-        if let Some(cog_rect) = groups_cog_rect_cell.get() {
-            let popup_resp = egui::Area::new(egui::Id::new("groups_settings_popup"))
-                .fixed_pos(egui::pos2(cog_rect.left() - 100.0, cog_rect.bottom() + 4.0))
-                .order(egui::Order::Foreground)
-                .show(ui.ctx(), |ui| {
-                    egui::Frame::popup(ui.style())
-                        .show(ui, |ui| {
-                            ui.set_min_width(140.0);
-                            ui.label(RichText::new("Groups Settings").size(theme.font_size_body).color(theme.text_primary()).strong());
-                            ui.separator();
-                            if ui.button("Group Notifications").clicked() {
-                                // TODO: toggle group notifications
-                                state.groups_settings_popup_open = false;
-                            }
-                            if ui.button("Sort by Activity").clicked() {
-                                // TODO: sort groups
-                                state.groups_settings_popup_open = false;
-                            }
-                        });
-                });
-            if !groups_cog_clicked {
-                let click_outside = ui.ctx().input(|i| {
-                    i.pointer.any_click() && i.pointer.interact_pos().map_or(false, |pos| {
-                        !popup_resp.response.rect.contains(pos) && !cog_rect.contains(pos)
-                    })
-                });
-                if click_outside {
-                    state.groups_settings_popup_open = false;
-                }
-            }
-        }
     }
 
     if create_clicked {
@@ -1741,6 +1693,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // Remove default item spacing so rows sit flush
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
 
+                // Deferred avatars — collected during the loop, painted
+                // AFTER all rows are drawn so 32×32 avatars on short
+                // single-line header rows don't get clipped by the next
+                // row's bg fill. Eliminates the empty-row gap below
+                // short messages (operator feedback 2026-05-12).
+                let mut deferred_avatars: Vec<crate::gui::widgets::row::DeferredAvatar> = Vec::new();
+
                 for msg in &filtered {
                     let show_header = msg.sender_name != last_sender;
                     if show_header {
@@ -1800,6 +1759,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let mut row_was_hovered = false;
                     let mut row_rect_opt: Option<egui::Rect> = None;
                     let mut pill_rect_for_msg: egui::Rect = egui::Rect::NOTHING;
+                    // Þ icon rect (within the pill); reaction popup hover
+                    // is now gated on the cursor being over THIS rect or
+                    // over the popup itself, NOT the full pill (operator
+                    // feedback 2026-05-12 — hovering message text should
+                    // not open the popup so the user can copy/select text).
+                    let mut thorn_rect_for_msg: egui::Rect = egui::Rect::NOTHING;
                     if is_editing {
                         // Render an editable row in place of the message text.
                         if let Some((_, ref mut draft)) = state.chat_edit_target {
@@ -1844,10 +1809,17 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         row_was_hovered = row_resp.response.hovered();
                         row_rect_opt = Some(row_resp.response.rect);
                         pill_rect_for_msg = row_resp.pill_rect;
+                        if let Some(ref a) = row_resp.deferred_avatar {
+                            deferred_avatars.push(a.clone());
+                        }
 
                         // Paint the timestamp pill into the rect message_row reserved.
+                        // Returns the Þ icon's rect — used below to constrain
+                        // the reaction-popup hover area so the popup doesn't
+                        // open when the user is just trying to read/copy the
+                        // message text (operator feedback 2026-05-12).
                         if pill_rect_for_msg != egui::Rect::NOTHING {
-                            paint_timestamp_pill(
+                            thorn_rect_for_msg = paint_timestamp_pill(
                                 ui,
                                 theme,
                                 pill_rect_for_msg,
@@ -1982,11 +1954,55 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // them — so hovering message body opened the popup.
                         // (Operator-reported bug 2026-05-04.)
                         let pointer = ui.ctx().input(|i| i.pointer.hover_pos());
-                        let pill_hovered = pointer.map(|p| pill_rect_for_msg.contains(p)).unwrap_or(false);
+                        // Hover is gated on the Þ icon's rect (NOT the full
+                        // pill) so hovering the message text won't open the
+                        // popup (operator feedback 2026-05-12).
+                        let thorn_hovered = thorn_rect_for_msg != egui::Rect::NOTHING
+                            && pointer.map(|p| thorn_rect_for_msg.contains(p)).unwrap_or(false);
                         let popup_hovered = pointer.map(|p| est_popup_rect.contains(p)).unwrap_or(false);
-                        let combined_hovered = pill_hovered || popup_hovered;
+                        let combined_hovered = thorn_hovered || popup_hovered;
 
                         if combined_hovered {
+                            // ── Timestamp expansion overlay (LEFT of Þ) ──
+                            // Shows YYYY-MM-DD HH:MM:SS UTC anchored just to
+                            // the left of the Þ. Operator feedback 2026-05-12.
+                            // Rendered before the reaction popup (which goes
+                            // on the RIGHT) so the two overlays appear
+                            // symmetrically around the Þ pull tab.
+                            if msg.timestamp_ms > 0 && thorn_rect_for_msg != egui::Rect::NOTHING {
+                                let ts_overlay_pos = egui::pos2(
+                                    thorn_rect_for_msg.left() - 4.0,
+                                    thorn_rect_for_msg.center().y,
+                                );
+                                let full_ts = format_full_timestamp(msg.timestamp_ms);
+                                egui::Area::new(egui::Id::new(("pill_ts_expand", msg.timestamp_ms)))
+                                    .fixed_pos(ts_overlay_pos)
+                                    .pivot(egui::Align2::RIGHT_CENTER)
+                                    .order(egui::Order::Foreground)
+                                    .interactable(false)
+                                    .show(ui.ctx(), |ui| {
+                                        Frame::none()
+                                            .fill(theme.bg_card())
+                                            .stroke(Stroke::new(1.0, theme.border()))
+                                            .rounding(Rounding::same(8))
+                                            .inner_margin(egui::Margin::symmetric(8, 4))
+                                            .shadow(egui::epaint::Shadow {
+                                                offset: [1, 2],
+                                                blur: 6,
+                                                spread: 0,
+                                                color: Color32::from_black_alpha(80),
+                                            })
+                                            .show(ui, |ui| {
+                                                ui.label(
+                                                    RichText::new(full_ts)
+                                                        .size(theme.small_size)
+                                                        .color(theme.text_secondary())
+                                                        .monospace(),
+                                                );
+                                            });
+                                    });
+                            }
+
                             let overlay_pos = egui::pos2(
                                 pill_rect_for_msg.right(),
                                 pill_rect_for_msg.center().y,
@@ -2197,6 +2213,17 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
 
                 ui.add_space(8.0);
+
+                // ── Deferred avatar post-pass ──
+                // Paint avatars AFTER all rows + reply rows + image rows have
+                // rendered, so the avatar's bottom doesn't get clipped by
+                // subsequent row bgs (header rows are now sized to the text,
+                // not to the avatar, so 32×32 avatars often overflow). Painting
+                // last puts them on top of any covering bg fill.
+                let avatar_ctx_time = ui.ctx().input(|i| i.time);
+                for avatar in &deferred_avatars {
+                    crate::gui::widgets::row::paint_avatar(ui, theme, avatar, avatar_ctx_time);
+                }
 
                 // Apply pending reply selection (set chat composing context).
                 if let Some(ctx) = pending_reply.take() {
@@ -3621,6 +3648,14 @@ fn compute_pill_width(
 /// Clicking an existing reaction toggles your own. Clicking Þ has no
 /// dedicated action (the pill expands via row hover; see the
 /// `pill_expand` Area in the message render block).
+/// Returns the rect occupied by the Þ pull-tab marker so the caller can
+/// constrain reaction-pill popup hover detection to JUST the Þ (instead
+/// of the entire timestamp pill, which would cover the message text).
+/// Operator feedback 2026-05-12 — "I only want the reaction pill to come
+/// up if I mouse over the Þ icon or click on it. Right now if I mouse
+/// over reply text the reaction pill comes up which prevents me from
+/// interacting with text (like copying it to paste or googling a key
+/// word.)"
 fn paint_timestamp_pill(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -3631,7 +3666,7 @@ fn paint_timestamp_pill(
     msg_ts_ms: u64,
     msg_sender_key: String,
     pending_reactions: &mut Vec<(String, u64, String)>,
-) {
+) -> egui::Rect {
     let painter = ui.painter();
     // Pill background — fully OPAQUE so the underlying transparent layout
     // spacer doesn't let message text bleed through. Earlier the alpha
@@ -3671,6 +3706,13 @@ fn paint_timestamp_pill(
     });
     let thorn_h = thorn_galley.size().y;
     let thorn_w = thorn_galley.size().x;
+    // Pad the Þ hit-rect by ~2 px on each side so the hover area isn't
+    // pixel-tight (otherwise small cursor jitter dismisses the popup
+    // before the user can slide into it).
+    let thorn_hit = egui::Rect::from_min_size(
+        egui::pos2(x - 2.0, cy - thorn_h / 2.0 - 2.0),
+        Vec2::new(thorn_w + 4.0, thorn_h + 4.0),
+    );
     painter.galley(egui::pos2(x, cy - thorn_h / 2.0), thorn_galley, theme.accent());
     x += thorn_w; // advance past Þ; first-badge gap added below
 
@@ -3733,6 +3775,39 @@ fn paint_timestamp_pill(
             x += badge_w; // advance past the badge body; next-badge gap added next iter
         }
     }
+    thorn_hit
+}
+
+/// Format a UNIX millisecond timestamp as "YYYY-MM-DD HH:MM:SS UTC".
+/// Uses Howard Hinnant's days-from-civil algorithm so we don't need
+/// chrono as a dependency. Accurate for any proleptic-Gregorian year.
+///
+/// Used by the Þ-hover timestamp-expansion overlay in the message
+/// pill (operator feedback 2026-05-12 — "when we interact with the
+/// timestamp ... on the left the timestamp expands to include the
+/// YEAR:MONTH:DAY:HOUR:MINUTE:SECOND").
+pub fn format_full_timestamp(ts_ms: u64) -> String {
+    let unix_s = (ts_ms / 1000) as i64;
+    let days = unix_s.div_euclid(86_400);
+    let secs_in_day = unix_s.rem_euclid(86_400);
+    let hour = secs_in_day / 3_600;
+    let minute = (secs_in_day % 3_600) / 60;
+    let second = secs_in_day % 60;
+    // Howard Hinnant days-from-civil → YMD.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let month = if mp < 10 { (mp + 3) as u32 } else { (mp - 9) as u32 };
+    let year = if month <= 2 { (y + 1) as i32 } else { y as i32 };
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC",
+        year, month, day, hour, minute, second
+    )
 }
 
 /// Convert an HTTPS URL to a WSS URL for the relay.
