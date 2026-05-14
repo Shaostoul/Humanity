@@ -1,207 +1,201 @@
 {
-  "version": 2,
-  "description": "Quest chains shown on the /onboarding page. Data-driven so new quests can be added without touching the page code. Progress is tracked per step in the user's localStorage under the key 'humanity_quest_progress'. Updated for v0.105+ post-quantum architecture: DIDs, Verifiable Credentials, multi-layer trust score, social key recovery, governance, and AI-as-citizen.",
+  "version": 3,
+  "description": "Quest chains shown on the /onboarding page. Data-driven so new quests can be added without touching the page code. Progress is tracked per step in the user's localStorage under the key 'humanity_quest_progress'. Rewritten for v0.220+ to lead with self-sufficiency skills.",
   "chains": [
     {
-      "id": "welcome",
-      "title": "Welcome Quest",
-      "description": "Your first ten minutes on HumanityOS.",
+      "id": "first-steps",
+      "title": "First Steps",
+      "description": "Get set up in under five minutes. Your identity is created automatically when you open the chat.",
       "steps": [
         {
           "id": "open-chat",
-          "title": "Open the Chat",
-          "description": "Pick a display name, say hi in #welcome. A post-quantum cryptographic identity (Dilithium3) is created on your device automatically.",
+          "title": "Say hello",
+          "description": "Open the chat, pick a display name, and introduce yourself in #welcome. Your cryptographic identity is created on your device automatically. No signup, no email, no password.",
           "link": "/chat"
         },
         {
           "id": "profile",
-          "title": "Fill in your Profile",
-          "description": "Add a display name, bio, and avatar. This is how others see you across the network. Your DID stays the same regardless.",
+          "title": "Set up your profile",
+          "description": "Add a bio and let people know what skills you have or what you want to learn. Are you good with tools? Know about gardening? Interested in solar?",
           "link": "/profile"
         },
         {
           "id": "backup",
-          "title": "Back up your 24-word seed phrase",
-          "description": "Write the seed down in Settings. It deterministically derives both your post-quantum identity AND your optional Solana wallet. Lose your phone, recover everything.",
+          "title": "Back up your seed phrase",
+          "description": "In Settings, write down your 24-word recovery phrase. This is the only way to recover your identity if you lose your device. Store it somewhere safe, offline.",
           "link": "/settings"
         },
         {
-          "id": "try-sim",
-          "title": "Try the Real / Sim toggle",
-          "description": "The pill in the top-right swaps between your real-life data and the simulation. Click it once to see the difference.",
+          "id": "first-task",
+          "title": "Create your first task",
+          "description": "Open the Tasks page and add something you want to accomplish this week. Could be as simple as 'research rain barrels' or 'price solar panels.'",
+          "link": "/tasks"
+        }
+      ]
+    },
+    {
+      "id": "water",
+      "title": "Water Independence",
+      "description": "50,000 people in Lake Tahoe lost water access in 2025 because of wildfires. Learn to collect, filter, and store your own clean water so you never depend on a single point of failure.",
+      "steps": [
+        {
+          "id": "understand-consumption",
+          "title": "Calculate your water usage",
+          "description": "The average American uses 80-100 gallons per day. Write down what you actually use: drinking, cooking, cleaning, garden. Knowing your baseline is step one.",
+          "link": "/notes"
+        },
+        {
+          "id": "rainwater-basics",
+          "title": "Learn rainwater collection basics",
+          "description": "A 1,000 sq ft roof in an area with 30 inches of annual rainfall collects about 18,000 gallons per year. Check the Resources page for guides on collection systems.",
+          "link": null
+        },
+        {
+          "id": "filtration",
+          "title": "Understand filtration options",
+          "description": "From simple carbon filters ($20) to gravity-fed ceramic systems ($200) to full reverse osmosis ($300+). Match the system to your water source and budget.",
+          "link": null
+        },
+        {
+          "id": "storage",
+          "title": "Plan your water storage",
+          "description": "Two weeks of emergency water for one person is about 14 gallons. A family of four needs 56 gallons minimum. IBC totes (275 gallons) are cheap and stackable.",
           "link": null
         }
       ]
     },
     {
-      "id": "identity-trust",
-      "title": "Identity & Trust",
-      "description": "Build out your identity. Earn vouches. See how the multi-layer trust score works. Anti-Sybil math is transparent — every input visible.",
+      "id": "food",
+      "title": "Food Independence",
+      "description": "Indoor aeroponic towers use 90% less water than soil farming, grow food year-round, and need no yard. The simulation teaches you the skills before you build the real thing.",
       "steps": [
         {
-          "id": "view-did",
-          "title": "Find your DID",
-          "description": "In Settings, find your did:hum:<base58> identifier. Short enough to share via QR. Resolves to your current Dilithium3 public key on any federated server.",
-          "link": "/settings"
+          "id": "understand-needs",
+          "title": "Calculate your food needs",
+          "description": "One person needs roughly 2,000 calories per day. A single aeroponic tower can produce 30+ heads of lettuce per month, plus herbs and small vegetables. Start with what you eat most.",
+          "link": "/notes"
         },
         {
-          "id": "vouch-friend",
-          "title": "Vouch for a friend",
-          "description": "Open someone's profile and click 'Vouch'. This issues a vouch_v1 Verifiable Credential — they hold it, choose when to share it. Vouching from many distinct communities raises their trust score with anti-farm math.",
-          "link": "/chat"
+          "id": "try-simulation",
+          "title": "Try the farming simulation",
+          "description": "The in-app simulation lets you experiment with tower placement, lighting, nutrient schedules, and crop rotation without spending a dollar. Make your mistakes here first.",
+          "link": null
         },
         {
-          "id": "browse-credentials",
-          "title": "Browse your credentials",
-          "description": "See every Verifiable Credential about you: vouches, server membership, skills, account age. You can withdraw any one to hide it from display without invalidating the record.",
-          "link": "/profile"
+          "id": "first-tower",
+          "title": "Plan your first tower",
+          "description": "A basic DIY aeroponic tower costs $50-150 in materials. PVC pipe, net cups, a small pump, timer, and nutrients. Check the Resources page for build guides and parts lists.",
+          "link": null
         },
         {
-          "id": "check-trust-score",
-          "title": "Check your trust score",
-          "description": "A 0..1 score combining vouches, credentials, activity diversity, and account age. Inputs are always visible — no black-box reputation. Hover over each sub-score to see exactly what fed it.",
-          "link": "/profile"
+          "id": "closed-loop",
+          "title": "Learn about closed-loop systems",
+          "description": "Aquaponics combines fish farming with hydroponics. Fish waste feeds plants, plants clean the water. One system produces both protein and vegetables with minimal external inputs.",
+          "link": null
         },
         {
-          "id": "setup-recovery",
-          "title": "Set up social key recovery",
-          "description": "Pick 3 to 5 trusted contacts as guardians. Your seed is split via Shamir secret sharing, encrypted to each guardian's Kyber768 key, stored opaquely on the relay. Lose your device, recover by getting M-of-N guardians to send their shares.",
-          "link": "/settings"
+          "id": "share-surplus",
+          "title": "Share your surplus",
+          "description": "Once your tower is producing more than you eat, post surplus on the Market page. Trade with neighbors. Build the local food network that makes everyone more resilient.",
+          "link": "/market"
         }
       ]
     },
     {
-      "id": "explore",
-      "title": "Explore the Platform",
-      "description": "One small task for each core page. Skim-friendly, takes about fifteen minutes.",
+      "id": "energy",
+      "title": "Energy Independence",
+      "description": "When the grid goes down, everything else follows. Water pumps, refrigeration, communication, heating, cooling. Learn to generate and store your own power.",
       "steps": [
         {
-          "id": "create-task",
-          "title": "Create a task",
-          "description": "Open the kanban board and add one card. Real or Sim. Something you actually want to track.",
-          "link": "/tasks"
+          "id": "audit-usage",
+          "title": "Audit your energy consumption",
+          "description": "Check your electric bill. The average US household uses about 30 kWh per day. A kill-a-watt meter ($20) shows exactly where your power goes. Cut waste before you generate.",
+          "link": "/notes"
         },
         {
-          "id": "browse-market",
-          "title": "Browse the Marketplace",
-          "description": "See what people are offering. Trust score gates high-value listings (anti-fraud) but anyone can browse. Check a listing, read a review, message a seller.",
-          "link": "/market"
+          "id": "solar-basics",
+          "title": "Learn solar panel basics",
+          "description": "A single 400W panel costs $150-300 and produces about 1.6 kWh per day (assuming 4 peak sun hours). That is enough to run LED lights, charge devices, and power a small fridge.",
+          "link": null
         },
         {
-          "id": "open-wallet",
-          "title": "Open your Wallet (optional)",
-          "description": "If you want to use Solana for payments or tips, your wallet is derived from the same 24-word seed via a separate path. Skip if you never want to use blockchain — HumanityOS works without it.",
-          "link": "/wallet"
+          "id": "battery-storage",
+          "title": "Understand battery storage",
+          "description": "Lithium iron phosphate (LiFePO4) batteries last 10+ years and handle thousands of charge cycles. A 5 kWh battery ($300-600) covers most essential overnight needs.",
+          "link": null
         },
         {
-          "id": "check-map",
-          "title": "Check the Maps page",
-          "description": "See what is around you. Real mode shows the real world. Sim mode shows the game world.",
+          "id": "essential-circuits",
+          "title": "Identify your essential circuits",
+          "description": "What absolutely must stay on? Fridge, water pump, lights, communication. Size your system for essentials first, then expand. A 2 kW system covers most critical needs.",
+          "link": null
+        }
+      ]
+    },
+    {
+      "id": "community",
+      "title": "Build Your Network",
+      "description": "Self-sufficiency does not mean doing everything alone. The strongest communities are networks of people who each bring different skills and share freely.",
+      "steps": [
+        {
+          "id": "find-local",
+          "title": "Find people near you",
+          "description": "Use the Maps page to find community gardens, maker spaces, tool libraries, and other people on HumanityOS in your area. Introduce yourself.",
           "link": "/maps"
         },
         {
-          "id": "write-note",
-          "title": "Write a note",
-          "description": "Notes are encrypted on your device with AES-256-GCM and an Argon2id-derived key. Useful for journals, drafts, or anything you want private.",
-          "link": "/notes"
-        }
-      ]
-    },
-    {
-      "id": "governance",
-      "title": "Civic Participation",
-      "description": "How decisions get made. Local server rules, civilization-wide Accord changes, weighted voting capped to prevent any single voice from dominating.",
-      "steps": [
-        {
-          "id": "read-proposals",
-          "title": "Read open proposals",
-          "description": "Every server has its own proposal space. Civilization-scope proposals (Accord amendments, federation floor policy) federate to all servers. Browse what's open right now.",
-          "link": "/governance"
-        },
-        {
-          "id": "cast-vote",
-          "title": "Cast a vote",
-          "description": "Pick yes / no / abstain. Your vote weight is your trust score at vote time, capped at 0.95. The cap prevents any single high-trust voter from dominating — Accord power-asymmetry protection.",
-          "link": "/governance"
-        },
-        {
-          "id": "watch-tally",
-          "title": "Watch a tally update",
-          "description": "Tallies are deterministic given the vote set. You can replay any past proposal's outcome from the signed-object record and verify the result yourself.",
-          "link": "/governance"
-        },
-        {
-          "id": "ai-vote-filter",
-          "title": "Note: AI agents cannot vote",
-          "description": "Per the Accord, votes require sentient consent. AI agents (declared via subject_class_v1) are silently excluded from governance — they can advise their human operator, but cannot themselves vote.",
-          "link": null
-        }
-      ]
-    },
-    {
-      "id": "interaction-preferences",
-      "title": "Choose Who You Interact With",
-      "description": "AI agents are first-class citizens of HumanityOS, but humans always retain the right to refuse AI interaction. Configure your preferences here.",
-      "steps": [
-        {
-          "id": "ai-badge",
-          "title": "Spot the AI badge",
-          "description": "AI agents always render with a persistent 'AI' tag next to their display name. They must declare their subject_class_v1 and link to a human operator via controlled_by_v1.",
-          "link": "/chat"
-        },
-        {
-          "id": "set-filter",
-          "title": "Set your interaction filter",
-          "description": "In Profile settings, choose: any (default — see everyone), human_only (filter AI from your view, with count of hidden items shown), or ai_disclosed_ok (allow AI when introduced, hide silent ones).",
+          "id": "share-skills",
+          "title": "Share what you know",
+          "description": "Everyone has something to teach. Plumbing, electrical, cooking, childcare, car repair, first aid. Add your skills to your profile so people can find you.",
           "link": "/profile"
         },
         {
-          "id": "ai-introduction",
-          "title": "AI must announce itself",
-          "description": "When an AI starts a new conversation with you, its first message must be an ai_introduction_v1 declaring itself. Failing to do so is grounds for trust penalty.",
-          "link": null
+          "id": "start-project",
+          "title": "Start a group project",
+          "description": "A community garden, a tool-sharing co-op, a neighborhood solar install, a bulk food buy. Use Tasks to coordinate, Chat to communicate, Maps to plan.",
+          "link": "/tasks"
+        },
+        {
+          "id": "vouch",
+          "title": "Vouch for someone you trust",
+          "description": "When you vouch for someone, you are telling the network that this person is real and trustworthy. It helps everyone distinguish genuine people from fake accounts.",
+          "link": "/chat"
         }
       ]
     },
     {
       "id": "advanced",
       "title": "Going Deeper",
-      "description": "When you are ready to get more out of the platform, or help build it.",
+      "description": "When you are ready to do more, or help build the platform itself.",
       "steps": [
         {
           "id": "desktop-app",
           "title": "Install the desktop app",
-          "description": "Native Rust binary that works offline. Same DID as the web version. Syncs when you reconnect. wgpu 3D engine bundled.",
+          "description": "Native app that works offline. Same identity as the web version. Includes the 3D simulation engine for farming, building, and planning.",
           "link": "/download"
         },
         {
-          "id": "join-server",
-          "title": "Join a federated server",
-          "description": "Other communities run their own servers. Your DID works on all of them. VCs you hold travel with you. Find one whose culture fits.",
-          "link": "/chat"
-        },
-        {
-          "id": "issue-credential",
-          "title": "Issue a credential",
-          "description": "Anyone can be an issuer. Schools, employers, communities, individuals. Issue a vouch_v1, role_v1, skill_endorsement_v1, or any other supported schema. The receiver decides if and when to share it.",
-          "link": "/chat"
+          "id": "3d-printing",
+          "title": "3D print real tools",
+          "description": "Models from the simulation are exportable for 3D printing. Design a hydroponics fitting in the sim, print it, install it. The game teaches skills for the real world.",
+          "link": null
         },
         {
           "id": "host-server",
           "title": "Run your own server",
-          "description": "One small binary. Under ten minutes from zero to live. Your users keep their DID when they switch servers. You become an issuer too.",
+          "description": "One binary, under ten minutes from zero to live. Your community gets its own space. Users keep their identity when they move between servers.",
           "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md"
         },
         {
           "id": "contribute",
-          "title": "Contribute to the project",
-          "description": "Code, writing, design, translation, testing, feedback. The onboarding guide shows where to start.",
+          "title": "Help build HumanityOS",
+          "description": "Code, writing, design, translation, testing, feedback. This is a public-domain project. Everything built here belongs to everyone.",
           "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/ONBOARDING.md"
         },
         {
           "id": "read-accord",
           "title": "Read the Humanity Accord",
-          "description": "The philosophical foundation of the project. Defines the constraints every system must respect: dignity, non-domination, consent, transparency, repair-first, power-asymmetry mitigation. Short, plain-language, not a legal document.",
+          "description": "The philosophical foundation. Defines the constraints every system must respect: dignity, consent, transparency, non-domination. Short and plain-language.",
           "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/accord/humanity_accord.md"
         }
       ]

@@ -1,13 +1,13 @@
 {
-  "_purpose": "Core page shortcuts shown in the 'Where to go next' grid on the onboarding page. page_id maps to GuiPage variants (chat, profile, wallet, tasks, market, maps, settings, notes). Add new entries here when new pages should be promoted.",
+  "_purpose": "Core page shortcuts shown in the 'Where to go next' grid on the onboarding page. page_id maps to GuiPage variants. Add new entries here when new pages should be promoted.",
   "pages": [
-    { "page_id": "chat",     "label": "Chat",     "description": "Text, voice, video. Encrypted DMs, channels, servers." },
-    { "page_id": "profile",  "label": "Profile",  "description": "Your name, avatar, bio, skills. Seen by others across the network." },
-    { "page_id": "wallet",   "label": "Wallet",   "description": "Optional Solana wallet derived from your seed. Send, receive, stake, tip. Decoupled from identity — not required to use HumanityOS." },
-    { "page_id": "tasks",    "label": "Tasks",    "description": "Kanban boards for projects, teams, personal life." },
-    { "page_id": "market",   "label": "Market",   "description": "Peer-to-peer listings, reviews, buyer-seller messaging." },
-    { "page_id": "maps",     "label": "Maps",     "description": "Local to galactic scale. Real navigation or sim exploration." },
-    { "page_id": "settings", "label": "Settings", "description": "Identity backup, notifications, theme, accessibility." },
-    { "page_id": "notes",    "label": "Notes",    "description": "Encrypted notes for journals, drafts, anything private." }
+    { "page_id": "chat",     "label": "Chat",     "description": "Talk to people building the same things you are. Encrypted, no account needed." },
+    { "page_id": "tasks",    "label": "Tasks",    "description": "Track your projects. Water system, garden, solar install, whatever you are working on." },
+    { "page_id": "maps",     "label": "Maps",     "description": "Find community gardens, maker spaces, and resources near you." },
+    { "page_id": "market",   "label": "Market",   "description": "Trade surplus food, share tools, find local help." },
+    { "page_id": "notes",    "label": "Notes",    "description": "Private encrypted journal. Document what works, what fails, what to try next." },
+    { "page_id": "profile",  "label": "Profile",  "description": "Your name and skills. Let people know what you can teach or need help with." },
+    { "page_id": "wallet",   "label": "Wallet",   "description": "Optional. Send and receive payments without a bank. Not required." },
+    { "page_id": "settings", "label": "Settings", "description": "Back up your identity, adjust the theme, configure notifications." }
   ]
 }

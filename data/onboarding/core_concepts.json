@@ -2,20 +2,20 @@
   "_purpose": "Concept cards rendered above the quest chains on the onboarding page. Order in this file is the display order. Edit text without recompiling.",
   "concepts": [
     {
-      "title": "Your DID is your identity",
-      "body": "A post-quantum cryptographic key on your device. No username, no password. Backup is a 24-word phrase in Settings. Lose your phone? Recover through guardians you pick — friends and family who hold encrypted shares."
+      "title": "Clean water, anywhere",
+      "body": "Rainwater collection and purification systems you can build yourself. HumanityOS walks you through it step by step. No landlord, no utility bill, no dependency on infrastructure that fails when you need it most."
     },
     {
-      "title": "Credentials prove what's true about you",
-      "body": "Schools, employers, communities, even individual humans can issue Verifiable Credentials. You hold them, you choose when to share. No central registry, no single point of revocation."
+      "title": "Grow your own food",
+      "body": "Indoor aeroponic towers use 90% less water than soil farming and grow food year-round. No yard needed. No pesticides. The simulation teaches the skills before you build the real thing."
     },
     {
-      "title": "Trust grows from what you do",
-      "body": "A multi-layer trust score combines your vouches, credentials, activity, and age. Anti-Sybil math makes farms count for less. Inputs are always visible — no black-box reputation."
+      "title": "Generate your own power",
+      "body": "Solar panels, battery storage, and energy management. Understand your consumption, build redundancy, and stop paying someone else for electricity. Start small, scale as you learn."
     },
     {
-      "title": "Anyone can host a server",
-      "body": "The network is federated. No central owner. If one server goes down, the rest keep working. Each server runs local governance; civilization-scope changes need federation-wide quorum."
+      "title": "You are not alone",
+      "body": "Connect with people near you who are doing the same thing. Share knowledge, trade surplus, help each other. The chat, tasks, and maps tools exist to make cooperation easier."
     }
   ]
 }

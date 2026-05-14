@@ -118,18 +118,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
 fn draw_hero(ui: &mut egui::Ui, theme: &Theme) {
     ui.add_space(theme.spacing_xl);
-    // Hero is the only intentionally-centered section — overrides the
-    // outer Align::Min for marketing impact at the top of the page.
     ui.with_layout(Layout::top_down(Align::Center), |ui| {
         ui.label(
-            RichText::new("GETTING STARTED")
+            RichText::new("YOUR PATH TO SELF-SUFFICIENCY")
                 .size(theme.font_size_small)
                 .color(theme.accent())
                 .strong(),
         );
         ui.add_space(theme.spacing_sm);
         ui.label(
-            RichText::new("Welcome. Let's get you oriented.")
+            RichText::new("Learn to provide for yourself and your community.")
                 .size(theme.font_size_title)
                 .color(theme.text_primary())
                 .strong(),
@@ -137,9 +135,9 @@ fn draw_hero(ui: &mut egui::Ui, theme: &Theme) {
         ui.add_space(theme.spacing_md);
         ui.label(
             RichText::new(
-                "HumanityOS is a free, public-domain platform for communication, \n\
-                 coordination, and cooperation. Your identity lives on your device.\n\
-                 No signup required. Your identity is created the moment you open the chat.",
+                "Water. Food. Energy. The three things every person needs.\n\
+                 HumanityOS teaches you how to secure all three, step by step,\n\
+                 through guided quests and a simulation where mistakes are free.",
             )
             .size(theme.font_size_body)
             .color(theme.text_secondary()),
@@ -167,7 +165,7 @@ fn section_header(ui: &mut egui::Ui, theme: &Theme, kicker: &str, heading: &str)
 }
 
 fn draw_concepts(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
-    section_header(ui, theme, "FOUR THINGS TO KNOW FIRST", "The four core concepts");
+    section_header(ui, theme, "THE FOUNDATION", "Four pillars of independence");
 
     // 4 cards across, each takes ~1/4 of the parent column width.
     // Clamp to CONTENT_MAX_W because available_width() on a horizontal
@@ -207,7 +205,7 @@ fn draw_concepts(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
 }
 
 fn draw_core_pages(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    section_header(ui, theme, "THE PLATFORM", "Where to go next");
+    section_header(ui, theme, "YOUR TOOLKIT", "Where to go next");
 
     // 4 cards across (8 pages → 2 rows). horizontal_wrapped handles the wrap.
     // Clamp to CONTENT_MAX_W (see draw_concepts comment).
@@ -265,10 +263,10 @@ fn draw_core_pages(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let avail = ui.available_width();
-    section_header(ui, theme, "QUESTS", "Learn by doing");
+    section_header(ui, theme, "QUEST CHAINS", "Learn by doing");
     ui.label(
         RichText::new(
-            "Small tasks that teach the platform. Click a step to mark it done. \
+            "Step-by-step guides from setup to self-sufficiency. Click a step to mark it done. \
              Progress saved locally.",
         )
         .size(theme.font_size_small)
@@ -389,10 +387,10 @@ fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 fn draw_cta(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    section_header(ui, theme, "READY?", "Start using it");
+    section_header(ui, theme, "READY?", "Start building");
     ui.label(
         RichText::new(
-            "The fastest way to understand HumanityOS is to open the chat and say hi.",
+            "Pick a quest chain and start. The fastest way to learn is to do.",
         )
         .size(theme.font_size_small)
         .color(theme.text_secondary()),
