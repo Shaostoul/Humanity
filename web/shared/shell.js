@@ -629,6 +629,7 @@
       /* Blue group: system/config */
       '<span class="nav-group-blue">' +
         navTab('/projects', 'folder',    'Projects',  'projects') +
+        navTab('/audit',    'coin',      'Audit',     'audit') +
         navTab('/settings', 'settings',  'Settings',  'settings') +
         navTab('/download', 'download', 'Download', 'download') +
         navTab('/ops',      'ops',       'Ops',       'ops') +
@@ -681,6 +682,7 @@
     '<div class="mobile-hub-group group-blue"><h4>System</h4>' +
       mobileLink('/agents',               'Agents') +
       mobileLink('/ai-usage',             'AI Usage') +
+      mobileLink('/audit',                'Audit') +
       mobileLink('/settings',             'Settings') +
       mobileLink('/bugs',                  'Bug Reports') +
       mobileLink('/download',   'Download') +
@@ -1250,7 +1252,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.220.2';
+    var CURRENT_VERSION = '0.220.3';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
