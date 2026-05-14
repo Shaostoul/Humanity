@@ -1835,6 +1835,22 @@ mod native_app {
                                     Some("member_joined") => {
                                         log::debug!("Received server message type: member_joined");
                                     }
+                                    Some("member_left") => {
+                                        // Server-broadcast when a member is kicked / banned /
+                                        // leaves voluntarily. Prune them from the live user list
+                                        // + DMs + friends so the sidebar updates immediately.
+                                        if let Some(pk) = val.get("public_key").and_then(|v| v.as_str()) {
+                                            let pk = pk.to_string();
+                                            state.gui_state.chat_users.retain(|u| u.public_key != pk);
+                                            state.gui_state.chat_friends.retain(|f| f.public_key != pk);
+                                            state.gui_state.chat_dms.retain(|d| d.user_key != pk);
+                                            // If the user modal is open for this user, close it.
+                                            if state.gui_state.chat_user_modal_key == pk {
+                                                state.gui_state.chat_user_modal_open = false;
+                                            }
+                                            log::info!("Member left/kicked/banned: {}", &pk[..pk.len().min(16)]);
+                                        }
+                                    }
                                     Some("task_list_response") => {
                                         // Task list response from the WebSocket task_list request
                                         if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {

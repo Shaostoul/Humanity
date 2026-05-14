@@ -1274,6 +1274,142 @@ pub async fn handle_task_comments_request(
     }
 }
 
+// ── Moderation handlers ──
+
+/// Handle a moderation action (kick / ban / mute / mod / unmod) sent by
+/// a moderator or admin from the user-profile modal.
+///
+/// Authorization:
+///   - kick / mute      → requires moderator OR admin
+///   - ban / mod / unmod → requires admin only
+///
+/// Effects per action:
+///   - kick: DELETE FROM server_members for target; broadcast MemberLeft
+///   - ban:  same as kick (banned-keys table is TODO — for now ban == kick)
+///   - mute: TODO — needs a muted_members table or a server_members.muted column
+///   - mod:  set target's role to "mod"
+///   - unmod: set target's role to "member"
+///
+/// All actions report success / failure as a Private message to the caller.
+pub async fn handle_mod_action(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    action: &str,
+    target: &str,
+) {
+    let my_role = state.db.get_role(my_key).unwrap_or_default();
+    let is_admin = my_role == "admin";
+    let is_mod = is_admin || my_role == "moderator" || my_role == "mod";
+    if !is_mod {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "You don't have permission to perform moderation actions.".to_string(),
+        };
+        let _ = state.broadcast_tx.send(private);
+        return;
+    }
+    // Admin-only actions.
+    if matches!(action, "ban" | "mod" | "unmod") && !is_admin {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: format!("'{action}' requires admin privileges."),
+        };
+        let _ = state.broadcast_tx.send(private);
+        return;
+    }
+    if target.is_empty() {
+        return;
+    }
+    // Never let someone kick/ban themselves through the moderation UI.
+    if target == my_key && matches!(action, "kick" | "ban") {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "You can't kick or ban yourself.".to_string(),
+        };
+        let _ = state.broadcast_tx.send(private);
+        return;
+    }
+    // Don't allow non-admins to kick/ban an admin.
+    let target_role = state.db.get_role(target).unwrap_or_default();
+    if target_role == "admin" && !is_admin {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Only an admin can act on another admin.".to_string(),
+        };
+        let _ = state.broadcast_tx.send(private);
+        return;
+    }
+
+    let target_name = state.db.name_for_key(target).ok().flatten().unwrap_or_else(|| target[..8.min(target.len())].to_string());
+
+    match action {
+        "kick" | "ban" => {
+            match state.db.leave_server(target) {
+                Ok(true) => {
+                    let _ = state.broadcast_tx.send(RelayMessage::MemberLeft {
+                        public_key: target.to_string(),
+                        reason: action.to_string(),
+                    });
+                    let private = RelayMessage::Private {
+                        to: my_key.to_string(),
+                        message: format!("✓ {action}ed {target_name}."),
+                    };
+                    let _ = state.broadcast_tx.send(private);
+                    // TODO(ban): also insert into a banned_keys table so the
+                    // user can't rejoin. Currently ban == kick.
+                }
+                Ok(false) => {
+                    let private = RelayMessage::Private {
+                        to: my_key.to_string(),
+                        message: format!("{target_name} wasn't a member of this server."),
+                    };
+                    let _ = state.broadcast_tx.send(private);
+                }
+                Err(e) => {
+                    tracing::error!("mod_action {action} db error: {e}");
+                }
+            }
+        }
+        "mute" => {
+            // TODO: implement mute (needs muted_members table or server_members.muted column).
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Mute isn't implemented yet — use kick to remove the user.".to_string(),
+            };
+            let _ = state.broadcast_tx.send(private);
+        }
+        "mod" => {
+            if let Err(e) = state.db.set_role(target, "mod") {
+                tracing::error!("mod_action set_role mod error: {e}");
+                return;
+            }
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: format!("✓ Promoted {target_name} to moderator."),
+            };
+            let _ = state.broadcast_tx.send(private);
+        }
+        "unmod" => {
+            if let Err(e) = state.db.set_role(target, "member") {
+                tracing::error!("mod_action set_role member error: {e}");
+                return;
+            }
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: format!("✓ Demoted {target_name} to member."),
+            };
+            let _ = state.broadcast_tx.send(private);
+        }
+        _ => {
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: format!("Unknown moderation action '{action}'."),
+            };
+            let _ = state.broadcast_tx.send(private);
+        }
+    }
+}
+
 // ── Social handlers ──
 
 pub async fn handle_follow(

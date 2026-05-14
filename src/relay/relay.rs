@@ -1223,6 +1223,28 @@ pub enum RelayMessage {
         role: String,
     },
 
+    /// Server broadcasts when a member is removed (kicked / banned / left).
+    /// Clients use this to update their member sidebar live.
+    #[serde(rename = "member_left")]
+    MemberLeft {
+        public_key: String,
+        /// "kick" | "ban" | "leave" — informational, for UI badges.
+        #[serde(default)]
+        reason: String,
+    },
+
+    // ── Moderation Actions ──
+
+    /// Client (moderator or admin) requests a moderation action against a
+    /// target user. Action is one of "kick" | "ban" | "mute" | "mod" |
+    /// "unmod". Authorization is enforced server-side based on the
+    /// caller's role + the action's privilege level.
+    #[serde(rename = "mod_action")]
+    ModAction {
+        action: String,
+        target: String,
+    },
+
     // ── Group System ──
 
     // ── Marketplace messages ──
@@ -4867,6 +4889,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             RelayMessage::Unfollow { target_key } => {
                                 handle_unfollow(&state_clone, &my_key_for_recv, target_key).await;
+                            }
+                            // ── Moderation Actions (kick / ban / mute / mod / unmod) ──
+                            RelayMessage::ModAction { action, target } => {
+                                handle_mod_action(&state_clone, &my_key_for_recv, &action, &target).await;
                             }
                             // ── Friend Codes ──
                             RelayMessage::FriendCodeRequest {} => {
