@@ -46,7 +46,7 @@
 
     /* Vendor level (L1) */
     .vendor-group {
-      margin-bottom: 16px;
+      margin-bottom: 8px;
       background: var(--bg-card, #222);
       border: 1px solid var(--border, #333);
       border-radius: 10px;
@@ -54,55 +54,53 @@
     }
     .vendor-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 20px;
+      padding: 8px 16px;
       background: rgba(255,255,255,0.03);
       cursor: pointer; user-select: none;
     }
     .vendor-header:hover { background: rgba(255,255,255,0.05); }
     .vendor-header h2 {
-      font-size: 1.05rem; font-weight: 700; margin: 0;
+      font-size: 0.95rem; font-weight: 700; margin: 0;
       display: flex; align-items: center; gap: 8px;
     }
-    .vendor-header .vendor-total { font-size: 0.9rem; font-weight: 600; color: var(--accent, #FF8811); }
-    .chevron { transition: transform 0.2s; color: var(--text-muted, #999); font-size: 0.8rem; }
+    .vendor-header .vendor-total { font-size: 0.85rem; font-weight: 600; color: var(--accent, #FF8811); font-variant-numeric: tabular-nums; }
+    .chevron { transition: transform 0.2s; color: var(--text-muted, #999); font-size: 0.7rem; }
     .collapsed .chevron { transform: rotate(-90deg); }
     .collapsed .vendor-body { display: none; }
-    .vendor-body { padding: 0 16px 12px; }
+    .vendor-body { padding: 0 16px 6px; }
 
     .vendor-actions {
-      display: flex; gap: 8px; padding: 8px 0 4px;
+      display: flex; gap: 8px; padding: 4px 0 2px;
     }
 
-    /* Item level (L2) */
+    /* Item level (L2) — single-line compact rows */
     .item-card {
-      margin-top: 10px;
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 8px;
-      overflow: hidden;
+      margin-top: 1px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
     }
+    .item-card:last-child { border-bottom: none; }
     .item-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 16px;
-      background: rgba(255,255,255,0.02);
+      display: flex; align-items: center;
+      padding: 5px 16px;
       cursor: pointer; user-select: none;
-      gap: 12px;
+      gap: 10px;
+      font-size: 0.88rem;
     }
-    .item-header:hover { background: rgba(255,255,255,0.04); }
-    .item-info { flex: 1; min-width: 0; }
-    .item-name { font-weight: 600; font-size: 0.95rem; }
+    .item-header:hover { background: rgba(255,255,255,0.03); }
+    .item-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
     .item-meta {
-      font-size: 0.8rem; color: var(--text-muted, #999);
-      display: flex; gap: 12px; flex-wrap: wrap; margin-top: 2px;
+      font-size: 0.78rem; color: var(--text-muted, #999);
+      display: flex; gap: 8px; align-items: center; flex-shrink: 0;
     }
     .item-meta .tag {
-      display: inline-block; padding: 1px 8px; border-radius: 4px;
-      font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+      display: inline-block; padding: 0 6px; border-radius: 3px;
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase; line-height: 1.6;
     }
     .tag-active { background: rgba(46,204,113,0.15); color: #2ecc71; }
     .tag-expired { background: rgba(231,76,60,0.15); color: #e74c3c; }
     .tag-expiring { background: rgba(243,156,18,0.15); color: #f39c12; }
     .tag-pre-project { background: rgba(155,89,182,0.15); color: #9b59b6; }
-    .item-cost { font-weight: 700; color: var(--accent, #FF8811); font-size: 0.95rem; white-space: nowrap; }
+    .item-cost { font-weight: 700; color: var(--accent, #FF8811); font-size: 0.88rem; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; min-width: 60px; text-align: right; }
     .item-card.collapsed .item-body { display: none; }
     .item-card.collapsed .chevron { transform: rotate(-90deg); }
 
@@ -492,15 +490,13 @@
     card.innerHTML =
       '<div class="item-header" onclick="toggleCollapse(this.parentElement)">' +
         '<span class="chevron">&#9660;</span>' +
-        '<div class="item-info">' +
-          '<div class="item-name">' + esc(item.name) + '</div>' +
-          '<div class="item-meta">' +
-            statusTag(item.status) +
-            '<span>' + esc(item.type) + '</span>' +
-            '<span>' + esc(item.recurring) + '</span>' +
-            '<span>' + txCount + ' transaction' + (txCount !== 1 ? 's' : '') + '</span>' +
-          '</div>' +
-        '</div>' +
+        '<span class="item-name">' + esc(item.name) + '</span>' +
+        '<span class="item-meta">' +
+          statusTag(item.status) +
+          '<span>' + esc(item.type) + '</span>' +
+          '<span>' + esc(item.recurring) + '</span>' +
+          '<span>' + txCount + 'tx</span>' +
+        '</span>' +
         '<span class="item-cost">$' + total.toFixed(2) + '</span>' +
       '</div>' +
       '<div class="item-body" id="ibody-' + vi + '-' + ii + '"></div>';
