@@ -982,17 +982,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 }
                             });
                         }
-
-                        // Hint for planned multi-channel support
-                        ui.horizontal(|ui| {
-                            ui.add_space(20.0);
-                            ui.label(
-                                RichText::new("+ Channel (coming soon)")
-                                    .size(theme.small_size)
-                                    .color(theme.text_muted())
-                                    .italics(),
-                            );
-                        });
+                        // (The old "+ Channel (coming soon)" hint row
+                        // was removed in v0.222 — channel creation is
+                        // done via the group settings cog.)
                     }
                 }
 
