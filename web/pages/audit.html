@@ -172,6 +172,31 @@
     }
     .toast.show { opacity: 1; transform: translateY(0); }
 
+    /* Edit mode */
+    body.edit-mode [contenteditable="true"] {
+      background: rgba(255,136,17,0.05);
+      box-shadow: inset 0 0 0 1px rgba(255,136,17,0.25);
+      border-radius: 3px;
+      padding: 2px 4px;
+    }
+    body.edit-mode .inline-input {
+      border-color: var(--accent, #FF8811);
+      background: rgba(255,136,17,0.05);
+    }
+    body.edit-mode .status-select,
+    body.edit-mode .recurring-select {
+      border-color: var(--accent, #FF8811);
+      background: rgba(255,136,17,0.05);
+    }
+    body.edit-mode .add-btn { border-style: solid; border-color: var(--accent, #FF8811); color: var(--accent, #FF8811); }
+    body.edit-mode .del-btn { color: var(--text-muted, #888); }
+    .edit-toggle { font-size: 0.92rem; }
+    .edit-toggle.active {
+      background: var(--accent, #FF8811);
+      color: #000;
+      border-color: transparent;
+    }
+
     @media (max-width: 600px) {
       .container { padding: 16px; }
       .item-meta { flex-direction: column; gap: 4px; }
@@ -207,9 +232,10 @@
     </div>
 
     <div class="toolbar">
-      <button class="toolbar-btn primary" onclick="exportJSON()">Export JSON</button>
-      <button class="toolbar-btn" onclick="importJSON()">Import JSON</button>
+      <button class="toolbar-btn edit-toggle" id="edit-toggle" onclick="toggleEditMode()">Edit</button>
       <button class="toolbar-btn" onclick="addVendor()">+ Add Vendor</button>
+      <button class="toolbar-btn" onclick="exportJSON()">Export JSON</button>
+      <button class="toolbar-btn" onclick="importJSON()">Import JSON</button>
       <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
     </div>
 
@@ -700,6 +726,20 @@
     };
     reader.readAsText(file);
     event.target.value = '';
+  }
+
+  function toggleEditMode() {
+    var btn = document.getElementById('edit-toggle');
+    var active = document.body.classList.toggle('edit-mode');
+    btn.textContent = active ? 'Done Editing' : 'Edit';
+    btn.classList.toggle('active', active);
+    // Expand/collapse all vendors and items
+    document.querySelectorAll('.vendor-group').forEach(function(el) {
+      el.classList.toggle('collapsed', !active);
+    });
+    document.querySelectorAll('.item-card').forEach(function(el) {
+      el.classList.toggle('collapsed', !active);
+    });
   }
 
   renderAll();
