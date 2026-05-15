@@ -1985,10 +1985,22 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // Otherwise hovering the message text right of the
                         // pill (which is geometrically inside est_popup_rect)
                         // would open the popup spuriously.
+                        //
+                        // Sticky region while popup is open INCLUDES the
+                        // full pill_rect — not just est_popup_rect — so the
+                        // cursor can travel rightward through the pill
+                        // (past Þ, across timestamp text + existing reaction
+                        // badges) on its way to the popup without falling
+                        // into a "dead zone" that closes the popup.
+                        // Operator feedback 2026-05-12 — "the problem now
+                        // is that I can't move the mouse off of the Þ
+                        // without the reaction pill disappearing."
                         let popup_already_open_for_msg = state.chat_open_popup_ts == Some(target_ts);
                         let popup_hovered = !modal_blocking
                             && popup_already_open_for_msg
-                            && pointer.map(|p| est_popup_rect.contains(p)).unwrap_or(false);
+                            && pointer.map(|p| {
+                                pill_rect_for_msg.contains(p) || est_popup_rect.contains(p)
+                            }).unwrap_or(false);
                         let combined_hovered = thorn_hovered || popup_hovered;
 
                         // Update the open-popup tracker. Open on first Þ
