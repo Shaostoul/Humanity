@@ -1818,6 +1818,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // the reaction-popup hover area so the popup doesn't
                         // open when the user is just trying to read/copy the
                         // message text (operator feedback 2026-05-12).
+                        // `popup_active` switches the Þ from static accent to
+                        // the channeling RGB cycle while the popup is open
+                        // for this message (visual feedback that the Þ is
+                        // "live"; operator feedback 2026-05-12).
+                        let popup_active_for_this = state.chat_open_popup_ts == Some(msg.timestamp_ms);
                         if pill_rect_for_msg != egui::Rect::NOTHING {
                             thorn_rect_for_msg = paint_timestamp_pill(
                                 ui,
@@ -1829,6 +1834,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 msg.timestamp_ms,
                                 msg.sender_key.clone(),
                                 &mut pending_reactions,
+                                popup_active_for_this,
                             );
                         }
                         if row_resp.userbox_clicked(ui.ctx()) {
@@ -1960,23 +1966,38 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // gate the popup opens when the cursor is over a
                         // modal that happens to sit above a message's pill
                         // region — blocking the modal's own buttons.
-                        // Operator-reported bug 2026-05-12 - "The reaction
-                        // pill keeps coming up even though my mouse is no
-                        // where near the Þ icon. It is preventing me from
-                        // being able to click the kick button."
                         let modal_blocking = state.chat_user_modal_open
                             || state.show_create_group_modal
                             || state.show_join_group_modal
                             || state.image_viewer_url.is_some();
-                        // Hover is gated on the Þ icon's rect (NOT the full
-                        // pill) so hovering the message text won't open the
-                        // popup (operator feedback 2026-05-12).
+                        // Þ-only hover detection — does NOT use the wider
+                        // est_popup_rect because that overlaps the message
+                        // text on the same line (operator feedback
+                        // 2026-05-12 — "if I mouse over the text of a reply
+                        // the reaction pill comes up even though I never
+                        // clicked on the Þ"). Popups OPEN only via thorn.
                         let thorn_hovered = !modal_blocking
                             && thorn_rect_for_msg != egui::Rect::NOTHING
                             && pointer.map(|p| thorn_rect_for_msg.contains(p)).unwrap_or(false);
+                        // popup_hovered is ONLY honored for sticky behavior
+                        // once a popup is ALREADY open for this message
+                        // (state.chat_open_popup_ts == Some(target_ts)).
+                        // Otherwise hovering the message text right of the
+                        // pill (which is geometrically inside est_popup_rect)
+                        // would open the popup spuriously.
+                        let popup_already_open_for_msg = state.chat_open_popup_ts == Some(target_ts);
                         let popup_hovered = !modal_blocking
+                            && popup_already_open_for_msg
                             && pointer.map(|p| est_popup_rect.contains(p)).unwrap_or(false);
                         let combined_hovered = thorn_hovered || popup_hovered;
+
+                        // Update the open-popup tracker. Open on first Þ
+                        // hover; clear when cursor leaves both Þ AND popup.
+                        if thorn_hovered {
+                            state.chat_open_popup_ts = Some(target_ts);
+                        } else if popup_already_open_for_msg && !combined_hovered {
+                            state.chat_open_popup_ts = None;
+                        }
 
                         if combined_hovered {
                             // ── Timestamp expansion overlay (LEFT of Þ) ──
@@ -3686,6 +3707,11 @@ fn paint_timestamp_pill(
     msg_ts_ms: u64,
     msg_sender_key: String,
     pending_reactions: &mut Vec<(String, u64, String)>,
+    // When true (popup is open for this message), paint the Þ in the
+    // channeling RGB cycle instead of static theme.accent to signal
+    // "active" — matches the nav-border / escape-menu animated feedback
+    // used elsewhere (operator feedback 2026-05-12).
+    popup_active: bool,
 ) -> egui::Rect {
     let painter = ui.painter();
     // Pill background — fully OPAQUE so the underlying transparent layout
@@ -3716,12 +3742,28 @@ fn paint_timestamp_pill(
     painter.galley(egui::pos2(x, cy - ts_h / 2.0), ts_galley, theme.text_muted());
     x += ts_w + 5.0; // ts width + gap before Þ — must match compute
 
-    // Þ pull-tab marker
+    // Þ pull-tab marker. When popup_active is true the glyph paints in
+    // the channeling-RGB cycle (matches escape_menu nav-border and other
+    // animated UI feedback) so the user can see the Þ is "live" — exits
+    // back to static accent once they hover off both Þ and popup.
+    // ChannelingColor depends on ui.ctx().input(|i| i.time) so a repaint
+    // is requested in the calling block.
+    let thorn_color = if popup_active {
+        let chan_time = ui.ctx().input(|i| i.time) as f32;
+        crate::gui::pages::escape_menu::channeling_color(
+            theme,
+            chan_time,
+            false, // chan_attack flag unused here
+            theme.accent(),
+        )
+    } else {
+        theme.accent()
+    };
     let thorn_galley = ui.fonts(|f| {
         f.layout_no_wrap(
             "Þ".to_string(),
             egui::FontId::proportional(theme.font_size_body),
-            theme.accent(),
+            thorn_color,
         )
     });
     let thorn_h = thorn_galley.size().y;
@@ -3733,7 +3775,11 @@ fn paint_timestamp_pill(
         egui::pos2(x - 2.0, cy - thorn_h / 2.0 - 2.0),
         Vec2::new(thorn_w + 4.0, thorn_h + 4.0),
     );
-    painter.galley(egui::pos2(x, cy - thorn_h / 2.0), thorn_galley, theme.accent());
+    painter.galley(egui::pos2(x, cy - thorn_h / 2.0), thorn_galley, thorn_color);
+    if popup_active {
+        // Animation needs a continuous repaint loop while active.
+        ui.ctx().request_repaint();
+    }
     x += thorn_w; // advance past Þ; first-badge gap added below
 
     // Existing reaction badges (right of Þ). Each = [2px-pad emoji+count 2px-pad]

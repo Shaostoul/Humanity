@@ -1176,6 +1176,14 @@ pub struct GuiState {
     pub chat_connected_server_collapsed: bool,
     pub chat_friends_collapsed: bool,
     pub chat_members_collapsed: bool,
+    /// Which message's reaction-popup is currently open (timestamp_ms key).
+    /// Popups open only on Þ hover; the popup_hovered gate (sticky-on-popup)
+    /// is only honored once a popup is actually open for that message.
+    /// This prevents the reaction popup from opening when the user just
+    /// hovers the message text right of the pill (operator feedback
+    /// 2026-05-12 - "if I mouse over the text of a reply the reaction
+    /// pill comes up even though I never clicked on the Þ"). v0.229.
+    pub chat_open_popup_ts: Option<u64>,
     /// How many DM conversations to show (3, 5, 10, or 0 = all)
     pub chat_dm_display_limit: usize,
 
@@ -1539,6 +1547,7 @@ impl Default for GuiState {
             chat_connected_server_collapsed: false,
             chat_friends_collapsed: false,
             chat_members_collapsed: false,
+            chat_open_popup_ts: None,
             chat_dm_display_limit: 5,
 
             // Chat panel resize/lock state
