@@ -1176,6 +1176,13 @@ pub struct GuiState {
     pub chat_connected_server_collapsed: bool,
     pub chat_friends_collapsed: bool,
     pub chat_members_collapsed: bool,
+    /// Set by the winit layer (src/lib.rs window_event) when Ctrl+V is
+    /// pressed on the Chat page. The chat page reads + clears this each
+    /// frame and, if an image is on the clipboard, uploads it. Needed
+    /// because egui-winit swallows Ctrl+V (translates to Event::Paste
+    /// text-only, returns before emitting the V key event) so egui's
+    /// input layer never sees Ctrl+V for an image clipboard. v0.234.
+    pub pending_clipboard_paste: bool,
     /// Which message's reaction-popup is currently open (timestamp_ms key).
     /// Popups open only on Þ hover; the popup_hovered gate (sticky-on-popup)
     /// is only honored once a popup is actually open for that message.
@@ -1548,6 +1555,7 @@ impl Default for GuiState {
             chat_friends_collapsed: false,
             chat_members_collapsed: false,
             chat_open_popup_ts: None,
+            pending_clipboard_paste: false,
             chat_dm_display_limit: 5,
 
             // Chat panel resize/lock state

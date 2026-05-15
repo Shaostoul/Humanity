@@ -19,24 +19,22 @@ const MAX_PANEL_WIDTH: f32 = 400.0;
 // Section tint colors now come from theme.ron (theme.dm_bg(), theme.group_bg(), theme.server_bg(), etc.)
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    // ── Clipboard image paste detection (PRE-WIDGET) ──
-    // Must run BEFORE any TextEdit renders so egui's TextEdit doesn't
-    // consume the Ctrl+V key event via filtered_events() before we can
-    // see it. The previous v0.232 placement (inside the message input,
-    // gated on response.has_focus()) silently no-op'd because by the
-    // time the check ran the V key event was already filtered out of
-    // i.events by TextEdit. Operator-reported regression 2026-05-15 -
-    // "Control + V is still not working in app with the chat text
-    // entry bar actively selected."
+    // ── Clipboard image paste detection ──
+    // The Ctrl+V key event is detected at the RAW WINIT LAYER (see
+    // src/lib.rs window_event) which sets state.pending_clipboard_paste.
+    // We CANNOT detect it through egui's input here because egui-winit
+    // intercepts the paste shortcut: it reads clipboard TEXT only and
+    // returns early WITHOUT emitting a V key event, so for an image
+    // clipboard egui's input sees neither a key event nor a paste event.
+    // v0.232 (in-input check) + v0.233 (top-of-draw egui check) both
+    // failed for exactly this reason. v0.234 reads the winit-set flag.
     //
     // No focus check needed: if there's an image on the clipboard and
     // the user pressed Ctrl+V on the chat page, they almost certainly
     // want it uploaded to the active channel (same as Discord/Slack).
     // Text-only clipboards return None from try_grab_clipboard_image_as_png
     // so egui's TextEdit handles regular text paste normally.
-    let ctrl_v_pressed = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::V)
-    });
+    let ctrl_v_pressed = std::mem::take(&mut state.pending_clipboard_paste);
     if ctrl_v_pressed {
         if let Some(png_bytes) = try_grab_clipboard_image_as_png() {
             let server = state.server_url.clone();

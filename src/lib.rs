@@ -519,6 +519,13 @@ mod native_app {
         window_shown: bool,
         /// Data directory path (resolved once at startup, used for deferred loading).
         data_dir: PathBuf,
+        /// Whether a Ctrl/Cmd modifier key is currently held. Tracked from
+        /// raw winit KeyboardInput because egui-winit swallows Ctrl+V at
+        /// the winit layer (translates it to Event::Paste(text) and returns
+        /// early WITHOUT pushing the V key event) — so egui's input never
+        /// sees Ctrl+V for an image clipboard. We detect it here instead
+        /// and set gui_state.pending_clipboard_paste. v0.234.
+        ctrl_held: bool,
     }
 
     impl ApplicationHandler for App {
@@ -732,6 +739,7 @@ mod native_app {
                 world_loaded: false,
                 window_shown: false,
                 data_dir,
+                ctrl_held: false,
             });
         }
 
@@ -761,6 +769,30 @@ mod native_app {
                 WindowEvent::KeyboardInput { event, .. } => {
                     if let PhysicalKey::Code(key) = event.physical_key {
                         let pressed = event.state.is_pressed();
+
+                        // Track Ctrl/Cmd modifier state from raw winit input.
+                        // (egui-winit doesn't expose this in a way we can
+                        // read for our pre-egui Ctrl+V detection.)
+                        if matches!(key, KeyCode::ControlLeft | KeyCode::ControlRight
+                            | KeyCode::SuperLeft | KeyCode::SuperRight)
+                        {
+                            state.ctrl_held = pressed;
+                        }
+
+                        // Ctrl+V clipboard image paste — detected HERE at the
+                        // raw winit layer because egui-winit intercepts the
+                        // paste shortcut, reads clipboard TEXT only, and
+                        // returns early without emitting a V key event. For
+                        // an image clipboard egui therefore sees no signal
+                        // at all. We set a flag the Chat page consumes next
+                        // frame (the actual clipboard read + upload lives in
+                        // chat.rs so the networking/state code stays there).
+                        // Operator-reported 2026-05-15 (3rd attempt).
+                        if key == KeyCode::KeyV && pressed && state.ctrl_held
+                            && state.gui_state.active_page == GuiPage::Chat
+                        {
+                            state.gui_state.pending_clipboard_paste = true;
+                        }
 
                         // Escape behavior (v0.195.0):
                         //   1. If the nav back-stack has entries, pop one
