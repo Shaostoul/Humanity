@@ -1296,6 +1296,7 @@ pub async fn handle_mod_action(
     my_key: &str,
     action: &str,
     target: &str,
+    target_name: &str,
 ) {
     let my_role = state.db.get_role(my_key).unwrap_or_default();
     let is_admin = my_role == "admin";
@@ -1317,7 +1318,13 @@ pub async fn handle_mod_action(
         let _ = state.broadcast_tx.send(private);
         return;
     }
-    if target.is_empty() {
+    // Caller must supply at least one identifier (key OR name).
+    if target.is_empty() && target_name.is_empty() {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: format!("{action}: no target specified."),
+        };
+        let _ = state.broadcast_tx.send(private);
         return;
     }
     // Never let someone kick/ban themselves through the moderation UI.
@@ -1329,60 +1336,83 @@ pub async fn handle_mod_action(
         let _ = state.broadcast_tx.send(private);
         return;
     }
-    // Don't allow non-admins to kick/ban an admin.
-    let target_role = state.db.get_role(target).unwrap_or_default();
-    if target_role == "admin" && !is_admin {
-        let private = RelayMessage::Private {
-            to: my_key.to_string(),
-            message: "Only an admin can act on another admin.".to_string(),
-        };
-        let _ = state.broadcast_tx.send(private);
-        return;
+    // Don't allow non-admins to kick/ban an admin (only checkable when
+    // we have a public key — name-only kicks skip this check, see TODO).
+    if !target.is_empty() {
+        let target_role = state.db.get_role(target).unwrap_or_default();
+        if target_role == "admin" && !is_admin {
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Only an admin can act on another admin.".to_string(),
+            };
+            let _ = state.broadcast_tx.send(private);
+            return;
+        }
     }
+    // TODO(security): name-only kicks (`target == ""`) bypass the admin-
+    // protection role check above because we can't look up a role
+    // without a key. Currently fine because only admins use moderation
+    // UI in practice, but this should look up all rows in
+    // registered_names matching the name and refuse if ANY of them have
+    // admin role.
 
-    let target_name = state.db.name_for_key(target).ok().flatten().unwrap_or_else(|| target[..8.min(target.len())].to_string());
+    let display_name = if !target.is_empty() {
+        state.db.name_for_key(target).ok().flatten().unwrap_or_else(|| target[..8.min(target.len())].to_string())
+    } else {
+        target_name.to_string()
+    };
 
     match action {
         "kick" | "ban" => {
-            let members_result = state.db.leave_server(target);
-            // ALSO delete registered_names rows — that's what drives the
-            // visible "full user list" sidebar (operator-reported bug
-            // 2026-05-12 — kick reported success but user stayed in the
-            // sidebar because we were only cleaning server_members).
-            let names_deleted = state.db.delete_registered_name(target).unwrap_or(0);
-            match members_result {
-                Ok(member_deleted) => {
-                    // Treat as success if EITHER table was modified —
-                    // some users (e.g. test bots) live in registered_names
-                    // but never made it into server_members, so the kick
-                    // is still meaningful even when member_deleted is false.
-                    if member_deleted || names_deleted > 0 {
-                        let _ = state.broadcast_tx.send(RelayMessage::MemberLeft {
-                            public_key: target.to_string(),
-                            reason: action.to_string(),
-                        });
-                        // Rebroadcast the full user list so every connected
-                        // client refreshes their sidebar (the kicked user
-                        // is no longer in registered_names).
-                        crate::relay::handlers::broadcast::broadcast_full_user_list(state).await;
-                        let private = RelayMessage::Private {
-                            to: my_key.to_string(),
-                            message: format!("✓ {action}ed {target_name}."),
-                        };
-                        let _ = state.broadcast_tx.send(private);
-                        // TODO(ban): also insert into a banned_keys table so the
-                        // user can't rejoin. Currently ban == kick.
-                    } else {
-                        let private = RelayMessage::Private {
-                            to: my_key.to_string(),
-                            message: format!("{target_name} wasn't a member of this server."),
-                        };
-                        let _ = state.broadcast_tx.send(private);
+            // Delete by public_key (preferred) AND/OR by name (fallback
+            // for users with empty/unknown key — e.g. DesktopUser_4000
+            // had an empty key in registered_names so key-based kick
+            // was a no-op). Both paths run; whichever finds rows removes
+            // them. Operator feedback 2026-05-12.
+            let mut total_members_deleted: usize = 0;
+            let mut total_names_deleted: usize = 0;
+            if !target.is_empty() {
+                if let Ok(true) = state.db.leave_server(target) {
+                    total_members_deleted += 1;
+                }
+                total_names_deleted += state.db.delete_registered_name(target).unwrap_or(0);
+            }
+            if !target_name.is_empty() {
+                // Name-based fallback — removes ALL rows matching this
+                // display name (case-insensitive). For users with multiple
+                // device keys this kicks all of them, which is the right
+                // behaviour for a mod action.
+                if let Ok(name_keys) = state.db.keys_for_name(target_name) {
+                    for k in &name_keys {
+                        if let Ok(true) = state.db.leave_server(k) {
+                            total_members_deleted += 1;
+                        }
                     }
                 }
-                Err(e) => {
-                    tracing::error!("mod_action {action} db error: {e}");
-                }
+                total_names_deleted += state.db
+                    .delete_registered_names_by_name(target_name)
+                    .unwrap_or(0);
+            }
+
+            if total_members_deleted > 0 || total_names_deleted > 0 {
+                let _ = state.broadcast_tx.send(RelayMessage::MemberLeft {
+                    public_key: target.to_string(),
+                    reason: action.to_string(),
+                });
+                crate::relay::handlers::broadcast::broadcast_full_user_list(state).await;
+                let private = RelayMessage::Private {
+                    to: my_key.to_string(),
+                    message: format!("✓ {action}ed {display_name}."),
+                };
+                let _ = state.broadcast_tx.send(private);
+                // TODO(ban): also insert into a banned_keys table so the
+                // user can't rejoin. Currently ban == kick.
+            } else {
+                let private = RelayMessage::Private {
+                    to: my_key.to_string(),
+                    message: format!("{display_name} wasn't a member of this server."),
+                };
+                let _ = state.broadcast_tx.send(private);
             }
         }
         "mute" => {

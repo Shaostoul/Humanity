@@ -1239,10 +1239,18 @@ pub enum RelayMessage {
     /// target user. Action is one of "kick" | "ban" | "mute" | "mod" |
     /// "unmod". Authorization is enforced server-side based on the
     /// caller's role + the action's privilege level.
+    ///
+    /// `target` is the public key (preferred). `target_name` is the
+    /// display name, used as a fallback when the key isn't known
+    /// (operator-reported edge case 2026-05-12 — `DesktopUser_4000` had
+    /// a `registered_names` row with an empty `public_key`, so the
+    /// modal opened without a key and key-based kicks silently no-op'd).
     #[serde(rename = "mod_action")]
     ModAction {
         action: String,
         target: String,
+        #[serde(default)]
+        target_name: String,
     },
 
     // ── Group System ──
@@ -4910,8 +4918,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 handle_unfollow(&state_clone, &my_key_for_recv, target_key).await;
                             }
                             // ── Moderation Actions (kick / ban / mute / mod / unmod) ──
-                            RelayMessage::ModAction { action, target } => {
-                                handle_mod_action(&state_clone, &my_key_for_recv, &action, &target).await;
+                            RelayMessage::ModAction { action, target, target_name } => {
+                                handle_mod_action(&state_clone, &my_key_for_recv, &action, &target, &target_name).await;
                             }
                             // ── Friend Codes ──
                             RelayMessage::FriendCodeRequest {} => {

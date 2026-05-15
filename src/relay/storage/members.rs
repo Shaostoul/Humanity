@@ -82,6 +82,22 @@ impl Storage {
         })
     }
 
+    /// Delete ALL registered-name rows matching a display name (case-
+    /// insensitive). Used by the kick handler as a fallback when the
+    /// target has no public_key (e.g. legacy rows with empty keys, or
+    /// users whose key wasn't propagated to the client's user-modal).
+    /// Operator-reported case 2026-05-12 — `DesktopUser_4000` had an
+    /// empty key in `registered_names` so key-based kick no-op'd.
+    pub fn delete_registered_names_by_name(&self, name: &str) -> Result<usize, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let changed = conn.execute(
+                "DELETE FROM registered_names WHERE name = ?1 COLLATE NOCASE",
+                params![name],
+            )?;
+            Ok(changed)
+        })
+    }
+
     /// Get a paginated list of server members, optionally filtered by search term.
     pub fn get_members(
         &self,

@@ -2942,6 +2942,7 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         "type": "mod_action",
                                         "action": "mute",
                                         "target": key,
+                                        "target_name": name,
                                     });
                                     client.send(&msg.to_string());
                                 }
@@ -2965,6 +2966,7 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         "type": "mod_action",
                                         "action": "kick",
                                         "target": key,
+                                        "target_name": name,
                                     });
                                     client.send(&msg.to_string());
                                 }
@@ -2999,6 +3001,7 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         "type": "mod_action",
                                         "action": "ban",
                                         "target": key,
+                                        "target_name": name,
                                     });
                                     client.send(&msg.to_string());
                                 }
@@ -3025,6 +3028,7 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         "type": "mod_action",
                                         "action": action,
                                         "target": key,
+                                        "target_name": name,
                                     });
                                     client.send(&msg.to_string());
                                 }
