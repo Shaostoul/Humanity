@@ -19,6 +19,60 @@ const MAX_PANEL_WIDTH: f32 = 400.0;
 // Section tint colors now come from theme.ron (theme.dm_bg(), theme.group_bg(), theme.server_bg(), etc.)
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    // ── Clipboard image paste detection (PRE-WIDGET) ──
+    // Must run BEFORE any TextEdit renders so egui's TextEdit doesn't
+    // consume the Ctrl+V key event via filtered_events() before we can
+    // see it. The previous v0.232 placement (inside the message input,
+    // gated on response.has_focus()) silently no-op'd because by the
+    // time the check ran the V key event was already filtered out of
+    // i.events by TextEdit. Operator-reported regression 2026-05-15 -
+    // "Control + V is still not working in app with the chat text
+    // entry bar actively selected."
+    //
+    // No focus check needed: if there's an image on the clipboard and
+    // the user pressed Ctrl+V on the chat page, they almost certainly
+    // want it uploaded to the active channel (same as Discord/Slack).
+    // Text-only clipboards return None from try_grab_clipboard_image_as_png
+    // so egui's TextEdit handles regular text paste normally.
+    let ctrl_v_pressed = ctx.input(|i| {
+        (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::V)
+    });
+    if ctrl_v_pressed {
+        if let Some(png_bytes) = try_grab_clipboard_image_as_png() {
+            let server = state.server_url.clone();
+            let pk = state.profile_public_key.clone();
+            let channel = state.chat_active_channel.clone();
+            let sender_name = state.user_name.clone();
+            match upload_image_png_blocking(&server, &pk, png_bytes) {
+                Ok(url) => {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let ts = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_millis() as u64;
+                            let m = serde_json::json!({
+                                "type": "chat",
+                                "from": pk,
+                                "from_name": sender_name,
+                                "content": url,
+                                "timestamp": ts,
+                                "channel": channel,
+                            });
+                            client.send(&m.to_string());
+                            log::info!("Clipboard image uploaded and sent to {}", channel);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Clipboard image upload failed: {e}");
+                }
+            }
+        }
+        // If no image on clipboard, fall through — egui's TextEdit
+        // sees the Ctrl+V key event normally and handles text paste.
+    }
+
     // ── LEFT PANEL ──
     let left_panel = egui::SidePanel::left("chat_left_panel")
         .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(0.0))
@@ -2449,53 +2503,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .hint_text(hint),
                     );
 
-                    // ── Clipboard image paste (Ctrl+V → upload → send URL) ──
-                    // Operator request 2026-05-15 — "When I press print screen
-                    // I take a screenshot. When I press control+V to paste on
-                    // the website it posts properly to the chat. When I try
-                    // pasting through the app it never posts the image."
-                    // Mirrors web/chat/chat-messages.js paste handler.
-                    if response.has_focus() {
-                        let ctrl_v = ui.input(|i| {
-                            i.key_pressed(egui::Key::V)
-                                && (i.modifiers.ctrl || i.modifiers.command)
-                        });
-                        if ctrl_v {
-                            if let Some(png_bytes) = try_grab_clipboard_image_as_png() {
-                                let server = state.server_url.clone();
-                                let pk = state.profile_public_key.clone();
-                                let channel = state.chat_active_channel.clone();
-                                let sender_name = state.user_name.clone();
-                                match upload_image_png_blocking(&server, &pk, png_bytes) {
-                                    Ok(url) => {
-                                        if let Some(ref client) = state.ws_client {
-                                            if client.is_connected() {
-                                                let ts = std::time::SystemTime::now()
-                                                    .duration_since(std::time::UNIX_EPOCH)
-                                                    .unwrap_or_default()
-                                                    .as_millis() as u64;
-                                                let m = serde_json::json!({
-                                                    "type": "chat",
-                                                    "from": pk,
-                                                    "from_name": sender_name,
-                                                    "content": url,
-                                                    "timestamp": ts,
-                                                    "channel": channel,
-                                                });
-                                                client.send(&m.to_string());
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        log::warn!("Clipboard image upload failed: {e}");
-                                    }
-                                }
-                            }
-                            // Note: if clipboard had text not image, egui's
-                            // TextEdit already handled the paste — we don't
-                            // need to do anything extra.
-                        }
-                    }
+                    // (Clipboard image paste detection moved to the top of
+                    // pub fn draw() in v0.233 because egui's TextEdit consumes
+                    // the Ctrl+V key event via filtered_events() before any
+                    // code below it can detect it. See `pub fn draw` for the
+                    // working detection.)
 
                     // ── @mention autocomplete ──
                     // If the input ends with `@partial` (no whitespace after the @),
