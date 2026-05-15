@@ -1183,6 +1183,10 @@ pub struct GuiState {
     /// text-only, returns before emitting the V key event) so egui's
     /// input layer never sees Ctrl+V for an image clipboard. v0.234.
     pub pending_clipboard_paste: bool,
+    /// Highlighted row in the @mention autocomplete popup. Up/Down arrows
+    /// move it; Enter / click / hover select. Reset to 0 whenever the
+    /// match set changes. v0.235.
+    pub chat_mention_index: usize,
     /// Which message's reaction-popup is currently open (timestamp_ms key).
     /// Popups open only on Þ hover; the popup_hovered gate (sticky-on-popup)
     /// is only honored once a popup is actually open for that message.
@@ -1556,6 +1560,7 @@ impl Default for GuiState {
             chat_members_collapsed: false,
             chat_open_popup_ts: None,
             pending_clipboard_paste: false,
+            chat_mention_index: 0,
             chat_dm_display_limit: 5,
 
             // Chat panel resize/lock state

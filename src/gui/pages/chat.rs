@@ -2525,48 +2525,138 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         }
                     };
 
+                    // True if Enter was consumed this frame to pick a mention
+                    // (so the message-send below must NOT also fire).
+                    let mut mention_took_enter = false;
+
                     if let Some(partial) = mention_partial {
                         let partial_lower = partial.to_lowercase();
                         let matches: Vec<String> = state.chat_users.iter()
                             .filter(|u| u.name.to_lowercase().starts_with(&partial_lower))
-                            .take(5)
+                            .take(8)
                             .map(|u| u.name.clone())
                             .collect();
 
-                        if !matches.is_empty() && response.has_focus() {
-                            let popup_id = egui::Id::new("mention_autocomplete");
-                            ui.memory_mut(|m| m.open_popup(popup_id));
-                            egui::popup::popup_above_or_below_widget(
-                                ui, popup_id, &response,
-                                egui::AboveOrBelow::Above,
-                                egui::PopupCloseBehavior::CloseOnClickOutside,
-                                |ui| {
-                                    ui.set_min_width(200.0);
-                                    ui.label(
-                                        RichText::new(format!("Mention: @{}", partial))
-                                            .size(theme.font_size_small)
-                                            .color(theme.text_muted()),
-                                    );
-                                    ui.separator();
-                                    for name in matches {
-                                        if ui.button(format!("@{}", name)).clicked() {
-                                            // Replace the @partial with @name + space.
-                                            if let Some(at_pos) = state.chat_input.rfind('@') {
-                                                state.chat_input.truncate(at_pos);
-                                                state.chat_input.push('@');
-                                                state.chat_input.push_str(&name);
-                                                state.chat_input.push(' ');
-                                            }
-                                            ui.memory_mut(|m| m.close_popup());
-                                        }
-                                    }
-                                },
+                        // NOTE: no `response.has_focus()` gate — clicking a
+                        // popup row defocuses the TextEdit FIRST, which (under
+                        // the old guard) removed the popup the same frame the
+                        // click would land, so mouse-select never worked
+                        // (operator-reported 2026-05-15). The popup is now
+                        // scoped purely by "input ends in @partial with
+                        // matches", which disappears naturally once a name is
+                        // inserted (the @partial is gone).
+                        if !matches.is_empty() {
+                            // Clamp highlight index into range.
+                            if state.chat_mention_index >= matches.len() {
+                                state.chat_mention_index = 0;
+                            }
+
+                            // Keyboard nav. A focused single-line TextEdit's
+                            // event filter has vertical_arrows:false, so
+                            // Up/Down are NOT consumed by it — ui.input sees
+                            // them. Enter triggers the TextEdit's lost_focus
+                            // but the key_pressed flag is still readable.
+                            let (k_up, k_down, k_enter) = ui.input(|i| (
+                                i.key_pressed(egui::Key::ArrowUp),
+                                i.key_pressed(egui::Key::ArrowDown),
+                                i.key_pressed(egui::Key::Enter),
+                            ));
+                            if k_down {
+                                state.chat_mention_index =
+                                    (state.chat_mention_index + 1) % matches.len();
+                            }
+                            if k_up {
+                                state.chat_mention_index =
+                                    (state.chat_mention_index + matches.len() - 1) % matches.len();
+                            }
+
+                            // Selection can come from Enter (highlighted row)
+                            // or a mouse click on any row. Computed into
+                            // locals so the Area closure doesn't need to
+                            // borrow `state`.
+                            let cur_index = state.chat_mention_index;
+                            let mut selected: Option<String> = None;
+                            let mut new_index = cur_index;
+                            if k_enter {
+                                selected = matches.get(cur_index).cloned();
+                            }
+
+                            // Render the suggestion list as a foreground Area
+                            // anchored just ABOVE the input. Highlighted row
+                            // uses the accent fill; hover moves the highlight.
+                            let row_h = 24.0_f32;
+                            let area_h = matches.len() as f32 * row_h + 34.0;
+                            let area_pos = egui::pos2(
+                                response.rect.left(),
+                                response.rect.top() - area_h - 4.0,
                             );
+                            egui::Area::new(egui::Id::new("mention_autocomplete_area"))
+                                .order(egui::Order::Foreground)
+                                .fixed_pos(area_pos)
+                                .show(ui.ctx(), |ui| {
+                                    Frame::popup(ui.style()).show(ui, |ui| {
+                                        ui.set_min_width(220.0);
+                                        ui.label(
+                                            RichText::new(format!("Mention: @{}", partial))
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_muted()),
+                                        );
+                                        ui.separator();
+                                        for (idx, name) in matches.iter().enumerate() {
+                                            let is_sel = idx == cur_index;
+                                            let btn = egui::Button::new(
+                                                RichText::new(format!("@{}", name)).color(
+                                                    if is_sel {
+                                                        theme.text_on_accent()
+                                                    } else {
+                                                        theme.text_primary()
+                                                    },
+                                                ),
+                                            )
+                                            .fill(if is_sel {
+                                                theme.accent()
+                                            } else {
+                                                Color32::TRANSPARENT
+                                            })
+                                            .min_size(Vec2::new(210.0, row_h - 2.0));
+                                            let r = ui.add(btn);
+                                            if r.hovered() {
+                                                new_index = idx;
+                                            }
+                                            if r.clicked() {
+                                                selected = Some(name.clone());
+                                            }
+                                        }
+                                    });
+                                });
+
+                            state.chat_mention_index = new_index;
+
+                            if let Some(name) = selected {
+                                // Replace the trailing @partial with @name + space.
+                                if let Some(at_pos) = state.chat_input.rfind('@') {
+                                    state.chat_input.truncate(at_pos);
+                                    state.chat_input.push('@');
+                                    state.chat_input.push_str(&name);
+                                    state.chat_input.push(' ');
+                                }
+                                state.chat_mention_index = 0;
+                                if k_enter {
+                                    // Don't let the same Enter also send the
+                                    // message. Re-focus the input so the user
+                                    // keeps typing seamlessly.
+                                    mention_took_enter = true;
+                                    ui.memory_mut(|m| m.request_focus(response.id));
+                                }
+                            }
                         }
                     }
 
-                    let enter_pressed =
-                        response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                    // Suppress the message-send when Enter was just used to
+                    // pick a mention from the autocomplete popup.
+                    let enter_pressed = !mention_took_enter
+                        && response.lost_focus()
+                        && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
                     // Search button — opens the message search modal.
                     if widgets::Button::ghost("🔍").show(ui, theme) {
