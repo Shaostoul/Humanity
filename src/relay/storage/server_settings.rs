@@ -55,6 +55,16 @@ pub struct ServerSettings {
     /// leading dot. e.g. "png,jpg,pdf,txt". Empty string = no
     /// restriction (any extension allowed).
     pub allowed_file_extensions: String,
+    /// How many uploads to KEEP per user (FIFO). When a user's upload
+    /// count exceeds this, the oldest are deleted from disk. Default 4.
+    /// v0.237 — was a hardcoded `4` in storage/uploads.rs.
+    #[serde(default = "default_max_uploads_per_user")]
+    pub max_uploads_per_user: i64,
+    /// Server-wide total upload disk cap in MB. New uploads are rejected
+    /// once the uploads directory would exceed this. Default 500.
+    /// v0.237 — was a hardcoded `500 * 1024 * 1024` in relay/api.rs.
+    #[serde(default = "default_max_total_upload_mb")]
+    pub max_total_upload_mb: i64,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -67,6 +77,8 @@ fn default_upload_unverified() -> i64 { 5 }
 fn default_upload_verified() -> i64 { 25 }
 fn default_upload_mod() -> i64 { 100 }
 fn default_upload_admin() -> i64 { 500 }
+fn default_max_uploads_per_user() -> i64 { 4 }
+fn default_max_total_upload_mb() -> i64 { 500 }
 
 impl Default for ServerSettings {
     fn default() -> Self {
@@ -85,6 +97,8 @@ impl Default for ServerSettings {
             voice_channels_enabled: true,
             video_streaming_enabled: false,
             allowed_file_extensions: "png,jpg,jpeg,gif,webp,pdf,txt,md".to_string(),
+            max_uploads_per_user: default_max_uploads_per_user(),
+            max_total_upload_mb: default_max_total_upload_mb(),
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -127,7 +141,8 @@ impl Storage {
                         voice_channels_enabled, video_streaming_enabled,
                         allowed_file_extensions, updated_at, COALESCE(updated_by, ''),
                         max_upload_mb_unverified, max_upload_mb_verified,
-                        max_upload_mb_mod, max_upload_mb_admin
+                        max_upload_mb_mod, max_upload_mb_admin,
+                        max_uploads_per_user, max_total_upload_mb
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -152,6 +167,8 @@ impl Storage {
                         max_upload_mb_verified: row.get(13)?,
                         max_upload_mb_mod: row.get(14)?,
                         max_upload_mb_admin: row.get(15)?,
+                        max_uploads_per_user: row.get(16)?,
+                        max_total_upload_mb: row.get(17)?,
                     })
                 },
             ) {
@@ -193,6 +210,8 @@ impl Storage {
                     max_upload_mb_verified   = ?12,
                     max_upload_mb_mod        = ?13,
                     max_upload_mb_admin      = ?14,
+                    max_uploads_per_user     = ?17,
+                    max_total_upload_mb      = ?18,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -214,6 +233,8 @@ impl Storage {
                     s.max_upload_mb_admin,
                     now,
                     updated_by,
+                    s.max_uploads_per_user,
+                    s.max_total_upload_mb,
                 ],
             )?;
             Ok(rows > 0)

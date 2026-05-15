@@ -6,7 +6,13 @@ impl Storage {
 
     /// Record an upload for a user. If the user has more than 4 uploads,
     /// deletes the oldest and returns their filenames for disk cleanup.
-    pub fn record_upload(&self, public_key: &str, filename: &str) -> Result<Vec<String>, rusqlite::Error> {
+    /// Record a new upload for `public_key` and FIFO-prune so at most
+    /// `max_per_user` uploads are retained (oldest deleted). Returns the
+    /// filenames of pruned uploads so the caller can delete them from
+    /// disk. `max_per_user` comes from server_settings.max_uploads_per_user
+    /// (was a hardcoded 4 before v0.237). Clamped to >= 1 defensively.
+    pub fn record_upload(&self, public_key: &str, filename: &str, max_per_user: i64) -> Result<Vec<String>, rusqlite::Error> {
+        let max_per_user = max_per_user.max(1);
         self.with_conn(|conn| {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -27,8 +33,8 @@ impl Storage {
             )?;
 
             let mut to_delete = Vec::new();
-            if count > 4 {
-                let excess = count - 4;
+            if count > max_per_user {
+                let excess = count - max_per_user;
                 // Find the oldest uploads to delete.
                 let mut stmt = conn.prepare(
                     "SELECT id, filename FROM user_uploads WHERE public_key = ?1 ORDER BY id ASC LIMIT ?2"

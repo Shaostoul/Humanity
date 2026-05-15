@@ -270,8 +270,16 @@ pub async fn upload_file(
         "exe", "sh", "bat", "cmd", "msi", "dmg", "app", "com", "scr", "pif",
         "html", "htm", "xhtml", "xml", "js", "mjs",
     ];
-    /// Maximum total size of all uploads on disk (default 500MB).
-    const MAX_TOTAL_UPLOAD_BYTES: u64 = 500 * 1024 * 1024;
+    // Total upload disk cap + per-user FIFO retention are now operator-
+    // tunable server settings (v0.237). Read once here; fall back to the
+    // historical defaults (500 MB / 4 files) if the row is missing.
+    let (max_total_upload_bytes, max_uploads_per_user) = {
+        let s = state.db.get_server_settings().unwrap_or_default();
+        (
+            (s.max_total_upload_mb.max(1) as u64) * 1024 * 1024,
+            s.max_uploads_per_user.max(1),
+        )
+    };
 
     // M-4: Resolve upload token to public key.
     let public_key = if let Some(ref token) = query.token {
@@ -403,12 +411,12 @@ pub async fn upload_file(
 
         // Check global disk usage before writing.
         let total_size = dir_total_size(upload_dir);
-        if total_size + data.len() as u64 > MAX_TOTAL_UPLOAD_BYTES {
+        if total_size + data.len() as u64 > max_total_upload_bytes {
             return Err((
                 StatusCode::INSUFFICIENT_STORAGE,
                 format!("Upload storage full ({:.1} MB / {:.0} MB). Please try again later.",
                     total_size as f64 / (1024.0 * 1024.0),
-                    MAX_TOTAL_UPLOAD_BYTES as f64 / (1024.0 * 1024.0)),
+                    max_total_upload_bytes as f64 / (1024.0 * 1024.0)),
             ));
         }
 
@@ -417,8 +425,9 @@ pub async fn upload_file(
             (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}"))
         })?;
 
-        // Track upload per user (FIFO: keep max 4 images per key).
-        match state.db.record_upload(&public_key, &unique_name) {
+        // Track upload per user (FIFO — retention count from server
+        // settings, was a hardcoded 4 before v0.237).
+        match state.db.record_upload(&public_key, &unique_name, max_uploads_per_user) {
             Ok(old_files) => {
                 // Delete old files from disk.
                 for old_file in &old_files {

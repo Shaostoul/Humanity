@@ -656,6 +656,12 @@ pub enum RelayMessage {
         video_streaming_enabled: Option<bool>,
         #[serde(default)]
         allowed_file_extensions: Option<String>,
+        /// Per-user upload FIFO retention count (v0.237).
+        #[serde(default)]
+        max_uploads_per_user: Option<i64>,
+        /// Server-wide total upload disk cap in MB (v0.237).
+        #[serde(default)]
+        max_total_upload_mb: Option<i64>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -4607,6 +4613,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 max_upload_mb_unverified, max_upload_mb_verified,
                                 max_upload_mb_mod, max_upload_mb_admin,
                                 voice_channels_enabled, video_streaming_enabled, allowed_file_extensions,
+                                max_uploads_per_user, max_total_upload_mb,
                             } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if role != "admin" && role != "owner" {
@@ -4653,6 +4660,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             .filter(|s| !s.is_empty())
                                             .collect();
                                         current.allowed_file_extensions = cleaned.join(",");
+                                    }
+                                    // v0.237 upload-storage limits. Per-user
+                                    // FIFO clamped 1..=1000; total disk cap
+                                    // clamped 1..=1_000_000 MB (1 TB ceiling).
+                                    if let Some(v) = max_uploads_per_user {
+                                        current.max_uploads_per_user = v.clamp(1, 1_000);
+                                    }
+                                    if let Some(v) = max_total_upload_mb {
+                                        current.max_total_upload_mb = v.clamp(1, 1_000_000);
                                     }
                                     match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
                                         Ok(true) => {

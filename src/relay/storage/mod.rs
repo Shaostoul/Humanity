@@ -647,11 +647,28 @@ impl Storage {
                 voice_channels_enabled    INTEGER NOT NULL DEFAULT 1,
                 video_streaming_enabled   INTEGER NOT NULL DEFAULT 0,
                 allowed_file_extensions   TEXT    NOT NULL DEFAULT 'png,jpg,jpeg,gif,webp,pdf,txt,md',
+                max_uploads_per_user      INTEGER NOT NULL DEFAULT 4,
+                max_total_upload_mb       INTEGER NOT NULL DEFAULT 500,
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
             INSERT OR IGNORE INTO server_settings (id) VALUES (1);"
         )?;
+
+        // ── v0.237.0 — upload-storage limits became tunable ──
+        // Operator: "we seem to have a limit to how many images the
+        // server stores ... we should have whatever the variable is in
+        // the server settings page." The per-user FIFO retention (was a
+        // hardcoded 4 in storage/uploads.rs) and the server-wide disk
+        // cap (was a hardcoded 500 MB in relay/api.rs) are now columns.
+        // Idempotent ALTER for relays created before this migration.
+        if conn.prepare("SELECT max_uploads_per_user FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN max_uploads_per_user INTEGER NOT NULL DEFAULT 4;
+                 ALTER TABLE server_settings ADD COLUMN max_total_upload_mb  INTEGER NOT NULL DEFAULT 500;"
+            )?;
+            info!("Migration: added max_uploads_per_user + max_total_upload_mb (server_settings)");
+        }
 
         // ── v0.201.0 — split max_upload_mb into per-role columns ──
         // Operator: upload size should be variable per rank. New columns
