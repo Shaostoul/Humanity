@@ -455,6 +455,13 @@ fn draw_scratchpad_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ── DMs Section ──
 
 fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    // Sort DMs alphabetically (case-insensitive) by partner name. Operator
+    // feedback 2026-05-15 — "alphabetical first, drag-and-drop later if
+    // needed." Done in-place at the top of each render fn so the order is
+    // stable across updates without each WS handler having to re-sort.
+    // O(n log n) on a small Vec; negligible cost.
+    state.chat_dms.sort_by(|a, b| a.user_name.to_lowercase().cmp(&b.user_name.to_lowercase()));
+
     let collapsed = state.chat_dm_collapsed;
     let dm_count = state.chat_dms.len();
     let display_limit = state.chat_dm_display_limit;
@@ -642,6 +649,9 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ── Groups Section ──
 
 fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    // Sort groups alphabetically by name (see draw_dm_section for rationale).
+    state.chat_groups.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
     let collapsed = state.chat_groups_collapsed;
     let group_count = state.chat_groups.len();
 
@@ -976,6 +986,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ── Servers Section ──
 
 fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    // Sort servers alphabetically by name (see draw_dm_section for rationale).
+    state.chat_servers.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
     let collapsed = state.chat_servers_collapsed;
 
     // Build a virtual server from the current connection
