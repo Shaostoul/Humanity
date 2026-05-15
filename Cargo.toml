@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.231.1"
+version = "0.232.0"
 edition = "2021"
 
 [[bin]]
@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem"]
+native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard"]
 relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -59,6 +59,10 @@ egui-wgpu = { version = "0.31", optional = true }
 egui-winit = { version = "0.31", optional = true }
 tungstenite = { version = "0.24", optional = true, features = ["native-tls"] }
 ureq = { version = "2", optional = true }
+# Cross-platform clipboard access for image paste (Ctrl+V from print-screen
+# captures) — v0.232. Already a transitive dep via egui; declaring directly
+# so we can call get_image() on the clipboard. native feature only.
+arboard = { version = "3", optional = true, default-features = false, features = ["image-data"] }
 bip39 = { version = "2", optional = true }
 ed25519-dalek = { version = "2", optional = true, features = ["rand_core"] }
 hex = { version = "0.4", optional = true }

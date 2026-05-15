@@ -2339,6 +2339,7 @@ name = "humanity-engine"
 version = "0.231.1"
 dependencies = [
  "aes-gcm",
+ "arboard",
  "argon2",
  "axum",
  "base64 0.22.1",

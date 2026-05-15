@@ -2449,6 +2449,54 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .hint_text(hint),
                     );
 
+                    // ── Clipboard image paste (Ctrl+V → upload → send URL) ──
+                    // Operator request 2026-05-15 — "When I press print screen
+                    // I take a screenshot. When I press control+V to paste on
+                    // the website it posts properly to the chat. When I try
+                    // pasting through the app it never posts the image."
+                    // Mirrors web/chat/chat-messages.js paste handler.
+                    if response.has_focus() {
+                        let ctrl_v = ui.input(|i| {
+                            i.key_pressed(egui::Key::V)
+                                && (i.modifiers.ctrl || i.modifiers.command)
+                        });
+                        if ctrl_v {
+                            if let Some(png_bytes) = try_grab_clipboard_image_as_png() {
+                                let server = state.server_url.clone();
+                                let pk = state.profile_public_key.clone();
+                                let channel = state.chat_active_channel.clone();
+                                let sender_name = state.user_name.clone();
+                                match upload_image_png_blocking(&server, &pk, png_bytes) {
+                                    Ok(url) => {
+                                        if let Some(ref client) = state.ws_client {
+                                            if client.is_connected() {
+                                                let ts = std::time::SystemTime::now()
+                                                    .duration_since(std::time::UNIX_EPOCH)
+                                                    .unwrap_or_default()
+                                                    .as_millis() as u64;
+                                                let m = serde_json::json!({
+                                                    "type": "chat",
+                                                    "from": pk,
+                                                    "from_name": sender_name,
+                                                    "content": url,
+                                                    "timestamp": ts,
+                                                    "channel": channel,
+                                                });
+                                                client.send(&m.to_string());
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        log::warn!("Clipboard image upload failed: {e}");
+                                    }
+                                }
+                            }
+                            // Note: if clipboard had text not image, egui's
+                            // TextEdit already handled the paste — we don't
+                            // need to do anything extra.
+                        }
+                    }
+
                     // ── @mention autocomplete ──
                     // If the input ends with `@partial` (no whitespace after the @),
                     // show a popup of matching users from chat_users.
@@ -3899,6 +3947,90 @@ pub fn format_full_timestamp(ts_ms: u64) -> String {
         "{:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC",
         year, month, day, hour, minute, second
     )
+}
+
+/// Try to read an image from the OS clipboard and encode it as PNG bytes.
+/// Returns `None` when the clipboard has no image (e.g. just text), or when
+/// the clipboard / encoder errors. The native arboard crate handles
+/// Windows / macOS / Linux clipboard access. v0.232.
+fn try_grab_clipboard_image_as_png() -> Option<Vec<u8>> {
+    let mut clipboard = match arboard::Clipboard::new() {
+        Ok(c) => c,
+        Err(e) => { log::warn!("Clipboard open failed: {e}"); return None; }
+    };
+    let img = match clipboard.get_image() {
+        Ok(img) => img,
+        Err(arboard::Error::ContentNotAvailable) => return None, // text-only clipboard
+        Err(e) => { log::warn!("Clipboard get_image failed: {e}"); return None; }
+    };
+    // arboard returns RGBA8 bytes in `img.bytes` with dimensions in
+    // `img.width` / `img.height`. Re-encode as PNG via the `image` crate
+    // (already a dep) before uploading.
+    let width = img.width as u32;
+    let height = img.height as u32;
+    let buf = image::RgbaImage::from_raw(width, height, img.bytes.into_owned())?;
+    let mut png_bytes: Vec<u8> = Vec::new();
+    if let Err(e) = image::DynamicImage::ImageRgba8(buf)
+        .write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
+    {
+        log::warn!("PNG encode of clipboard image failed: {e}");
+        return None;
+    }
+    Some(png_bytes)
+}
+
+/// Blocking upload of a PNG to `<server_url>/api/upload?key=<pk>` as a
+/// multipart/form-data body. Returns the resulting URL (parsed from the
+/// JSON response `{"url":"...","filename":"...","size":N,"type":"..."}`).
+/// Mirrors the web client's `uploadImage(file)` flow.
+///
+/// Synchronous (blocks the egui draw frame for the duration of the upload).
+/// For typical print-screen captures (~200-800 KB after PNG encoding) on a
+/// decent network the upload completes in well under a second. If this
+/// becomes annoying we can move it to a background tokio task; the simple
+/// blocking version is the right starting point. v0.232.
+fn upload_image_png_blocking(
+    server_url: &str,
+    public_key: &str,
+    png_bytes: Vec<u8>,
+) -> Result<String, String> {
+    let base = server_url.trim_end_matches('/');
+    // public_key is a hex string (64 chars), no URL-encoding needed.
+    let upload_url = format!("{base}/api/upload?key={key}",
+        base = base, key = public_key);
+    // Construct a multipart/form-data body manually — ureq 2 doesn't
+    // include multipart helpers and we don't want to pull in a crate
+    // just for this. Header: `Content-Type: multipart/form-data; boundary=<b>`.
+    let boundary = format!("HumanityOSBoundary{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+    );
+    let preamble = format!(
+        "--{b}\r\n\
+         Content-Disposition: form-data; name=\"file\"; filename=\"clipboard.png\"\r\n\
+         Content-Type: image/png\r\n\r\n",
+        b = boundary,
+    );
+    let epilogue = format!("\r\n--{b}--\r\n", b = boundary);
+    let mut body: Vec<u8> = Vec::with_capacity(preamble.len() + png_bytes.len() + epilogue.len());
+    body.extend_from_slice(preamble.as_bytes());
+    body.extend_from_slice(&png_bytes);
+    body.extend_from_slice(epilogue.as_bytes());
+
+    let resp = ureq::post(&upload_url)
+        .set("Content-Type", &format!("multipart/form-data; boundary={}", boundary))
+        .send_bytes(&body)
+        .map_err(|e| format!("HTTP POST failed: {e}"))?;
+    let body_str = resp.into_string()
+        .map_err(|e| format!("read response: {e}"))?;
+    let val: serde_json::Value = serde_json::from_str(&body_str)
+        .map_err(|e| format!("parse JSON: {e}; body={body_str}"))?;
+    val.get("url")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| format!("response missing 'url' field: {body_str}"))
 }
 
 /// Convert an HTTPS URL to a WSS URL for the relay.
