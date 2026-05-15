@@ -68,6 +68,12 @@ pub fn message_row(
     channeling: bool,
     ctx_time: f64,
     pill_width: f32,
+    // Char ranges within `content` to render as clickable @mention
+    // highlights (accent color). Each is `(char_start, char_len)`
+    // relative to `content`. The caller resolves which range maps to
+    // which user; `message_row` just colors them + reports which one
+    // was clicked via `MessageRowResponse.clicked_mention`. v0.236.
+    mention_ranges: &[(usize, usize)],
 ) -> MessageRowResponse {
     let full_width = ui.available_width();
     let border_color = theme.border();
@@ -92,6 +98,11 @@ pub fn message_row(
     let mut job = LayoutJob::default();
     job.wrap.max_width = content_width;
 
+    // Count of chars appended BEFORE `content` — needed to map a clicked
+    // galley char index back to a content-relative index for mention
+    // hit-testing.
+    let mut prefix_chars: usize = 0;
+
     if show_header && !name.is_empty() {
         job.append(
             name,
@@ -111,6 +122,7 @@ pub fn message_row(
                 ..Default::default()
             },
         );
+        prefix_chars += name.chars().count() + 2;
     }
     // Inline timestamp (legacy behavior) only when pill_width == 0.
     // When the caller is painting a pill instead, omit timestamp + interpunct
@@ -136,6 +148,7 @@ pub fn message_row(
                 ..Default::default()
             },
         );
+        prefix_chars += ts_clean.chars().count() + INTERPUNCT.chars().count();
     } else if use_pill {
         // Reserve EXACTLY pill_width worth of layout space using transparent
         // spaces. We must measure the space's actual rendered width or our
@@ -158,16 +171,46 @@ pub fn message_row(
                 ..Default::default()
             },
         );
+        prefix_chars += n;
     }
-    job.append(
-        content,
-        0.0,
-        egui::TextFormat {
+    // Append `content`, splitting at mention ranges so each @mention is
+    // colored with the accent. `mention_ranges` is (char_start, char_len)
+    // relative to content; assume the caller passes them sorted &
+    // non-overlapping (chat.rs builds them left-to-right).
+    {
+        let chars: Vec<char> = content.chars().collect();
+        let mut pos: usize = 0;
+        let normal_fmt = egui::TextFormat {
             font_id: egui::FontId::proportional(body_font),
             color: text_color,
             ..Default::default()
-        },
-    );
+        };
+        let mention_fmt = egui::TextFormat {
+            font_id: egui::FontId::proportional(body_font),
+            color: theme.accent(),
+            ..Default::default()
+        };
+        let slice = |a: usize, b: usize| -> String {
+            chars.get(a..b).map(|s| s.iter().collect()).unwrap_or_default()
+        };
+        for &(start, len) in mention_ranges {
+            let start = start.min(chars.len());
+            let end = (start + len).min(chars.len());
+            if start > pos {
+                job.append(&slice(pos, start), 0.0, normal_fmt.clone());
+            }
+            if end > start {
+                job.append(&slice(start, end), 0.0, mention_fmt.clone());
+            }
+            pos = end.max(pos);
+        }
+        // Trailing text after the last mention (or the ENTIRE content
+        // when mention_ranges is empty, since the loop didn't run and
+        // pos is still 0 — the common no-mentions fast path).
+        if pos < chars.len() {
+            job.append(&slice(pos, chars.len()), 0.0, normal_fmt.clone());
+        }
+    }
 
     let galley = painter.layout_job(job);
     let text_h = galley.size().y;
@@ -227,6 +270,7 @@ pub fn message_row(
             userbox_rect: Rect::NOTHING,
             pill_rect: Rect::NOTHING,
             deferred_avatar: None,
+            clicked_mention: None,
         };
     }
 
@@ -265,6 +309,29 @@ pub fn message_row(
     // Text content — fixed x offset for everyone so alignment is consistent.
     let content_x = hx + content_left_offset;
     let content_y = hy + 2.0;
+
+    // Mention click hit-test — must run BEFORE painter.galley consumes
+    // the galley. Map the click position → galley char index → content
+    // char index (subtract prefix_chars) → which mention range, if any.
+    let mut clicked_mention: Option<usize> = None;
+    if response.clicked() && !mention_ranges.is_empty() {
+        if let Some(click_pos) = response.interact_pointer_pos() {
+            let galley_origin = egui::pos2(content_x, content_y);
+            let local = click_pos - galley_origin;
+            let cursor = galley.cursor_from_pos(local);
+            let gi = cursor.ccursor.index;
+            if gi >= prefix_chars {
+                let ci = gi - prefix_chars;
+                for (idx, &(start, len)) in mention_ranges.iter().enumerate() {
+                    if ci >= start && ci < start + len {
+                        clicked_mention = Some(idx);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     painter.galley(egui::pos2(content_x, content_y), galley, text_color);
 
     // Pill rect: anchored at content_x + name_width, height = first line of
@@ -285,6 +352,7 @@ pub fn message_row(
         userbox_rect: userbox_hit,
         pill_rect,
         deferred_avatar,
+        clicked_mention,
     }
 }
 
@@ -302,6 +370,10 @@ pub struct MessageRowResponse {
     /// (avatars are 32×32 but rows can now be as short as a single
     /// text line; the avatar overflows but post-pass paint covers it).
     pub deferred_avatar: Option<DeferredAvatar>,
+    /// Index into the `mention_ranges` slice that was clicked this
+    /// frame, if any. The caller maps it back to a username and opens
+    /// the user modal. v0.236.
+    pub clicked_mention: Option<usize>,
 }
 
 /// Avatar info captured during a header row render, painted later in a

@@ -1857,6 +1857,54 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // in message_row will be wrong and content text
                         // overlaps the pill (operator-reported bug).
                         let pill_width = compute_pill_width(ui.ctx(), theme, &msg.timestamp, &msg.reactions);
+
+                        // Parse @mentions that resolve to a known user, for
+                        // accent highlighting + click-to-open-modal (Discord-
+                        // style). Longest-match against the user list so
+                        // multi-word names like "@Deploy Bot" work. Ranges
+                        // are char-indexed into display_text. Operator
+                        // request 2026-05-15.
+                        let mut mention_ranges: Vec<(usize, usize)> = Vec::new();
+                        let mut mention_targets: Vec<(String, String)> = Vec::new();
+                        {
+                            let chars: Vec<char> = display_text.chars().collect();
+                            let mut i = 0;
+                            while i < chars.len() {
+                                if chars[i] == '@' {
+                                    let after: String = chars[i + 1..].iter().collect();
+                                    let after_lower = after.to_lowercase();
+                                    let mut best: Option<&crate::gui::ChatUser> = None;
+                                    let mut best_len = 0usize;
+                                    for u in &state.chat_users {
+                                        if u.name.is_empty() { continue; }
+                                        let nl = u.name.to_lowercase();
+                                        if after_lower.starts_with(&nl) {
+                                            let nlen = u.name.chars().count();
+                                            // Boundary: char after the name
+                                            // must be missing or non-word so
+                                            // "@Eve" doesn't match user "Ev".
+                                            let boundary_ok = after
+                                                .chars()
+                                                .nth(nlen)
+                                                .map(|c| !c.is_alphanumeric())
+                                                .unwrap_or(true);
+                                            if boundary_ok && nlen > best_len {
+                                                best = Some(u);
+                                                best_len = nlen;
+                                            }
+                                        }
+                                    }
+                                    if let Some(u) = best {
+                                        mention_ranges.push((i, 1 + best_len));
+                                        mention_targets.push((u.name.clone(), u.public_key.clone()));
+                                        i += 1 + best_len;
+                                        continue;
+                                    }
+                                }
+                                i += 1;
+                            }
+                        }
+
                         let row_resp = crate::gui::widgets::row::message_row(
                             ui,
                             theme,
@@ -1870,7 +1918,17 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             channeling,
                             ctx_time,
                             pill_width,
+                            &mention_ranges,
                         );
+                        // Click on a highlighted @mention → open that user's
+                        // modal (same as clicking them in the user list).
+                        if let Some(idx) = row_resp.clicked_mention {
+                            if let Some((nm, key)) = mention_targets.get(idx) {
+                                state.chat_user_modal_open = true;
+                                state.chat_user_modal_name = nm.clone();
+                                state.chat_user_modal_key = key.clone();
+                            }
+                        }
                         row_was_hovered = row_resp.response.hovered();
                         row_rect_opt = Some(row_resp.response.rect);
                         pill_rect_for_msg = row_resp.pill_rect;
@@ -2641,12 +2699,34 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     state.chat_input.push(' ');
                                 }
                                 state.chat_mention_index = 0;
+                                // Move the text caret to the END of the input
+                                // (just past the trailing space we appended).
+                                // egui keeps the caret in TextEditState keyed
+                                // by the widget id; without this the caret
+                                // stays where it was (mid-name) so the next
+                                // keystroke lands inside the inserted name
+                                // (operator-reported 2026-05-15).
+                                {
+                                    let end = egui::text::CCursor::new(
+                                        state.chat_input.chars().count(),
+                                    );
+                                    let mut tes = egui::text_edit::TextEditState::load(
+                                        ui.ctx(), response.id,
+                                    ).unwrap_or_default();
+                                    tes.cursor.set_char_range(Some(
+                                        egui::text::CCursorRange::one(end),
+                                    ));
+                                    tes.store(ui.ctx(), response.id);
+                                }
+                                // Always re-focus the input (whether the pick
+                                // came from Enter, click, or arrow+Enter) so
+                                // the caret move sticks and the user keeps
+                                // typing seamlessly.
+                                ui.memory_mut(|m| m.request_focus(response.id));
                                 if k_enter {
                                     // Don't let the same Enter also send the
-                                    // message. Re-focus the input so the user
-                                    // keeps typing seamlessly.
+                                    // message.
                                     mention_took_enter = true;
-                                    ui.memory_mut(|m| m.request_focus(response.id));
                                 }
                             }
                         }
