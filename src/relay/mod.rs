@@ -143,6 +143,19 @@ pub async fn run_relay() {
     let msg_count = db.message_count().unwrap_or(0);
     tracing::info!("Database has {msg_count} stored messages");
 
+    // One-shot cleanup of accumulated test-bot rows from earlier
+    // `scripts/ai-sample-client.js` runs (the script generates random
+    // hex keys + names like "AISampleBot1234", so they didn't hit the
+    // bot_/viewer_ key-prefix exemption and got auto-joined into
+    // server_members on every connect). Combined with the name-based
+    // auto-join exemption added in relay.rs (v0.226), this gives the
+    // operator a clean slate — kicked test bots stay kicked.
+    match db.purge_test_bot_members() {
+        Ok(n) if n > 0 => tracing::info!("Purged {n} test-bot rows from server_members (AISampleBot/TestBot/SampleBot)."),
+        Ok(_) => {}
+        Err(e) => tracing::error!("Test-bot purge failed: {e}"),
+    }
+
     // Auto-promote first registered user or ADMIN_KEYS to admin.
     if let Ok(admin_keys) = std::env::var("ADMIN_KEYS") {
         for key in admin_keys.split(',') {

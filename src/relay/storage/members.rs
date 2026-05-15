@@ -37,6 +37,24 @@ impl Storage {
         })
     }
 
+    /// Purge known test-bot rows from `server_members`. Runs at relay
+    /// startup so accumulated AISampleBot / TestBot / SampleBot rows from
+    /// `scripts/ai-sample-client.js` runs don't pollute the user list.
+    /// Once the auto-join exemption (added in v0.226 in relay.rs) is in
+    /// place, fresh test-bot connections won't re-populate these rows.
+    pub fn purge_test_bot_members(&self) -> Result<usize, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let changed = conn.execute(
+                "DELETE FROM server_members WHERE \
+                    name LIKE 'AISampleBot%' OR \
+                    name LIKE 'TestBot%' OR \
+                    name LIKE 'SampleBot%'",
+                [],
+            )?;
+            Ok(changed)
+        })
+    }
+
     /// Get a paginated list of server members, optionally filtered by search term.
     pub fn get_members(
         &self,

@@ -2361,8 +2361,25 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
                 // Auto-join server membership: if user has a name and isn't a bot,
                 // auto-register them as a member (open server model).
-                if !public_key.starts_with("bot_") && !public_key.starts_with("viewer_") {
-                    let member_name = final_name.as_deref().unwrap_or("Anonymous");
+                // Skip auto-join for:
+                //   - bot_*       (test bots with bot_ key prefix)
+                //   - viewer_*    (anonymous-viewer key prefix)
+                //   - name "AISampleBot*"  (scripts/ai-sample-client.js test
+                //     clients — they generate RANDOM hex keys so the bot_
+                //     prefix check doesn't catch them, which caused them to
+                //     pollute server_members and "come back" after every
+                //     kick. Operator feedback 2026-05-12 - "I successfully
+                //     kicked the bots on the first try. However, once I
+                //     rebooted they were back".)
+                let nm = final_name.as_deref().unwrap_or("");
+                let is_test_bot_name = nm.starts_with("AISampleBot")
+                    || nm.starts_with("TestBot")
+                    || nm.starts_with("SampleBot");
+                if !public_key.starts_with("bot_")
+                    && !public_key.starts_with("viewer_")
+                    && !is_test_bot_name
+                {
+                    let member_name = if nm.is_empty() { "Anonymous" } else { nm };
                     if state.db.is_member(&public_key) {
                         // Already a member — update last_seen and name.
                         let _ = state.db.update_last_seen(&public_key);
@@ -2378,6 +2395,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             });
                         }
                     }
+                } else if is_test_bot_name {
+                    info!("Test-bot connection accepted (name='{nm}') — not auto-joining server_members.");
                 }
 
                 // Send current peer list to the new peer (with their upload_token).
