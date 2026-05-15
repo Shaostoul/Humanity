@@ -1344,26 +1344,41 @@ pub async fn handle_mod_action(
 
     match action {
         "kick" | "ban" => {
-            match state.db.leave_server(target) {
-                Ok(true) => {
-                    let _ = state.broadcast_tx.send(RelayMessage::MemberLeft {
-                        public_key: target.to_string(),
-                        reason: action.to_string(),
-                    });
-                    let private = RelayMessage::Private {
-                        to: my_key.to_string(),
-                        message: format!("✓ {action}ed {target_name}."),
-                    };
-                    let _ = state.broadcast_tx.send(private);
-                    // TODO(ban): also insert into a banned_keys table so the
-                    // user can't rejoin. Currently ban == kick.
-                }
-                Ok(false) => {
-                    let private = RelayMessage::Private {
-                        to: my_key.to_string(),
-                        message: format!("{target_name} wasn't a member of this server."),
-                    };
-                    let _ = state.broadcast_tx.send(private);
+            let members_result = state.db.leave_server(target);
+            // ALSO delete registered_names rows — that's what drives the
+            // visible "full user list" sidebar (operator-reported bug
+            // 2026-05-12 — kick reported success but user stayed in the
+            // sidebar because we were only cleaning server_members).
+            let names_deleted = state.db.delete_registered_name(target).unwrap_or(0);
+            match members_result {
+                Ok(member_deleted) => {
+                    // Treat as success if EITHER table was modified —
+                    // some users (e.g. test bots) live in registered_names
+                    // but never made it into server_members, so the kick
+                    // is still meaningful even when member_deleted is false.
+                    if member_deleted || names_deleted > 0 {
+                        let _ = state.broadcast_tx.send(RelayMessage::MemberLeft {
+                            public_key: target.to_string(),
+                            reason: action.to_string(),
+                        });
+                        // Rebroadcast the full user list so every connected
+                        // client refreshes their sidebar (the kicked user
+                        // is no longer in registered_names).
+                        crate::relay::handlers::broadcast::broadcast_full_user_list(state).await;
+                        let private = RelayMessage::Private {
+                            to: my_key.to_string(),
+                            message: format!("✓ {action}ed {target_name}."),
+                        };
+                        let _ = state.broadcast_tx.send(private);
+                        // TODO(ban): also insert into a banned_keys table so the
+                        // user can't rejoin. Currently ban == kick.
+                    } else {
+                        let private = RelayMessage::Private {
+                            to: my_key.to_string(),
+                            message: format!("{target_name} wasn't a member of this server."),
+                        };
+                        let _ = state.broadcast_tx.send(private);
+                    }
                 }
                 Err(e) => {
                     tracing::error!("mod_action {action} db error: {e}");

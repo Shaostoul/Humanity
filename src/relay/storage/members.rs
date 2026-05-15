@@ -37,19 +37,46 @@ impl Storage {
         })
     }
 
-    /// Purge known test-bot rows from `server_members`. Runs at relay
-    /// startup so accumulated AISampleBot / TestBot / SampleBot rows from
+    /// Purge known test-bot rows from `server_members` AND
+    /// `registered_names`. Runs at relay startup so accumulated
+    /// AISampleBot / TestBot / SampleBot rows from
     /// `scripts/ai-sample-client.js` runs don't pollute the user list.
-    /// Once the auto-join exemption (added in v0.226 in relay.rs) is in
-    /// place, fresh test-bot connections won't re-populate these rows.
-    pub fn purge_test_bot_members(&self) -> Result<usize, rusqlite::Error> {
+    /// Returns (server_members_deleted, registered_names_deleted).
+    ///
+    /// We must clean BOTH tables because:
+    ///   - `server_members` is the kick/membership source-of-truth
+    ///   - `registered_names` drives the visible "full user list" sidebar
+    ///     (see `list_all_users_with_keys()` in pins.rs which the
+    ///     `broadcast_full_user_list` handler uses). Without purging
+    ///     `registered_names`, kicked bots stay in the sidebar forever.
+    pub fn purge_test_bot_members(&self) -> Result<(usize, usize), rusqlite::Error> {
         self.with_conn(|conn| {
-            let changed = conn.execute(
+            let members_deleted = conn.execute(
                 "DELETE FROM server_members WHERE \
                     name LIKE 'AISampleBot%' OR \
                     name LIKE 'TestBot%' OR \
                     name LIKE 'SampleBot%'",
                 [],
+            )?;
+            let names_deleted = conn.execute(
+                "DELETE FROM registered_names WHERE \
+                    name LIKE 'AISampleBot%' COLLATE NOCASE OR \
+                    name LIKE 'TestBot%' COLLATE NOCASE OR \
+                    name LIKE 'SampleBot%' COLLATE NOCASE",
+                [],
+            )?;
+            Ok((members_deleted, names_deleted))
+        })
+    }
+
+    /// Delete a user's registered-name row(s) by public_key. Used by the
+    /// kick handler to make sure the visible user list (sourced from
+    /// `registered_names`) is consistent with the membership table.
+    pub fn delete_registered_name(&self, public_key: &str) -> Result<usize, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let changed = conn.execute(
+                "DELETE FROM registered_names WHERE public_key = ?1",
+                params![public_key],
             )?;
             Ok(changed)
         })

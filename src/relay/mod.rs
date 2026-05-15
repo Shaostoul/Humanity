@@ -151,7 +151,9 @@ pub async fn run_relay() {
     // auto-join exemption added in relay.rs (v0.226), this gives the
     // operator a clean slate — kicked test bots stay kicked.
     match db.purge_test_bot_members() {
-        Ok(n) if n > 0 => tracing::info!("Purged {n} test-bot rows from server_members (AISampleBot/TestBot/SampleBot)."),
+        Ok((m, n)) if m > 0 || n > 0 => tracing::info!(
+            "Purged test-bot rows: {m} from server_members, {n} from registered_names (AISampleBot/TestBot/SampleBot)."
+        ),
         Ok(_) => {}
         Err(e) => tracing::error!("Test-bot purge failed: {e}"),
     }
