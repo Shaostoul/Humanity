@@ -1,18 +1,19 @@
 {
   "_purpose": "Orchestrator continuity across Claude Code sessions. The HUMAN talks to ONE AI (the orchestrator); that AI dispatches scope-specific work via the Agent tool. When the human starts a fresh Claude Code session, the new orchestrator MUST read this file early in startup so it knows: what was last being worked on, what's pending, what decisions were just made, what scopes are currently claimed, what to NOT re-do.",
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
-
   "current_orchestrator_session": {
     "started_at": "2026-05-12",
     "model": "claude-opus-4.7-1m",
     "primary_focus": "Cosmos page Phase 4d arc (v0.208 → v0.212) — 5 minor releases. Operator's stated wishes (time controls, pill labels, real conjunctions/eclipses, Lagrange points, geostationary orbit) all shipped against the live cosmos page."
   },
-
-  "current_focus": "2026-05-12..15 mega-session continued: shipped v0.208→v0.242 (~35 minor releases). Cosmos Phase 4d arc (v0.208-v0.213: time controls, pill labels, conjunctions/eclipses, Lagrange, reference orbits, body_pill widget extraction). Then pill widget polish (v0.214-v0.219 per operator screenshots: panel-below-pill layout, layering, cap-as-body-color, 3-circles-same-size, planet-natural-size). Then a long chat/server-settings/roles arc: v0.222 remove dead channel hint, v0.223 chat polish (blank-line gap, Þ-only reaction popup, ts-expansion, removed Groups cog), v0.224 mod_action handler (Kick/Ban/Mod actually work), v0.225 block popup behind modals, v0.226-228 kick edge cases (registered_names cleanup + name-fallback for empty-key users), v0.229-230 stateful popup hover + animated Þ + sticky region, v0.231 alphabetical sort DMs/Groups/Servers, v0.232-234 clipboard image paste (finally fixed at the WINIT LAYER — egui-winit swallows Ctrl+V), v0.235-236 @mention autocomplete (Enter/click/arrows + caret-to-end + clickable message mentions), v0.237-238 upload-storage limits as server settings (total disk cap + per-rank FIFO), v0.239 ROLES PHASE R1 (data-driven roles table + capability gates + WS), v0.240 always-editable server policy + eye/federation channel icons, v0.241 ROLES R2 (assignment dropdown + data-driven badges), v0.242 ROLES R3 (Server Settings roles editor — family-streaming flow COMPLETE end-to-end). New design doc: docs/design/roles-system.md (R1-R4 phasing; R4 = consolidate per-role limits into roles table, deferred). Pending: sidebar channel-status icons, Follow/Unfollow wire bug (client sends 'target', enum wants 'target_key' — Follow button silently broken), banned_keys wire-up (table EXISTS, Ban==Kick currently), muted_members table for Mute, name-only-kick admin-protection security gap, IO/macro page (scoping deferred via AskUserQuestion — operator dismissed), Cosmos 4d-quad/4b/4g/Map-Room, PQ chat migration, Debian 11→12.",
-
+  "current_focus": "2026-05-12..15 mega-session continued: shipped v0.208→v0.242 (~35 minor releases). Cosmos Phase 4d arc (v0.208-v0.213: time controls, pill labels, conjunctions/eclipses, Lagrange, reference orbits, body_pill widget extraction). Then pill widget polish (v0.214-v0.219 per operator screenshots: panel-below-pill layout, layering, cap-as-body-color, 3-circles-same-size, planet-natural-size). Then a long chat/server-settings/roles arc: v0.222 remove dead channel hint, v0.223 chat polish (blank-line gap, Þ-only reaction popup, ts-expansion, removed Groups cog), v0.224 mod_action handler (Kick/Ban/Mod actually work), v0.225 block popup behind modals, v0.226-228 kick edge cases (registered_names cleanup + name-fallback for empty-key users), v0.229-230 stateful popup hover + animated Þ + sticky region, v0.231 alphabetical sort DMs/Groups/Servers, v0.232-234 clipboard image paste (finally fixed at the WINIT LAYER — egui-winit swallows Ctrl+V), v0.235-236 @mention autocomplete (Enter/click/arrows + caret-to-end + clickable message mentions), v0.237-238 upload-storage limits as server settings (total disk cap + per-rank FIFO), v0.239 ROLES PHASE R1 (data-driven roles table + capability gates + WS), v0.240 always-editable server policy + eye/federation channel icons, v0.241 ROLES R2 (assignment dropdown + data-driven badges), v0.242 ROLES R3 (Server Settings roles editor — family-streaming flow COMPLETE end-to-end). New design doc: docs/design/roles-system.md (R1-R4 phasing; R4 = consolidate per-role limits into roles table, deferred).  v0.243 Follow/Unfollow wire fix (target->target_key). v0.244 sidebar channel-status icons (eye=read-only, node-graph=federated, painted after # name in server+group lists). v0.245 FULL BAN MANAGEMENT (banned_keys name column + BannedUser/list_banned/ban_user/unban_user + BannedListRequest/BannedList/Unban WS + Server Settings Banned-users panel; modal Ban now truly persists + is reversible; fixed irreversible-ban trap from registered_names deletion). Pending: muted_members table for Mute (still returns not-implemented), name-only-kick admin-protection security gap, IO/macro page (scoping deferred — operator dismissed), Cosmos 4d-quad/4b/4g/Map-Room, PQ chat migration, Debian 11->12.",
   "open_questions_for_human": [],
-
   "recent_decisions": [
+    {
+      "at": "2026-05-15",
+      "decision": "Full ban management (v0.245). The modal Ban button (handle_mod_action) never persisted to banned_keys — Ban silently == Kick. Wired it: ban_user(key,name) inserts into banned_keys, force-closes live sockets (kicked_keys + peers.remove for BOTH kick and ban now), and the identify gate (relay.rs:2320, already existed) rejects banned keys on reconnect. CRITICAL discovery: the kick path deletes the user from registered_names, so /unban <name> (resolves via keys_for_name) could no longer find a key — a ban was IRREVERSIBLE. Fix per no-bandaids rule: banned_keys gained a name column (idempotent ALTER + fresh CREATE), new storage BannedUser struct + list_banned()/ban_user()/unban_user() (set_banned kept as name-less delegator for slash /ban /unban back-comat). New WS: BannedListRequest{} (admin-gated), BannedList{users,target:Option} (targeted to requesting admin via send-loop filter so the ban list never broadcasts to non-admins), Unban{target}. New Server Settings > ADMIN > Banned users panel: auto-requests once/session, Refresh button, per-row name/short-key/date + Unban. chat_banned_users + chat_banned_requested GuiState fields; chat_banned_requested reset on ws disconnect. Slash /ban now uses ban_user too. Past-tense verb fix (\"baned\"->\"Banned\").",
+      "rationale": "Operator priority list item \"banned_keys wire-up so Ban prevents rejoin\". A moderation feature that silently half-works is exactly the kind of bandaid the mission doc forbids. Built the full reversible loop (ban persists + unban UI) rather than just the insert, because a ban with no working unban is irreversible-by-accident."
+    },
     {
       "at": "2026-05-15",
       "decision": "Data-driven roles system (docs/design/roles-system.md). New `roles` SQLite table seeded with 5 built-ins (unverified/verified/donor/mod/admin); each role has can_stream/can_upload/can_voice capabilities + a base_tier that inherits the existing server_settings per-tier numeric limits (avoids a big limit migration; R4 consolidates later). Capability composition: effective_can_X = server_master_X_toggle && role.can_X. Assignment via the chat user-modal Role dropdown (set_user_role WS, generalizes mod_action mod/unmod). Built-in roles: caps editable, id/trust/base_tier locked, undeletable. Shipped R1 (v0.239 backend), R2 (v0.241 client parse + dropdown + data-driven badges), R3 (v0.242 Server Settings roles editor). R4 (move per-role limits into the roles table, deprecate base_tier) deferred until per-custom-role limits are actually wanted.",
@@ -119,17 +120,14 @@
       "rationale": "Operator quoted: 'as close to real as possible' + 'could we add a way to watch the orbits play fast forward, rewind, and skip/seek along days/weeks/years/etc' + 'all the planets line up in real life as they are today on May 12, 2026 then we could see what it'd look like on a great conjunction' + 'experience solar eclipses on the Earth' + 'pill UI for body labels — planet sprite on left, name on right, click expands to info card' + (earlier) 'include stuff like lagrange points and ... geostationary orbit'. All explicitly named features shipped. Three remaining Phase 4 items deferred with rationale in cosmos doc: 4d-quad (umbra lat/lon + forward scan), 4b (sprite→mesh wgpu integration), 4g (FPS AR-glasses overlay, requires player-in-world)."
     }
   ],
-
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "v0.212.1",
-    "last_release_summary": "Cosmos Phase 4d arc (this session, 2026-05-12): v0.208.0 sim_time + time controls + Now/play/pause/speed presets/scrubber. v0.209.0 pill-style body labels with expand-to-card + collision-dodging. v0.210.0 conjunction + solar eclipse detection (live, every-frame from Earth POV) + HUD readout + visual highlights (warning rings, eclipse danger overlay on Sun/Moon/Earth). v0.211.0 Lagrange-point overlay (L1-L5 for Sun-Earth/Earth-Moon/Sun-Mars/Sun-Jupiter/Sun-Saturn) with notable-parking tooltips. v0.212.0 reference-orbit rings (LEO/MEO/GEO/HEO around Earth + analogues for Mars/Jupiter/Moon) with hover blurbs. Earlier session (v0.159 → v0.172): gameplay loop arc — 14 minor releases, 3-quest chain validated against live VPS."
+    "latest_pushed_tag": "v0.245.1 (pending push this session)",
+    "last_release_summary": "v0.245.0 full ban management (modal Ban persists to banned_keys + reversible via new admin Banned-users panel; fixed irreversible-ban trap). Prior this mega-session: v0.208-v0.242 cosmos-4d + chat/roles arc, v0.243 Follow fix, v0.244 sidebar channel icons."
   },
-
   "files_in_flight_or_recently_changed": [
     "src/gui/mod.rs (v0.123.0) — added 8 GuiState fields + 7 load_* fns + new owned types (ResourceEntry, ResourceCategory, StudioScenePreset, StudioSourcePreset) + studio_*_from_preset converters; StudioState::default() now empty (populated from presets in lib.rs)",
     "src/lib.rs (v0.123.0) — wired 7 new load_* calls + studio preset → live state conversion at GUI startup",
@@ -140,7 +138,6 @@
     "src/relay/handlers/federation.rs (v0.122.0) — verify_profile_signature + canonical_profile_message + should_accept_profile_gossip + 8 unit tests",
     "Justfile (v0.122.0+v0.123.0) — `just theme` runs both gen-theme-css.js and gen-theme-presets-js.js"
   ],
-
   "things_a_fresh_orchestrator_should_NOT_redo": [
     "Items toxicology architecture — already separated into ingredients/ + items/ with history arrays. Don't put tox back on items.",
     "Page parity audit — done in v0.115.0. Native + web pages aligned. Only add new pages if truly needed.",
@@ -152,7 +149,6 @@
     "Tier 3 Infinite-of-X for 7 hardcoded arrays (inventory slots, bugs taxonomy, crafting/market categories, resources catalog, studio scenes/sources, JS theme variants) — migrated in v0.123.0. Don't re-hardcode; edit the JSON files under `data/<scope>/`.",
     "BUG-034 (updater corrupted binary by writing tar.gz as .exe) — fixed in v0.124.0. Workflow ships both raw binaries and tar.gz bundles; updater prefers raw. The fix is forward-only: pre-v0.124.0 releases only have .tar.gz, and the updater will refuse them with 'No binary for this platform' rather than corrupting the install. Don't add a tar.gz extraction fallback — rejecting is the correct behaviour given how the workflow is now structured."
   ],
-
   "things_pending_or_known_gaps": [
     "Phase 6a Solana RPC: only read-only balance proxy ships; no transaction signing in relay (intentional).",
     "Phase 6b STARK selective disclosure: scaffold + Merkle wired; full STARK verifier circuit design deferred.",
@@ -165,7 +161,6 @@
     "Lower-priority doc drift: docs/02-ARCHITECTURE.md, docs/06-SOURCE-OF-TRUTH-MAP.md, docs/reference/ECOSYSTEM_RELEASE_CHECKLIST.md, docs/design/{camera-system,engine-architecture,engine-wasm,architecture}.md, docs/index.md, docs/README.md still reference dead paths but aren't on the hot path. Sweep when convenient.",
     "10 of 21 agent scopes still unaudited — check `node scripts/agent-status.js` for current list under 'Unaudited scopes'."
   ],
-
   "how_to_resume": [
     "1. Read CLAUDE.md (auto-loaded) — covers project rules.",
     "2. Run `git status` and `git log --oneline -10` to see recent state.",

@@ -518,7 +518,167 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             });
         });
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
+        // ── Banned users (v0.245): list + per-row Unban ──
+        draw_banned_admin(ui, theme, state);
     });
+}
+
+/// Banned-users admin panel. Lists every key in the relay's
+/// `banned_keys` table (name captured at ban time) with a per-row
+/// Unban button. The list is admin-only — the relay targets the
+/// `banned_list` message at the requesting admin so it never leaks.
+///
+/// The panel auto-requests the list once per session the first time an
+/// admin opens this section; a manual Refresh re-fetches it.
+fn draw_banned_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    widgets::subsection_label(ui, theme, "Banned users");
+    widgets::body_hint(
+        ui, theme,
+        "Everyone currently blocked from this server. A ban removes them from the \
+         member list and rejects the key at connect, so the only record of who they \
+         were is captured here. Click Unban to restore access — the change takes \
+         effect on their next connection attempt.",
+    );
+    ui.add_space(theme.spacing_xs);
+
+    // Auto-request once per session so the panel isn't empty on first
+    // open. `chat_banned_requested` is reset on disconnect (lib.rs).
+    if !state.chat_banned_requested {
+        send_banned_list_request(state);
+        state.chat_banned_requested = true;
+    }
+
+    ui.horizontal(|ui| {
+        if widgets::Button::secondary("Refresh")
+            .tooltip("Re-fetch the ban list from the server.")
+            .show(ui, theme)
+        {
+            send_banned_list_request(state);
+            state.server_settings_status = "Requested the latest ban list.".into();
+        }
+        ui.add_space(theme.spacing_sm);
+        ui.colored_label(
+            theme.text_muted(),
+            format!("{} banned", state.chat_banned_users.len()),
+        );
+    });
+    ui.add_space(theme.spacing_sm);
+
+    if state.chat_banned_users.is_empty() {
+        widgets::body_hint(ui, theme, "No one is banned. A clean slate.");
+        return;
+    }
+
+    // Collect the unban target outside the loop (can't mutate `state`
+    // while iterating a clone of its field — same pattern as roles).
+    let banned = state.chat_banned_users.clone();
+    let mut unban_key: Option<String> = None;
+    for b in &banned {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            // Name (or a placeholder for pre-v0.245 bans with no name).
+            let shown_name = if b.name.trim().is_empty() {
+                "(unknown — banned before name capture)".to_string()
+            } else {
+                b.name.clone()
+            };
+            ui.add_sized(
+                [180.0, 22.0],
+                egui::Label::new(
+                    egui::RichText::new(shown_name)
+                        .color(theme.text_primary())
+                        .size(theme.body_size),
+                )
+                .truncate(),
+            );
+            // Short key.
+            let short_key = if b.public_key.len() > 16 {
+                format!("{}…", &b.public_key[..16])
+            } else {
+                b.public_key.clone()
+            };
+            ui.add_sized(
+                [150.0, 22.0],
+                egui::Label::new(
+                    egui::RichText::new(short_key)
+                        .color(theme.text_muted())
+                        .size(theme.body_size * 0.9)
+                        .monospace(),
+                ),
+            );
+            // Banned-at date.
+            ui.add_sized(
+                [160.0, 22.0],
+                egui::Label::new(
+                    egui::RichText::new(format_ban_date(b.banned_at))
+                        .color(theme.text_muted())
+                        .size(theme.body_size * 0.9),
+                ),
+            );
+            if widgets::Button::secondary("Unban")
+                .tooltip("Lift this ban. The user can reconnect immediately.")
+                .show(ui, theme)
+            {
+                unban_key = Some(b.public_key.clone());
+            }
+        });
+        ui.add_space(2.0);
+    }
+
+    if let Some(key) = unban_key {
+        send_unban(state, &key);
+        state.server_settings_status = "Sent unban — the ban list will refresh.".into();
+    }
+}
+
+/// Send a `banned_list_request` (admin-gated; relay replies privately).
+fn send_banned_list_request(state: &GuiState) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            let msg = serde_json::json!({ "type": "banned_list_request" });
+            client.send(&msg.to_string());
+        }
+    }
+}
+
+/// Send an `unban` for the given public key (admin-gated server-side).
+fn send_unban(state: &GuiState, public_key: &str) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            let msg = serde_json::json!({ "type": "unban", "target": public_key });
+            client.send(&msg.to_string());
+        }
+    }
+}
+
+/// Format a Unix-ms ban timestamp as `YYYY-MM-DD HH:MM` (UTC). Uses
+/// the same chrono-free civil-date math as chat.rs::format_full_timestamp
+/// (Howard Hinnant's algorithm) so we don't add a dependency.
+fn format_ban_date(ms: i64) -> String {
+    if ms <= 0 {
+        return "—".to_string();
+    }
+    let secs = ms / 1000;
+    let days = secs.div_euclid(86_400);
+    let tod = secs.rem_euclid(86_400);
+    let (hh, mm) = (tod / 3600, (tod % 3600) / 60);
+    // Civil date from days since 1970-01-01 (Hinnant).
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097; // [0, 146096]
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365; // [0, 399]
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
+    let mp = (5 * doy + 2) / 153; // [0, 11]
+    let d = doy - (153 * mp + 2) / 5 + 1; // [1, 31]
+    let m = if mp < 10 { mp + 3 } else { mp - 9 }; // [1, 12]
+    let year = if m <= 2 { y + 1 } else { y };
+    format!("{year:04}-{m:02}-{d:02} {hh:02}:{mm:02}")
 }
 
 /// Channels spreadsheet (admin only, lives inside the ADMIN tinted

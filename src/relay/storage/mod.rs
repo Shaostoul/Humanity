@@ -306,7 +306,8 @@ impl Storage {
 
             CREATE TABLE IF NOT EXISTS banned_keys (
                 public_key  TEXT PRIMARY KEY,
-                banned_at   INTEGER NOT NULL
+                banned_at   INTEGER NOT NULL,
+                name        TEXT NOT NULL DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS user_uploads (
@@ -746,6 +747,21 @@ impl Storage {
                 )?;
             }
             info!("Migration: roles table created + 5 built-ins seeded");
+        }
+
+        // ── v0.245.0 — banned_keys gains a display name ──
+        // The modal Ban button deletes the user's registered_names rows
+        // (so they vanish from the member list), which means /unban <name>
+        // could no longer resolve a key — a ban became irreversible. Store
+        // the display name at ban time so the server-settings "Banned
+        // users" panel can list who's banned and offer a per-row Unban.
+        // Idempotent ALTER for relays banned before this migration (their
+        // rows just show an empty name until re-banned).
+        if conn.prepare("SELECT name FROM banned_keys LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE banned_keys ADD COLUMN name TEXT NOT NULL DEFAULT '';"
+            )?;
+            info!("Migration: added name column to banned_keys");
         }
 
         // ── v0.201.0 — split max_upload_mb into per-role columns ──
@@ -1566,6 +1582,7 @@ mod server_settings;
 pub use server_settings::ServerSettings;
 mod roles;
 pub use roles::RoleDef;
+pub use channels::BannedUser;
 mod agent_sessions;
 mod ai_status;
 mod credentials;

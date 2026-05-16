@@ -1371,7 +1371,13 @@ pub async fn handle_mod_action(
             // them. Operator feedback 2026-05-12.
             let mut total_members_deleted: usize = 0;
             let mut total_names_deleted: usize = 0;
+            // Every public key this action touches. Used to (a) force-close
+            // any live socket for the user immediately (kick + ban) and
+            // (b) persist a ban so they can't reconnect (ban only).
+            let mut affected_keys: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
             if !target.is_empty() {
+                affected_keys.insert(target.to_string());
                 if let Ok(true) = state.db.leave_server(target) {
                     total_members_deleted += 1;
                 }
@@ -1384,6 +1390,7 @@ pub async fn handle_mod_action(
                 // behaviour for a mod action.
                 if let Ok(name_keys) = state.db.keys_for_name(target_name) {
                     for k in &name_keys {
+                        affected_keys.insert(k.clone());
                         if let Ok(true) = state.db.leave_server(k) {
                             total_members_deleted += 1;
                         }
@@ -1394,19 +1401,64 @@ pub async fn handle_mod_action(
                     .unwrap_or(0);
             }
 
-            if total_members_deleted > 0 || total_names_deleted > 0 {
+            let did_something = total_members_deleted > 0 || total_names_deleted > 0;
+
+            // BAN: persist every affected key to the banned_keys table,
+            // recording the display name (the kick path above already
+            // deleted the registered_names rows, so the name has to be
+            // captured here or the admin "Banned users" panel can't show
+            // who it is). The identify handler (relay.rs connection gate)
+            // rejects any banned key and closes the socket, so the user
+            // can never rejoin until an admin unbans them. KICK is
+            // transient — removed from the member list, may reconnect.
+            if action == "ban" {
+                for k in &affected_keys {
+                    if k.is_empty() {
+                        continue; // can't ban a keyless registration by key
+                    }
+                    if let Err(e) = state.db.ban_user(k, &display_name) {
+                        tracing::error!("mod_action ban set_banned error: {e}");
+                    }
+                }
+            }
+
+            // Force-close any live socket for the affected keys (both kick
+            // and ban). The per-connection send/recv tasks poll
+            // kicked_keys and self-terminate; removing the peer stops new
+            // broadcasts reaching them. kicked_keys is cleared on
+            // disconnect (relay.rs) so a kicked user can reconnect; a
+            // banned user is stopped by the persistent banned_keys gate.
+            if !affected_keys.is_empty() {
+                {
+                    let mut kicked = state.kicked_keys.write().await;
+                    for k in &affected_keys {
+                        if !k.is_empty() {
+                            kicked.insert(k.clone());
+                        }
+                    }
+                }
+                {
+                    let mut peers = state.peers.write().await;
+                    for k in &affected_keys {
+                        peers.remove(k);
+                    }
+                }
+            }
+
+            if did_something {
                 let _ = state.broadcast_tx.send(RelayMessage::MemberLeft {
                     public_key: target.to_string(),
                     reason: action.to_string(),
                 });
                 crate::relay::handlers::broadcast::broadcast_full_user_list(state).await;
+                // Past-tense verb, spelled out so "ban" -> "banned"
+                // (not "baned") and "kick" -> "kicked".
+                let past = if action == "ban" { "Banned" } else { "Kicked" };
                 let private = RelayMessage::Private {
                     to: my_key.to_string(),
-                    message: format!("✓ {action}ed {display_name}."),
+                    message: format!("✓ {past} {display_name}."),
                 };
                 let _ = state.broadcast_tx.send(private);
-                // TODO(ban): also insert into a banned_keys table so the
-                // user can't rejoin. Currently ban == kick.
             } else {
                 let private = RelayMessage::Private {
                     to: my_key.to_string(),

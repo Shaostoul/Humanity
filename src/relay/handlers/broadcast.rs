@@ -219,7 +219,9 @@ pub async fn handle_mod_command(
         "/ban" => {
             if !is_admin { return "Only admins can ban users.".to_string(); }
             for key in &target_keys {
-                if let Err(e) = state.db.set_banned(key, true) {
+                // ban_user (not set_banned) so the name lands in the
+                // banned_keys table for the admin "Banned users" panel.
+                if let Err(e) = state.db.ban_user(key, target_name) {
                     tracing::error!("Failed to ban: {e}");
                 }
             }

@@ -649,6 +649,33 @@ pub enum RelayMessage {
         role_id: String,
     },
 
+    // ── Ban management (v0.245) ──
+
+    /// Admin → server. Request the current banned-user list. Response
+    /// is a `banned_list` sent privately to the requester (unlike
+    /// role_list this isn't public — only admins manage bans).
+    #[serde(rename = "banned_list_request")]
+    BannedListRequest {},
+
+    /// Server → admin. The full banned-user list. Sent in reply to
+    /// `banned_list_request` and re-broadcast after a ban/unban so an
+    /// open admin panel updates live. `target` is the admin key it's
+    /// destined for — the send loop drops it for everyone else so the
+    /// ban list never leaks to non-admin clients.
+    #[serde(rename = "banned_list")]
+    BannedList {
+        users: Vec<crate::relay::storage::BannedUser>,
+        #[serde(default)]
+        target: Option<String>,
+    },
+
+    /// Admin → server. Lift a ban by public key. Broadcasts a fresh
+    /// `banned_list` on success.
+    #[serde(rename = "unban")]
+    Unban {
+        target: String,
+    },
+
     /// Admin updates server-wide settings (v0.200.0, extended v0.201.0
     /// with per-role upload limits). Each Optional field is applied
     /// independently — partial updates are fine. Handler requires admin
@@ -2797,6 +2824,17 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 }
             }
 
+            // BannedList: admin-only. Deliver only to the targeted admin;
+            // None never broadcasts (the ban list must not leak to
+            // non-admin clients).
+            if let RelayMessage::BannedList { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
             // VoiceRoomSignal: only deliver to the target peer.
             if let RelayMessage::VoiceRoomSignal { ref to, .. } = msg {
                 if to != &my_key_for_broadcast {
@@ -4744,6 +4782,60 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         }
                                         Err(e) => {
                                             tracing::error!("set_user_role failed: {e}");
+                                        }
+                                    }
+                                }
+                            }
+                            // ── Ban management (v0.245, admin-gated) ──
+                            RelayMessage::BannedListRequest {} => {
+                                let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if r != "admin" && r != "owner" {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins can view the ban list.".to_string(),
+                                    });
+                                } else if let Ok(users) = state_clone.db.list_banned() {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::BannedList {
+                                        users,
+                                        target: Some(my_key_for_recv.clone()),
+                                    });
+                                }
+                            }
+                            RelayMessage::Unban { target } => {
+                                let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if r != "admin" && r != "owner" {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins can unban users.".to_string(),
+                                    });
+                                } else if target.is_empty() {
+                                    // no-op
+                                } else {
+                                    match state_clone.db.unban_user(&target) {
+                                        Ok(()) => {
+                                            // Clear any transient kick flag too so a
+                                            // since-reconnected session isn't stuck.
+                                            state_clone.kicked_keys.write().await.remove(&target);
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "✓ Ban lifted.".to_string(),
+                                            });
+                                            // Push the refreshed list back so the
+                                            // admin panel updates without a manual
+                                            // refresh.
+                                            if let Ok(users) = state_clone.db.list_banned() {
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::BannedList {
+                                                    users,
+                                                    target: Some(my_key_for_recv.clone()),
+                                                });
+                                            }
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("unban failed: {e}");
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: format!("Unban failed: {e}"),
+                                            });
                                         }
                                     }
                                 }

@@ -1433,6 +1433,21 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    Some("banned_list") => {
+                                        // v0.245: relay sends this only to admins, in
+                                        // reply to banned_list_request + after any
+                                        // ban/unban. Drives the Server Settings →
+                                        // Banned users panel.
+                                        if let Some(arr) = val.get("users") {
+                                            match serde_json::from_value::<Vec<crate::relay::storage::BannedUser>>(arr.clone()) {
+                                                Ok(users) => {
+                                                    log::info!("Received {} banned users", users.len());
+                                                    state.gui_state.chat_banned_users = users;
+                                                }
+                                                Err(e) => log::warn!("Failed to parse banned_list: {e}"),
+                                            }
+                                        }
+                                    }
                                     Some("system") => {
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
                                             log::info!("Relay system message: {}", msg);
@@ -2076,6 +2091,10 @@ mod native_app {
                     // ── Drop dead WebSocket client and start reconnect timer ──
                     if ws_dropped {
                         state.gui_state.ws_client = None;
+                        // Force the Banned-users panel to re-request after a
+                        // reconnect (the relay only sends it on demand). The
+                        // cached list itself is harmless to keep until then.
+                        state.gui_state.chat_banned_requested = false;
                         if !state.gui_state.ws_manually_disconnected {
                             log::info!("WebSocket disconnected, will reconnect in {}s (attempt {})",
                                 state.gui_state.ws_reconnect_delay as u32,

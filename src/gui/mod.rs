@@ -1065,6 +1065,13 @@ pub struct GuiState {
     /// The "add a custom role" form draft. id starts empty (operator
     /// types one). v0.242 (Phase R3).
     pub new_role_draft: crate::relay::storage::RoleDef,
+    /// Currently-banned users for the Server Settings → Banned users
+    /// admin panel. Populated by the `banned_list` WS message (only
+    /// admins receive it). Empty until the panel requests it. v0.245.
+    pub chat_banned_users: Vec<crate::relay::storage::BannedUser>,
+    /// True once a `banned_list_request` has been sent this session so
+    /// the panel doesn't re-request every repaint. Reset on disconnect.
+    pub chat_banned_requested: bool,
     /// In-progress draft of server settings being edited in the admin
     /// UI. None = not editing. Cloned from `server_settings` when admin
     /// opens the editor. Save button sends a ServerSettingsUpdate WS
@@ -1514,6 +1521,8 @@ impl Default for GuiState {
                 r.sort_order = 50;
                 r
             },
+            chat_banned_users: Vec::new(),
+            chat_banned_requested: false,
             server_settings_draft: None,
             cosmos_view: crate::gui::pages::cosmos::CosmosView::System,
             cosmos_pan: egui::Vec2::ZERO,

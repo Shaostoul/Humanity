@@ -1,6 +1,19 @@
 use super::Storage;
 use rusqlite::params;
 
+/// One banned user. Serialized over the WS protocol as part of
+/// `banned_list` so the server-settings admin panel can list bans
+/// and offer a per-row Unban.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BannedUser {
+    pub public_key: String,
+    /// Display name captured at ban time (the user's registered_names
+    /// rows are deleted by the kick path, so this is the only record).
+    pub name: String,
+    /// Unix ms when the ban was applied.
+    pub banned_at: i64,
+}
+
 /// Set the `message_id` field on a Chat message so clients can correlate `message_deleted` events.
 fn inject_message_id(msg: crate::relay::relay::RelayMessage, id: i64) -> crate::relay::relay::RelayMessage {
     if let crate::relay::relay::RelayMessage::Chat { from, from_name, content, timestamp, signature, channel, reply_to, thread_count, .. } = msg {
@@ -488,22 +501,75 @@ impl Storage {
         })
     }
 
-    /// Ban or unban a public key.
-    pub fn set_banned(&self, public_key: &str, banned: bool) -> Result<(), rusqlite::Error> {
+    /// Ban a public key, recording the display name so the admin
+    /// "Banned users" panel can show who it is and offer an Unban
+    /// (the user's registered_names rows are deleted by the kick path,
+    /// so the name has to be captured here or it's lost forever).
+    /// INSERT OR REPLACE so re-banning refreshes the name + timestamp.
+    pub fn ban_user(&self, public_key: &str, name: &str) -> Result<(), rusqlite::Error> {
+        if public_key.is_empty() {
+            return Ok(()); // can't key-ban a keyless registration
+        }
         self.with_conn(|conn| {
-            if banned {
-                conn.execute(
-                    "INSERT OR IGNORE INTO banned_keys (public_key, banned_at) VALUES (?1, ?2)",
-                    params![public_key, std::time::SystemTime::now()
+            conn.execute(
+                "INSERT OR REPLACE INTO banned_keys (public_key, banned_at, name)
+                 VALUES (?1, ?2, ?3)",
+                params![
+                    public_key,
+                    std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
-                        .as_millis() as i64],
-                )?;
-            } else {
-                conn.execute("DELETE FROM banned_keys WHERE public_key = ?1", params![public_key])?;
-            }
+                        .as_millis() as i64,
+                    name
+                ],
+            )?;
             Ok(())
         })
+    }
+
+    /// Lift a ban for a public key.
+    pub fn unban_user(&self, public_key: &str) -> Result<(), rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "DELETE FROM banned_keys WHERE public_key = ?1",
+                params![public_key],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Every currently-banned user, newest ban first. Drives the
+    /// server-settings "Banned users" admin panel.
+    pub fn list_banned(&self) -> Result<Vec<BannedUser>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT public_key, name, banned_at FROM banned_keys
+                 ORDER BY banned_at DESC",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok(BannedUser {
+                    public_key: row.get(0)?,
+                    name: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                    banned_at: row.get(2)?,
+                })
+            })?;
+            let mut out = Vec::new();
+            for r in rows {
+                out.push(r?);
+            }
+            Ok(out)
+        })
+    }
+
+    /// Ban or unban a public key (name-less). Retained for the slash
+    /// `/ban` and `/unban` command paths + back-compat; prefer
+    /// `ban_user` (records the name) for the modal Ban button.
+    pub fn set_banned(&self, public_key: &str, banned: bool) -> Result<(), rusqlite::Error> {
+        if banned {
+            self.ban_user(public_key, "")
+        } else {
+            self.unban_user(public_key)
+        }
     }
 
     /// Delete ALL messages (admin wipe).
