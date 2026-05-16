@@ -1286,71 +1286,107 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let mut pending_save: Option<crate::relay::storage::RoleDef> = None;
     let mut pending_delete: Option<String> = None;
 
-    for role in &roles {
-        let draft = state.roles_drafts
-            .entry(role.id.clone())
-            .or_insert_with(|| role.clone());
-        let is_built_in = draft.built_in;
-        ui.add_space(theme.spacing_xs);
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 6.0;
-            // Color swatch.
-            let (sw, _) = ui.allocate_exact_size(Vec2::splat(16.0), egui::Sense::hover());
-            ui.painter().rect_filled(sw, 3.0, parse_role_color_ss(&draft.color, theme));
-            // Label (custom roles editable; built-ins fixed label shown).
-            if is_built_in {
+    // Aligned columns via egui::Grid (operator #1 — was a per-row
+    // ui.horizontal inline flow, so variable-width name/tier segments
+    // made every Save/Delete button land at a different x; the rows
+    // "stairstepped". A fixed-column Grid aligns every cell by
+    // construction. 2026-05-16.
+    egui::Grid::new("server_roles")
+        .num_columns(8)
+        .spacing([theme.spacing_md, theme.spacing_sm])
+        .striped(true)
+        .show(ui, |ui| {
+            let hdr = |ui: &mut egui::Ui, t: &str| {
                 ui.label(
-                    RichText::new(&draft.label)
-                        .size(theme.font_size_body)
-                        .color(theme.text_primary())
+                    RichText::new(t)
+                        .size(theme.font_size_small)
+                        .color(theme.text_secondary())
                         .strong(),
                 );
-                ui.label(
-                    RichText::new("(built-in)")
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
-            } else {
+            };
+            hdr(ui, "Role");
+            hdr(ui, "Color");
+            hdr(ui, "Stream");
+            hdr(ui, "Upload");
+            hdr(ui, "Voice");
+            hdr(ui, "Tier");
+            hdr(ui, "");
+            hdr(ui, "");
+            ui.end_row();
+
+            for role in &roles {
+                let draft = state.roles_drafts
+                    .entry(role.id.clone())
+                    .or_insert_with(|| role.clone());
+                let is_built_in = draft.built_in;
+
+                // Col 1 — swatch + label.
+                ui.horizontal(|ui| {
+                    let (sw, _) = ui.allocate_exact_size(Vec2::splat(14.0), egui::Sense::hover());
+                    ui.painter().rect_filled(sw, 3.0, parse_role_color_ss(&draft.color, theme));
+                    ui.add_space(theme.spacing_xs);
+                    if is_built_in {
+                        ui.label(
+                            RichText::new(&draft.label)
+                                .size(theme.font_size_body)
+                                .color(theme.text_primary())
+                                .strong(),
+                        );
+                        ui.label(
+                            RichText::new("(built-in)")
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                    } else {
+                        ui.add_sized(
+                            Vec2::new(120.0, 22.0),
+                            egui::TextEdit::singleline(&mut draft.label),
+                        );
+                    }
+                });
+                // Col 2 — color hex.
                 ui.add_sized(
-                    Vec2::new(120.0, 22.0),
-                    egui::TextEdit::singleline(&mut draft.label),
+                    Vec2::new(84.0, 22.0),
+                    egui::TextEdit::singleline(&mut draft.color).hint_text("#RRGGBB"),
                 );
-            }
-            // Color hex.
-            ui.add_sized(
-                Vec2::new(80.0, 22.0),
-                egui::TextEdit::singleline(&mut draft.color).hint_text("#RRGGBB"),
-            );
-            // Capabilities (always editable, even on built-ins).
-            ui.checkbox(&mut draft.can_stream, "stream");
-            ui.checkbox(&mut draft.can_upload, "upload");
-            ui.checkbox(&mut draft.can_voice, "voice");
-            // base_tier (custom only — built-in is locked server-side).
-            if !is_built_in {
-                egui::ComboBox::from_id_salt(("role_tier", draft.id.as_str()))
-                    .selected_text(format!("tier: {}", draft.base_tier))
-                    .show_ui(ui, |ui| {
-                        for t in ["unverified", "verified", "mod", "admin"] {
-                            if ui.selectable_label(draft.base_tier == t, t).clicked() {
-                                draft.base_tier = t.to_string();
+                // Cols 3-5 — capabilities (header names them, no inline labels).
+                ui.checkbox(&mut draft.can_stream, "");
+                ui.checkbox(&mut draft.can_upload, "");
+                ui.checkbox(&mut draft.can_voice, "");
+                // Col 6 — base tier (combo for custom, locked label for built-in).
+                if !is_built_in {
+                    egui::ComboBox::from_id_salt(("role_tier", draft.id.as_str()))
+                        .selected_text(draft.base_tier.as_str())
+                        .show_ui(ui, |ui| {
+                            for t in ["unverified", "verified", "mod", "admin"] {
+                                if ui.selectable_label(draft.base_tier == t, t).clicked() {
+                                    draft.base_tier = t.to_string();
+                                }
                             }
-                        }
-                    });
-            } else {
-                ui.label(
-                    RichText::new(format!("tier: {}", draft.base_tier))
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
-            }
-            if widgets::Button::primary("Save").show(ui, theme) {
-                pending_save = Some(draft.clone());
-            }
-            if !is_built_in && widgets::Button::danger("Delete").show(ui, theme) {
-                pending_delete = Some(draft.id.clone());
+                        });
+                } else {
+                    ui.label(
+                        RichText::new(draft.base_tier.as_str())
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                }
+                // Col 7 — Save.
+                if widgets::Button::primary("Save").show(ui, theme) {
+                    pending_save = Some(draft.clone());
+                }
+                // Col 8 — Delete (custom only; built-ins emit a placeholder
+                // so the striped rows stay rectangular).
+                if !is_built_in {
+                    if widgets::Button::danger("Delete").show(ui, theme) {
+                        pending_delete = Some(draft.id.clone());
+                    }
+                } else {
+                    ui.label("");
+                }
+                ui.end_row();
             }
         });
-    }
 
     // ── Add a custom role ──
     ui.add_space(theme.spacing_md);

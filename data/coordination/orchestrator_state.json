@@ -11,6 +11,11 @@
   "recent_decisions": [
     {
       "at": "2026-05-16",
+      "decision": "Server Settings styling 3/N (v0.256): fixed the roles-row stairstep (operator #1 uneven rows). Was a per-role ui.horizontal inline flow — variable-width name (Unverified vs Moderator) + combo-vs-label tier segment made every Save/Delete land at a different x. Rebuilt as one egui::Grid (8 cols: Role | Color | Stream | Upload | Voice | Tier | Save | Delete), header row, built-ins emit a placeholder Delete cell so striped rows stay rectangular. Capability checkboxes lost inline labels (header names them). Same proven Grid technique as the v0.255 policy matrix. ADMIN screenshots were on v0.253.1 so operator has not yet seen v0.254 (button/kv) or v0.255 (policy matrix) — flagged repeatedly to update to v0.256.1.",
+      "rationale": "Completes the operator two stated complaints (#2 policy v0.255, #1 roles v0.256) with the same low-risk idiomatic egui::Grid primitive. Channels grid is internally fine (shared widths) — the remaining gridfill-width is cosmetic/optional and lower priority; stopping the per-release dribble after #1+#2 are both done is the right checkpoint to let the operator eyeball on a current build."
+    },
+    {
+      "at": "2026-05-16",
       "decision": "Server Settings styling 2/N (v0.255): rebuilt the Server-policy section. Was ~20 widgets::form_row rows whose long \"Max X — tier (default N)\" labels wrapped to 3 LINES in form_row 140px column, tiny int beside, ~70% row empty (operator #2: two skinny ¼-width columns + ugly triple-wrap, confirmed by ADMIN screenshots). Replaced the 12 per-role numeric form_rows with one egui::Grid tier×metric MATRIX (rows=Unverified/Verified/Moderator/Admin, cols=Max chars / Max upload MB / Uploads kept) — auto-aligned columns by construction (no fixed-px), defaults moved to a single hint so cells stay clean; total-cap + toggles + PQ-hint + extensions kept but regrouped under a Sharing-toggles subsection. Note: operator was on v0.253.1 so v0.254 button/kv fixes not yet visible to them — flagged to update.",
       "rationale": "Picked the worst, most-contained, most-confirmed offender (#2 policy) for a clean standalone ship; egui::Grid is the idiomatic aligned-table primitive (matches ui-system.md no-magic-numbers — columns auto-size, theme-token spacing). Shipped incrementally so the operator can eyeball the matrix before the same Grid technique is applied to the roles-row stairstep (#1). Channels grid is internally fine (shared widths) — lower priority than roles."
     },
@@ -175,8 +180,8 @@
   ],
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "v0.255.1 (pending push this session)",
-    "last_release_summary": "v0.255.0 Server Settings styling 2/N: Server-policy per-role limits rebuilt as an aligned egui::Grid tier×metric matrix (was 20 sparse 3-line-wrapped form_rows). Next: roles-row column alignment (#1)."
+    "latest_pushed_tag": "v0.256.1 (pending push this session)",
+    "last_release_summary": "v0.256.0 Server Settings styling 3/N: roles rows rebuilt as an aligned egui::Grid (was stairstepping inline flow). Operator complaints #1 (roles) + #2 (policy) now both fixed; plus v0.254 app-wide secondary-button visibility."
   },
   "files_in_flight_or_recently_changed": [
     "src/gui/mod.rs (v0.123.0) — added 8 GuiState fields + 7 load_* fns + new owned types (ResourceEntry, ResourceCategory, StudioScenePreset, StudioSourcePreset) + studio_*_from_preset converters; StudioState::default() now empty (populated from presets in lib.rs)",
