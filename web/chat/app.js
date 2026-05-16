@@ -236,6 +236,12 @@ async function connect() {
   // Initialize ECDH P-256 keypair for E2E encrypted DMs (non-blocking).
   getOrCreateEcdhKeypair().catch(e => console.warn('ECDH init failed:', e));
 
+  // Derive the post-quantum (Dilithium3) identity from the same seed
+  // (non-blocking, additive — PQ migration Increment 1). If it isn't
+  // ready by the first identify it's simply omitted and picked up on a
+  // later reconnect, exactly like the ECDH key.
+  attachPqIdentity().catch(e => console.warn('PQ init failed:', e));
+
   // Stay on login screen — we switch to chat only after server confirms identity.
   identityConfirmed = false;
   openSocket();
@@ -594,6 +600,12 @@ function openSocket() {
     // E2EE: Include ECDH public key for end-to-end encrypted DMs.
     if (myEcdhPublicBase64) {
       identifyMsg.ecdh_public = myEcdhPublicBase64;
+    }
+    // PQ migration Inc 1: present the Dilithium3 public key so the relay
+    // records it alongside Ed25519. Omitted if PQ derivation isn't ready
+    // or unavailable — old/degraded clients are unaffected.
+    if (myDilithiumPublicHex) {
+      identifyMsg.dilithium_public = myDilithiumPublicHex;
     }
     if (pendingLinkCode) {
       identifyMsg.link_code = pendingLinkCode;

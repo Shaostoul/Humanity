@@ -341,6 +341,43 @@ mod tests {
         assert_eq!(derive_kyber_seed(&master), derive_kyber_seed(&master));
     }
 
+    /// CROSS-LANGUAGE KNOWN-ANSWER TEST (v0.251, PQ Increment 1).
+    ///
+    /// The chat client derives its Dilithium3 identity from the SAME
+    /// 32-byte BIP39 seed using `@noble/post-quantum` (vendored at
+    /// `web/shared/vendor/noble-pq.bundle.js`). If the JS and Rust
+    /// derivations ever diverge, every client-presented PQ pubkey
+    /// becomes unverifiable by the relay — a silent, unrecoverable
+    /// identity break. These exact constants are asserted in BOTH this
+    /// test AND `scripts/pq-kat.mjs` (run via `just pq-kat`). Changing
+    /// the derivation MUST update both or CI fails. Verified
+    /// byte-for-byte 2026-05-16: noble ml-dsa-65 == RustCrypto ml-dsa.
+    #[test]
+    fn dilithium_cross_language_kat() {
+        let master = [7u8; 32];
+        let dil_seed = derive_dilithium_seed(&master);
+        assert_eq!(
+            hex::encode(dil_seed),
+            "f0dfc6e8cc3eebd2e0f0265d2aae0f339090f2d4f92726884e385a48e81e0cc4",
+            "BLAKE3 derive_key(hum/dilithium3/v1) drift — JS side will mismatch"
+        );
+        let pk = DilithiumKeypair::from_seed(&dil_seed).public_key();
+        assert_eq!(pk.len(), DILITHIUM_PK_LEN);
+        assert_eq!(
+            hex::encode(&pk[..32]),
+            "9bb07f42e537f236574366c44c2f6103f1aa5ceb5b232ff5fdd2af598a34adc8"
+        );
+        assert_eq!(
+            hex::encode(&pk[pk.len() - 16..]),
+            "a4ee62c651699bd74984e7d69006936f"
+        );
+        assert_eq!(
+            blake3::hash(&pk).to_hex().as_str(),
+            "3f4ff5c7e6505ca7b0dd6cb32c53839f8cff19772e291d4f18b082d1f7dc0126",
+            "ML-DSA-65 keygen drift — noble and RustCrypto no longer agree"
+        );
+    }
+
     #[test]
     fn full_bip39_to_dilithium_flow() {
         // Simulate a BIP39 master seed (would normally come from `bip39` crate).

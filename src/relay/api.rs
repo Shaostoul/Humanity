@@ -136,6 +136,7 @@ pub async fn send_message(
             display_name: Some(req.from_name.clone()),
             upload_token: None,
             ecdh_public: None,
+            dilithium_public: None,
         });
     }
 
@@ -591,6 +592,7 @@ pub async fn github_webhook(
             display_name: Some("GitHub".to_string()),
             upload_token: None,
             ecdh_public: None,
+            dilithium_public: None,
         });
     }
 
@@ -1190,6 +1192,7 @@ pub async fn get_peers(
                 status: "online".to_string(),
                 status_text: String::new(),
                 ecdh_public: p.ecdh_public.clone(),
+                dilithium_public: p.dilithium_public.clone(),
             }
         })
         .collect();

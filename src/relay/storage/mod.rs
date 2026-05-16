@@ -584,6 +584,20 @@ impl Storage {
             info!("Migration: added ecdh_public column to registered_names");
         }
 
+        // PQ migration Increment 1 (v0.251): record the client's
+        // Dilithium3 public key alongside the Ed25519 one. Nullable —
+        // old clients omit it; Ed25519 stays the canonical identity.
+        // Same idempotent-ALTER pattern as ecdh_public above.
+        let has_dilithium: bool = conn
+            .prepare("SELECT dilithium_public FROM registered_names LIMIT 0")
+            .is_ok();
+        if !has_dilithium {
+            conn.execute_batch(
+                "ALTER TABLE registered_names ADD COLUMN dilithium_public TEXT DEFAULT NULL;"
+            )?;
+            info!("Migration: added dilithium_public column to registered_names");
+        }
+
         // Migration: add encrypted and nonce columns to direct_messages for E2EE.
         let has_dm_encrypted: bool = conn
             .prepare("SELECT encrypted FROM direct_messages LIMIT 0")

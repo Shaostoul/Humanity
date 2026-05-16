@@ -665,6 +665,40 @@ const ECDH_DB_STORE = 'ecdh_identity';
 let myEcdhKeyPair = null; // { publicKey, privateKey }
 let myEcdhPublicBase64 = null; // base64-encoded raw public key for transmission
 
+// ── Post-quantum identity (Dilithium3, PQ migration Increment 1) ──
+// Derived deterministically from the SAME BIP39 seed as the Ed25519
+// key (see pq.js). Increment 1 is additive: we present the Dilithium
+// public key at identify so the relay records it alongside Ed25519;
+// Ed25519 stays canonical for now. Best-effort — null means the chat
+// client runs exactly as it did pre-PQ.
+let myDilithiumPublicHex = null;   // hex of the 1952-byte ML-DSA-65 public key
+let myDilithiumSecret = null;      // Uint8Array secret key (in-memory only)
+
+/**
+ * Derive the Dilithium3 identity from the current Ed25519 identity's
+ * seed and stash it for the identify handshake. Mirrors the
+ * non-blocking ECDH init pattern. Never throws.
+ */
+async function attachPqIdentity() {
+  try {
+    if (!myIdentity || !myIdentity.privateKey) return;
+    if (typeof window.pqDeriveIdentity !== 'function') return; // pq.js absent
+    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
+    const seed = extractSeedFromPkcs8(pkcs8); // 32-byte BIP39 / Ed25519 seed
+    const pq = await window.pqDeriveIdentity(seed);
+    if (pq && pq.dilithiumPublicHex) {
+      myDilithiumPublicHex = pq.dilithiumPublicHex;
+      myDilithiumSecret = pq.dilithiumSecret;
+      if (myIdentity) {
+        myIdentity.dilithiumPublicHex = pq.dilithiumPublicHex;
+      }
+      console.log('PQ identity derived:', pq.dilithiumPublicHex.substring(0, 16) + '… (Dilithium3)');
+    }
+  } catch (e) {
+    console.warn('attachPqIdentity failed (continuing Ed25519-only):', e && e.message);
+  }
+}
+
 /** Generate or load ECDH P-256 keypair for E2EE DMs. */
 async function getOrCreateEcdhKeypair() {
   try {

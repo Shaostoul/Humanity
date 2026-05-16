@@ -73,6 +73,9 @@ pub struct Peer {
     pub upload_token: Option<String>,
     /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
     pub ecdh_public: Option<String>,
+    /// Dilithium3 (ML-DSA-65) public key, hex. PQ migration Inc 1 —
+    /// recorded alongside Ed25519; Ed25519 stays canonical for now.
+    pub dilithium_public: Option<String>,
 }
 
 /// Default maximum message history to keep in memory (overridden by server-config.json "max_history").
@@ -503,6 +506,10 @@ pub enum RelayMessage {
         /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
         #[serde(skip_serializing_if = "Option::is_none", default)]
         ecdh_public: Option<String>,
+        /// Dilithium3 (ML-DSA-65) public key, hex. PQ migration Inc 1 —
+        /// optional; old clients omit it. Recorded alongside Ed25519.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        dilithium_public: Option<String>,
     },
 
     /// A chat message, optionally Ed25519-signed.
@@ -539,6 +546,9 @@ pub enum RelayMessage {
         /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
         #[serde(skip_serializing_if = "Option::is_none", default)]
         ecdh_public: Option<String>,
+        /// Dilithium3 (ML-DSA-65) public key, hex. PQ migration Inc 1.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        dilithium_public: Option<String>,
     },
 
     /// Server announces a peer left.
@@ -2138,6 +2148,9 @@ pub struct PeerInfo {
     /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub ecdh_public: Option<String>,
+    /// Dilithium3 (ML-DSA-65) public key, hex. PQ migration Inc 1.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub dilithium_public: Option<String>,
 }
 
 fn default_true() -> bool { true }
@@ -2268,6 +2281,9 @@ pub struct UserInfo {
     /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub ecdh_public: Option<String>,
+    /// Dilithium3 (ML-DSA-65) public key, hex. PQ migration Inc 1.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub dilithium_public: Option<String>,
 }
 
 /// RAII guard that decrements the connection counter when dropped.
@@ -2313,7 +2329,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
         };
         let Some(Ok(msg)) = msg else { return; };
         if let Message::Text(text) = msg {
-            if let Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, ecdh_public }) =
+            if let Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, ecdh_public, dilithium_public }) =
                 serde_json::from_str::<RelayMessage>(&text)
             {
                 // L-1: Bot keys require bot_secret matching API_SECRET.
@@ -2444,11 +2460,20 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     }
                 }
 
+                // PQ migration Inc 1: record the client's Dilithium3
+                // public key alongside Ed25519 (additive, nullable).
+                if let Some(ref dil_key) = dilithium_public {
+                    if let Err(e) = state.db.store_dilithium_public(&public_key, dil_key) {
+                        tracing::error!("Failed to store Dilithium public key: {e}");
+                    }
+                }
+
                 let peer = Peer {
                     public_key_hex: public_key.clone(),
                     display_name: final_name.clone(),
                     upload_token: Some(upload_token.clone()),
                     ecdh_public: ecdh_public.clone(),
+                    dilithium_public: dilithium_public.clone(),
                 };
 
                 // Register peer and upload token mapping.
@@ -2526,6 +2551,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                         let (user_status, user_status_text) = statuses_snap.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
                         // Get ECDH key: from in-memory peer (if online) or from DB.
                         let ecdh_pub = p.ecdh_public.clone().or_else(|| state.db.get_ecdh_public(&p.public_key_hex).ok().flatten());
+                        let dil_pub = p.dilithium_public.clone().or_else(|| state.db.get_dilithium_public(&p.public_key_hex).ok().flatten());
                         PeerInfo {
                             public_key: p.public_key_hex.clone(),
                             display_name: p.display_name.clone(),
@@ -2534,6 +2560,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             status: user_status,
                             status_text: user_status_text,
                             ecdh_public: ecdh_pub,
+                            dilithium_public: dil_pub,
                         }
                     })
                     .collect();
@@ -2563,7 +2590,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             let online = first_key.starts_with("bot_") || online_names.contains(&name.to_lowercase());
                             let (us, ust) = statuses_snap2.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()));
                             let ecdh_pub = state.db.get_ecdh_public(&first_key).ok().flatten();
-                            UserInfo { name, public_key: first_key, role, online, key_count, status: us, status_text: ust, ecdh_public: ecdh_pub }
+                            let dil_pub = state.db.get_dilithium_public(&first_key).ok().flatten();
+                            UserInfo { name, public_key: first_key, role, online, key_count, status: us, status_text: ust, ecdh_public: ecdh_pub, dilithium_public: dil_pub }
                         })
                         .collect();
                     drop(statuses_snap2);
@@ -2694,6 +2722,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     display_name: final_name,
                     role: peer_role.clone(),
                     ecdh_public: ecdh_public.clone(),
+                    dilithium_public: dilithium_public.clone(),
                 });
 
                 // Broadcast updated full user list to all clients.

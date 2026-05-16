@@ -677,6 +677,10 @@
   <!-- bip39-english.js must load before crypto.js so generateMnemonic() and restoreIdentityFromMnemonic() have the wordlist -->
   <script src="/chat/bip39-english.js?v=1"></script>
   <script src="/chat/crypto.js?v=4"></script>
+  <!-- pq.js: post-quantum (Dilithium3) identity, derived from the same
+       BIP39 seed as the Ed25519 key. Must load before app.js calls
+       attachPqIdentity(). Self-loads the vendored same-origin bundle. -->
+  <script src="/chat/pq.js?v=1"></script>
   <script src="/chat/app.js?v=4"></script>
   <script src="/chat/chat-messages.js?v=4"></script>
   <script src="/chat/chat-dms.js?v=4"></script>

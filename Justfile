@@ -50,6 +50,17 @@ theme:
     node scripts/gen-theme-css.js
     node scripts/gen-theme-presets-js.js
 
+# Cross-language post-quantum known-answer test: the vendored chat
+# bundle MUST derive the same Dilithium3 identity as the Rust relay.
+# Run before shipping any PQ-touching change.
+pq-kat:
+    node scripts/pq-kat.mjs
+
+# Rebuild the vendored same-origin post-quantum bundle (pins versions,
+# bundles with esbuild, verifies the KAT). Needs network for npm.
+pq-vendor:
+    node scripts/build-noble-bundle.mjs
+
 # Commit + push only — waits for CI to deploy (~5 min)
 deploy msg="chore: update":
     @just _commit "{{msg}}"

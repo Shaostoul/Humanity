@@ -129,14 +129,18 @@ Identity (federation objects): ML-DSA-65 (Dilithium3, FIPS 204), separate keypai
 | Server-side KDF | Argon2id (memory-hard) | `src/relay/core/kdf.rs` | Active (replaced PBKDF2 for relay secrets) |
 | Key rotation | Ed25519 dual-sign certificate | `web/chat/crypto.js`, `src/relay/handlers/msg_handlers.rs::handle_key_rotation` | Active (PQ rotation TBD) |
 
-**Migration status as of audit:**
-- Chat clients still sign with Ed25519. New accounts get an Ed25519 keypair only (`web/chat/crypto.js::generateKeypair`); BIP39 seed restores Ed25519 only. The `peers` table is keyed by Ed25519 hex.
+**Migration status (PQ Increment 1 shipped v0.251):**
+- Chat clients still **sign** with Ed25519, and Ed25519 hex is still the canonical identity primary key (`peers`/`registered_names`/messages/profiles/follows/vault). Unchanged.
+- **NEW (Inc 1, additive):** the chat client now also derives a Dilithium3 (ML-DSA-65) keypair from the *same* 32-byte BIP39 seed (`web/chat/pq.js` → `attachPqIdentity` in `crypto.js`) and presents `dilithium_public` on the `identify` message. The relay records it in the nullable `registered_names.dilithium_public` column alongside Ed25519. Best-effort + graceful fallback (no PQ → exact pre-PQ behavior). Old clients omit the field. Nothing canonical changed — this just builds the Ed25519→Dilithium map every later increment needs.
+- Derivation is **byte-for-byte verified** client↔server: `BLAKE3.derive_key("hum/dilithium3/v1", seed)` → `ML-DSA-65.keygen`. Locked by `src/relay/core/pq_crypto.rs::dilithium_cross_language_kat` AND `scripts/pq-kat.mjs` (`just pq-kat`) — neither can drift silently. noble is **vendored same-origin** at `web/shared/vendor/noble-pq.bundle.js` (no CDN for a primary-identity dep; rebuild via `just pq-vendor`).
+- noble `@noble/post-quantum` 0.6.x API: `sign(msg, secretKey)`, `verify(sig, msg, publicKey)`, blake3 derive-key `context` must be **UTF-8 bytes** not a string. NOTE: `web/shared/pq-identity.js` (federation client) still has the old wrong calls (string context, `sign(secretKey,msg)`) — that PQ path is unverified/broken; fix in a federation-side follow-up.
+- BIP39 seed still restores the Ed25519 key (the Dilithium key re-derives from the same seed automatically — no new backup, no recovery change).
 - Federation objects + DIDs already moved to Dilithium3 (server-side `api/v2/*` routes). Chat clients never touch DIDs directly.
 - Kyber768 infrastructure deployed but DM E2EE still uses ECDH P-256.
 
 **Operator-stated direction (target, not yet shipped):** the account/identity primary key should be Dilithium3, with Ed25519 retained only for Solana-wallet compatibility (Solana itself hasn't migrated). Today's reality is the inverse — Ed25519 IS the primary chat identity. Migration roadmap:
 
-1. **Account → PQ-primary**: `generateKeypair()` produces both Dilithium3 + Ed25519 from one BIP39 seed; `myIdentity.publicKeyHex` becomes the Dilithium3 fingerprint (or DID); identify message sends both pubkeys; relay stores Dilithium3 as canonical, Ed25519 as a Solana-wallet attachment. (Not yet shipped.)
+1. **Account → PQ-primary**: `generateKeypair()` produces both Dilithium3 + Ed25519 from one BIP39 seed; `myIdentity.publicKeyHex` becomes the Dilithium3 fingerprint (or DID); identify message sends both pubkeys; relay stores Dilithium3 as canonical, Ed25519 as a Solana-wallet attachment. **Inc 1 SHIPPED the additive half** (both keys derived from one seed; both sent at identify; relay records the Dilithium key). Still pending: making Dilithium canonical + the Ed25519→PQ alias/migration layer so existing data isn't orphaned (Inc 3 — the catastrophic-if-wrong step; own session + sign-off).
 2. **DM E2EE → Kyber768**: hybrid handshake (ECDH ⊕ Kyber) so old clients still negotiate, then drop ECDH once adoption is high.
 3. **Profile gossip → ML-DSA**: flip `should_accept_profile_gossip` to require PQ signatures.
 
