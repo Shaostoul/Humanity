@@ -1057,6 +1057,14 @@ pub struct GuiState {
     /// role dropdown + badge colors. Empty until the first broadcast.
     /// v0.241 (roles Phase R2).
     pub chat_roles: Vec<crate::relay::storage::RoleDef>,
+    /// Per-role working copies for the Server Settings → Roles editor,
+    /// keyed by role id. Seeded from `chat_roles` on first edit of a
+    /// row; lets the operator tweak label/color/caps before pressing
+    /// Save (which sends role_upsert). v0.242 (Phase R3).
+    pub roles_drafts: std::collections::HashMap<String, crate::relay::storage::RoleDef>,
+    /// The "add a custom role" form draft. id starts empty (operator
+    /// types one). v0.242 (Phase R3).
+    pub new_role_draft: crate::relay::storage::RoleDef,
     /// In-progress draft of server settings being edited in the admin
     /// UI. None = not editing. Cloned from `server_settings` when admin
     /// opens the editor. Save button sends a ServerSettingsUpdate WS
@@ -1489,6 +1497,23 @@ impl Default for GuiState {
             dm_unencrypted_confirm: None,
             server_settings: None,
             chat_roles: Vec::new(),
+            roles_drafts: std::collections::HashMap::new(),
+            new_role_draft: {
+                // Blank template for a new custom role: empty id (operator
+                // types one), sensible non-privileged defaults.
+                let mut r = crate::relay::storage::RoleDef::default();
+                r.id = String::new();
+                r.label = String::new();
+                r.color = "#7E57C2".to_string();
+                r.trust_level = 1;
+                r.built_in = false;
+                r.can_stream = false;
+                r.can_upload = true;
+                r.can_voice = true;
+                r.base_tier = "verified".to_string();
+                r.sort_order = 50;
+                r
+            },
             server_settings_draft: None,
             cosmos_view: crate::gui::pages::cosmos::CosmosView::System,
             cosmos_pan: egui::Vec2::ZERO,

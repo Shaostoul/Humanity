@@ -459,6 +459,13 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
+        // ── Roles (v0.242, Phase R3): create/edit/delete custom roles ──
+        draw_roles_admin(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
         // ── User management ──
         widgets::subsection_label(ui, theme, "User management");
         widgets::body_hint(
@@ -917,8 +924,203 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
     }
 }
 
-// (yesno() removed in v0.240 — the read-only policy display mode that
-// used it is gone; the policy is now always-editable inputs.)
+/// Roles editor (v0.242, Phase R3 — docs/design/roles-system.md).
+/// Lists every role; lets an admin edit capabilities/label/color,
+/// create custom roles, and delete custom ones. All changes go to the
+/// relay via `role_upsert` / `role_delete`; the relay re-broadcasts
+/// `role_list` so the UI + badges + assignment dropdown update live.
+fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    widgets::subsection_label(ui, theme, "Roles");
+    widgets::body_hint(
+        ui, theme,
+        "Roles carry capabilities. Effective permission = the server-wide \
+         master toggle (in Server policy above) AND the role's capability. \
+         e.g. to let family livestream WITHOUT making them moderators: turn \
+         ON 'Video streaming' in Server policy, then give a role can-stream \
+         here and assign it to them (click their name in chat → Role \
+         dropdown). Built-in roles can't be deleted and their id / trust / \
+         limit-tier are locked, but their capabilities are editable. Custom \
+         roles are fully editable. A role's numeric limits (chars / upload \
+         MB / uploads kept) follow its base tier.",
+    );
+    ui.add_space(theme.spacing_sm);
+
+    if state.chat_roles.is_empty() {
+        widgets::body_hint(ui, theme, "Waiting for the relay's role list… (connect to a server)");
+        return;
+    }
+
+    let roles = state.chat_roles.clone();
+    let mut pending_save: Option<crate::relay::storage::RoleDef> = None;
+    let mut pending_delete: Option<String> = None;
+
+    for role in &roles {
+        let draft = state.roles_drafts
+            .entry(role.id.clone())
+            .or_insert_with(|| role.clone());
+        let is_built_in = draft.built_in;
+        ui.add_space(theme.spacing_xs);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            // Color swatch.
+            let (sw, _) = ui.allocate_exact_size(Vec2::splat(16.0), egui::Sense::hover());
+            ui.painter().rect_filled(sw, 3.0, parse_role_color_ss(&draft.color, theme));
+            // Label (custom roles editable; built-ins fixed label shown).
+            if is_built_in {
+                ui.label(
+                    RichText::new(&draft.label)
+                        .size(theme.font_size_body)
+                        .color(theme.text_primary())
+                        .strong(),
+                );
+                ui.label(
+                    RichText::new("(built-in)")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            } else {
+                ui.add_sized(
+                    Vec2::new(120.0, 22.0),
+                    egui::TextEdit::singleline(&mut draft.label),
+                );
+            }
+            // Color hex.
+            ui.add_sized(
+                Vec2::new(80.0, 22.0),
+                egui::TextEdit::singleline(&mut draft.color).hint_text("#RRGGBB"),
+            );
+            // Capabilities (always editable, even on built-ins).
+            ui.checkbox(&mut draft.can_stream, "stream");
+            ui.checkbox(&mut draft.can_upload, "upload");
+            ui.checkbox(&mut draft.can_voice, "voice");
+            // base_tier (custom only — built-in is locked server-side).
+            if !is_built_in {
+                egui::ComboBox::from_id_salt(("role_tier", draft.id.as_str()))
+                    .selected_text(format!("tier: {}", draft.base_tier))
+                    .show_ui(ui, |ui| {
+                        for t in ["unverified", "verified", "mod", "admin"] {
+                            if ui.selectable_label(draft.base_tier == t, t).clicked() {
+                                draft.base_tier = t.to_string();
+                            }
+                        }
+                    });
+            } else {
+                ui.label(
+                    RichText::new(format!("tier: {}", draft.base_tier))
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            }
+            if widgets::Button::primary("Save").show(ui, theme) {
+                pending_save = Some(draft.clone());
+            }
+            if !is_built_in && widgets::Button::danger("Delete").show(ui, theme) {
+                pending_delete = Some(draft.id.clone());
+            }
+        });
+    }
+
+    // ── Add a custom role ──
+    ui.add_space(theme.spacing_md);
+    widgets::body_hint(ui, theme, "Add a custom role:");
+    ui.add_space(theme.spacing_xs);
+    let mut create_clicked = false;
+    {
+        let nr = &mut state.new_role_draft;
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            ui.add_sized(Vec2::new(90.0, 22.0),
+                egui::TextEdit::singleline(&mut nr.id).hint_text("id (e.g. family)"));
+            ui.add_sized(Vec2::new(110.0, 22.0),
+                egui::TextEdit::singleline(&mut nr.label).hint_text("Label"));
+            ui.add_sized(Vec2::new(80.0, 22.0),
+                egui::TextEdit::singleline(&mut nr.color).hint_text("#RRGGBB"));
+            ui.checkbox(&mut nr.can_stream, "stream");
+            ui.checkbox(&mut nr.can_upload, "upload");
+            ui.checkbox(&mut nr.can_voice, "voice");
+            egui::ComboBox::from_id_salt("new_role_tier")
+                .selected_text(format!("tier: {}", nr.base_tier))
+                .show_ui(ui, |ui| {
+                    for t in ["unverified", "verified", "mod", "admin"] {
+                        if ui.selectable_label(nr.base_tier == t, t).clicked() {
+                            nr.base_tier = t.to_string();
+                        }
+                    }
+                });
+            if widgets::Button::primary("Create").show(ui, theme) {
+                create_clicked = true;
+            }
+        });
+    }
+
+    // Apply pending actions after the immutable `roles` borrow ends.
+    if let Some(role) = pending_save {
+        send_role_upsert(state, &role);
+        state.roles_drafts.remove(&role.id); // re-seed from fresh role_list
+    }
+    if let Some(id) = pending_delete {
+        if let Some(ref client) = state.ws_client {
+            if client.is_connected() {
+                client.send(&serde_json::json!({ "type": "role_delete", "id": id }).to_string());
+            }
+        }
+        state.roles_drafts.remove(&id);
+    }
+    if create_clicked {
+        let nr = state.new_role_draft.clone();
+        let id_ok = !nr.id.trim().is_empty()
+            && nr.id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+        if id_ok && !nr.label.trim().is_empty() {
+            send_role_upsert(state, &nr);
+            // Reset the form (keep sensible defaults).
+            state.new_role_draft = {
+                let mut r = crate::relay::storage::RoleDef::default();
+                r.id = String::new();
+                r.label = String::new();
+                r.color = "#7E57C2".to_string();
+                r.trust_level = 1;
+                r.built_in = false;
+                r.can_upload = true;
+                r.can_voice = true;
+                r.base_tier = "verified".to_string();
+                r.sort_order = 50;
+                r
+            };
+        } else {
+            state.server_settings_status =
+                "Role id must be non-empty alphanumeric (a-z 0-9 _ -) and have a label.".into();
+        }
+    }
+}
+
+/// Send a `role_upsert` WS message for the given role definition.
+fn send_role_upsert(state: &GuiState, role: &crate::relay::storage::RoleDef) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            // Serialize the RoleDef (its serde shape matches the relay's).
+            if let Ok(role_json) = serde_json::to_value(role) {
+                let msg = serde_json::json!({ "type": "role_upsert", "role": role_json });
+                client.send(&msg.to_string());
+            }
+        }
+    }
+}
+
+/// Local hex→Color32 for the roles editor swatch (server_settings.rs has
+/// no access to chat.rs::parse_role_color). #RRGGBB, theme fallback.
+fn parse_role_color_ss(hex: &str, theme: &Theme) -> Color32 {
+    let h = hex.trim().trim_start_matches('#');
+    if h.len() == 6 {
+        if let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&h[0..2], 16),
+            u8::from_str_radix(&h[2..4], 16),
+            u8::from_str_radix(&h[4..6], 16),
+        ) {
+            return Color32::from_rgb(r, g, b); // theme-exempt: data-driven role color
+        }
+    }
+    theme.text_muted()
+}
 
 /// Compact int input with min/max bounds. Used for char-limit + upload-MB rows.
 fn int_input(ui: &mut egui::Ui, value: &mut i64, min: i64, max: i64) {
