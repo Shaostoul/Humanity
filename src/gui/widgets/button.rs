@@ -237,10 +237,21 @@ impl<'a> Button<'a> {
                 theme.accent(),
                 Stroke::NONE,
             ),
+            // Secondary = "raised outline". Was `fill: TRANSPARENT` +
+            // a 1px `border` (#2a2a35) stroke — on the app's near-black
+            // and tinted panels that border is invisible and there's no
+            // fill, so every secondary button rendered as bare text
+            // (operator bug 2026-05-16). A raised surface fill
+            // (`bg_tertiary`, the token whose whole purpose is "raised
+            // surfaces / hover states") plus a brighter `text_muted`
+            // hairline gives it real presence on every background while
+            // staying clearly subordinate to the solid Primary/Danger/
+            // Success fills and distinct from transparent Ghost. One
+            // change, app-wide (universal-button contract).
             ButtonVariant::Secondary => (
                 theme.text_primary(),
-                Color32::TRANSPARENT,
-                Stroke::new(1.0, theme.border()),
+                theme.bg_tertiary(),
+                Stroke::new(1.0, theme.text_muted()),
             ),
             ButtonVariant::Danger => (
                 Color32::WHITE,

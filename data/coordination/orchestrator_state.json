@@ -11,6 +11,11 @@
   "recent_decisions": [
     {
       "at": "2026-05-16",
+      "decision": "Server Settings styling arc started (operator: page poorly styled, uneven grids, policy = two skinny ¼-width columns). Screenshot CORRECTED my static read: sections render full-width, not 960-capped — the dominant visible defects are (1) Button::Secondary = transparent fill + #2a2a35 border → invisible on dark/tinted panels, every secondary button app-wide rendered as bare text; (2) kv_row/kv_row_with_definition (server_settings.rs) hand-roll a label column via allocate_ui_with_layout WITHOUT set_min_width + no gutter → column can collapse, hardcoded 160 not the token. v0.254 fixes BOTH at the universal layer: button.rs Secondary now fill=bg_tertiary + text_muted hairline (raised-surface, app-wide one-change win); added the missing pub fn bg_tertiary() accessor (token existed, no accessor); kv_row pinned with set_min_width(theme.settings_label_width) + spacing_md gutter, token not magic 160. Still pending (operator stated #1/#2): 5 ad-hoc fixed-px grids (channels/banned/muted/roles/members) → one shared themed weighted-width data_table; policy form rows not filling width.",
+      "rationale": "Picked the two highest-impact, lowest-risk, universal-layer fixes first — the secondary-button defect lifts the WHOLE app (ui-system.md one-source-of-truth), kv_row hardening is token-correct + cheap. Shipping incrementally so the operator sees the dramatic button improvement live before the bigger (riskier) 5-grid data_table refactor. Owned that the screenshot corrected my first (width-cap) theory — trust-but-verify worked."
+    },
+    {
+      "at": "2026-05-16",
       "decision": "PQ Increment 3 SHIPPED (v0.253) — gated PQ-signature ENFORCEMENT. New server_settings.require_pq_signatures bool (default OFF; full positional-SQL wiring: struct/Default/get ?22/set ?23/CREATE+idempotent ALTER; round-trip test locks it). Relay Chat handler: Inc2 soft-log replaced with a (has_pq_key, sent_pq_sig, require_pq) match — PQ key+valid=OK; PQ key+invalid/missing & require ON = REJECT (Private actionable error + continue, no broadcast); require OFF = Inc2 soft; NO pq key on file = NEVER enforced (the safety valve — old/incapable clients never lock out, auto-upgrade on reconnect). ServerSettingsUpdate gained require_pq_signatures Option<bool> + handler apply. Native Server Settings ADMIN policy got the checkbox + a thorough body_hint (turn on after pq_dualsign telemetry shows full adoption; reversible).",
       "rationale": "Operator: Do it, get accounts off the backlog. Candid engineering call: \"make PQ canonical\" done SAFELY = enforce the PQ sig (the actual quantum-forgery defense), NOT re-key every Ed25519-keyed table (catastrophic, orphans data, never right at billions-scale). Ed25519 stays the storage key + Solana wallet; the existing Ed25519<->Dilithium map + an enforcement gate IS the correct identity-migration pattern (resolution indirection, not primary-key rewrite). Toggle default-OFF + never-enforce-uncapable-accounts makes the cutover a safe, reversible, informed 1-click op instead of a deploy-day lockout. Pushed back on the implicit big-bang while delivering the real security goal."
     },
@@ -165,8 +170,8 @@
   ],
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "v0.253.1",
-    "last_release_summary": "v0.253.0 PQ Inc3: gated PQ-signature enforcement (require_pq_signatures toggle, default OFF, safe-by-construction reject of PQ-capable accounts missing a valid pq_sig; never locks out non-PQ accounts). Completes the PQ security cutover machinery (Inc1-3). v0.245-252 arc before it."
+    "latest_pushed_tag": "v0.254.1 (pending push this session)",
+    "last_release_summary": "v0.254.0 Server Settings styling (1/2): universal Button::Secondary now visible (raised bg_tertiary surface, app-wide fix) + kv_row label column pinned to settings_label_width token + gutter. Next: shared data_table for the 5 ad-hoc grids + policy width."
   },
   "files_in_flight_or_recently_changed": [
     "src/gui/mod.rs (v0.123.0) — added 8 GuiState fields + 7 load_* fns + new owned types (ResourceEntry, ResourceCategory, StudioScenePreset, StudioSourcePreset) + studio_*_from_preset converters; StudioState::default() now empty (populated from presets in lib.rs)",

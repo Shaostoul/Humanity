@@ -250,6 +250,11 @@ impl Theme {
     pub fn bg_primary(&self) -> Color32 { Self::c32(&self.bg_primary) }
     pub fn bg_secondary(&self) -> Color32 { Self::c32(&self.bg_secondary) }
     pub fn bg_card(&self) -> Color32 { Self::c32(&self.bg_card) }
+    /// Raised-surface / hover token (#252530). Already used internally
+    /// for `widgets.hovered.bg_fill`; exposed v0.254 so the universal
+    /// secondary button can render as a raised surface (was invisible
+    /// transparent-fill before).
+    pub fn bg_tertiary(&self) -> Color32 { Self::c32(&self.bg_tertiary) }
     pub fn text_primary(&self) -> Color32 { Self::c32(&self.text_primary) }
     pub fn text_secondary(&self) -> Color32 { Self::c32(&self.text_secondary) }
     pub fn text_muted(&self) -> Color32 { Self::c32(&self.text_muted) }

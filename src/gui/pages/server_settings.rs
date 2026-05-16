@@ -1651,9 +1651,15 @@ fn draw_members_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_m
 fn kv_row(ui: &mut egui::Ui, theme: &Theme, key: &str, value: String) {
     ui.horizontal(|ui| {
         ui.allocate_ui_with_layout(
-            Vec2::new(160.0, ui.spacing().interact_size.y),
+            Vec2::new(theme.settings_label_width, ui.spacing().interact_size.y),
             Layout::left_to_right(Align::Center),
             |ui| {
+                // set_min_width PINS the label column. Without it
+                // allocate_ui_with_layout shrinks to the label's text
+                // width, so the value crowds the label and adjacent
+                // rows don't align (operator bug 2026-05-16). Token,
+                // not a magic 160 (settings_label_width = ui-system.md).
+                ui.set_min_width(theme.settings_label_width);
                 ui.label(
                     RichText::new(key)
                         .size(theme.font_size_small)
@@ -1661,6 +1667,7 @@ fn kv_row(ui: &mut egui::Ui, theme: &Theme, key: &str, value: String) {
                 );
             },
         );
+        ui.add_space(theme.spacing_md); // gutter so label/value never collide
         ui.label(
             RichText::new(value)
                 .size(theme.font_size_body)
@@ -1680,9 +1687,12 @@ fn kv_row(ui: &mut egui::Ui, theme: &Theme, key: &str, value: String) {
 fn kv_row_with_definition(ui: &mut egui::Ui, theme: &Theme, key: &str, glossary_term: &str, value: String) {
     ui.horizontal(|ui| {
         ui.allocate_ui_with_layout(
-            Vec2::new(160.0, ui.spacing().interact_size.y),
+            Vec2::new(theme.settings_label_width, ui.spacing().interact_size.y),
             Layout::left_to_right(Align::Center),
             |ui| {
+                // Pin the column (see kv_row) so glossary rows align
+                // with plain ones and the value never crowds the label.
+                ui.set_min_width(theme.settings_label_width);
                 // We render the key text inline so it picks up the
                 // standard kv_row styling, then call definition_text
                 // separately — the widget handles the Alt+hover tooltip.
@@ -1714,6 +1724,7 @@ fn kv_row_with_definition(ui: &mut egui::Ui, theme: &Theme, key: &str, glossary_
                 }
             },
         );
+        ui.add_space(theme.spacing_md); // gutter, matches kv_row
         ui.label(
             RichText::new(value)
                 .size(theme.font_size_body)
