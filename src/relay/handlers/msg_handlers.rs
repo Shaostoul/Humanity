@@ -1327,20 +1327,47 @@ pub async fn handle_mod_action(
         let _ = state.broadcast_tx.send(private);
         return;
     }
-    // Never let someone kick/ban themselves through the moderation UI.
-    if target == my_key && matches!(action, "kick" | "ban") {
+    // Resolve EVERY public key this action could touch: the explicit
+    // target key (if any) PLUS every key registered under target_name
+    // (case-insensitive, multi-device). The protection checks below run
+    // against this whole set so a name-only kick/ban can't sneak past
+    // the role check just because no key was supplied. (v0.247 — closes
+    // the documented name-only-bypass security gap.)
+    let mut candidate_keys: Vec<String> = Vec::new();
+    if !target.is_empty() {
+        candidate_keys.push(target.to_string());
+    }
+    if !target_name.is_empty() {
+        if let Ok(name_keys) = state.db.keys_for_name(target_name) {
+            candidate_keys.extend(name_keys);
+        }
+    }
+    candidate_keys.sort();
+    candidate_keys.dedup();
+
+    // Never let someone kick/ban/mute themselves through the moderation
+    // UI — checked against the resolved key set so a name-only
+    // self-target is caught too (previously only `target == my_key`).
+    if matches!(action, "kick" | "ban" | "mute")
+        && candidate_keys.iter().any(|k| k == my_key)
+    {
         let private = RelayMessage::Private {
             to: my_key.to_string(),
-            message: "You can't kick or ban yourself.".to_string(),
+            message: format!("You can't {action} yourself."),
         };
         let _ = state.broadcast_tx.send(private);
         return;
     }
-    // Don't allow non-admins to kick/ban an admin (only checkable when
-    // we have a public key — name-only kicks skip this check, see TODO).
-    if !target.is_empty() {
-        let target_role = state.db.get_role(target).unwrap_or_default();
-        if target_role == "admin" && !is_admin {
+    // Don't allow non-admins to act on a protected (admin/owner)
+    // account. Now checks ALL resolved keys — if ANY registration under
+    // the target name is an admin, a non-admin mod is refused, even on
+    // the name-only path that used to skip this entirely.
+    if !is_admin {
+        let touches_protected = candidate_keys.iter().any(|k| {
+            let r = state.db.get_role(k).unwrap_or_default();
+            r == "admin" || r == "owner"
+        });
+        if touches_protected {
             let private = RelayMessage::Private {
                 to: my_key.to_string(),
                 message: "Only an admin can act on another admin.".to_string(),
@@ -1349,12 +1376,6 @@ pub async fn handle_mod_action(
             return;
         }
     }
-    // TODO(security): name-only kicks (`target == ""`) bypass the admin-
-    // protection role check above because we can't look up a role
-    // without a key. Currently fine because only admins use moderation
-    // UI in practice, but this should look up all rows in
-    // registered_names matching the name and refuse if ANY of them have
-    // admin role.
 
     let display_name = if !target.is_empty() {
         state.db.name_for_key(target).ok().flatten().unwrap_or_else(|| target[..8.min(target.len())].to_string())
