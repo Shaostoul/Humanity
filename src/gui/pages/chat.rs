@@ -3137,7 +3137,12 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 if client.is_connected() {
                                     let msg = serde_json::json!({
                                         "type": "unfollow",
-                                        "target": key,
+                                        // Field is "target_key" — must match
+                                        // RelayMessage::Unfollow + the web
+                                        // client. Was "target" (silently
+                                        // dropped by the relay; Unfollow
+                                        // never worked). Fixed v0.243.
+                                        "target_key": key,
                                     });
                                     client.send(&msg.to_string());
                                 }
@@ -3159,7 +3164,12 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 if client.is_connected() {
                                     let msg = serde_json::json!({
                                         "type": "follow",
-                                        "target": key,
+                                        // Field is "target_key" — must match
+                                        // RelayMessage::Follow + the web
+                                        // client. Was "target" (silently
+                                        // dropped by the relay; Follow never
+                                        // worked from the native app). v0.243.
+                                        "target_key": key,
                                     });
                                     client.send(&msg.to_string());
                                 }
