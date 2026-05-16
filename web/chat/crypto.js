@@ -699,6 +699,28 @@ async function attachPqIdentity() {
   }
 }
 
+/**
+ * PQ Increment 2: produce a Dilithium3 signature over the EXACT same
+ * preimage the Ed25519 `signMessage` signs (`content\ntimestamp`), so
+ * the relay can soft-verify it against the stored Dilithium pubkey.
+ * Returns hex of the 3309-byte signature, or null (best-effort — a
+ * missing PQ key just means the message ships Ed25519-only as before).
+ */
+async function pqSignChatMessage(content, timestamp) {
+  try {
+    if (!myDilithiumSecret || typeof window.pqSignMessage !== 'function') return null;
+    const payload = `${content}\n${timestamp}`; // identical to signMessage()
+    const sigBytes = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(payload));
+    if (!sigBytes) return null;
+    let hex = '';
+    for (let i = 0; i < sigBytes.length; i++) hex += sigBytes[i].toString(16).padStart(2, '0');
+    return hex;
+  } catch (e) {
+    console.warn('pqSignChatMessage failed:', e && e.message);
+    return null;
+  }
+}
+
 /** Generate or load ECDH P-256 keypair for E2EE DMs. */
 async function getOrCreateEcdhKeypair() {
   try {

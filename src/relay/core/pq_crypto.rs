@@ -378,6 +378,36 @@ mod tests {
         );
     }
 
+    /// CROSS-IMPL SIGNATURE KAT (v0.252, PQ Increment 2).
+    ///
+    /// A Dilithium3 signature produced by the JS client
+    /// (`@noble/post-quantum`, vendored) MUST verify under the Rust
+    /// relay (`verify_dilithium`, RustCrypto `ml-dsa`). This is exactly
+    /// the Inc 2 dual-sign path: client signs `content\ntimestamp`, the
+    /// relay soft-verifies it. The signature fixture was generated once
+    /// by noble for the canonical KAT seed + message `hello\n170...`
+    /// (ML-DSA signing is hedged/non-deterministic, but VERIFY is
+    /// deterministic, so a frozen valid signature stays valid forever).
+    /// If RustCrypto ever stops accepting noble signatures this fails —
+    /// and Inc 2's soft-verify would silently log false mismatches.
+    #[test]
+    fn dilithium_js_signature_verifies_in_rust() {
+        let master = [7u8; 32];
+        let dil_seed = derive_dilithium_seed(&master);
+        let pk = DilithiumKeypair::from_seed(&dil_seed).public_key();
+        let msg = b"hello\n1700000000000";
+        let sig_hex = include_str!("pq_kat_dilithium_sig.hex").trim();
+        let sig = hex::decode(sig_hex).expect("fixture is valid hex");
+        assert_eq!(sig.len(), DILITHIUM_SIG_LEN, "fixture sig wrong length");
+        verify_dilithium(&pk, msg, &sig)
+            .expect("noble-produced signature must verify under RustCrypto ml-dsa");
+        // Tamper → must fail (guards against a verify that accepts anything).
+        let mut bad = sig.clone();
+        bad[0] ^= 0x01;
+        assert!(verify_dilithium(&pk, msg, &bad).is_err());
+        assert!(verify_dilithium(&pk, b"different", &sig).is_err());
+    }
+
     #[test]
     fn full_bip39_to_dilithium_flow() {
         // Simulate a BIP39 master seed (would normally come from `bip39` crate).

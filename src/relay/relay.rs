@@ -4539,6 +4539,55 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 } else {
                                     false
                                 };
+                                // PQ Increment 2: SOFT dual-sign check.
+                                // If the client also sent a Dilithium3
+                                // signature (`pq_signature`) and we have
+                                // its PQ pubkey on file, verify it over
+                                // the SAME preimage and just LOG the
+                                // outcome. Ed25519 stays authoritative —
+                                // we never reject or alter the broadcast
+                                // on the PQ result (that's Inc 3). This
+                                // builds real-world confidence that
+                                // client PQ signing ↔ relay PQ verify
+                                // works before anything depends on it.
+                                if let Some(pq_sig) = serde_json::from_str::<serde_json::Value>(&text)
+                                    .ok()
+                                    .as_ref()
+                                    .and_then(|v| v.get("pq_signature"))
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string())
+                                {
+                                    match state_clone.db.get_dilithium_public(&my_key_for_recv) {
+                                        Ok(Some(dil_pub)) => {
+                                            let ok = crate::relay::handlers::broadcast::verify_dilithium_signature(
+                                                &dil_pub, &content, timestamp, &pq_sig,
+                                            );
+                                            if ok {
+                                                tracing::info!(
+                                                    target: "pq_dualsign",
+                                                    "PQ-OK key={} ed25519={} dilithium=valid",
+                                                    &my_key_for_recv[..8.min(my_key_for_recv.len())],
+                                                    verified_sig
+                                                );
+                                            } else {
+                                                tracing::warn!(
+                                                    target: "pq_dualsign",
+                                                    "PQ-MISMATCH key={} ed25519={} dilithium=INVALID (soft; not enforced)",
+                                                    &my_key_for_recv[..8.min(my_key_for_recv.len())],
+                                                    verified_sig
+                                                );
+                                            }
+                                        }
+                                        _ => {
+                                            tracing::debug!(
+                                                target: "pq_dualsign",
+                                                "pq_signature present but no stored dilithium_public for key={} (Inc1 not yet seeded)",
+                                                &my_key_for_recv[..8.min(my_key_for_recv.len())]
+                                            );
+                                        }
+                                    }
+                                }
+
                                 // Only include signature in broadcast if it verified server-side.
                                 let broadcast_sig = if verified_sig { signature } else { None };
 

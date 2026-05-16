@@ -79,6 +79,18 @@ pub fn verify_ed25519_signature(public_key_hex: &str, content: &str, timestamp: 
     verifying_key.verify(message.as_bytes(), &signature).is_ok()
 }
 
+/// PQ Increment 2: verify a Dilithium3 (ML-DSA-65) signature over the
+/// SAME preimage the Ed25519 path uses (`content\ntimestamp`). Soft —
+/// callers log the result; Ed25519 stays authoritative until Inc 3.
+/// `dilithium_pub_hex` = 1952-byte ML-DSA-65 key hex (from
+/// registered_names.dilithium_public); `sig_hex` = 3309-byte sig hex.
+pub fn verify_dilithium_signature(dilithium_pub_hex: &str, content: &str, timestamp: u64, sig_hex: &str) -> bool {
+    let Ok(pk) = hex::decode(dilithium_pub_hex) else { return false };
+    let Ok(sig) = hex::decode(sig_hex) else { return false };
+    let message = format!("{}\n{}", content, timestamp);
+    crate::relay::core::pq_crypto::verify_dilithium(&pk, message.as_bytes(), &sig).is_ok()
+}
+
 /// Maximum tolerated drift for inbound timestamped messages.
 /// 5 minutes matches the existing `/api/vault/sync` freshness window.
 /// Any inbound message with a timestamp outside `[now - MAX, now + MAX]`

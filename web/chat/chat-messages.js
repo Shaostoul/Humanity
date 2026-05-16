@@ -451,6 +451,8 @@ async function handleFileAttachment(event) {
     }
     const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp, channel: activeChannel };
     if (signature) msg.signature = signature;
+    const pqSig = await pqSignChatMessage(content, timestamp);
+    if (pqSig) msg.pq_signature = pqSig;
     ws.send(JSON.stringify(msg));
     const key = myKey + ':' + timestamp;
     seenTimestamps.add(key);
@@ -479,6 +481,8 @@ document.getElementById('msg-input').addEventListener('paste', async (e) => {
         }
         const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp };
         if (signature) msg.signature = signature;
+        const pqSig = await pqSignChatMessage(content, timestamp);
+        if (pqSig) msg.pq_signature = pqSig;
         ws.send(JSON.stringify(msg));
         const key = myKey + ':' + timestamp;
         seenTimestamps.add(key);
@@ -509,6 +513,8 @@ chatArea.addEventListener('drop', async (e) => {
         }
         const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp };
         if (signature) msg.signature = signature;
+        const pqSig = await pqSignChatMessage(content, timestamp);
+        if (pqSig) msg.pq_signature = pqSig;
         ws.send(JSON.stringify(msg));
         const key = myKey + ':' + timestamp;
         seenTimestamps.add(key);
@@ -597,6 +603,8 @@ async function sendThreadReply() {
     },
   };
   if (signature) msg.signature = signature;
+  const pqSig = await pqSignChatMessage(content, timestamp);
+  if (pqSig) msg.pq_signature = pqSig;
   ws.send(JSON.stringify(msg));
 
   // Add to thread panel immediately.
