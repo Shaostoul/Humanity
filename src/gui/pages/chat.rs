@@ -3006,7 +3006,7 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .strong(),
                     );
                     if !user_role.is_empty() && user_role != "member" {
-                        draw_role_badges(ui, theme, &user_role);
+                        draw_role_badges(ui, theme, &user_role, &state.chat_roles);
                     }
                 });
             });
@@ -3309,6 +3309,67 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
                         }
                     });
+
+                    // ── Role assignment dropdown (roles Phase R2) ──
+                    // Lists every role from the relay's role_list. Picking
+                    // one sends set_user_role. This is the operator's
+                    // chosen assignment path for custom roles (e.g. give
+                    // dad a "Family" role with can_stream). Mod/Unmod above
+                    // stay as quick shortcuts.
+                    if !state.chat_roles.is_empty() {
+                        ui.add_space(6.0);
+                        let roles = state.chat_roles.clone();
+                        let current_label = roles
+                            .iter()
+                            .find(|r| r.id == user_role)
+                            .map(|r| r.label.clone())
+                            .unwrap_or_else(|| {
+                                if user_role.is_empty() { "Unverified".to_string() }
+                                else { user_role.clone() }
+                            });
+                        let mut picked: Option<String> = None;
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new("Role:")
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            );
+                            egui::ComboBox::from_id_salt(("user_role_combo", key.as_str()))
+                                .selected_text(current_label)
+                                .show_ui(ui, |ui| {
+                                    for r in &roles {
+                                        // Label in the role's own badge
+                                        // color so custom roles read
+                                        // distinctly. selectable_label's
+                                        // highlight conveys the current
+                                        // selection (no glyph needed —
+                                        // keeps icon_glyph_lint happy).
+                                        let sel = r.id == user_role;
+                                        if ui.selectable_label(
+                                            sel,
+                                            RichText::new(&r.label)
+                                                .color(parse_role_color(&r.color, theme)),
+                                        ).clicked() {
+                                            picked = Some(r.id.clone());
+                                        }
+                                    }
+                                });
+                        });
+                        if let Some(rid) = picked {
+                            if rid != user_role {
+                                if let Some(ref client) = state.ws_client {
+                                    if client.is_connected() {
+                                        let msg = serde_json::json!({
+                                            "type": "set_user_role",
+                                            "target": key,
+                                            "role_id": rid,
+                                        });
+                                        client.send(&msg.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 ui.add_space(8.0);
@@ -3795,25 +3856,51 @@ fn section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Color32) 
 }
 
 /// Draw colored role badge pills (A=admin red, M=mod orange, V=verified blue).
-fn draw_role_badges(ui: &mut egui::Ui, theme: &Theme, role: &str) {
-    if role.is_empty() || role == "member" {
+fn draw_role_badges(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    role: &str,
+    roles: &[crate::relay::storage::RoleDef],
+) {
+    if role.is_empty() || role == "member" || role == "unverified" {
         return;
     }
 
-    let (badge_char, badge_color) = match role {
-        "admin" => ("A", Theme::c32(&theme.badge_admin)),
-        "moderator" | "mod" => ("M", Theme::c32(&theme.badge_mod)),
-        "verified" => ("V", Theme::c32(&theme.badge_verified)),
-        "donor" => ("D", Theme::c32(&theme.badge_donor)),
-        _ => return,
-    };
+    // Prefer the data-driven RoleDef (so CUSTOM roles get a badge too,
+    // in their own color). Fall back to the legacy hardcoded theme-token
+    // badges when the role_list hasn't arrived yet OR the role isn't in
+    // it (keeps behavior identical pre-role_list / for legacy ids).
+    // Roles Phase R2, v0.241; see docs/design/roles-system.md.
+    let (badge_char, badge_color): (String, Color32) =
+        if let Some(rd) = roles.iter().find(|r| r.id == role) {
+            // Built-ins keep their familiar single letter (A/M/V/D) for
+            // continuity; custom roles use the first letter of the label.
+            let ch = match rd.id.as_str() {
+                "admin" => "A".to_string(),
+                "mod" => "M".to_string(),
+                "verified" => "V".to_string(),
+                "donor" => "D".to_string(),
+                _ => rd.label.chars().next()
+                        .map(|c| c.to_uppercase().to_string())
+                        .unwrap_or_else(|| "?".to_string()),
+            };
+            (ch, parse_role_color(&rd.color, theme))
+        } else {
+            match role {
+                "admin" => ("A".to_string(), Theme::c32(&theme.badge_admin)),
+                "moderator" | "mod" => ("M".to_string(), Theme::c32(&theme.badge_mod)),
+                "verified" => ("V".to_string(), Theme::c32(&theme.badge_verified)),
+                "donor" => ("D".to_string(), Theme::c32(&theme.badge_donor)),
+                _ => return,
+            }
+        };
 
-    let text = RichText::new(badge_char)
+    let text = RichText::new(&badge_char)
         .size(theme.font_size_small - 2.0)
         .color(Color32::WHITE)
         .strong();
 
-    let galley = ui.fonts(|f| f.layout_no_wrap(badge_char.to_string(), egui::FontId::proportional(theme.font_size_small - 2.0), Color32::WHITE));
+    let galley = ui.fonts(|f| f.layout_no_wrap(badge_char.clone(), egui::FontId::proportional(theme.font_size_small - 2.0), Color32::WHITE));
     let badge_width = galley.size().x + 8.0;
     let badge_height = 16.0;
 
@@ -4235,6 +4322,24 @@ pub fn generate_random_hex_key() -> String {
 }
 
 /// Derive a consistent color from a username (for avatar circles).
+/// Parse a role's "#RRGGBB" badge color into a Color32. Falls back to
+/// the theme's primary text color if the string isn't a valid 6-digit
+/// hex (so a malformed custom-role color can't make the label invisible).
+/// v0.241 (roles Phase R2).
+fn parse_role_color(hex: &str, theme: &Theme) -> Color32 {
+    let h = hex.trim().trim_start_matches('#');
+    if h.len() == 6 {
+        if let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&h[0..2], 16),
+            u8::from_str_radix(&h[2..4], 16),
+            u8::from_str_radix(&h[4..6], 16),
+        ) {
+            return Color32::from_rgb(r, g, b); // theme-exempt: data-driven role color from server
+        }
+    }
+    theme.text_primary()
+}
+
 fn name_color(name: &str) -> Color32 {
     let hash: u32 = name.bytes().fold(0u32, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u32));
     let hue = (hash % 360) as f32;

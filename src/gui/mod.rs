@@ -1052,6 +1052,11 @@ pub struct GuiState {
     /// haven't received the state yet (during initial connect, before
     /// any modify happens). UI uses defaults until populated.
     pub server_settings: Option<crate::relay::storage::ServerSettings>,
+    /// All role definitions, from the relay's `role_list` WS broadcast
+    /// (sent on connect + after any role change). Drives the user-modal
+    /// role dropdown + badge colors. Empty until the first broadcast.
+    /// v0.241 (roles Phase R2).
+    pub chat_roles: Vec<crate::relay::storage::RoleDef>,
     /// In-progress draft of server settings being edited in the admin
     /// UI. None = not editing. Cloned from `server_settings` when admin
     /// opens the editor. Save button sends a ServerSettingsUpdate WS
@@ -1483,6 +1488,7 @@ impl Default for GuiState {
             groups_settings_popup_open: false,
             dm_unencrypted_confirm: None,
             server_settings: None,
+            chat_roles: Vec::new(),
             server_settings_draft: None,
             cosmos_view: crate::gui::pages::cosmos::CosmosView::System,
             cosmos_pan: egui::Vec2::ZERO,

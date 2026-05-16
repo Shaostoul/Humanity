@@ -1418,6 +1418,21 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    Some("role_list") => {
+                                        // v0.241 (roles Phase R2): relay sends the full
+                                        // role list on connect + after any role change.
+                                        // Cache it for the user-modal role dropdown +
+                                        // badge colors.
+                                        if let Some(arr) = val.get("roles") {
+                                            match serde_json::from_value::<Vec<crate::relay::storage::RoleDef>>(arr.clone()) {
+                                                Ok(roles) => {
+                                                    log::info!("Received {} role definitions", roles.len());
+                                                    state.gui_state.chat_roles = roles;
+                                                }
+                                                Err(e) => log::warn!("Failed to parse role_list: {e}"),
+                                            }
+                                        }
+                                    }
                                     Some("system") => {
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
                                             log::info!("Relay system message: {}", msg);
