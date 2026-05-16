@@ -11,6 +11,11 @@
   "recent_decisions": [
     {
       "at": "2026-05-16",
+      "decision": "v0.260: removed the temporary layout-dbg readout from tinted_section. Operator said \"looking better\" + moved to feature questions, did not pursue centering — so the shipped debug clutter (3 lines, every section, all users) gets removed rather than left in production. Centering remains 0/3 / unsolved but DE-PRIORITIZED (operator content with current left layout; revisit only if re-raised, re-instrument then). form_row label-pin (v0.259) confirmed working in operator screenshot — toggles now align. Verified in code: per-role caps (can_stream/can_upload/can_voice) ALREADY exist + are edited in the Roles grid; the Add-a-custom-role form exists at draw_roles_admin bottom (operator screenshot cut off at Donor so Moderator/Admin/add-form were below the fold → discoverability gap, not a missing feature). image/file sharing are the only server-wide-ONLY settings (no per-role cap) — the real inconsistency behind the operator combine-into-grid instinct.",
+      "rationale": "Shipping temporary debug UI then leaving it is sloppy; cleaned up since the operator deprioritized centering. The roles editor exists — the problem is discoverability + a fragmented 3-block per-role model; that and the per-role-image/file idea are a data-model decision to confirm with the operator, not assume."
+    },
+    {
+      "at": "2026-05-16",
       "decision": "v0.259: (1) Universal form_row fix — form_row_inner allocate_ui_with_layout label cell had NO set_min_width(label_width), so it collapsed to text width and the control started at a variable x per row → toggles/inputs stairstepped (operator: sharing & policy toggles vs the others). Added ui.set_min_width(label_width) — exact kv_row v0.254 fix, now on the universal widget → aligns EVERY form_row app-wide (settings/ai_usage/onboarding/server_settings). (2) Centering still failed on the v0.258.1 screenshot (3rd miss: vertical_centered+set_max_width, allocate_ui_with_layout, new_child+max_rect all rendered full-bleed-left). Stopped guessing — added a TEMPORARY on-screen layout-dbg readout in tinted_section (avail / col / x0 / childAW) so the operator next screenshot yields the real runtime numbers (esp. childAW: if ≫ col then new_child(max_rect) is not hard-constraining = the actual root cause). Data-driven next iteration instead of attempt 4 blind.",
       "rationale": "Operator pointed at the toggles; fixed precisely + universally (high confidence, proven pattern). Was candid that centering is 0/3 and I cannot solve it blind; instrumenting converts the working screenshot loop into a one-shot diagnosis instead of burning more build cycles theorizing about egui."
     },
@@ -195,8 +200,8 @@
   ],
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "v0.259.1 (pending push this session)",
-    "last_release_summary": "v0.259.0 universal form_row label-column pin (aligns every form app-wide; fixes the ragged Server Settings toggles) + a temporary layout diagnostic in tinted_section to root-cause the 3x-failed centering from real numbers."
+    "latest_pushed_tag": "v0.260.1 (pending push this session)",
+    "last_release_summary": "v0.260.0 removed temporary tinted_section layout diagnostic (centering deprioritized by operator). form_row alignment fix (v0.259) confirmed working."
   },
   "files_in_flight_or_recently_changed": [
     "src/gui/mod.rs (v0.123.0) — added 8 GuiState fields + 7 load_* fns + new owned types (ResourceEntry, ResourceCategory, StudioScenePreset, StudioSourcePreset) + studio_*_from_preset converters; StudioState::default() now empty (populated from presets in lib.rs)",

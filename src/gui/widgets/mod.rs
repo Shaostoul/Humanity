@@ -121,25 +121,6 @@ pub fn tinted_section(
         let ui = &mut child;
         ui.set_min_width(col_w);
         ui.set_max_width(col_w);
-        // TEMP DIAGNOSTIC (v0.259 — REMOVE once centering is solved).
-        // Three blind attempts to center this column failed; this prints
-        // the real runtime numbers so the next screenshot is definitive:
-        //  • avail   = ui.available_rect_before_wrap().width() (parent)
-        //  • col     = the cap we computed (should be ≤ max_width)
-        //  • x0      = where the column should start (centered)
-        //  • childAW = available_width INSIDE the max_rect child — if
-        //              this is ≫ col, new_child(max_rect) is NOT
-        //              hard-constraining and that's the real bug.
-        let _dbg_child_aw = ui.available_width();
-        ui.label(
-            RichText::new(format!(
-                "[layout-dbg v0.259: avail={:.0} col={:.0} x0={:.0} childAW={:.0} — temporary]",
-                full_w, col_w, x0, _dbg_child_aw
-            ))
-            .size(theme.font_size_small)
-            .color(theme.text_muted())
-            .monospace(),
-        );
         ui.label(
             RichText::new(title)
                 .size(theme.font_size_small)
