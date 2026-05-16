@@ -165,7 +165,7 @@
   ],
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "v0.253.1 (pending push this session)",
+    "latest_pushed_tag": "v0.253.1",
     "last_release_summary": "v0.253.0 PQ Inc3: gated PQ-signature enforcement (require_pq_signatures toggle, default OFF, safe-by-construction reject of PQ-capable accounts missing a valid pq_sig; never locks out non-PQ accounts). Completes the PQ security cutover machinery (Inc1-3). v0.245-252 arc before it."
   },
   "files_in_flight_or_recently_changed": [
