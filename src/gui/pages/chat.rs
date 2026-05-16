@@ -952,13 +952,43 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 // cog next to the group name.)
 
                                 // 3. # channel name
+                                let name_str = format!("# {}", ch.name);
                                 ui.painter().text(
                                     egui::pos2(cx + 2.0, cy),
                                     egui::Align2::LEFT_CENTER,
-                                    &format!("# {}", ch.name),
+                                    &name_str,
                                     egui::FontId::proportional(theme.body_size),
                                     text_color,
                                 );
+                                // Status icons (eye = read-only, node =
+                                // federated). Same treatment as server
+                                // channels for consistency. v0.244.
+                                if ch.read_only || ch.federated {
+                                    let name_w = ui.fonts(|f| f.layout_no_wrap(
+                                        name_str.clone(),
+                                        egui::FontId::proportional(theme.body_size),
+                                        text_color,
+                                    )).size().x;
+                                    let isz = (theme.body_size * 0.9).min(14.0);
+                                    let mut ix = cx + 2.0 + name_w + 6.0;
+                                    if ch.read_only {
+                                        let r = egui::Rect::from_min_size(
+                                            egui::pos2(ix, cy - isz / 2.0),
+                                            Vec2::splat(isz),
+                                        );
+                                        crate::gui::widgets::icons::paint_eye(
+                                            ui.painter(), r, theme.text_muted());
+                                        ix += isz + 3.0;
+                                    }
+                                    if ch.federated {
+                                        let r = egui::Rect::from_min_size(
+                                            egui::pos2(ix, cy - isz / 2.0),
+                                            Vec2::splat(isz),
+                                        );
+                                        crate::gui::widgets::icons::paint_federation(
+                                            ui.painter(), r, theme.text_muted());
+                                    }
+                                }
                             }
 
                             if response.hovered() {
@@ -1304,13 +1334,43 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             // member in one place.)
 
                             // 3. # Channel name
+                            let name_str = format!("# {}", ch.name);
                             ui.painter().text(
                                 egui::pos2(cx + 2.0, cy),
                                 egui::Align2::LEFT_CENTER,
-                                &format!("# {}", ch.name),
+                                &name_str,
                                 egui::FontId::proportional(theme.body_size),
                                 text_color,
                             );
+                            // Status icons after the name: eye = read-only,
+                            // node-graph = federated (v0.244; uses the
+                            // paint_eye/paint_federation icons added v0.240).
+                            if ch.read_only || ch.federated {
+                                let name_w = ui.fonts(|f| f.layout_no_wrap(
+                                    name_str.clone(),
+                                    egui::FontId::proportional(theme.body_size),
+                                    text_color,
+                                )).size().x;
+                                let isz = (theme.body_size * 0.9).min(14.0);
+                                let mut ix = cx + 2.0 + name_w + 6.0;
+                                if ch.read_only {
+                                    let r = egui::Rect::from_min_size(
+                                        egui::pos2(ix, cy - isz / 2.0),
+                                        Vec2::splat(isz),
+                                    );
+                                    crate::gui::widgets::icons::paint_eye(
+                                        ui.painter(), r, theme.text_muted());
+                                    ix += isz + 3.0;
+                                }
+                                if ch.federated {
+                                    let r = egui::Rect::from_min_size(
+                                        egui::pos2(ix, cy - isz / 2.0),
+                                        Vec2::splat(isz),
+                                    );
+                                    crate::gui::widgets::icons::paint_federation(
+                                        ui.painter(), r, theme.text_muted());
+                                }
+                            }
                         }
 
                         if response.hovered() {
