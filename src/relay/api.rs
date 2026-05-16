@@ -270,16 +270,14 @@ pub async fn upload_file(
         "exe", "sh", "bat", "cmd", "msi", "dmg", "app", "com", "scr", "pif",
         "html", "htm", "xhtml", "xml", "js", "mjs",
     ];
-    // Total upload disk cap + per-user FIFO retention are now operator-
-    // tunable server settings (v0.237). Read once here; fall back to the
-    // historical defaults (500 MB / 4 files) if the row is missing.
-    let (max_total_upload_bytes, max_uploads_per_user) = {
-        let s = state.db.get_server_settings().unwrap_or_default();
-        (
-            (s.max_total_upload_mb.max(1) as u64) * 1024 * 1024,
-            s.max_uploads_per_user.max(1),
-        )
-    };
+    // Server settings drive the upload limits (v0.237; per-role FIFO
+    // v0.238). The total disk cap is server-wide (read now). The per-user
+    // FIFO retention is per-role, so it's resolved AFTER the uploader's
+    // role is known (see below). Fall back to defaults if the row is
+    // missing.
+    let server_settings = state.db.get_server_settings().unwrap_or_default();
+    let max_total_upload_bytes =
+        (server_settings.max_total_upload_mb.max(1) as u64) * 1024 * 1024;
 
     // M-4: Resolve upload token to public key.
     let public_key = if let Some(ref token) = query.token {
@@ -305,13 +303,15 @@ pub async fn upload_file(
         return Err((StatusCode::BAD_REQUEST, "Missing required 'token' query parameter.".into()));
     };
 
-    // Only verified/mod/admin/donor may upload files.
-    {
-        let role = state.db.get_role(&public_key).unwrap_or_default();
-        if role.is_empty() {
-            return Err((StatusCode::FORBIDDEN, "Upload denied: only verified users can upload files. Ask an admin to verify you.".into()));
-        }
+    // Only verified/mod/admin/donor may upload files. The role also
+    // determines this user's FIFO retention count (v0.238 per-role).
+    let uploader_role = state.db.get_role(&public_key).unwrap_or_default();
+    if uploader_role.is_empty() {
+        return Err((StatusCode::FORBIDDEN, "Upload denied: only verified users can upload files. Ask an admin to verify you.".into()));
     }
+    let max_uploads_per_user = server_settings
+        .max_uploads_per_user_for_role(&uploader_role)
+        .max(1);
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         (StatusCode::BAD_REQUEST, format!("Multipart error: {e}"))

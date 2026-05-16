@@ -649,6 +649,10 @@ impl Storage {
                 allowed_file_extensions   TEXT    NOT NULL DEFAULT 'png,jpg,jpeg,gif,webp,pdf,txt,md',
                 max_uploads_per_user      INTEGER NOT NULL DEFAULT 4,
                 max_total_upload_mb       INTEGER NOT NULL DEFAULT 500,
+                max_uploads_per_user_unverified INTEGER NOT NULL DEFAULT 4,
+                max_uploads_per_user_verified   INTEGER NOT NULL DEFAULT 20,
+                max_uploads_per_user_mod        INTEGER NOT NULL DEFAULT 100,
+                max_uploads_per_user_admin      INTEGER NOT NULL DEFAULT 500,
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -668,6 +672,40 @@ impl Storage {
                  ALTER TABLE server_settings ADD COLUMN max_total_upload_mb  INTEGER NOT NULL DEFAULT 500;"
             )?;
             info!("Migration: added max_uploads_per_user + max_total_upload_mb (server_settings)");
+        }
+
+        // ── v0.238.0 — per-role FIFO retention ──
+        // Operator: "expand the sensible settings to include per ranking
+        // such as unverified, verified, mod, admin." Same idempotent
+        // ALTER pattern. On a relay that already had the v0.237 single
+        // max_uploads_per_user column, forward a customized value (non-
+        // default, != 4) into all four per-role columns so the operator's
+        // tuning isn't lost.
+        if conn.prepare("SELECT max_uploads_per_user_unverified FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN max_uploads_per_user_unverified INTEGER NOT NULL DEFAULT 4;
+                 ALTER TABLE server_settings ADD COLUMN max_uploads_per_user_verified   INTEGER NOT NULL DEFAULT 20;
+                 ALTER TABLE server_settings ADD COLUMN max_uploads_per_user_mod        INTEGER NOT NULL DEFAULT 100;
+                 ALTER TABLE server_settings ADD COLUMN max_uploads_per_user_admin      INTEGER NOT NULL DEFAULT 500;"
+            )?;
+            let prev: i64 = conn.query_row(
+                "SELECT max_uploads_per_user FROM server_settings WHERE id = 1",
+                [],
+                |row| row.get(0),
+            ).unwrap_or(4);
+            if prev != 4 {
+                conn.execute(
+                    "UPDATE server_settings SET
+                        max_uploads_per_user_unverified = ?1,
+                        max_uploads_per_user_verified   = ?1,
+                        max_uploads_per_user_mod        = ?1,
+                        max_uploads_per_user_admin      = ?1
+                     WHERE id = 1",
+                    rusqlite::params![prev],
+                )?;
+                info!("Migration: forwarded v0.237 max_uploads_per_user={} into all 4 per-role columns", prev);
+            }
+            info!("Migration: split max_uploads_per_user into per-role columns (server_settings)");
         }
 
         // ── v0.201.0 — split max_upload_mb into per-role columns ──

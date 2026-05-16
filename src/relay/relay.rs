@@ -656,12 +656,22 @@ pub enum RelayMessage {
         video_streaming_enabled: Option<bool>,
         #[serde(default)]
         allowed_file_extensions: Option<String>,
-        /// Per-user upload FIFO retention count (v0.237).
+        /// Legacy single per-user upload FIFO retention (v0.237). New
+        /// clients send the per-role variants below.
         #[serde(default)]
         max_uploads_per_user: Option<i64>,
         /// Server-wide total upload disk cap in MB (v0.237).
         #[serde(default)]
         max_total_upload_mb: Option<i64>,
+        /// Per-role upload FIFO retention counts (v0.238).
+        #[serde(default)]
+        max_uploads_per_user_unverified: Option<i64>,
+        #[serde(default)]
+        max_uploads_per_user_verified: Option<i64>,
+        #[serde(default)]
+        max_uploads_per_user_mod: Option<i64>,
+        #[serde(default)]
+        max_uploads_per_user_admin: Option<i64>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -4614,6 +4624,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 max_upload_mb_mod, max_upload_mb_admin,
                                 voice_channels_enabled, video_streaming_enabled, allowed_file_extensions,
                                 max_uploads_per_user, max_total_upload_mb,
+                                max_uploads_per_user_unverified, max_uploads_per_user_verified,
+                                max_uploads_per_user_mod, max_uploads_per_user_admin,
                             } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if role != "admin" && role != "owner" {
@@ -4664,12 +4676,25 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     // v0.237 upload-storage limits. Per-user
                                     // FIFO clamped 1..=1000; total disk cap
                                     // clamped 1..=1_000_000 MB (1 TB ceiling).
+                                    // v0.237 legacy single FIFO — if an old
+                                    // client sends only this, fan it out to
+                                    // all four per-role columns.
                                     if let Some(v) = max_uploads_per_user {
-                                        current.max_uploads_per_user = v.clamp(1, 1_000);
+                                        let v = v.clamp(1, 1_000);
+                                        current.max_uploads_per_user_unverified = v;
+                                        current.max_uploads_per_user_verified   = v;
+                                        current.max_uploads_per_user_mod         = v;
+                                        current.max_uploads_per_user_admin       = v;
                                     }
                                     if let Some(v) = max_total_upload_mb {
                                         current.max_total_upload_mb = v.clamp(1, 1_000_000);
                                     }
+                                    // v0.238 per-role FIFO retention. Override
+                                    // the legacy fan-out if both were sent.
+                                    if let Some(v) = max_uploads_per_user_unverified { current.max_uploads_per_user_unverified = v.clamp(1, 1_000); }
+                                    if let Some(v) = max_uploads_per_user_verified   { current.max_uploads_per_user_verified   = v.clamp(1, 1_000); }
+                                    if let Some(v) = max_uploads_per_user_mod        { current.max_uploads_per_user_mod        = v.clamp(1, 1_000); }
+                                    if let Some(v) = max_uploads_per_user_admin      { current.max_uploads_per_user_admin      = v.clamp(1, 1_000); }
                                     match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
                                         Ok(true) => {
                                             // Broadcast new state to everyone.

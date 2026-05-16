@@ -55,14 +55,30 @@ pub struct ServerSettings {
     /// leading dot. e.g. "png,jpg,pdf,txt". Empty string = no
     /// restriction (any extension allowed).
     pub allowed_file_extensions: String,
-    /// How many uploads to KEEP per user (FIFO). When a user's upload
-    /// count exceeds this, the oldest are deleted from disk. Default 4.
-    /// v0.237 — was a hardcoded `4` in storage/uploads.rs.
+    /// LEGACY (v0.237): single per-user FIFO retention count. Kept so
+    /// v0.237 clients keep working; v0.238+ uses the per-role variants
+    /// below and keeps this synced with the unverified value (most
+    /// conservative), mirroring how `max_upload_mb` shadows its
+    /// per-role split.
     #[serde(default = "default_max_uploads_per_user")]
     pub max_uploads_per_user: i64,
+    /// How many uploads to KEEP per user (FIFO) by role. When a user's
+    /// upload count exceeds their role's limit, the oldest are deleted
+    /// from disk. Trust ladder — more trusted users keep more history.
+    /// v0.238 — operator: "expand the sensible settings to include per
+    /// ranking such as unverified, verified, mod, admin."
+    #[serde(default = "default_uploads_kept_unverified")]
+    pub max_uploads_per_user_unverified: i64,
+    #[serde(default = "default_uploads_kept_verified")]
+    pub max_uploads_per_user_verified: i64,
+    #[serde(default = "default_uploads_kept_mod")]
+    pub max_uploads_per_user_mod: i64,
+    #[serde(default = "default_uploads_kept_admin")]
+    pub max_uploads_per_user_admin: i64,
     /// Server-wide total upload disk cap in MB. New uploads are rejected
-    /// once the uploads directory would exceed this. Default 500.
-    /// v0.237 — was a hardcoded `500 * 1024 * 1024` in relay/api.rs.
+    /// once the uploads directory would exceed this. NOT per-role — it's
+    /// a physical disk constraint, one number for the whole relay.
+    /// Default 500. v0.237 — was a hardcoded `500 * 1024 * 1024`.
     #[serde(default = "default_max_total_upload_mb")]
     pub max_total_upload_mb: i64,
     /// Last update unix-millis. 0 = never updated since creation.
@@ -79,6 +95,12 @@ fn default_upload_mod() -> i64 { 100 }
 fn default_upload_admin() -> i64 { 500 }
 fn default_max_uploads_per_user() -> i64 { 4 }
 fn default_max_total_upload_mb() -> i64 { 500 }
+// Per-role FIFO retention defaults (v0.238). Trust ladder — unverified
+// users keep the historical 4; trusted tiers keep more.
+fn default_uploads_kept_unverified() -> i64 { 4 }
+fn default_uploads_kept_verified() -> i64 { 20 }
+fn default_uploads_kept_mod() -> i64 { 100 }
+fn default_uploads_kept_admin() -> i64 { 500 }
 
 impl Default for ServerSettings {
     fn default() -> Self {
@@ -98,6 +120,10 @@ impl Default for ServerSettings {
             video_streaming_enabled: false,
             allowed_file_extensions: "png,jpg,jpeg,gif,webp,pdf,txt,md".to_string(),
             max_uploads_per_user: default_max_uploads_per_user(),
+            max_uploads_per_user_unverified: default_uploads_kept_unverified(),
+            max_uploads_per_user_verified: default_uploads_kept_verified(),
+            max_uploads_per_user_mod: default_uploads_kept_mod(),
+            max_uploads_per_user_admin: default_uploads_kept_admin(),
             max_total_upload_mb: default_max_total_upload_mb(),
             updated_at: 0,
             updated_by: String::new(),
@@ -127,6 +153,17 @@ impl ServerSettings {
             _ => self.max_upload_mb_unverified,
         }
     }
+
+    /// Lookup the per-user FIFO retention count for a given role string
+    /// (v0.238). Falls back to the unverified value for unknown roles.
+    pub fn max_uploads_per_user_for_role(&self, role: &str) -> i64 {
+        match role {
+            "admin" | "owner" => self.max_uploads_per_user_admin,
+            "mod" => self.max_uploads_per_user_mod,
+            "verified" => self.max_uploads_per_user_verified,
+            _ => self.max_uploads_per_user_unverified,
+        }
+    }
 }
 
 impl Storage {
@@ -142,7 +179,9 @@ impl Storage {
                         allowed_file_extensions, updated_at, COALESCE(updated_by, ''),
                         max_upload_mb_unverified, max_upload_mb_verified,
                         max_upload_mb_mod, max_upload_mb_admin,
-                        max_uploads_per_user, max_total_upload_mb
+                        max_uploads_per_user, max_total_upload_mb,
+                        max_uploads_per_user_unverified, max_uploads_per_user_verified,
+                        max_uploads_per_user_mod, max_uploads_per_user_admin
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -169,6 +208,10 @@ impl Storage {
                         max_upload_mb_admin: row.get(15)?,
                         max_uploads_per_user: row.get(16)?,
                         max_total_upload_mb: row.get(17)?,
+                        max_uploads_per_user_unverified: row.get(18)?,
+                        max_uploads_per_user_verified: row.get(19)?,
+                        max_uploads_per_user_mod: row.get(20)?,
+                        max_uploads_per_user_admin: row.get(21)?,
                     })
                 },
             ) {
@@ -212,6 +255,10 @@ impl Storage {
                     max_upload_mb_admin      = ?14,
                     max_uploads_per_user     = ?17,
                     max_total_upload_mb      = ?18,
+                    max_uploads_per_user_unverified = ?19,
+                    max_uploads_per_user_verified   = ?20,
+                    max_uploads_per_user_mod        = ?21,
+                    max_uploads_per_user_admin      = ?22,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -233,8 +280,13 @@ impl Storage {
                     s.max_upload_mb_admin,
                     now,
                     updated_by,
-                    s.max_uploads_per_user,
+                    // Legacy single col tracks unverified (most conservative).
+                    s.max_uploads_per_user_unverified,
                     s.max_total_upload_mb,
+                    s.max_uploads_per_user_unverified,
+                    s.max_uploads_per_user_verified,
+                    s.max_uploads_per_user_mod,
+                    s.max_uploads_per_user_admin,
                 ],
             )?;
             Ok(rows > 0)

@@ -772,9 +772,15 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                } else {
                    effective.allowed_file_extensions.clone()
                });
-        kv_row(ui, theme, "Uploads kept per user (FIFO)",
-               effective.max_uploads_per_user.to_string());
-        kv_row(ui, theme, "Total upload disk cap (MB)",
+        kv_row(ui, theme, "Uploads kept — unverified (FIFO)",
+               effective.max_uploads_per_user_unverified.to_string());
+        kv_row(ui, theme, "Uploads kept — verified (FIFO)",
+               effective.max_uploads_per_user_verified.to_string());
+        kv_row(ui, theme, "Uploads kept — moderator (FIFO)",
+               effective.max_uploads_per_user_mod.to_string());
+        kv_row(ui, theme, "Uploads kept — admin (FIFO)",
+               effective.max_uploads_per_user_admin.to_string());
+        kv_row(ui, theme, "Total upload disk cap (MB, server-wide)",
                effective.max_total_upload_mb.to_string());
         ui.add_space(theme.spacing_sm);
         if widgets::Button::secondary("Edit policy")
@@ -834,10 +840,19 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     .hint_text("png,jpg,pdf,…"),
             );
         });
-        widgets::form_row(ui, theme, "Uploads kept per user — FIFO (default 4)", |ui| {
-            int_input(ui, &mut draft.max_uploads_per_user, 1, 1_000);
+        widgets::form_row(ui, theme, "Uploads kept — unverified, FIFO (default 4)", |ui| {
+            int_input(ui, &mut draft.max_uploads_per_user_unverified, 1, 1_000);
         });
-        widgets::form_row(ui, theme, "Total upload disk cap MB (default 500)", |ui| {
+        widgets::form_row(ui, theme, "Uploads kept — verified, FIFO (default 20)", |ui| {
+            int_input(ui, &mut draft.max_uploads_per_user_verified, 1, 1_000);
+        });
+        widgets::form_row(ui, theme, "Uploads kept — moderator, FIFO (default 100)", |ui| {
+            int_input(ui, &mut draft.max_uploads_per_user_mod, 1, 1_000);
+        });
+        widgets::form_row(ui, theme, "Uploads kept — admin, FIFO (default 500)", |ui| {
+            int_input(ui, &mut draft.max_uploads_per_user_admin, 1, 1_000);
+        });
+        widgets::form_row(ui, theme, "Total upload disk cap MB, server-wide (default 500)", |ui| {
             int_input(ui, &mut draft.max_total_upload_mb, 1, 1_000_000);
         });
 
@@ -881,9 +896,12 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                         "voice_channels_enabled":  draft.voice_channels_enabled,
                         "video_streaming_enabled": draft.video_streaming_enabled,
                         "allowed_file_extensions": draft.allowed_file_extensions,
-                        // v0.237 upload-storage limits.
-                        "max_uploads_per_user":    draft.max_uploads_per_user,
+                        // v0.237 server-wide disk cap + v0.238 per-role FIFO.
                         "max_total_upload_mb":     draft.max_total_upload_mb,
+                        "max_uploads_per_user_unverified": draft.max_uploads_per_user_unverified,
+                        "max_uploads_per_user_verified":   draft.max_uploads_per_user_verified,
+                        "max_uploads_per_user_mod":        draft.max_uploads_per_user_mod,
+                        "max_uploads_per_user_admin":      draft.max_uploads_per_user_admin,
                     });
                     client.send(&msg.to_string());
                     state.server_settings_status = "Server policy update sent.".into();
