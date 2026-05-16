@@ -1046,6 +1046,19 @@ pub struct GuiState {
     /// rings only appear when the user explicitly enables AND the camera
     /// is close enough that they're not microscopic on screen. v0.212.0.
     pub cosmos_show_reference_orbits: bool,
+    /// Cached forward Sky-Events scan (Phase 4d-quad, v0.248). The scan
+    /// is O(days × bodies²) so it must NOT run every frame like the
+    /// instant detector — it's recomputed lazily when sim_time drifts
+    /// far from `cosmos_upcoming_scan_origin`, throttled by
+    /// `cosmos_upcoming_last_scan`. Each entry: when (sim seconds since
+    /// J2000), human label, severity (0 info / 1 notable / 2 major).
+    pub cosmos_upcoming_events: Vec<crate::gui::pages::cosmos::UpcomingSkyEvent>,
+    /// sim_time the cached forward scan was computed at. Recompute when
+    /// the live sim_time moves more than ~12h away from this.
+    pub cosmos_upcoming_scan_origin: f64,
+    /// Wall-clock instant of the last forward scan — throttles recompute
+    /// so fast-forward / scrubbing can't trigger a scan every frame.
+    pub cosmos_upcoming_last_scan: Option<std::time::Instant>,
 
     /// Cached server-wide settings received from the relay (v0.200.0).
     /// Populated on `server_settings_state` WS message. None means we
@@ -1544,6 +1557,9 @@ impl Default for GuiState {
             cosmos_sim_speed: 0.0, // Paused by default — operator scrubs / plays.
             cosmos_last_real_instant: None,
             cosmos_sim_time_initialized: false,
+            cosmos_upcoming_events: Vec::new(),
+            cosmos_upcoming_scan_origin: f64::NAN, // forces first scan
+            cosmos_upcoming_last_scan: None,
             cosmos_expanded_body: None,
             cosmos_show_lagrange: false,
             cosmos_show_reference_orbits: false,

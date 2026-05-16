@@ -1383,6 +1383,26 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // (Phase 4d-tri, v0.210.0.) Cheap O(n²) over ~11 named bodies — runs every
     // frame; updates live as the user scrubs sim_time.
     let (conjunctions, eclipse) = detect_sky_events(sim_time);
+
+    // ── Forward Sky-Events scan (Phase 4d-quad, v0.248.0) ──
+    // The 400-day scan is ~3000× the cost of the instant detector, so it
+    // does NOT run every frame. Re-scan only when sim_time has drifted
+    // >12 h from the cached origin AND ≥300 ms wall-clock since the last
+    // scan (so fast-forward / scrubbing can't trigger one per frame).
+    {
+        let drifted = !state.cosmos_upcoming_scan_origin.is_finite()
+            || (sim_time - state.cosmos_upcoming_scan_origin).abs() > 12.0 * 3600.0;
+        let wall_ok = state
+            .cosmos_upcoming_last_scan
+            .map(|t| t.elapsed().as_millis() >= 300)
+            .unwrap_or(true);
+        if drifted && wall_ok {
+            state.cosmos_upcoming_events = scan_upcoming_sky_events(sim_time);
+            state.cosmos_upcoming_scan_origin = sim_time;
+            state.cosmos_upcoming_last_scan = Some(std::time::Instant::now());
+        }
+    }
+
     // Build a per-body conjunction-tightness map for visual highlighting.
     // Each body in any conjunction gets the TIGHTEST tightness it's involved in.
     let mut body_tightness: std::collections::HashMap<&str, ConjunctionTightness> =
@@ -1695,6 +1715,18 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ),
             theme.danger(),
         ));
+        // Phase 4d-quad: shadow-axis ground point (≈ sub-lunar point —
+        // where the eclipse is roughly overhead). Approximate; see
+        // subpoint_lat_lon_deg docs for the caveats.
+        if let (Some(earth), Some(moon)) = (find_body("earth"), find_body("moon")) {
+            let earth_pos = body_world_position_3d_au(earth, sim_time);
+            let moon_pos = body_world_position_3d_au(moon, sim_time);
+            let (lat, lon) = subpoint_lat_lon_deg(moon_pos, earth_pos, sim_time);
+            sky_lines.push((
+                format!("  shadow axis over ~{} (approx)", format_geo(lat, lon)),
+                theme.warning(),
+            ));
+        }
     }
     for ev in conjunctions.iter().take(3) {
         // Skip the Sun-Moon pair if there's an eclipse — already reported.
@@ -1720,9 +1752,31 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
     if sky_lines.is_empty() {
         sky_lines.push((
-            "Sky is quiet (no conjunctions within 5°)".to_string(),
+            "Sky is quiet now (no conjunctions within 5°)".to_string(),
             theme.text_muted(),
         ));
+    }
+    // ── Upcoming (Phase 4d-quad): next predicted events from the cached
+    // forward scan. Always shown (independent of the instant readout).
+    if !state.cosmos_upcoming_events.is_empty() {
+        sky_lines.push(("— upcoming —".to_string(), theme.text_muted()));
+        for ue in state.cosmos_upcoming_events.iter().take(5) {
+            let delta = (ue.when_sim_seconds - sim_time).max(0.0);
+            let when = if delta < 86_400.0 {
+                format!("in {:.0}h", (delta / 3600.0).max(1.0))
+            } else {
+                format!("in {:.0}d", delta / 86_400.0)
+            };
+            // Date only (strip the "  HH:MM UTC" tail).
+            let date = format_sim_time(ue.when_sim_seconds);
+            let date = date.split("  ").next().unwrap_or(&date);
+            let color = match ue.severity {
+                2 => theme.danger(),
+                1 => theme.warning(),
+                _ => theme.text_secondary(),
+            };
+            sky_lines.push((format!("{} ({}) {}", when, date, ue.label), color));
+        }
     }
     // Section header.
     paint.text(
@@ -2416,6 +2470,190 @@ fn detect_sky_events(sim_time_seconds: f64) -> (Vec<ConjunctionEvent>, Option<Ec
     (events, eclipse)
 }
 
+// ─────────── Forward Sky-Events scan (Phase 4d-quad, v0.248.0) ─────────────
+
+/// One predicted upcoming sky event. `when_sim_seconds` is the peak
+/// time (seconds since J2000). `severity`: 0 = info, 1 = notable,
+/// 2 = major (eclipse / occultation) — drives HUD color.
+#[derive(Clone, Debug)]
+pub struct UpcomingSkyEvent {
+    pub when_sim_seconds: f64,
+    pub label: String,
+    pub severity: u8,
+}
+
+/// Refine an eclipse peak: sample finely around `coarse_t` (± one
+/// coarse step) and return the time of maximum coverage.
+fn refine_eclipse_peak(coarse_t: f64, coarse_step: f64) -> (f64, f64, &'static str) {
+    let mut best_t = coarse_t;
+    let mut best_cov = 0.0_f64;
+    let mut best_kind = "solar eclipse";
+    let fine = (coarse_step / 30.0).max(60.0); // ≥1-min resolution
+    let mut t = coarse_t - coarse_step;
+    let end = coarse_t + coarse_step;
+    while t <= end {
+        if let (_, Some(e)) = detect_sky_events(t) {
+            if e.coverage > best_cov {
+                best_cov = e.coverage;
+                best_t = t;
+                best_kind = e.kind.label();
+            }
+        }
+        t += fine;
+    }
+    (best_t, best_cov, best_kind)
+}
+
+/// Scan forward from `start_sim` for the next ~400 days and return the
+/// soonest handful of notable events: solar eclipses (any), and tight
+/// (<1°) conjunctions / occultations between the interesting bodies.
+///
+/// Cost: ~400 days / 3 h ≈ 3200 coarse samples, each an O(bodies²)
+/// `detect_sky_events`. That's milliseconds — but FAR too much to run
+/// every frame, so callers cache the result (see GuiState
+/// `cosmos_upcoming_*`) and only re-scan when sim_time drifts.
+fn scan_upcoming_sky_events(start_sim: f64) -> Vec<UpcomingSkyEvent> {
+    const HORIZON_DAYS: f64 = 400.0;
+    const STEP: f64 = 3.0 * 3600.0; // 3-hour coarse step
+    let end = start_sim + HORIZON_DAYS * 86_400.0;
+
+    let mut out: Vec<UpcomingSkyEvent> = Vec::new();
+
+    // ── Eclipses: enter/exit window tracking (windows never overlap) ──
+    {
+        let mut in_window = false;
+        let mut peak_t = 0.0_f64;
+        let mut peak_cov = 0.0_f64;
+        let mut t = start_sim;
+        while t <= end {
+            let (_, ecl) = detect_sky_events(t);
+            match (ecl, in_window) {
+                (Some(e), false) => {
+                    in_window = true;
+                    peak_cov = e.coverage;
+                    peak_t = t;
+                }
+                (Some(e), true) => {
+                    if e.coverage > peak_cov {
+                        peak_cov = e.coverage;
+                        peak_t = t;
+                    }
+                }
+                (None, true) => {
+                    // Window closed — refine + record.
+                    let (rt, rc, rk) = refine_eclipse_peak(peak_t, STEP);
+                    out.push(UpcomingSkyEvent {
+                        when_sim_seconds: rt,
+                        label: format!("{} ({:.0}% max coverage)", rk, rc * 100.0),
+                        severity: 2,
+                    });
+                    in_window = false;
+                    peak_cov = 0.0;
+                    if out.len() >= 16 {
+                        break;
+                    }
+                }
+                (None, false) => {}
+            }
+            t += STEP;
+        }
+        if in_window {
+            let (rt, rc, rk) = refine_eclipse_peak(peak_t, STEP);
+            out.push(UpcomingSkyEvent {
+                when_sim_seconds: rt,
+                label: format!("{} ({:.0}% max coverage)", rk, rc * 100.0),
+                severity: 2,
+            });
+        }
+    }
+
+    // ── Tight conjunctions: per-pair local-minimum-separation detector ──
+    // Track the last two separation samples per pair; a local min below
+    // 1° that is also a true turning point is a distinct close approach.
+    {
+        use std::collections::HashMap;
+        // (sep_2-ago, sep_1-ago, t_1-ago) keyed by "idA|idB".
+        let mut hist: HashMap<String, (f64, f64, f64)> = HashMap::new();
+        let mut t = start_sim;
+        while t <= end {
+            let (conj, ecl) = detect_sky_events(t);
+            for ev in &conj {
+                // The Sun–Moon pair is the eclipse; don't double-report.
+                let is_sun_moon = (ev.body_a_id == "sun" || ev.body_b_id == "sun")
+                    && (ev.body_a_id == "moon" || ev.body_b_id == "moon");
+                if is_sun_moon && ecl.is_some() {
+                    continue;
+                }
+                // Only care about approaches that get genuinely tight.
+                if ev.angular_sep_deg > 2.0 {
+                    continue;
+                }
+                let key = if ev.body_a_id < ev.body_b_id {
+                    format!("{}|{}", ev.body_a_id, ev.body_b_id)
+                } else {
+                    format!("{}|{}", ev.body_b_id, ev.body_a_id)
+                };
+                let cur = ev.angular_sep_deg;
+                let prev = hist.get(&key).copied();
+                if let Some((s2, s1, t1)) = prev {
+                    // Local minimum at the MIDDLE sample (t1, s1)? It must
+                    // be a true turning point (≤ both neighbours) and tight.
+                    if s1 <= s2 && s1 <= cur && s1 < 1.0 {
+                        // Refine around t1 (±STEP) at fine resolution.
+                        let fine = STEP / 20.0;
+                        let mut bt = t1;
+                        let mut bs = s1;
+                        let mut k = t1 - STEP;
+                        let lim = t1 + STEP;
+                        while k <= lim {
+                            for e2 in detect_sky_events(k).0 {
+                                let kk = if e2.body_a_id < e2.body_b_id {
+                                    format!("{}|{}", e2.body_a_id, e2.body_b_id)
+                                } else {
+                                    format!("{}|{}", e2.body_b_id, e2.body_a_id)
+                                };
+                                if kk == key && e2.angular_sep_deg < bs {
+                                    bs = e2.angular_sep_deg;
+                                    bt = k;
+                                }
+                            }
+                            k += fine;
+                        }
+                        let (tight_label, sev) = if bs < 0.1 {
+                            ("occultation", 2u8)
+                        } else if bs < 0.5 {
+                            ("tight", 1u8)
+                        } else {
+                            ("conjunction", 1u8)
+                        };
+                        out.push(UpcomingSkyEvent {
+                            when_sim_seconds: bt,
+                            label: format!(
+                                "{} + {} {:.2}° ({})",
+                                ev.body_a_name, ev.body_b_name, bs, tight_label
+                            ),
+                            severity: sev,
+                        });
+                    }
+                }
+                // Slide the 2-sample window: (old_s1, cur, t). First
+                // sighting seeds both slots with `cur`.
+                let new_s2 = prev.map(|(_, s1, _)| s1).unwrap_or(cur);
+                hist.insert(key, (new_s2, cur, t));
+            }
+            t += STEP;
+        }
+    }
+
+    out.sort_by(|a, b| {
+        a.when_sim_seconds
+            .partial_cmp(&b.when_sim_seconds)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    out.truncate(6);
+    out
+}
+
 // ─────────────────────── Body info card (Phase 4d-bis, v0.209.0) ───────────
 
 /// Render the expanded info card for a SolBody. v0.214.0 takes a
@@ -2563,6 +2801,76 @@ fn current_real_time_seconds_since_j2000() -> f64 {
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0);
     unix - J2000_UNIX_SECONDS
+}
+
+/// Mean obliquity of the ecliptic at J2000.0 (IAU 1976), degrees. This
+/// is a single physical constant for Earth — not infinite-of-X data.
+const EARTH_OBLIQUITY_DEG: f64 = 23.439_291_1;
+
+/// Geographic latitude & longitude (degrees, +N / +E) of the point on
+/// Earth's surface directly beneath `target_pos` — i.e. where `target`
+/// is at the observer's zenith. For a solar eclipse, feeding the Moon's
+/// position gives the sub-lunar point, which is (to ~1°) where the
+/// shadow axis pierces Earth and the eclipse is overhead.
+///
+/// Honest-approximation notes (this is an educational readout, not a
+/// Besselian-element ephemeris):
+///   • ignores lunar parallax topocentric shift, Earth oblateness,
+///     atmospheric refraction and ΔT (UT1−TT). Good to roughly a degree.
+///   • uses the model's J2000 mean obliquity + the standard IAU GMST
+///     polynomial, both of which the sim's J2000 time base supports
+///     exactly — so latitude is solid; longitude inherits GMST accuracy.
+///
+/// Frame: the orbital model is Y-up, ecliptic plane = XZ, +X = vernal
+/// equinox, +Z = ecliptic longitude 90°. The celestial north pole is
+/// therefore P̂ = (0, cos ε, sin ε); the equatorial Y axis (for RA) is
+/// Ŷ_eq = P̂ × X̂ = (0, sin ε, −cos ε). Validated against sub-solar
+/// latitude hitting ±23.44° at the solstices (see tests below).
+fn subpoint_lat_lon_deg(
+    target_pos: glam::DVec3,
+    earth_pos: glam::DVec3,
+    sim_time_seconds: f64,
+) -> (f64, f64) {
+    let d = (target_pos - earth_pos);
+    let len = d.length();
+    if len <= 0.0 {
+        return (0.0, 0.0);
+    }
+    let d = d / len; // ecliptic unit vector, Earth → target
+    let eps = EARTH_OBLIQUITY_DEG.to_radians();
+    let (se, ce) = eps.sin_cos();
+
+    // Declination = geographic latitude of the sub-point.
+    // sin δ = d · P̂,  P̂ = (0, cos ε, sin ε).
+    let sin_dec = (d.y * ce + d.z * se).clamp(-1.0, 1.0);
+    let dec_rad = sin_dec.asin();
+    let lat_deg = dec_rad.to_degrees();
+
+    // Right ascension about the celestial pole, measured from +X.
+    //   x_eq = d · X̂      = d.x
+    //   y_eq = d · Ŷ_eq   = d.y·sin ε − d.z·cos ε
+    let x_eq = d.x;
+    let y_eq = d.y * se - d.z * ce;
+    let ra_deg = y_eq.atan2(x_eq).to_degrees().rem_euclid(360.0);
+
+    // Greenwich Mean Sidereal Time (IAU 1982), degrees. D = days since
+    // J2000.0 (= sim seconds / 86400 — the model's exact time base).
+    let d_days = sim_time_seconds / 86_400.0;
+    let gmst_deg = (280.460_618_37 + 360.985_647_366_29 * d_days).rem_euclid(360.0);
+
+    // East longitude = RA − GMST, wrapped to (−180, 180].
+    let mut lon = (ra_deg - gmst_deg).rem_euclid(360.0);
+    if lon > 180.0 {
+        lon -= 360.0;
+    }
+    (lat_deg, lon)
+}
+
+/// Format a (lat, lon) pair as e.g. "12.3°N 45.6°W".
+fn format_geo(lat_deg: f64, lon_deg: f64) -> String {
+    let (ns, lat) = if lat_deg >= 0.0 { ('N', lat_deg) } else { ('S', -lat_deg) };
+    let (ew, lon) = if lon_deg >= 0.0 { ('E', lon_deg) } else { ('W', -lon_deg) };
+    format!("{lat:.1}°{ns} {lon:.1}°{ew}")
 }
 
 /// Format a sim_time (seconds since J2000) as "YYYY-MM-DD HH:MM UTC".
@@ -2747,4 +3055,92 @@ fn draw_time_controls(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             state.cosmos_sim_time_seconds = now + offset_days * 86_400.0;
         }
     });
+}
+
+// ─────────────────────── Tests (Phase 4d-quad, v0.248.0) ───────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The sub-SOLAR point's geographic latitude must oscillate between
+    /// roughly +23.44° (June solstice, Tropic of Cancer) and −23.44°
+    /// (December solstice, Tropic of Capricorn) over one year. This
+    /// pins down BOTH the obliquity magnitude AND the sign of the
+    /// celestial-pole derivation in `subpoint_lat_lon_deg` — if the
+    /// ecliptic→equatorial rotation were inverted the extremes would
+    /// flip sign or vanish. Tolerance is generous (±2°) because the
+    /// orbital model uses mean (not true-of-date) elements.
+    #[test]
+    fn subsolar_latitude_tracks_obliquity() {
+        let earth = find_body("earth").expect("earth in embedded sol dataset");
+        let sun = find_body("sun").expect("sun in embedded sol dataset");
+        let mut min_lat = f64::INFINITY;
+        let mut max_lat = f64::NEG_INFINITY;
+        // Daily samples across ~13 months from J2000 so a full cycle is
+        // guaranteed regardless of where the mean anomaly starts.
+        for day in 0..400 {
+            let t = day as f64 * 86_400.0;
+            let earth_pos = body_world_position_3d_au(earth, t);
+            let sun_pos = body_world_position_3d_au(sun, t); // ≈ origin
+            let (lat, lon) = subpoint_lat_lon_deg(sun_pos, earth_pos, t);
+            assert!(
+                lon > -180.0001 && lon <= 180.0001,
+                "longitude {lon} out of (-180,180]"
+            );
+            assert!(
+                lat.is_finite() && lat.abs() <= 90.0,
+                "latitude {lat} not a valid geographic latitude"
+            );
+            min_lat = min_lat.min(lat);
+            max_lat = max_lat.max(lat);
+        }
+        assert!(
+            (max_lat - 23.44).abs() < 2.0,
+            "sub-solar max latitude {max_lat:.2}° should peak near +23.44° \
+             (Tropic of Cancer) — obliquity sign/magnitude wrong?"
+        );
+        assert!(
+            (min_lat + 23.44).abs() < 2.0,
+            "sub-solar min latitude {min_lat:.2}° should bottom near −23.44° \
+             (Tropic of Capricorn) — obliquity sign/magnitude wrong?"
+        );
+    }
+
+    /// At the vernal equinox the Sun crosses the celestial equator, so
+    /// the sub-solar latitude passes through 0°. Verify the curve
+    /// actually crosses zero (it must, given the ±23° extremes, but this
+    /// guards against a degenerate constant-latitude bug).
+    #[test]
+    fn subsolar_latitude_crosses_equator() {
+        let earth = find_body("earth").unwrap();
+        let sun = find_body("sun").unwrap();
+        let mut saw_pos = false;
+        let mut saw_neg = false;
+        for day in 0..400 {
+            let t = day as f64 * 86_400.0;
+            let (lat, _) = subpoint_lat_lon_deg(
+                body_world_position_3d_au(sun, t),
+                body_world_position_3d_au(earth, t),
+                t,
+            );
+            if lat > 1.0 {
+                saw_pos = true;
+            }
+            if lat < -1.0 {
+                saw_neg = true;
+            }
+        }
+        assert!(
+            saw_pos && saw_neg,
+            "sub-solar latitude never spanned both hemispheres"
+        );
+    }
+
+    #[test]
+    fn format_geo_quadrants() {
+        assert_eq!(format_geo(12.34, 56.78), "12.3°N 56.8°E");
+        assert_eq!(format_geo(-12.34, -56.78), "12.3°S 56.8°W");
+        assert_eq!(format_geo(0.0, 0.0), "0.0°N 0.0°E");
+    }
 }
