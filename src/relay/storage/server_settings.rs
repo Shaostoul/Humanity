@@ -81,6 +81,16 @@ pub struct ServerSettings {
     /// Default 500. v0.237 — was a hardcoded `500 * 1024 * 1024`.
     #[serde(default = "default_max_total_upload_mb")]
     pub max_total_upload_mb: i64,
+    /// PQ migration Increment 3: when true, the relay REJECTS a chat
+    /// message from an account that has a Dilithium3 key on file unless
+    /// it carries a valid `pq_signature` (quantum-forgery resistance).
+    /// Accounts with NO PQ key on file (old/incapable clients) are still
+    /// accepted on Ed25519 — they're never locked out, they just aren't
+    /// PQ-protected yet. Default FALSE: the operator flips this on once
+    /// the `pq_dualsign` telemetry shows members have all reconnected on
+    /// a PQ-capable client (v0.251+). Fully reversible.
+    #[serde(default)]
+    pub require_pq_signatures: bool,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -125,6 +135,7 @@ impl Default for ServerSettings {
             max_uploads_per_user_mod: default_uploads_kept_mod(),
             max_uploads_per_user_admin: default_uploads_kept_admin(),
             max_total_upload_mb: default_max_total_upload_mb(),
+            require_pq_signatures: false, // operator opts in when adoption is confirmed
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -181,7 +192,8 @@ impl Storage {
                         max_upload_mb_mod, max_upload_mb_admin,
                         max_uploads_per_user, max_total_upload_mb,
                         max_uploads_per_user_unverified, max_uploads_per_user_verified,
-                        max_uploads_per_user_mod, max_uploads_per_user_admin
+                        max_uploads_per_user_mod, max_uploads_per_user_admin,
+                        require_pq_signatures
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -189,6 +201,7 @@ impl Storage {
                     let file: i32 = row.get(5)?;
                     let voice: i32 = row.get(7)?;
                     let video: i32 = row.get(8)?;
+                    let req_pq: i32 = row.get(22)?;
                     Ok(ServerSettings {
                         max_chars_unverified: row.get(0)?,
                         max_chars_verified: row.get(1)?,
@@ -212,6 +225,7 @@ impl Storage {
                         max_uploads_per_user_verified: row.get(19)?,
                         max_uploads_per_user_mod: row.get(20)?,
                         max_uploads_per_user_admin: row.get(21)?,
+                        require_pq_signatures: req_pq != 0,
                     })
                 },
             ) {
@@ -259,6 +273,7 @@ impl Storage {
                     max_uploads_per_user_verified   = ?20,
                     max_uploads_per_user_mod        = ?21,
                     max_uploads_per_user_admin      = ?22,
+                    require_pq_signatures           = ?23,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -287,9 +302,57 @@ impl Storage {
                     s.max_uploads_per_user_verified,
                     s.max_uploads_per_user_mod,
                     s.max_uploads_per_user_admin,
+                    s.require_pq_signatures as i32,
                 ],
             )?;
             Ok(rows > 0)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fresh_db() -> Storage {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_srvset_{pid}_{nanos}.db"));
+        Storage::open(&path).expect("open test db")
+    }
+
+    /// PQ Inc 3: require_pq_signatures must default OFF and round-trip
+    /// through the positional set/get SQL. Guards against an ?N column
+    /// index mistake silently corrupting the toggle (which would either
+    /// never enforce, or — worse — enforce unexpectedly and lock users
+    /// out). Also re-checks an existing bool + an int so a shifted index
+    /// is caught broadly.
+    #[test]
+    fn require_pq_signatures_roundtrips_and_defaults_off() {
+        let db = fresh_db();
+        let s = db.get_server_settings().expect("get");
+        assert!(!s.require_pq_signatures, "MUST default OFF (no surprise lockout)");
+        assert!(s.image_sharing_enabled, "sanity: existing default intact");
+
+        let mut updated = s.clone();
+        updated.require_pq_signatures = true;
+        updated.video_streaming_enabled = true;       // another bool
+        updated.max_total_upload_mb = 1234;           // an int, same row
+        assert!(db.set_server_settings(&updated, "admin_key").expect("set"));
+
+        let got = db.get_server_settings().expect("get2");
+        assert!(got.require_pq_signatures, "toggle must persist ON");
+        assert!(got.video_streaming_enabled);
+        assert_eq!(got.max_total_upload_mb, 1234, "no positional-index bleed");
+        assert_eq!(got.updated_by, "admin_key");
+
+        // Reversible.
+        let mut off = got.clone();
+        off.require_pq_signatures = false;
+        assert!(db.set_server_settings(&off, "admin_key").expect("set3"));
+        assert!(!db.get_server_settings().expect("get3").require_pq_signatures);
     }
 }

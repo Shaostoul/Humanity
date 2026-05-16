@@ -682,6 +682,7 @@ impl Storage {
                 max_uploads_per_user_verified   INTEGER NOT NULL DEFAULT 20,
                 max_uploads_per_user_mod        INTEGER NOT NULL DEFAULT 100,
                 max_uploads_per_user_admin      INTEGER NOT NULL DEFAULT 500,
+                require_pq_signatures           INTEGER NOT NULL DEFAULT 0,
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -701,6 +702,17 @@ impl Storage {
                  ALTER TABLE server_settings ADD COLUMN max_total_upload_mb  INTEGER NOT NULL DEFAULT 500;"
             )?;
             info!("Migration: added max_uploads_per_user + max_total_upload_mb (server_settings)");
+        }
+
+        // ── v0.253.0 — PQ Increment 3: gated PQ-signature enforcement ──
+        // require_pq_signatures defaults 0 (OFF) so existing relays keep
+        // accepting Ed25519-only exactly as before until the operator
+        // explicitly opts in. Idempotent ALTER for pre-v0.253 relays.
+        if conn.prepare("SELECT require_pq_signatures FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN require_pq_signatures INTEGER NOT NULL DEFAULT 0;"
+            )?;
+            info!("Migration: added require_pq_signatures (server_settings)");
         }
 
         // ── v0.238.0 — per-role FIFO retention ──

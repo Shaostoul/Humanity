@@ -1113,6 +1113,21 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         widgets::form_row(ui, theme, "Video streaming", |ui| {
             ui.checkbox(&mut draft.video_streaming_enabled, "");
         });
+        widgets::form_row(ui, theme, "Require post-quantum signatures", |ui| {
+            ui.checkbox(&mut draft.require_pq_signatures, "");
+        });
+        widgets::body_hint(
+            ui, theme,
+            "When ON, a chat message from an account that has a post-quantum \
+             (Dilithium3) key on file is REJECTED unless it carries a valid PQ \
+             signature — so a future quantum attacker who breaks Ed25519 still \
+             can't forge messages. Accounts with no PQ key on file (older or \
+             PQ-incapable clients) are NEVER blocked — they keep working on \
+             Ed25519 and auto-upgrade when they reconnect on a current client. \
+             Turn this on only after your members have all reloaded on v0.251+ \
+             (watch the relay's `pq_dualsign` log: all PQ-OK, no PQ-MISMATCH). \
+             Fully reversible — turn it back off anytime.",
+        );
         widgets::form_row(ui, theme, "Allowed extensions (csv, blank=any)", |ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut draft.allowed_file_extensions)
@@ -1196,6 +1211,8 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                         "max_uploads_per_user_verified":   draft.max_uploads_per_user_verified,
                         "max_uploads_per_user_mod":        draft.max_uploads_per_user_mod,
                         "max_uploads_per_user_admin":      draft.max_uploads_per_user_admin,
+                        // PQ Increment 3: gated hard-enforcement toggle.
+                        "require_pq_signatures":           draft.require_pq_signatures,
                     });
                     client.send(&msg.to_string());
                     state.server_settings_status = "Server policy update sent.".into();

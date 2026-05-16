@@ -764,6 +764,9 @@ pub enum RelayMessage {
         max_uploads_per_user_mod: Option<i64>,
         #[serde(default)]
         max_uploads_per_user_admin: Option<i64>,
+        /// PQ Increment 3: toggle hard PQ-signature enforcement.
+        #[serde(default)]
+        require_pq_signatures: Option<bool>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -4539,51 +4542,80 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 } else {
                                     false
                                 };
-                                // PQ Increment 2: SOFT dual-sign check.
-                                // If the client also sent a Dilithium3
-                                // signature (`pq_signature`) and we have
-                                // its PQ pubkey on file, verify it over
-                                // the SAME preimage and just LOG the
-                                // outcome. Ed25519 stays authoritative —
-                                // we never reject or alter the broadcast
-                                // on the PQ result (that's Inc 3). This
-                                // builds real-world confidence that
-                                // client PQ signing ↔ relay PQ verify
-                                // works before anything depends on it.
-                                if let Some(pq_sig) = serde_json::from_str::<serde_json::Value>(&text)
-                                    .ok()
-                                    .as_ref()
-                                    .and_then(|v| v.get("pq_signature"))
-                                    .and_then(|v| v.as_str())
-                                    .map(|s| s.to_string())
+                                // PQ Increment 2 (soft) + 3 (gated hard)
+                                // dual-sign verification.
+                                //
+                                // The client signs the SAME preimage with
+                                // Dilithium3 (`pq_signature`). Behaviour by
+                                // (has PQ key on file?, sent pq_signature?,
+                                //  server require_pq_signatures?):
+                                //
+                                //  • No PQ key on file → NEVER enforced.
+                                //    Old / PQ-incapable clients are never
+                                //    locked out; they auto-upgrade when
+                                //    they reconnect on a v0.251+ client.
+                                //  • PQ key + valid sig → PQ-OK (logged).
+                                //  • PQ key + invalid/missing sig:
+                                //      - require OFF → soft (log, allow):
+                                //        Inc 2 confidence-building.
+                                //      - require ON  → REJECT the message
+                                //        with an actionable error. This
+                                //        is the quantum-forgery-resistance
+                                //        cutover; Ed25519 alone no longer
+                                //        suffices for a PQ-capable account.
                                 {
-                                    match state_clone.db.get_dilithium_public(&my_key_for_recv) {
-                                        Ok(Some(dil_pub)) => {
+                                    let pq_sig_opt = serde_json::from_str::<serde_json::Value>(&text)
+                                        .ok()
+                                        .as_ref()
+                                        .and_then(|v| v.get("pq_signature"))
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string());
+                                    let dil_pub_opt = state_clone.db
+                                        .get_dilithium_public(&my_key_for_recv)
+                                        .ok()
+                                        .flatten();
+                                    let require_pq = state_clone.db
+                                        .get_server_settings()
+                                        .map(|s| s.require_pq_signatures)
+                                        .unwrap_or(false);
+                                    let kp = &my_key_for_recv[..8.min(my_key_for_recv.len())];
+
+                                    match (dil_pub_opt.as_ref(), pq_sig_opt.as_ref()) {
+                                        (Some(dil_pub), Some(pq_sig)) => {
                                             let ok = crate::relay::handlers::broadcast::verify_dilithium_signature(
-                                                &dil_pub, &content, timestamp, &pq_sig,
+                                                dil_pub, &content, timestamp, pq_sig,
                                             );
                                             if ok {
-                                                tracing::info!(
-                                                    target: "pq_dualsign",
-                                                    "PQ-OK key={} ed25519={} dilithium=valid",
-                                                    &my_key_for_recv[..8.min(my_key_for_recv.len())],
-                                                    verified_sig
-                                                );
+                                                tracing::info!(target: "pq_dualsign",
+                                                    "PQ-OK key={kp} ed25519={verified_sig}");
+                                            } else if require_pq {
+                                                tracing::warn!(target: "pq_dualsign",
+                                                    "PQ-REJECT key={kp} invalid pq_signature (enforced)");
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                    to: my_key_for_recv.clone(),
+                                                    message: "Message rejected: your post-quantum signature failed to verify. Hard-refresh the page (Ctrl+Shift+R) to update your client.".to_string(),
+                                                });
+                                                continue;
                                             } else {
-                                                tracing::warn!(
-                                                    target: "pq_dualsign",
-                                                    "PQ-MISMATCH key={} ed25519={} dilithium=INVALID (soft; not enforced)",
-                                                    &my_key_for_recv[..8.min(my_key_for_recv.len())],
-                                                    verified_sig
-                                                );
+                                                tracing::warn!(target: "pq_dualsign",
+                                                    "PQ-MISMATCH key={kp} dilithium=INVALID (soft; not enforced)");
                                             }
                                         }
-                                        _ => {
-                                            tracing::debug!(
-                                                target: "pq_dualsign",
-                                                "pq_signature present but no stored dilithium_public for key={} (Inc1 not yet seeded)",
-                                                &my_key_for_recv[..8.min(my_key_for_recv.len())]
-                                            );
+                                        (Some(_), None) => {
+                                            if require_pq {
+                                                tracing::warn!(target: "pq_dualsign",
+                                                    "PQ-REJECT key={kp} missing pq_signature (enforced)");
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                    to: my_key_for_recv.clone(),
+                                                    message: "Message rejected: this server requires post-quantum-signed messages and your account has a PQ key on file, but this message was not PQ-signed. Hard-refresh the page (Ctrl+Shift+R) to update your client.".to_string(),
+                                                });
+                                                continue;
+                                            }
+                                            // require OFF → Inc1 seeded but
+                                            // Inc2 client not yet active; allow.
+                                        }
+                                        (None, _) => {
+                                            // No PQ key on file — never enforced.
                                         }
                                     }
                                 }
@@ -5027,6 +5059,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 max_uploads_per_user, max_total_upload_mb,
                                 max_uploads_per_user_unverified, max_uploads_per_user_verified,
                                 max_uploads_per_user_mod, max_uploads_per_user_admin,
+                                require_pq_signatures,
                             } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if role != "admin" && role != "owner" {
@@ -5096,6 +5129,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     if let Some(v) = max_uploads_per_user_verified   { current.max_uploads_per_user_verified   = v.clamp(1, 1_000); }
                                     if let Some(v) = max_uploads_per_user_mod        { current.max_uploads_per_user_mod        = v.clamp(1, 1_000); }
                                     if let Some(v) = max_uploads_per_user_admin      { current.max_uploads_per_user_admin      = v.clamp(1, 1_000); }
+                                    // PQ Inc 3: hard-enforcement toggle.
+                                    if let Some(v) = require_pq_signatures { current.require_pq_signatures = v; }
                                     match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
                                         Ok(true) => {
                                             // Broadcast new state to everyone.
