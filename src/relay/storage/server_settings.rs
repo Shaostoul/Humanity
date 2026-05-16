@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// Server-wide policy settings. Mirrors the `server_settings` SQLite
 /// row exactly. Both sides of the WS protocol (relay + native client)
 /// use this shape via serde.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ServerSettings {
     /// Max characters in a chat message for unverified users.
     pub max_chars_unverified: i64,

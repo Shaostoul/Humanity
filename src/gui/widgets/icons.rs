@@ -627,3 +627,65 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         _ => false,
     }
 }
+
+/// Eye — "read-only / view-only" channel marker (operator-requested
+/// 2026-05-15: "Read only could be a simple eye design"). An almond
+/// outline (two arcs approximated by a stroked ellipse) with a filled
+/// pupil. Reads as "you can look but not write here."
+pub fn paint_eye(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.09).max(1.0), color);
+    // Almond shape — a stroked polyline forming a lens (two curved lids).
+    use egui::epaint::PathShape;
+    let hw = w * 0.42; // half-width of the eye
+    let hh = w * 0.26; // lid bulge
+    let n = 14;
+    // Upper lid (left → right, bulging up) then lower lid (right → left,
+    // bulging down): one closed almond outline.
+    let mut pts: Vec<Pos2> = Vec::with_capacity(n * 2);
+    for i in 0..=n {
+        let t = i as f32 / n as f32; // 0..1
+        let x = c.x - hw + 2.0 * hw * t;
+        let y = c.y - hh * (std::f32::consts::PI * t).sin();
+        pts.push(Pos2::new(x, y));
+    }
+    for i in 0..=n {
+        let t = i as f32 / n as f32;
+        let x = c.x + hw - 2.0 * hw * t;
+        let y = c.y + hh * (std::f32::consts::PI * t).sin();
+        pts.push(Pos2::new(x, y));
+    }
+    painter.add(PathShape::closed_line(pts, stroke));
+    // Pupil.
+    painter.circle_filled(c, w * 0.13, color);
+}
+
+/// Federation — "this channel/server gossips to peer servers." A small
+/// node-graph: a central hub with three satellite nodes connected by
+/// lines. Reads as "networked / spreads across the mesh." Operator was
+/// unsure on a federated icon (2026-05-15) — this is the proposed one;
+/// node-graph is the clearest "federated/mesh" metaphor and stays
+/// visually distinct from the eye.
+pub fn paint_federation(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.07).max(1.0), color);
+    let hub_r = w * 0.13;
+    let node_r = w * 0.10;
+    let orbit = w * 0.34;
+    // Three satellites at 90°, 210°, 330° (one up, two lower) so it
+    // doesn't read as a perfect triangle / play button.
+    let sats = [
+        Pos2::new(c.x, c.y - orbit),
+        Pos2::new(c.x - orbit * 0.87, c.y + orbit * 0.5),
+        Pos2::new(c.x + orbit * 0.87, c.y + orbit * 0.5),
+    ];
+    for s in &sats {
+        painter.line_segment([c, *s], stroke);
+    }
+    painter.circle_filled(c, hub_r, color);
+    for s in &sats {
+        painter.circle_filled(*s, node_r, color);
+    }
+}

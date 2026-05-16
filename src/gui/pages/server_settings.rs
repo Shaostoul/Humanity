@@ -530,11 +530,24 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_xs);
     widgets::body_hint(
         ui, theme,
-        "Read-only: only mods + admins can post (everyone can read). \
-         Voice: enables the voice-call icon next to the channel — disable to make it \
-         text-only. \
-         Federated: messages in this channel gossip to peer servers in the federation \
-         network so members on OTHER servers can read and reply. Off = local-only to this server.",
+        "Read-only (eye icon): only mods + admins can post; everyone can read. \
+         Voice: enables the voice-call icon next to the channel — disable to make \
+         it text-only.",
+    );
+    ui.add_space(theme.spacing_xs);
+    widgets::body_hint(
+        ui, theme,
+        "Federated (node icon): messages here gossip to peer servers in the \
+         federation network. Beyond cross-server read/reply, this gives you: \
+         (1) Reach — your community's posts are visible to people who never \
+         joined THIS server; (2) Resilience — the conversation + history is \
+         mirrored on peer servers, so if this VPS goes down or is seized the \
+         thread survives; (3) Censorship-resistance — no single operator (not \
+         even you) can silently erase a federated channel everywhere; \
+         (4) Discovery — members on other servers can find and join the \
+         discussion. Off = local-only: faster, fully private to this server, \
+         but a single point of failure. Choose per-channel: keep #private-ops \
+         local, federate #general.",
     );
     ui.add_space(theme.spacing_sm);
 
@@ -730,12 +743,24 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
     );
     ui.add_space(theme.spacing_sm);
 
-    // Effective view: draft (if editing) else cached state else defaults.
-    let editing = state.server_settings_draft.is_some();
-    let effective: crate::relay::storage::ServerSettings = state.server_settings_draft
-        .clone()
-        .or_else(|| state.server_settings.clone())
-        .unwrap_or_default();
+    // Always-editable (operator 2026-05-15: "make it so the policy
+    // settings are individually editable without clicking the edit
+    // policy button. Seems like unnecessary friction."). The draft is
+    // the live working copy; it's seeded from the cached relay-broadcast
+    // state and only pushed to the relay when the operator clicks Save
+    // Changes (server-wide settings must NOT broadcast on every keystroke).
+    let cached: crate::relay::storage::ServerSettings =
+        state.server_settings.clone().unwrap_or_default();
+    // Seed / re-seed the draft from cache when there's no draft yet, OR
+    // when it exactly equals the cache (i.e. no unsaved edits) so an
+    // external admin's broadcast update flows in. If the draft differs
+    // (operator has unsaved edits) we preserve it. Edge case — two
+    // admins editing simultaneously — the "Revert to server state"
+    // button is the escape hatch.
+    if state.server_settings_draft.is_none() {
+        state.server_settings_draft = Some(cached.clone());
+    }
+    let effective = state.server_settings_draft.clone().unwrap_or_else(|| cached.clone());
 
     // Last-updated badge (informational).
     if let Some(ref s) = state.server_settings {
@@ -751,52 +776,13 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         ui.add_space(theme.spacing_sm);
     }
 
-    if !editing {
-        // ── READ-ONLY MODE ──
-        // Show current values + an Edit button. No inputs visible.
-        kv_row(ui, theme, "Max chars — unverified", effective.max_chars_unverified.to_string());
-        kv_row(ui, theme, "Max chars — verified",   effective.max_chars_verified.to_string());
-        kv_row(ui, theme, "Max chars — moderator",  effective.max_chars_mod.to_string());
-        kv_row(ui, theme, "Max chars — admin",      effective.max_chars_admin.to_string());
-        kv_row(ui, theme, "Image sharing",  yesno(effective.image_sharing_enabled));
-        kv_row(ui, theme, "File sharing",   yesno(effective.file_sharing_enabled));
-        kv_row(ui, theme, "Max upload MB — unverified", effective.max_upload_mb_unverified.to_string());
-        kv_row(ui, theme, "Max upload MB — verified",   effective.max_upload_mb_verified.to_string());
-        kv_row(ui, theme, "Max upload MB — moderator",  effective.max_upload_mb_mod.to_string());
-        kv_row(ui, theme, "Max upload MB — admin",      effective.max_upload_mb_admin.to_string());
-        kv_row(ui, theme, "Voice channels", yesno(effective.voice_channels_enabled));
-        kv_row(ui, theme, "Video streaming", yesno(effective.video_streaming_enabled));
-        kv_row(ui, theme, "Allowed extensions",
-               if effective.allowed_file_extensions.is_empty() {
-                   "(no restriction)".to_string()
-               } else {
-                   effective.allowed_file_extensions.clone()
-               });
-        kv_row(ui, theme, "Uploads kept — unverified (FIFO)",
-               effective.max_uploads_per_user_unverified.to_string());
-        kv_row(ui, theme, "Uploads kept — verified (FIFO)",
-               effective.max_uploads_per_user_verified.to_string());
-        kv_row(ui, theme, "Uploads kept — moderator (FIFO)",
-               effective.max_uploads_per_user_mod.to_string());
-        kv_row(ui, theme, "Uploads kept — admin (FIFO)",
-               effective.max_uploads_per_user_admin.to_string());
-        kv_row(ui, theme, "Total upload disk cap (MB, server-wide)",
-               effective.max_total_upload_mb.to_string());
-        ui.add_space(theme.spacing_sm);
-        if widgets::Button::secondary("Edit policy")
-            .tooltip("Begin editing server-wide policy. Nothing is saved until you \
-                      click Save Changes.")
-            .show(ui, theme)
-        {
-            state.server_settings_draft = Some(effective);
-        }
-    } else {
-        // ── EDIT MODE ──
-        // Borrow checker won't let us hold an &mut to state.server_settings_draft
-        // AND access state inside the Save click handler. Standard egui pattern:
-        // clone the draft into a local, do the UI with the local, write back at
-        // the end (and on Save/Cancel, mutate state).
-        let mut draft = state.server_settings_draft.clone().unwrap_or_default();
+    {
+        // ── ALWAYS-EDITABLE ──
+        // No mode toggle. Borrow-checker pattern: clone the draft into a
+        // local, build the UI against it, write back at the end; Save
+        // sends the WS update, Revert resets the draft from cache.
+        let _ = effective; // draft is now the single source for the inputs
+        let mut draft = state.server_settings_draft.clone().unwrap_or_else(|| cached.clone());
         widgets::form_row(ui, theme, "Max chars — unverified (default 280)", |ui| {
             int_input(ui, &mut draft.max_chars_unverified, 1, 1_000_000);
         });
@@ -856,18 +842,32 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
             int_input(ui, &mut draft.max_total_upload_mb, 1, 1_000_000);
         });
 
-        ui.add_space(theme.spacing_md);
+        ui.add_space(theme.spacing_sm);
+        // Dirty = the working draft differs from the cached relay state.
+        // Save is only enabled when dirty (server-wide settings must not
+        // re-broadcast a no-op to every client).
+        let dirty = draft != cached;
+        if dirty {
+            widgets::body_hint(ui, theme, "Unsaved changes — click Save Changes to apply server-wide.");
+        } else {
+            widgets::body_hint(ui, theme, "No unsaved changes. Edit any field above; it applies on Save.");
+        }
+        ui.add_space(theme.spacing_xs);
         let mut save_clicked = false;
         let mut cancel_clicked = false;
         ui.horizontal(|ui| {
-            save_clicked = widgets::Button::primary("Save Changes")
-                .tooltip("Send the policy update to the relay. All connected clients \
-                          will see the new state immediately.")
-                .show(ui, theme);
+            ui.add_enabled_ui(dirty, |ui| {
+                save_clicked = widgets::Button::primary("Save Changes")
+                    .tooltip("Send the policy update to the relay. All connected clients \
+                              will see the new state immediately.")
+                    .show(ui, theme);
+            });
             ui.add_space(theme.spacing_sm);
-            cancel_clicked = widgets::Button::secondary("Cancel")
-                .tooltip("Discard your edits. Falls back to the live server state.")
-                .show(ui, theme);
+            ui.add_enabled_ui(dirty, |ui| {
+                cancel_clicked = widgets::Button::secondary("Revert to server state")
+                    .tooltip("Discard your unsaved edits and reload the live server policy.")
+                    .show(ui, theme);
+            });
         });
 
         // Persist the (possibly-edited) draft back to state. Without this
@@ -917,8 +917,8 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
     }
 }
 
-/// Tiny "Yes" / "No" formatter for read-only boolean rows.
-fn yesno(b: bool) -> String { if b { "Yes".into() } else { "No".into() } }
+// (yesno() removed in v0.240 — the read-only policy display mode that
+// used it is gone; the policy is now always-editable inputs.)
 
 /// Compact int input with min/max bounds. Used for char-limit + upload-MB rows.
 fn int_input(ui: &mut egui::Ui, value: &mut i64, min: i64, max: i64) {
@@ -1003,9 +1003,11 @@ fn channel_grid_header(ui: &mut egui::Ui, theme: &Theme) {
                          Useful for #announcements style channels."),
         ("Voice",       "On: voice icon appears next to the channel so members can join a \
                          voice call. Off: text-only — voice icon hidden."),
-        ("Federated",   "On: messages in this channel gossip to peer servers in the federation \
-                         network so members on OTHER servers can read and reply. \
-                         Off: local to this server only."),
+        ("Federated",   "On: messages gossip to peer servers — reach beyond this server, \
+                         history mirrored on peers (survives this VPS going down), \
+                         censorship-resistant, discoverable by other servers' members. \
+                         Off: local-only — faster + fully private, but a single point \
+                         of failure."),
         ("",            ""),
         ("",            ""),
     ];
@@ -1013,13 +1015,45 @@ fn channel_grid_header(ui: &mut egui::Ui, theme: &Theme) {
         ui.spacing_mut().item_spacing.x = 4.0;
         for (i, (label, tip)) in cells.iter().enumerate() {
             let w = CHANNEL_COL_WIDTHS[i];
-            let txt = RichText::new(*label)
-                .size(theme.font_size_small)
-                .color(theme.text_muted())
-                .strong();
-            let resp = ui.add_sized(Vec2::new(w, CHANNEL_ROW_H), egui::Label::new(txt));
-            if !tip.is_empty() {
-                resp.on_hover_text(*tip);
+            // Columns 2 (Read-only) and 4 (Federated) get a painted icon
+            // before the label so the flag is recognizable at a glance
+            // (operator request 2026-05-15 — eye for read-only, node-graph
+            // for federated). Other columns: plain label as before.
+            let icon_fn: Option<fn(&egui::Painter, egui::Rect, Color32)> = match i {
+                2 => Some(crate::gui::widgets::icons::paint_eye),
+                4 => Some(crate::gui::widgets::icons::paint_federation),
+                _ => None,
+            };
+            if let Some(paint) = icon_fn {
+                let (rect, resp) = ui.allocate_exact_size(
+                    Vec2::new(w, CHANNEL_ROW_H),
+                    egui::Sense::hover(),
+                );
+                let icon_sz = (CHANNEL_ROW_H * 0.72).min(16.0);
+                let icon_rect = egui::Rect::from_min_size(
+                    egui::pos2(rect.left() + 2.0, rect.center().y - icon_sz / 2.0),
+                    Vec2::splat(icon_sz),
+                );
+                paint(ui.painter(), icon_rect, theme.text_muted());
+                ui.painter().text(
+                    egui::pos2(icon_rect.right() + 4.0, rect.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    *label,
+                    egui::FontId::proportional(theme.font_size_small),
+                    theme.text_muted(),
+                );
+                if !tip.is_empty() {
+                    resp.on_hover_text(*tip);
+                }
+            } else {
+                let txt = RichText::new(*label)
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted())
+                    .strong();
+                let resp = ui.add_sized(Vec2::new(w, CHANNEL_ROW_H), egui::Label::new(txt));
+                if !tip.is_empty() {
+                    resp.on_hover_text(*tip);
+                }
             }
         }
     });
