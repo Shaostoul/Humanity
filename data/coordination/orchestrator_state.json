@@ -145,7 +145,7 @@
   ],
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "v0.249.1 (pending push this session)",
+    "latest_pushed_tag": "v0.249.2 (pending push this session)",
     "last_release_summary": "v0.249.0 ban/mute storage regression tests + journal accuracy fix. v0.245-248 moderation/security/cosmos arc before it."
   },
   "files_in_flight_or_recently_changed": [
@@ -178,7 +178,7 @@
     "Audit Session 3 (Tier 1.2 + Tier 4): integration tests for src/relay/handlers/msg_handlers.rs (DM roundtrip, trade escrow, federation accept/reject) + dual-UI parity triage doc.",
     "Audit Session 4+ (Tier 2.7 follow-through): implement OR document the 16 scaffolded game systems + electrical/psychology partials.",
     "Tier 3 infinite-of-x: VERIFIED 2026-05-15 — all 5 (skills/studio-streaming/command-palette/donate-FAQ/sound-presets) ARE migrated (loaders + data/*.json + fetch wiring all present); docs/design/infinite-of-x.md v0.133 table is correct, the old gap line was stale. Only remaining: calculator.rs button labels, explicitly acceptable (pure UI layout).",
-    "Lower-priority doc drift: docs/02-ARCHITECTURE.md, docs/06-SOURCE-OF-TRUTH-MAP.md, docs/reference/ECOSYSTEM_RELEASE_CHECKLIST.md, docs/design/{camera-system,engine-architecture,engine-wasm,architecture}.md, docs/index.md, docs/README.md still reference dead paths but aren't on the hot path. Sweep when convenient.",
+    "Lower-priority doc drift: docs/06-SOURCE-OF-TRUTH-MAP.md FIXED v0.249.2 (dead server/crates paths -> src/relay; section-5 sub-crate guidance rewritten for single-crate reality). BUGS.md:189 + vr-tracking.md:29 are NOT drift (historical bug text / crates.io URL). Other listed docs (02-ARCHITECTURE, engine-*.md, index/README) still unaudited — sweep when convenient, low priority.",
     "10 of 21 agent scopes still unaudited — check `node scripts/agent-status.js` for current list under 'Unaudited scopes'."
   ],
   "how_to_resume": [

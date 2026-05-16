@@ -2,7 +2,7 @@
 
 This file links **vision -> design docs -> implementation status** so new humans and AIs can quickly tell what is already real vs planned.
 
-Last updated: 2026-03-09
+Last updated: 2026-05-15
 
 ## 1) Canonical source hierarchy
 
@@ -11,17 +11,19 @@ When files disagree, use this precedence:
 1. `docs/accord/` (principles, governance, constraints)
 2. `docs/design/` (architecture/system behavior and contracts)
 3. `data/` (structured runtime/canonical datasets)
-4. `server/`, `src/`, `crates/`, `web/` (implementation layers)
+4. `src/`, `web/` (implementation layers — single Rust crate since the v0.90 unified-binary restructure; `server/` + `crates/` no longer exist)
 5. `docs/website/` content is presentation; canonical meaning stays upstream
 
 See also: `docs/website/README.md`.
 
 ## 2) Current implementation snapshot (reality check)
 
-### Rust workspace (currently compiled members)
+### Rust crate (single unified binary, post-v0.90)
 
-- `server/` (relay server)
-- `src/` + `crates/` (game engine + systems)
+- `src/` — one crate, all features behind flags. `src/relay/` is the
+  axum relay server (was `server/`); the rest is the game engine +
+  systems. Build modes: `HumanityOS` (native desktop) /
+  `HumanityOS --headless` (relay). No workspace, no sub-crates.
 
 ### Other implemented runtime surfaces
 - `web/chat/` (web client served by relay)
@@ -30,7 +32,7 @@ See also: `docs/website/README.md`.
 
 ### Important gap
 
-Most domain systems are already documented in `docs/design/`, but many are not yet split into dedicated Rust crates/modules.
+Most domain systems are already documented in `docs/design/`, but many are not yet split into dedicated Rust modules under `src/`.
 
 ## 3) Design-to-implementation map
 
@@ -54,7 +56,7 @@ Most domain systems are already documented in `docs/design/`, but many are not y
   - `docs/design/architecture_decisions/canonical_encoding_and_hashing.md`
   - `docs/design/network/object_format.md`
 - Implementation now:
-  - `crates/humanity-core/src/{encoding,hash,identity,object,signing}.rs`
+  - `src/relay/core/{encoding,hashing,identity,signing}.rs` (+ `pq_crypto.rs`, `did.rs`, `kdf.rs`)
 - Status:
   - **Documented: strong**
   - **Implemented: strong (core foundation)**
@@ -66,7 +68,7 @@ Most domain systems are already documented in `docs/design/`, but many are not y
   - `docs/design/network/realtime_relay_protocol.md`
   - `docs/design/network/server_federation.md`
 - Implementation now:
-  - `server/src/{main,relay,api,storage}.rs`
+  - `src/relay/{relay,api,mod}.rs` + `src/relay/storage/*.rs` + `src/relay/handlers/*.rs` (entry point `src/main.rs --headless`)
 - Status:
   - **Documented: strong**
   - **Implemented: strong (MVP and beyond)**
@@ -80,7 +82,7 @@ Most domain systems are already documented in `docs/design/`, but many are not y
   - `docs/design/pages/`
 - Implementation now:
   - Mostly design/spec stage
-  - No dedicated Rust module crates yet for most domains
+  - No dedicated Rust modules yet for most domains (all live in the single `src/` crate)
 - Status:
   - **Documented: strong**
   - **Implemented: early/planned**
@@ -93,7 +95,7 @@ Most domain systems are already documented in `docs/design/`, but many are not y
   - `docs/design/engine/`
 - Implementation now:
   - `web/activities/` has web assets/pages
-  - `src/` and `crates/` contain the Rust game engine and systems
+  - `src/` contains the Rust game engine and systems (single crate)
 - Status:
   - **Documented: medium-strong**
   - **Implemented: early/planned**
@@ -128,9 +130,18 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 
 ## 5) Next execution step (recommended)
 
-Create one pilot domain crate (example: `module-orbital` or `module-carpentry`) that:
+> Updated 2026-05-15: the v0.90 unified-binary restructure eliminated
+> the workspace and all sub-crates. There is no `humanity-core` crate
+> and new domains must NOT be split into separate crates. Add a domain
+> as a **module** inside the single `src/` crate.
 
-- consumes `humanity-core` where appropriate,
-- has clear inputs/outputs and tests,
+Add one pilot domain module (example: `src/systems/orbital.rs` or
+`src/systems/carpentry.rs`) that:
+
+- reuses shared primitives from `src/relay/core/` (crypto/encoding) and
+  the ECS in `src/ecs/` where appropriate,
+- has clear inputs/outputs and `#[cfg(test)]` unit tests,
 - maps directly to one existing `docs/design/systems/*` doc,
-- ships with a short README proving zero-context onboarding works.
+- registers with the `SystemRunner` if it ticks per-frame,
+- keeps domain content data-driven (`data/*.csv|toml|ron|json`) per the
+  infinite-of-X rule — no hardcoded arrays of domain objects.
