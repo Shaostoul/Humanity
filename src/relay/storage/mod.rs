@@ -708,6 +708,46 @@ impl Storage {
             info!("Migration: split max_uploads_per_user into per-role columns (server_settings)");
         }
 
+        // ── v0.239.0 — data-driven roles table ──
+        // See docs/design/roles-system.md. Creates `roles` + seeds the
+        // 5 built-ins (unverified/verified/donor/mod/admin). Idempotent
+        // (INSERT OR IGNORE preserves operator-tuned seed capabilities).
+        // Inlined here (not a Storage method) because we're already
+        // inside the migration's `conn` closure — calling a method that
+        // re-enters with_conn would re-borrow the connection.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS roles (
+                id          TEXT PRIMARY KEY,
+                label       TEXT NOT NULL,
+                color       TEXT NOT NULL,
+                trust_level INTEGER NOT NULL,
+                built_in    INTEGER NOT NULL,
+                can_stream  INTEGER NOT NULL,
+                can_upload  INTEGER NOT NULL,
+                can_voice   INTEGER NOT NULL,
+                base_tier   TEXT NOT NULL,
+                sort_order  INTEGER NOT NULL DEFAULT 0
+             );",
+        )?;
+        {
+            let seeds: &[(&str, &str, &str, i64, i64, i64, i64, &str, i64)] = &[
+                ("unverified", "Unverified", "#9E9E9E", 0, 0, 0, 0, "unverified", 0),
+                ("verified",   "Verified",   "#4FC3F7", 1, 0, 1, 1, "verified",   1),
+                ("donor",      "Donor",      "#FFD54F", 2, 0, 1, 1, "verified",   2),
+                ("mod",        "Moderator",  "#81C784", 3, 1, 1, 1, "mod",        3),
+                ("admin",      "Admin",      "#E57373", 4, 1, 1, 1, "admin",      4),
+            ];
+            for (id, label, color, trust, stream, upload, voice, tier, sort) in seeds {
+                conn.execute(
+                    "INSERT OR IGNORE INTO roles
+                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order)
+                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9)",
+                    rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort],
+                )?;
+            }
+            info!("Migration: roles table created + 5 built-ins seeded");
+        }
+
         // ── v0.201.0 — split max_upload_mb into per-role columns ──
         // Operator: upload size should be variable per rank. New columns
         // default to a trust ladder (5/25/100/500 MB for unverified/
@@ -1524,6 +1564,8 @@ mod reviews;
 mod members;
 mod server_settings;
 pub use server_settings::ServerSettings;
+mod roles;
+pub use roles::RoleDef;
 mod agent_sessions;
 mod ai_status;
 mod credentials;

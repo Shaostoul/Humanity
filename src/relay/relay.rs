@@ -617,6 +617,38 @@ pub enum RelayMessage {
         settings: crate::relay::storage::ServerSettings,
     },
 
+    // ── Data-driven roles (v0.239, docs/design/roles-system.md) ──
+
+    /// Server → client. The full role list. Sent on connect + after any
+    /// role create/edit/delete so clients can render badges + populate
+    /// the user-modal role dropdown.
+    #[serde(rename = "role_list")]
+    RoleList {
+        roles: Vec<crate::relay::storage::RoleDef>,
+    },
+
+    /// Admin → server. Create or edit a role. Built-in roles: only
+    /// label/color/capabilities/sort are honored (id/trust/base_tier
+    /// locked server-side). Broadcasts a fresh `role_list` on success.
+    #[serde(rename = "role_upsert")]
+    RoleUpsert {
+        role: crate::relay::storage::RoleDef,
+    },
+
+    /// Admin → server. Delete a custom role (built-ins rejected).
+    #[serde(rename = "role_delete")]
+    RoleDelete {
+        id: String,
+    },
+
+    /// Admin → server. Assign a role id to a user. Generalizes the
+    /// mod_action mod/unmod shortcuts.
+    #[serde(rename = "set_user_role")]
+    SetUserRole {
+        target: String,
+        role_id: String,
+    },
+
     /// Admin updates server-wide settings (v0.200.0, extended v0.201.0
     /// with per-role upload limits). Each Optional field is applied
     /// independently — partial updates are fine. Handler requires admin
@@ -3053,7 +3085,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 // the user knows their message wasn't fully delivered.
                                 {
                                     let settings = state_clone.db.get_server_settings().unwrap_or_default();
-                                    let limit = settings.max_chars_for_role(&user_role) as usize;
+                                    // v0.239: a custom role's numeric limits
+                                    // follow its base_tier (built-ins map to
+                                    // themselves), so resolve role → tier first.
+                                    let tier = state_clone.db.limit_tier_for_role(&user_role);
+                                    let limit = settings.max_chars_for_role(&tier) as usize;
                                     let len = content.chars().count();
                                     if len > limit {
                                         let private = RelayMessage::Private {
@@ -4613,6 +4649,104 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 let _ = state_clone.broadcast_tx.send(
                                     RelayMessage::ServerSettingsState { settings }
                                 );
+                                // Piggyback the role list — clients request
+                                // server settings on connect, so this seeds
+                                // the badge palette + role dropdown too.
+                                if let Ok(roles) = state_clone.db.list_roles() {
+                                    let _ = state_clone.broadcast_tx.send(
+                                        RelayMessage::RoleList { roles }
+                                    );
+                                }
+                            }
+                            // ── Roles (v0.239, admin-gated) ──
+                            RelayMessage::RoleUpsert { role } => {
+                                let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if r != "admin" && r != "owner" {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins can edit roles.".to_string(),
+                                    });
+                                } else {
+                                    match state_clone.db.upsert_role(&role) {
+                                        Ok(()) => {
+                                            if let Ok(roles) = state_clone.db.list_roles() {
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::RoleList { roles });
+                                            }
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::System {
+                                                message: format!("Role \"{}\" saved.", role.label),
+                                            });
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("role_upsert failed: {e}");
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: format!("Role save failed: {e}"),
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                            RelayMessage::RoleDelete { id } => {
+                                let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if r != "admin" && r != "owner" {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins can delete roles.".to_string(),
+                                    });
+                                } else {
+                                    match state_clone.db.delete_role(&id) {
+                                        Ok(true) => {
+                                            if let Ok(roles) = state_clone.db.list_roles() {
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::RoleList { roles });
+                                            }
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::System {
+                                                message: format!("Role \"{}\" deleted.", id),
+                                            });
+                                        }
+                                        Ok(false) => {
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "Built-in roles can't be deleted.".to_string(),
+                                            });
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("role_delete failed: {e}");
+                                        }
+                                    }
+                                }
+                            }
+                            RelayMessage::SetUserRole { target, role_id } => {
+                                let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if r != "admin" && r != "owner" {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins can assign roles.".to_string(),
+                                    });
+                                } else if target.is_empty() {
+                                    // no-op
+                                } else {
+                                    // Resolve the role label for the feedback
+                                    // message + validate it exists (unknown id
+                                    // would silently default-deny later).
+                                    let rd = state_clone.db.role_def(&role_id);
+                                    match state_clone.db.set_role(&target, &role_id) {
+                                        Ok(()) => {
+                                            let tname = state_clone.db.name_for_key(&target)
+                                                .ok().flatten()
+                                                .unwrap_or_else(|| target[..8.min(target.len())].to_string());
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: format!("✓ {tname} is now \"{}\".", rd.label),
+                                            });
+                                            // Refresh everyone's user list so
+                                            // the new role badge shows live.
+                                            crate::relay::handlers::broadcast::broadcast_full_user_list(&state_clone).await;
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("set_user_role failed: {e}");
+                                        }
+                                    }
+                                }
                             }
                             // Server settings — admin update (v0.200.0).
                             // Each field is Optional. Missing fields stay at their

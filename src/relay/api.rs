@@ -309,8 +309,11 @@ pub async fn upload_file(
     if uploader_role.is_empty() {
         return Err((StatusCode::FORBIDDEN, "Upload denied: only verified users can upload files. Ask an admin to verify you.".into()));
     }
+    // v0.239: a custom role's numeric limits follow its base_tier
+    // (built-ins map to themselves), so resolve role → tier first.
+    let uploader_tier = state.db.limit_tier_for_role(&uploader_role);
     let max_uploads_per_user = server_settings
-        .max_uploads_per_user_for_role(&uploader_role)
+        .max_uploads_per_user_for_role(&uploader_tier)
         .max(1);
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {

@@ -2417,11 +2417,24 @@ pub async fn handle_stream_start(
     title: String,
     category: String,
 ) {
+    // Capability composition (v0.239, docs/design/roles-system.md):
+    //   effective_can_stream = server master switch AND role.can_stream
+    // The server-wide video_streaming_enabled is the master kill-switch;
+    // the per-role can_stream decides who, when it's on. Seed defaults:
+    // mod + admin can_stream=1, so the operator opts other roles in by
+    // editing/creating a role (e.g. a "Family" role with can_stream=1).
     let role = state.db.get_role(my_key).unwrap_or_default();
-    if role != "admin" {
+    let settings = state.db.get_server_settings().unwrap_or_default();
+    let rd = state.db.role_def(&role);
+    let may_stream = settings.video_streaming_enabled && rd.can_stream;
+    if !may_stream {
         let private = RelayMessage::Private {
             to: my_key.to_string(),
-            message: "Only admins can stream to the relay.".to_string(),
+            message: if !settings.video_streaming_enabled {
+                "Streaming is disabled server-wide (enable it in Server Settings).".to_string()
+            } else {
+                format!("Your role \"{}\" is not permitted to stream on this server.", rd.label)
+            },
         };
         let _ = state.broadcast_tx.send(private);
     } else {
