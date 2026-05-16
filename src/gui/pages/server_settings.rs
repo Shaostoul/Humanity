@@ -1094,7 +1094,8 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         ui.add_space(theme.spacing_xs);
         egui::Grid::new("server_policy_limits")
             .num_columns(4)
-            .spacing([theme.spacing_lg, theme.spacing_sm])
+            .spacing([theme.spacing_xl, theme.spacing_md])
+            .min_col_width(theme.settings_label_width * 0.5)
             .striped(true)
             .show(ui, |ui| {
                 let hdr = |ui: &mut egui::Ui, t: &str| {
@@ -1293,7 +1294,7 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // construction. 2026-05-16.
     egui::Grid::new("server_roles")
         .num_columns(8)
-        .spacing([theme.spacing_md, theme.spacing_sm])
+        .spacing([theme.spacing_xl, theme.spacing_md])
         .striped(true)
         .show(ui, |ui| {
             let hdr = |ui: &mut egui::Ui, t: &str| {
