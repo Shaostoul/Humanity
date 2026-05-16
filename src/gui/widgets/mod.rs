@@ -86,33 +86,58 @@ pub fn tinted_section(
     max_width: f32,
     contents: impl FnOnce(&mut Ui, &Theme),
 ) {
-    ui.vertical_centered(|ui| {
-        ui.set_max_width(max_width);
-        ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-            ui.label(
-                RichText::new(title)
-                    .size(theme.font_size_small)
-                    .color(accent)
-                    .strong(),
-            );
-            ui.add_space(theme.spacing_sm);
-            // Tinted background derived from the accent (alpha 18) — same
-            // formula color_section was using before extraction.
-            let tint = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 18);
-            egui::Frame::none()
-                .fill(tint)
-                .stroke(Stroke::new(1.5, accent))
-                .rounding(Rounding::same(theme.border_radius as u8))
-                .inner_margin(theme.card_padding * 1.5)
-                .show(ui, |ui| {
-                    // Force the inner content to claim the full card width
-                    // so the card itself doesn't shrink-to-content (which
-                    // would let a narrow section visually mismatch a wider
-                    // sibling). The padding is already handled by Frame.
-                    ui.set_min_width(max_width - theme.card_padding * 3.0);
-                    contents(ui, theme);
-                });
-        });
+    // Reliable centered fixed-width column.
+    //
+    // The old `ui.vertical_centered(|ui| { ui.set_max_width(max_width); … })`
+    // does NOT clamp inside a vertical ScrollArea — egui treats
+    // set_max_width as a wrapping hint, so the tinted Frame blew out to
+    // the full ~1900px viewport and the content was stranded against the
+    // left edge in a giant near-empty box (operator 2026-05-16: "what if
+    // we center everything"). The robust pattern is an explicit
+    // side-padded column: cap the width, push it in by half the slack so
+    // it's visually centered, and pin the inner ui to that width so the
+    // Frame can't expand. Content inside stays LEFT-aligned (forms +
+    // data grids scan down a consistent left edge — centering each row
+    // would wreck scannability); only the column as a whole is centered.
+    let avail = ui.available_width();
+    let col_w = avail.min(max_width);
+    let side = ((avail - col_w) / 2.0).max(0.0);
+    ui.horizontal(|ui| {
+        if side > 0.0 {
+            ui.add_space(side);
+        }
+        ui.allocate_ui_with_layout(
+            egui::vec2(col_w, 0.0),
+            egui::Layout::top_down(egui::Align::Min),
+            |ui| {
+                ui.set_min_width(col_w);
+                ui.set_max_width(col_w);
+                ui.label(
+                    RichText::new(title)
+                        .size(theme.font_size_small)
+                        .color(accent)
+                        .strong(),
+                );
+                ui.add_space(theme.spacing_sm);
+                // Tinted background derived from the accent (alpha 18) —
+                // same formula color_section used before extraction.
+                let tint = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 18);
+                egui::Frame::none()
+                    .fill(tint)
+                    .stroke(Stroke::new(1.5, accent))
+                    .rounding(Rounding::same(theme.border_radius as u8))
+                    .inner_margin(theme.card_padding * 1.5)
+                    .show(ui, |ui| {
+                        // Pin the card to the column width so every
+                        // section renders at an identical, centered box
+                        // (sibling sections line up) instead of
+                        // shrink-to-content or full-bleed.
+                        ui.set_min_width(col_w - theme.card_padding * 3.0);
+                        ui.set_max_width(col_w - theme.card_padding * 3.0);
+                        contents(ui, theme);
+                    });
+            },
+        );
     });
 }
 
