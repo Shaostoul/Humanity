@@ -1077,30 +1077,73 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         // sends the WS update, Revert resets the draft from cache.
         let _ = effective; // draft is now the single source for the inputs
         let mut draft = state.server_settings_draft.clone().unwrap_or_else(|| cached.clone());
-        widgets::form_row(ui, theme, "Max chars — unverified (default 280)", |ui| {
-            int_input(ui, &mut draft.max_chars_unverified, 1, 1_000_000);
+        // ── Per-role numeric limits as an aligned matrix ──
+        // Was 12 separate form_rows whose long "Max X — tier (default N)"
+        // labels wrapped to 3 lines in form_row's 140px column and wasted
+        // ~70% of the row (operator bug 2026-05-16, "two skinny columns
+        // ¼ width"). A tier×metric grid is scannable, aligns by
+        // construction (egui::Grid — no fixed-pixel column hacks), and
+        // uses the width. Defaults move to one hint so cells stay clean.
+        widgets::subsection_label(ui, theme, "Per-role limits");
+        widgets::body_hint(
+            ui, theme,
+            "Defaults — Max chars: 280 / 1000 / 4000 / 10000.  \
+             Max upload MB: 5 / 25 / 100 / 500.  \
+             Uploads kept (FIFO): 4 / 20 / 100 / 500.",
+        );
+        ui.add_space(theme.spacing_xs);
+        egui::Grid::new("server_policy_limits")
+            .num_columns(4)
+            .spacing([theme.spacing_lg, theme.spacing_sm])
+            .striped(true)
+            .show(ui, |ui| {
+                let hdr = |ui: &mut egui::Ui, t: &str| {
+                    ui.label(
+                        RichText::new(t)
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary())
+                            .strong(),
+                    );
+                };
+                hdr(ui, "Tier");
+                hdr(ui, "Max chars");
+                hdr(ui, "Max upload MB");
+                hdr(ui, "Uploads kept");
+                ui.end_row();
+
+                let mut tier_row =
+                    |ui: &mut egui::Ui, name: &str,
+                     chars: &mut i64, mb: &mut i64, kept: &mut i64| {
+                        ui.label(
+                            RichText::new(name)
+                                .size(theme.font_size_body)
+                                .color(theme.text_primary()),
+                        );
+                        int_input(ui, chars, 1, 1_000_000);
+                        int_input(ui, mb, 1, 10_000);
+                        int_input(ui, kept, 1, 1_000);
+                        ui.end_row();
+                    };
+                tier_row(ui, "Unverified", &mut draft.max_chars_unverified,
+                         &mut draft.max_upload_mb_unverified,
+                         &mut draft.max_uploads_per_user_unverified);
+                tier_row(ui, "Verified", &mut draft.max_chars_verified,
+                         &mut draft.max_upload_mb_verified,
+                         &mut draft.max_uploads_per_user_verified);
+                tier_row(ui, "Moderator", &mut draft.max_chars_mod,
+                         &mut draft.max_upload_mb_mod,
+                         &mut draft.max_uploads_per_user_mod);
+                tier_row(ui, "Admin", &mut draft.max_chars_admin,
+                         &mut draft.max_upload_mb_admin,
+                         &mut draft.max_uploads_per_user_admin);
+            });
+        ui.add_space(theme.spacing_md);
+        widgets::form_row(ui, theme, "Total upload disk cap (MB, server-wide)", |ui| {
+            int_input(ui, &mut draft.max_total_upload_mb, 1, 1_000_000);
         });
-        widgets::form_row(ui, theme, "Max chars — verified (default 1000)", |ui| {
-            int_input(ui, &mut draft.max_chars_verified, 1, 1_000_000);
-        });
-        widgets::form_row(ui, theme, "Max chars — moderator (default 4000)", |ui| {
-            int_input(ui, &mut draft.max_chars_mod, 1, 1_000_000);
-        });
-        widgets::form_row(ui, theme, "Max chars — admin (default 10000)", |ui| {
-            int_input(ui, &mut draft.max_chars_admin, 1, 1_000_000);
-        });
-        widgets::form_row(ui, theme, "Max upload MB — unverified (default 5)", |ui| {
-            int_input(ui, &mut draft.max_upload_mb_unverified, 1, 10_000);
-        });
-        widgets::form_row(ui, theme, "Max upload MB — verified (default 25)", |ui| {
-            int_input(ui, &mut draft.max_upload_mb_verified, 1, 10_000);
-        });
-        widgets::form_row(ui, theme, "Max upload MB — moderator (default 100)", |ui| {
-            int_input(ui, &mut draft.max_upload_mb_mod, 1, 10_000);
-        });
-        widgets::form_row(ui, theme, "Max upload MB — admin (default 500)", |ui| {
-            int_input(ui, &mut draft.max_upload_mb_admin, 1, 10_000);
-        });
+
+        ui.add_space(theme.spacing_sm);
+        widgets::subsection_label(ui, theme, "Sharing & policy toggles");
         widgets::form_row(ui, theme, "Image sharing", |ui| {
             ui.checkbox(&mut draft.image_sharing_enabled, "");
         });
@@ -1128,27 +1171,12 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
              (watch the relay's `pq_dualsign` log: all PQ-OK, no PQ-MISMATCH). \
              Fully reversible — turn it back off anytime.",
         );
-        widgets::form_row(ui, theme, "Allowed extensions (csv, blank=any)", |ui| {
+        widgets::form_row(ui, theme, "Allowed extensions (csv, blank = any)", |ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut draft.allowed_file_extensions)
                     .desired_width(280.0)
                     .hint_text("png,jpg,pdf,…"),
             );
-        });
-        widgets::form_row(ui, theme, "Uploads kept — unverified, FIFO (default 4)", |ui| {
-            int_input(ui, &mut draft.max_uploads_per_user_unverified, 1, 1_000);
-        });
-        widgets::form_row(ui, theme, "Uploads kept — verified, FIFO (default 20)", |ui| {
-            int_input(ui, &mut draft.max_uploads_per_user_verified, 1, 1_000);
-        });
-        widgets::form_row(ui, theme, "Uploads kept — moderator, FIFO (default 100)", |ui| {
-            int_input(ui, &mut draft.max_uploads_per_user_mod, 1, 1_000);
-        });
-        widgets::form_row(ui, theme, "Uploads kept — admin, FIFO (default 500)", |ui| {
-            int_input(ui, &mut draft.max_uploads_per_user_admin, 1, 1_000);
-        });
-        widgets::form_row(ui, theme, "Total upload disk cap MB, server-wide (default 500)", |ui| {
-            int_input(ui, &mut draft.max_total_upload_mb, 1, 1_000_000);
         });
 
         ui.add_space(theme.spacing_sm);
