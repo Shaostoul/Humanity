@@ -1467,13 +1467,69 @@ pub async fn handle_mod_action(
                 let _ = state.broadcast_tx.send(private);
             }
         }
-        "mute" => {
-            // TODO: implement mute (needs muted_members table or server_members.muted column).
-            let private = RelayMessage::Private {
-                to: my_key.to_string(),
-                message: "Mute isn't implemented yet — use kick to remove the user.".to_string(),
+        "mute" | "unmute" => {
+            // v0.246: mute is orthogonal to role (the old /mute clobbered
+            // it). Resolve every key for this user (target + all keys
+            // sharing the display name, for multi-device) and add/remove
+            // each from muted_members. The user stays in the member list
+            // — they just can't post until unmuted.
+            let mut keys: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
+            if !target.is_empty() {
+                keys.insert(target.to_string());
+            }
+            if !target_name.is_empty() {
+                if let Ok(name_keys) = state.db.keys_for_name(target_name) {
+                    for k in name_keys {
+                        keys.insert(k);
+                    }
+                }
+            }
+            keys.retain(|k| !k.is_empty());
+            if keys.is_empty() {
+                let private = RelayMessage::Private {
+                    to: my_key.to_string(),
+                    message: format!(
+                        "Can't {action} {display_name}: no resolvable account key \
+                         (they may have an unregistered/empty key)."
+                    ),
+                };
+                let _ = state.broadcast_tx.send(private);
+                return;
+            }
+            let muting = action == "mute";
+            for k in &keys {
+                let res = if muting {
+                    state.db.mute_user(k, &display_name)
+                } else {
+                    state.db.unmute_user(k)
+                };
+                if let Err(e) = res {
+                    tracing::error!("mod_action {action} error: {e}");
+                }
+            }
+            // Tell the actor + the affected user.
+            let (actor_msg, target_msg) = if muting {
+                (
+                    format!("✓ Muted {display_name}. They can read but not post until unmuted."),
+                    "You have been muted — you can read but not send messages.".to_string(),
+                )
+            } else {
+                (
+                    format!("✓ Unmuted {display_name}."),
+                    "You have been unmuted — you can send messages again.".to_string(),
+                )
             };
-            let _ = state.broadcast_tx.send(private);
+            let _ = state.broadcast_tx.send(RelayMessage::Private {
+                to: my_key.to_string(),
+                message: actor_msg,
+            });
+            for k in &keys {
+                let _ = state.broadcast_tx.send(RelayMessage::Private {
+                    to: k.clone(),
+                    message: target_msg.clone(),
+                });
+            }
         }
         "mod" => {
             if let Err(e) = state.db.set_role(target, "mod") {

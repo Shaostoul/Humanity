@@ -14,6 +14,20 @@ pub struct BannedUser {
     pub banned_at: i64,
 }
 
+/// One muted user. Serialized over the WS protocol as part of
+/// `muted_list` so the moderator "Muted users" panel can list mutes
+/// and offer a per-row Unmute. Structurally identical to BannedUser but
+/// kept distinct so the `muted_at` field name reads correctly and the
+/// two features can diverge later (e.g. timed mutes).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MutedUser {
+    pub public_key: String,
+    /// Display name captured at mute time.
+    pub name: String,
+    /// Unix ms when the mute was applied.
+    pub muted_at: i64,
+}
+
 /// Set the `message_id` field on a Chat message so clients can correlate `message_deleted` events.
 fn inject_message_id(msg: crate::relay::relay::RelayMessage, id: i64) -> crate::relay::relay::RelayMessage {
     if let crate::relay::relay::RelayMessage::Chat { from, from_name, content, timestamp, signature, channel, reply_to, thread_count, .. } = msg {
@@ -570,6 +584,91 @@ impl Storage {
         } else {
             self.unban_user(public_key)
         }
+    }
+
+    // ── Mute (v0.246, orthogonal to roles — see muted_members table) ──
+
+    /// True if this key is muted (present in muted_members). Does NOT
+    /// cover the legacy role='muted' case — the relay's Chat handler
+    /// checks both so old-style mutes keep working until unmuted.
+    pub fn is_muted(&self, public_key: &str) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM muted_members WHERE public_key = ?1",
+                params![public_key],
+                |row| row.get(0),
+            )?;
+            Ok(count > 0)
+        })
+    }
+
+    /// Mute a key, recording the display name for the mod "Muted users"
+    /// panel. Crucially does NOT touch user_roles — the user keeps their
+    /// real role (donor/verified/mod) so unmute restores them exactly.
+    /// INSERT OR REPLACE so re-muting refreshes name + timestamp.
+    pub fn mute_user(&self, public_key: &str, name: &str) -> Result<(), rusqlite::Error> {
+        if public_key.is_empty() {
+            return Ok(());
+        }
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT OR REPLACE INTO muted_members (public_key, muted_at, name)
+                 VALUES (?1, ?2, ?3)",
+                params![
+                    public_key,
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis() as i64,
+                    name
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Lift a mute. Also clears a LEGACY role='muted' row (from the old
+    /// destructive /mute that clobbered the role) so users muted before
+    /// v0.246 can actually be freed — best-effort reset to the
+    /// safe default-deny 'unverified' built-in since their original
+    /// role was already lost by the old bandaid.
+    pub fn unmute_user(&self, public_key: &str) -> Result<(), rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "DELETE FROM muted_members WHERE public_key = ?1",
+                params![public_key],
+            )?;
+            // Legacy cleanup: pre-v0.246 mutes set the role itself.
+            conn.execute(
+                "UPDATE user_roles SET role = 'unverified'
+                 WHERE public_key = ?1 AND role = 'muted'",
+                params![public_key],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Every currently-muted user (table-based), newest first. Drives
+    /// the server-settings "Muted users" panel.
+    pub fn list_muted(&self) -> Result<Vec<MutedUser>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT public_key, name, muted_at FROM muted_members
+                 ORDER BY muted_at DESC",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok(MutedUser {
+                    public_key: row.get(0)?,
+                    name: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                    muted_at: row.get(2)?,
+                })
+            })?;
+            let mut out = Vec::new();
+            for r in rows {
+                out.push(r?);
+            }
+            Ok(out)
+        })
     }
 
     /// Delete ALL messages (admin wipe).

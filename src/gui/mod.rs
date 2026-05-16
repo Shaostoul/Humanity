@@ -1072,6 +1072,13 @@ pub struct GuiState {
     /// True once a `banned_list_request` has been sent this session so
     /// the panel doesn't re-request every repaint. Reset on disconnect.
     pub chat_banned_requested: bool,
+    /// Currently-muted users for the Server Settings → Muted users mod
+    /// panel. Populated by the `muted_list` WS message (mods/admins
+    /// only). v0.246.
+    pub chat_muted_users: Vec<crate::relay::storage::MutedUser>,
+    /// True once a `muted_list_request` has been sent this session.
+    /// Reset on disconnect (mirrors chat_banned_requested).
+    pub chat_muted_requested: bool,
     /// In-progress draft of server settings being edited in the admin
     /// UI. None = not editing. Cloned from `server_settings` when admin
     /// opens the editor. Save button sends a ServerSettingsUpdate WS
@@ -1523,6 +1530,8 @@ impl Default for GuiState {
             },
             chat_banned_users: Vec::new(),
             chat_banned_requested: false,
+            chat_muted_users: Vec::new(),
+            chat_muted_requested: false,
             server_settings_draft: None,
             cosmos_view: crate::gui::pages::cosmos::CosmosView::System,
             cosmos_pan: egui::Vec2::ZERO,

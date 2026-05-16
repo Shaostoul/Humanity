@@ -273,7 +273,9 @@ pub async fn handle_mod_command(
         "/mute" => {
             if !is_mod { return "You need moderator permissions.".to_string(); }
             for key in &target_keys {
-                if let Err(e) = state.db.set_role(key, "muted") {
+                // mute_user (NOT set_role "muted") — keeps the user's
+                // real role intact so unmute restores them exactly.
+                if let Err(e) = state.db.mute_user(key, target_name) {
                     tracing::error!("Failed to mute: {e}");
                 }
             }
@@ -282,7 +284,9 @@ pub async fn handle_mod_command(
         "/unmute" => {
             if !is_mod { return "You need moderator permissions.".to_string(); }
             for key in &target_keys {
-                if let Err(e) = state.db.set_role(key, "user") {
+                // unmute_user clears the muted_members row AND any legacy
+                // role='muted' (old destructive /mute) — see channels.rs.
+                if let Err(e) = state.db.unmute_user(key) {
                     tracing::error!("Failed to unmute: {e}");
                 }
             }

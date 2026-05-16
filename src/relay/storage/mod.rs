@@ -310,6 +310,20 @@ impl Storage {
                 name        TEXT NOT NULL DEFAULT ''
             );
 
+            -- v0.246: mute is orthogonal to roles. The OLD /mute set
+            -- user_roles.role=muted which clobbered the user real role
+            -- (donor/verified/mod) and /unmute reset it to a bogus user
+            -- role (data loss). This table records a mute WITHOUT
+            -- touching the role, so unmute leaves the original role
+            -- intact. The name column is captured so the mod Muted-users
+            -- panel can show who it is. Created fresh on every startup
+            -- so existing DBs pick it up with no ALTER needed.
+            CREATE TABLE IF NOT EXISTS muted_members (
+                public_key  TEXT PRIMARY KEY,
+                muted_at    INTEGER NOT NULL,
+                name        TEXT NOT NULL DEFAULT ''
+            );
+
             CREATE TABLE IF NOT EXISTS user_uploads (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 public_key  TEXT NOT NULL,
@@ -1583,6 +1597,7 @@ pub use server_settings::ServerSettings;
 mod roles;
 pub use roles::RoleDef;
 pub use channels::BannedUser;
+pub use channels::MutedUser;
 mod agent_sessions;
 mod ai_status;
 mod credentials;

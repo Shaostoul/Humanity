@@ -1448,6 +1448,21 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    Some("muted_list") => {
+                                        // v0.246: relay sends this only to mods/admins,
+                                        // in reply to muted_list_request + after any
+                                        // mute/unmute. Drives the Server Settings →
+                                        // Muted users panel.
+                                        if let Some(arr) = val.get("users") {
+                                            match serde_json::from_value::<Vec<crate::relay::storage::MutedUser>>(arr.clone()) {
+                                                Ok(users) => {
+                                                    log::info!("Received {} muted users", users.len());
+                                                    state.gui_state.chat_muted_users = users;
+                                                }
+                                                Err(e) => log::warn!("Failed to parse muted_list: {e}"),
+                                            }
+                                        }
+                                    }
                                     Some("system") => {
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
                                             log::info!("Relay system message: {}", msg);
@@ -2095,6 +2110,7 @@ mod native_app {
                         // reconnect (the relay only sends it on demand). The
                         // cached list itself is harmless to keep until then.
                         state.gui_state.chat_banned_requested = false;
+                        state.gui_state.chat_muted_requested = false;
                         if !state.gui_state.ws_manually_disconnected {
                             log::info!("WebSocket disconnected, will reconnect in {}s (attempt {})",
                                 state.gui_state.ws_reconnect_delay as u32,

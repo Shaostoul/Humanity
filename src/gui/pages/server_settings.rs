@@ -350,6 +350,13 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
+        // ── Muted users (v0.246): list + per-row Unmute ──
+        draw_muted_admin(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
         widgets::subsection_label(ui, theme, "Channel moderation");
         widgets::body_hint(
             ui, theme,
@@ -656,9 +663,10 @@ fn send_unban(state: &GuiState, public_key: &str) {
     }
 }
 
-/// Format a Unix-ms ban timestamp as `YYYY-MM-DD HH:MM` (UTC). Uses
-/// the same chrono-free civil-date math as chat.rs::format_full_timestamp
-/// (Howard Hinnant's algorithm) so we don't add a dependency.
+/// Format a Unix-ms timestamp as `YYYY-MM-DD HH:MM` (UTC). Used for
+/// both the ban and mute panels. Uses the same chrono-free civil-date
+/// math as chat.rs::format_full_timestamp (Howard Hinnant's algorithm)
+/// so we don't add a dependency.
 fn format_ban_date(ms: i64) -> String {
     if ms <= 0 {
         return "—".to_string();
@@ -679,6 +687,125 @@ fn format_ban_date(ms: i64) -> String {
     let m = if mp < 10 { mp + 3 } else { mp - 9 }; // [1, 12]
     let year = if m <= 2 { y + 1 } else { y };
     format!("{year:04}-{m:02}-{d:02} {hh:02}:{mm:02}")
+}
+
+/// Muted-users mod panel. Lists every key in `muted_members` (name
+/// captured at mute time) with a per-row Unmute. Mirrors the
+/// Banned-users panel but lives in the MOD section because mute is a
+/// mod-level action. The list is mod-only — the relay targets the
+/// `muted_list` message at the requesting mod so it never leaks.
+fn draw_muted_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    widgets::subsection_label(ui, theme, "Muted users");
+    widgets::body_hint(
+        ui, theme,
+        "Everyone currently muted. A muted user can still read every channel but \
+         can't post until unmuted. Mute keeps their role intact (it does NOT demote \
+         them), so unmute restores them exactly as they were. Click Unmute to lift \
+         it — effective on their next message attempt.",
+    );
+    ui.add_space(theme.spacing_xs);
+
+    if !state.chat_muted_requested {
+        send_muted_list_request(state);
+        state.chat_muted_requested = true;
+    }
+
+    ui.horizontal(|ui| {
+        if widgets::Button::secondary("Refresh")
+            .tooltip("Re-fetch the mute list from the server.")
+            .show(ui, theme)
+        {
+            send_muted_list_request(state);
+            state.server_settings_status = "Requested the latest mute list.".into();
+        }
+        ui.add_space(theme.spacing_sm);
+        ui.colored_label(
+            theme.text_muted(),
+            format!("{} muted", state.chat_muted_users.len()),
+        );
+    });
+    ui.add_space(theme.spacing_sm);
+
+    if state.chat_muted_users.is_empty() {
+        widgets::body_hint(ui, theme, "No one is muted.");
+        return;
+    }
+
+    let muted = state.chat_muted_users.clone();
+    let mut unmute_key: Option<String> = None;
+    for m in &muted {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            let shown_name = if m.name.trim().is_empty() {
+                "(unknown)".to_string()
+            } else {
+                m.name.clone()
+            };
+            ui.add_sized(
+                [180.0, 22.0],
+                egui::Label::new(
+                    egui::RichText::new(shown_name)
+                        .color(theme.text_primary())
+                        .size(theme.body_size),
+                )
+                .truncate(),
+            );
+            let short_key = if m.public_key.len() > 16 {
+                format!("{}…", &m.public_key[..16])
+            } else {
+                m.public_key.clone()
+            };
+            ui.add_sized(
+                [150.0, 22.0],
+                egui::Label::new(
+                    egui::RichText::new(short_key)
+                        .color(theme.text_muted())
+                        .size(theme.body_size * 0.9)
+                        .monospace(),
+                ),
+            );
+            ui.add_sized(
+                [160.0, 22.0],
+                egui::Label::new(
+                    egui::RichText::new(format_ban_date(m.muted_at))
+                        .color(theme.text_muted())
+                        .size(theme.body_size * 0.9),
+                ),
+            );
+            if widgets::Button::secondary("Unmute")
+                .tooltip("Lift this mute. The user can post again immediately.")
+                .show(ui, theme)
+            {
+                unmute_key = Some(m.public_key.clone());
+            }
+        });
+        ui.add_space(2.0);
+    }
+
+    if let Some(key) = unmute_key {
+        send_unmute(state, &key);
+        state.server_settings_status = "Sent unmute — the mute list will refresh.".into();
+    }
+}
+
+/// Send a `muted_list_request` (mod-gated; relay replies privately).
+fn send_muted_list_request(state: &GuiState) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            let msg = serde_json::json!({ "type": "muted_list_request" });
+            client.send(&msg.to_string());
+        }
+    }
+}
+
+/// Send an `unmute` for the given public key (mod-gated server-side).
+fn send_unmute(state: &GuiState, public_key: &str) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            let msg = serde_json::json!({ "type": "unmute", "target": public_key });
+            client.send(&msg.to_string());
+        }
+    }
 }
 
 /// Channels spreadsheet (admin only, lives inside the ADMIN tinted

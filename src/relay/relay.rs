@@ -676,6 +676,29 @@ pub enum RelayMessage {
         target: String,
     },
 
+    // ── Mute management (v0.246) ──
+
+    /// Mod/admin → server. Request the current muted-user list. Replied
+    /// privately (targeted) so it doesn't leak to regular members.
+    #[serde(rename = "muted_list_request")]
+    MutedListRequest {},
+
+    /// Server → mod. The full muted-user list. `target` is the mod key
+    /// it's destined for; the send loop drops it for everyone else.
+    #[serde(rename = "muted_list")]
+    MutedList {
+        users: Vec<crate::relay::storage::MutedUser>,
+        #[serde(default)]
+        target: Option<String>,
+    },
+
+    /// Mod/admin → server. Lift a mute by public key. Broadcasts a
+    /// fresh `muted_list` to the requester on success.
+    #[serde(rename = "unmute")]
+    Unmute {
+        target: String,
+    },
+
     /// Admin updates server-wide settings (v0.200.0, extended v0.201.0
     /// with per-role upload limits). Each Optional field is applied
     /// independently — partial updates are fine. Handler requires admin
@@ -2835,6 +2858,16 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 }
             }
 
+            // MutedList: mod-only. Same targeted-delivery rule as the
+            // ban list — never broadcast to regular members.
+            if let RelayMessage::MutedList { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
             // VoiceRoomSignal: only deliver to the target peer.
             if let RelayMessage::VoiceRoomSignal { ref to, .. } = msg {
                 if to != &my_key_for_broadcast {
@@ -3107,9 +3140,17 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     .and_then(|p| p.display_name.clone())
                                     .unwrap_or_else(|| "Anonymous".to_string());
 
-                                // Check if user is muted.
+                                // Check if user is muted. Two sources:
+                                //  (1) the v0.246 muted_members table
+                                //      (orthogonal to role — preferred);
+                                //  (2) legacy role == "muted" (pre-v0.246
+                                //      destructive /mute) — still honored
+                                //      so old mutes don't silently lift on
+                                //      upgrade. Unmute clears both.
                                 let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if user_role == "muted" {
+                                let muted = user_role == "muted"
+                                    || state_clone.db.is_muted(&my_key_for_recv).unwrap_or(false);
+                                if muted {
                                     let private = RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
                                         message: "You are muted and cannot send messages.".to_string(),
@@ -4835,6 +4876,62 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                                 to: my_key_for_recv.clone(),
                                                 message: format!("Unban failed: {e}"),
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                            // ── Mute management (v0.246, mod-gated) ──
+                            RelayMessage::MutedListRequest {} => {
+                                let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                let is_mod = matches!(r.as_str(), "mod" | "moderator" | "admin" | "owner");
+                                if !is_mod {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only moderators can view the mute list.".to_string(),
+                                    });
+                                } else if let Ok(users) = state_clone.db.list_muted() {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::MutedList {
+                                        users,
+                                        target: Some(my_key_for_recv.clone()),
+                                    });
+                                }
+                            }
+                            RelayMessage::Unmute { target } => {
+                                let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                let is_mod = matches!(r.as_str(), "mod" | "moderator" | "admin" | "owner");
+                                if !is_mod {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only moderators can unmute users.".to_string(),
+                                    });
+                                } else if target.is_empty() {
+                                    // no-op
+                                } else {
+                                    match state_clone.db.unmute_user(&target) {
+                                        Ok(()) => {
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "✓ Mute lifted.".to_string(),
+                                            });
+                                            // Tell the freed user directly so they
+                                            // know they can post again.
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                to: target.clone(),
+                                                message: "You have been unmuted — you can send messages again.".to_string(),
+                                            });
+                                            if let Ok(users) = state_clone.db.list_muted() {
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::MutedList {
+                                                    users,
+                                                    target: Some(my_key_for_recv.clone()),
+                                                });
+                                            }
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("unmute failed: {e}");
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: format!("Unmute failed: {e}"),
                                             });
                                         }
                                     }
