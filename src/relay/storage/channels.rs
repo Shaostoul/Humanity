@@ -841,3 +841,169 @@ impl Storage {
         })
     }
 }
+
+// ── Ban / mute storage tests (v0.249 — regression guards for the
+//    v0.245 ban-management + v0.246 mute-rework + v0.247 changes) ──
+#[cfg(test)]
+mod ban_mute_tests {
+    use super::*;
+
+    fn fresh_db() -> Storage {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_banmute_{pid}_{nanos}.db"));
+        Storage::open(&path).expect("open test db")
+    }
+
+    /// Core v0.245 loop: ban records the key+name, is_banned/list_banned
+    /// see it, unban clears it. Also the irreversible-ban-trap guard —
+    /// the name MUST be captured at ban time (we never touch
+    /// registered_names here, exactly like the real kick path which
+    /// deletes it) so an admin can still see + lift the ban.
+    #[test]
+    fn ban_roundtrip_captures_name() {
+        let db = fresh_db();
+        assert!(!db.is_banned("attacker_key").unwrap());
+
+        db.ban_user("attacker_key", "Mallory").expect("ban ok");
+        assert!(db.is_banned("attacker_key").unwrap());
+
+        let list = db.list_banned().unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].public_key, "attacker_key");
+        assert_eq!(
+            list[0].name, "Mallory",
+            "name must survive even though registered_names was never written \
+             — this is the whole point of v0.245 (no irreversible bans)"
+        );
+        assert!(list[0].banned_at > 0);
+
+        db.unban_user("attacker_key").expect("unban ok");
+        assert!(!db.is_banned("attacker_key").unwrap());
+        assert!(db.list_banned().unwrap().is_empty());
+    }
+
+    /// Back-compat: set_banned (the name-less delegator kept for the
+    /// slash /ban + /unban paths) still bans/unbans, name blank.
+    #[test]
+    fn set_banned_delegates() {
+        let db = fresh_db();
+        db.set_banned("k", true).unwrap();
+        assert!(db.is_banned("k").unwrap());
+        assert_eq!(db.list_banned().unwrap()[0].name, "");
+        db.set_banned("k", false).unwrap();
+        assert!(!db.is_banned("k").unwrap());
+    }
+
+    /// A keyless registration (empty public_key) can't be key-banned —
+    /// ban_user must be a silent no-op, not an error or a junk row.
+    #[test]
+    fn ban_empty_key_is_noop() {
+        let db = fresh_db();
+        db.ban_user("", "Ghost").expect("no-op ok");
+        assert!(db.list_banned().unwrap().is_empty());
+        assert!(!db.is_banned("").unwrap());
+    }
+
+    /// Re-banning the same key refreshes the captured name + timestamp
+    /// (INSERT OR REPLACE), never duplicates the row.
+    #[test]
+    fn reban_replaces_not_duplicates() {
+        let db = fresh_db();
+        db.ban_user("k", "OldName").unwrap();
+        db.ban_user("k", "NewName").unwrap();
+        let list = db.list_banned().unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].name, "NewName");
+    }
+
+    /// v0.246 CORE INVARIANT: mute is orthogonal to role. Muting must
+    /// NOT touch user_roles, and unmuting must leave a non-'muted' role
+    /// exactly as it was (a Donor stays a Donor — the bug v0.246 fixed).
+    #[test]
+    fn mute_does_not_clobber_role() {
+        let db = fresh_db();
+        db.set_role("donor_key", "donor").unwrap();
+
+        db.mute_user("donor_key", "Generous").unwrap();
+        assert!(db.is_muted("donor_key").unwrap());
+        assert_eq!(
+            db.get_role("donor_key").unwrap(),
+            "donor",
+            "mute must not overwrite the user's real role"
+        );
+
+        db.unmute_user("donor_key").unwrap();
+        assert!(!db.is_muted("donor_key").unwrap());
+        assert_eq!(
+            db.get_role("donor_key").unwrap(),
+            "donor",
+            "unmute must restore the user EXACTLY — role untouched"
+        );
+    }
+
+    /// v0.246 legacy cleanup: a pre-v0.246 destructive /mute set
+    /// user_roles.role='muted'. unmute_user must clear that legacy state
+    /// (best-effort reset to the safe default-deny 'unverified') so
+    /// users muted the old way can actually be freed.
+    #[test]
+    fn unmute_clears_legacy_muted_role() {
+        let db = fresh_db();
+        db.set_role("legacy_key", "muted").unwrap(); // simulate old /mute
+        assert_eq!(db.get_role("legacy_key").unwrap(), "muted");
+
+        db.unmute_user("legacy_key").unwrap();
+        assert_eq!(
+            db.get_role("legacy_key").unwrap(),
+            "unverified",
+            "legacy role='muted' must be reset on unmute or the user is \
+             stuck muted forever"
+        );
+    }
+
+    /// unmute_user must NOT touch a non-'muted' role even when there's
+    /// no muted_members row (idempotent, role-safe).
+    #[test]
+    fn unmute_is_role_safe_for_nonmuted() {
+        let db = fresh_db();
+        db.set_role("mod_key", "mod").unwrap();
+        db.unmute_user("mod_key").unwrap(); // never muted
+        assert_eq!(db.get_role("mod_key").unwrap(), "mod");
+    }
+
+    /// Mute round-trip + list + empty-key guard.
+    #[test]
+    fn mute_roundtrip_and_empty_guard() {
+        let db = fresh_db();
+        db.mute_user("", "Ghost").expect("no-op ok");
+        assert!(db.list_muted().unwrap().is_empty());
+
+        db.mute_user("noisy_key", "Spammer").unwrap();
+        let list = db.list_muted().unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].public_key, "noisy_key");
+        assert_eq!(list[0].name, "Spammer");
+        assert!(list[0].muted_at > 0);
+
+        db.unmute_user("noisy_key").unwrap();
+        assert!(db.list_muted().unwrap().is_empty());
+    }
+
+    /// Ban and mute are independent stores — banning doesn't mute and
+    /// vice-versa (they gate different things in the relay).
+    #[test]
+    fn ban_and_mute_are_independent() {
+        let db = fresh_db();
+        db.ban_user("k", "X").unwrap();
+        assert!(db.is_banned("k").unwrap());
+        assert!(!db.is_muted("k").unwrap());
+
+        db.unban_user("k").unwrap();
+        db.mute_user("k", "X").unwrap();
+        assert!(!db.is_banned("k").unwrap());
+        assert!(db.is_muted("k").unwrap());
+    }
+}
