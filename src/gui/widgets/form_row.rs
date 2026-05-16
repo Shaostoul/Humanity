@@ -57,6 +57,15 @@ fn form_row_inner(
             egui::vec2(label_width, 0.0),
             egui::Layout::top_down(egui::Align::Min),
             |ui| {
+                // PIN the label column. allocate_ui_with_layout's size is
+                // only a hint — without this the cell shrinks to the
+                // label's text width, so the control starts at a
+                // different x on every row and ragged toggles/inputs
+                // don't line up into a column (operator 2026-05-16:
+                // "the sharing & policy toggles compared to the
+                // others"). Same fix kv_row got in v0.254; applied here
+                // it aligns EVERY form_row across the app.
+                ui.set_min_width(label_width);
                 ui.label(
                     RichText::new(label)
                         .size(theme.font_size_body)

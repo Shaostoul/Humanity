@@ -11,6 +11,11 @@
   "recent_decisions": [
     {
       "at": "2026-05-16",
+      "decision": "v0.259: (1) Universal form_row fix — form_row_inner allocate_ui_with_layout label cell had NO set_min_width(label_width), so it collapsed to text width and the control started at a variable x per row → toggles/inputs stairstepped (operator: sharing & policy toggles vs the others). Added ui.set_min_width(label_width) — exact kv_row v0.254 fix, now on the universal widget → aligns EVERY form_row app-wide (settings/ai_usage/onboarding/server_settings). (2) Centering still failed on the v0.258.1 screenshot (3rd miss: vertical_centered+set_max_width, allocate_ui_with_layout, new_child+max_rect all rendered full-bleed-left). Stopped guessing — added a TEMPORARY on-screen layout-dbg readout in tinted_section (avail / col / x0 / childAW) so the operator next screenshot yields the real runtime numbers (esp. childAW: if ≫ col then new_child(max_rect) is not hard-constraining = the actual root cause). Data-driven next iteration instead of attempt 4 blind.",
+      "rationale": "Operator pointed at the toggles; fixed precisely + universally (high confidence, proven pattern). Was candid that centering is 0/3 and I cannot solve it blind; instrumenting converts the working screenshot loop into a one-shot diagnosis instead of burning more build cycles theorizing about egui."
+    },
+    {
+      "at": "2026-05-16",
       "decision": "Server Settings centering attempt 3 (v0.258) — the one that should actually work. v0.253 vertical_centered+set_max_width and v0.257 horizontal+add_space+allocate_ui_with_layout BOTH failed (operator screenshot on v0.257.1 confirmed section still full-bleed-left). Root cause finally pinned: inside ScrollArea::auto_shrink([false,false]) set_max_width is a soft wrapping hint and allocate_ui_with_layout size is ambiguous, so ui.separator()/Grid/hint expand to the full viewport. Fix: ui.new_child(egui::UiBuilder::new().max_rect(centered_rect).layout(top_down)) — a child UI with an EXPLICIT max_rect; available_width() then derives from that rect so ALL children (separators included) are hard-bounded. Exact primitive already proven in widgets/body_pill.rs. Added ui.allocate_rect(child.min_rect(),hover) so the parent cursor advances (sections still stack). Also de-cramped the policy matrix + roles grids (column spacing spacing_lg/md -> spacing_xl, min_col_width on the matrix). Was candid with operator: this is attempt 3, using the codebase-proven primitive not more theory; asked for one more screenshot.",
       "rationale": "Shipped two wrong width fixes by theorizing about egui instead of using the unambiguous primitive. Stopped guessing, grepped the codebase for a demonstrably-working pattern (body_pill new_child+max_rect), used exactly that. Honesty about the two misses + the collaborative screenshot loop is the candor the operator values; visual correctness can only be verified by him on the build."
     },
@@ -190,8 +195,8 @@
   ],
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "v0.258.1 (pending push this session)",
-    "last_release_summary": "v0.258.0 Server Settings: tinted_section centered via new_child(UiBuilder::max_rect) — the hard-constraint primitive (v0.253/v0.257 soft attempts failed). Policy + roles grids de-cramped. 3rd centering attempt; awaiting operator screenshot."
+    "latest_pushed_tag": "v0.259.1 (pending push this session)",
+    "last_release_summary": "v0.259.0 universal form_row label-column pin (aligns every form app-wide; fixes the ragged Server Settings toggles) + a temporary layout diagnostic in tinted_section to root-cause the 3x-failed centering from real numbers."
   },
   "files_in_flight_or_recently_changed": [
     "src/gui/mod.rs (v0.123.0) — added 8 GuiState fields + 7 load_* fns + new owned types (ResourceEntry, ResourceCategory, StudioScenePreset, StudioSourcePreset) + studio_*_from_preset converters; StudioState::default() now empty (populated from presets in lib.rs)",
