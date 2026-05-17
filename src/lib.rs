@@ -443,6 +443,19 @@ mod native_app {
             1.5,
         );
 
+        // ── Real solar-system body materials (map sync, increment B) ──
+        // Four simple PBR materials picked by SolBody.body_type so Mars
+        // doesn't look like Earth. Not photoreal — that's a later pass;
+        // the point of B is that the FPS sky IS the Maps page (real
+        // bodies, real positions, real scale) instead of one lone
+        // sphere. Colors are coarse real-imagery approximations.
+        state.solar_body_materials = [
+            state.renderer.add_material([0.62, 0.52, 0.42, 1.0], 0.0, 0.85), // rocky/terrestrial — tan-grey
+            state.renderer.add_material([0.80, 0.66, 0.46, 1.0], 0.0, 0.55), // gas giant — banded ochre
+            state.renderer.add_material([0.72, 0.82, 0.92, 1.0], 0.0, 0.40), // icy / dwarf — pale blue-white
+            state.renderer.add_material([0.55, 0.55, 0.58, 1.0], 0.0, 0.80), // default — grey
+        ];
+
         // ── Load CSV game data ──
         #[derive(Debug, serde::Deserialize)]
         #[allow(dead_code)]
@@ -494,6 +507,11 @@ mod native_app {
         /// Emissive material index for the Sun halo (larger sphere, warmer,
         /// lower emissive — gives the Sun a faked corona without bloom).
         sun_halo_material: usize,
+        /// Materials for the real solar-system bodies rendered around the
+        /// home (v0.262.9, map sync increment B): [0]=rocky, [1]=gas
+        /// giant, [2]=icy/dwarf, [3]=default grey. Picked by SolBody
+        /// `body_type`. The Sun reuses `sun_material`.
+        solar_body_materials: [usize; 4],
         /// Homestead floor meshes (mesh_idx, material_idx) per room.
         homestead_floors: Vec<(usize, usize)>,
         /// Homestead walls mesh + material.
@@ -727,6 +745,7 @@ mod native_app {
                 sun_world_pos: glam::DVec3::ZERO,
                 sun_material: 0,
                 sun_halo_material: 0,
+                solar_body_materials: [0; 4],
                 homestead_floors: Vec::new(),
                 homestead_walls: None,
                 hologram_objects: Vec::new(),
@@ -1069,36 +1088,107 @@ mod native_app {
                             material: state.planet_material,
                         });
 
-                        // Render the Sun as a second body. Without a bloom
-                        // post-process the physical sun radius produces
-                        // only a ~0.5° disc from 1 AU which reads as a
-                        // faint white dot. Multiply by a visual-scale
-                        // factor so the Sun actually registers as a sun
-                        // against the starfield. Real physics is still
-                        // represented by sun_world_pos and the lighting
-                        // direction; only the disc size is exaggerated.
-                        //
-                        // Concentric "halo" spheres don't work without
-                        // alpha blending — the outer sphere's front face
-                        // occludes the inner. TODO: wire the already-built
-                        // BloomPass for a real corona effect.
-                        let sun_offset = state.sun_world_pos - state.ship_world_pos;
-                        let sun_render_pos = Vec3::new(
-                            sun_offset.x as f32,
-                            sun_offset.y as f32,
-                            sun_offset.z as f32,
-                        );
-                        let sun_radius_m = 695_700_000.0_f32;
-                        // ~12× visual scale → ~6° on screen, similar to
-                        // how stars are rendered in Elite / Kerbal.
-                        let sun_visual_scale = sun_radius_m * 12.0;
-                        all_objects.push(RenderObject {
-                            position: sun_render_pos,
-                            rotation: Quat::IDENTITY,
-                            scale: Vec3::splat(sun_visual_scale),
-                            mesh: mesh_idx,
-                            material: state.sun_material,
-                        });
+                        // ── The real solar system around the home ──
+                        // (map sync, increment B). Was: a single hardcoded
+                        // Sun along a fake [0.3,1,0.5] vector. Now every
+                        // body the Maps page shows is spawned at its TRUE
+                        // position relative to Earth, from the SAME
+                        // canonical Keplerian model (crate::cosmos) the
+                        // Maps page reads — so the FPS sky IS the Maps
+                        // page, just real size. Earth itself stays the
+                        // dedicated PlanetRenderer at world origin (above);
+                        // every other body is placed at
+                        //   (helio(body) - helio(earth)) * metres-per-AU
+                        // i.e. Earth-centred world space, then offset into
+                        // the camera/floating-origin frame by -ship_pos
+                        // exactly like Earth. Live sim time = seconds
+                        // since J2000 from the real clock, so the sky
+                        // matches the real date (same as Maps "Now").
+                        let sim_t = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs_f64())
+                            .unwrap_or(0.0)
+                            - 946_728_000.0; // Unix secs at J2000.0 epoch
+                        let earth_helio_au = crate::cosmos::find_body("earth")
+                            .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+                            .unwrap_or(glam::DVec3::ZERO);
+                        let mut sun_rel_earth_m = glam::DVec3::ZERO;
+                        for b in crate::cosmos::sol_bodies() {
+                            // Earth is the dedicated PlanetRenderer; its
+                            // moons orbit a planet (parent != sun) so skip
+                            // them to keep the sky readable. Render the
+                            // Sun + everything that directly orbits it
+                            // (planets, dwarfs, named belt bodies) + our
+                            // Moon. This mirrors the Maps left-list.
+                            if b.id == "earth" { continue; }
+                            let is_sun = b.body_type == "star";
+                            let direct_solar = b.parent.as_deref() == Some("sun");
+                            if !is_sun && !direct_solar && b.id != "moon" { continue; }
+
+                            let helio_au =
+                                crate::cosmos::body_world_position_3d_au(b, sim_t);
+                            let rel_earth_m =
+                                (helio_au - earth_helio_au) * crate::cosmos::M_PER_AU;
+                            if is_sun { sun_rel_earth_m = rel_earth_m; }
+                            let render_off = rel_earth_m - state.ship_world_pos;
+                            let dist = render_off.length().max(1.0);
+                            let radius_m = (b.radius_km * 1000.0) as f64;
+
+                            // Visibility floor: without a bloom/billboard
+                            // pass a real planet from tens of millions of
+                            // km is sub-pixel. Clamp the on-screen disc to
+                            // a minimum angular size so it reads as a body
+                            // (true POSITION is always exact — only the
+                            // disc is floored, same trick the old Sun used
+                            // and how Elite/KSP draw distant bodies). The
+                            // Sun gets a bigger floor so it reads as a sun.
+                            let min_ang = if is_sun { 0.045 } else { 0.0028 };
+                            let visual_scale = radius_m.max(dist * min_ang) as f32;
+
+                            let material = if is_sun {
+                                state.sun_material
+                            } else {
+                                match b.body_type.as_str() {
+                                    "gas_giant" | "gas giant" => state.solar_body_materials[1],
+                                    "ice_giant" | "ice giant" => state.solar_body_materials[1],
+                                    "dwarf_planet" | "dwarf" | "kuiper" => {
+                                        state.solar_body_materials[2]
+                                    }
+                                    "terrestrial" | "moon" | "asteroid" => {
+                                        state.solar_body_materials[0]
+                                    }
+                                    _ => state.solar_body_materials[3],
+                                }
+                            };
+                            all_objects.push(RenderObject {
+                                position: Vec3::new(
+                                    render_off.x as f32,
+                                    render_off.y as f32,
+                                    render_off.z as f32,
+                                ),
+                                rotation: Quat::from_rotation_y(elapsed * 0.01),
+                                scale: Vec3::splat(visual_scale),
+                                mesh: mesh_idx,
+                                material,
+                            });
+                        }
+                        // Keep the cached Sun pos + the shader's light
+                        // direction pointed at the REAL Sun so Earth's lit
+                        // hemisphere matches the visible Sun disc (was a
+                        // fixed [0.3,1,0.5] that disagreed with the disc).
+                        state.sun_world_pos = sun_rel_earth_m;
+                        let sun_dir = sun_rel_earth_m.normalize_or_zero();
+                        if sun_dir != glam::DVec3::ZERO {
+                            state.renderer.set_sun_light(
+                                Vec3::new(
+                                    sun_dir.x as f32,
+                                    sun_dir.y as f32,
+                                    sun_dir.z as f32,
+                                ),
+                                [1.0, 0.97, 0.92],
+                                2.5,
+                            );
+                        }
                     }
 
                     // Update FPS counter
