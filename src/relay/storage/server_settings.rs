@@ -91,6 +91,16 @@ pub struct ServerSettings {
     /// a PQ-capable client (v0.251+). Fully reversible.
     #[serde(default)]
     pub require_pq_signatures: bool,
+    /// SOFT gate for the future P2P content-distribution feature
+    /// (operator-uploaded 3D models seeded via BitTorrent). When OFF
+    /// the relay must not generate/serve torrents or magnet links.
+    /// Default FALSE — the feature isn't built yet; this is the
+    /// plumbing + a documented no-op gate so the Services panel has a
+    /// real switch from day one. The matching OS daemon
+    /// (transmission-daemon) is controlled separately via the
+    /// service-control bridge. v0.262.16.
+    #[serde(default)]
+    pub p2p_distribution_enabled: bool,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -136,6 +146,7 @@ impl Default for ServerSettings {
             max_uploads_per_user_admin: default_uploads_kept_admin(),
             max_total_upload_mb: default_max_total_upload_mb(),
             require_pq_signatures: false, // operator opts in when adoption is confirmed
+            p2p_distribution_enabled: false, // feature unbuilt; off until operator + feature ready
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -193,7 +204,7 @@ impl Storage {
                         max_uploads_per_user, max_total_upload_mb,
                         max_uploads_per_user_unverified, max_uploads_per_user_verified,
                         max_uploads_per_user_mod, max_uploads_per_user_admin,
-                        require_pq_signatures
+                        require_pq_signatures, p2p_distribution_enabled
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -202,6 +213,7 @@ impl Storage {
                     let voice: i32 = row.get(7)?;
                     let video: i32 = row.get(8)?;
                     let req_pq: i32 = row.get(22)?;
+                    let p2p: i32 = row.get(23)?;
                     Ok(ServerSettings {
                         max_chars_unverified: row.get(0)?,
                         max_chars_verified: row.get(1)?,
@@ -226,6 +238,7 @@ impl Storage {
                         max_uploads_per_user_mod: row.get(20)?,
                         max_uploads_per_user_admin: row.get(21)?,
                         require_pq_signatures: req_pq != 0,
+                        p2p_distribution_enabled: p2p != 0,
                     })
                 },
             ) {
@@ -274,6 +287,7 @@ impl Storage {
                     max_uploads_per_user_mod        = ?21,
                     max_uploads_per_user_admin      = ?22,
                     require_pq_signatures           = ?23,
+                    p2p_distribution_enabled        = ?24,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -303,6 +317,7 @@ impl Storage {
                     s.max_uploads_per_user_mod,
                     s.max_uploads_per_user_admin,
                     s.require_pq_signatures as i32,
+                    s.p2p_distribution_enabled as i32,
                 ],
             )?;
             Ok(rows > 0)
@@ -354,5 +369,86 @@ mod tests {
         off.require_pq_signatures = false;
         assert!(db.set_server_settings(&off, "admin_key").expect("set3"));
         assert!(!db.get_server_settings().expect("get3").require_pq_signatures);
+    }
+
+    /// Server→Services (v0.262.16): p2p_distribution_enabled must
+    /// default OFF (the feature is unbuilt — it must never silently be
+    /// "on") and round-trip cleanly through the positional set/get SQL.
+    #[test]
+    fn p2p_distribution_enabled_roundtrips_and_defaults_off() {
+        let db = fresh_db();
+        let s = db.get_server_settings().expect("get");
+        assert!(
+            !s.p2p_distribution_enabled,
+            "MUST default OFF — feature is unbuilt, never silently on"
+        );
+        let mut on = s.clone();
+        on.p2p_distribution_enabled = true;
+        on.require_pq_signatures = true; // adjacent bool — catch index bleed
+        assert!(db.set_server_settings(&on, "admin_key").expect("set"));
+        let got = db.get_server_settings().expect("get2");
+        assert!(got.p2p_distribution_enabled, "toggle must persist ON");
+        assert!(got.require_pq_signatures, "no positional-index bleed");
+        let mut off = got.clone();
+        off.p2p_distribution_enabled = false;
+        assert!(db.set_server_settings(&off, "admin_key").expect("set3"));
+        assert!(!db.get_server_settings().expect("get3").p2p_distribution_enabled);
+    }
+
+    /// Incident-class regression (2026-05-17 lesson): a relay whose DB
+    /// predates the p2p_distribution_enabled column must upgrade WITHOUT
+    /// panicking, default the new column OFF, and PRESERVE the
+    /// operator's existing tuned values. Rewinds the live schema by
+    /// dropping the column on a raw connection, then reopens Storage so
+    /// the guarded ALTER runs the real migration path.
+    #[test]
+    fn upgrade_from_pre_p2p_server_settings_schema_does_not_panic() {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_srvset_upg_{pid}_{nanos}.db"));
+
+        // 1. Fresh DB, then simulate an operator who tuned settings
+        //    BEFORE this migration existed.
+        {
+            let db = Storage::open(&path).expect("open v1");
+            let mut s = db.get_server_settings().expect("get v1");
+            s.require_pq_signatures = true; // a bool the operator set
+            s.max_total_upload_mb = 4321;   // an int the operator set
+            assert!(db.set_server_settings(&s, "op_key").expect("set v1"));
+        }
+        // 2. Rewind: drop the new column so the file looks pre-v0.262.16.
+        {
+            let conn = rusqlite::Connection::open(&path).expect("raw open");
+            conn.execute_batch(
+                "ALTER TABLE server_settings DROP COLUMN p2p_distribution_enabled;",
+            )
+            .expect("drop column (SQLite >= 3.35)");
+            assert!(
+                conn.prepare("SELECT p2p_distribution_enabled FROM server_settings LIMIT 0")
+                    .is_err(),
+                "column must really be gone — test premise"
+            );
+        }
+        // 3. Reopen Storage — the guarded ALTER must run the migration.
+        let db = Storage::open(&path).expect("reopen MUST NOT panic (incident regression)");
+        let got = db
+            .get_server_settings()
+            .expect("get_server_settings after upgrade MUST NOT error");
+        assert!(
+            !got.p2p_distribution_enabled,
+            "migration backfill MUST default the new column OFF"
+        );
+        assert!(
+            got.require_pq_signatures,
+            "operator's pre-migration bool MUST be preserved"
+        );
+        assert_eq!(
+            got.max_total_upload_mb, 4321,
+            "operator's pre-migration int MUST be preserved (non-destructive upgrade)"
+        );
+        let _ = std::fs::remove_file(&path);
     }
 }

@@ -683,6 +683,7 @@ impl Storage {
                 max_uploads_per_user_mod        INTEGER NOT NULL DEFAULT 100,
                 max_uploads_per_user_admin      INTEGER NOT NULL DEFAULT 500,
                 require_pq_signatures           INTEGER NOT NULL DEFAULT 0,
+                p2p_distribution_enabled        INTEGER NOT NULL DEFAULT 0,
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -713,6 +714,23 @@ impl Storage {
                 "ALTER TABLE server_settings ADD COLUMN require_pq_signatures INTEGER NOT NULL DEFAULT 0;"
             )?;
             info!("Migration: added require_pq_signatures (server_settings)");
+        }
+
+        // ── v0.262.16 — Server→Services: P2P-distribution soft gate ──
+        // Soft toggle for the future BitTorrent model-distribution
+        // feature. DEFAULT 0 (OFF) so existing relays are unaffected
+        // (the feature isn't built; this is plumbing + a no-op gate).
+        // Idempotent guarded ALTER, run BEFORE any SELECT of the column
+        // (get_server_settings now reads it) — the 2026-05-17
+        // migration-ordering lesson. The server_settings seed is
+        // `(id) VALUES (1)` (never names columns) so the seed-names-new-
+        // column failure class cannot occur here; the guarded ALTER is
+        // purely for pre-v0.262.16 databases.
+        if conn.prepare("SELECT p2p_distribution_enabled FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN p2p_distribution_enabled INTEGER NOT NULL DEFAULT 0;"
+            )?;
+            info!("Migration: added p2p_distribution_enabled (server_settings)");
         }
 
         // ── v0.238.0 — per-role FIFO retention ──

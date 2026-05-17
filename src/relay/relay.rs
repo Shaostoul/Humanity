@@ -686,6 +686,32 @@ pub enum RelayMessage {
         target: String,
     },
 
+    // ── Server→Services privilege bridge (v0.262.16) ──
+
+    /// Admin → server. Control a backing OS daemon for a feature, OR
+    /// just refresh status. `service` is an allowlist logical id
+    /// ("voice"/"p2p"); `action` is "start" | "stop" | "refresh".
+    /// SECURITY: handler re-checks admin AND the bridge allowlists the
+    /// service/action — `service`/`action` are NEVER used as shell or
+    /// unit strings (see `crate::relay::services`). Replies privately
+    /// with `service_state`.
+    #[serde(rename = "service_control")]
+    ServiceControl {
+        service: String,
+        action: String,
+    },
+
+    /// Server → client. Snapshot of the allowlisted services (soft gate
+    /// + live daemon state) for the Services panel. Targeted to the
+    /// requesting admin (NEVER broadcast — same privacy stance as
+    /// `banned_list`).
+    #[serde(rename = "service_state")]
+    ServiceState {
+        services: Vec<crate::relay::services::ServiceInfo>,
+        #[serde(default)]
+        target: Option<String>,
+    },
+
     // ── Mute management (v0.246) ──
 
     /// Mod/admin → server. Request the current muted-user list. Replied
@@ -767,6 +793,10 @@ pub enum RelayMessage {
         /// PQ Increment 3: toggle hard PQ-signature enforcement.
         #[serde(default)]
         require_pq_signatures: Option<bool>,
+        /// Server→Services (v0.262.16): soft gate for the future P2P
+        /// content-distribution feature. Optional/partial like the rest.
+        #[serde(default)]
+        p2p_distribution_enabled: Option<bool>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -2900,6 +2930,16 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 }
             }
 
+            // ServiceState: admin-only. Same targeted-delivery rule —
+            // daemon/feature state must not leak to non-admin clients.
+            if let RelayMessage::ServiceState { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
             // VoiceRoomSignal: only deliver to the target peer.
             if let RelayMessage::VoiceRoomSignal { ref to, .. } = msg {
                 if to != &my_key_for_broadcast {
@@ -4990,6 +5030,53 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     }
                                 }
                             }
+                            // ── Server→Services privilege bridge (v0.262.16) ──
+                            // Admin-gated. start/stop go through the
+                            // allowlisted bridge (crate::relay::services);
+                            // any other action just refreshes state. The
+                            // systemctl calls are blocking so they run on
+                            // spawn_blocking — never stall a tokio worker
+                            // (we tuned this relay for concurrency).
+                            RelayMessage::ServiceControl { service, action } => {
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if role != "admin" && role != "owner" {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins can control services.".to_string(),
+                                    });
+                                } else {
+                                    if action == "start" || action == "stop" {
+                                        let r = role.clone();
+                                        let svc = service.clone();
+                                        let act = action.clone();
+                                        let res = tokio::task::spawn_blocking(move || {
+                                            crate::relay::services::control(&r, &svc, &act)
+                                        })
+                                        .await
+                                        .unwrap_or_else(|_| Err("internal task error".into()));
+                                        let msg = match res {
+                                            Ok(m) => format!("✓ {m}"),
+                                            Err(e) => format!("Service action failed: {e}"),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: msg,
+                                        });
+                                    }
+                                    // Always return a fresh snapshot to the
+                                    // requesting admin (privately).
+                                    let settings = state_clone.db.get_server_settings().unwrap_or_default();
+                                    let services = tokio::task::spawn_blocking(move || {
+                                        crate::relay::services::snapshot(&settings)
+                                    })
+                                    .await
+                                    .unwrap_or_default();
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::ServiceState {
+                                        services,
+                                        target: Some(my_key_for_recv.clone()),
+                                    });
+                                }
+                            }
                             // ── Mute management (v0.246, mod-gated) ──
                             RelayMessage::MutedListRequest {} => {
                                 let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
@@ -5059,6 +5146,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 max_uploads_per_user_unverified, max_uploads_per_user_verified,
                                 max_uploads_per_user_mod, max_uploads_per_user_admin,
                                 require_pq_signatures,
+                                p2p_distribution_enabled,
                             } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if role != "admin" && role != "owner" {
@@ -5130,6 +5218,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     if let Some(v) = max_uploads_per_user_admin      { current.max_uploads_per_user_admin      = v.clamp(1, 1_000); }
                                     // PQ Inc 3: hard-enforcement toggle.
                                     if let Some(v) = require_pq_signatures { current.require_pq_signatures = v; }
+                                    // Server→Services: P2P soft gate.
+                                    if let Some(v) = p2p_distribution_enabled { current.p2p_distribution_enabled = v; }
                                     match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
                                         Ok(true) => {
                                             // Broadcast new state to everyone.

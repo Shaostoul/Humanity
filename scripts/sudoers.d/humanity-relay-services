@@ -1,0 +1,21 @@
+# HumanityOS — Server→Services privilege bridge (v0.262.16)
+# ---------------------------------------------------------------------
+# The relay runs as the NON-ROOT user `humanity`. To let an admin
+# start/stop the daemons that back HumanityOS features from the in-app
+# Server Settings → Services panel (instead of SSHing the VPS), this
+# grants `humanity` NOPASSWD for EXACTLY four commands and NOTHING else.
+#
+# This file is the KERNEL-ENFORCED last line of defence. The relay also
+# allowlists service+action in src/relay/services.rs and never passes a
+# client-supplied string as a command/unit argument — but even if every
+# in-process check were bypassed, sudo here permits only start/stop of
+# these two units. No wildcards. No enable/disable/mask. No shells.
+#
+# To add a service: add the matching two lines below AND a row to
+# ALLOWLIST in src/relay/services.rs, then security-review both.
+#
+# Installed + validated (visudo -cf) by .github/workflows/deploy.yml and
+# the `just sync` recovery path. File mode MUST be 0440, owner root:root
+# (sudo refuses world/group-writable drop-ins).
+Cmnd_Alias HUMANITY_SVC = /usr/bin/systemctl start coturn.service, /usr/bin/systemctl stop coturn.service, /usr/bin/systemctl start transmission-daemon.service, /usr/bin/systemctl stop transmission-daemon.service
+humanity ALL=(root) NOPASSWD: HUMANITY_SVC

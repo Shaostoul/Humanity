@@ -90,7 +90,7 @@ sync:
         git fetch origin main && \
         git reset --hard origin/main && \
         git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
-        ( DISK_PCT=\$(df --output=pcent / | tail -1 | tr -dc '0-9' || echo 0); if [ \"\${DISK_PCT:-0}\" -ge 80 ]; then echo \"disk \${DISK_PCT}%>=80 - clearing regenerable target/\"; rm -rf target; fi; cp -f scripts/systemd/humanity-disk-guard.service /etc/systemd/system/humanity-disk-guard.service; cp -f scripts/systemd/humanity-disk-guard.timer /etc/systemd/system/humanity-disk-guard.timer; chmod +x scripts/humanity-disk-guard.sh; systemctl daemon-reload; systemctl enable --now humanity-disk-guard.timer; ) || true && \
+        ( DISK_PCT=\$(df --output=pcent / | tail -1 | tr -dc '0-9' || echo 0); if [ \"\${DISK_PCT:-0}\" -ge 80 ]; then echo \"disk \${DISK_PCT}%>=80 - clearing regenerable target/\"; rm -rf target; fi; cp -f scripts/systemd/humanity-disk-guard.service /etc/systemd/system/humanity-disk-guard.service; cp -f scripts/systemd/humanity-disk-guard.timer /etc/systemd/system/humanity-disk-guard.timer; chmod +x scripts/humanity-disk-guard.sh; systemctl daemon-reload; systemctl enable --now humanity-disk-guard.timer; if visudo -cf scripts/sudoers.d/humanity-relay-services >/dev/null 2>&1; then install -m 0440 -o root -g root scripts/sudoers.d/humanity-relay-services /etc/sudoers.d/humanity-relay-services; fi; ) || true && \
         export PATH=\$HOME/.cargo/bin:\$PATH && \
         cargo build --release --features relay --no-default-features 2>&1 | tail -4 && \
         rsync -a --delete /opt/Humanity/web/chat/ /var/www/humanity/chat/ && \

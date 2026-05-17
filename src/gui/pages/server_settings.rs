@@ -1510,6 +1510,8 @@ fn send_server_settings_update(
                 "max_uploads_per_user_admin":      draft.max_uploads_per_user_admin,
                 // PQ Increment 3: gated hard-enforcement toggle.
                 "require_pq_signatures":           draft.require_pq_signatures,
+                // Server→Services (v0.262.16): P2P-distribution soft gate.
+                "p2p_distribution_enabled":        draft.p2p_distribution_enabled,
             });
             client.send(&msg.to_string());
             state.server_settings_status = "Server policy update sent.".into();

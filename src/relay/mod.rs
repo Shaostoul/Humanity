@@ -22,6 +22,10 @@ pub mod storage;
 pub mod handlers;
 pub mod core;
 pub mod transport;
+/// Server→Services privilege bridge (v0.262.16). Tightly-allowlisted
+/// daemon start/stop for operator feature control. SECURITY-SENSITIVE —
+/// see the module docs; the allowlist is the trust boundary.
+pub mod services;
 
 use axum::{
     Router,

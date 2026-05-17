@@ -53,6 +53,21 @@ jobs:
             systemctl daemon-reload || true
             systemctl enable --now humanity-disk-guard.timer || true
 
+            # ── Server→Services sudoers (v0.262.16) ──
+            # Grants the non-root relay user start/stop on exactly the 2
+            # feature daemons (see scripts/sudoers.d/humanity-relay-services).
+            # VALIDATE FIRST: a malformed file in /etc/sudoers.d/ can break
+            # ALL sudo on the box — only install if `visudo -cf` passes.
+            # Must be 0440 root:root or sudo ignores it.
+            if visudo -cf scripts/sudoers.d/humanity-relay-services >/dev/null 2>&1; then
+              install -m 0440 -o root -g root \
+                scripts/sudoers.d/humanity-relay-services \
+                /etc/sudoers.d/humanity-relay-services
+              echo "Server->Services sudoers installed"
+            else
+              echo "WARNING: humanity-relay-services failed visudo -cf -- NOT installed"
+            fi
+
             # Build unified binary with relay feature (headless, no GPU deps)
             cargo build --release --features relay --no-default-features
 
