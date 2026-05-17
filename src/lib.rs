@@ -319,14 +319,21 @@ mod native_app {
             homestead.room_info.len(), state.homestead_floors.len(),
             state.homestead_walls.is_some(), state.room_lights.len());
 
-        // ── Solar system hologram ──
-        let hologram = match crate::renderer::hologram::load_solar_system(&state.data_dir) {
-            Some(ss_data) => crate::renderer::hologram::generate_hologram_from_data(&ss_data),
-            None => {
-                log::warn!("Using fallback hardcoded solar system");
-                crate::renderer::hologram::generate_hologram_fallback()
-            }
-        };
+        // ── Solar system hologram (map-sync increment C, v0.262.13) ──
+        // Driven by the CANONICAL crate::cosmos model at the live date,
+        // so the tabletop matches the Maps page + the FPS sky exactly.
+        // Was the drifted solar_system.ron placed at fake golden angles
+        // (operator: "isn't working — still showing an old
+        // placeholder"). Sun is the room centre; bodies sit at their
+        // REAL ecliptic longitude (orbit radii still log-compressed to
+        // fit the room — true AU ratios can't show indoors).
+        let sim_t_now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0)
+            - 946_728_000.0; // Unix secs at the J2000.0 epoch
+        let hologram =
+            crate::renderer::hologram::generate_hologram_from_cosmos(sim_t_now);
 
         let orbit_mat = state.renderer.add_material([0.3, 0.7, 0.9, 0.8], 0.0, 0.3);
         let ring_disc_mat = state.renderer.add_material([0.8, 0.7, 0.5, 0.6], 0.0, 0.4);
@@ -378,6 +385,40 @@ mod native_app {
                 let pin_offset = Vec3::new(0.0, body.radius + 0.13, 0.0);
                 state.hologram_pins.push((pin_mesh_idx, pin_mat, body.local_position + pin_offset, body.name.clone()));
             }
+        }
+
+        // ── "You are here" HOME marker (map-sync increment C) ──
+        // The operator wants "a little blip and a marker pointing to
+        // the player home, which data-wise is in a high safe orbit of
+        // Earth". At orrery scale, GEO altitude (~42,000 km) vs Earth's
+        // 1 AU heliocentric distance is ~3e-4 — sub-millimetre — so the
+        // home cannot be shown offset from Earth here; it IS at Earth.
+        // We mark it with a distinct bright-green emissive blip + a
+        // taller "HOME" pin so it stands out from the planet name-pins.
+        if let Some(earth) = hologram.bodies.iter().find(|b| b.name == "Earth") {
+            // Bright emissive blip sitting just above Earth.
+            let blip_mesh = state.renderer.add_mesh(
+                crate::renderer::hologram::sphere_mesh(&state.renderer.device, 0.007, 6, 8),
+            );
+            let blip_mat = state
+                .renderer
+                .add_material_full([0.20, 1.0, 0.55, 1.0], 0.0, 0.4, 0.0, 4.0);
+            let blip_pos = earth.local_position + Vec3::new(0.0, earth.radius + 0.03, 0.0);
+            state
+                .hologram_objects
+                .push((blip_mesh, blip_mat, blip_pos, "Home (high Earth orbit)".to_string()));
+            // Taller distinct pin labelled HOME.
+            let home_pin_mesh = state.renderer.add_mesh(
+                crate::renderer::hologram::pin_marker_mesh(&state.renderer.device, 0.035, 0.22),
+            );
+            let home_pin_mat = state
+                .renderer
+                .add_material_full([0.20, 1.0, 0.55, 1.0], 0.0, 0.5, 0.0, 2.0);
+            let home_pin_pos = earth.local_position + Vec3::new(0.0, earth.radius + 0.34, 0.0);
+            state
+                .hologram_pins
+                .push((home_pin_mesh, home_pin_mat, home_pin_pos, "HOME".to_string()));
+            log::info!("Map-sync C: HOME marker placed at Earth's orrery position");
         }
 
         // ── Star skybox ──

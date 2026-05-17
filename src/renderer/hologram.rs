@@ -300,6 +300,138 @@ pub fn generate_hologram_from_data(data: &SolarSystemData) -> SolarSystemHologra
     SolarSystemHologram { bodies }
 }
 
+/// Build the in-home holo-orrery from the CANONICAL `crate::cosmos`
+/// model (v0.262.13, map-sync increment C).
+///
+/// The old `generate_hologram_from_data` read the drifted
+/// `solar_system.ron` and placed bodies at fake GOLDEN-ANGLE positions
+/// — so the tabletop never matched the Maps page or the FPS sky (the
+/// operator: "still showing an old placeholder"). This generator uses
+/// the SAME Kepler model everything else now uses, so the orrery shows
+/// the REAL current configuration. Orbit *radii* are still log-scaled
+/// to fit the ~5 m room (you cannot show Neptune 30× farther than
+/// Earth at true ratio indoors — that compression is correct and
+/// kept); only the fake angle is replaced with the real ecliptic
+/// longitude `atan2(z, x)` of each body's live heliocentric position.
+///
+/// Output is the SAME `SolarSystemHologram` shape as the old path, so
+/// the lib.rs consumption loop (meshes / orbit rings / pins) is
+/// unchanged. `parent` is emitted with the legacy capitalised "Sun" /
+/// display-name convention that loop matches on.
+pub fn generate_hologram_from_cosmos(sim_time_seconds: f64) -> SolarSystemHologram {
+    let m_per_au = crate::cosmos::M_PER_AU;
+    let all = crate::cosmos::sol_bodies();
+
+    // Color by body_type (crate::cosmos carries no per-body color).
+    // Earth gets a distinct blue so the HOME marker reads against it.
+    let color_for = |id: &str, bt: &str| -> [f32; 4] {
+        if id == "earth" {
+            return [0.25, 0.50, 0.88, 1.0];
+        }
+        match bt {
+            "star" => [1.00, 0.93, 0.72, 1.0],
+            "gas_giant" | "gas giant" => [0.80, 0.66, 0.46, 1.0],
+            "ice_giant" | "ice giant" => [0.55, 0.72, 0.86, 1.0],
+            "dwarf_planet" | "dwarf" | "kuiper" => [0.74, 0.82, 0.92, 1.0],
+            "terrestrial" => [0.62, 0.55, 0.47, 1.0],
+            "moon" => [0.72, 0.72, 0.72, 1.0],
+            "asteroid" => [0.55, 0.50, 0.45, 1.0],
+            _ => [0.60, 0.60, 0.63, 1.0],
+        }
+    };
+    let type_for = |bt: &str| -> BodyType {
+        match bt {
+            "star" => BodyType::Star,
+            "moon" => BodyType::Moon,
+            "dwarf_planet" | "dwarf" | "kuiper" | "asteroid" => BodyType::DwarfPlanet,
+            _ => BodyType::Planet, // terrestrial / gas_giant / ice_giant
+        }
+    };
+
+    // Orbit-radius range over direct sun-orbiters (semi-major axis).
+    let mut min_orbit = f64::INFINITY;
+    let mut max_orbit = 0.0_f64;
+    for b in all {
+        if b.parent.as_deref() == Some("sun") && b.semi_major_axis_au > 0.0 {
+            let r = b.semi_major_axis_au * m_per_au;
+            min_orbit = min_orbit.min(r);
+            max_orbit = max_orbit.max(r);
+        }
+    }
+
+    let mut bodies: Vec<HologramBody> = Vec::with_capacity(all.len());
+    let mut orrery_pos: std::collections::HashMap<String, Vec3> = std::collections::HashMap::new();
+
+    // Pass 1: Sun + direct sun-orbiters at REAL ecliptic angle.
+    for b in all {
+        let is_sun = b.body_type == "star";
+        let direct_solar = b.parent.as_deref() == Some("sun");
+        if !is_sun && !direct_solar {
+            continue;
+        }
+        let (orbit_radius, pos) = if is_sun {
+            (0.0, Vec3::ZERO)
+        } else {
+            let helio = crate::cosmos::body_world_position_3d_au(b, sim_time_seconds);
+            // Ecliptic plane is XZ here; real longitude = atan2(z, x).
+            let angle = (helio.z as f32).atan2(helio.x as f32);
+            let r = orbit_to_hologram(b.semi_major_axis_au * m_per_au, min_orbit, max_orbit);
+            (r, Vec3::new(r * angle.cos(), 0.0, r * angle.sin()))
+        };
+        orrery_pos.insert(b.id.clone(), pos);
+        bodies.push(HologramBody {
+            name: b.name.clone(),
+            body_type: type_for(&b.body_type),
+            parent: if is_sun { None } else { Some("Sun".to_string()) },
+            local_position: pos,
+            radius: radius_to_visual(b.radius_km * 1000.0, &type_for(&b.body_type)),
+            color: color_for(&b.id, &b.body_type),
+            orbit_radius,
+            has_rings: matches!(b.id.as_str(), "saturn" | "uranus" | "neptune"),
+            has_atmosphere: false,
+        });
+    }
+
+    // Pass 2: moons — real angle relative to their parent's orrery spot.
+    for b in all {
+        if b.body_type != "moon" {
+            continue;
+        }
+        let parent_id = match &b.parent {
+            Some(p) => p.clone(),
+            None => continue,
+        };
+        let parent_pos = match orrery_pos.get(&parent_id) {
+            Some(p) => *p,
+            None => continue,
+        };
+        let helio_m = crate::cosmos::body_world_position_3d_au(b, sim_time_seconds);
+        let helio_p = crate::cosmos::find_body(&parent_id)
+            .map(|p| crate::cosmos::body_world_position_3d_au(p, sim_time_seconds))
+            .unwrap_or(glam::DVec3::ZERO);
+        let rel = helio_m - helio_p;
+        let angle = (rel.z as f32).atan2(rel.x as f32);
+        let orbit_r = 0.07_f32; // fixed small ring; room can't show true ratio
+        let pos = parent_pos + Vec3::new(orbit_r * angle.cos(), 0.0, orbit_r * angle.sin());
+        let parent_name = crate::cosmos::find_body(&parent_id)
+            .map(|p| p.name.clone())
+            .unwrap_or(parent_id);
+        bodies.push(HologramBody {
+            name: b.name.clone(),
+            body_type: BodyType::Moon,
+            parent: Some(parent_name),
+            local_position: pos,
+            radius: radius_to_visual(b.radius_km * 1000.0, &BodyType::Moon),
+            color: color_for(&b.id, "moon"),
+            orbit_radius: orbit_r,
+            has_rings: false,
+            has_atmosphere: false,
+        });
+    }
+
+    SolarSystemHologram { bodies }
+}
+
 /// Fallback: generate hardcoded hologram if RON loading fails.
 pub fn generate_hologram_fallback() -> SolarSystemHologram {
     struct PlanetDef {
