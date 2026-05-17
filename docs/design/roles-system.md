@@ -169,8 +169,23 @@ are its own.
 - **User-profile modal** (operator's chosen assignment path): admins
   see a role dropdown listing every `role_list` entry; selecting one
   sends `set_user_role`. Replaces/augments the mod/unmod buttons.
-- **Server Settings → Roles** (later phase): a roles table — add
-  custom role, edit label/color/trust/capabilities, delete custom.
+- **Server Settings → Roles**: ONE cohesive table. The header is
+  followed by a single **"Server master"** row (accent-colored, no
+  swatch) carrying the 4 server-wide kill-switches in the
+  Stream/Voice/Image/File columns (`Upload` is a dash — legacy general
+  `can_upload` has no server-wide master); every row below is a role
+  (add custom, edit label/color/capabilities + per-role numeric limits,
+  delete custom). **v0.262.6:** the kill-switches were previously a
+  detached "Sharing & policy toggles" checkbox group in *Server policy*;
+  the operator read that as a *duplicate* of the per-role
+  Stream/Voice/Image/File columns. They are not duplicates (effective =
+  master ∧ role) but two detached checkbox groups looked redundant, so
+  they were folded into this table's top row. Both the Server-policy
+  "Save Changes" button and the master row's own Save send the *same*
+  `server_settings_update` payload via the shared
+  `send_server_settings_update` helper (one builder, can't drift). Only
+  the genuinely-global `require_pq_signatures` gate (no per-role column)
+  remains in *Server policy*.
 - **Badges**: role badge color comes from `RoleDef.color` instead of
   the hardcoded badge palette. Custom roles get a badge automatically.
 

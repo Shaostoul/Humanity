@@ -1031,11 +1031,14 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
     widgets::subsection_label(ui, theme, "Server policy");
     widgets::body_hint(
         ui, theme,
-        "Server-wide settings only: the master sharing / voice / streaming \
-         switches, the post-quantum-signature requirement, the total upload \
-         disk cap, and the allowed file extensions. (Per-role limits — chars / \
-         upload MB / uploads-kept — now live in the Roles table below.) \
-         Changes broadcast to all connected clients on Save.",
+        "True server-wide settings: the post-quantum-signature requirement, \
+         the total upload disk cap, and the allowed file extensions. The \
+         master sharing / voice / streaming kill-switches now live as the \
+         'Server master' row at the top of the Roles table below — same \
+         columns as every role, so it's one cohesive table instead of a \
+         second detached set of toggles. Per-role limits (chars / upload \
+         MB / uploads-kept) are per-role in that table too. Changes \
+         broadcast to all connected clients on Save.",
     );
     ui.add_space(theme.spacing_sm);
 
@@ -1090,19 +1093,17 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         });
 
         ui.add_space(theme.spacing_sm);
-        widgets::subsection_label(ui, theme, "Sharing & policy toggles");
-        widgets::form_row(ui, theme, "Image sharing", |ui| {
-            ui.checkbox(&mut draft.image_sharing_enabled, "");
-        });
-        widgets::form_row(ui, theme, "File sharing", |ui| {
-            ui.checkbox(&mut draft.file_sharing_enabled, "");
-        });
-        widgets::form_row(ui, theme, "Voice channels", |ui| {
-            ui.checkbox(&mut draft.voice_channels_enabled, "");
-        });
-        widgets::form_row(ui, theme, "Video streaming", |ui| {
-            ui.checkbox(&mut draft.video_streaming_enabled, "");
-        });
+        widgets::subsection_label(ui, theme, "Security policy");
+        // The 4 master sharing/voice/streaming kill-switches used to sit
+        // here as a separate checkbox group. The operator (2026-05-16)
+        // read that as a DUPLICATE of the per-role Stream/Voice/Image/File
+        // columns in the Roles table. They're not duplicates (effective =
+        // master AND role) but two detached checkbox groups looked
+        // redundant. Fix: they're now the "Server master" row at the top
+        // of the Roles grid (draw_roles_admin) — same columns as every
+        // role, one cohesive table. Only the genuinely-global PQ
+        // enforcement gate remains here (it has no per-role column, so
+        // it's not a duplicate of anything).
         widgets::form_row(ui, theme, "Require post-quantum signatures", |ui| {
             ui.checkbox(&mut draft.require_pq_signatures, "");
         });
@@ -1160,41 +1161,10 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         state.server_settings_draft = Some(draft.clone());
 
         if save_clicked {
-            if let Some(ref client) = state.ws_client {
-                if client.is_connected() {
-                    let msg = serde_json::json!({
-                        "type": "server_settings_update",
-                        "max_chars_unverified": draft.max_chars_unverified,
-                        "max_chars_verified":   draft.max_chars_verified,
-                        "max_chars_mod":        draft.max_chars_mod,
-                        "max_chars_admin":      draft.max_chars_admin,
-                        "image_sharing_enabled": draft.image_sharing_enabled,
-                        "file_sharing_enabled":  draft.file_sharing_enabled,
-                        // v0.201: per-role upload caps. Legacy single
-                        // max_upload_mb omitted — server's v0.201 handler
-                        // applies the per-role values directly.
-                        "max_upload_mb_unverified": draft.max_upload_mb_unverified,
-                        "max_upload_mb_verified":   draft.max_upload_mb_verified,
-                        "max_upload_mb_mod":        draft.max_upload_mb_mod,
-                        "max_upload_mb_admin":      draft.max_upload_mb_admin,
-                        "voice_channels_enabled":  draft.voice_channels_enabled,
-                        "video_streaming_enabled": draft.video_streaming_enabled,
-                        "allowed_file_extensions": draft.allowed_file_extensions,
-                        // v0.237 server-wide disk cap + v0.238 per-role FIFO.
-                        "max_total_upload_mb":     draft.max_total_upload_mb,
-                        "max_uploads_per_user_unverified": draft.max_uploads_per_user_unverified,
-                        "max_uploads_per_user_verified":   draft.max_uploads_per_user_verified,
-                        "max_uploads_per_user_mod":        draft.max_uploads_per_user_mod,
-                        "max_uploads_per_user_admin":      draft.max_uploads_per_user_admin,
-                        // PQ Increment 3: gated hard-enforcement toggle.
-                        "require_pq_signatures":           draft.require_pq_signatures,
-                    });
-                    client.send(&msg.to_string());
-                    state.server_settings_status = "Server policy update sent.".into();
-                } else {
-                    state.server_settings_status = "Not connected — can't save.".into();
-                }
-            }
+            // Same payload builder the Roles-grid "Server master" row uses
+            // (the 4 master sharing/voice/streaming switches live there
+            // now). ONE builder so the two entry points can never drift.
+            send_server_settings_update(state, &draft);
             state.server_settings_draft = None;
         }
         if cancel_clicked {
@@ -1212,15 +1182,18 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::subsection_label(ui, theme, "Roles");
     widgets::body_hint(
         ui, theme,
-        "Roles carry capabilities. Effective permission = the server-wide \
-         master toggle (in Server policy above) AND the role's capability. \
-         e.g. to let family livestream WITHOUT making them moderators: turn \
-         ON 'Video streaming' in Server policy, then give a role can-stream \
-         here and assign it to them (click their name in chat → Role \
-         dropdown). Built-in roles can't be deleted and their id / trust / \
-         limit-tier are locked, but their capabilities are editable. Custom \
-         roles are fully editable. A role's numeric limits (chars / upload \
-         MB / uploads kept) follow its base tier.",
+        "One cohesive table. The top 'Server master' row is the set of \
+         server-wide kill-switches; every row below is a role. Effective \
+         permission = the Server-master switch for that column AND the \
+         role's own checkbox — a user can do X only if BOTH are on. e.g. \
+         to let family livestream WITHOUT making them moderators: tick \
+         Stream on the Server-master row, tick Stream on a 'family' role, \
+         then assign that role to them (click their name in chat → Role \
+         dropdown). Turning a Server-master switch OFF instantly disables \
+         that capability for everyone regardless of role — your abuse / \
+         emergency panic switch. Built-in roles can't be deleted and \
+         their id / trust are locked, but every capability and numeric \
+         limit (chars / upload MB / uploads kept) is editable per-role.",
     );
     ui.add_space(theme.spacing_sm);
 
@@ -1232,6 +1205,10 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let roles = state.chat_roles.clone();
     let mut pending_save: Option<crate::relay::storage::RoleDef> = None;
     let mut pending_delete: Option<String> = None;
+    // Set when the "Server master" row's Save is clicked — applied after
+    // the grid closure (same deferred pattern as pending_save/_delete so
+    // we don't send mid-borrow). Carries the full edited ServerSettings.
+    let mut pending_master_save: Option<crate::relay::storage::ServerSettings> = None;
 
     // Aligned columns via egui::Grid (operator #1 — was a per-row
     // ui.horizontal inline flow, so variable-width name/tier segments
@@ -1264,6 +1241,69 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             hdr(ui, "");
             hdr(ui, "");
             ui.end_row();
+
+            // ── Server master row (v0.262.6) ──────────────────────────
+            // The 4 server-wide kill-switches used to be a separate
+            // "Sharing & policy toggles" checkbox group up in Server
+            // policy. The operator (2026-05-16) read that as a DUPLICATE
+            // of the per-role Stream/Voice/Image/File columns: "I still
+            // see duplicate file sharing areas. One in the old area and
+            // another in the new area." They're NOT duplicates (effective
+            // = master AND role) but two detached checkbox groups looked
+            // redundant. Fix: fold them into THIS table as the top row —
+            // same columns as every role — so the master∧capability
+            // relationship is visually self-evident. Edits mutate the
+            // shared `state.server_settings_draft` (draw_server_policy_admin
+            // seeded it earlier this frame); the row's own Save sends the
+            // same `server_settings_update` payload the Server-policy Save
+            // uses. `Upload` has no server-wide master (legacy general
+            // can_upload is per-role only) so that cell is a dash.
+            {
+                let ss_cached = state.server_settings.clone().unwrap_or_default();
+                let mut ss_draft = state.server_settings_draft
+                    .clone()
+                    .unwrap_or_else(|| ss_cached.clone());
+                let dash = |ui: &mut egui::Ui| {
+                    ui.label(
+                        RichText::new("—")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                };
+                // Col 1 — distinct accent label, no swatch.
+                ui.label(
+                    RichText::new("Server master")
+                        .size(theme.font_size_body)
+                        .color(theme.accent())
+                        .strong(),
+                );
+                // Col 2 — no color.
+                dash(ui);
+                // Cols 3-7 — the global kill-switches (Upload = dash).
+                ui.checkbox(&mut ss_draft.video_streaming_enabled, "");
+                dash(ui);
+                ui.checkbox(&mut ss_draft.voice_channels_enabled, "");
+                ui.checkbox(&mut ss_draft.image_sharing_enabled, "");
+                ui.checkbox(&mut ss_draft.file_sharing_enabled, "");
+                // Cols 8-10 — master has no numeric limits.
+                dash(ui);
+                dash(ui);
+                dash(ui);
+                // Col 11 — Save (only when the toggles differ from the
+                // live server state, to avoid a no-op broadcast).
+                let ss_dirty = ss_draft != ss_cached;
+                ui.add_enabled_ui(ss_dirty, |ui| {
+                    if widgets::Button::primary("Save").show(ui, theme) {
+                        pending_master_save = Some(ss_draft.clone());
+                    }
+                });
+                // Col 12 — cannot delete the master.
+                dash(ui);
+                ui.end_row();
+                // Persist edits so next frame — and the Server-policy
+                // "Save Changes" button — see them (shared draft).
+                state.server_settings_draft = Some(ss_draft);
+            }
 
             for role in &roles {
                 let draft = state.roles_drafts
@@ -1388,6 +1428,12 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         send_role_upsert(state, &role);
         state.roles_drafts.remove(&role.id); // re-seed from fresh role_list
     }
+    if let Some(ss) = pending_master_save {
+        // Same payload + behavior as the Server-policy "Save Changes"
+        // button (clear the draft so it re-seeds from the relay's echo).
+        send_server_settings_update(state, &ss);
+        state.server_settings_draft = None;
+    }
     if let Some(id) = pending_delete {
         if let Some(ref client) = state.ws_client {
             if client.is_connected() {
@@ -1419,6 +1465,56 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         } else {
             state.server_settings_status =
                 "Role id must be non-empty alphanumeric (a-z 0-9 _ -) and have a label.".into();
+        }
+    }
+}
+
+/// Build & send the full `server_settings_update` WS payload from a draft.
+///
+/// Called from TWO entry points that edit the SAME `ServerSettings`
+/// object: the Server-policy "Save Changes" button (disk cap / PQ gate /
+/// extensions) and the Roles-grid "Server master" row's Save (the 4
+/// master sharing/voice/streaming kill-switches). One builder so the
+/// payloads can never silently drift apart. Sets `server_settings_status`
+/// (different `state` field than `ws_client`, so the disjoint borrow is
+/// fine — same pattern the call sites used inline before extraction).
+fn send_server_settings_update(
+    state: &mut GuiState,
+    draft: &crate::relay::storage::ServerSettings,
+) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            let msg = serde_json::json!({
+                "type": "server_settings_update",
+                "max_chars_unverified": draft.max_chars_unverified,
+                "max_chars_verified":   draft.max_chars_verified,
+                "max_chars_mod":        draft.max_chars_mod,
+                "max_chars_admin":      draft.max_chars_admin,
+                "image_sharing_enabled": draft.image_sharing_enabled,
+                "file_sharing_enabled":  draft.file_sharing_enabled,
+                // v0.201: per-role upload caps. Legacy single
+                // max_upload_mb omitted — server's v0.201 handler
+                // applies the per-role values directly.
+                "max_upload_mb_unverified": draft.max_upload_mb_unverified,
+                "max_upload_mb_verified":   draft.max_upload_mb_verified,
+                "max_upload_mb_mod":        draft.max_upload_mb_mod,
+                "max_upload_mb_admin":      draft.max_upload_mb_admin,
+                "voice_channels_enabled":  draft.voice_channels_enabled,
+                "video_streaming_enabled": draft.video_streaming_enabled,
+                "allowed_file_extensions": draft.allowed_file_extensions,
+                // v0.237 server-wide disk cap + v0.238 per-role FIFO.
+                "max_total_upload_mb":     draft.max_total_upload_mb,
+                "max_uploads_per_user_unverified": draft.max_uploads_per_user_unverified,
+                "max_uploads_per_user_verified":   draft.max_uploads_per_user_verified,
+                "max_uploads_per_user_mod":        draft.max_uploads_per_user_mod,
+                "max_uploads_per_user_admin":      draft.max_uploads_per_user_admin,
+                // PQ Increment 3: gated hard-enforcement toggle.
+                "require_pq_signatures":           draft.require_pq_signatures,
+            });
+            client.send(&msg.to_string());
+            state.server_settings_status = "Server policy update sent.".into();
+        } else {
+            state.server_settings_status = "Not connected — can't save.".into();
         }
     }
 }
