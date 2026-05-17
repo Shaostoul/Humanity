@@ -11,6 +11,11 @@
   "recent_decisions": [
     {
       "at": "2026-05-17",
+      "decision": "v0.262.4 — trimmed obsolete Server-policy UI (operator: trimmed of obsolete options now, after confirming relay recovered + R4 Roles table correct on live DB: Unverified 280/5/4 ... Admin 10000/500/500 = correct base_tier backfill). Removed the now-empty Per-role limits subsection header + its dead pointer hint (no controls under it post-R4) + the stale matrix code comment. Rewrote the Server policy intro hint to accurately describe what REMAINS (server-wide only: sharing/voice/streaming masters, require-PQ, total disk cap, allowed extensions). Kept everything genuinely server-wide. Pure UI text/structure removal — NO migration, NO relay logic, zero upgrade-path risk (deliberately verified that, given the prior incident). cargo native + 3 lints green.",
+      "rationale": "Post-R4 the Per-role-limits block was a header with no controls + a breadcrumb — clutter. Intro hint was factually wrong (claimed per-role limits live here). Low-risk UI-only cleanup; explicitly noted no migration so it cannot repeat the v0.262.0 ordering incident."
+    },
+    {
+      "at": "2026-05-17",
       "decision": "PRODUCTION INCIDENT + HOTFIX v0.262.2. Relay crash-looped (nginx 502, total outage; Deploy-to-VPS exit 3). Ground truth via ssh humanity-vps journalctl: panic src/relay/mod.rs:141 \"table roles has no column named can_image_share\". ROOT CAUSE: v0.261 (worsened v0.262) added new columns to BOTH the roles CREATE TABLE and the seed INSERT, but the seed ran BEFORE the idempotent ALTERs. Fresh DBs: CREATE makes the cols → every fresh-DB test passed → bug shipped. Live relay.db: CREATE IF NOT EXISTS no-op (old 10-col table) → seed INSERT references missing column → Storage::open expect() panic → systemd crash-loop. The upgrade path was NEVER tested. FIX: moved both guarded ALTER blocks (v0.261 image/file + v0.262 R4 + backfill) to run BEFORE the seed loop; seed is now INSERT OR IGNORE post-ALTER (correct on fresh AND upgrade). Added regression test upgrade_from_pre_v0261_roles_schema_does_not_panic (rewinds roles to pre-v0.261 shape, reopens Storage — panics pre-fix, clean post-fix). 6 roles tests + 3 lints + relay build green. LESSON: any migration that adds columns to a CREATE TABLE must add them via idempotent ALTER too, and the ALTERs must precede any seed/INSERT that names them; ALWAYS add an upgrade-path test (rewind schema + reopen) — fresh-DB tests cannot catch ordering bugs."
     },
     {
@@ -219,7 +224,7 @@
   ],
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "v0.262.2 (HOTFIX in flight — relay was DOWN)",
+    "latest_pushed_tag": "v0.262.4 (pending)",
     "last_release_summary": "v0.261.0 per-role image/file sharing (RoleDef caps + non-breaking migration + ACTUAL upload enforcement composing server-master AND role-cap; closes the never-enforced image/file toggle gap). Phase 2 (consolidated per-role section / R4) next."
   },
   "files_in_flight_or_recently_changed": [

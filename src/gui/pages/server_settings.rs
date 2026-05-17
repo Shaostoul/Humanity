@@ -1031,9 +1031,11 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
     widgets::subsection_label(ui, theme, "Server policy");
     widgets::body_hint(
         ui, theme,
-        "Per-role message length limits, file / image / voice / streaming toggles, and \
-         upload size cap. Apply to every member of this server. Changes broadcast to \
-         all connected clients on Save.",
+        "Server-wide settings only: the master sharing / voice / streaming \
+         switches, the post-quantum-signature requirement, the total upload \
+         disk cap, and the allowed file extensions. (Per-role limits — chars / \
+         upload MB / uploads-kept — now live in the Roles table below.) \
+         Changes broadcast to all connected clients on Save.",
     );
     ui.add_space(theme.spacing_sm);
 
@@ -1077,27 +1079,12 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         // sends the WS update, Revert resets the draft from cache.
         let _ = effective; // draft is now the single source for the inputs
         let mut draft = state.server_settings_draft.clone().unwrap_or_else(|| cached.clone());
-        // ── Per-role numeric limits as an aligned matrix ──
-        // Was 12 separate form_rows whose long "Max X — tier (default N)"
-        // labels wrapped to 3 lines in form_row's 140px column and wasted
-        // ~70% of the row (operator bug 2026-05-16, "two skinny columns
-        // ¼ width"). A tier×metric grid is scannable, aligns by
-        // construction (egui::Grid — no fixed-pixel column hacks), and
-        // uses the width. Defaults move to one hint so cells stay clean.
-        // v0.262 (R4): the per-tier limits matrix is GONE — Max chars /
-        // Max upload MB / Uploads-kept are now owned per-role and edited
-        // in the unified Roles table below (one cohesive section). The
-        // legacy server_settings.max_*_<tier> columns still exist as
-        // back-compat shadows but are no longer the source of truth.
-        widgets::subsection_label(ui, theme, "Per-role limits");
-        widgets::body_hint(
-            ui, theme,
-            "Now per-role — each role owns its own Max chars / Max upload MB / \
-             Uploads-kept, edited in the Roles table further down (one cohesive \
-             section). The server-wide masters below (sharing / voice / \
-             streaming) still gate every role on top of its capability.",
-        );
-        ui.add_space(theme.spacing_md);
+        // v0.262.4: the obsolete "Per-role limits" header + the dead
+        // pointer hint were trimmed (operator: "trimmed of obsolete
+        // options now"). Per-role chars/upload-MB/uploads-kept moved to
+        // the Roles table in R4; the legacy server_settings.max_*_<tier>
+        // columns remain only as inert back-compat shadows. What's left
+        // here is genuinely server-wide.
         widgets::form_row(ui, theme, "Total upload disk cap (MB, server-wide)", |ui| {
             int_input(ui, &mut draft.max_total_upload_mb, 1, 1_000_000);
         });
