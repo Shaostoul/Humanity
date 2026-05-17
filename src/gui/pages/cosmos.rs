@@ -1507,6 +1507,21 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             sky_lines.push((format!("{} ({}) {}", when, date, ue.label), color));
         }
     }
+    // Legend (map-sync punch list): the orange double-ring around a
+    // body (drawn earlier from `body_tightness`) was undiscoverable —
+    // the operator asked "why is there an orange ring?". Show a one-line
+    // key in the SAME warning color whenever a highlight is actually on
+    // screen (i.e. there are real events, not the "quiet" placeholder).
+    let any_highlight = !conjunctions.is_empty() || eclipse.is_some();
+    if any_highlight {
+        sky_lines.insert(
+            0,
+            (
+                "orange ring = body in a current conjunction / close approach".to_string(),
+                theme.warning(),
+            ),
+        );
+    }
     // Section header.
     paint.text(
         Pos2::new(rect.right() - 8.0, sky_y_base - sky_lines.len() as f32 * 14.0 - 18.0),

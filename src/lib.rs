@@ -456,6 +456,53 @@ mod native_app {
             state.renderer.add_material([0.55, 0.55, 0.58, 1.0], 0.0, 0.80), // default — grey
         ];
 
+        // ── Orbit paths (map-sync punch list, v0.262.12) ──
+        // The operator wants the orbit ellipses visible in the FPS sky
+        // ("faint dark blue lines so they're there but not pulling from
+        // the stars"). Generate each body's TRUE Keplerian ellipse ONCE
+        // (crate::cosmos::sample_orbit_points → same math the Maps page
+        // draws), as a thin tube in PARENT-frame metres. Per frame
+        // (render loop) it's just translated to the parent's
+        // Earth-relative offset, so the geometry upload happens once.
+        // Faint, low-emissive dark blue so it reads at any sun angle
+        // without competing with the starfield.
+        state.orbit_material =
+            state.renderer.add_material_full([0.12, 0.20, 0.46, 1.0], 0.0, 1.0, 0.0, 0.45);
+        for b in crate::cosmos::sol_bodies() {
+            // Same set the bodies use: direct sun-orbiters (planets,
+            // dwarfs, named belt bodies) + our Moon. The Sun has no
+            // orbit (sample returns empty) and is skipped naturally.
+            let direct_solar = b.parent.as_deref() == Some("sun");
+            if !direct_solar && b.id != "moon" { continue; }
+            let pts_au = crate::cosmos::sample_orbit_points(b, 192);
+            if pts_au.len() < 3 { continue; }
+            let pts_m: Vec<Vec3> = pts_au
+                .iter()
+                .map(|p| {
+                    Vec3::new(
+                        (p.x * crate::cosmos::M_PER_AU) as f32,
+                        (p.y * crate::cosmos::M_PER_AU) as f32,
+                        (p.z * crate::cosmos::M_PER_AU) as f32,
+                    )
+                })
+                .collect();
+            // Tube thickness scaled to the orbit so every ring reads as
+            // a thin line regardless of size (apoapsis proxy = max |p|).
+            let max_r = pts_m.iter().fold(0.0_f32, |m, p| m.max(p.length()));
+            let tube_r = (max_r * 0.0008).max(1.0e6);
+            let mesh = crate::renderer::hologram::orbit_path_mesh(
+                &state.renderer.device,
+                &pts_m,
+                tube_r,
+                7,
+            );
+            let mesh_idx = state.renderer.add_mesh(mesh);
+            state
+                .solar_orbit_meshes
+                .push((mesh_idx, b.parent.clone().unwrap_or_else(|| "sun".to_string())));
+        }
+        log::info!("Map-sync: generated {} FPS orbit-path meshes", state.solar_orbit_meshes.len());
+
         // ── Load CSV game data ──
         #[derive(Debug, serde::Deserialize)]
         #[allow(dead_code)]
@@ -512,6 +559,15 @@ mod native_app {
         /// giant, [2]=icy/dwarf, [3]=default grey. Picked by SolBody
         /// `body_type`. The Sun reuses `sun_material`.
         solar_body_materials: [usize; 4],
+        /// Faint dark-blue orbit-path tubes for the FPS world (v0.262.12,
+        /// map-sync punch list). Each entry is (mesh_idx, parent_id):
+        /// the mesh is the body's true Keplerian ellipse in PARENT-frame
+        /// metres (generated once); per frame it's rendered at the
+        /// parent's Earth-relative offset so the ellipse stays put while
+        /// Earth/ship move. "there but not pulling from the stars."
+        solar_orbit_meshes: Vec<(usize, String)>,
+        /// Low-emissive dark-blue material for the orbit paths.
+        orbit_material: usize,
         /// Homestead floor meshes (mesh_idx, material_idx) per room.
         homestead_floors: Vec<(usize, usize)>,
         /// Homestead walls mesh + material.
@@ -746,6 +802,8 @@ mod native_app {
                 sun_material: 0,
                 sun_halo_material: 0,
                 solar_body_materials: [0; 4],
+                solar_orbit_meshes: Vec::new(),
+                orbit_material: 0,
                 homestead_floors: Vec::new(),
                 homestead_walls: None,
                 hologram_objects: Vec::new(),
@@ -1172,6 +1230,40 @@ mod native_app {
                                 material,
                             });
                         }
+
+                        // ── Orbit paths (faint dark-blue Keplerian
+                        // ellipses; map-sync punch list v0.262.12) ──
+                        // Mesh is the body's ellipse in PARENT-frame
+                        // metres (built once). Translate it to the
+                        // parent's Earth-relative offset — SAME frame as
+                        // the bodies above, so a planet sits exactly on
+                        // its ring and the Moon's ring is centred on
+                        // Earth. Cheap: just N RenderObjects, no per-frame
+                        // geometry rebuild.
+                        for (orbit_mesh, parent_id) in &state.solar_orbit_meshes {
+                            let parent_helio_au = if parent_id == "sun" {
+                                glam::DVec3::ZERO
+                            } else {
+                                crate::cosmos::find_body(parent_id)
+                                    .map(|p| crate::cosmos::body_world_position_3d_au(p, sim_t))
+                                    .unwrap_or(glam::DVec3::ZERO)
+                            };
+                            let parent_off = (parent_helio_au - earth_helio_au)
+                                * crate::cosmos::M_PER_AU
+                                - state.ship_world_pos;
+                            all_objects.push(RenderObject {
+                                position: Vec3::new(
+                                    parent_off.x as f32,
+                                    parent_off.y as f32,
+                                    parent_off.z as f32,
+                                ),
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::splat(1.0),
+                                mesh: *orbit_mesh,
+                                material: state.orbit_material,
+                            });
+                        }
+
                         // Keep the cached Sun pos + the shader's light
                         // direction pointed at the REAL Sun so Earth's lit
                         // hemisphere matches the visible Sun disc (was a

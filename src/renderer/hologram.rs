@@ -528,6 +528,76 @@ pub fn orbit_ring_mesh(device: &wgpu::Device, radius: f32, segments: u32) -> Mes
     Mesh::from_vertices(device, &vertices, &indices)
 }
 
+/// Generate a tube mesh swept along an ARBITRARY closed polyline.
+///
+/// `orbit_ring_mesh` only does a flat circle in the XZ plane — fine for
+/// the log-scaled tabletop hologram, useless for a real Keplerian orbit
+/// (eccentric + inclined). This sweeps a round tube of radius `tube_r`
+/// along `points` (the true ellipse from
+/// `crate::cosmos::sample_orbit_points`, in metres, parent-frame). Used
+/// for the faint orbit-path lines in the real-scale FPS world
+/// (v0.262.12, map-sync punch list). `points` must be a closed loop
+/// (first ≈ last, as `sample_orbit_points` returns) with ≥ 3 entries;
+/// callers skip empty/no-orbit bodies before calling.
+pub fn orbit_path_mesh(
+    device: &wgpu::Device,
+    points: &[Vec3],
+    tube_r: f32,
+    sides: u32,
+) -> Mesh {
+    let n = points.len();
+    debug_assert!(n >= 3, "orbit_path_mesh needs >= 3 points");
+    let sides = sides.max(3);
+    let mut vertices = Vec::with_capacity(n * (sides as usize + 1));
+    let mut indices: Vec<u32> = Vec::with_capacity(n * sides as usize * 6);
+
+    for i in 0..n {
+        let p = points[i];
+        // Tangent from neighbours (closed loop → wrap). The sample set's
+        // last point duplicates the first, so step over it on the wrap.
+        let prev = points[(i + n - 1) % n];
+        let next = points[(i + 1) % n];
+        let mut tan = (next - prev);
+        if tan.length_squared() < 1e-6 {
+            tan = Vec3::X;
+        }
+        let tan = tan.normalize();
+        // Orbits lie ~in the ecliptic (Y-up here), so world-up is a safe
+        // reference unless the tangent is near-vertical.
+        let reference = if tan.y.abs() > 0.95 { Vec3::X } else { Vec3::Y };
+        let side = tan.cross(reference).normalize();
+        let up = side.cross(tan).normalize();
+
+        let u = i as f32 / (n - 1) as f32;
+        for s in 0..=sides {
+            let phi = 2.0 * PI * s as f32 / sides as f32;
+            let dir = side * phi.cos() + up * phi.sin();
+            vertices.push(Vertex {
+                position: [p.x + tube_r * dir.x, p.y + tube_r * dir.y, p.z + tube_r * dir.z],
+                normal: [dir.x, dir.y, dir.z],
+                uv: [u, s as f32 / sides as f32],
+            });
+        }
+    }
+
+    let stride = sides + 1;
+    for i in 0..n as u32 {
+        let i_next = (i + 1) % n as u32; // wrap → closed tube
+        for s in 0..sides {
+            let a = i * stride + s;
+            let b = i_next * stride + s;
+            indices.push(a);
+            indices.push(b);
+            indices.push(a + 1);
+            indices.push(b);
+            indices.push(b + 1);
+            indices.push(a + 1);
+        }
+    }
+
+    Mesh::from_vertices(device, &vertices, &indices)
+}
+
 /// Generate a flat ring mesh for Saturn-like rings.
 /// Inner and outer radius define the ring band, rendered as a flat disc in XZ.
 pub fn ring_disc_mesh(device: &wgpu::Device, inner_radius: f32, outer_radius: f32, segments: u32) -> Mesh {
