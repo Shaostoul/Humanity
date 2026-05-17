@@ -310,12 +310,11 @@ pub async fn upload_file(
     if uploader_role.is_empty() {
         return Err((StatusCode::FORBIDDEN, "Upload denied: only verified users can upload files. Ask an admin to verify you.".into()));
     }
-    // v0.239: a custom role's numeric limits follow its base_tier
-    // (built-ins map to themselves), so resolve role → tier first.
-    let uploader_tier = state.db.limit_tier_for_role(&uploader_role);
-    let max_uploads_per_user = server_settings
-        .max_uploads_per_user_for_role(&uploader_tier)
-        .max(1);
+    // v0.262 (R4): numeric limits are OWNED by the role now (no
+    // server_settings tier hop). Resolve once; reuse for FIFO retention
+    // here + the per-role upload-size cap inside the field loop.
+    let uploader_rdef = state.db.role_def(&uploader_role);
+    let max_uploads_per_user = uploader_rdef.max_uploads_kept.max(1);
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         (StatusCode::BAD_REQUEST, format!("Multipart error: {e}"))
@@ -347,10 +346,9 @@ pub async fn upload_file(
         // server-side before now (only the chat UI hid the button).
         // Reject before reading the body.
         {
-            let urole = state.db.role_def(&uploader_role);
             let is_img = content_type.starts_with("image/");
             if is_img {
-                if !(server_settings.image_sharing_enabled && urole.can_image_share) {
+                if !(server_settings.image_sharing_enabled && uploader_rdef.can_image_share) {
                     return Err((StatusCode::FORBIDDEN,
                         if !server_settings.image_sharing_enabled {
                             "Image sharing is disabled on this server.".into()
@@ -358,7 +356,7 @@ pub async fn upload_file(
                             "Your role isn't allowed to share images here. Ask an admin.".into()
                         }));
                 }
-            } else if !(server_settings.file_sharing_enabled && urole.can_file_share) {
+            } else if !(server_settings.file_sharing_enabled && uploader_rdef.can_file_share) {
                 return Err((StatusCode::FORBIDDEN,
                     if !server_settings.file_sharing_enabled {
                         "File sharing is disabled on this server.".into()
@@ -372,13 +370,24 @@ pub async fn upload_file(
             (StatusCode::BAD_REQUEST, format!("Failed to read file: {e}"))
         })?;
 
-        // Determine file category and max size.
+        // Determine file category and max size. The MAX_SIZE_* consts
+        // are an absolute safety CEILING; the per-role max_upload_mb
+        // (R4, v0.262) is the tunable cap — effective = min(the two).
+        // NOTE: per-role/per-tier upload size was NEVER enforced
+        // server-side before R4 (only the hard const) — closing that
+        // latent gap is the no-bandaid part of this change.
         let is_media = content_type.starts_with("audio/") || content_type.starts_with("video/")
             || ["mp3", "ogg", "wav", "mp4", "webm"].contains(&file_ext.as_str());
-        let max_size = if is_media { MAX_SIZE_MEDIA } else { MAX_SIZE_DEFAULT };
+        let hard_ceiling = if is_media { MAX_SIZE_MEDIA } else { MAX_SIZE_DEFAULT };
+        let role_cap = (uploader_rdef.max_upload_mb.max(1) as usize)
+            .saturating_mul(1024 * 1024);
+        let max_size = hard_ceiling.min(role_cap);
 
         if data.len() > max_size {
-            return Err((StatusCode::BAD_REQUEST, format!("File too large ({} bytes, max {})", data.len(), max_size)));
+            return Err((StatusCode::BAD_REQUEST, format!(
+                "File too large ({} bytes, max {} for your role — an admin can raise it in Server Settings → Roles).",
+                data.len(), max_size
+            )));
         }
 
         // Validate magic bytes for images (strict).

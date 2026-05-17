@@ -3195,19 +3195,18 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 // from server_settings. Reject (don't truncate) so
                                 // the user knows their message wasn't fully delivered.
                                 {
-                                    let settings = state_clone.db.get_server_settings().unwrap_or_default();
-                                    // v0.239: a custom role's numeric limits
-                                    // follow its base_tier (built-ins map to
-                                    // themselves), so resolve role → tier first.
-                                    let tier = state_clone.db.limit_tier_for_role(&user_role);
-                                    let limit = settings.max_chars_for_role(&tier) as usize;
+                                    // v0.262 (R4): the limit is now OWNED by
+                                    // the role itself — no server_settings
+                                    // tier hop. role_def() falls back to the
+                                    // safe default-deny role for unknown ids.
+                                    let limit = state_clone.db.role_def(&user_role).max_chars as usize;
                                     let len = content.chars().count();
                                     if len > limit {
                                         let private = RelayMessage::Private {
                                             to: my_key_for_recv.clone(),
                                             message: format!(
-                                                "Message rejected: {} chars exceeds your tier's limit of {}. \
-                                                 (Your role: {}; admin can change limits in Server Settings.)",
+                                                "Message rejected: {} chars exceeds your role's limit of {}. \
+                                                 (Your role: {}; an admin can change it in Server Settings → Roles.)",
                                                 len, limit,
                                                 if user_role.is_empty() { "unverified" } else { &user_role },
                                             ),

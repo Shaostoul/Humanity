@@ -1084,60 +1084,19 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         // ¼ width"). A tier×metric grid is scannable, aligns by
         // construction (egui::Grid — no fixed-pixel column hacks), and
         // uses the width. Defaults move to one hint so cells stay clean.
+        // v0.262 (R4): the per-tier limits matrix is GONE — Max chars /
+        // Max upload MB / Uploads-kept are now owned per-role and edited
+        // in the unified Roles table below (one cohesive section). The
+        // legacy server_settings.max_*_<tier> columns still exist as
+        // back-compat shadows but are no longer the source of truth.
         widgets::subsection_label(ui, theme, "Per-role limits");
         widgets::body_hint(
             ui, theme,
-            "Defaults — Max chars: 280 / 1000 / 4000 / 10000.  \
-             Max upload MB: 5 / 25 / 100 / 500.  \
-             Uploads kept (FIFO): 4 / 20 / 100 / 500.",
+            "Now per-role — each role owns its own Max chars / Max upload MB / \
+             Uploads-kept, edited in the Roles table further down (one cohesive \
+             section). The server-wide masters below (sharing / voice / \
+             streaming) still gate every role on top of its capability.",
         );
-        ui.add_space(theme.spacing_xs);
-        egui::Grid::new("server_policy_limits")
-            .num_columns(4)
-            .spacing([theme.spacing_xl, theme.spacing_md])
-            .min_col_width(theme.settings_label_width * 0.5)
-            .striped(true)
-            .show(ui, |ui| {
-                let hdr = |ui: &mut egui::Ui, t: &str| {
-                    ui.label(
-                        RichText::new(t)
-                            .size(theme.font_size_small)
-                            .color(theme.text_secondary())
-                            .strong(),
-                    );
-                };
-                hdr(ui, "Tier");
-                hdr(ui, "Max chars");
-                hdr(ui, "Max upload MB");
-                hdr(ui, "Uploads kept");
-                ui.end_row();
-
-                let mut tier_row =
-                    |ui: &mut egui::Ui, name: &str,
-                     chars: &mut i64, mb: &mut i64, kept: &mut i64| {
-                        ui.label(
-                            RichText::new(name)
-                                .size(theme.font_size_body)
-                                .color(theme.text_primary()),
-                        );
-                        int_input(ui, chars, 1, 1_000_000);
-                        int_input(ui, mb, 1, 10_000);
-                        int_input(ui, kept, 1, 1_000);
-                        ui.end_row();
-                    };
-                tier_row(ui, "Unverified", &mut draft.max_chars_unverified,
-                         &mut draft.max_upload_mb_unverified,
-                         &mut draft.max_uploads_per_user_unverified);
-                tier_row(ui, "Verified", &mut draft.max_chars_verified,
-                         &mut draft.max_upload_mb_verified,
-                         &mut draft.max_uploads_per_user_verified);
-                tier_row(ui, "Moderator", &mut draft.max_chars_mod,
-                         &mut draft.max_upload_mb_mod,
-                         &mut draft.max_uploads_per_user_mod);
-                tier_row(ui, "Admin", &mut draft.max_chars_admin,
-                         &mut draft.max_upload_mb_admin,
-                         &mut draft.max_uploads_per_user_admin);
-            });
         ui.add_space(theme.spacing_md);
         widgets::form_row(ui, theme, "Total upload disk cap (MB, server-wide)", |ui| {
             int_input(ui, &mut draft.max_total_upload_mb, 1, 1_000_000);
@@ -1293,7 +1252,7 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // "stairstepped". A fixed-column Grid aligns every cell by
     // construction. 2026-05-16.
     egui::Grid::new("server_roles")
-        .num_columns(10)
+        .num_columns(12)
         .spacing([theme.spacing_xl, theme.spacing_md])
         .striped(true)
         .show(ui, |ui| {
@@ -1312,7 +1271,9 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             hdr(ui, "Voice");
             hdr(ui, "Image");
             hdr(ui, "File");
-            hdr(ui, "Tier");
+            hdr(ui, "Max chars");
+            hdr(ui, "Max upMB");
+            hdr(ui, "Up kept");
             hdr(ui, "");
             hdr(ui, "");
             ui.end_row();
@@ -1358,25 +1319,14 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.checkbox(&mut draft.can_voice, "");
                 ui.checkbox(&mut draft.can_image_share, "");
                 ui.checkbox(&mut draft.can_file_share, "");
-                // Col 8 — base tier (combo for custom, locked label for built-in).
-                if !is_built_in {
-                    egui::ComboBox::from_id_salt(("role_tier", draft.id.as_str()))
-                        .selected_text(draft.base_tier.as_str())
-                        .show_ui(ui, |ui| {
-                            for t in ["unverified", "verified", "mod", "admin"] {
-                                if ui.selectable_label(draft.base_tier == t, t).clicked() {
-                                    draft.base_tier = t.to_string();
-                                }
-                            }
-                        });
-                } else {
-                    ui.label(
-                        RichText::new(draft.base_tier.as_str())
-                            .size(theme.font_size_small)
-                            .color(theme.text_muted()),
-                    );
-                }
-                // Col 7 — Save.
+                // Cols 8-10 — per-role numeric limits (R4: owned by the
+                // role, editable on EVERY role incl. built-ins; the old
+                // base_tier column is gone — it's now just a prefill
+                // convenience in the add-role form).
+                int_input(ui, &mut draft.max_chars, 1, 1_000_000);
+                int_input(ui, &mut draft.max_upload_mb, 1, 10_000);
+                int_input(ui, &mut draft.max_uploads_kept, 1, 1_000);
+                // Col 11 — Save.
                 if widgets::Button::primary("Save").show(ui, theme) {
                     pending_save = Some(draft.clone());
                 }
@@ -1413,12 +1363,30 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.checkbox(&mut nr.can_voice, "voice");
             ui.checkbox(&mut nr.can_image_share, "image");
             ui.checkbox(&mut nr.can_file_share, "file");
-            egui::ComboBox::from_id_salt("new_role_tier")
-                .selected_text(format!("tier: {}", nr.base_tier))
+            // Per-role numeric limits (R4) — directly editable.
+            ui.label(RichText::new("chars").size(theme.font_size_small).color(theme.text_muted()));
+            int_input(ui, &mut nr.max_chars, 1, 1_000_000);
+            ui.label(RichText::new("MB").size(theme.font_size_small).color(theme.text_muted()));
+            int_input(ui, &mut nr.max_upload_mb, 1, 10_000);
+            ui.label(RichText::new("kept").size(theme.font_size_small).color(theme.text_muted()));
+            int_input(ui, &mut nr.max_uploads_kept, 1, 1_000);
+            // base_tier is no longer a runtime indirection (R4); this
+            // dropdown is a one-tap PREFILL of the historical preset
+            // numbers into the three fields above (then fine-tune).
+            egui::ComboBox::from_id_salt("new_role_prefill")
+                .selected_text("Prefill…")
                 .show_ui(ui, |ui| {
-                    for t in ["unverified", "verified", "mod", "admin"] {
-                        if ui.selectable_label(nr.base_tier == t, t).clicked() {
+                    for (t, c, mb, k) in [
+                        ("unverified", 280, 5, 4),
+                        ("verified", 1000, 25, 20),
+                        ("mod", 4000, 100, 100),
+                        ("admin", 10000, 500, 500),
+                    ] {
+                        if ui.selectable_label(false, t).clicked() {
                             nr.base_tier = t.to_string();
+                            nr.max_chars = c;
+                            nr.max_upload_mb = mb;
+                            nr.max_uploads_kept = k;
                         }
                     }
                 });

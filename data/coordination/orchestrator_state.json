@@ -11,6 +11,16 @@
   "recent_decisions": [
     {
       "at": "2026-05-16",
+      "decision": "v0.262 — R4 SHIPPED (operator chose Full R4). RoleDef now owns max_chars/max_upload_mb/max_uploads_kept (serde-default = conservative unverified numbers; appended positional SQL idx 12/13/14, params ?13/14/15). roles table +3 cols; fresh seed = canonical per-tier numbers (unverified 280/5/4 ... admin 10000/500/500); idempotent ALTER + NON-BREAKING backfill UPDATE that sets each existing role from the LIVE server_settings value of its old base_tier (correlated CASE subquery) → effective numbers identical post-upgrade. Enforcement rewired to role_def(role).max_* (relay.rs chat len; api.rs upload FIFO + size) — dropped the base_tier→server_settings hop; ALSO closed a latent gap: per-tier max_upload_mb was never enforced server-side (only a hard const) — now min(hard ceiling, role.max_upload_mb). UI: per-role-limits matrix REMOVED; Roles grid is the ONE cohesive table (Role|Color|Stream|Upload|Voice|Image|File|MaxChars|MaxUpMB|UpKept|Save|Delete, 12 cols, built-ins numbers editable too); add-form base_tier combo → Prefill… preset (copies canonical numbers, sets legacy base_tier). server_settings.max_*_{tier} kept as inert back-compat shadows. 5 roles tests (sharing roundtrip, numeric roundtrip, canonical-seed, default-deny, sharing-on) + native+relay + 3 lints green. roles-system.md R4 marked BUILT.",
+      "rationale": "Operator asked 3x for the unified per-role section + chose Full R4 explicitly. Non-breaking backfill from live server_settings is mandatory for the live VPS. Enforcing the previously-decorative per-tier max_upload_mb is the no-bandaid bonus. base_tier kept as inert prefill/migration-source (not deleted) to avoid a pointless destructive schema drop."
+    },
+    {
+      "at": "2026-05-16",
+      "decision": "v0.261.0/.1 per-role image/file sharing SHIPPED to GitHub origin (deploy source) + gh releases created. FORGE MIRROR BEHIND: git.united-humanity.us:22 timed out (host unreachable, NOT auth) — per CLAUDE.md did NOT switch to HTTPS, did NOT loop-retry; forge is a mirror, origin drives deploy. Forge is missing v0.261.0/.1 (main + tags); resync when host reachable: git push forge main && git push forge v0.261.0 v0.261.1. Lesson: chained pushes with 2>&1|tail -1 MASK git exit codes (the && chain continued past a failed forge push and a skipped gh release) — verify pushes with explicit git ls-remote / gh release view, not piped tails.",
+      "rationale": "Origin + releases are the contract (deploy + version SOP); forge is best-effort mirror. Recorded the tail-mask footgun so future ships verify origin/release explicitly."
+    },
+    {
+      "at": "2026-05-16",
       "decision": "v0.261 — PQ-roles Phase 1: per-role image/file sharing (operator chose Both). RoleDef +can_image_share/+can_file_share (#[serde(default)] false; Default-impl false = default-deny for unknown roles). roles table: CREATE +2 cols DEFAULT 1, seed all 5 built-ins to 1, idempotent ALTER DEFAULT 1 for existing DBs → upgrade NON-BREAKING (sharing stays gated only by server master exactly as before; per-role denial is additive/opt-in). list_roles/role_def SELECT appended cols (idx 10/11), upsert_role appended (?11/?12). ENFORCEMENT added in api.rs::upload_file: effective = server master AND role cap — this ALSO closes a latent gap (image_sharing_enabled/file_sharing_enabled were settable but NEVER enforced server-side pre-v0.261, only the chat UI hid the button). Roles grid + add-custom-role form gained Image/File checkbox columns. 3 roles tests (seed-on/roundtrip/default-deny) + relay+native+3 lints green. roles-system.md updated; R4 now reclassified IN-PROGRESS as v0.262 Phase 2.",
       "rationale": "Finished the interrupted Phase 1 cleanly before touching Phase 2 (do not leave a data-model change half-done or lose it). Non-breaking migration (DEFAULT 1 everywhere) is mandatory for a live server. Enforcing the previously-decorative server toggle is the no-bandaid bonus."
     },
@@ -205,7 +215,7 @@
   ],
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "v0.261.1 (pending)",
+    "latest_pushed_tag": "v0.262.1 (pending) — forge still behind from v0.261 (host was unreachable)",
     "last_release_summary": "v0.261.0 per-role image/file sharing (RoleDef caps + non-breaking migration + ACTUAL upload enforcement composing server-master AND role-cap; closes the never-enforced image/file toggle gap). Phase 2 (consolidated per-role section / R4) next."
   },
   "files_in_flight_or_recently_changed": [

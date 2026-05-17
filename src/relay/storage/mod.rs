@@ -769,27 +769,35 @@ impl Storage {
                 base_tier   TEXT NOT NULL,
                 sort_order  INTEGER NOT NULL DEFAULT 0,
                 can_image_share INTEGER NOT NULL DEFAULT 1,
-                can_file_share  INTEGER NOT NULL DEFAULT 1
+                can_file_share  INTEGER NOT NULL DEFAULT 1,
+                max_chars        INTEGER NOT NULL DEFAULT 280,
+                max_upload_mb    INTEGER NOT NULL DEFAULT 5,
+                max_uploads_kept INTEGER NOT NULL DEFAULT 4
              );",
         )?;
         {
-            let seeds: &[(&str, &str, &str, i64, i64, i64, i64, &str, i64)] = &[
-                ("unverified", "Unverified", "#9E9E9E", 0, 0, 0, 0, "unverified", 0),
-                ("verified",   "Verified",   "#4FC3F7", 1, 0, 1, 1, "verified",   1),
-                ("donor",      "Donor",      "#FFD54F", 2, 0, 1, 1, "verified",   2),
-                ("mod",        "Moderator",  "#81C784", 3, 1, 1, 1, "mod",        3),
-                ("admin",      "Admin",      "#E57373", 4, 1, 1, 1, "admin",      4),
+            // Tuple tail (mc,mu,mk) = the canonical historical per-tier
+            // numbers (chars / upload MB / uploads-kept) each built-in
+            // used to inherit via base_tier — now owned per-role (R4,
+            // v0.262). Fresh DBs seed identical numbers, so behaviour is
+            // unchanged; the matching backfill below covers upgrades.
+            let seeds: &[(&str, &str, &str, i64, i64, i64, i64, &str, i64, i64, i64, i64)] = &[
+                ("unverified", "Unverified", "#9E9E9E", 0, 0, 0, 0, "unverified", 0,   280,   5,   4),
+                ("verified",   "Verified",   "#4FC3F7", 1, 0, 1, 1, "verified",   1,  1000,  25,  20),
+                ("donor",      "Donor",      "#FFD54F", 2, 0, 1, 1, "verified",   2,  1000,  25,  20),
+                ("mod",        "Moderator",  "#81C784", 3, 1, 1, 1, "mod",        3,  4000, 100, 100),
+                ("admin",      "Admin",      "#E57373", 4, 1, 1, 1, "admin",      4, 10000, 500, 500),
             ];
-            for (id, label, color, trust, stream, upload, voice, tier, sort) in seeds {
+            for (id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk) in seeds {
                 conn.execute(
                     // can_image_share / can_file_share seed to 1 for
                     // every built-in: sharing stays gated ONLY by the
                     // server-wide master toggle, exactly as before v0.261
                     // (the per-role layer is additive, not a new denial).
                     "INSERT OR IGNORE INTO roles
-                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share)
-                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9,1,1)",
-                    rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort],
+                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept)
+                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9,1,1,?10,?11,?12)",
+                    rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk],
                 )?;
             }
             info!("Migration: roles table created + 5 built-ins seeded");
@@ -807,6 +815,48 @@ impl Storage {
                  ALTER TABLE roles ADD COLUMN can_file_share  INTEGER NOT NULL DEFAULT 1;"
             )?;
             info!("Migration: added can_image_share + can_file_share (roles)");
+        }
+
+        // ── v0.262.0 — R4: per-role numeric limits (operator-requested) ──
+        // The Per-role-limits matrix + Roles grid merge into ONE table:
+        // each role now OWNS max_chars / max_upload_mb / max_uploads_kept
+        // instead of inheriting them from a server_settings tier via
+        // base_tier. NON-BREAKING upgrade: after adding the columns,
+        // backfill every existing role from the LIVE server_settings row
+        // using its old base_tier, so each role keeps the EXACT effective
+        // numbers it had pre-R4. base_tier is retained only as the
+        // migration source + the add-form "prefill from preset"
+        // convenience; it is no longer a runtime indirection.
+        if conn.prepare("SELECT max_chars FROM roles LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE roles ADD COLUMN max_chars        INTEGER NOT NULL DEFAULT 280;
+                 ALTER TABLE roles ADD COLUMN max_upload_mb    INTEGER NOT NULL DEFAULT 5;
+                 ALTER TABLE roles ADD COLUMN max_uploads_kept INTEGER NOT NULL DEFAULT 4;"
+            )?;
+            // Backfill from the live server_settings tier the role used
+            // to point at — behaviour is identical post-upgrade.
+            conn.execute_batch(
+                "UPDATE roles SET
+                   max_chars = (SELECT CASE roles.base_tier
+                       WHEN 'verified' THEN s.max_chars_verified
+                       WHEN 'mod'      THEN s.max_chars_mod
+                       WHEN 'admin'    THEN s.max_chars_admin
+                       ELSE s.max_chars_unverified END
+                     FROM server_settings s WHERE s.id = 1),
+                   max_upload_mb = (SELECT CASE roles.base_tier
+                       WHEN 'verified' THEN s.max_upload_mb_verified
+                       WHEN 'mod'      THEN s.max_upload_mb_mod
+                       WHEN 'admin'    THEN s.max_upload_mb_admin
+                       ELSE s.max_upload_mb_unverified END
+                     FROM server_settings s WHERE s.id = 1),
+                   max_uploads_kept = (SELECT CASE roles.base_tier
+                       WHEN 'verified' THEN s.max_uploads_per_user_verified
+                       WHEN 'mod'      THEN s.max_uploads_per_user_mod
+                       WHEN 'admin'    THEN s.max_uploads_per_user_admin
+                       ELSE s.max_uploads_per_user_unverified END
+                     FROM server_settings s WHERE s.id = 1);"
+            )?;
+            info!("Migration: R4 — added per-role max_chars/max_upload_mb/max_uploads_kept + backfilled from base_tier");
         }
 
         // ── v0.245.0 — banned_keys gains a display name ──

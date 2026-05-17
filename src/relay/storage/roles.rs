@@ -39,11 +39,35 @@ pub struct RoleDef {
     /// Per-role non-image-file capability (v0.261). Same model.
     #[serde(default)]
     pub can_file_share: bool,
-    /// Which `server_settings` limit tier this role inherits numeric
-    /// limits from. One of "unverified" | "verified" | "mod" | "admin".
+    /// Per-role numeric limits (v0.262 — R4). Previously these lived as
+    /// 4 per-tier columns on `server_settings` and a role merely pointed
+    /// at a tier via `base_tier`; now every role OWNS its limits, so the
+    /// "Per-role limits" matrix and the Roles grid are one cohesive
+    /// table. Migration backfills existing roles from their old
+    /// base_tier's live server_settings values (non-breaking). serde
+    /// defaults = the conservative unverified tier so a missing payload
+    /// can never silently grant a huge limit.
+    #[serde(default = "default_max_chars")]
+    pub max_chars: i64,
+    #[serde(default = "default_max_upload_mb")]
+    pub max_upload_mb: i64,
+    #[serde(default = "default_max_uploads_kept")]
+    pub max_uploads_kept: i64,
+    /// LEGACY (pre-R4): which server_settings tier this role used to
+    /// inherit from. No longer a runtime indirection — kept only as the
+    /// migration source and as the "prefill from preset" convenience in
+    /// the add-role form. One of unverified|verified|mod|admin.
     pub base_tier: String,
     pub sort_order: i64,
 }
+
+// Conservative serde/struct defaults = the historical `unverified`
+// tier numbers. Only used for the unresolvable-role fallback / a
+// payload missing the field; real roles carry their own values
+// (seeded or migrated from the live server_settings tier).
+fn default_max_chars() -> i64 { 280 }
+fn default_max_upload_mb() -> i64 { 5 }
+fn default_max_uploads_kept() -> i64 { 4 }
 
 impl Default for RoleDef {
     /// The safe default-deny role (matches the `unverified` seed). Used
@@ -65,6 +89,9 @@ impl Default for RoleDef {
             // applies to the unresolvable-role fallback.)
             can_image_share: false,
             can_file_share: false,
+            max_chars: default_max_chars(),
+            max_upload_mb: default_max_upload_mb(),
+            max_uploads_kept: default_max_uploads_kept(),
             base_tier: "unverified".into(),
             sort_order: 0,
         }
@@ -81,7 +108,7 @@ impl Storage {
     pub fn list_roles(&self) -> Result<Vec<RoleDef>, rusqlite::Error> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share
+                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept
                  FROM roles ORDER BY sort_order ASC, trust_level ASC",
             )?;
             let rows = stmt.query_map([], |r| {
@@ -96,6 +123,9 @@ impl Storage {
                     can_voice: r.get::<_, i64>(7)? != 0,
                     can_image_share: r.get::<_, i64>(10)? != 0,
                     can_file_share: r.get::<_, i64>(11)? != 0,
+                    max_chars: r.get(12)?,
+                    max_upload_mb: r.get(13)?,
+                    max_uploads_kept: r.get(14)?,
                     base_tier: r.get(8)?,
                     sort_order: r.get(9)?,
                 })
@@ -111,7 +141,7 @@ impl Storage {
         let lookup_id = if role_id.is_empty() { "unverified" } else { role_id };
         let res = self.with_conn(|conn| {
             conn.query_row(
-                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share
+                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept
                  FROM roles WHERE id = ?1",
                 params![lookup_id],
                 |r| {
@@ -126,6 +156,9 @@ impl Storage {
                         can_voice: r.get::<_, i64>(7)? != 0,
                         can_image_share: r.get::<_, i64>(10)? != 0,
                         can_file_share: r.get::<_, i64>(11)? != 0,
+                        max_chars: r.get(12)?,
+                        max_upload_mb: r.get(13)?,
+                        max_uploads_kept: r.get(14)?,
                         base_tier: r.get(8)?,
                         sort_order: r.get(9)?,
                     })
@@ -170,18 +203,20 @@ impl Storage {
             };
             conn.execute(
                 "INSERT INTO roles
-                   (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
+                   (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)
                  ON CONFLICT(id) DO UPDATE SET
                    label=?2, color=?3, trust_level=?4, built_in=?5,
                    can_stream=?6, can_upload=?7, can_voice=?8,
                    base_tier=?9, sort_order=?10,
-                   can_image_share=?11, can_file_share=?12",
+                   can_image_share=?11, can_file_share=?12,
+                   max_chars=?13, max_upload_mb=?14, max_uploads_kept=?15",
                 params![
                     r.id, r.label, r.color, trust, built_in,
                     r.can_stream as i64, r.can_upload as i64, r.can_voice as i64,
                     base_tier, r.sort_order,
                     r.can_image_share as i64, r.can_file_share as i64,
+                    r.max_chars, r.max_upload_mb, r.max_uploads_kept,
                 ],
             )?;
             Ok(())
@@ -266,6 +301,56 @@ mod tests {
         db.upsert_role(&r).unwrap();
         let got2 = db.role_def("family");
         assert!(!got2.can_image_share && got2.can_file_share);
+    }
+
+    /// R4 (v0.262): per-role numeric limits round-trip through
+    /// upsert/list/role_def — guards the appended ?13/?14/?15 +
+    /// get(12)/get(13)/get(14) positional SQL.
+    #[test]
+    fn custom_role_numeric_limits_roundtrip() {
+        let db = fresh_db();
+        let mut r = RoleDef::default();
+        r.id = "vip".into();
+        r.label = "VIP".into();
+        r.built_in = false;
+        r.base_tier = "verified".into();
+        r.max_chars = 7777;
+        r.max_upload_mb = 333;
+        r.max_uploads_kept = 42;
+        db.upsert_role(&r).expect("upsert");
+
+        let got = db.role_def("vip");
+        assert_eq!(got.max_chars, 7777);
+        assert_eq!(got.max_upload_mb, 333);
+        assert_eq!(got.max_uploads_kept, 42);
+        let listed = db.list_roles().unwrap();
+        let v = listed.iter().find(|x| x.id == "vip").unwrap();
+        assert_eq!((v.max_chars, v.max_upload_mb, v.max_uploads_kept), (7777, 333, 42));
+
+        // Mutate + re-upsert (ON CONFLICT path).
+        r.max_chars = 12;
+        db.upsert_role(&r).unwrap();
+        assert_eq!(db.role_def("vip").max_chars, 12);
+    }
+
+    /// R4 non-breaking: fresh-DB built-ins must seed the EXACT canonical
+    /// historical per-tier numbers each role used to inherit via
+    /// base_tier — so a fresh install behaves identically and the
+    /// upgrade backfill (same CASE mapping) is provably correct.
+    #[test]
+    fn builtins_seed_canonical_r4_numbers() {
+        let db = fresh_db();
+        let by = |id: &str| db.role_def(id);
+        let u = by("unverified");
+        assert_eq!((u.max_chars, u.max_upload_mb, u.max_uploads_kept), (280, 5, 4));
+        let v = by("verified");
+        assert_eq!((v.max_chars, v.max_upload_mb, v.max_uploads_kept), (1000, 25, 20));
+        let d = by("donor"); // base_tier = verified
+        assert_eq!((d.max_chars, d.max_upload_mb, d.max_uploads_kept), (1000, 25, 20));
+        let m = by("mod");
+        assert_eq!((m.max_chars, m.max_upload_mb, m.max_uploads_kept), (4000, 100, 100));
+        let a = by("admin");
+        assert_eq!((a.max_chars, a.max_upload_mb, a.max_uploads_kept), (10000, 500, 500));
     }
 
     /// Unknown / deleted role must default-DENY sharing (consistent

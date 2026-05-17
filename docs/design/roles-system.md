@@ -73,13 +73,22 @@ in `api.rs::upload_file`. Migration seeds every existing/built-in role
 to `1` so the upgrade is non-breaking (sharing stays gated only by the
 server master exactly as before; the per-role denial is opt-in).
 
-> **R4 — IN PROGRESS (operator-requested, v0.262):** consolidate the
-> `server_settings.max_*_{unverified,verified,mod,admin}` columns into
-> per-role limit columns on `roles`, deprecating `base_tier`, so the
-> "Per-role limits" matrix and the "Roles" grid merge into ONE cohesive
-> per-role section. Was deferred as payoff-free; the operator has now
-> explicitly asked for the unified section ("Both: model + consolidated
-> view"), so it's the v0.262 deliverable.
+> **R4 — BUILT (v0.262).** `roles` now owns `max_chars`,
+> `max_upload_mb`, `max_uploads_kept` per-role. The "Per-role limits"
+> matrix is gone; everything per-role lives in ONE cohesive Roles table
+> (caps + numeric limits, all editable incl. built-ins). Enforcement
+> reads `role_def(role).max_*` directly — no `server_settings` tier hop
+> (`relay.rs` chat length, `api.rs` upload size + FIFO). This also
+> closed a latent gap: per-tier `max_upload_mb` was never enforced
+> server-side before R4 (only a hard const). Non-breaking upgrade: the
+> migration backfills every existing role from the live
+> `server_settings` value of its old `base_tier`, so effective numbers
+> are identical post-upgrade. `base_tier` is retained ONLY as the
+> migration source + the add-form "Prefill…" preset convenience; it is
+> no longer a runtime indirection. The legacy
+> `server_settings.max_*_{tier}` columns remain as inert back-compat
+> shadows (still accepted by `server_settings_update`, unused by
+> enforcement).
 
 ### Assignment
 
