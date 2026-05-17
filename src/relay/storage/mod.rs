@@ -775,33 +775,17 @@ impl Storage {
                 max_uploads_kept INTEGER NOT NULL DEFAULT 4
              );",
         )?;
-        {
-            // Tuple tail (mc,mu,mk) = the canonical historical per-tier
-            // numbers (chars / upload MB / uploads-kept) each built-in
-            // used to inherit via base_tier — now owned per-role (R4,
-            // v0.262). Fresh DBs seed identical numbers, so behaviour is
-            // unchanged; the matching backfill below covers upgrades.
-            let seeds: &[(&str, &str, &str, i64, i64, i64, i64, &str, i64, i64, i64, i64)] = &[
-                ("unverified", "Unverified", "#9E9E9E", 0, 0, 0, 0, "unverified", 0,   280,   5,   4),
-                ("verified",   "Verified",   "#4FC3F7", 1, 0, 1, 1, "verified",   1,  1000,  25,  20),
-                ("donor",      "Donor",      "#FFD54F", 2, 0, 1, 1, "verified",   2,  1000,  25,  20),
-                ("mod",        "Moderator",  "#81C784", 3, 1, 1, 1, "mod",        3,  4000, 100, 100),
-                ("admin",      "Admin",      "#E57373", 4, 1, 1, 1, "admin",      4, 10000, 500, 500),
-            ];
-            for (id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk) in seeds {
-                conn.execute(
-                    // can_image_share / can_file_share seed to 1 for
-                    // every built-in: sharing stays gated ONLY by the
-                    // server-wide master toggle, exactly as before v0.261
-                    // (the per-role layer is additive, not a new denial).
-                    "INSERT OR IGNORE INTO roles
-                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept)
-                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9,1,1,?10,?11,?12)",
-                    rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk],
-                )?;
-            }
-            info!("Migration: roles table created + 5 built-ins seeded");
-        }
+        // CRITICAL ORDERING (fixed v0.262.2 — production incident
+        // 2026-05-17): the guarded ALTERs below MUST run BEFORE the seed
+        // INSERT. On an existing relay.db the `CREATE TABLE IF NOT
+        // EXISTS` above is a no-op, so the new columns
+        // (can_image_share / max_chars / …) only exist after these
+        // ALTERs. v0.261/v0.262 wrongly seeded first → on every live DB
+        // the seed INSERT referenced a missing column → panic →
+        // crash-loop → relay down. Fresh DBs were unaffected (CREATE
+        // makes the columns) which is exactly why the bug shipped: the
+        // upgrade path was never exercised. ALTER-then-seed is correct
+        // for BOTH paths.
 
         // ── v0.261.0 — per-role image/file sharing capability ──
         // Operator: make image/file sharing per-role like streaming, so
@@ -834,7 +818,9 @@ impl Storage {
                  ALTER TABLE roles ADD COLUMN max_uploads_kept INTEGER NOT NULL DEFAULT 4;"
             )?;
             // Backfill from the live server_settings tier the role used
-            // to point at — behaviour is identical post-upgrade.
+            // to point at — behaviour is identical post-upgrade. (On a
+            // fresh DB this whole block is skipped — CREATE already made
+            // max_chars — so the seed below provides the numbers.)
             conn.execute_batch(
                 "UPDATE roles SET
                    max_chars = (SELECT CASE roles.base_tier
@@ -857,6 +843,34 @@ impl Storage {
                      FROM server_settings s WHERE s.id = 1);"
             )?;
             info!("Migration: R4 — added per-role max_chars/max_upload_mb/max_uploads_kept + backfilled from base_tier");
+        }
+
+        // Seed the 5 built-ins. Runs AFTER the ALTERs above so every
+        // column exists on both fresh and upgraded DBs. INSERT OR IGNORE
+        // → existing built-ins (already backfilled above on an upgrade)
+        // are preserved untouched; only genuinely-missing rows insert.
+        {
+            // Tuple tail (mc,mu,mk) = the canonical historical per-tier
+            // numbers (chars / upload MB / uploads-kept) each built-in
+            // used to inherit via base_tier — now owned per-role (R4,
+            // v0.262). Fresh DBs seed these directly; upgrades keep the
+            // backfilled values (rows already exist → IGNORE).
+            let seeds: &[(&str, &str, &str, i64, i64, i64, i64, &str, i64, i64, i64, i64)] = &[
+                ("unverified", "Unverified", "#9E9E9E", 0, 0, 0, 0, "unverified", 0,   280,   5,   4),
+                ("verified",   "Verified",   "#4FC3F7", 1, 0, 1, 1, "verified",   1,  1000,  25,  20),
+                ("donor",      "Donor",      "#FFD54F", 2, 0, 1, 1, "verified",   2,  1000,  25,  20),
+                ("mod",        "Moderator",  "#81C784", 3, 1, 1, 1, "mod",        3,  4000, 100, 100),
+                ("admin",      "Admin",      "#E57373", 4, 1, 1, 1, "admin",      4, 10000, 500, 500),
+            ];
+            for (id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk) in seeds {
+                conn.execute(
+                    "INSERT OR IGNORE INTO roles
+                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept)
+                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9,1,1,?10,?11,?12)",
+                    rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk],
+                )?;
+            }
+            info!("Migration: roles built-ins seeded (post-ALTER ordering)");
         }
 
         // ── v0.245.0 — banned_keys gains a display name ──

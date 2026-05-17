@@ -353,6 +353,64 @@ mod tests {
         assert_eq!((a.max_chars, a.max_upload_mb, a.max_uploads_kept), (10000, 500, 500));
     }
 
+    /// PRODUCTION-INCIDENT REGRESSION (2026-05-17). v0.261/v0.262
+    /// seeded the roles built-ins BEFORE the idempotent ALTERs that add
+    /// the new columns. Fresh DBs were fine (CREATE makes the columns)
+    /// so every fresh-DB test passed — but on the LIVE relay.db
+    /// `CREATE TABLE IF NOT EXISTS` was a no-op, the seed INSERT
+    /// referenced a missing column, Storage::open panicked, and the
+    /// relay crash-looped (502, total outage). This test reproduces the
+    /// UPGRADE path the original tests never exercised: build a current
+    /// DB, revert `roles` to the pre-v0.261 10-column shape with rows
+    /// present, then reopen Storage. Pre-fix this panics; post-fix
+    /// (ALTER-before-seed) it must open cleanly AND backfill correctly.
+    #[test]
+    fn upgrade_from_pre_v0261_roles_schema_does_not_panic() {
+        use rusqlite::Connection;
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_rolesupg_{pid}_{nanos}.db"));
+
+        // 1. Fully migrate a fresh DB (creates roles + server_settings).
+        drop(Storage::open(&path).expect("fresh open"));
+
+        // 2. Rewind `roles` to the pre-v0.261 schema with built-in rows
+        //    present — exactly the live relay.db's shape on deploy day.
+        {
+            let c = Connection::open(&path).expect("raw open");
+            c.execute_batch(
+                "DROP TABLE roles;
+                 CREATE TABLE roles (
+                    id TEXT PRIMARY KEY, label TEXT NOT NULL, color TEXT NOT NULL,
+                    trust_level INTEGER NOT NULL, built_in INTEGER NOT NULL,
+                    can_stream INTEGER NOT NULL, can_upload INTEGER NOT NULL,
+                    can_voice INTEGER NOT NULL, base_tier TEXT NOT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0);
+                 INSERT INTO roles VALUES
+                    ('verified','Verified','#4FC3F7',1,1,0,1,1,'verified',1),
+                    ('admin','Admin','#E57373',4,1,1,1,1,'admin',4);",
+            ).expect("rewind to old schema");
+        }
+
+        // 3. The upgrade. MUST NOT panic (the whole bug).
+        let db = Storage::open(&path).expect("UPGRADE open must not panic");
+
+        // 4. New columns exist + were applied correctly.
+        let verified = db.role_def("verified");
+        assert!(verified.can_image_share, "ALTER added can_image_share (DEFAULT 1)");
+        assert!(verified.can_file_share);
+        // base_tier 'verified' → backfilled from server_settings defaults.
+        assert_eq!(verified.max_chars, 1000, "R4 backfill from base_tier");
+        assert_eq!(verified.max_upload_mb, 25);
+        assert_eq!(verified.max_uploads_kept, 20);
+        // Seed (OR IGNORE) added the built-ins missing from the rewind.
+        assert_eq!(db.role_def("mod").max_chars, 4000, "missing built-in seeded");
+        assert!(db.list_roles().unwrap().iter().any(|r| r.id == "unverified"));
+    }
+
     /// Unknown / deleted role must default-DENY sharing (consistent
     /// with can_stream/upload/voice = false in RoleDef::default()).
     #[test]
