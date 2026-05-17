@@ -1,0 +1,17 @@
+# HumanityOS VPS disk-pressure guard — oneshot, driven by the .timer.
+# Installed/refreshed automatically by the deploy workflow from the
+# copies in the repo (scripts/systemd/), so the protection is
+# version-controlled and survives a VPS rebuild. See
+# scripts/humanity-disk-guard.sh for the WHY (incident 2026-05-17).
+[Unit]
+Description=HumanityOS VPS disk janitor + pressure guard (rotates binary/log backups, caps caches, reclaims the Rust build cache before it can fill the disk)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/Humanity/scripts/humanity-disk-guard.sh
+# Be a good neighbour — never compete with the relay for CPU/IO.
+Nice=10
+IOSchedulingClass=idle
+# A guard hiccup must never wedge anything.
+TimeoutStartSec=120

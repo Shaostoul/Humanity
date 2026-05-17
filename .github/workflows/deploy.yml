@@ -29,6 +29,30 @@ jobs:
             git reset --hard origin/main
             git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/
 
+            # ── Disk-pressure guard (incident 2026-05-17) ──
+            # Root cause of the prod outage: this on-VPS build cache
+            # (target/, kept across deploys for speed) grew unpruned to
+            # 27 GB and filled the disk → relay crash-looped silently.
+            # Pre-build reclaim: if the cache would risk filling the
+            # disk, clear it now. It is regenerable, NOT data — a clean
+            # rebuild follows immediately below. `|| true` everywhere so
+            # the guard can never block a deploy.
+            DISK_PCT=$(df --output=pcent / | tail -1 | tr -dc '0-9' || echo 0)
+            echo "Root disk at ${DISK_PCT}% before build"
+            if [ "${DISK_PCT:-0}" -ge 80 ]; then
+              echo "Disk >= 80% -- clearing regenerable target/ before build"
+              rm -rf target || true
+            fi
+            # Install/refresh the standalone disk-guard timer FROM THE
+            # REPO so the protection is version-controlled, self-heals
+            # every 20 min, and survives a VPS rebuild (not a manual
+            # one-off hack that gets lost).
+            chmod +x scripts/humanity-disk-guard.sh || true
+            cp -f scripts/systemd/humanity-disk-guard.service /etc/systemd/system/humanity-disk-guard.service || true
+            cp -f scripts/systemd/humanity-disk-guard.timer   /etc/systemd/system/humanity-disk-guard.timer   || true
+            systemctl daemon-reload || true
+            systemctl enable --now humanity-disk-guard.timer || true
+
             # Build unified binary with relay feature (headless, no GPU deps)
             cargo build --release --features relay --no-default-features
 

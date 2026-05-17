@@ -1,0 +1,17 @@
+# Runs the disk-pressure guard every 20 minutes, plus shortly after
+# boot. Deploy-INDEPENDENT on purpose: the 2026-05-17 outage proved we
+# cannot rely on "a deploy will come along and clean up" — disk can
+# fill between deploys (or with no deploys for days). 20 min is far
+# tighter than the days-to-weeks it took the cache to grow 27 GB, so
+# the disk can never crawl from healthy to 100% unnoticed again.
+[Unit]
+Description=Run the HumanityOS disk-pressure guard every 20 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=20min
+# If the VPS was off when a run was due, run once on next boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
