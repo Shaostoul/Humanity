@@ -1,0 +1,15 @@
+# Line-ending policy.
+#
+# These file types are EXECUTED on the Linux VPS. If they are ever
+# committed with CRLF (e.g. a contributor/agent on Windows without
+# core.autocrlf=true), bash fails with `bad interpreter: ...^M` and
+# systemd rejects the unit — a silent break of the disk janitor that
+# prevents the 2026-05-17 outage. Force LF in the repo regardless of
+# the committing machine's git config so this whole class of
+# "works here, breaks on the VPS" bug is impossible.
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.service   text eol=lf
+*.timer     text eol=lf
+*.mjs       text eol=lf
+Justfile    text eol=lf
