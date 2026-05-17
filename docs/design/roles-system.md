@@ -41,8 +41,10 @@ CREATE TABLE roles (
     trust_level INTEGER NOT NULL,   -- ordering; higher = more trusted
     built_in    INTEGER NOT NULL,   -- 1 = seed role, cannot be deleted
     can_stream  INTEGER NOT NULL,   -- may start a livestream
-    can_upload  INTEGER NOT NULL,   -- may upload files/images
+    can_upload  INTEGER NOT NULL,   -- may upload files/images (legacy general)
     can_voice   INTEGER NOT NULL,   -- may create/use voice channels
+    can_image_share INTEGER NOT NULL DEFAULT 1, -- v0.261: per-role image attach
+    can_file_share  INTEGER NOT NULL DEFAULT 1, -- v0.261: per-role non-image file
     base_tier   TEXT NOT NULL,      -- which server_settings limit tier
                                     -- this role inherits (one of
                                     -- unverified/verified/mod/admin)
@@ -61,11 +63,23 @@ role declares which of the four existing limit tiers it inherits via
 also having `can_stream = 1`. The four built-ins set
 `base_tier = <self>`.
 
-> **Future phase (documented, not built):** consolidate the
+**v0.261 — per-role image/file sharing.** `image_sharing_enabled` /
+`file_sharing_enabled` were server-wide booleans (and, until v0.261,
+never actually enforced server-side — only the chat UI hid the button).
+Now `roles.can_image_share` / `can_file_share` give the same
+master∧capability model as streaming: an upload is allowed iff
+`server_settings.<x>_sharing_enabled AND role.can_<x>_share`, enforced
+in `api.rs::upload_file`. Migration seeds every existing/built-in role
+to `1` so the upgrade is non-breaking (sharing stays gated only by the
+server master exactly as before; the per-role denial is opt-in).
+
+> **R4 — IN PROGRESS (operator-requested, v0.262):** consolidate the
 > `server_settings.max_*_{unverified,verified,mod,admin}` columns into
-> per-role limit columns on `roles`, deprecating `base_tier`. Deferred
-> because it's a pure-refactor migration with no user-visible payoff
-> until the operator actually wants per-*custom-role* limits.
+> per-role limit columns on `roles`, deprecating `base_tier`, so the
+> "Per-role limits" matrix and the "Roles" grid merge into ONE cohesive
+> per-role section. Was deferred as payoff-free; the operator has now
+> explicitly asked for the unified section ("Both: model + consolidated
+> view"), so it's the v0.262 deliverable.
 
 ### Assignment
 

@@ -11,6 +11,11 @@
   "recent_decisions": [
     {
       "at": "2026-05-16",
+      "decision": "v0.261 — PQ-roles Phase 1: per-role image/file sharing (operator chose Both). RoleDef +can_image_share/+can_file_share (#[serde(default)] false; Default-impl false = default-deny for unknown roles). roles table: CREATE +2 cols DEFAULT 1, seed all 5 built-ins to 1, idempotent ALTER DEFAULT 1 for existing DBs → upgrade NON-BREAKING (sharing stays gated only by server master exactly as before; per-role denial is additive/opt-in). list_roles/role_def SELECT appended cols (idx 10/11), upsert_role appended (?11/?12). ENFORCEMENT added in api.rs::upload_file: effective = server master AND role cap — this ALSO closes a latent gap (image_sharing_enabled/file_sharing_enabled were settable but NEVER enforced server-side pre-v0.261, only the chat UI hid the button). Roles grid + add-custom-role form gained Image/File checkbox columns. 3 roles tests (seed-on/roundtrip/default-deny) + relay+native+3 lints green. roles-system.md updated; R4 now reclassified IN-PROGRESS as v0.262 Phase 2.",
+      "rationale": "Finished the interrupted Phase 1 cleanly before touching Phase 2 (do not leave a data-model change half-done or lose it). Non-breaking migration (DEFAULT 1 everywhere) is mandatory for a live server. Enforcing the previously-decorative server toggle is the no-bandaid bonus."
+    },
+    {
+      "at": "2026-05-16",
       "decision": "v0.260: removed the temporary layout-dbg readout from tinted_section. Operator said \"looking better\" + moved to feature questions, did not pursue centering — so the shipped debug clutter (3 lines, every section, all users) gets removed rather than left in production. Centering remains 0/3 / unsolved but DE-PRIORITIZED (operator content with current left layout; revisit only if re-raised, re-instrument then). form_row label-pin (v0.259) confirmed working in operator screenshot — toggles now align. Verified in code: per-role caps (can_stream/can_upload/can_voice) ALREADY exist + are edited in the Roles grid; the Add-a-custom-role form exists at draw_roles_admin bottom (operator screenshot cut off at Donor so Moderator/Admin/add-form were below the fold → discoverability gap, not a missing feature). image/file sharing are the only server-wide-ONLY settings (no per-role cap) — the real inconsistency behind the operator combine-into-grid instinct.",
       "rationale": "Shipping temporary debug UI then leaving it is sloppy; cleaned up since the operator deprioritized centering. The roles editor exists — the problem is discoverability + a fragmented 3-block per-role model; that and the per-role-image/file idea are a data-model decision to confirm with the operator, not assume."
     },
@@ -200,8 +205,8 @@
   ],
   "version_state": {
     "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "v0.260.1 (pending push this session)",
-    "last_release_summary": "v0.260.0 removed temporary tinted_section layout diagnostic (centering deprioritized by operator). form_row alignment fix (v0.259) confirmed working."
+    "latest_pushed_tag": "v0.261.1 (pending)",
+    "last_release_summary": "v0.261.0 per-role image/file sharing (RoleDef caps + non-breaking migration + ACTUAL upload enforcement composing server-master AND role-cap; closes the never-enforced image/file toggle gap). Phase 2 (consolidated per-role section / R4) next."
   },
   "files_in_flight_or_recently_changed": [
     "src/gui/mod.rs (v0.123.0) — added 8 GuiState fields + 7 load_* fns + new owned types (ResourceEntry, ResourceCategory, StudioScenePreset, StudioSourcePreset) + studio_*_from_preset converters; StudioState::default() now empty (populated from presets in lib.rs)",

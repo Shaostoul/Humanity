@@ -1537,6 +1537,8 @@ impl Default for GuiState {
                 r.can_stream = false;
                 r.can_upload = true;
                 r.can_voice = true;
+                r.can_image_share = true; // a typical custom role (e.g. "family") shares media
+                r.can_file_share = true;
                 r.base_tier = "verified".to_string();
                 r.sort_order = 50;
                 r

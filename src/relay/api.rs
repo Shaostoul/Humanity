@@ -339,6 +339,35 @@ pub async fn upload_file(
             return Err((StatusCode::BAD_REQUEST, format!("Unsupported file type: {} (.{})", content_type, file_ext)));
         }
 
+        // v0.261: image/file sharing gate. Effective permission =
+        // server-wide master toggle AND the uploader's per-role
+        // capability (same master∧capability model as streaming). NOTE:
+        // this also closes a pre-existing gap — image_sharing_enabled /
+        // file_sharing_enabled were settable but NEVER enforced
+        // server-side before now (only the chat UI hid the button).
+        // Reject before reading the body.
+        {
+            let urole = state.db.role_def(&uploader_role);
+            let is_img = content_type.starts_with("image/");
+            if is_img {
+                if !(server_settings.image_sharing_enabled && urole.can_image_share) {
+                    return Err((StatusCode::FORBIDDEN,
+                        if !server_settings.image_sharing_enabled {
+                            "Image sharing is disabled on this server.".into()
+                        } else {
+                            "Your role isn't allowed to share images here. Ask an admin.".into()
+                        }));
+                }
+            } else if !(server_settings.file_sharing_enabled && urole.can_file_share) {
+                return Err((StatusCode::FORBIDDEN,
+                    if !server_settings.file_sharing_enabled {
+                        "File sharing is disabled on this server.".into()
+                    } else {
+                        "Your role isn't allowed to share files here. Ask an admin.".into()
+                    }));
+            }
+        }
+
         let data = field.bytes().await.map_err(|e| {
             (StatusCode::BAD_REQUEST, format!("Failed to read file: {e}"))
         })?;

@@ -767,7 +767,9 @@ impl Storage {
                 can_upload  INTEGER NOT NULL,
                 can_voice   INTEGER NOT NULL,
                 base_tier   TEXT NOT NULL,
-                sort_order  INTEGER NOT NULL DEFAULT 0
+                sort_order  INTEGER NOT NULL DEFAULT 0,
+                can_image_share INTEGER NOT NULL DEFAULT 1,
+                can_file_share  INTEGER NOT NULL DEFAULT 1
              );",
         )?;
         {
@@ -780,13 +782,31 @@ impl Storage {
             ];
             for (id, label, color, trust, stream, upload, voice, tier, sort) in seeds {
                 conn.execute(
+                    // can_image_share / can_file_share seed to 1 for
+                    // every built-in: sharing stays gated ONLY by the
+                    // server-wide master toggle, exactly as before v0.261
+                    // (the per-role layer is additive, not a new denial).
                     "INSERT OR IGNORE INTO roles
-                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order)
-                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9)",
+                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share)
+                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9,1,1)",
                     rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort],
                 )?;
             }
             info!("Migration: roles table created + 5 built-ins seeded");
+        }
+
+        // ── v0.261.0 — per-role image/file sharing capability ──
+        // Operator: make image/file sharing per-role like streaming, so
+        // effective = server master AND role capability. DEFAULT 1 so
+        // every EXISTING role keeps sharing (sharing stays gated only by
+        // the server-wide toggle exactly as before) — the upgrade is
+        // non-breaking; the per-role denial is purely additive/opt-in.
+        if conn.prepare("SELECT can_image_share FROM roles LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE roles ADD COLUMN can_image_share INTEGER NOT NULL DEFAULT 1;
+                 ALTER TABLE roles ADD COLUMN can_file_share  INTEGER NOT NULL DEFAULT 1;"
+            )?;
+            info!("Migration: added can_image_share + can_file_share (roles)");
         }
 
         // ── v0.245.0 — banned_keys gains a display name ──

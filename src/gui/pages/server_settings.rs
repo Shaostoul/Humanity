@@ -1293,7 +1293,7 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // "stairstepped". A fixed-column Grid aligns every cell by
     // construction. 2026-05-16.
     egui::Grid::new("server_roles")
-        .num_columns(8)
+        .num_columns(10)
         .spacing([theme.spacing_xl, theme.spacing_md])
         .striped(true)
         .show(ui, |ui| {
@@ -1310,6 +1310,8 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             hdr(ui, "Stream");
             hdr(ui, "Upload");
             hdr(ui, "Voice");
+            hdr(ui, "Image");
+            hdr(ui, "File");
             hdr(ui, "Tier");
             hdr(ui, "");
             hdr(ui, "");
@@ -1350,11 +1352,13 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     Vec2::new(84.0, 22.0),
                     egui::TextEdit::singleline(&mut draft.color).hint_text("#RRGGBB"),
                 );
-                // Cols 3-5 — capabilities (header names them, no inline labels).
+                // Cols 3-7 — capabilities (header names them, no inline labels).
                 ui.checkbox(&mut draft.can_stream, "");
                 ui.checkbox(&mut draft.can_upload, "");
                 ui.checkbox(&mut draft.can_voice, "");
-                // Col 6 — base tier (combo for custom, locked label for built-in).
+                ui.checkbox(&mut draft.can_image_share, "");
+                ui.checkbox(&mut draft.can_file_share, "");
+                // Col 8 — base tier (combo for custom, locked label for built-in).
                 if !is_built_in {
                     egui::ComboBox::from_id_salt(("role_tier", draft.id.as_str()))
                         .selected_text(draft.base_tier.as_str())
@@ -1407,6 +1411,8 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.checkbox(&mut nr.can_stream, "stream");
             ui.checkbox(&mut nr.can_upload, "upload");
             ui.checkbox(&mut nr.can_voice, "voice");
+            ui.checkbox(&mut nr.can_image_share, "image");
+            ui.checkbox(&mut nr.can_file_share, "file");
             egui::ComboBox::from_id_salt("new_role_tier")
                 .selected_text(format!("tier: {}", nr.base_tier))
                 .show_ui(ui, |ui| {
