@@ -17,6 +17,13 @@ pub mod platform;
 pub mod terrain;
 pub mod ship;
 
+/// Canonical Sol-system model (one `SolBody` set + one Kepler
+/// propagator) shared by the Maps page, the FPS world spawn, and the
+/// in-home holo-orrery. Engine-wide on purpose — NOT `#[cfg(native)]` —
+/// so terrain / renderer / world placement read the same source of
+/// truth instead of drifting per-view. See `src/cosmos.rs`.
+pub mod cosmos;
+
 #[cfg(feature = "relay")]
 pub mod relay;
 

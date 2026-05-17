@@ -29,6 +29,16 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
 
+// Canonical Sol model — v0.262.8: moved out of this GUI page into the
+// engine-wide `crate::cosmos` so the FPS world + in-home orrery consume
+// the SAME source of truth (was 4 drifted copies). Behavior here is
+// byte-for-byte identical: same struct, same fns, same `&'static`
+// cache; only the definitions' home changed.
+use crate::cosmos::{
+    body_position_relative_au, body_world_position_3d_au, find_body, kepler_solve,
+    sample_orbit_points, sol_bodies, SolBody, KM_PER_AU,
+};
+
 // ─────────────────────── Data layer (lazy-loaded caches) ────────────────────
 
 /// One nearby star in 3D galactic coordinates (light-years from Sol).
@@ -70,65 +80,13 @@ struct Constellation {
     objects: Vec<String>,
 }
 
-/// One Sol-system body for the system view + body browser sidebar +
-/// details panel. Phase 3 (v0.203.2): expanded with the fields needed
-/// for the right-side details panel (radius, mass, gravity, atmosphere
-/// composition, orbital period, mean temperature, discovery info,
-/// description).
-#[derive(Debug, Clone)]
-struct SolBody {
-    id: String,
-    name: String,
-    body_type: String,
-    /// Parent body id (e.g. "sun" for planets, "earth" for "moon").
-    parent: Option<String>,
-    /// Semi-major axis in AU (only set for direct sun-orbiters).
-    semi_major_axis_au: f64,
-    /// Semi-major axis in km (only set for moons orbiting their planet).
-    semi_major_axis_km: f64,
-    /// Orbital eccentricity. 0 = circle, 0..1 = ellipse, 1 = parabolic
-    /// escape, >1 = hyperbolic flyby. v0.207.0.
-    eccentricity: f64,
-    /// Orbital inclination in degrees (tilt of the orbit plane relative
-    /// to the reference plane — ecliptic for Sol-orbiters). v0.207.0.
-    inclination_deg: f64,
-    /// Longitude of the ascending node in degrees — where the orbit
-    /// crosses the reference plane going north. v0.207.0.
-    longitude_ascending_node_deg: f64,
-    /// Argument of periapsis in degrees — angle from ascending node to
-    /// the periapsis point. v0.207.0.
-    argument_perihelion_deg: f64,
-    /// Mean anomaly at epoch (J2000) in degrees. Combined with
-    /// `orbital_period_days` + sim_time, gives the body's snapshot
-    /// position. v0.207.0.
-    mean_anomaly_deg: f64,
-    /// Body radius in km — for visual sizing.
-    radius_km: f64,
-    /// Mass in kg.
-    mass_kg: f64,
-    /// Surface gravity in m/s².
-    surface_gravity_ms2: f64,
-    /// Mean surface / cloud-top temperature in Kelvin.
-    mean_temperature_k: f64,
-    /// Orbital period in days.
-    orbital_period_days: f64,
-    /// Atmosphere composition summary (top 3 components, formatted).
-    /// Empty string if no atmosphere.
-    atmosphere_summary: String,
-    /// Free-form description (1-2 sentences).
-    description: String,
-    /// Discovery year, if known. 0 = ancient / no record.
-    discovery_year: i32,
-    /// Discoverer name, if known.
-    discoverer: String,
-    /// IDs of bodies orbiting this one (e.g. moons of a planet).
-    children: Vec<String>,
-}
+// `SolBody` moved to `crate::cosmos` (v0.262.8) — imported above. The
+// struct + its `pub` fields are unchanged; this page reads them exactly
+// as before.
 
 static NEARBY_STARS: OnceLock<Vec<NearbyStar>> = OnceLock::new();
 static BRIGHT_STARS: OnceLock<Vec<BrightStar>> = OnceLock::new();
 static CONSTELLATIONS: OnceLock<Vec<Constellation>> = OnceLock::new();
-static SOL_BODIES: OnceLock<Vec<SolBody>> = OnceLock::new();
 
 fn nearby_stars() -> &'static [NearbyStar] {
     NEARBY_STARS.get_or_init(|| {
@@ -223,102 +181,9 @@ fn constellations() -> &'static [Constellation] {
     })
 }
 
-fn sol_bodies() -> &'static [SolBody] {
-    SOL_BODIES.get_or_init(|| {
-        let json = crate::embedded_data::SOLAR_SYSTEM_JSON;
-        let parsed: serde_json::Value = serde_json::from_str(json).unwrap_or(serde_json::Value::Null);
-        let mut out: Vec<SolBody> = Vec::new();
-        if let Some(arr) = parsed.get("bodies").and_then(|b| b.as_array()) {
-            for body in arr {
-                let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let name = body.get("name").and_then(|v| v.as_str()).unwrap_or(&id).to_string();
-                let body_type = body.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                if body_type == "region" { continue; } // skip belts as positionable bodies
-                let parent = body.get("parent").and_then(|v| v.as_str()).map(String::from);
-                let orbit = body.get("orbit");
-                let semi_major_axis_au = orbit.and_then(|o| o.get("semi_major_axis_au")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let semi_major_axis_km = orbit.and_then(|o| o.get("semi_major_axis_km")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let orbital_period_days = orbit.and_then(|o| o.get("orbital_period_days")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let eccentricity = orbit.and_then(|o| o.get("eccentricity")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let inclination_deg = orbit.and_then(|o| o.get("inclination_deg")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let longitude_ascending_node_deg = orbit
-                    .and_then(|o| o.get("longitude_ascending_node_deg"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-                let argument_perihelion_deg = orbit
-                    .and_then(|o| o.get("argument_perihelion_deg"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-                let mean_anomaly_deg = orbit
-                    .and_then(|o| o.get("mean_anomaly_deg"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-                let physical = body.get("physical");
-                let radius_km = physical.and_then(|p| p.get("radius_km")).and_then(|v| v.as_f64()).unwrap_or(1000.0);
-                let mass_kg = physical.and_then(|p| p.get("mass_kg")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let surface_gravity_ms2 = physical.and_then(|p| p.get("surface_gravity_ms2")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let mean_temperature_k = physical.and_then(|p| p.get("mean_temperature_k")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                // Build a compact atmosphere summary from the composition map
-                // ("78% N₂ · 21% O₂ · …"). Empty string if no atmosphere.
-                let atmosphere_summary = body.get("atmosphere")
-                    .and_then(|a| a.get("composition"))
-                    .and_then(|c| c.as_object())
-                    .map(|comp| {
-                        let mut pairs: Vec<(String, f64)> = comp.iter()
-                            .filter_map(|(k, v)| Some((k.clone(), v.as_f64()?)))
-                            .collect();
-                        // Highest concentration first.
-                        pairs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-                        pairs.iter().take(3)
-                            .map(|(k, v)| format!("{:.1}% {}", v, k))
-                            .collect::<Vec<_>>()
-                            .join(" · ")
-                    })
-                    .unwrap_or_default();
-                let description = body.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let (discovery_year, discoverer) = body.get("discovery")
-                    .and_then(|d| {
-                        let y = d.get("year").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-                        let who = d.get("discoverer").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        Some((y, who))
-                    })
-                    .unwrap_or((0, String::new()));
-                out.push(SolBody {
-                    id, name, body_type, parent,
-                    semi_major_axis_au, semi_major_axis_km,
-                    eccentricity, inclination_deg,
-                    longitude_ascending_node_deg, argument_perihelion_deg, mean_anomaly_deg,
-                    orbital_period_days,
-                    radius_km, mass_kg, surface_gravity_ms2, mean_temperature_k,
-                    atmosphere_summary, description, discovery_year, discoverer,
-                    children: Vec::new(), // populated in second pass below
-                });
-            }
-        }
-        // Second pass: populate `children` lists by inverting the parent
-        // relationship. This is what lets the body browser sidebar nest
-        // moons under their planet without re-scanning every frame.
-        let mut child_lists: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
-        for b in &out {
-            if let Some(p) = &b.parent {
-                child_lists.entry(p.clone()).or_default().push(b.id.clone());
-            }
-        }
-        for b in &mut out {
-            if let Some(kids) = child_lists.get(&b.id) {
-                b.children = kids.clone();
-            }
-        }
-        log::info!("Cosmos: loaded {} Sol bodies (with parent-child links)", out.len());
-        out
-    })
-}
-
-/// Look up a body by id. O(N) scan, but the dataset is ~64 entries so
-/// it's fine to call this from per-frame UI code.
-fn find_body(id: &str) -> Option<&'static SolBody> {
-    sol_bodies().iter().find(|b| b.id == id)
-}
+// `sol_bodies()` + `find_body()` moved to `crate::cosmos` (v0.262.8) —
+// imported above. Same JSON loader, same `&'static` cache, same O(N)
+// id lookup; only the home module changed.
 
 // ─────────────────────── Spectral-class → color ─────────────────────────────
 
@@ -432,147 +297,11 @@ fn project_to_screen(pos_au: glam::DVec3, cam: &Cosmos3DCamera, rect: Rect) -> O
     Some((Pos2::new(sx, sy), -view_pos.z))
 }
 
-/// Conversion helper.
-const KM_PER_AU: f64 = 149_597_870.7;
-
-/// Solve Kepler's equation `M = E - e*sin(E)` for eccentric anomaly E
-/// given mean anomaly M (radians) and eccentricity e (0..1).
-/// Newton-Raphson iteration; converges in ~5 iterations for e < 0.9.
-/// v0.207.0 — real orbital mechanics.
-fn kepler_solve(mean_anom: f64, ecc: f64) -> f64 {
-    let mut e_anom = mean_anom;
-    for _ in 0..12 {
-        let delta = (e_anom - ecc * e_anom.sin() - mean_anom) / (1.0 - ecc * e_anom.cos());
-        e_anom -= delta;
-        if delta.abs() < 1e-12 { break; }
-    }
-    e_anom
-}
-
-/// Compute a body's position relative to its parent, in AU. Applies real
-/// Kepler orbital mechanics — eccentricity, inclination, argument of
-/// perihelion, longitude of ascending node, mean anomaly at epoch +
-/// mean motion × sim_time.
-///
-/// `sim_time_seconds` is seconds since the J2000.0 epoch
-/// (2000-01-01 12:00:00 UTC). Pass 0 for the snapshot configuration
-/// (used by orbit-line sampling so the line itself doesn't slither as
-/// the user scrubs time). For LIVE body positions, pass the cosmos
-/// sim_time so mean anomaly advances at `360 / orbital_period_days`
-/// degrees per day. v0.208.0 (orbital evolution shipped).
-fn body_position_relative_au(body: &SolBody, sim_time_seconds: f64) -> glam::DVec3 {
-    let a_au = if body.semi_major_axis_au > 0.0 {
-        body.semi_major_axis_au
-    } else if body.semi_major_axis_km > 0.0 {
-        body.semi_major_axis_km / KM_PER_AU
-    } else {
-        return glam::DVec3::ZERO;
-    };
-    let e = body.eccentricity.clamp(0.0, 0.99);
-    // Mean anomaly at epoch J2000 — from data if present, else hashed
-    // from name so untagged minor bodies don't all start at periapsis.
-    let m0_deg = if body.mean_anomaly_deg != 0.0 {
-        body.mean_anomaly_deg
-    } else {
-        (body.name.bytes().fold(0u64, |a, b| a.wrapping_add(b as u64)) % 360) as f64
-    };
-    // Advance by sim_time. Mean motion = 360 deg / orbital_period.
-    // Bodies without an orbital_period_days value stay at their epoch
-    // anomaly (Phase 4d may estimate it from Kepler's third law later).
-    let n_deg_per_sec = if body.orbital_period_days > 0.0 {
-        360.0 / (body.orbital_period_days * 86_400.0)
-    } else {
-        0.0
-    };
-    let m_deg = (m0_deg + n_deg_per_sec * sim_time_seconds).rem_euclid(360.0);
-    let m_rad = m_deg.to_radians();
-    let ea = kepler_solve(m_rad, e);
-    // Perifocal coordinates: periapsis along +X of the orbital plane.
-    //   x = a * (cos E - e)
-    //   y = a * sqrt(1 - e²) * sin E
-    let x_peri = a_au * (ea.cos() - e);
-    let y_peri = a_au * (1.0 - e * e).sqrt() * ea.sin();
-    // 3-1-3 Euler rotation: Rz(Ω) · Rx(i) · Rz(ω) applied to the
-    // perifocal (x, y, 0) vector. Combined rotation matrix entries:
-    let big_omega = body.longitude_ascending_node_deg.to_radians();
-    let inc = body.inclination_deg.to_radians();
-    let small_omega = body.argument_perihelion_deg.to_radians();
-    let (s_om, c_om) = big_omega.sin_cos();
-    let (s_inc, c_inc) = inc.sin_cos();
-    let (s_w, c_w) = small_omega.sin_cos();
-    let r11 = c_om * c_w - s_om * s_w * c_inc;
-    let r12 = -c_om * s_w - s_om * c_w * c_inc;
-    let r21 = s_om * c_w + c_om * s_w * c_inc;
-    let r22 = -s_om * s_w + c_om * c_w * c_inc;
-    let r31 = s_w * s_inc;
-    let r32 = c_w * s_inc;
-    // World convention: Y is up, ecliptic plane is XZ. Map perifocal X→X,
-    // perifocal Y→Z, perifocal Z (always 0 here) drops out. Out-of-plane
-    // component ends up in world Y via r31/r32.
-    let world_x = r11 * x_peri + r12 * y_peri;
-    let world_z = r21 * x_peri + r22 * y_peri;
-    let world_y = r31 * x_peri + r32 * y_peri;
-    glam::DVec3::new(world_x, world_y, world_z)
-}
-
-/// Compute world position in AU including parent recursion. Moons are
-/// positioned relative to their parent planet, and the parent's own
-/// position folds in. Recursion bottoms out at Sun (position = origin).
-/// `sim_time_seconds` is passed through to every level so parent +
-/// child positions are synchronized in time.
-fn body_world_position_3d_au(body: &SolBody, sim_time_seconds: f64) -> glam::DVec3 {
-    let local = body_position_relative_au(body, sim_time_seconds);
-    if let Some(parent_id) = &body.parent {
-        if parent_id == "sun" {
-            local
-        } else if let Some(parent) = find_body(parent_id) {
-            body_world_position_3d_au(parent, sim_time_seconds) + local
-        } else {
-            local
-        }
-    } else {
-        local // Sun itself
-    }
-}
-
-/// Sample a body's orbit at N points around the orbital ellipse, in the
-/// PARENT's frame (parent at origin). Returns positions in AU.
-/// Used by orbit-line rendering. v0.207.0 — real ellipses + inclination.
-fn sample_orbit_points(body: &SolBody, n: usize) -> Vec<glam::DVec3> {
-    let a_au = if body.semi_major_axis_au > 0.0 {
-        body.semi_major_axis_au
-    } else if body.semi_major_axis_km > 0.0 {
-        body.semi_major_axis_km / KM_PER_AU
-    } else {
-        return Vec::new();
-    };
-    let e = body.eccentricity.clamp(0.0, 0.99);
-    let big_omega = body.longitude_ascending_node_deg.to_radians();
-    let inc = body.inclination_deg.to_radians();
-    let small_omega = body.argument_perihelion_deg.to_radians();
-    let (s_om, c_om) = big_omega.sin_cos();
-    let (s_inc, c_inc) = inc.sin_cos();
-    let (s_w, c_w) = small_omega.sin_cos();
-    let r11 = c_om * c_w - s_om * s_w * c_inc;
-    let r12 = -c_om * s_w - s_om * c_w * c_inc;
-    let r21 = s_om * c_w + c_om * s_w * c_inc;
-    let r22 = -s_om * s_w + c_om * c_w * c_inc;
-    let r31 = s_w * s_inc;
-    let r32 = c_w * s_inc;
-    let mut out = Vec::with_capacity(n + 1);
-    for i in 0..=n {
-        // Sample uniformly in eccentric anomaly so high-e ellipses still
-        // produce well-spaced points around the curve.
-        let ea = (i as f64 / n as f64) * std::f64::consts::TAU;
-        let x_peri = a_au * (ea.cos() - e);
-        let y_peri = a_au * (1.0 - e * e).sqrt() * ea.sin();
-        let wx = r11 * x_peri + r12 * y_peri;
-        let wz = r21 * x_peri + r22 * y_peri;
-        let wy = r31 * x_peri + r32 * y_peri;
-        out.push(glam::DVec3::new(wx, wy, wz));
-    }
-    out
-}
+// Kepler solver + `body_position_relative_au` /
+// `body_world_position_3d_au` / `sample_orbit_points` + the `KM_PER_AU`
+// constant moved to `crate::cosmos` (v0.262.8) — imported above. The
+// orbital math is byte-for-byte the same; the FPS world + in-home
+// orrery now call these exact functions so all three views agree.
 
 // ─────────────────────── Page entry point ───────────────────────────────────
 
