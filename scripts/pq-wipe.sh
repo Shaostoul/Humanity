@@ -53,9 +53,34 @@ else
   echo "[pq-wipe] no $DB present — nothing to back up; fresh start anyway"
 fi
 
-echo "[pq-wipe] starting $UNIT (Storage::open recreates the schema) ..."
+echo "[pq-wipe] starting $UNIT once so Storage::open builds the fresh schema ..."
 systemctl start "$UNIT"
-sleep 3
+sleep 4
+
+# ── Re-seed #announcements (the only history the operator wants kept) ──
+# data/announcements_archive.json is the durable pre-wipe export. We
+# insert OFFLINE (relay stopped) so there is no WAL race, then restart.
+# If the archive or node is missing we DO NOT fail the wipe — a fresh
+# relay with no announcement history is still fully functional.
+SEED_JS="$REPO/scripts/seed-announcements.js"
+ARCHIVE="$REPO/data/announcements_archive.json"
+if [ -f "$SEED_JS" ] && [ -f "$ARCHIVE" ] && command -v node >/dev/null 2>&1 && command -v sqlite3 >/dev/null 2>&1; then
+  echo "[pq-wipe] stopping $UNIT to re-seed #announcements offline ..."
+  systemctl stop "$UNIT" || true
+  sleep 1
+  if node "$SEED_JS" | sqlite3 "$DB"; then
+    seeded="$(sqlite3 "$DB" "SELECT COUNT(*) FROM messages WHERE channel_id='announcements';" 2>/dev/null || echo '?')"
+    echo "[pq-wipe] re-seeded #announcements: $seeded messages restored"
+  else
+    echo "[pq-wipe] WARN: announcements re-seed failed — continuing with empty channel"
+  fi
+  echo "[pq-wipe] restarting $UNIT on the seeded DB ..."
+  systemctl start "$UNIT"
+  sleep 3
+else
+  echo "[pq-wipe] skip re-seed (archive/node/sqlite3 absent) — fresh empty relay"
+fi
+
 state="$(systemctl is-active "$UNIT" 2>/dev/null || true)"
 echo "[pq-wipe] $UNIT is now: $state"
 code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://localhost:3210/health 2>/dev/null || echo '?')"
