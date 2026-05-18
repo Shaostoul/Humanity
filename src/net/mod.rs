@@ -17,3 +17,9 @@ pub mod identity;
 pub mod bip39_wordlist;
 #[cfg(feature = "native")]
 pub mod dm_crypto;
+/// Post-quantum DM envelope (pure ML-KEM-768 → BLAKE3-KDF →
+/// AES-256-GCM). Full-PQ cutover replacement for the ECDH `dm_crypto`;
+/// the recipient keypair is deterministic from the BIP39 seed so web
+/// and native derive the same key (kills the cross-client DM bug).
+#[cfg(feature = "native")]
+pub mod dm_pq;
