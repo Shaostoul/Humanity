@@ -1,8 +1,18 @@
 # Full-PQ Cutover — Execution Runbook
 
-**Status:** ready to execute (single focused session). Cryptographic
-risk already retired + shipped. This is the turnkey checklist so the
-finish is mechanical + reviewed, not improvised into the auth core.
+**Status (v0.264.1):** Inc3 ✅ (relay, v0.262.33) · Inc2b.1/.2/.3 ✅
+(web, v0.262.34–v0.263.4) · Inc4 ✅ (native, v0.264.0). Core cutover
+SHIPPED + KAT-proven byte-identical web↔native↔relay. **NOT yet
+live-activated** — the live DB still has Ed25519-keyed accounts; going
+live needs the attended fresh-slate wipe (Inc6). Remaining: **Inc5b**
+relay-auth trim (`require_pq_signatures`, dual-sign soft-gate,
+`key_rotations`, `legacy_ed25519_history` — all dead; wipe recreates
+the schema so drops are free) · **Inc5c** re-PQ the Ed25519-coupled
+peripherals broken by the identity promotion (vault-sync,
+push-subscribe, signed-profile sign+verify — degraded, not the DM bug)
+· **Inc6 (attended)** `just security-review` → deploy → `just pq-wipe
+yes` → operator live web↔native DM verify. Operator chose to run the
+wipe as the final attended step (not mid-cutover).
 
 **Operator decisions (locked):** full clean fresh-schema wipe (data
 loss fine; server not serving); DM = pure ML-KEM-768; Dilithium3 =

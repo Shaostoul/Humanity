@@ -113,59 +113,39 @@ Identity (federation objects): ML-DSA-65 (Dilithium3, FIPS 204), separate keypai
 
 ## Cryptography (canonical, audited 2026-05-03)
 
-> **Read this section any time you need to write or quote an algorithm name.** The repo carries two parallel identity stacks during the post-quantum migration — `Ed25519` for chat, `ML-DSA-65` for federation objects. Mixing them up is the #1 source of doc drift.
+> **Read this section any time you need to write or quote an algorithm name.** The full-PQ cutover is **SHIPPED in code** (v0.264.1) but **not yet live-activated** — see "Activation status" below. The single biggest doc-drift risk now is claiming it's live for users when the attended fresh-slate wipe (Inc6) hasn't run yet.
 
 | Layer | Algorithm | Where | Status |
 |-------|-----------|-------|--------|
-| Chat identity signing | Ed25519 | `web/chat/crypto.js` (Web Crypto API) | Active |
-| Federation object signing | ML-DSA-65 / Dilithium3 (FIPS 204) | `src/relay/core/pq_crypto.rs` | Active |
-| Profile gossip signing | Ed25519 | `src/relay/handlers/federation.rs` | Active (v0.122 verifier; unsigned still accepted from trusted peers) |
-| DM E2EE | ECDH P-256 + AES-256-GCM | `web/chat/crypto.js` | Active |
-| Post-quantum KEM | Kyber768 / ML-KEM-768 | `src/relay/core/pq_crypto.rs`, `web/shared/pq-identity.js` | Infra ready; **not yet wired into DM flow** |
-| DID derivation | `did:hum:<base58(BLAKE3(dilithium_pubkey)[..16])>` | `src/relay/core/did.rs` | Active — derived from PQ key |
-| Solana wallet | Ed25519 (same key as chat identity) | `web/chat/crypto.js` `extractSolanaKeypair()` | Active |
-| Vault encryption (web) | AES-256-GCM + PBKDF2-SHA-256, **600,000 iterations** | `web/chat/crypto.js` | Active |
-| Vault encryption (native) | AES-256-GCM + PBKDF2-SHA-256, **100,000 iterations** | `src/config.rs` | Active (legacy iter count; upgrade pending) |
-| Server-side KDF | Argon2id (memory-hard) | `src/relay/core/kdf.rs` | Active (replaced PBKDF2 for relay secrets) |
-| Key rotation | Ed25519 dual-sign certificate | `web/chat/crypto.js`, `src/relay/handlers/msg_handlers.rs::handle_key_rotation` | Active (PQ rotation TBD) |
+| Chat identity | **Dilithium3 / ML-DSA-65** (FIPS 204) hex = `public_key` | `web/chat/crypto.js` `attachPqIdentity`, `src/net/identity.rs` `derive_pq_identity`, relay | **Shipped** (web v0.262.34, native v0.264.0, relay v0.262.33). Derived from the BIP39 seed; KAT-locked web↔native↔relay. |
+| Chat message signing | Dilithium3 `pq_signature` over `content\ntimestamp` | web `crypto.js` `pqSignChatMessage` (signs); relay verifies | **Web signs + relay verifies (soft, `require_pq` OFF).** Native has `identity::pq_sign_chat` but send-site wiring is a deferred follow — native chat is currently UNSIGNED (relay soft-allows). |
+| DM E2EE | **Pure Kyber768 / ML-KEM-768 → BLAKE3-KDF → AES-256-GCM**, dual-seal `{v:1,r,s}` envelope in the relay's opaque `content` | web `pq.js` `pqDmSeal/pqDmOpen`+`crypto.js`, native `src/net/dm_pq.rs` | **Shipped + KAT-locked byte-identical web↔native.** Recipient key DETERMINISTIC from the seed (kills the cross-client bug). Activates cleanly after the Inc6 wipe. |
+| Federation object signing | ML-DSA-65 / Dilithium3 | `src/relay/core/pq_crypto.rs` | Active (unchanged by this cutover) |
+| Profile gossip signing | Ed25519 | `src/relay/handlers/federation.rs` | Active (federation-side; PQ follow tracked separately) |
+| DID derivation | `did:hum:<base58(BLAKE3(dilithium_pubkey)[..16])>` | `src/relay/core/did.rs` | Active — from the PQ key |
+| Solana wallet | Ed25519 (the BIP39 seed scalar) | `web/chat/crypto.js` `extractSolanaKeypair()` | Active — **Ed25519's ONLY remaining role** (seed source + Solana wallet); no longer the chat identity |
+| Vault encryption (web) | AES-256-GCM + PBKDF2-SHA-256, **600,000 iters** | `web/chat/crypto.js` | Active. Wraps only the Ed25519/BIP39 seed now (Dilithium+Kyber re-derive). |
+| Vault encryption (native) | AES-256-GCM + PBKDF2-SHA-256, **100,000 iters** | `src/config.rs` | Active (legacy iter count; upgrade pending) |
+| Server-side KDF | Argon2id | `src/relay/core/kdf.rs` | Active |
+| ECDH P-256 DM | — | — | **DELETED** (web v0.263.4, native v0.264.0 — `dm_crypto.rs` removed) |
 
-**Migration status (PQ Increment 1 shipped v0.251):**
-- Chat clients still **sign** with Ed25519, and Ed25519 hex is still the canonical identity primary key (`peers`/`registered_names`/messages/profiles/follows/vault). Unchanged.
-- **Inc 1 (additive, v0.251):** the chat client also derives a Dilithium3 (ML-DSA-65) keypair from the *same* 32-byte BIP39 seed (`web/chat/pq.js` → `attachPqIdentity` in `crypto.js`) and presents `dilithium_public` on `identify`. The relay records it in the nullable `registered_names.dilithium_public` column alongside Ed25519. Graceful fallback. Builds the Ed25519→Dilithium map every later increment needs.
-- **Inc 2 (dual-sign, soft, v0.252):** chat messages now also carry `pq_signature` — a Dilithium3 signature over the SAME preimage as the Ed25519 one (`content\ntimestamp`). The relay verifies it when the sender's `dilithium_public` is on file, but **soft / log-only** (`tracing target "pq_dualsign"` — PQ-OK / PQ-MISMATCH). Cross-impl sign(JS)→verify(Rust) locked by `pq_crypto.rs::dilithium_js_signature_verifies_in_rust` (frozen noble sig fixture).
-- **Inc 3 (gated enforcement, v0.253):** new `server_settings.require_pq_signatures` bool, **default OFF**. When ON, a chat message from an account that has a `dilithium_public` on file is REJECTED unless it carries a valid `pq_signature` (quantum-forgery resistance — Ed25519 alone no longer suffices for a PQ-capable account). **Safe by construction:** accounts with NO PQ key on file are NEVER enforced (old/incapable clients never lock out; they auto-upgrade on reconnect). Toggle lives in Server Settings → ADMIN policy; the operator flips it on once `pq_dualsign` telemetry shows full adoption. Fully reversible. This is the canonical-security cutover **capability** — Ed25519 is still the storage key + Solana wallet; NO data was re-keyed (a live-DB primary-key migration is never the right move; an enforcement gate + the existing Ed25519↔Dilithium map is). The remaining "make the DID the displayed identity / demote Ed25519 to Solana-only" is Inc 5 cosmetic/cleanup, not security-critical once this toggle is on.
-- Derivation is **byte-for-byte verified** client↔server: `BLAKE3.derive_key("hum/dilithium3/v1", seed)` → `ML-DSA-65.keygen`. Locked by `src/relay/core/pq_crypto.rs::dilithium_cross_language_kat` AND `scripts/pq-kat.mjs` (`just pq-kat`) — neither can drift silently. noble is **vendored same-origin** at `web/shared/vendor/noble-pq.bundle.js` (no CDN for a primary-identity dep; rebuild via `just pq-vendor`).
-- noble `@noble/post-quantum` 0.6.x API: `sign(msg, secretKey)`, `verify(sig, msg, publicKey)`, blake3 derive-key `context` must be **UTF-8 bytes** not a string. NOTE: `web/shared/pq-identity.js` (federation client) still has the old wrong calls (string context, `sign(secretKey,msg)`) — that PQ path is unverified/broken; fix in a federation-side follow-up.
-- BIP39 seed still restores the Ed25519 key (the Dilithium key re-derives from the same seed automatically — no new backup, no recovery change).
-- Federation objects + DIDs already moved to Dilithium3 (server-side `api/v2/*` routes). Chat clients never touch DIDs directly.
-- Kyber768 infrastructure deployed but DM E2EE still uses ECDH P-256.
-- **FULL-PQ CUTOVER IN PROGRESS (operator 2026-05-18: "screw backwards
-  compat, go full PQ, fresh slate, full wipe is fine").** Target: ONE
-  seed → Dilithium3 (identity+signing) + Kyber768 (DM) + Ed25519
-  (Solana-wallet only); delete ECDH-P256 DM, the random per-browser
-  ECDH vault key + manual import, Ed25519-as-identity, and the
-  soft/gated dual-sign increments. **Shipped + KAT-locked (reality,
-  not goal):** pure ML-KEM-768→BLAKE3-KDF→AES-256-GCM DM, recipient
-  key DETERMINISTIC from the seed — `src/net/dm_pq.rs` (v0.262.28) and
-  web `pq.js::pqDeriveKyber/pqDmSeal/pqDmOpen` (v0.262.29), proven
-  byte-identical web↔native by `pq_crypto.rs::kyber_cross_language_kat`
-  + `scripts/pq-kat.mjs` (noble ml_kem768 == RustCrypto). This kills
-  the cross-client "decryption failed" bug at the root. **Still
-  ECDH/Ed25519 on the wire until the attended cutover** (crypto.js
-  identity swap, relay identity=Dilithium + fresh schema via
-  `scripts/pq-wipe.sh`, native swap, trim). Do NOT describe DM as
-  Kyber end-to-end yet — the primitive is proven+shipped; the clients
-  aren't switched over.
+**Activation status (READ THIS before quoting DM as live):** all the code is shipped and proven, but the **live relay DB still holds the old Ed25519-keyed accounts**. The new clients present the Dilithium key, so old accounts can't log in — this is the *expected* migration discontinuity, not a bug. Going live requires the attended fresh-slate wipe (`scripts/pq-wipe.sh`, re-seeds `#announcements` from `data/announcements_archive.json`) — that is **Inc6**, which the operator chose to run as the final attended step (security-review → deploy → wipe → live web↔native DM verify). Until Inc6: describe the cutover as "shipped + KAT-proven, awaiting the attended wipe to activate," NOT "live."
 
-**Operator-stated direction (target, not yet shipped):** the account/identity primary key should be Dilithium3, with Ed25519 retained only for Solana-wallet compatibility (Solana itself hasn't migrated). Today's reality is the inverse — Ed25519 IS the primary chat identity. Migration roadmap:
+**Shipped this cutover (v0.262.33 → v0.264.1):**
+- Inc3 (relay, v0.262.33): `public_key` = Dilithium hex is THE identity; `registered_names.kyber_public`; zero-knowledge DM relay (the `Dm` struct is unchanged — the PQ envelope rides in opaque `content`); dual-stack ecdh/dilithium columns trimmed.
+- Inc2b.1 (web, v0.262.34): Dilithium promoted to the chat identity; PQ mandatory (no connect without it); 6 chat-send sites sign `pq_signature` only.
+- Inc2b.2 (web+relay, v0.263.0): DM = pure Kyber768 dual-seal `{v:1,r,s}` (recipient + self copies so both parties read history on any device — pure ML-KEM is recipient-only); relay `handle_dm` allows a 128 KB ceiling for the opaque encrypted blob.
+- v0.263.1: `pq-wipe.sh` re-seeds `#announcements` (888 msgs, `scripts/seed-announcements.js`, validated) — the only history the operator keeps.
+- Inc2b.3 (web, v0.263.4): all legacy ECDH ripped from `crypto.js`; P2P contact card is now Dilithium-signed + carries `kyber`; `+pqVerifyMessage`; dead Ed25519 incoming-verify path collapsed (the relay is the authoritative chat verifier).
+- Inc4 (native, v0.264.0): native identity = Dilithium from seed; DM via `dm_pq::seal_envelope/open_envelope` (same `{v:1,r,s}` as web); `dm_crypto.rs` deleted; Settings ECDH-import UI + `ecdh_*` config/GuiState removed.
+- Cross-language interop is locked by `pq_crypto.rs::{dilithium,kyber}_cross_language_kat`, `net::dm_pq::tests::envelope_dual_seal_both_parties_any_device`, and `scripts/pq-kat.mjs` (`just pq-kat` — noble == RustCrypto). Update these in the same commit if you touch derivation/envelope.
 
-1. **Account → PQ-primary**: `generateKeypair()` produces both Dilithium3 + Ed25519 from one BIP39 seed; both sent at identify; relay records the Dilithium key; PQ signatures become authoritative. **Inc 1+2+3 SHIPPED** (both keys from one seed; dual-sign; gated hard-enforcement toggle, default OFF). The security cutover is now a single operator toggle (`require_pq_signatures`) flipped when adoption telemetry is green — no risky data migration. Inc 5 (demote Ed25519 to Solana-wallet-only / DID as the displayed identity) is the remaining cosmetic/cleanup, not security-critical once the toggle is on.
-2. **DM E2EE → Kyber768**: hybrid handshake (ECDH ⊕ Kyber) so old clients still negotiate, then drop ECDH once adoption is high.
-3. **Profile gossip → ML-DSA**: flip `should_accept_profile_gossip` to require PQ signatures.
+**Remaining (Inc5 trim + Inc6 attended) — NOT yet done:**
+- Inc5b: relay still carries `require_pq_signatures` (server_settings col + UI + soft/gated verify branch), the `pq_dualsign` telemetry, `key_rotations`, and `legacy_ed25519_history`. All dead under full-PQ — trim (the wipe recreates the schema, so table drops are free).
+- Inc5c: the Ed25519-signed **vault-sync, push-subscribe, and signed-profile** auth paths still sign Ed25519 but the relay now verifies against the Dilithium identity → these features are **degraded post-promotion** until re-PQ'd (web+native sign + relay verify). Not the DM bug; tracked as a focused follow.
+- Inc6 (attended): `just security-review` on the full crypto diff → deploy → `just pq-wipe yes` → operator live web↔native DM verify.
 
-Until these ship: **CLAUDE.md and any user-facing copy MUST describe Ed25519 as today's chat-side reality** even though it's the migration source, not the destination. Don't claim "we use Dilithium3 for the account" — that's the goal, not the state.
-
-When you change any of these in code, update this table in the same commit.
+When you change any of these in code, update this table + status in the same commit.
 
 ## File map
 

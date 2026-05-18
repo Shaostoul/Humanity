@@ -1,12 +1,8 @@
 {
   "_purpose": "Orchestrator continuity across Claude Code sessions. The HUMAN talks to ONE AI (the orchestrator); that AI dispatches scope-specific work via the Agent tool. When the human starts a fresh Claude Code session, the new orchestrator MUST read this file early in startup so it knows: what was last being worked on, what's pending, what decisions were just made, what scopes are currently claimed, what to NOT re-do.",
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
-  "current_orchestrator_session": {
-    "started_at": "2026-05-12",
-    "model": "claude-opus-4.7-1m",
-    "primary_focus": "Cosmos page Phase 4d arc (v0.208 → v0.212) — 5 minor releases. Operator's stated wishes (time controls, pill labels, real conjunctions/eclipses, Lagrange points, geostationary orbit) all shipped against the live cosmos page."
-  },
-  "current_focus": "PQ migration: Inc1 (v0.251 additive dual-key) + Inc2 (v0.252 dual-sign soft) + Inc3 (v0.253 gated hard-enforcement toggle) ALL SHIPPED, KAT-locked, noble vendored. The quantum-forgery-resistance CUTOVER is now a single operator toggle (Server Settings -> ADMIN -> Require post-quantum signatures, default OFF) — flip it when the relay pq_dualsign log shows all PQ-OK / no PQ-MISMATCH (i.e. members have all reloaded on v0.251+). Ed25519 is still the DB storage key + Solana wallet; NOTHING was re-keyed (correct: enforcement gate + existing key map, not a live primary-key migration). REMAINING (lower priority, NOT security-critical once toggle on): Inc4 = DM E2EE Kyber768 hybrid + profile-gossip requires ML-DSA (ECDH DMs are still quantum-weak but lower blast than identity-forgery); Inc5 = demote Ed25519 to Solana-wallet-only + DID as the displayed identity (cosmetic/cleanup). Known follow-up: web/shared/pq-identity.js federation client has the same noble API bugs (string context; sign(sk,msg)) — broken/unverified, fix federation-side separately. Accounts/identity is now effectively OFF the critical backlog: the security machinery is complete + operator-gated.",
+  "current_orchestrator_session": "full-PQ cutover dedicated session (2026-05-18) — Inc3+Inc2b+Inc4 SHIPPED & KAT-proven; Inc5/Inc6 remain",
+  "current_focus": "Full-PQ crypto cutover. SHIPPED+verified: relay Inc3 (v0.262.33, identity=Dilithium hex, kyber_public, zero-knowledge DM relay), web Inc2b.1/.2/.3 (v0.262.34-v0.263.4, Dilithium identity, pure Kyber768 dual-seal {v:1,r,s} DM, ECDH ripped, P2P card PQ), native Inc4 (v0.264.0/.1, Dilithium identity from seed, dm_pq seal/open_envelope same {v:1,r,s}, dm_crypto.rs deleted). Cross-language byte-identity LOCKED by pq_crypto::{dilithium,kyber}_cross_language_kat + net::dm_pq envelope test + scripts/pq-kat.mjs (noble==Rust). NOT live-activated: live DB still has Ed25519-keyed accounts; operator-confirmed the old seed not logging in is the EXPECTED discontinuity (not a bug). Going live = the attended Inc6 wipe.",
   "open_questions_for_human": [],
   "recent_decisions": [
     {
@@ -222,11 +218,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": {
-    "current_local_cargo_toml": "see Cargo.toml — keep in sync with latest tag",
-    "latest_pushed_tag": "v0.262.4 (pending)",
-    "last_release_summary": "v0.261.0 per-role image/file sharing (RoleDef caps + non-breaking migration + ACTUAL upload enforcement composing server-master AND role-cap; closes the never-enforced image/file toggle gap). Phase 2 (consolidated per-role section / R4) next."
-  },
+  "version_state": "local==GitHub==forge: v0.264.1. Inc4 native release exe archived (v0.264.1_HumanityOS.exe). NOTE: v0.263.3 is an inert misfire tag (points at v0.262.x code; left per never-delete-tags rule) — real Inc2b.3 is v0.263.4.",
   "files_in_flight_or_recently_changed": [
     "src/gui/mod.rs (v0.123.0) — added 8 GuiState fields + 7 load_* fns + new owned types (ResourceEntry, ResourceCategory, StudioScenePreset, StudioSourcePreset) + studio_*_from_preset converters; StudioState::default() now empty (populated from presets in lib.rs)",
     "src/lib.rs (v0.123.0) — wired 7 new load_* calls + studio preset → live state conversion at GUI startup",
@@ -246,7 +238,10 @@
     "Federation profile-signature verifier — landed in v0.122.0. Don't re-add the TODO; instead implement client-side signing when ready, then flip should_accept_profile_gossip to reject empty signatures.",
     "Doc drift in SOP/STATUS/CONTRIBUTING/SYNC/SELF-HOSTING/ONBOARDING + 4 design docs — fixed in v0.122.0. New drift can only come from new content.",
     "Tier 3 Infinite-of-X for 7 hardcoded arrays (inventory slots, bugs taxonomy, crafting/market categories, resources catalog, studio scenes/sources, JS theme variants) — migrated in v0.123.0. Don't re-hardcode; edit the JSON files under `data/<scope>/`.",
-    "BUG-034 (updater corrupted binary by writing tar.gz as .exe) — fixed in v0.124.0. Workflow ships both raw binaries and tar.gz bundles; updater prefers raw. The fix is forward-only: pre-v0.124.0 releases only have .tar.gz, and the updater will refuse them with 'No binary for this platform' rather than corrupting the install. Don't add a tar.gz extraction fallback — rejecting is the correct behaviour given how the workflow is now structured."
+    "BUG-034 (updater corrupted binary by writing tar.gz as .exe) — fixed in v0.124.0. Workflow ships both raw binaries and tar.gz bundles; updater prefers raw. The fix is forward-only: pre-v0.124.0 releases only have .tar.gz, and the updater will refuse them with 'No binary for this platform' rather than corrupting the install. Don't add a tar.gz extraction fallback — rejecting is the correct behaviour given how the workflow is now structured.",
+    "Full-PQ Inc3/Inc2b/Inc4 are DONE and shipped (v0.262.33->v0.264.1). Do NOT re-implement Dilithium-identity / Kyber-DM / ECDH-removal. The cross-language KAT + envelope tests + pq-kat.mjs prove correctness.",
+    "Do NOT wipe the prod DB unilaterally. The operator EXPLICITLY chose to run the fresh-slate wipe as the final attended Inc6 step (security-review -> deploy -> just pq-wipe yes -> operator live verify), NOT mid-cutover. pq-wipe.sh re-seeds #announcements from data/announcements_archive.json (888 msgs, validated).",
+    "Do NOT re-preserve #announcements — already exported to data/announcements_archive.json and committed (both remotes)."
   ],
   "things_pending_or_known_gaps": [
     "Phase 6a Solana RPC: only read-only balance proxy ships; no transaction signing in relay (intentional).",
@@ -258,7 +253,11 @@
     "Audit Session 4+ (Tier 2.7 follow-through): implement OR document the 16 scaffolded game systems + electrical/psychology partials.",
     "Tier 3 infinite-of-x: VERIFIED 2026-05-15 — all 5 (skills/studio-streaming/command-palette/donate-FAQ/sound-presets) ARE migrated (loaders + data/*.json + fetch wiring all present); docs/design/infinite-of-x.md v0.133 table is correct, the old gap line was stale. Only remaining: calculator.rs button labels, explicitly acceptable (pure UI layout).",
     "Lower-priority doc drift: docs/06-SOURCE-OF-TRUTH-MAP.md FIXED v0.249.2 (dead server/crates paths -> src/relay; section-5 sub-crate guidance rewritten for single-crate reality). BUGS.md:189 + vr-tracking.md:29 are NOT drift (historical bug text / crates.io URL). Other listed docs (02-ARCHITECTURE, engine-*.md, index/README) still unaudited — sweep when convenient, low priority.",
-    "10 of 21 agent scopes still unaudited — check `node scripts/agent-status.js` for current list under 'Unaudited scopes'."
+    "10 of 21 agent scopes still unaudited — check `node scripts/agent-status.js` for current list under 'Unaudited scopes'.",
+    "Inc5b (focused follow): relay still carries require_pq_signatures (server_settings col+UI+soft/gated verify branch in relay.rs ~4553-4636), pq_dualsign telemetry, key_rotations table+handler, legacy_ed25519_history table. All dead under full-PQ. Trim is compiler-gated; the Inc6 wipe recreates the schema so table drops are free.",
+    "Inc5c (focused follow): Ed25519-signed vault-sync, push-subscribe, signed-profile auth paths still sign Ed25519 but the relay verifies against the now-Dilithium identity -> these features are DEGRADED post-promotion. Re-PQ (web+native sign + relay verify). NOT the DM bug.",
+    "Inc4 deferred: native chat messages are sent UNSIGNED (helper crate::net::identity::pq_sign_chat exists; send-site wiring across many chat.rs sites deferred). Relay soft-allows (require_pq OFF). Wire pq_signature at native send sites in a focused pass.",
+    "Inc6 ATTENDED (operator gate): just security-review on full crypto/relay diff -> deploy -> just pq-wipe yes -> operator re-onboards web+native from seed and verifies a cross-client DM round-trips."
   ],
   "how_to_resume": [
     "1. Read CLAUDE.md (auto-loaded) — covers project rules.",
