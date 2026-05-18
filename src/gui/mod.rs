@@ -1070,6 +1070,12 @@ pub struct GuiState {
     /// role dropdown + badge colors. Empty until the first broadcast.
     /// v0.241 (roles Phase R2).
     pub chat_roles: Vec<crate::relay::storage::RoleDef>,
+    /// Server→Services snapshot from the relay's `service_state` reply
+    /// (admin-only; sent after `service_control` start/stop/refresh).
+    /// Each entry: soft gate + live daemon active/enabled. Empty until
+    /// the admin opens the Services panel (which sends a refresh).
+    /// v0.262.16.
+    pub service_state: Vec<crate::relay::services::ServiceInfo>,
     /// Per-role working copies for the Server Settings → Roles editor,
     /// keyed by role id. Seeded from `chat_roles` on first edit of a
     /// row; lets the operator tweak label/color/caps before pressing
@@ -1524,6 +1530,7 @@ impl Default for GuiState {
             dm_unencrypted_confirm: None,
             server_settings: None,
             chat_roles: Vec::new(),
+            service_state: Vec::new(),
             roles_drafts: std::collections::HashMap::new(),
             new_role_draft: {
                 // Blank template for a new custom role: empty id (operator

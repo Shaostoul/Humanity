@@ -278,6 +278,7 @@ Everything in this section is **built and working**.
 | Profile lookup API | ✅ | GET /api/profile/{key} for public key lookup (v0.27.0) |
 | GitHub webhook | ✅ | Deploy bot announces in chat |
 | Admin system | ✅ | Roles, verify, lockdown, wipe, garbage collection |
+| Server→Services toggles | ✅ | Soft feature gate + allowlisted OS-daemon (coturn/transmission) start/stop from Server Settings, no SSH (v0.262.16) |
 | nginx + VPS pipeline | ✅ | Push to main triggers build + deploy |
 | Server membership | ✅ | Auto-join on identify, member roster, paginated search (v0.25.0) |
 | Server-info endpoint | ✅ | Description, owner_key, funding, member_count (v0.25.0) |

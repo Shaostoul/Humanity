@@ -1663,6 +1663,20 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    Some("service_state") => {
+                                        // v0.262.16 (Server→Services): admin-only reply
+                                        // to service_control. Caches the daemon/soft
+                                        // snapshot for the Services panel.
+                                        if let Some(arr) = val.get("services") {
+                                            match serde_json::from_value::<Vec<crate::relay::services::ServiceInfo>>(arr.clone()) {
+                                                Ok(svcs) => {
+                                                    log::info!("Received {} service states", svcs.len());
+                                                    state.gui_state.service_state = svcs;
+                                                }
+                                                Err(e) => log::warn!("Failed to parse service_state: {e}"),
+                                            }
+                                        }
+                                    }
                                     Some("banned_list") => {
                                         // v0.245: relay sends this only to admins, in
                                         // reply to banned_list_request + after any

@@ -318,6 +318,19 @@ Server analytics for admins. Users, messages, channels, federation, game state.
 - Web: `web/pages/admin.html`, `web/pages/admin-app.js`
 - Server: `src/relay/api.rs` (`GET /api/admin/stats`)
 
+### Server → Services (feature + daemon toggles)
+Operator one-click control of features backed by OS daemons (coturn
+voice/video relay; future P2P distribution via transmission) from the
+native Server Settings page — no SSH. Two layers: a soft
+`server_settings` gate (relay stops offering instantly) + an
+allowlisted privilege bridge that start/stops the daemon. Non-root
+relay + tightly-scoped sudoers + compile-time allowlist (no shell, no
+client strings as args); security-reviewed (no HIGH/MEDIUM). v0.262.16.
+- Server: `src/relay/services.rs`, `src/relay/relay.rs`
+  (`service_control`/`service_state`), `scripts/sudoers.d/humanity-relay-services`
+- Native: `src/gui/pages/server_settings.rs` (Services panel)
+- Design: `docs/design/services-toggles.md`
+
 ### Projects Page
 Project Universe timeline (Dec 2017 ICU through Jan 2026 rename to HumanityOS).
 - Web: `web/pages/projects.html`

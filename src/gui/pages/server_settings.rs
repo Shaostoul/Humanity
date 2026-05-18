@@ -473,6 +473,13 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
+        // ── Services (v0.262.16): soft feature gate + OS-daemon control ──
+        draw_services_admin(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
         // ── User management ──
         widgets::subsection_label(ui, theme, "User management");
         widgets::body_hint(
@@ -1465,6 +1472,164 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         } else {
             state.server_settings_status =
                 "Role id must be non-empty alphanumeric (a-z 0-9 _ -) and have a label.".into();
+        }
+    }
+}
+
+/// Server Settings → Services (v0.262.16, docs/design/services-toggles.md).
+///
+/// One cohesive table per backing OS daemon: the SOFT feature gate (a
+/// `server_settings` bool the relay reads at runtime — instant, no
+/// restart) plus the OPTIONAL hard daemon Start/Stop so the operator
+/// reclaims resources without SSHing the VPS. Soft toggles edit the
+/// SAME shared `server_settings_draft` + `send_server_settings_update`
+/// helper the Server-policy / Server-master row use (one builder, can't
+/// drift). Daemon control goes through the tightly-allowlisted relay
+/// bridge (`crate::relay::services`) via `service_control`.
+fn draw_services_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    widgets::subsection_label(ui, theme, "Services");
+    widgets::body_hint(
+        ui, theme,
+        "Each feature has a SOFT gate (the relay instantly stops offering \
+         it — no restart, persists) AND an optional backing OS daemon you \
+         can Start/Stop here to reclaim RAM instead of SSHing the VPS. \
+         Effective = soft gate ON. Stopping a daemon takes effect now but \
+         does NOT survive a server reboot (v1) — the soft gate is what \
+         persists the decision (a stopped-then-rebooted daemon is harmless: \
+         the soft gate keeps the feature off). The Voice soft gate is the \
+         same setting as the Server-master Voice column.",
+    );
+    ui.add_space(theme.spacing_sm);
+
+    // Shared draft — identical source the Server-policy Save + the
+    // Server-master row use, so soft toggles never drift.
+    let cached: crate::relay::storage::ServerSettings =
+        state.server_settings.clone().unwrap_or_default();
+    if state.server_settings_draft.is_none() {
+        state.server_settings_draft = Some(cached.clone());
+    }
+    let mut draft = state.server_settings_draft.clone().unwrap_or_else(|| cached.clone());
+
+    let services = state.service_state.clone();
+    if services.is_empty() {
+        widgets::body_hint(
+            ui, theme,
+            "No daemon status yet — click \"Refresh status\" (admin only; \
+             the relay replies privately).",
+        );
+    }
+
+    let mut pending: Option<(String, &'static str)> = None;
+    let mut refresh = false;
+
+    egui::Grid::new("server_services")
+        .num_columns(5)
+        .spacing([theme.spacing_xl, theme.spacing_md])
+        .striped(true)
+        .show(ui, |ui| {
+            let hdr = |ui: &mut egui::Ui, t: &str| {
+                ui.label(
+                    RichText::new(t)
+                        .size(theme.font_size_small)
+                        .color(theme.text_secondary())
+                        .strong(),
+                );
+            };
+            hdr(ui, "Service");
+            hdr(ui, "Feature (soft)");
+            hdr(ui, "Daemon");
+            hdr(ui, "");
+            hdr(ui, "");
+            ui.end_row();
+
+            for svc in &services {
+                ui.label(
+                    RichText::new(&svc.label)
+                        .size(theme.font_size_body)
+                        .color(theme.text_primary()),
+                );
+                // Soft gate → the shared draft field for this service.
+                match svc.id.as_str() {
+                    "voice" => { ui.checkbox(&mut draft.voice_channels_enabled, ""); }
+                    "p2p" => { ui.checkbox(&mut draft.p2p_distribution_enabled, ""); }
+                    _ => {
+                        ui.label(
+                            RichText::new("—")
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                    }
+                }
+                // Live daemon status (from the relay's snapshot).
+                let (txt, col) = if svc.daemon_active {
+                    ("running", theme.success())
+                } else {
+                    ("stopped", theme.text_muted())
+                };
+                ui.label(
+                    RichText::new(format!(
+                        "{txt} (boots: {})",
+                        if svc.daemon_enabled { "yes" } else { "no" }
+                    ))
+                    .size(theme.font_size_small)
+                    .color(col),
+                );
+                if widgets::Button::secondary("Start").show(ui, theme) {
+                    pending = Some((svc.id.clone(), "start"));
+                }
+                if widgets::Button::danger("Stop").show(ui, theme) {
+                    pending = Some((svc.id.clone(), "stop"));
+                }
+                ui.end_row();
+            }
+        });
+
+    // Persist the (possibly-edited) draft back to state so the soft
+    // checkbox isn't reverted next frame.
+    state.server_settings_draft = Some(draft.clone());
+
+    ui.add_space(theme.spacing_sm);
+    let dirty = draft != cached;
+    ui.horizontal(|ui| {
+        ui.add_enabled_ui(dirty, |ui| {
+            if widgets::Button::primary("Save feature toggles")
+                .tooltip("Persist the soft gates server-wide (same path as \
+                          the Server-policy Save). Broadcasts to all clients.")
+                .show(ui, theme)
+            {
+                send_server_settings_update(state, &draft);
+                state.server_settings_draft = None;
+            }
+        });
+        ui.add_space(theme.spacing_sm);
+        if widgets::Button::secondary("Refresh status")
+            .tooltip("Ask the relay for the current daemon state.")
+            .show(ui, theme)
+        {
+            refresh = true;
+        }
+    });
+
+    if let Some((svc, action)) = pending {
+        send_service_control(state, &svc, action);
+    }
+    if refresh {
+        send_service_control(state, "", "refresh");
+    }
+}
+
+/// Send a `service_control` WS message (admin-only on the relay). The
+/// relay re-checks admin + allowlists service/action; these strings are
+/// never used as shell/unit args server-side (see crate::relay::services).
+fn send_service_control(state: &GuiState, service: &str, action: &str) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            let msg = serde_json::json!({
+                "type": "service_control",
+                "service": service,
+                "action": action,
+            });
+            client.send(&msg.to_string());
         }
     }
 }
