@@ -7,6 +7,7 @@ pub mod bloom;
 pub mod camera;
 pub mod floating_origin;
 pub mod hologram;
+pub mod line;
 pub mod mesh;
 pub mod multi_scale;
 pub mod particles;
@@ -60,6 +61,9 @@ pub struct Renderer {
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
     pipeline: Pipeline,
+    /// World-space thin-line pipeline (orbit paths). Shares the main
+    /// camera bind group; reverse-Z depth-test, no depth-write.
+    line_pipeline: wgpu::RenderPipeline,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     /// Pre-allocated object uniform buffer, reused each frame via write_buffer.
@@ -191,6 +195,13 @@ impl Renderer {
         let shader_loader = shader_loader::ShaderLoader::new();
         let shader = shader_loader.load_embedded_pbr(&device);
         let pipeline = Pipeline::new(&device, surface_format, &shader);
+        // World-space thin-line pipeline — reuses the SAME camera BGL so
+        // it can bind the existing camera_bind_group (full view-proj).
+        let line_pipeline = line::build_line_pipeline(
+            &device,
+            surface_format,
+            &pipeline.camera_bind_group_layout,
+        );
 
         // Camera uniform buffer
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -251,6 +262,7 @@ impl Renderer {
             depth_texture,
             depth_view,
             pipeline,
+            line_pipeline,
             camera_buffer,
             camera_bind_group,
             object_buffer,
@@ -676,6 +688,66 @@ impl Renderer {
             }
         }
 
+        self.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    /// Draw world-space thin lines (orbit paths) onto an already-rendered
+    /// frame. Call AFTER `render_scene_onto` so the depth buffer holds
+    /// the planets — the reverse-Z depth-test (no depth-write) then
+    /// occludes any segment passing behind a planet. Same camera as the
+    /// scene (full view-proj + floating origin), so lines sit exactly on
+    /// the bodies. Transient per-frame vertex buffer (a few thousand
+    /// verts — trivial).
+    pub fn draw_lines_onto(
+        &self,
+        camera: &Camera,
+        verts: &[line::LineVertex],
+        view: &wgpu::TextureView,
+    ) {
+        if verts.len() < 2 {
+            return;
+        }
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&camera.uniforms()),
+        );
+        let vbuf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("World Line VB"),
+            contents: bytemuck::cast_slice(verts),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("World Line Encoder"),
+            });
+        {
+            let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("World Line Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // preserve stars + scene
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // test against the planets
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            rp.set_pipeline(&self.line_pipeline);
+            rp.set_bind_group(0, &self.camera_bind_group, &[]);
+            rp.set_vertex_buffer(0, vbuf.slice(..));
+            rp.draw(0..verts.len() as u32, 0..1);
+        }
         self.queue.submit(std::iter::once(encoder.finish()));
     }
 

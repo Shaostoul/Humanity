@@ -497,52 +497,37 @@ mod native_app {
             state.renderer.add_material([0.55, 0.55, 0.58, 1.0], 0.0, 0.80), // default — grey
         ];
 
-        // ── Orbit paths (map-sync punch list, v0.262.12) ──
-        // The operator wants the orbit ellipses visible in the FPS sky
-        // ("faint dark blue lines so they're there but not pulling from
-        // the stars"). Generate each body's TRUE Keplerian ellipse ONCE
+        // ── Orbit paths (v0.262.20 — thin world-space lines) ──
+        // Was thick tube meshes (operator: "tubes are just too thick …
+        // we wouldn't need all the verts … like a single edge"). Now we
+        // just cache each body's TRUE Keplerian ellipse points
         // (crate::cosmos::sample_orbit_points → same math the Maps page
-        // draws), as a thin tube in PARENT-frame metres. Per frame
-        // (render loop) it's just translated to the parent's
-        // Earth-relative offset, so the geometry upload happens once.
-        // Faint, low-emissive dark blue so it reads at any sun angle
-        // without competing with the starfield.
-        state.orbit_material =
-            state.renderer.add_material_full([0.12, 0.20, 0.46, 1.0], 0.0, 1.0, 0.0, 0.45);
+        // draws) in PARENT-frame metres. Per frame they're offset to the
+        // parent's Earth-relative position and drawn as a 1-px LineList
+        // that the depth buffer occludes behind planets. 96 samples is
+        // plenty smooth for an ellipse and a fraction of the tube verts.
         for b in crate::cosmos::sol_bodies() {
-            // Same set the bodies use: direct sun-orbiters (planets,
-            // dwarfs, named belt bodies) + our Moon. The Sun has no
-            // orbit (sample returns empty) and is skipped naturally.
+            // Direct sun-orbiters (planets, dwarfs, named belt) + Moon.
+            // Sun has no orbit (sample empty) → skipped naturally.
             let direct_solar = b.parent.as_deref() == Some("sun");
             if !direct_solar && b.id != "moon" { continue; }
-            let pts_au = crate::cosmos::sample_orbit_points(b, 192);
+            let pts_au = crate::cosmos::sample_orbit_points(b, 96);
             if pts_au.len() < 3 { continue; }
-            let pts_m: Vec<Vec3> = pts_au
+            let pts_m: Vec<[f32; 3]> = pts_au
                 .iter()
                 .map(|p| {
-                    Vec3::new(
+                    [
                         (p.x * crate::cosmos::M_PER_AU) as f32,
                         (p.y * crate::cosmos::M_PER_AU) as f32,
                         (p.z * crate::cosmos::M_PER_AU) as f32,
-                    )
+                    ]
                 })
                 .collect();
-            // Tube thickness scaled to the orbit so every ring reads as
-            // a thin line regardless of size (apoapsis proxy = max |p|).
-            let max_r = pts_m.iter().fold(0.0_f32, |m, p| m.max(p.length()));
-            let tube_r = (max_r * 0.0008).max(1.0e6);
-            let mesh = crate::renderer::hologram::orbit_path_mesh(
-                &state.renderer.device,
-                &pts_m,
-                tube_r,
-                7,
-            );
-            let mesh_idx = state.renderer.add_mesh(mesh);
             state
-                .solar_orbit_meshes
-                .push((mesh_idx, b.parent.clone().unwrap_or_else(|| "sun".to_string())));
+                .solar_orbit_paths
+                .push((pts_m, b.parent.clone().unwrap_or_else(|| "sun".to_string())));
         }
-        log::info!("Map-sync: generated {} FPS orbit-path meshes", state.solar_orbit_meshes.len());
+        log::info!("Map-sync: cached {} FPS orbit paths (thin lines)", state.solar_orbit_paths.len());
 
         // ── Load CSV game data ──
         #[derive(Debug, serde::Deserialize)]
@@ -600,15 +585,13 @@ mod native_app {
         /// giant, [2]=icy/dwarf, [3]=default grey. Picked by SolBody
         /// `body_type`. The Sun reuses `sun_material`.
         solar_body_materials: [usize; 4],
-        /// Faint dark-blue orbit-path tubes for the FPS world (v0.262.12,
-        /// map-sync punch list). Each entry is (mesh_idx, parent_id):
-        /// the mesh is the body's true Keplerian ellipse in PARENT-frame
-        /// metres (generated once); per frame it's rendered at the
-        /// parent's Earth-relative offset so the ellipse stays put while
-        /// Earth/ship move. "there but not pulling from the stars."
-        solar_orbit_meshes: Vec<(usize, String)>,
-        /// Low-emissive dark-blue material for the orbit paths.
-        orbit_material: usize,
+        /// Orbit paths for the FPS world (v0.262.20 — thin world-space
+        /// lines, replacing the old too-thick tube meshes). Each entry
+        /// is (PARENT-frame ellipse points in metres, parent_id);
+        /// per frame they're offset to the parent's Earth-relative
+        /// position and drawn as a single-edge LineList that is
+        /// depth-occluded behind planets.
+        solar_orbit_paths: Vec<(Vec<[f32; 3]>, String)>,
         /// Homestead floor meshes (mesh_idx, material_idx) per room.
         homestead_floors: Vec<(usize, usize)>,
         /// Homestead walls mesh + material.
@@ -843,8 +826,7 @@ mod native_app {
                 sun_material: 0,
                 sun_halo_material: 0,
                 solar_body_materials: [0; 4],
-                solar_orbit_meshes: Vec::new(),
-                orbit_material: 0,
+                solar_orbit_paths: Vec::new(),
                 homestead_floors: Vec::new(),
                 homestead_walls: None,
                 hologram_objects: Vec::new(),
@@ -1052,6 +1034,9 @@ mod native_app {
 
                     // Build render objects from homestead meshes
                     let mut all_objects: Vec<RenderObject> = Vec::new();
+                    // World-space orbit lines, built this frame, drawn
+                    // after the scene so they depth-occlude behind planets.
+                    let mut orbit_lines: Vec<crate::renderer::line::LineVertex> = Vec::new();
 
                     // Homestead at origin — vertex positions are in ship-local coords
                     for &(mesh_idx, mat_idx) in &state.homestead_floors {
@@ -1272,16 +1257,17 @@ mod native_app {
                             });
                         }
 
-                        // ── Orbit paths (faint dark-blue Keplerian
-                        // ellipses; map-sync punch list v0.262.12) ──
-                        // Mesh is the body's ellipse in PARENT-frame
-                        // metres (built once). Translate it to the
-                        // parent's Earth-relative offset — SAME frame as
-                        // the bodies above, so a planet sits exactly on
-                        // its ring and the Moon's ring is centred on
-                        // Earth. Cheap: just N RenderObjects, no per-frame
-                        // geometry rebuild.
-                        for (orbit_mesh, parent_id) in &state.solar_orbit_meshes {
+                        // ── Orbit paths (v0.262.20 — thin world lines) ──
+                        // Per frame: offset each cached parent-frame
+                        // ellipse to its parent's Earth-relative position
+                        // (SAME frame as the bodies, so a planet sits
+                        // exactly on its ring; the Moon's ring is centred
+                        // on Earth) and emit a LineList (2 verts/segment).
+                        // draw_lines_onto depth-occludes any segment that
+                        // passes behind a planet — the directional cue
+                        // the operator asked for, via real occlusion.
+                        const ORBIT_RGBA: [f32; 4] = [0.34, 0.46, 0.85, 0.55];
+                        for (pts_m, parent_id) in &state.solar_orbit_paths {
                             let parent_helio_au = if parent_id == "sun" {
                                 glam::DVec3::ZERO
                             } else {
@@ -1289,20 +1275,22 @@ mod native_app {
                                     .map(|p| crate::cosmos::body_world_position_3d_au(p, sim_t))
                                     .unwrap_or(glam::DVec3::ZERO)
                             };
-                            let parent_off = (parent_helio_au - earth_helio_au)
+                            let off = (parent_helio_au - earth_helio_au)
                                 * crate::cosmos::M_PER_AU
                                 - state.ship_world_pos;
-                            all_objects.push(RenderObject {
-                                position: Vec3::new(
-                                    parent_off.x as f32,
-                                    parent_off.y as f32,
-                                    parent_off.z as f32,
-                                ),
-                                rotation: Quat::IDENTITY,
-                                scale: Vec3::splat(1.0),
-                                mesh: *orbit_mesh,
-                                material: state.orbit_material,
-                            });
+                            let off = [off.x as f32, off.y as f32, off.z as f32];
+                            for seg in pts_m.windows(2) {
+                                let a = [seg[0][0] + off[0], seg[0][1] + off[1], seg[0][2] + off[2]];
+                                let b = [seg[1][0] + off[0], seg[1][1] + off[1], seg[1][2] + off[2]];
+                                orbit_lines.push(crate::renderer::line::LineVertex {
+                                    position: a,
+                                    color: ORBIT_RGBA,
+                                });
+                                orbit_lines.push(crate::renderer::line::LineVertex {
+                                    position: b,
+                                    color: ORBIT_RGBA,
+                                });
+                            }
                         }
 
                         // Keep the cached Sun pos + the shader's light
@@ -2553,6 +2541,10 @@ mod native_app {
 
                                 // Pass 2: Scene objects (LoadOp::Load preserves stars)
                                 state.renderer.render_scene_onto(&state.camera, &all_objects, &view);
+                                // Pass 3: orbit lines — after the scene so
+                                // the depth buffer occludes segments behind
+                                // planets (thin single-edge, not tubes).
+                                state.renderer.draw_lines_onto(&state.camera, &orbit_lines, &view);
                                 Ok((output, view))
                             }
                             Err(e) => Err(e),
