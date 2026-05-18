@@ -229,18 +229,21 @@ async function connect() {
   document.getElementById('crypto-status').textContent = 'Connecting…';
   document.getElementById('crypto-status').style.color = 'var(--text-muted)';
 
-  // Initialize Ed25519 identity.
+  // Ed25519 keypair = the BIP39 seed source + Solana wallet ONLY.
   myIdentity = await getOrCreateIdentity();
-  myKey = myIdentity.publicKeyHex;
 
-  // Initialize ECDH P-256 keypair for E2E encrypted DMs (non-blocking).
-  getOrCreateEcdhKeypair().catch(e => console.warn('ECDH init failed:', e));
-
-  // Derive the post-quantum (Dilithium3) identity from the same seed
-  // (non-blocking, additive — PQ migration Increment 1). If it isn't
-  // ready by the first identify it's simply omitted and picked up on a
-  // later reconnect, exactly like the ECDH key.
-  attachPqIdentity().catch(e => console.warn('PQ init failed:', e));
+  // FULL-PQ cutover: derive Dilithium3 (THE chat identity) + Kyber768
+  // (DM) from the same seed and PROMOTE Dilithium to the identity.
+  // AWAITED — `public_key` must be the Dilithium key at identify. PQ
+  // is mandatory; if it fails we do not connect (no Ed25519 fallback).
+  const pqOk = await attachPqIdentity();
+  if (!pqOk) {
+    alert('Post-quantum identity could not be initialized.\n'
+      + 'This client cannot connect without it. Reload to retry; '
+      + 'if it persists the vendored PQ bundle failed to load.');
+    return;
+  }
+  myKey = myIdentity.publicKeyHex; // now the Dilithium3 public-key hex
 
   // Stay on login screen — we switch to chat only after server confirms identity.
   identityConfirmed = false;
@@ -592,20 +595,19 @@ function openSocket() {
     reconnectDelay = 1000;
     clearTimeout(reconnectTimer);
 
+    // Full-PQ: `public_key` IS the Dilithium3 hex (promoted to chat identity
+    // by attachPqIdentity()). `myKey` already points at it. There is no
+    // Ed25519-as-identity and no ECDH key on the wire anymore.
     const identifyMsg = {
       type: 'identify',
       public_key: myKey,
       display_name: myName,
     };
-    // E2EE: Include ECDH public key for end-to-end encrypted DMs.
-    if (myEcdhPublicBase64) {
-      identifyMsg.ecdh_public = myEcdhPublicBase64;
-    }
-    // PQ migration Inc 1: present the Dilithium3 public key so the relay
-    // records it alongside Ed25519. Omitted if PQ derivation isn't ready
-    // or unavailable — old/degraded clients are unaffected.
-    if (myDilithiumPublicHex) {
-      identifyMsg.dilithium_public = myDilithiumPublicHex;
+    // Full-PQ DM: advertise the Kyber768 (ML-KEM-768) public key so peers
+    // can encapsulate a fresh shared secret to us per message. Deterministic
+    // from the same BIP39 seed, so it's identical on web and native.
+    if (myKyberPublicBase64) {
+      identifyMsg.kyber_public = myKyberPublicBase64;
     }
     if (pendingLinkCode) {
       identifyMsg.link_code = pendingLinkCode;
@@ -1103,11 +1105,10 @@ async function sendMessage() {
 
   const timestamp = Date.now();
 
-  // Sign the content if Ed25519 is available.
-  let signature = null;
-  if (myIdentity && myIdentity.canSign) {
-    signature = await signMessage(myIdentity.privateKey, content, timestamp);
-  }
+  // Full-PQ: sign with Dilithium3 (the chat identity). The relay verifies
+  // `pq_signature` over `content\ntimestamp` against `public_key` (which
+  // IS the Dilithium key now). There is no Ed25519 chat signature anymore.
+  const pqSig = await pqSignChatMessage(content, timestamp);
 
   const msg = {
     type: 'chat',
@@ -1117,8 +1118,8 @@ async function sendMessage() {
     timestamp: timestamp,
     channel: activeChannel,
   };
-  if (signature) {
-    msg.signature = signature;
+  if (pqSig) {
+    msg.pq_signature = pqSig;
   }
   if (replyRef) {
     msg.reply_to = replyRef;
@@ -1128,7 +1129,7 @@ async function sendMessage() {
 
   const key = myKey + ':' + timestamp;
   seenTimestamps.add(key);
-  addChatMessage(myName, content, timestamp, myKey, false, !!signature, replyRef, null);
+  addChatMessage(myName, content, timestamp, myKey, false, !!pqSig, replyRef, null);
   input.value = '';
   input.style.height = 'auto'; // Reset textarea height after sending.
   input.focus();
@@ -1254,12 +1255,11 @@ async function sendChatCommand(command, channelOverride) {
   };
 
   try {
-    if (myIdentity && myIdentity.canSign) {
-      const signature = await signMessage(myIdentity.privateKey, command, timestamp);
-      if (signature) msg.signature = signature;
-    }
+    // Full-PQ: Dilithium3 sign over `command\ntimestamp`.
+    const pqSig = await pqSignChatMessage(command, timestamp);
+    if (pqSig) msg.pq_signature = pqSig;
   } catch (e) {
-    console.warn('sendChatCommand: signature failed, sending unsigned command', e);
+    console.warn('sendChatCommand: pq signature failed, sending unsigned command', e);
   }
 
   try {

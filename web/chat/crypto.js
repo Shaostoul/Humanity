@@ -671,40 +671,65 @@ let myEcdhPublicBase64 = null; // base64-encoded raw public key for transmission
 // public key at identify so the relay records it alongside Ed25519;
 // Ed25519 stays canonical for now. Best-effort — null means the chat
 // client runs exactly as it did pre-PQ.
-let myDilithiumPublicHex = null;   // hex of the 1952-byte ML-DSA-65 public key
+let myDilithiumPublicHex = null;   // hex of the 1952-byte ML-DSA-65 public key — THE chat identity (full-PQ)
 let myDilithiumSecret = null;      // Uint8Array secret key (in-memory only)
+// Full-PQ DM: Kyber768 (ML-KEM-768), derived from the SAME seed.
+let myKyberPublicBase64 = null;    // base64 1184-byte encapsulation key (advertised at identify)
+let myKyberSecret = null;          // Uint8Array decapsulation key (in-memory only)
 
 /**
- * Derive the Dilithium3 identity from the current Ed25519 identity's
- * seed and stash it for the identify handshake. Mirrors the
- * non-blocking ECDH init pattern. Never throws.
+ * FULL-PQ identity (cutover v0.262.34). From the ONE 32-byte BIP39
+ * seed derive Dilithium3 (THE chat identity + signing) AND Kyber768
+ * (DM). Both are byte-identical to the relay/native (KAT-locked:
+ * pq_crypto.rs::{dilithium,kyber}_cross_language_kat + pq-kat.mjs).
+ * The Ed25519 key is kept ONLY as the seed source + the Solana
+ * wallet — it is NO LONGER the chat identity.
+ *
+ * PQ is MANDATORY now (no Ed25519 fallback). Returns true on success;
+ * false means the caller MUST NOT connect (PQ unavailable). Awaited
+ * before connect so `public_key` IS the Dilithium key at identify.
  */
 async function attachPqIdentity() {
   try {
-    if (!myIdentity || !myIdentity.privateKey) return;
-    if (typeof window.pqDeriveIdentity !== 'function') return; // pq.js absent
-    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
-    const seed = extractSeedFromPkcs8(pkcs8); // 32-byte BIP39 / Ed25519 seed
-    const pq = await window.pqDeriveIdentity(seed);
-    if (pq && pq.dilithiumPublicHex) {
-      myDilithiumPublicHex = pq.dilithiumPublicHex;
-      myDilithiumSecret = pq.dilithiumSecret;
-      if (myIdentity) {
-        myIdentity.dilithiumPublicHex = pq.dilithiumPublicHex;
-      }
-      console.log('PQ identity derived:', pq.dilithiumPublicHex.substring(0, 16) + '… (Dilithium3)');
+    if (!myIdentity || !myIdentity.privateKey) return false;
+    if (typeof window.pqDeriveIdentity !== 'function'
+        || typeof window.pqDeriveKyber !== 'function') {
+      console.error('FULL-PQ: pq.js missing — cannot derive a PQ identity');
+      return false;
     }
+    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
+    const seed = extractSeedFromPkcs8(pkcs8); // 32-byte BIP39 master seed
+    const pq = await window.pqDeriveIdentity(seed);  // Dilithium3
+    const kp = await window.pqDeriveKyber(seed);     // Kyber768
+    if (!pq || !pq.dilithiumPublicHex || !kp || !kp.kyberPublicBytes) {
+      console.error('FULL-PQ: identity derivation failed — refusing to connect');
+      return false;
+    }
+    myDilithiumPublicHex = pq.dilithiumPublicHex;
+    myDilithiumSecret = pq.dilithiumSecret;
+    myKyberSecret = kp.kyberSecret;
+    myKyberPublicBase64 = btoa(String.fromCharCode(...kp.kyberPublicBytes));
+    // Promote Dilithium to THE chat identity. Stash the old Ed25519
+    // hex (Solana-wallet use only); `publicKeyHex` is now Dilithium.
+    myIdentity.ed25519PublicKeyHex = myIdentity.publicKeyHex;
+    myIdentity.publicKeyHex = myDilithiumPublicHex;
+    myIdentity.dilithiumPublicHex = myDilithiumPublicHex;
+    myIdentity.kyberPublicBase64 = myKyberPublicBase64;
+    console.log('FULL-PQ identity:', myDilithiumPublicHex.substring(0, 16)
+      + '… (Dilithium3 id + Kyber768 DM)');
+    return true;
   } catch (e) {
-    console.warn('attachPqIdentity failed (continuing Ed25519-only):', e && e.message);
+    console.error('attachPqIdentity FAILED (PQ is mandatory):', e && e.message);
+    return false;
   }
 }
 
 /**
- * PQ Increment 2: produce a Dilithium3 signature over the EXACT same
- * preimage the Ed25519 `signMessage` signs (`content\ntimestamp`), so
- * the relay can soft-verify it against the stored Dilithium pubkey.
- * Returns hex of the 3309-byte signature, or null (best-effort — a
- * missing PQ key just means the message ships Ed25519-only as before).
+ * Full-PQ: produce the Dilithium3 signature over `content\ntimestamp`.
+ * This IS the chat message signature now — the relay verifies it against
+ * `public_key` (which IS the sender's Dilithium identity key). Returns
+ * hex of the 3309-byte signature, or null if PQ identity isn't ready
+ * (the message then ships unsigned and the relay logs it).
  */
 async function pqSignChatMessage(content, timestamp) {
   try {
