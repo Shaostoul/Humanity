@@ -416,21 +416,14 @@ mod native_app {
                 names
             );
 
-            // (2) Unconditional MAGENTA proof beacon at orrery centre.
-            let proof_mesh = state.renderer.add_mesh(
-                crate::renderer::hologram::sphere_mesh(&state.renderer.device, 0.06, 10, 14),
-            );
-            let proof_mat = state
-                .renderer
-                .add_material_full([1.0, 0.0, 0.9, 1.0], 0.0, 0.3, 0.0, 9.0);
-            state.hologram_objects.push((
-                proof_mesh,
-                proof_mat,
-                Vec3::new(0.0, 0.20, 0.0),
-                "v0.262.24 PROOF".to_string(),
-            ));
+            // Magenta proof beacon removed in v0.262.26 — it confirmed
+            // the orrery path executes + updates (operator saw it), so
+            // the "in-home map never changes" was a misperception (the
+            // rings are circles by nature; the cosmos model DOES drive
+            // it). Keeping only the clean green HOME marker + the diag
+            // log.
 
-            // (3) Green HOME beacon at Earth (tolerant lookup); RED
+            // Green HOME beacon at Earth (tolerant lookup); RED
             // fallback at centre if Earth is missing from the model.
             let earth = hologram
                 .bodies

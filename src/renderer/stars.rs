@@ -396,16 +396,26 @@ fn load_constellations(csv_path: &Path) -> Vec<StarVertex> {
         (Some(p), Some(x), Some(y), Some(z)) => (p, x, y, z),
         _ => return Vec::new(),
     };
+    // Bayer designation fallback: ~11% of constellation endpoints have
+    // no HYG `proper` name (e.g. "Alpha Lupi"). Resolve those via the
+    // `bayer` (e.g. "Alp") + `con` (IAU 3-letter, e.g. "Lup") columns —
+    // key "alp lup". Without this those stars silently drop and the
+    // figure looks broken (operator: "none of these are recognizable").
+    let bi = col("bayer");
+    let ci = col("con");
     let mut by_name: std::collections::HashMap<String, [f32; 3]> =
+        std::collections::HashMap::new();
+    let mut by_bayer: std::collections::HashMap<String, [f32; 3]> =
         std::collections::HashMap::new();
     for line in rows {
         let f: Vec<&str> = line.split(',').map(|s| s.trim().trim_matches('"')).collect();
-        let need = pi.max(xi).max(yi).max(zi);
+        let need = pi
+            .max(xi)
+            .max(yi)
+            .max(zi)
+            .max(bi.unwrap_or(0))
+            .max(ci.unwrap_or(0));
         if f.len() <= need {
-            continue;
-        }
-        let name = f[pi].trim();
-        if name.is_empty() {
             continue;
         }
         let x: f64 = f[xi].parse().unwrap_or(0.0);
@@ -415,14 +425,91 @@ fn load_constellations(csv_path: &Path) -> Vec<StarVertex> {
         if len < 0.001 {
             continue;
         }
-        by_name.insert(
-            name.to_ascii_lowercase(),
-            [(x / len) as f32, (y / len) as f32, (z / len) as f32],
-        );
+        let dir = [(x / len) as f32, (y / len) as f32, (z / len) as f32];
+        let name = f[pi].trim();
+        if !name.is_empty() {
+            by_name.insert(name.to_ascii_lowercase(), dir);
+        }
+        // Bayer+con index ("alp lup") for stars without a proper name.
+        if let (Some(b), Some(c)) = (bi, ci) {
+            let bay = f.get(b).map(|s| s.trim()).unwrap_or("");
+            let con = f.get(c).map(|s| s.trim()).unwrap_or("");
+            if !bay.is_empty() && !con.is_empty() {
+                by_bayer
+                    .entry(format!(
+                        "{} {}",
+                        bay.to_ascii_lowercase(),
+                        con.to_ascii_lowercase()
+                    ))
+                    .or_insert(dir);
+            }
+        }
     }
-    if by_name.is_empty() {
+    if by_name.is_empty() && by_bayer.is_empty() {
         return Vec::new();
     }
+
+    // Greek word → HYG `bayer` 3-letter abbreviation.
+    let greek = |w: &str| -> Option<&'static str> {
+        Some(match w {
+            "alpha" => "alp", "beta" => "bet", "gamma" => "gam", "delta" => "del",
+            "epsilon" => "eps", "zeta" => "zet", "eta" => "eta", "theta" => "the",
+            "iota" => "iot", "kappa" => "kap", "lambda" => "lam", "mu" => "mu",
+            "nu" => "nu", "xi" => "xi", "omicron" => "omi", "pi" => "pi",
+            "rho" => "rho", "sigma" => "sig", "tau" => "tau", "upsilon" => "ups",
+            "phi" => "phi", "chi" => "chi", "psi" => "psi", "omega" => "ome",
+            _ => return None,
+        })
+    };
+    // Latin genitive → IAU `con`. Almost always the first 3 letters of
+    // the genitive; only the irregulars need an override.
+    let con_abbr = |genitive: &str| -> String {
+        match genitive {
+            "piscium" => "psc".into(),
+            "scuti" => "sct".into(),
+            "trianguli" => "tri".into(),
+            "crucis" => "cru".into(),
+            g => g.chars().take(3).collect(),
+        }
+    };
+    // Old proper-name aliases HYG stores differently (or not at all) →
+    // their Bayer key. Tiny, data-bounded.
+    let alias = |lc: &str| -> Option<&'static str> {
+        Some(match lc {
+            "tsih" => "gam cas",
+            "gienah cygni" => "eps cyg",
+            "rukh" => "del cyg",
+            "wei" => "eps sco",
+            "muhlifain" => "gam cen",
+            "minkar" => "eps crv",
+            "labrum" => "del crt",
+            "turais" => "rho pup",
+            _ => return None,
+        })
+    };
+    // Resolve a constellations.json endpoint name to a direction:
+    // proper name → alias → "<Greek> <Genitive>" Bayer key.
+    let resolve = |raw: &str| -> Option<[f32; 3]> {
+        let lc = raw.to_ascii_lowercase();
+        if let Some(d) = by_name.get(&lc) {
+            return Some(*d);
+        }
+        if let Some(k) = alias(&lc) {
+            if let Some(d) = by_bayer.get(k) {
+                return Some(*d);
+            }
+        }
+        let parts: Vec<&str> = lc.split_whitespace().collect();
+        if parts.len() == 2 {
+            if let Some(b) = greek(parts[0]) {
+                let key = format!("{} {}", b, con_abbr(parts[1]));
+                if let Some(d) = by_bayer.get(&key) {
+                    return Some(*d);
+                }
+            }
+        }
+        None
+    };
 
     // 2. constellations.json (next to stars.csv) → resolved segments.
     let cj = match csv_path
@@ -455,25 +542,23 @@ fn load_constellations(csv_path: &Path) -> Vec<StarVertex> {
                 p.get(1).and_then(|v| v.as_str()),
             ) else { continue };
             total += 1;
-            let da = by_name.get(&a.to_ascii_lowercase());
-            let db = by_name.get(&b.to_ascii_lowercase());
+            let da = resolve(a);
+            let db = resolve(b);
             if da.is_none() && unresolved.len() < 24 { unresolved.insert(a.to_string()); }
             if db.is_none() && unresolved.len() < 24 { unresolved.insert(b.to_string()); }
             let (Some(da), Some(db)) = (da, db) else { continue };
             resolved += 1;
-            out.push(StarVertex { direction: *da, color_brightness: LINE_RGBA });
-            out.push(StarVertex { direction: *db, color_brightness: LINE_RGBA });
+            out.push(StarVertex { direction: da, color_brightness: LINE_RGBA });
+            out.push(StarVertex { direction: db, color_brightness: LINE_RGBA });
         }
     }
-    // Measure, don't guess: if coverage is low the figures look broken
-    // because endpoints silently dropped — this tells us by how much
-    // and which names stars.csv `proper` didn't have.
     log::info!(
-        "Constellation lines: {}/{} segments resolved via stars.csv proper; \
-         {} stars (proper-named) in lookup; sample unresolved: {:?}",
+        "Constellation lines: {}/{} segments resolved (proper + bayer/con + alias); \
+         {} proper, {} bayer-keyed; still-unresolved: {:?}",
         resolved,
         total,
         by_name.len(),
+        by_bayer.len(),
         unresolved.iter().take(12).collect::<Vec<_>>()
     );
     out
