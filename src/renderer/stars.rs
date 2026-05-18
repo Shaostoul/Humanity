@@ -377,8 +377,8 @@ fn load_stars_csv(path: &Path) -> Option<Vec<StarVertex>> {
 /// get mirrored or rotated. `constellations.json` sits next to
 /// stars.csv (data/). Unresolved endpoints just skip that segment.
 fn load_constellations(csv_path: &Path) -> Vec<StarVertex> {
-    // Operator-chosen near-black #020404 — barely there.
-    const LINE_RGBA: [f32; 4] = [0.0078, 0.0157, 0.0157, 1.0];
+    // Operator-chosen #224444 — visible but unobtrusive.
+    const LINE_RGBA: [f32; 4] = [0.133, 0.267, 0.267, 1.0];
 
     // 1. proper-name → unit direction, from the very stars.csv we draw.
     let csv = match std::fs::read_to_string(csv_path) {

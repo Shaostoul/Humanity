@@ -387,42 +387,90 @@ mod native_app {
             }
         }
 
-        // ── "You are here" HOME marker (map-sync increment C) ──
-        // The operator wants "a little blip and a marker pointing to
-        // the player home, which data-wise is in a high safe orbit of
-        // Earth". At orrery scale, GEO altitude (~42,000 km) vs Earth's
-        // 1 AU heliocentric distance is ~3e-4 — sub-millimetre — so the
-        // home cannot be shown offset from Earth here; it IS at Earth.
-        // We mark it with a distinct bright-green emissive blip + a
-        // taller "HOME" pin so it stands out from the planet name-pins.
-        if let Some(earth) = hologram.bodies.iter().find(|b| b.name == "Earth") {
-            // LOUD bright-green beacon — the old 7 mm speck was
-            // invisible from across the room, so the operator couldn't
-            // tell the cosmos-driven orrery was even live. Big glowing
-            // blip + a tall pin towering above the whole orrery.
+        // ── GROUND-TRUTH INSTRUMENTATION (v0.262.24) ──
+        // Operator: "the in-home map never updated, whatever you do
+        // doesn't affect it" across many builds, while the skybox DID
+        // update. Logic says this block runs and is correct; reality
+        // disagrees. So stop reasoning — make the next run conclusive.
+        //
+        // 1) Log exactly what generate_hologram_from_cosmos produced.
+        // 2) Spawn an UNCONDITIONAL bright-MAGENTA proof beacon at the
+        //    orrery centre. If it is ABSENT in the operator's run, THIS
+        //    code is not executing in their binary (a build/launch path
+        //    issue) — a totally different root cause. If it is PRESENT
+        //    but bodies look old, the generator output is the problem.
+        // 3) Then the green HOME beacon, with a tolerant Earth lookup
+        //    and a RED fallback at centre if Earth is somehow missing,
+        //    so a silent failure becomes a visible one.
+        {
+            let names: Vec<&str> =
+                hologram.bodies.iter().map(|b| b.name.as_str()).take(40).collect();
+            let earth_idx = hologram
+                .bodies
+                .iter()
+                .position(|b| b.name.eq_ignore_ascii_case("earth"));
+            log::info!(
+                "ORRERY-DIAG: generate_hologram_from_cosmos -> {} bodies; earth_at={:?}; names={:?}",
+                hologram.bodies.len(),
+                earth_idx,
+                names
+            );
+
+            // (2) Unconditional MAGENTA proof beacon at orrery centre.
+            let proof_mesh = state.renderer.add_mesh(
+                crate::renderer::hologram::sphere_mesh(&state.renderer.device, 0.06, 10, 14),
+            );
+            let proof_mat = state
+                .renderer
+                .add_material_full([1.0, 0.0, 0.9, 1.0], 0.0, 0.3, 0.0, 9.0);
+            state.hologram_objects.push((
+                proof_mesh,
+                proof_mat,
+                Vec3::new(0.0, 0.20, 0.0),
+                "v0.262.24 PROOF".to_string(),
+            ));
+
+            // (3) Green HOME beacon at Earth (tolerant lookup); RED
+            // fallback at centre if Earth is missing from the model.
+            let earth = hologram
+                .bodies
+                .iter()
+                .find(|b| b.name.eq_ignore_ascii_case("earth"));
+            let (anchor, blip_col, pin_col, label) = match earth {
+                Some(e) => (
+                    e.local_position + Vec3::new(0.0, e.radius, 0.0),
+                    [0.15, 1.0, 0.45, 1.0],
+                    [0.15, 1.0, 0.45, 1.0],
+                    "HOME",
+                ),
+                None => {
+                    log::error!("ORRERY-DIAG: NO 'earth' body in hologram — RED fallback");
+                    (Vec3::new(0.0, 0.10, 0.0), [1.0, 0.1, 0.1, 1.0], [1.0, 0.1, 0.1, 1.0], "HOME?")
+                }
+            };
             let blip_mesh = state.renderer.add_mesh(
                 crate::renderer::hologram::sphere_mesh(&state.renderer.device, 0.045, 10, 14),
             );
-            let blip_mat = state
-                .renderer
-                .add_material_full([0.15, 1.0, 0.45, 1.0], 0.0, 0.3, 0.0, 8.0);
-            let blip_pos = earth.local_position + Vec3::new(0.0, earth.radius + 0.10, 0.0);
-            state
-                .hologram_objects
-                .push((blip_mesh, blip_mat, blip_pos, "Home (high Earth orbit)".to_string()));
-            // Tall distinct HOME pin — towers over the orrery so it's
-            // unmistakable from anywhere in the room.
+            let blip_mat =
+                state.renderer.add_material_full(blip_col, 0.0, 0.3, 0.0, 8.0);
+            state.hologram_objects.push((
+                blip_mesh,
+                blip_mat,
+                anchor + Vec3::new(0.0, 0.10, 0.0),
+                "Home (high Earth orbit)".to_string(),
+            ));
             let home_pin_mesh = state.renderer.add_mesh(
                 crate::renderer::hologram::pin_marker_mesh(&state.renderer.device, 0.07, 0.75),
             );
-            let home_pin_mat = state
-                .renderer
-                .add_material_full([0.15, 1.0, 0.45, 1.0], 0.0, 0.4, 0.0, 6.0);
-            let home_pin_pos = earth.local_position + Vec3::new(0.0, earth.radius + 0.95, 0.0);
-            state
-                .hologram_pins
-                .push((home_pin_mesh, home_pin_mat, home_pin_pos, "HOME".to_string()));
-            log::info!("Map-sync C: HOME marker placed at Earth's orrery position");
+            let home_pin_mat =
+                state.renderer.add_material_full(pin_col, 0.0, 0.4, 0.0, 6.0);
+            state.hologram_pins.push((
+                home_pin_mesh,
+                home_pin_mat,
+                anchor + Vec3::new(0.0, 0.95, 0.0),
+                label.to_string(),
+            ));
+            log::info!("ORRERY-DIAG: HOME marker + magenta proof beacon pushed");
         }
 
         // ── Star skybox ──
