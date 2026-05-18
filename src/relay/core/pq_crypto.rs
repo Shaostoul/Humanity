@@ -378,6 +378,33 @@ mod tests {
         );
     }
 
+    /// CROSS-LANGUAGE KYBER768 KAT (full-PQ cutover, v0.262.x).
+    ///
+    /// The chat client derives its DM (Kyber768) keypair from the SAME
+    /// BIP39 seed via noble `ml_kem768` (vendored bundle). If JS and
+    /// Rust ML-KEM-768 keygen diverge from the same 64-byte seed, the
+    /// recipient's advertised public key won't match what the other
+    /// device derives → every cross-client DM silently fails (the exact
+    /// bug we're killing). Asserted in BOTH this test AND
+    /// `scripts/pq-kat.mjs`. Constants frozen from the first green run.
+    #[test]
+    fn kyber_cross_language_kat() {
+        let master = [7u8; 32];
+        let kseed = derive_kyber_seed(&master);
+        assert_eq!(
+            hex::encode(kseed),
+            "817975ca77f0b8a878088723602d68e0b2ff863ab0071c0b4c091d9fa114c639117a1f6ced5be40be2fdc1c3781fbdaf84c83d9d25153703620a6a5c1498eb2b",
+            "BLAKE3 derive_key(hum/kyber768/v1) drift — JS side will mismatch"
+        );
+        let pk = KyberKeypair::from_seed(&kseed).unwrap().public_key();
+        assert_eq!(pk.len(), KYBER_EK_LEN);
+        assert_eq!(
+            blake3::hash(&pk).to_hex().as_str(),
+            "e5325adfbe9bbcedda20dbb333b9b94524ca853d4c641f03a199a96568c92664",
+            "ML-KEM-768 keygen drift — noble and RustCrypto no longer agree"
+        );
+    }
+
     /// CROSS-IMPL SIGNATURE KAT (v0.252, PQ Increment 2).
     ///
     /// A Dilithium3 signature produced by the JS client

@@ -31,6 +31,8 @@
 // primary-identity dependency must not rely on a third party.
 const _PQ_BUNDLE_URL = '/shared/vendor/noble-pq.bundle.js';
 const _PQ_DOMAIN_DILITHIUM = 'hum/dilithium3/v1';
+const _PQ_DOMAIN_KYBER = 'hum/kyber768/v1';
+const _PQ_DOMAIN_DM_AES = 'hum/dm-aes/v1';
 
 let _pqMod = null;       // resolved noble module (cached)
 let _pqLoadTried = false;
@@ -43,7 +45,7 @@ async function _pqLoad() {
   _pqLoadTried = true;
   try {
     _pqMod = await import(_PQ_BUNDLE_URL);
-    if (!_pqMod || !_pqMod.ml_dsa65 || !_pqMod.blake3) {
+    if (!_pqMod || !_pqMod.ml_dsa65 || !_pqMod.blake3 || !_pqMod.ml_kem768) {
       throw new Error('vendored PQ bundle missing exports');
     }
     return _pqMod;
@@ -101,6 +103,102 @@ async function pqSignMessage(secretKey, messageBytes) {
   }
 }
 
+/**
+ * Derive the Kyber768 (ML-KEM-768) DM keypair from the 32-byte master
+ * seed — the SAME seed the Dilithium identity uses. Byte-identical to
+ * the Rust relay (pq_crypto::derive_kyber_seed → KyberKeypair::from_seed)
+ * and the native client (net::dm_pq) — locked by the cross-language KAT
+ * in scripts/pq-kat.mjs + pq_crypto.rs::kyber_cross_language_kat.
+ *
+ *   kseed64 = BLAKE3.derive_key("hum/kyber768/v1", masterSeed)[..64]
+ *   keypair = ML-KEM-768.keygen(kseed64)
+ *
+ * This determinism is THE fix for cross-client DMs: web and native
+ * derive the same DM keypair from the same seed, so there is no
+ * per-device random key and no vault import, ever.
+ * @returns {Promise<{kyberPublicBytes:Uint8Array, kyberSecret:Uint8Array}|null>}
+ */
+async function pqDeriveKyber(seed32) {
+  try {
+    if (!seed32 || seed32.length !== 32) return null;
+    const m = await _pqLoad();
+    if (!m) return null;
+    const ctx = new TextEncoder().encode(_PQ_DOMAIN_KYBER);
+    const kseed = m.blake3.create({ context: ctx, dkLen: 64 })
+      .update(seed32)
+      .digest();
+    const kp = m.ml_kem768.keygen(kseed); // { publicKey:1184B, secretKey }
+    return { kyberPublicBytes: kp.publicKey, kyberSecret: kp.secretKey };
+  } catch (e) {
+    console.warn('pqDeriveKyber failed:', e && e.message);
+    return null;
+  }
+}
+
+const _b64 = {
+  enc: (u8) => btoa(String.fromCharCode(...u8)),
+  dec: (s) => Uint8Array.from(atob(s.trim()), (c) => c.charCodeAt(0)),
+};
+
+/** BLAKE3.derive_key("hum/dm-aes/v1", sharedSecret) → 32-byte AES key.
+ *  Identical KDF to net::dm_pq.rs (operator chose BLAKE3 over HKDF —
+ *  already vendored both sides). */
+async function _dmAesKey(m, sharedSecret) {
+  const ctx = new TextEncoder().encode(_PQ_DOMAIN_DM_AES);
+  const raw = m.blake3.create({ context: ctx, dkLen: 32 })
+    .update(sharedSecret)
+    .digest();
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false,
+    ['encrypt', 'decrypt']);
+}
+
+/**
+ * Seal a DM for the holder of `recipientPubB64` (their base64 Kyber768
+ * public key). Pure ML-KEM-768 → BLAKE3-KDF → AES-256-GCM. Matches
+ * net::dm_pq::seal exactly. Sender needs no keypair (KEM).
+ * @returns {Promise<{ek_ct_b64,nonce_b64,ct_b64}|null>}
+ */
+async function pqDmSeal(recipientPubB64, plaintext) {
+  try {
+    const m = await _pqLoad();
+    if (!m) return null;
+    const pub = _b64.dec(recipientPubB64);
+    const { cipherText, sharedSecret } = m.ml_kem768.encapsulate(pub);
+    const key = await _dmAesKey(m, sharedSecret);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const body = new Uint8Array(await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv }, key, new TextEncoder().encode(plaintext)));
+    return {
+      ek_ct_b64: _b64.enc(cipherText),
+      nonce_b64: _b64.enc(iv),
+      ct_b64: _b64.enc(body),
+    };
+  } catch (e) {
+    console.warn('pqDmSeal failed:', e && e.message);
+    return null;
+  }
+}
+
+/** Open a DM addressed to us. `kyberSecret` from pqDeriveKyber.
+ *  Matches net::dm_pq::open. Returns plaintext or null. */
+async function pqDmOpen(kyberSecret, ekCtB64, nonceB64, ctB64) {
+  try {
+    const m = await _pqLoad();
+    if (!m || !kyberSecret) return null;
+    const ss = m.ml_kem768.decapsulate(_b64.dec(ekCtB64), kyberSecret);
+    const key = await _dmAesKey(m, ss);
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: _b64.dec(nonceB64) }, key, _b64.dec(ctB64));
+    return new TextDecoder().decode(plain);
+  } catch (e) {
+    console.warn('pqDmOpen failed (wrong key / tampered):', e && e.message);
+    return null;
+  }
+}
+
 // Exposed globally (the chat client is classic scripts, not modules).
 window.pqDeriveIdentity = pqDeriveIdentity;
 window.pqSignMessage = pqSignMessage;
+window.pqDeriveKyber = pqDeriveKyber;
+window.pqDmSeal = pqDmSeal;
+window.pqDmOpen = pqDmOpen;
