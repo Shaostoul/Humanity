@@ -377,8 +377,8 @@ fn load_stars_csv(path: &Path) -> Option<Vec<StarVertex>> {
 /// get mirrored or rotated. `constellations.json` sits next to
 /// stars.csv (data/). Unresolved endpoints just skip that segment.
 fn load_constellations(csv_path: &Path) -> Vec<StarVertex> {
-    // Faint cool blue-white — visible as a figure, doesn't fight stars.
-    const LINE_RGBA: [f32; 4] = [0.46, 0.58, 0.86, 0.30];
+    // Operator-chosen near-black #020404 — barely there.
+    const LINE_RGBA: [f32; 4] = [0.0078, 0.0157, 0.0157, 1.0];
 
     // 1. proper-name → unit direction, from the very stars.csv we draw.
     let csv = match std::fs::read_to_string(csv_path) {
@@ -443,6 +443,9 @@ fn load_constellations(csv_path: &Path) -> Vec<StarVertex> {
     };
 
     let mut out: Vec<StarVertex> = Vec::new();
+    let mut total = 0usize;
+    let mut resolved = 0usize;
+    let mut unresolved: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     for con in arr {
         let Some(lines) = con.get("lines").and_then(|l| l.as_array()) else { continue };
         for pair in lines {
@@ -451,14 +454,28 @@ fn load_constellations(csv_path: &Path) -> Vec<StarVertex> {
                 p.first().and_then(|v| v.as_str()),
                 p.get(1).and_then(|v| v.as_str()),
             ) else { continue };
-            let (Some(da), Some(db)) = (
-                by_name.get(&a.to_ascii_lowercase()),
-                by_name.get(&b.to_ascii_lowercase()),
-            ) else { continue };
+            total += 1;
+            let da = by_name.get(&a.to_ascii_lowercase());
+            let db = by_name.get(&b.to_ascii_lowercase());
+            if da.is_none() && unresolved.len() < 24 { unresolved.insert(a.to_string()); }
+            if db.is_none() && unresolved.len() < 24 { unresolved.insert(b.to_string()); }
+            let (Some(da), Some(db)) = (da, db) else { continue };
+            resolved += 1;
             out.push(StarVertex { direction: *da, color_brightness: LINE_RGBA });
             out.push(StarVertex { direction: *db, color_brightness: LINE_RGBA });
         }
     }
+    // Measure, don't guess: if coverage is low the figures look broken
+    // because endpoints silently dropped — this tells us by how much
+    // and which names stars.csv `proper` didn't have.
+    log::info!(
+        "Constellation lines: {}/{} segments resolved via stars.csv proper; \
+         {} stars (proper-named) in lookup; sample unresolved: {:?}",
+        resolved,
+        total,
+        by_name.len(),
+        unresolved.iter().take(12).collect::<Vec<_>>()
+    );
     out
 }
 

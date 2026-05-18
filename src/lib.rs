@@ -396,25 +396,29 @@ mod native_app {
         // We mark it with a distinct bright-green emissive blip + a
         // taller "HOME" pin so it stands out from the planet name-pins.
         if let Some(earth) = hologram.bodies.iter().find(|b| b.name == "Earth") {
-            // Bright emissive blip sitting just above Earth.
+            // LOUD bright-green beacon — the old 7 mm speck was
+            // invisible from across the room, so the operator couldn't
+            // tell the cosmos-driven orrery was even live. Big glowing
+            // blip + a tall pin towering above the whole orrery.
             let blip_mesh = state.renderer.add_mesh(
-                crate::renderer::hologram::sphere_mesh(&state.renderer.device, 0.007, 6, 8),
+                crate::renderer::hologram::sphere_mesh(&state.renderer.device, 0.045, 10, 14),
             );
             let blip_mat = state
                 .renderer
-                .add_material_full([0.20, 1.0, 0.55, 1.0], 0.0, 0.4, 0.0, 4.0);
-            let blip_pos = earth.local_position + Vec3::new(0.0, earth.radius + 0.03, 0.0);
+                .add_material_full([0.15, 1.0, 0.45, 1.0], 0.0, 0.3, 0.0, 8.0);
+            let blip_pos = earth.local_position + Vec3::new(0.0, earth.radius + 0.10, 0.0);
             state
                 .hologram_objects
                 .push((blip_mesh, blip_mat, blip_pos, "Home (high Earth orbit)".to_string()));
-            // Taller distinct pin labelled HOME.
+            // Tall distinct HOME pin — towers over the orrery so it's
+            // unmistakable from anywhere in the room.
             let home_pin_mesh = state.renderer.add_mesh(
-                crate::renderer::hologram::pin_marker_mesh(&state.renderer.device, 0.035, 0.22),
+                crate::renderer::hologram::pin_marker_mesh(&state.renderer.device, 0.07, 0.75),
             );
             let home_pin_mat = state
                 .renderer
-                .add_material_full([0.20, 1.0, 0.55, 1.0], 0.0, 0.5, 0.0, 2.0);
-            let home_pin_pos = earth.local_position + Vec3::new(0.0, earth.radius + 0.34, 0.0);
+                .add_material_full([0.15, 1.0, 0.45, 1.0], 0.0, 0.4, 0.0, 6.0);
+            let home_pin_pos = earth.local_position + Vec3::new(0.0, earth.radius + 0.95, 0.0);
             state
                 .hologram_pins
                 .push((home_pin_mesh, home_pin_mat, home_pin_pos, "HOME".to_string()));
@@ -1266,7 +1270,11 @@ mod native_app {
                         // draw_lines_onto depth-occludes any segment that
                         // passes behind a planet — the directional cue
                         // the operator asked for, via real occlusion.
-                        const ORBIT_RGBA: [f32; 4] = [0.34, 0.46, 0.85, 0.55];
+                        // Operator-chosen near-black #020305 (barely
+                        // there). Full alpha — the colour itself is the
+                        // dimness, not the blend.
+                        const ORBIT_RGBA: [f32; 4] =
+                            [0.0078, 0.0118, 0.0196, 1.0];
                         for (pts_m, parent_id) in &state.solar_orbit_paths {
                             let parent_helio_au = if parent_id == "sun" {
                                 glam::DVec3::ZERO
