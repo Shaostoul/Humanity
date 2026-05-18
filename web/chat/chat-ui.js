@@ -918,7 +918,15 @@ sendMessage = async function() {
       }
     }
     if (val && ws && ws.readyState === WebSocket.OPEN) {
-      const peerEcdh = getPeerEcdhPublic(activeDmPartner);
+      // The relay only length-limits PLAINTEXT DMs (a PQ ciphertext blob
+      // is opaque and ~9 KB even for a short note), so enforce the
+      // user-visible limit here, before sealing.
+      const DM_PLAINTEXT_MAX = 2000;
+      if (val.length > DM_PLAINTEXT_MAX) {
+        addSystemMessage(`Message too long (${val.length}/${DM_PLAINTEXT_MAX} chars). Please shorten it.`);
+        return;
+      }
+      const peerKyber = getPeerEcdhPublic(activeDmPartner); // Kyber768 pub now
       let dmPayload = {
         type: 'dm',
         from: myKey,
@@ -927,9 +935,12 @@ sendMessage = async function() {
         content: val,
         timestamp: Date.now(),
       };
-      // E2EE: encrypt if both parties have ECDH keys.
-      if (peerEcdh && myEcdhKeyPair) {
-        const enc = await encryptDmContent(val, peerEcdh);
+      // Full-PQ E2EE: dual-seal (recipient + self) if the peer advertised
+      // a Kyber key. encryptDmContent returns null if our own PQ identity
+      // isn't ready → graceful plaintext fallback (relay still requires
+      // friendship + verified role, so this is not an open channel).
+      if (peerKyber) {
+        const enc = await encryptDmContent(val, peerKyber);
         if (enc) {
           dmPayload.content = enc.content;
           dmPayload.nonce = enc.nonce;

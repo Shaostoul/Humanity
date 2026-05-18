@@ -708,11 +708,11 @@ async function handleMessage(msg) {
     }
     case 'peer_joined':
       // Update peerData with new peer info — sidebar handles visibility.
-      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', ecdh_public: msg.ecdh_public || null };
+      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', kyber_public: msg.kyber_public || null };
       updateStats();
       break;
     case 'peer_left':
-      // Keep ecdh_public in peerData for offline decryption of history
+      // Keep the peer's Kyber key in peerData for offline history decrypt
       if (peerData[msg.public_key]) {
         peerData[msg.public_key]._offline = true;
       }
@@ -879,19 +879,13 @@ async function handleMessage(msg) {
       const dmPartnerName = (dmFrom === myKey) ? (peerData[msg.to]?.display_name || shortKey(msg.to || '')) : dmFromName;
       let dmContent = msg.content;
       let dmIsEncrypted = !!msg.encrypted;
-      // E2EE: Decrypt if encrypted.
-      if (msg.encrypted && msg.nonce) {
-        const senderEcdh = getPeerEcdhPublic(dmFrom);
-        if (senderEcdh) {
-          const plain = await decryptDmContent(msg.content, msg.nonce, senderEcdh);
-          if (plain !== null) {
-            dmContent = plain;
-          } else {
-            dmContent = '🔒 [Decryption failed]';
-          }
-        } else {
-          dmContent = '🔒 [Cannot decrypt — missing sender key]';
-        }
+      // Full-PQ: decapsulate with OUR OWN deterministic Kyber secret —
+      // no sender key needed (ML-KEM). The dual-seal envelope means this
+      // works for both incoming messages and our own from history.
+      if (msg.encrypted) {
+        const plain = await decryptDmContent(msg.content, msg.nonce, null);
+        dmContent = (plain !== null && plain !== undefined)
+          ? plain : '🔒 [Decryption failed]';
       }
       upsertDmConversation(dmPartnerKey, dmPartnerName, dmIsEncrypted ? '🔒 Encrypted message' : dmContent, msg.timestamp, dmFrom !== myKey);
       if (activeDmPartner && (dmFrom === activeDmPartner || dmFrom === myKey)) {
@@ -920,14 +914,16 @@ async function handleMessage(msg) {
       if (activeDmPartner === msg.partner) {
         document.getElementById('messages').innerHTML = '';
         const msgs = msg.messages || [];
-        // E2EE status banner
-        const partnerEcdh = getPeerEcdhPublic(msg.partner);
+        // E2EE status banner. Full-PQ: a conversation is end-to-end
+        // encrypted when the partner advertised a Kyber768 key and our
+        // own PQ secret is ready (dual-seal lets us read BOTH directions).
+        const partnerKyber = getPeerEcdhPublic(msg.partner);
         const e2eeNotice = document.createElement('div');
         e2eeNotice.style.cssText = 'text-align:center;font-size:0.7rem;padding:var(--space-sm);color:var(--text-muted);';
-        if (partnerEcdh && myEcdhKeyPair) {
-          e2eeNotice.innerHTML = hosIcon('lock', 14) + ' Messages are end-to-end encrypted';
+        if (partnerKyber && myKyberSecret) {
+          e2eeNotice.innerHTML = hosIcon('lock', 14) + ' Messages are end-to-end encrypted (post-quantum)';
         } else {
-          e2eeNotice.innerHTML = hosIcon('unlock', 14) + ' Messages are <b>not</b> encrypted — the other party does not support E2EE';
+          e2eeNotice.innerHTML = hosIcon('unlock', 14) + ' Messages are <b>not</b> encrypted — the other party has no post-quantum key';
         }
         document.getElementById('messages').appendChild(e2eeNotice);
         if (msgs.length > 0) {
@@ -939,15 +935,12 @@ async function handleMessage(msg) {
         for (const m of msgs) {
           let histContent = m.content;
           let histEncrypted = !!m.encrypted;
-          if (m.encrypted && m.nonce) {
-            // Determine peer key: if from me, use partner's key; if from partner, use partner's key
-            const peerKeyForDecrypt = getPeerEcdhPublic(m.from === myKey ? m.to : m.from) || getPeerEcdhPublic(msg.partner);
-            if (peerKeyForDecrypt) {
-              const plain = await decryptDmContent(m.content, m.nonce, peerKeyForDecrypt);
-              histContent = plain !== null ? plain : '🔒 [Decryption failed]';
-            } else {
-              histContent = '🔒 [Cannot decrypt — missing key]';
-            }
+          if (m.encrypted) {
+            // Full-PQ dual-seal: our own Kyber secret opens BOTH our sent
+            // copy and received messages — no peer key needed.
+            const plain = await decryptDmContent(m.content, m.nonce, null);
+            histContent = (plain !== null && plain !== undefined)
+              ? plain : '🔒 [Decryption failed]';
           }
           addDmMessage(resolveSenderName(m.from_name, m.from), histContent, m.timestamp, m.from, m.to, histEncrypted);
         }
@@ -1581,7 +1574,7 @@ function updateUserList(users) {
 
   // Update peerData from full user list.
   for (const u of users) {
-    peerData[u.public_key] = { public_key: u.public_key, display_name: u.name, role: u.role || '', ecdh_public: u.ecdh_public || null };
+    peerData[u.public_key] = { public_key: u.public_key, display_name: u.name, role: u.role || '', kyber_public: u.kyber_public || null };
   }
 
   const online = users.filter(u => u.online);

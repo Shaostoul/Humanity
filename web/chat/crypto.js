@@ -834,44 +834,75 @@ async function deriveSharedKey(peerEcdhPublicBase64) {
   }
 }
 
-/** Encrypt a plaintext string for a peer. Returns { content, nonce } (both base64) or null. */
-async function encryptDmContent(plaintext, peerEcdhPublicBase64) {
-  const sharedKey = await deriveSharedKey(peerEcdhPublicBase64);
-  if (!sharedKey) return null;
-  try {
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encoded = new TextEncoder().encode(plaintext);
-    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, sharedKey, encoded);
-    return {
-      content: btoa(String.fromCharCode(...new Uint8Array(ciphertext))),
-      nonce: btoa(String.fromCharCode(...iv))
-    };
-  } catch (e) {
-    console.error('DM encryption failed:', e);
-    return null;
-  }
-}
+// ── Full-PQ DM (Kyber768 / ML-KEM-768) ──────────────────────────────────────
+// Replaces the ECDH-P256 path. The recipient's Kyber keypair is
+// DETERMINISTIC from their BIP39 seed (pq.js pqDeriveKyber, identical on
+// web + native), so whatever a sender encapsulates is decryptable on EVERY
+// device with the seed — no random per-browser key, no vault import. This is
+// the root-cause fix for the cross-client "decryption failed" bug.
+//
+// Envelope (packed into the relay's opaque `content` string — the relay is
+// zero-knowledge and never parses it):
+//   { v:1, r:{ek_ct_b64,nonce_b64,ct_b64}, s:{...} }
+// `r` = sealed to the RECIPIENT's Kyber pub; `s` = sealed to OUR OWN Kyber
+// pub. Dual-seal is mandatory because pure ML-KEM is recipient-only — the
+// sender keeps no shared secret, so without an `s` copy a sender could not
+// read their own sent messages from server history on any device.
+// Function NAMES/arity are kept identical to the old ECDH helpers so the
+// existing DM call sites need no structural change.
 
-/** Decrypt an encrypted DM. Returns plaintext string or null. */
-async function decryptDmContent(ciphertextBase64, nonceBase64, peerEcdhPublicBase64) {
-  const sharedKey = await deriveSharedKey(peerEcdhPublicBase64);
-  if (!sharedKey) return null;
-  try {
-    const iv = Uint8Array.from(atob(nonceBase64), c => c.charCodeAt(0));
-    const ciphertext = Uint8Array.from(atob(ciphertextBase64), c => c.charCodeAt(0));
-    const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, sharedKey, ciphertext);
-    return new TextDecoder().decode(plainBuf);
-  } catch (e) {
-    console.error('DM decryption failed:', e);
-    return null;
-  }
-}
-
-/** Look up ECDH public key for a peer by their Ed25519 public key. */
+/** Peer's Kyber768 public key (base64) by their identity key, or null.
+ *  (Name retained for call-site compatibility — no longer ECDH.) */
 function getPeerEcdhPublic(peerKey) {
   const peer = peerData[peerKey];
-  return peer ? peer.ecdh_public : null;
+  return peer ? (peer.kyber_public || null) : null;
 }
+
+/** Dual-seal `plaintext` (to recipient + to self). Returns
+ *  { content:<JSON envelope>, nonce:<recipient nonce, wire-compat> } or
+ *  null (→ caller falls back to sending plaintext). */
+async function encryptDmContent(plaintext, peerKyberPublicBase64) {
+  try {
+    if (typeof window.pqDmSeal !== 'function'
+        || !peerKyberPublicBase64 || !myKyberPublicBase64) return null;
+    const r = await window.pqDmSeal(peerKyberPublicBase64, plaintext); // → recipient
+    const s = await window.pqDmSeal(myKyberPublicBase64, plaintext);   // → self (history)
+    if (!r || !s) return null;
+    const env = { v: 1, r, s };
+    // Keep a top-level `nonce` only so existing `msg.encrypted && msg.nonce`
+    // guards still trip; the authoritative nonce lives inside the envelope.
+    return { content: JSON.stringify(env), nonce: r.nonce_b64 };
+  } catch (e) {
+    console.warn('encryptDmContent (PQ) failed:', e && e.message);
+    return null;
+  }
+}
+
+/** Open a PQ DM envelope. The 3rd arg (old ECDH peer key) is IGNORED — a
+ *  KEM decapsulates with OUR OWN deterministic secret. Tries the recipient
+ *  copy then the self copy, so it works whether the message was received
+ *  OR is our own from history. Returns plaintext or null. */
+async function decryptDmContent(contentStr, _nonceIgnored, _peerKeyIgnored) {
+  try {
+    if (typeof window.pqDmOpen !== 'function' || !myKyberSecret) return null;
+    let env;
+    try { env = JSON.parse(contentStr); } catch { return null; }
+    if (!env || env.v !== 1) return null;
+    for (const part of [env.r, env.s]) {
+      if (!part) continue;
+      const p = await window.pqDmOpen(
+        myKyberSecret, part.ek_ct_b64, part.nonce_b64, part.ct_b64);
+      if (p !== null && p !== undefined) return p;
+    }
+    return null;
+  } catch (e) {
+    console.warn('decryptDmContent (PQ) failed:', e && e.message);
+    return null;
+  }
+}
+
+/** Back-compat alias — some call sites use the explicit Kyber name. */
+function getPeerKyberPublic(peerKey) { return getPeerEcdhPublic(peerKey); }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // End E2EE

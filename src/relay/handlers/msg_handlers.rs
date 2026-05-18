@@ -621,7 +621,20 @@ pub async fn handle_dm(
         return;
     }
     let dm_role = state.db.get_role(my_key).unwrap_or_default();
-    let dm_char_limit: usize = if dm_role == "admin" { 10_000 } else { 2_000 };
+    // Plaintext DMs are limited by visible characters. Encrypted DMs carry
+    // an OPAQUE post-quantum ciphertext blob: ML-KEM-768 ek_ct alone is
+    // ~1.45 KB of base64, and the client dual-seals (recipient + self, so
+    // BOTH parties can read history on any device) — a 2 KB plaintext
+    // becomes a ~9 KB envelope. Char-limiting ciphertext is meaningless;
+    // the user-visible plaintext length is enforced client-side before
+    // sealing. Allow a generous ceiling so PQ DMs aren't false-rejected.
+    let dm_char_limit: usize = if encrypted {
+        131_072 // 128 KB — far above a dual-sealed max-length plaintext DM
+    } else if dm_role == "admin" {
+        10_000
+    } else {
+        2_000
+    };
     if content.len() > dm_char_limit {
         let private = RelayMessage::Private {
             to: my_key.to_string(),

@@ -36,10 +36,29 @@ cannot silently drift. Everything below is mechanical wiring.
 - `Identify` msg fields: `public_key` (= Dilithium hex),
   `kyber_public` (base64). (Inc3b later: + `challenge_sig` =
   Dilithium sig over a server nonce; tracked separately, do NOT bundle.)
-- DM msg fields: `{ recipient, ek_ct, nonce, ct }` (the
-  dm_pq/pq.js envelope, all base64). Relay relays + stores, never
-  decrypts. Relay serves each member's `kyber_public` in
-  member/profile/user-list payloads so a sender can encapsulate.
+- DM transport (Inc2b.2 SHIPPED — REALITY, supersedes the original
+  `{recipient,ek_ct,nonce,ct}` sketch): the relay's `Dm` variant is
+  UNCHANGED (`{to, content, encrypted, nonce, ...}`); the relay stays
+  zero-knowledge. The full PQ envelope is packed into the opaque
+  `content` STRING as JSON — NO relay schema/struct change:
+    `content = JSON.stringify({ v:1,
+        r:{ek_ct_b64,nonce_b64,ct_b64},   // sealed to RECIPIENT kyber pub
+        s:{ek_ct_b64,nonce_b64,ct_b64} }) // sealed to SELF (own kyber pub)`
+  `encrypted:true`; top-level `nonce` = `r.nonce_b64` (kept only so the
+  existing `msg.encrypted && msg.nonce` guards still trip). **Dual-seal
+  is mandatory**: pure ML-KEM is recipient-only (sender keeps no
+  shared secret), so without the `s` copy a sender could never read
+  their OWN sent messages from server history on any device. Open =
+  try `r` then `s` with our own deterministic Kyber secret — covers
+  sent/received × both parties × any device. **Inc4 native MUST
+  produce/consume this exact `{v:1,r,s}` JSON-in-`content` shape or
+  web↔native DM breaks.** Relay change required + SHIPPED: `handle_dm`
+  uses a 128 KB `dm_char_limit` when `encrypted` (a dual-sealed 2 KB
+  plaintext ≈ 9 KB of base64; char-limiting opaque ciphertext is
+  meaningless — the user-visible plaintext cap is enforced client-side
+  before sealing). Relay serves each member's `kyber_public` in
+  peer_joined/user-list payloads (`kyber_public` field) so a sender
+  can encapsulate.
 - Chat message signing: Dilithium only (`pq_signature` over
   `content\ntimestamp`); the relay verifies against `public_key`
   (which IS the Dilithium key now). Drop Ed25519 verify + the
