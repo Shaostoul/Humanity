@@ -80,6 +80,14 @@ _commit msg:
     -git push forge main
     @node -e "const fs=require('fs'),{execSync}=require('child_process');const v=fs.readFileSync('Cargo.toml','utf8').match(/^version = \"(.+)\"/m)[1];const tag='v'+v;try{execSync('git rev-parse '+tag,{stdio:'ignore'});console.log('Tag '+tag+' already exists');}catch(e){try{execSync('git tag '+tag,{stdio:'inherit'});execSync('git push origin '+tag,{stdio:'inherit'});try{execSync('git push forge '+tag,{stdio:'inherit'});console.log('Tagged and pushed '+tag+' to origin + forge');}catch(fe){console.warn('Forge tag push failed: '+fe.message);}}catch(err){console.warn('Tag failed: '+err.message);}}"
 
+# Full-PQ cutover: WIPE the live relay DB to a fresh schema (backs up
+# first; everyone re-onboards from seed). Guarded — must pass `yes`:
+#   just pq-wipe yes
+# DO NOT run until the full-PQ stack is shipped + security-reviewed.
+pq-wipe CONFIRM="no":
+    @if [ "{{CONFIRM}}" != "yes" ]; then echo "Refusing. Run: just pq-wipe yes  (irreversible-ish; backs up first)"; exit 2; fi
+    ssh humanity-vps 'cd /opt/Humanity && git fetch origin main -q && git reset --hard -q origin/main && bash scripts/pq-wipe.sh --yes'
+
 # Force-sync VPS with current origin/main right now (full rebuild)
 # Use when: CI fails, server is out of sync, or you need it live immediately
 sync:

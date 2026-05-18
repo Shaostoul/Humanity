@@ -139,6 +139,23 @@ Identity (federation objects): ML-DSA-65 (Dilithium3, FIPS 204), separate keypai
 - BIP39 seed still restores the Ed25519 key (the Dilithium key re-derives from the same seed automatically — no new backup, no recovery change).
 - Federation objects + DIDs already moved to Dilithium3 (server-side `api/v2/*` routes). Chat clients never touch DIDs directly.
 - Kyber768 infrastructure deployed but DM E2EE still uses ECDH P-256.
+- **FULL-PQ CUTOVER IN PROGRESS (operator 2026-05-18: "screw backwards
+  compat, go full PQ, fresh slate, full wipe is fine").** Target: ONE
+  seed → Dilithium3 (identity+signing) + Kyber768 (DM) + Ed25519
+  (Solana-wallet only); delete ECDH-P256 DM, the random per-browser
+  ECDH vault key + manual import, Ed25519-as-identity, and the
+  soft/gated dual-sign increments. **Shipped + KAT-locked (reality,
+  not goal):** pure ML-KEM-768→BLAKE3-KDF→AES-256-GCM DM, recipient
+  key DETERMINISTIC from the seed — `src/net/dm_pq.rs` (v0.262.28) and
+  web `pq.js::pqDeriveKyber/pqDmSeal/pqDmOpen` (v0.262.29), proven
+  byte-identical web↔native by `pq_crypto.rs::kyber_cross_language_kat`
+  + `scripts/pq-kat.mjs` (noble ml_kem768 == RustCrypto). This kills
+  the cross-client "decryption failed" bug at the root. **Still
+  ECDH/Ed25519 on the wire until the attended cutover** (crypto.js
+  identity swap, relay identity=Dilithium + fresh schema via
+  `scripts/pq-wipe.sh`, native swap, trim). Do NOT describe DM as
+  Kyber end-to-end yet — the primitive is proven+shipped; the clients
+  aren't switched over.
 
 **Operator-stated direction (target, not yet shipped):** the account/identity primary key should be Dilithium3, with Ed25519 retained only for Solana-wallet compatibility (Solana itself hasn't migrated). Today's reality is the inverse — Ed25519 IS the primary chat identity. Migration roadmap:
 
