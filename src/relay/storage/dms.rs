@@ -263,53 +263,31 @@ impl Storage {
         })
     }
 
-    // ── ECDH Public Key methods (E2EE DMs) ──
+    // ── Kyber768 DM key (full-PQ cutover, v0.262.33) ──
+    //
+    // `public_key` IS the Dilithium3 identity hex. `kyber_public` is
+    // the recipient's ML-KEM-768 encapsulation key (base64) a sender
+    // encapsulates a per-message secret to (net::dm_pq / web pq.js).
+    // The relay only stores + serves it; it never sees DM plaintext.
+    // Replaces the trimmed store/get_ecdh_public +
+    // store/get_dilithium_public dual-stack scaffolding.
 
-    /// Store or update the ECDH P-256 public key for a given Ed25519 public key.
-    pub fn store_ecdh_public(&self, public_key: &str, ecdh_public: &str) -> Result<(), rusqlite::Error> {
+    /// Store/update the recipient's Kyber768 public key (base64).
+    pub fn store_kyber_public(&self, public_key: &str, kyber_public: &str) -> Result<(), rusqlite::Error> {
         self.with_conn(|conn| {
             conn.execute(
-                "UPDATE registered_names SET ecdh_public = ?1 WHERE public_key = ?2",
-                params![ecdh_public, public_key],
+                "UPDATE registered_names SET kyber_public = ?1 WHERE public_key = ?2",
+                params![kyber_public, public_key],
             )?;
             Ok(())
         })
     }
 
-    /// Get the ECDH P-256 public key for a given Ed25519 public key.
-    pub fn get_ecdh_public(&self, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
+    /// Get the Kyber768 public key (base64) for a Dilithium identity.
+    pub fn get_kyber_public(&self, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
         self.with_conn(|conn| {
             match conn.query_row(
-                "SELECT ecdh_public FROM registered_names WHERE public_key = ?1 AND ecdh_public IS NOT NULL LIMIT 1",
-                params![public_key],
-                |row| row.get(0),
-            ) {
-                Ok(key) => Ok(Some(key)),
-                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-                Err(e) => Err(e),
-            }
-        })
-    }
-
-    // ── Dilithium3 Public Key methods (PQ migration Increment 1) ──
-
-    /// Store/update the Dilithium3 (ML-DSA-65) public key (hex) for a
-    /// given Ed25519 public key. Additive — Ed25519 stays canonical.
-    pub fn store_dilithium_public(&self, public_key: &str, dilithium_public: &str) -> Result<(), rusqlite::Error> {
-        self.with_conn(|conn| {
-            conn.execute(
-                "UPDATE registered_names SET dilithium_public = ?1 WHERE public_key = ?2",
-                params![dilithium_public, public_key],
-            )?;
-            Ok(())
-        })
-    }
-
-    /// Get the Dilithium3 public key (hex) for a given Ed25519 key.
-    pub fn get_dilithium_public(&self, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
-        self.with_conn(|conn| {
-            match conn.query_row(
-                "SELECT dilithium_public FROM registered_names WHERE public_key = ?1 AND dilithium_public IS NOT NULL LIMIT 1",
+                "SELECT kyber_public FROM registered_names WHERE public_key = ?1 AND kyber_public IS NOT NULL LIMIT 1",
                 params![public_key],
                 |row| row.get(0),
             ) {
@@ -428,47 +406,30 @@ mod tests {
         assert_eq!(convo.len(), 3);
     }
 
-    /// ECDH public-key storage requires a pre-existing `registered_names` row;
-    /// without one the update has no effect. Verifies the documented semantics.
+    /// Full-PQ: Kyber768 DM key round-trips, only sticks when a
+    /// `registered_names` row exists (no-op otherwise), and re-store
+    /// overwrites. `public_key` here IS the Dilithium identity hex.
     #[test]
-    fn ecdh_public_requires_registered_name() {
-        let db = fresh_db();
-        // No registered_names row for this key — store_ecdh_public is a no-op.
-        db.store_ecdh_public("alice_key", "ecdh_pub_b64").unwrap();
-        assert_eq!(db.get_ecdh_public("alice_key").unwrap(), None);
-    }
-
-    /// PQ migration Inc 1: Dilithium public key round-trips, and (same
-    /// semantics as ecdh) only sticks when a registered_names row
-    /// exists. Independent of ecdh_public — storing one must not affect
-    /// the other.
-    #[test]
-    fn dilithium_public_roundtrip_and_independence() {
+    fn kyber_public_roundtrip_requires_registered_name() {
         let db = fresh_db();
         // No registered_names row yet → store is a no-op.
-        db.store_dilithium_public("alice_key", "deadbeef").unwrap();
-        assert_eq!(db.get_dilithium_public("alice_key").unwrap(), None);
+        db.store_kyber_public("dilithium_hex", "kyber_b64").unwrap();
+        assert_eq!(db.get_kyber_public("dilithium_hex").unwrap(), None);
 
-        // Register the name, then it persists.
-        db.register_name("Alice", "alice_key").unwrap();
-        db.store_dilithium_public("alice_key", "deadbeef").unwrap();
+        // Register the name (key = Dilithium hex), then it persists.
+        db.register_name("Alice", "dilithium_hex").unwrap();
+        db.store_kyber_public("dilithium_hex", "kyber_b64").unwrap();
         assert_eq!(
-            db.get_dilithium_public("alice_key").unwrap(),
-            Some("deadbeef".to_string())
+            db.get_kyber_public("dilithium_hex").unwrap(),
+            Some("kyber_b64".to_string())
         );
 
-        // ecdh + dilithium are independent columns.
-        db.store_ecdh_public("alice_key", "ecdh_val").unwrap();
-        assert_eq!(db.get_ecdh_public("alice_key").unwrap(), Some("ecdh_val".to_string()));
+        // Re-store overwrites (re-onboard / new seed).
+        db.store_kyber_public("dilithium_hex", "kyber_b64_v2").unwrap();
         assert_eq!(
-            db.get_dilithium_public("alice_key").unwrap(),
-            Some("deadbeef".to_string()),
-            "storing ecdh must not disturb dilithium"
+            db.get_kyber_public("dilithium_hex").unwrap(),
+            Some("kyber_b64_v2".to_string())
         );
-
-        // Re-store overwrites.
-        db.store_dilithium_public("alice_key", "cafe").unwrap();
-        assert_eq!(db.get_dilithium_public("alice_key").unwrap(), Some("cafe".to_string()));
     }
 
     /// Conversation `limit` caps the number of rows returned, but always returns

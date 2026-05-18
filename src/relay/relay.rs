@@ -71,11 +71,9 @@ pub struct Peer {
     pub display_name: Option<String>,
     /// Per-session upload token (M-4: prevents impersonation on uploads).
     pub upload_token: Option<String>,
-    /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
-    pub ecdh_public: Option<String>,
-    /// Dilithium3 (ML-DSA-65) public key, hex. PQ migration Inc 1 —
-    /// recorded alongside Ed25519; Ed25519 stays canonical for now.
-    pub dilithium_public: Option<String>,
+    /// Kyber768 (ML-KEM-768) encapsulation key (base64) for E2EE DMs.
+    /// Full-PQ: `public_key_hex` is the Dilithium3 identity.
+    pub kyber_public: Option<String>,
 }
 
 /// Default maximum message history to keep in memory (overridden by server-config.json "max_history").
@@ -503,16 +501,14 @@ pub enum RelayMessage {
         /// Required for bot_* keys: must match API_SECRET (L-1).
         #[serde(skip_serializing_if = "Option::is_none", default)]
         bot_secret: Option<String>,
-        /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
+        /// Kyber768 (ML-KEM-768) encapsulation key, base64. Full-PQ:
+        /// `public_key` is the Dilithium3 identity hex; this is the
+        /// recipient key senders encapsulate DM secrets to.
         #[serde(skip_serializing_if = "Option::is_none", default)]
-        ecdh_public: Option<String>,
-        /// Dilithium3 (ML-DSA-65) public key, hex. PQ migration Inc 1 —
-        /// optional; old clients omit it. Recorded alongside Ed25519.
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        dilithium_public: Option<String>,
+        kyber_public: Option<String>,
     },
 
-    /// A chat message, optionally Ed25519-signed.
+    /// A chat message, Dilithium3-signed (`pq_signature`).
     #[serde(rename = "chat")]
     Chat {
         from: String,
@@ -543,12 +539,9 @@ pub enum RelayMessage {
         display_name: Option<String>,
         #[serde(default)]
         role: String,
-        /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
+        /// Kyber768 encapsulation key (base64) for E2EE DMs.
         #[serde(skip_serializing_if = "Option::is_none", default)]
-        ecdh_public: Option<String>,
-        /// Dilithium3 (ML-DSA-65) public key, hex. PQ migration Inc 1.
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        dilithium_public: Option<String>,
+        kyber_public: Option<String>,
     },
 
     /// Server announces a peer left.
@@ -2178,12 +2171,9 @@ pub struct PeerInfo {
     /// Custom status text.
     #[serde(default)]
     pub status_text: String,
-    /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
+    /// Kyber768 encapsulation key (base64) for E2EE DMs.
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub ecdh_public: Option<String>,
-    /// Dilithium3 (ML-DSA-65) public key, hex. PQ migration Inc 1.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub dilithium_public: Option<String>,
+    pub kyber_public: Option<String>,
 }
 
 fn default_true() -> bool { true }
@@ -2311,12 +2301,9 @@ pub struct UserInfo {
     pub status: String,
     #[serde(default)]
     pub status_text: String,
-    /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
+    /// Kyber768 encapsulation key (base64) for E2EE DMs.
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub ecdh_public: Option<String>,
-    /// Dilithium3 (ML-DSA-65) public key, hex. PQ migration Inc 1.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub dilithium_public: Option<String>,
+    pub kyber_public: Option<String>,
 }
 
 /// RAII guard that decrements the connection counter when dropped.
@@ -2362,7 +2349,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
         };
         let Some(Ok(msg)) = msg else { return; };
         if let Message::Text(text) = msg {
-            if let Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, ecdh_public, dilithium_public }) =
+            if let Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, kyber_public }) =
                 serde_json::from_str::<RelayMessage>(&text)
             {
                 // L-1: Bot keys require bot_secret matching API_SECRET.
@@ -2486,18 +2473,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     hex::encode(random_bytes)
                 };
 
-                // Store ECDH public key in DB if provided.
-                if let Some(ref ecdh_key) = ecdh_public {
-                    if let Err(e) = state.db.store_ecdh_public(&public_key, ecdh_key) {
-                        tracing::error!("Failed to store ECDH public key: {e}");
-                    }
-                }
-
-                // PQ migration Inc 1: record the client's Dilithium3
-                // public key alongside Ed25519 (additive, nullable).
-                if let Some(ref dil_key) = dilithium_public {
-                    if let Err(e) = state.db.store_dilithium_public(&public_key, dil_key) {
-                        tracing::error!("Failed to store Dilithium public key: {e}");
+                // Full-PQ: `public_key` IS the Dilithium3 identity hex;
+                // store the recipient's Kyber768 DM key if provided.
+                if let Some(ref k) = kyber_public {
+                    if let Err(e) = state.db.store_kyber_public(&public_key, k) {
+                        tracing::error!("Failed to store Kyber public key: {e}");
                     }
                 }
 
@@ -2505,8 +2485,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     public_key_hex: public_key.clone(),
                     display_name: final_name.clone(),
                     upload_token: Some(upload_token.clone()),
-                    ecdh_public: ecdh_public.clone(),
-                    dilithium_public: dilithium_public.clone(),
+                    kyber_public: kyber_public.clone(),
                 };
 
                 // Register peer and upload token mapping.
@@ -2582,9 +2561,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                         };
                         let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
                         let (user_status, user_status_text) = statuses_snap.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
-                        // Get ECDH key: from in-memory peer (if online) or from DB.
-                        let ecdh_pub = p.ecdh_public.clone().or_else(|| state.db.get_ecdh_public(&p.public_key_hex).ok().flatten());
-                        let dil_pub = p.dilithium_public.clone().or_else(|| state.db.get_dilithium_public(&p.public_key_hex).ok().flatten());
+                        // Kyber DM key: from the in-memory peer (if online) or DB.
+                        let kyber_pub = p.kyber_public.clone().or_else(|| state.db.get_kyber_public(&p.public_key_hex).ok().flatten());
                         PeerInfo {
                             public_key: p.public_key_hex.clone(),
                             display_name: p.display_name.clone(),
@@ -2592,8 +2570,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             upload_token: token,
                             status: user_status,
                             status_text: user_status_text,
-                            ecdh_public: ecdh_pub,
-                            dilithium_public: dil_pub,
+                            kyber_public: kyber_pub,
                         }
                     })
                     .collect();
@@ -2622,9 +2599,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             // Bot accounts (bot_ prefix keys) are always shown as online.
                             let online = first_key.starts_with("bot_") || online_names.contains(&name.to_lowercase());
                             let (us, ust) = statuses_snap2.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()));
-                            let ecdh_pub = state.db.get_ecdh_public(&first_key).ok().flatten();
-                            let dil_pub = state.db.get_dilithium_public(&first_key).ok().flatten();
-                            UserInfo { name, public_key: first_key, role, online, key_count, status: us, status_text: ust, ecdh_public: ecdh_pub, dilithium_public: dil_pub }
+                            let kyber_pub = state.db.get_kyber_public(&first_key).ok().flatten();
+                            UserInfo { name, public_key: first_key, role, online, key_count, status: us, status_text: ust, kyber_public: kyber_pub }
                         })
                         .collect();
                     drop(statuses_snap2);
@@ -2754,8 +2730,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     public_key,
                     display_name: final_name,
                     role: peer_role.clone(),
-                    ecdh_public: ecdh_public.clone(),
-                    dilithium_public: dilithium_public.clone(),
+                    kyber_public: kyber_public.clone(),
                 });
 
                 // Broadcast updated full user list to all clients.
@@ -4609,10 +4584,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         .and_then(|v| v.get("pq_signature"))
                                         .and_then(|v| v.as_str())
                                         .map(|s| s.to_string());
-                                    let dil_pub_opt = state_clone.db
-                                        .get_dilithium_public(&my_key_for_recv)
-                                        .ok()
-                                        .flatten();
+                                    // Full-PQ: the signer's Dilithium
+                                    // public key IS their identity key
+                                    // (`my_key_for_recv`). No separate
+                                    // lookup — verify against identity.
+                                    let dil_pub_opt = Some(my_key_for_recv.clone());
                                     let require_pq = state_clone.db
                                         .get_server_settings()
                                         .map(|s| s.require_pq_signatures)

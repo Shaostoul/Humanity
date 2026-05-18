@@ -264,9 +264,16 @@ impl Storage {
                 last_seen   INTEGER NOT NULL
             );
 
+            -- Full-PQ cutover (v0.262.33): `public_key` is the
+            -- Dilithium3 public-key hex (THE identity; DID derives from
+            -- it). Ed25519 is Solana-wallet-only, never reaches the
+            -- relay. `kyber_public` = recipient ML-KEM-768 encapsulation
+            -- key (base64) for E2EE DMs. No ecdh/dilithium_public cols
+            -- (dual-stack scaffolding trimmed).
             CREATE TABLE IF NOT EXISTS registered_names (
                 name        TEXT NOT NULL COLLATE NOCASE,
                 public_key  TEXT NOT NULL,
+                kyber_public TEXT DEFAULT NULL,
                 registered_at INTEGER NOT NULL,
                 PRIMARY KEY (name, public_key)
             );
@@ -573,29 +580,19 @@ impl Storage {
             info!("Migration: added category_id column to channels");
         }
 
-        // Migration: add ecdh_public column to registered_names for E2EE DMs.
-        let has_ecdh: bool = conn
-            .prepare("SELECT ecdh_public FROM registered_names LIMIT 0")
+        // Full-PQ cutover (v0.262.33): the ecdh_public + dilithium_public
+        // dual-stack ALTERs are GONE. `public_key` is the Dilithium
+        // identity; `kyber_public` is in the CREATE TABLE above. This
+        // idempotent ALTER only covers a pre-cutover DB; `just pq-wipe
+        // yes` makes it irrelevant (fresh schema).
+        let has_kyber: bool = conn
+            .prepare("SELECT kyber_public FROM registered_names LIMIT 0")
             .is_ok();
-        if !has_ecdh {
+        if !has_kyber {
             conn.execute_batch(
-                "ALTER TABLE registered_names ADD COLUMN ecdh_public TEXT DEFAULT NULL;"
+                "ALTER TABLE registered_names ADD COLUMN kyber_public TEXT DEFAULT NULL;"
             )?;
-            info!("Migration: added ecdh_public column to registered_names");
-        }
-
-        // PQ migration Increment 1 (v0.251): record the client's
-        // Dilithium3 public key alongside the Ed25519 one. Nullable —
-        // old clients omit it; Ed25519 stays the canonical identity.
-        // Same idempotent-ALTER pattern as ecdh_public above.
-        let has_dilithium: bool = conn
-            .prepare("SELECT dilithium_public FROM registered_names LIMIT 0")
-            .is_ok();
-        if !has_dilithium {
-            conn.execute_batch(
-                "ALTER TABLE registered_names ADD COLUMN dilithium_public TEXT DEFAULT NULL;"
-            )?;
-            info!("Migration: added dilithium_public column to registered_names");
+            info!("Migration: added kyber_public column to registered_names");
         }
 
         // Migration: add encrypted and nonce columns to direct_messages for E2EE.
