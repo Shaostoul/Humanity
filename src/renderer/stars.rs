@@ -29,6 +29,15 @@ pub struct StarRenderer {
     star_count: u32,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    /// Constellation figure lines (v0.262.18). LineList pipeline reusing
+    /// the same rotation-only camera + shader so the figures stay locked
+    /// to the celestial sphere exactly like the stars. Endpoints are
+    /// resolved against the SAME stars.csv the skybox draws (by HYG
+    /// `proper` name) so they overlay the real stars by construction —
+    /// no RA/Dec convention to get wrong.
+    line_pipeline: Option<wgpu::RenderPipeline>,
+    constellation_buffer: Option<wgpu::Buffer>,
+    constellation_vertex_count: u32,
 }
 
 impl StarRenderer {
@@ -171,12 +180,88 @@ impl StarRenderer {
             cache: None,
         });
 
+        // ── Constellation figure lines (v0.262.18) ──
+        // Same shader + camera BGL + vertex layout + blend; only the
+        // topology differs (LineList). Endpoints resolved against the
+        // same stars.csv the skybox renders, so they overlay the real
+        // stars with zero coordinate-convention risk.
+        let constell_verts = load_constellations(csv_path);
+        let (line_pipeline, constellation_buffer, constellation_vertex_count) =
+            if constell_verts.len() >= 2 {
+                let buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Constellation Line Buffer"),
+                    contents: bytemuck::cast_slice(&constell_verts),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
+                let lp = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("Constellation Line Pipeline"),
+                    layout: Some(&pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader_module,
+                        entry_point: Some("vs_main"),
+                        buffers: &[wgpu::VertexBufferLayout {
+                            array_stride: std::mem::size_of::<StarVertex>() as u64,
+                            step_mode: wgpu::VertexStepMode::Vertex,
+                            attributes: &[
+                                wgpu::VertexAttribute {
+                                    offset: 0,
+                                    shader_location: 0,
+                                    format: wgpu::VertexFormat::Float32x3,
+                                },
+                                wgpu::VertexAttribute {
+                                    offset: 12,
+                                    shader_location: 1,
+                                    format: wgpu::VertexFormat::Float32x4,
+                                },
+                            ],
+                        }],
+                        compilation_options: Default::default(),
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader_module,
+                        entry_point: Some("fs_main"),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: surface_format,
+                            blend: Some(wgpu::BlendState {
+                                color: wgpu::BlendComponent {
+                                    src_factor: wgpu::BlendFactor::SrcAlpha,
+                                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                                    operation: wgpu::BlendOperation::Add,
+                                },
+                                alpha: wgpu::BlendComponent::OVER,
+                            }),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                        compilation_options: Default::default(),
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::LineList,
+                        ..Default::default()
+                    },
+                    depth_stencil: None,
+                    multisample: wgpu::MultisampleState::default(),
+                    multiview: None,
+                    cache: None,
+                });
+                log::info!(
+                    "Constellation lines: {} segments",
+                    constell_verts.len() / 2
+                );
+                (Some(lp), Some(buf), constell_verts.len() as u32)
+            } else {
+                log::warn!("Constellation lines: none resolved (no overlay)");
+                (None, None, 0)
+            };
+
         Some(Self {
             pipeline,
             vertex_buffer,
             star_count,
             camera_buffer,
             camera_bind_group,
+            line_pipeline,
+            constellation_buffer,
+            constellation_vertex_count,
         })
     }
 
@@ -212,6 +297,15 @@ impl StarRenderer {
         render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.draw(0..self.star_count, 0..1);
+
+        // Constellation figures — same rotation-only camera, drawn over
+        // the stars. Faint, so they read as figures without competing.
+        if let (Some(lp), Some(buf)) = (&self.line_pipeline, &self.constellation_buffer) {
+            render_pass.set_pipeline(lp);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, buf.slice(..));
+            render_pass.draw(0..self.constellation_vertex_count, 0..1);
+        }
     }
 }
 
@@ -273,6 +367,99 @@ fn load_stars_csv(path: &Path) -> Option<Vec<StarVertex>> {
 
     log::info!("Parsed {} visible stars from CSV (filtered by brightness)", vertices.len());
     Some(vertices)
+}
+
+/// Build constellation figure lines as a LineList (vertex pairs).
+///
+/// Endpoints are resolved by HYG `proper` name against the SAME
+/// stars.csv the skybox renders, so the figures overlay the real
+/// stars by construction — there is no RA/Dec→xyz conversion here to
+/// get mirrored or rotated. `constellations.json` sits next to
+/// stars.csv (data/). Unresolved endpoints just skip that segment.
+fn load_constellations(csv_path: &Path) -> Vec<StarVertex> {
+    // Faint cool blue-white — visible as a figure, doesn't fight stars.
+    const LINE_RGBA: [f32; 4] = [0.46, 0.58, 0.86, 0.30];
+
+    // 1. proper-name → unit direction, from the very stars.csv we draw.
+    let csv = match std::fs::read_to_string(csv_path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let mut rows = csv.lines();
+    let header = match rows.next() {
+        Some(h) => h,
+        None => return Vec::new(),
+    };
+    let cols: Vec<&str> = header.split(',').map(|s| s.trim().trim_matches('"')).collect();
+    let col = |n: &str| cols.iter().position(|&c| c == n);
+    let (pi, xi, yi, zi) = match (col("proper"), col("x"), col("y"), col("z")) {
+        (Some(p), Some(x), Some(y), Some(z)) => (p, x, y, z),
+        _ => return Vec::new(),
+    };
+    let mut by_name: std::collections::HashMap<String, [f32; 3]> =
+        std::collections::HashMap::new();
+    for line in rows {
+        let f: Vec<&str> = line.split(',').map(|s| s.trim().trim_matches('"')).collect();
+        let need = pi.max(xi).max(yi).max(zi);
+        if f.len() <= need {
+            continue;
+        }
+        let name = f[pi].trim();
+        if name.is_empty() {
+            continue;
+        }
+        let x: f64 = f[xi].parse().unwrap_or(0.0);
+        let y: f64 = f[yi].parse().unwrap_or(0.0);
+        let z: f64 = f[zi].parse().unwrap_or(0.0);
+        let len = (x * x + y * y + z * z).sqrt();
+        if len < 0.001 {
+            continue;
+        }
+        by_name.insert(
+            name.to_ascii_lowercase(),
+            [(x / len) as f32, (y / len) as f32, (z / len) as f32],
+        );
+    }
+    if by_name.is_empty() {
+        return Vec::new();
+    }
+
+    // 2. constellations.json (next to stars.csv) → resolved segments.
+    let cj = match csv_path
+        .parent()
+        .map(|d| d.join("constellations.json"))
+        .and_then(|p| std::fs::read_to_string(p).ok())
+    {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    let root: serde_json::Value = match serde_json::from_str(&cj) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+    let arr = match root.as_array() {
+        Some(a) => a,
+        None => return Vec::new(),
+    };
+
+    let mut out: Vec<StarVertex> = Vec::new();
+    for con in arr {
+        let Some(lines) = con.get("lines").and_then(|l| l.as_array()) else { continue };
+        for pair in lines {
+            let Some(p) = pair.as_array() else { continue };
+            let (Some(a), Some(b)) = (
+                p.first().and_then(|v| v.as_str()),
+                p.get(1).and_then(|v| v.as_str()),
+            ) else { continue };
+            let (Some(da), Some(db)) = (
+                by_name.get(&a.to_ascii_lowercase()),
+                by_name.get(&b.to_ascii_lowercase()),
+            ) else { continue };
+            out.push(StarVertex { direction: *da, color_brightness: LINE_RGBA });
+            out.push(StarVertex { direction: *db, color_brightness: LINE_RGBA });
+        }
+    }
+    out
 }
 
 /// Convert B-V color index to RGB.
