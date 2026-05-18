@@ -544,21 +544,14 @@ async function loadHistory() {
 
         const key = msg.from + ':' + msg.timestamp;
         seenTimestamps.add(key);
-        // Verify history message signatures client-side so tampered history is surfaced.
-        if (msg.signature && msg.from && !msg.from.startsWith('bot_')) {
-          const _msg = msg; // capture for async closure
-          verifyMessage(_msg.from, _msg.signature, _msg.content, _msg.timestamp).then(valid => {
-            addChatMessage(
-              resolveSenderName(_msg.from_name, _msg.from), _msg.content, _msg.timestamp, _msg.from,
-              true, valid ? true : 'invalid', _msg.reply_to || null, _msg.thread_count || null, false, _msg.message_id || null
-            );
-          });
-        } else {
-          addChatMessage(
-            resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from,
-            true, false, msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null
-          );
-        }
+        // Full-PQ: the relay is the authoritative chat verifier — it
+        // checks the Dilithium3 `pq_signature` server-side before it
+        // stores/replays history (Inc3). The dead Ed25519 client-verify
+        // path was removed; no per-message client crypto on the hot path.
+        addChatMessage(
+          resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from,
+          true, false, msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null
+        );
       }
 
       // Update last-seen to the newest message timestamp.
@@ -671,16 +664,10 @@ async function handleMessage(msg) {
       const key = msg.from + ':' + msg.timestamp;
       if (seenTimestamps.has(key)) return; // Deduplicate
       seenTimestamps.add(key);
-      const hasSig = !!msg.signature;
-      // If message has a signature, verify it client-side and surface the result.
-      // 'invalid' warns the user if a relay or MITM tampered with the content.
-      if (hasSig && msg.from && !msg.from.startsWith('bot_')) {
-        verifyMessage(msg.from, msg.signature, msg.content, msg.timestamp).then(valid => {
-          addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, valid ? true : 'invalid', msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null);
-        });
-      } else {
-        addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, false, msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null);
-      }
+      // Full-PQ: the relay verifies the Dilithium3 `pq_signature`
+      // server-side before broadcasting (Inc3) — it is the chat trust
+      // boundary. The dead Ed25519 client-verify path was removed.
+      addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, false, msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null);
       // If this message is a reply, update the parent's thread count badge in the DOM.
       if (msg.reply_to) {
         updateThreadBadge(msg.reply_to.from, msg.reply_to.timestamp);

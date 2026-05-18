@@ -87,16 +87,19 @@ async function exportContactCard() {
     ts:   Math.floor(Date.now() / 1000),
   };
 
-  // Attach our ECDH public key if available (needed for E2E encryption setup).
-  // myEcdhPublicBase64 is set by getOrCreateEcdhKeypair() in crypto.js on connect.
-  if (myEcdhPublicBase64) payload.ecdh = myEcdhPublicBase64;
+  // Full-PQ: attach our Kyber768 public key so the peer can seal P2P
+  // DMs to us (pure ML-KEM, same envelope as relay DMs). Set by
+  // attachPqIdentity() in crypto.js on connect.
+  if (myKyberPublicBase64) payload.kyber = myKyberPublicBase64;
 
-  // Sign the canonical JSON representation (keys sorted alphabetically).
+  // Sign the canonical JSON with Dilithium3 — `pub` IS the Dilithium
+  // identity key, so the card must be Dilithium-signed (not Ed25519).
   const canonical = JSON.stringify(payload, Object.keys(payload).sort());
   let sig = '';
   try {
-    const sigBuf = await crypto.subtle.sign('Ed25519', myIdentity.privateKey, new TextEncoder().encode(canonical));
-    sig = bufToHex(sigBuf); // bufToHex is defined in crypto.js
+    const sigBytes = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(canonical));
+    if (!sigBytes) throw new Error('post-quantum identity not ready');
+    sig = bufToHex(sigBytes); // bufToHex is defined in crypto.js
   } catch (err) {
     addSystemMessage('⚠️ Failed to sign contact card: ' + err.message);
     return;
@@ -278,18 +281,18 @@ async function importContactCard(json) {
   const ageMs = Date.now() - card.ts * 1000;
   if (ageMs > CONTACT_CARD_MAX_AGE_MS) throw new Error('Card has expired (older than 7 days).');
 
-  // Verify Ed25519 signature over the canonical payload.
+  // Verify the Dilithium3 signature over the canonical payload.
   const payload = { v: card.v, name: card.name, pub: card.pub, ts: card.ts };
-  if (card.ecdh) payload.ecdh = card.ecdh;
+  if (card.kyber) payload.kyber = card.kyber;
   const canonical = JSON.stringify(payload, Object.keys(payload).sort());
   const valid = await verifyContactCardSignature(canonical, card.sig, card.pub);
   if (!valid) throw new Error('Signature verification failed — card may be tampered.');
 
   // Store in memory (IndexedDB persistence is a future improvement).
   p2pContacts[card.pub] = {
-    name:     card.name,
-    ecdh_pub: card.ecdh || null,
-    added_at: Date.now(),
+    name:      card.name,
+    kyber_pub: card.kyber || null,
+    added_at:  Date.now(),
     dc_status: 'idle',
   };
 
@@ -304,19 +307,20 @@ async function importContactCard(json) {
 }
 
 /**
- * Verify an Ed25519 signature over a message using the public key from a contact card.
+ * Verify a Dilithium3 signature over a message using the public key from a contact card.
  * @param {string} message   - The signed message (canonical JSON string)
- * @param {string} sigHex    - Hex-encoded signature
- * @param {string} pubKeyHex - Hex-encoded Ed25519 public key
+ * @param {string} sigHex    - Hex-encoded Dilithium3 signature
+ * @param {string} pubKeyHex - Hex-encoded Dilithium3 public key
  * @returns {Promise<boolean>}
  */
 async function verifyContactCardSignature(message, sigHex, pubKeyHex) {
   try {
-    // Import the public key in raw form (hexToBuf is defined in crypto.js).
-    const pubKey = await crypto.subtle.importKey('raw', hexToBuf(pubKeyHex), 'Ed25519', true, ['verify']);
-    const msgBytes = new TextEncoder().encode(message);
+    // Full-PQ: `pub` is the Dilithium3 identity key; verify with ML-DSA-65.
+    // hexToBuf is defined in crypto.js.
+    const pubBytes = hexToBuf(pubKeyHex);
     const sigBytes = hexToBuf(sigHex);
-    return await crypto.subtle.verify({ name: 'Ed25519' }, pubKey, sigBytes, msgBytes);
+    const msgBytes = new TextEncoder().encode(message);
+    return await window.pqVerifyMessage(pubBytes, msgBytes, sigBytes);
   } catch {
     return false;
   }
@@ -462,10 +466,10 @@ async function sendP2PMessage(peerPubKey, text) {
   const dc = p2pDataChannels[peerPubKey];
   const contact = p2pContacts[peerPubKey];
 
-  if (dc && dc.readyState === 'open' && contact?.ecdh_pub) {
-    // Happy path: encrypt and send over open DataChannel.
+  if (dc && dc.readyState === 'open' && contact?.kyber_pub) {
+    // Happy path: dual-seal (Kyber768) and send over the open DataChannel.
     try {
-      const enc = await encryptDmContent(text, contact.ecdh_pub);
+      const enc = await encryptDmContent(text, contact.kyber_pub);
       if (enc) {
         dc.send(JSON.stringify({ type: 'p2p_dm', ciphertext: enc.content, nonce: enc.nonce, ts: Date.now() }));
         return;
@@ -506,7 +510,7 @@ async function onDCMessage(event, peerKey) {
   let content = '[encrypted message]';
   if (msg.ciphertext && msg.nonce) {
     try {
-      const plain = await decryptDmContent(msg.ciphertext, msg.nonce, contact?.ecdh_pub);
+      const plain = await decryptDmContent(msg.ciphertext, msg.nonce, null);
       if (plain !== null) content = plain;
     } catch {}
   }

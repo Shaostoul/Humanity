@@ -1024,7 +1024,6 @@ function doRemoveKeyProtection() {
   if (!confirm('Remove passphrase protection? Your private key will be stored in plaintext in localStorage again.')) return;
   try {
     localStorage.removeItem(WRAPPED_KEY_LS);
-    localStorage.removeItem(WRAPPED_ECDH_LS);
     const msg = document.getElementById('kp-msg');
     if (msg) msg.innerHTML = '<span style="color:var(--accent)">⚠️ Protection removed. Key is now stored in plaintext.</span>';
     const protBtn = document.getElementById('key-protect-btn');

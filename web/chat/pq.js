@@ -104,6 +104,23 @@ async function pqSignMessage(secretKey, messageBytes) {
 }
 
 /**
+ * Verify a Dilithium3 signature. `publicKey` and `signature` are
+ * Uint8Array; `messageBytes` Uint8Array. Returns true/false (never
+ * throws). noble 0.6.x: verify(signature, message, publicKey).
+ */
+async function pqVerifyMessage(publicKey, messageBytes, signature) {
+  try {
+    if (!publicKey || !messageBytes || !signature) return false;
+    const m = await _pqLoad();
+    if (!m) return false;
+    return !!m.ml_dsa65.verify(signature, messageBytes, publicKey);
+  } catch (e) {
+    console.warn('pqVerifyMessage failed:', e && e.message);
+    return false;
+  }
+}
+
+/**
  * Derive the Kyber768 (ML-KEM-768) DM keypair from the 32-byte master
  * seed — the SAME seed the Dilithium identity uses. Byte-identical to
  * the Rust relay (pq_crypto::derive_kyber_seed → KyberKeypair::from_seed)
@@ -199,6 +216,7 @@ async function pqDmOpen(kyberSecret, ekCtB64, nonceB64, ctB64) {
 // Exposed globally (the chat client is classic scripts, not modules).
 window.pqDeriveIdentity = pqDeriveIdentity;
 window.pqSignMessage = pqSignMessage;
+window.pqVerifyMessage = pqVerifyMessage;
 window.pqDeriveKyber = pqDeriveKyber;
 window.pqDmSeal = pqDmSeal;
 window.pqDmOpen = pqDmOpen;
