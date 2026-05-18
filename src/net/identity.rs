@@ -68,9 +68,57 @@ fn decode_words_to_entropy(mnemonic_str: &str) -> Result<Vec<u8>, String> {
     Ok(entropy)
 }
 
+// ── Full-PQ identity (Dilithium3 id+signing, Kyber768 DM) ───────────────────
+// Both keys derive from the SAME 32-byte BIP39 seed the Ed25519 key uses,
+// byte-identical to the web client (crypto.js attachPqIdentity) and the
+// relay — locked by pq_crypto::{dilithium,kyber}_cross_language_kat +
+// scripts/pq-kat.mjs. Ed25519 is kept ONLY as the seed/Solana wallet.
+
+/// The post-quantum identity presented to the relay.
+pub struct PqIdentity {
+    /// Dilithium3 public key hex — THE chat identity (`public_key`).
+    pub dilithium_hex: String,
+    /// Kyber768 public key base64 — advertised at identify for DMs.
+    pub kyber_public_b64: String,
+}
+
+/// Derive the full-PQ identity from the 32-byte BIP39 seed.
+pub fn derive_pq_identity(seed32: &[u8]) -> Result<PqIdentity, String> {
+    let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(seed32);
+    let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+    let dm = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed32)?;
+    Ok(PqIdentity {
+        dilithium_hex: hex::encode(dil.public_key()),
+        kyber_public_b64: dm.public_base64(),
+    })
+}
+
+/// Dilithium3 chat signature (hex) over `content\ntimestamp` — the EXACT
+/// preimage the web client signs and the relay verifies (Inc3).
+pub fn pq_sign_chat(seed32: &[u8], content: &str, timestamp: u64) -> String {
+    let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(seed32);
+    let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+    hex::encode(dil.sign(format!("{content}\n{timestamp}").as_bytes()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pq_identity_deterministic_from_seed() {
+        // Same seed → same Dilithium id + Kyber DM key (the property that
+        // makes web↔native interop work; cross-language locked by KAT).
+        let seed = [7u8; 32];
+        let a = derive_pq_identity(&seed).unwrap();
+        let b = derive_pq_identity(&seed).unwrap();
+        assert_eq!(a.dilithium_hex, b.dilithium_hex);
+        assert_eq!(a.kyber_public_b64, b.kyber_public_b64);
+        assert_eq!(a.dilithium_hex.len(), 1952 * 2, "ML-DSA-65 pubkey hex");
+        // Signature preimage matches the web/relay contract.
+        let sig = pq_sign_chat(&seed, "hi", 123);
+        assert_eq!(sig.len(), 3309 * 2, "ML-DSA-65 sig hex");
+    }
 
     #[test]
     fn test_mnemonic_roundtrip() {

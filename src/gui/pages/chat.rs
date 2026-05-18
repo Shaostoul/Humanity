@@ -4607,35 +4607,33 @@ fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 /// The reason string flows into `PendingUnencryptedDm::reason` for the
 /// confirmation modal.
 ///
+/// Full-PQ: dual-seals (recipient + self) with Kyber768 and returns
+/// `(envelope_json, nonce_marker)`. The envelope is the web-compatible
+/// `{v:1,r,s}` JSON that rides in the relay's opaque `content` field;
+/// the top-level wire `nonce` is vestigial (the authoritative nonces are
+/// inside the envelope — kept non-empty only so any legacy
+/// `encrypted && nonce` predicate still trips).
+///
 /// Failure reasons:
-///   - `"no_own_ecdh"`        — this client has no ECDH private key set
-///   - `"missing_peer_key"`   — recipient's ECDH public key isn't known
-///   - `"bad_own_ecdh_hex"`   — our key is set but malformed (hex error)
-///   - `"bad_own_ecdh_len"`   — our key is wrong length (not 32 bytes)
-///   - `"bad_own_ecdh_keypair"` — keypair construction failed
-///   - `"encryption_failed"`  — encrypt_dm() returned an error
+///   - `"no_own_key"`        — the BIP39 seed isn't unlocked on this device
+///   - `"missing_peer_key"`  — recipient's Kyber768 public key isn't known
+///   - `"bad_own_key"`       — Kyber keypair derivation failed
+///   - `"encryption_failed"` — seal_envelope() returned an error
 fn try_encrypt_dm(
     state: &GuiState,
     partner_key: &str,
     content: &str,
 ) -> Result<(String, String), &'static str> {
-    if state.ecdh_private_hex.is_empty() {
-        return Err("no_own_ecdh");
-    }
-    let peer_ecdh = state.peer_ecdh_keys.get(partner_key)
+    let seed = state.private_key_bytes.as_ref().ok_or("no_own_key")?;
+    let my_kp = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed)
+        .map_err(|_| "bad_own_key")?;
+    let peer_kyber = state.peer_kyber_keys.get(partner_key)
         .ok_or("missing_peer_key")?;
-    let sb = hex::decode(&state.ecdh_private_hex)
-        .map_err(|_| "bad_own_ecdh_hex")?;
-    if sb.len() != 32 {
-        return Err("bad_own_ecdh_len");
-    }
-    let mut bytes = [0u8; 32];
-    bytes.copy_from_slice(&sb);
-    let kp = crate::net::dm_crypto::DmKeypair::from_secret_bytes(&bytes)
-        .map_err(|_| "bad_own_ecdh_keypair")?;
-    crate::net::dm_crypto::encrypt_dm(&kp, peer_ecdh, content)
-        .map(|enc| (enc.content_b64, enc.nonce_b64))
-        .map_err(|_| "encryption_failed")
+    let envelope = crate::net::dm_pq::seal_envelope(
+        peer_kyber, &my_kp.public_base64(), content,
+    )
+    .map_err(|_| "encryption_failed")?;
+    Ok((envelope, "pq".to_string()))
 }
 
 /// Render the unencrypted-DM confirmation modal if one is pending.
@@ -4649,10 +4647,10 @@ pub(crate) fn draw_unencrypted_dm_modal(ctx: &egui::Context, theme: &Theme, stat
     };
 
     let reason_human = match pending.reason.as_str() {
-        "no_own_ecdh" => "Your device has no encryption key set.",
-        "missing_peer_key" => "We don't have the recipient's encryption key yet — they may not have come online with a current key, or their key broadcast hasn't reached us.",
-        "bad_own_ecdh_hex" | "bad_own_ecdh_len" | "bad_own_ecdh_keypair" =>
-            "Your encryption key on this device is malformed. Try Identity → Recover.",
+        "no_own_key" => "Your identity isn't unlocked on this device — recover from your seed phrase to send encrypted DMs.",
+        "missing_peer_key" => "We don't have the recipient's post-quantum key yet — they may not have come online with a current client, or their key broadcast hasn't reached us.",
+        "bad_own_key" =>
+            "Your post-quantum key could not be derived on this device. Try Identity → Recover.",
         "encryption_failed" => "Encryption failed unexpectedly.",
         other => other,
     };

@@ -208,18 +208,32 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 if widgets::primary_button(ui, theme, "Recover") {
                     let phrase = state.settings.seed_phrase_input.trim().to_string();
                     match crate::net::identity::derive_keypair_from_mnemonic(&phrase) {
-                        Ok((pubkey_hex, privkey_bytes)) => {
-                            state.settings.seed_phrase_recovery_status = format!(
-                                "Recovered: {}...{}", &pubkey_hex[..8], &pubkey_hex[pubkey_hex.len()-8..]
-                            );
-                            state.profile_public_key = pubkey_hex;
-                            state.private_key_bytes = Some(privkey_bytes);
-                            state.identity_recovered = true;
-                            state.settings.seed_phrase_input.clear();
-                            state.settings.seed_phrase_show_recover = false;
-                            // Prompt for passphrase to encrypt the recovered key
-                            state.passphrase_needed = true;
-                            state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
+                        Ok((_ed25519_hex, privkey_bytes)) => {
+                            // Full-PQ: the chat identity is Dilithium3 (derived
+                            // from the SAME seed, byte-identical to web). The
+                            // Ed25519 hex is kept only as the Solana wallet.
+                            match crate::net::identity::derive_pq_identity(&privkey_bytes) {
+                                Ok(pq) => {
+                                    state.settings.seed_phrase_recovery_status = format!(
+                                        "Recovered: {}...{}",
+                                        &pq.dilithium_hex[..8],
+                                        &pq.dilithium_hex[pq.dilithium_hex.len()-8..]
+                                    );
+                                    state.profile_public_key = pq.dilithium_hex;
+                                    state.kyber_public_b64 = pq.kyber_public_b64;
+                                    state.private_key_bytes = Some(privkey_bytes);
+                                    state.identity_recovered = true;
+                                    state.settings.seed_phrase_input.clear();
+                                    state.settings.seed_phrase_show_recover = false;
+                                    // Prompt for a passphrase to encrypt the seed.
+                                    state.passphrase_needed = true;
+                                    state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
+                                }
+                                Err(e) => {
+                                    state.settings.seed_phrase_recovery_status =
+                                        format!("Error deriving PQ identity: {}", e);
+                                }
+                            }
                         }
                         Err(e) => {
                             state.settings.seed_phrase_recovery_status = format!("Error: {}", e);

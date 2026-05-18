@@ -9,34 +9,10 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::updater::{UpdateChannel, UpdateState};
 
-/// Parse the web client's ECDH backup JSON and convert to native format.
-/// Accepts either:
-/// - The full JSON: {"publicKeyRaw": "...", "privateKeyPkcs8": "..."}
-/// - Just the PKCS8 base64 string alone
-/// Returns (private_hex_32bytes, public_base64_65bytes).
-fn try_import_ecdh(input: &str) -> Result<(String, String), String> {
-    let input = input.trim();
-    if input.is_empty() {
-        return Err("Empty input".into());
-    }
-
-    // Try parsing as JSON first
-    let pkcs8_b64 = if input.starts_with('{') {
-        let val: serde_json::Value = serde_json::from_str(input)
-            .map_err(|e| format!("JSON parse: {}", e))?;
-        val.get("privateKeyPkcs8")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| "Missing 'privateKeyPkcs8' field".to_string())?
-            .to_string()
-    } else {
-        input.to_string()
-    };
-
-    let keypair = crate::net::dm_crypto::DmKeypair::from_pkcs8_base64(&pkcs8_b64)?;
-    let priv_hex = hex::encode(keypair.secret_bytes());
-    let pub_b64 = keypair.public_base64();
-    Ok((priv_hex, pub_b64))
-}
+// Full-PQ: the web "import ECDH key" flow is gone. DMs are pure Kyber768
+// derived from the BIP39 seed — identical on web and native with no manual
+// key import, ever (that import existed only to bridge the old random
+// per-browser ECDH key, the very thing that caused the cross-client bug).
 
 /// Styling params for inline sliders (captured before mutable theme borrows).
 struct SliderStyle {
@@ -306,66 +282,10 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
 
         ui.add_space(theme.spacing_md);
 
-        // ECDH key (for E2E encrypted DMs)
-        ui.label(RichText::new("DM Encryption Key (ECDH P-256)").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
-
-        widgets::form_row(ui, theme, "ECDH public", |ui| {
-            let display = if state.ecdh_public_b64.is_empty() {
-                "(not set)".to_string()
-            } else if state.ecdh_public_b64.len() > 20 {
-                format!("{}…", &state.ecdh_public_b64[..20])
-            } else {
-                state.ecdh_public_b64.clone()
-            };
-            ui.label(RichText::new(&display).color(theme.text_muted()).size(theme.font_size_small));
-            if !state.ecdh_public_b64.is_empty() {
-                ui.add_space(theme.spacing_sm);
-                if widgets::secondary_button(ui, theme, "Copy Public") {
-                    ui.ctx().copy_text(state.ecdh_public_b64.clone());
-                }
-            }
-        });
-
-        ui.label(
-            RichText::new("To read DMs sent by the web client, import the web ECDH key. In your browser console on united-humanity.us, run: localStorage.getItem('humanity_ecdh_backup')")
-                .color(theme.text_muted())
-                .size(theme.font_size_small)
-        );
-        ui.add_space(theme.spacing_xs);
-
-        widgets::form_row(ui, theme, "Import JSON", |ui| {
-            ui.add(egui::TextEdit::singleline(&mut state.ecdh_import_input)
-                .desired_width(220.0)
-                .password(true)
-                .hint_text("{\"publicKeyRaw\":...}"));
-            ui.add_space(theme.spacing_sm);
-            if widgets::primary_button(ui, theme, "Import") {
-                match try_import_ecdh(&state.ecdh_import_input) {
-                    Ok((priv_hex, pub_b64)) => {
-                        state.ecdh_private_hex = priv_hex;
-                        state.ecdh_public_b64 = pub_b64;
-                        state.ecdh_import_input.clear();
-                        state.ecdh_import_status = "Imported successfully. Reconnect to use.".to_string();
-                        crate::config::AppConfig::from_gui_state(state).save();
-                    }
-                    Err(e) => {
-                        state.ecdh_import_status = format!("Import failed: {}", e);
-                    }
-                }
-            }
-        });
-        if !state.ecdh_import_status.is_empty() {
-            // Use alert widget for status feedback (success-style if "successfully", error otherwise).
-            let kind = if state.ecdh_import_status.contains("Imported successfully") {
-                widgets::AlertKind::Success
-            } else {
-                widgets::AlertKind::Error
-            };
-            widgets::alert(ui, theme, kind, &state.ecdh_import_status);
-        }
-
-        ui.add_space(theme.spacing_md);
+        // Full-PQ: there is no DM-key UI. The Kyber768 DM key (and the
+        // Dilithium3 identity) derive deterministically from the seed
+        // phrase below — identical on every device, nothing to copy or
+        // import. The old "ECDH public / Import JSON" panel was removed.
 
         // Seed phrase backup
         ui.label(RichText::new("Seed Phrase Backup").color(theme.text_secondary()).strong());

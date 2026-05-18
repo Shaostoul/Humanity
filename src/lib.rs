@@ -105,34 +105,27 @@ mod native_app {
         peer_key: &str,
         gui_state: &GuiState,
     ) -> String {
-        if !encrypted || nonce.is_empty() {
+        let _ = (nonce, peer_key); // full-PQ: envelope is self-contained; KEM needs no peer key
+        if !encrypted {
             return raw_content.to_string();
         }
-        // Need our ECDH private key and the peer's ECDH public key.
-        if gui_state.ecdh_private_hex.is_empty() {
-            return format!("[encrypted - no local ECDH key]");
-        }
-        let peer_ecdh = match gui_state.peer_ecdh_keys.get(peer_key) {
-            Some(k) => k,
-            None => return format!("[encrypted - peer ECDH key unknown]"),
+        // Full-PQ: decapsulate with OUR OWN Kyber768 secret (deterministic
+        // from the BIP39 seed). The {v:1,r,s} dual-seal envelope means this
+        // opens both received messages and our own from history, on any
+        // device with the seed. No peer key needed (ML-KEM).
+        let seed = match gui_state.private_key_bytes.as_ref() {
+            Some(s) => s,
+            None => return "[encrypted — unlock your identity to read]".to_string(),
         };
-        let secret_bytes = match hex::decode(&gui_state.ecdh_private_hex) {
-            Ok(b) if b.len() == 32 => {
-                let mut arr = [0u8; 32];
-                arr.copy_from_slice(&b);
-                arr
-            }
-            _ => return format!("[encrypted - invalid local key]"),
-        };
-        let kp = match crate::net::dm_crypto::DmKeypair::from_secret_bytes(&secret_bytes) {
+        let me = match crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed) {
             Ok(k) => k,
-            Err(_) => return format!("[encrypted - key parse failed]"),
+            Err(_) => return "[encrypted — key derivation failed]".to_string(),
         };
-        match crate::net::dm_crypto::decrypt_dm(&kp, peer_ecdh, raw_content, nonce) {
+        match crate::net::dm_pq::open_envelope(&me, raw_content) {
             Ok(plain) => plain,
             Err(e) => {
-                log::warn!("DM decryption failed for {}: {}", peer_key, e);
-                format!("[encrypted - decryption failed]")
+                log::warn!("PQ DM decryption failed for {}: {}", peer_key, e);
+                "[encrypted — decryption failed]".to_string()
             }
         }
     }
@@ -1432,19 +1425,23 @@ mod native_app {
                             state.gui_state.profile_public_key.clone()
                         };
 
-                        // Ensure we have an ECDH keypair for E2E encrypted DMs.
-                        // Matches the web client's ECDH P-256 + AES-256-GCM scheme.
-                        if state.gui_state.ecdh_private_hex.is_empty() {
-                            let kp = crate::net::dm_crypto::DmKeypair::generate();
-                            state.gui_state.ecdh_private_hex = hex::encode(kp.secret_bytes());
-                            state.gui_state.ecdh_public_b64 = kp.public_base64();
-                            log::info!("Generated new ECDH P-256 keypair for DMs");
-                            crate::config::AppConfig::from_gui_state(&state.gui_state).save();
+                        // Full-PQ: advertise our Kyber768 public key so peers
+                        // can dual-seal DMs to us. It is derived from the BIP39
+                        // seed on recovery/unlock (kyber_public_b64); if the
+                        // seed isn't in memory yet we re-derive it here when
+                        // available, else connect without it (degraded: can
+                        // receive once unlocked). The secret is never stored.
+                        if state.gui_state.kyber_public_b64.is_empty() {
+                            if let Some(ref seed) = state.gui_state.private_key_bytes {
+                                if let Ok(pq) = crate::net::identity::derive_pq_identity(seed) {
+                                    state.gui_state.kyber_public_b64 = pq.kyber_public_b64;
+                                }
+                            }
                         }
-                        let ecdh_public = state.gui_state.ecdh_public_b64.clone();
+                        let kyber_public = state.gui_state.kyber_public_b64.clone();
 
                         state.gui_state.ws_client = Some(
-                            crate::net::ws_client::WsClient::connect_with_ecdh(&ws_url, &name, &pubkey, &ecdh_public),
+                            crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &name, &pubkey, &kyber_public),
                         );
                         state.gui_state.ws_status = "Connecting...".to_string();
                     }
@@ -1561,10 +1558,10 @@ mod native_app {
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("online")
                                                     .to_string();
-                                                // Capture peer's ECDH public key for E2E DM encryption
-                                                if let Some(ecdh) = peer.get("ecdh_public").and_then(|v| v.as_str()) {
-                                                    if !ecdh.is_empty() && !key.is_empty() {
-                                                        state.gui_state.peer_ecdh_keys.insert(key.clone(), ecdh.to_string());
+                                                // Capture peer's Kyber768 public key for full-PQ DM sealing
+                                                if let Some(kyber) = peer.get("kyber_public").and_then(|v| v.as_str()) {
+                                                    if !kyber.is_empty() && !key.is_empty() {
+                                                        state.gui_state.peer_kyber_keys.insert(key.clone(), kyber.to_string());
                                                     }
                                                 }
                                                 // If this peer is us and our local name is empty, adopt the server's display_name
@@ -1595,10 +1592,10 @@ mod native_app {
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("")
                                             .to_string();
-                                        // Capture peer's ECDH public key for E2E DMs
-                                        if let Some(ecdh) = val.get("ecdh_public").and_then(|v| v.as_str()) {
-                                            if !ecdh.is_empty() && !key.is_empty() {
-                                                state.gui_state.peer_ecdh_keys.insert(key.clone(), ecdh.to_string());
+                                        // Capture peer's Kyber768 public key for full-PQ DMs
+                                        if let Some(kyber) = val.get("kyber_public").and_then(|v| v.as_str()) {
+                                            if !kyber.is_empty() && !key.is_empty() {
+                                                state.gui_state.peer_kyber_keys.insert(key.clone(), kyber.to_string());
                                             }
                                         }
                                         // Add if not already present
@@ -1807,10 +1804,10 @@ mod native_app {
                                                 } else {
                                                     "offline".to_string()
                                                 };
-                                                // Capture peer's ECDH public key for E2E DMs
-                                                if let Some(ecdh) = user.get("ecdh_public").and_then(|v| v.as_str()) {
-                                                    if !ecdh.is_empty() && !key.is_empty() {
-                                                        state.gui_state.peer_ecdh_keys.insert(key.clone(), ecdh.to_string());
+                                                // Capture peer's Kyber768 public key for full-PQ DMs
+                                                if let Some(kyber) = user.get("kyber_public").and_then(|v| v.as_str()) {
+                                                    if !kyber.is_empty() && !key.is_empty() {
+                                                        state.gui_state.peer_kyber_keys.insert(key.clone(), kyber.to_string());
                                                     }
                                                 }
                                                 state.gui_state.chat_users.push(

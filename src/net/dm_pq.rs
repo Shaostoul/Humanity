@@ -141,6 +141,62 @@ pub fn open(
     String::from_utf8(plain).map_err(|e| format!("utf8: {e}"))
 }
 
+// ── Web-compatible dual-seal envelope ───────────────────────────────────────
+// The relay is zero-knowledge: the full PQ envelope is packed into the
+// opaque `content` string as JSON, byte-shape-identical to the web client
+// (crypto.js encryptDmContent / decryptDmContent):
+//
+//   { "v":1,
+//     "r":{"ek_ct_b64","nonce_b64","ct_b64"},   // sealed to RECIPIENT
+//     "s":{"ek_ct_b64","nonce_b64","ct_b64"} }  // sealed to SELF
+//
+// Dual-seal is mandatory: pure ML-KEM is recipient-only (the sender keeps
+// no shared secret), so without the `s` copy a sender could not read their
+// OWN sent messages from server history on any device. Web and native MUST
+// produce/consume this exact shape or cross-client DM breaks.
+
+/// Dual-seal `plaintext` (to recipient + to self). Returns the JSON
+/// envelope string to put in the relay `content` field.
+pub fn seal_envelope(
+    recipient_pub_b64: &str,
+    my_pub_b64: &str,
+    plaintext: &str,
+) -> Result<String, String> {
+    let r = seal(recipient_pub_b64, plaintext)?;
+    let s = seal(my_pub_b64, plaintext)?;
+    Ok(serde_json::json!({
+        "v": 1,
+        "r": { "ek_ct_b64": r.ek_ct_b64, "nonce_b64": r.nonce_b64, "ct_b64": r.ct_b64 },
+        "s": { "ek_ct_b64": s.ek_ct_b64, "nonce_b64": s.nonce_b64, "ct_b64": s.ct_b64 },
+    })
+    .to_string())
+}
+
+/// Open a `{v:1,r,s}` envelope. Tries the recipient copy then the self
+/// copy with OUR OWN deterministic Kyber secret — covers received
+/// messages and our own from history (matches web decryptDmContent).
+pub fn open_envelope(me: &DmPqKeypair, content: &str) -> Result<String, String> {
+    let env: serde_json::Value =
+        serde_json::from_str(content).map_err(|e| format!("envelope json: {e}"))?;
+    if env.get("v").and_then(|v| v.as_u64()) != Some(1) {
+        return Err("unsupported DM envelope version".into());
+    }
+    for part_key in ["r", "s"] {
+        if let Some(p) = env.get(part_key) {
+            if let (Some(ek), Some(n), Some(ct)) = (
+                p.get("ek_ct_b64").and_then(|v| v.as_str()),
+                p.get("nonce_b64").and_then(|v| v.as_str()),
+                p.get("ct_b64").and_then(|v| v.as_str()),
+            ) {
+                if let Ok(plain) = open(me, ek, n, ct) {
+                    return Ok(plain);
+                }
+            }
+        }
+    }
+    Err("no envelope part decrypted with our key".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,6 +230,32 @@ mod tests {
         let eve = DmPqKeypair::from_bip39_seed(&vec![2u8; 64]).unwrap();
         let sealed = seal(&bob.public_base64(), "secret").unwrap();
         assert!(open(&eve, &sealed.ek_ct_b64, &sealed.nonce_b64, &sealed.ct_b64).is_err());
+    }
+
+    #[test]
+    fn envelope_dual_seal_both_parties_any_device() {
+        // THE web-compat contract. Alice DMs Bob: seal to Bob (r) + self (s).
+        let alice = DmPqKeypair::from_bip39_seed(&vec![11u8; 64]).unwrap();
+        let bob = DmPqKeypair::from_bip39_seed(&vec![22u8; 64]).unwrap();
+        let env = seal_envelope(
+            &bob.public_base64(),
+            &alice.public_base64(),
+            "cross-client DM",
+        )
+        .unwrap();
+        // Envelope is valid JSON with the exact web shape.
+        let j: serde_json::Value = serde_json::from_str(&env).unwrap();
+        assert_eq!(j["v"], 1);
+        assert!(j["r"]["ek_ct_b64"].is_string() && j["s"]["ct_b64"].is_string());
+        // Bob (recipient) opens via the `r` copy.
+        assert_eq!(open_envelope(&bob, &env).unwrap(), "cross-client DM");
+        // Alice opens her OWN sent message from history via the `s` copy —
+        // re-deriving the keypair from her seed on "another device".
+        let alice2 = DmPqKeypair::from_bip39_seed(&vec![11u8; 64]).unwrap();
+        assert_eq!(open_envelope(&alice2, &env).unwrap(), "cross-client DM");
+        // A third party cannot open either copy.
+        let eve = DmPqKeypair::from_bip39_seed(&vec![99u8; 64]).unwrap();
+        assert!(open_envelope(&eve, &env).is_err());
     }
 
     #[test]
