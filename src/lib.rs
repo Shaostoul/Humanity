@@ -2284,7 +2284,11 @@ mod native_app {
                                         let url = state.gui_state.server_url.clone();
                                         let ws_url = url.replace("https://", "wss://").replace("http://", "ws://");
                                         let ws_url = format!("{}/ws", ws_url.trim_end_matches('/'));
-                                        let new_client = crate::net::ws_client::WsClient::connect(&ws_url, &fallback, &state.gui_state.profile_public_key);
+                                        // Full-PQ: keep advertising our Kyber key on the
+                                        // name-collision reconnect — the 3-arg connect()
+                                        // sent empty kyber, which silently broke DMs for
+                                        // any DesktopUser-fallback session.
+                                        let new_client = crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &fallback, &state.gui_state.profile_public_key, &state.gui_state.kyber_public_b64);
                                         state.gui_state.ws_client = Some(new_client);
                                         state.gui_state.ws_status = format!("Reconnecting as {}...", fallback);
                                         log::info!("Reconnecting as: {}", fallback);
@@ -2420,8 +2424,10 @@ mod native_app {
                                 state.gui_state.profile_public_key.clone()
                             };
                             log::info!("Attempting WebSocket reconnect (attempt {})", state.gui_state.ws_reconnect_attempts + 1);
+                            // Full-PQ: backoff reconnect must also carry the
+                            // Kyber key, else DMs break after any drop.
                             state.gui_state.ws_client = Some(
-                                crate::net::ws_client::WsClient::connect(&ws_url, &name, &pubkey),
+                                crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &name, &pubkey, &state.gui_state.kyber_public_b64),
                             );
                             state.gui_state.ws_reconnect_attempts += 1;
                             // Exponential backoff: 5s -> 10s -> 20s -> 40s -> 60s (max)

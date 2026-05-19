@@ -426,8 +426,9 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         state.profile_public_key.clone()
                     };
                     log::info!("Connecting to {} as {} (key: {})", ws_url, name, &pubkey[..8]);
-                    state.ws_client = Some(crate::net::ws_client::WsClient::connect(
-                        &ws_url, &name, &pubkey,
+                    // Full-PQ: manual Connect must advertise the Kyber key too.
+                    state.ws_client = Some(crate::net::ws_client::WsClient::connect_with_kyber(
+                        &ws_url, &name, &pubkey, &state.kyber_public_b64,
                     ));
                     state.ws_status = "Connecting...".to_string();
                     state.ws_manually_disconnected = false;
