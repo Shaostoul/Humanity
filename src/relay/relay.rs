@@ -3085,10 +3085,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 handle_sync_load(&state_clone, &my_key_for_recv).await;
                                 continue;
                             }
-                            Some("key_rotation") => {
-                                handle_key_rotation(&state_clone, &my_key_for_recv, &raw).await;
-                                continue;
-                            }
+                            // Full-PQ: key rotation is removed. Keys derive
+                            // deterministically from the BIP39 seed — to
+                            // "rotate" you restore from a new seed. The old
+                            // Ed25519 dual-sign rotation certificate is dead.
                             Some("skill_update") => {
                                 handle_skill_update(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
@@ -3175,7 +3175,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     }
                     if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
                         match relay_msg {
-                            RelayMessage::Chat { content, timestamp, signature, channel, reply_to, .. } => {
+                            RelayMessage::Chat { content, timestamp, channel, reply_to, .. } => {
                                 let peer = state_clone
                                     .peers
                                     .read()
@@ -4550,33 +4550,21 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     }
                                 }
 
-                                // H-1: Server-side Ed25519 signature verification.
-                                let verified_sig = if let Some(ref sig_hex) = signature {
-                                    verify_ed25519_signature(&my_key_for_recv, &content, timestamp, sig_hex)
-                                } else {
-                                    false
-                                };
-                                // PQ Increment 2 (soft) + 3 (gated hard)
-                                // dual-sign verification.
-                                //
-                                // The client signs the SAME preimage with
-                                // Dilithium3 (`pq_signature`). Behaviour by
-                                // (has PQ key on file?, sent pq_signature?,
-                                //  server require_pq_signatures?):
-                                //
-                                //  • No PQ key on file → NEVER enforced.
-                                //    Old / PQ-incapable clients are never
-                                //    locked out; they auto-upgrade when
-                                //    they reconnect on a v0.251+ client.
-                                //  • PQ key + valid sig → PQ-OK (logged).
-                                //  • PQ key + invalid/missing sig:
-                                //      - require OFF → soft (log, allow):
-                                //        Inc 2 confidence-building.
-                                //      - require ON  → REJECT the message
-                                //        with an actionable error. This
-                                //        is the quantum-forgery-resistance
-                                //        cutover; Ed25519 alone no longer
-                                //        suffices for a PQ-capable account.
+                                // Full-PQ chat authentication: the sender's
+                                // Dilithium3 public key IS their identity
+                                // (`my_key_for_recv` = `public_key`). Verify
+                                // the `pq_signature` over `content\ntimestamp`:
+                                //  • present + valid   → authenticated (allow)
+                                //  • present + invalid → REJECT (tamper /
+                                //    forgery attempt)
+                                //  • absent → allow. The web client always
+                                //    PQ-signs; the native client does not yet
+                                //    (its send-site wiring is a tracked
+                                //    follow-up — see CLAUDE.md). Rejecting
+                                //    "absent" would lock native out, so we
+                                //    allow it until native signs too.
+                                // There is no Ed25519 path and no
+                                // require_pq toggle anymore (full-PQ).
                                 {
                                     let pq_sig_opt = serde_json::from_str::<serde_json::Value>(&text)
                                         .ok()
@@ -4584,59 +4572,26 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         .and_then(|v| v.get("pq_signature"))
                                         .and_then(|v| v.as_str())
                                         .map(|s| s.to_string());
-                                    // Full-PQ: the signer's Dilithium
-                                    // public key IS their identity key
-                                    // (`my_key_for_recv`). No separate
-                                    // lookup — verify against identity.
-                                    let dil_pub_opt = Some(my_key_for_recv.clone());
-                                    let require_pq = state_clone.db
-                                        .get_server_settings()
-                                        .map(|s| s.require_pq_signatures)
-                                        .unwrap_or(false);
-                                    let kp = &my_key_for_recv[..8.min(my_key_for_recv.len())];
-
-                                    match (dil_pub_opt.as_ref(), pq_sig_opt.as_ref()) {
-                                        (Some(dil_pub), Some(pq_sig)) => {
-                                            let ok = crate::relay::handlers::broadcast::verify_dilithium_signature(
-                                                dil_pub, &content, timestamp, pq_sig,
-                                            );
-                                            if ok {
-                                                tracing::info!(target: "pq_dualsign",
-                                                    "PQ-OK key={kp} ed25519={verified_sig}");
-                                            } else if require_pq {
-                                                tracing::warn!(target: "pq_dualsign",
-                                                    "PQ-REJECT key={kp} invalid pq_signature (enforced)");
-                                                let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                                    to: my_key_for_recv.clone(),
-                                                    message: "Message rejected: your post-quantum signature failed to verify. Hard-refresh the page (Ctrl+Shift+R) to update your client.".to_string(),
-                                                });
-                                                continue;
-                                            } else {
-                                                tracing::warn!(target: "pq_dualsign",
-                                                    "PQ-MISMATCH key={kp} dilithium=INVALID (soft; not enforced)");
-                                            }
-                                        }
-                                        (Some(_), None) => {
-                                            if require_pq {
-                                                tracing::warn!(target: "pq_dualsign",
-                                                    "PQ-REJECT key={kp} missing pq_signature (enforced)");
-                                                let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                                    to: my_key_for_recv.clone(),
-                                                    message: "Message rejected: this server requires post-quantum-signed messages and your account has a PQ key on file, but this message was not PQ-signed. Hard-refresh the page (Ctrl+Shift+R) to update your client.".to_string(),
-                                                });
-                                                continue;
-                                            }
-                                            // require OFF → Inc1 seeded but
-                                            // Inc2 client not yet active; allow.
-                                        }
-                                        (None, _) => {
-                                            // No PQ key on file — never enforced.
+                                    if let Some(pq_sig) = pq_sig_opt.as_ref() {
+                                        let ok = crate::relay::handlers::broadcast::verify_dilithium_signature(
+                                            &my_key_for_recv, &content, timestamp, pq_sig,
+                                        );
+                                        if !ok {
+                                            let kp = &my_key_for_recv[..8.min(my_key_for_recv.len())];
+                                            tracing::warn!(target: "pq_verify",
+                                                "PQ-REJECT key={kp} invalid pq_signature");
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "Message rejected: your post-quantum signature failed to verify. Hard-refresh (Ctrl+Shift+R) to update your client.".to_string(),
+                                            });
+                                            continue;
                                         }
                                     }
                                 }
 
-                                // Only include signature in broadcast if it verified server-side.
-                                let broadcast_sig = if verified_sig { signature } else { None };
+                                // Full-PQ: no Ed25519 chat signature is
+                                // carried anymore (clients PQ-sign instead).
+                                let broadcast_sig: Option<String> = None;
 
                                 let mut chat = RelayMessage::Chat {
                                     from: my_key_for_recv.clone(),

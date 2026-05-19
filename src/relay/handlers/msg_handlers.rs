@@ -70,47 +70,10 @@ pub async fn handle_sync_load(
     }
 }
 
-// ── Key rotation handler ──
-
-pub async fn handle_key_rotation(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    raw: &serde_json::Value,
-) {
-    if let (Some(new_key), Some(sig_by_old), Some(sig_by_new), Some(ts)) = (
-        raw.get("new_key").and_then(|v| v.as_str()),
-        raw.get("sig_by_old").and_then(|v| v.as_str()),
-        raw.get("sig_by_new").and_then(|v| v.as_str()),
-        raw.get("timestamp").and_then(|v| v.as_u64()),
-    ) {
-        let old_key = my_key;
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default().as_millis() as u64;
-        let fresh = now_ms.saturating_sub(ts) < 5 * 60 * 1000;
-        let ok_old = verify_ed25519_signature(old_key, new_key, ts, sig_by_old);
-        let ok_new = verify_ed25519_signature(new_key, old_key, ts, sig_by_new);
-        if fresh && ok_old && ok_new {
-            match state.db.record_key_rotation(old_key, new_key, sig_by_old, sig_by_new) {
-                Ok(()) => {
-                    let notif = serde_json::json!({
-                        "type": "key_rotated",
-                        "old_key": old_key,
-                        "new_key": new_key,
-                        "timestamp": ts
-                    }).to_string();
-                    let _ = state.broadcast_tx.send(
-                        RelayMessage::System { message: notif }
-                    );
-                    tracing::info!("Key rotation: {old_key:.16}… → {new_key:.16}…");
-                }
-                Err(e) => tracing::error!("Key rotation DB error: {e}"),
-            }
-        } else {
-            tracing::warn!("Key rotation rejected for {old_key:.16}… fresh={fresh} ok_old={ok_old} ok_new={ok_new}");
-        }
-    }
-}
+// Full-PQ: the Ed25519 dual-sign key-rotation handler was removed.
+// Keys derive deterministically from the BIP39 seed; "rotation" = restore
+// from a new seed. The `key_rotations` table is left inert (the Inc6
+// fresh-schema wipe simply won't carry it forward meaningfully).
 
 // ── Skill handlers ──
 

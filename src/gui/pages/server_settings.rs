@@ -1101,31 +1101,14 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
 
         ui.add_space(theme.spacing_sm);
         widgets::subsection_label(ui, theme, "Security policy");
-        // The 4 master sharing/voice/streaming kill-switches used to sit
-        // here as a separate checkbox group. The operator (2026-05-16)
-        // read that as a DUPLICATE of the per-role Stream/Voice/Image/File
-        // columns in the Roles table. They're not duplicates (effective =
-        // master AND role) but two detached checkbox groups looked
-        // redundant. Fix: they're now the "Server master" row at the top
-        // of the Roles grid (draw_roles_admin) — same columns as every
-        // role, one cohesive table. Only the genuinely-global PQ
-        // enforcement gate remains here (it has no per-role column, so
-        // it's not a duplicate of anything).
-        widgets::form_row(ui, theme, "Require post-quantum signatures", |ui| {
-            ui.checkbox(&mut draft.require_pq_signatures, "");
-        });
-        widgets::body_hint(
-            ui, theme,
-            "When ON, a chat message from an account that has a post-quantum \
-             (Dilithium3) key on file is REJECTED unless it carries a valid PQ \
-             signature — so a future quantum attacker who breaks Ed25519 still \
-             can't forge messages. Accounts with no PQ key on file (older or \
-             PQ-incapable clients) are NEVER blocked — they keep working on \
-             Ed25519 and auto-upgrade when they reconnect on a current client. \
-             Turn this on only after your members have all reloaded on v0.251+ \
-             (watch the relay's `pq_dualsign` log: all PQ-OK, no PQ-MISMATCH). \
-             Fully reversible — turn it back off anytime.",
-        );
+        // Full-PQ: the "Require post-quantum signatures" toggle was removed.
+        // It only existed to gate the Ed25519→Dilithium migration. The
+        // identity now IS Dilithium3 for every client, the relay always
+        // verifies the Dilithium `pq_signature`, and there is no Ed25519
+        // chat path to fall back to — so a per-server enforcement switch
+        // is meaningless. (The struct field is left inert; nothing reads
+        // it. Master sharing/voice/streaming live in the Roles grid's
+        // "Server master" row.)
         widgets::form_row(ui, theme, "Allowed extensions (csv, blank = any)", |ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut draft.allowed_file_extensions)
