@@ -3,7 +3,9 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "current_orchestrator_session": "full-PQ cutover dedicated session (2026-05-18) — Inc3+Inc2b+Inc4 SHIPPED & KAT-proven; Inc5/Inc6 remain",
   "current_focus": "Full-PQ cutover. SHIPPED+verified: Inc3 relay, Inc2b web, Inc4 native (identity=Dilithium, DM=Kyber {v:1,r,s}, ECDH deleted; KAT-locked web==native==relay), Inc5a docs, Inc5b relay-auth trim (v0.265.0), Inc5c-core (v0.266.0: api.rs all 26 identity-keyed endpoints -> verify_dilithium_signature; chat client profile/push -> pqSignChatMessage). NOT live-activated: live DB has Ed25519 accounts; operator-confirmed old seed not logging in is EXPECTED. Going live = attended Inc6 wipe (operator owns it).",
-  "open_questions_for_human": [],
+  "open_questions_for_human": [
+    "SECURITY GATE (independent review v0.266.x): HIGH-2 — the relay binds a socket to a SELF-ASSERTED public_key at identify with no challenge-response, so Dilithium identity is spoofable (name seizure, receiving—but NOT decrypting—a victim DM). Pre-existing (Ed25519 era identical); = runbook Inc3b (nonce challenge → client Dilithium-sig → relay verifies before binding; relay+web+native). DM CONFIDENTIALITY HOLDS regardless (sealed to seed-derived key). Decision needed: Inc3b must ship BEFORE any real-user/public launch. It does not block the operator-attended Inc6 wipe+self-verify."
+  ],
   "recent_decisions": [
     {
       "at": "2026-05-17",
@@ -254,11 +256,11 @@
     "Tier 3 infinite-of-x: VERIFIED 2026-05-15 — all 5 (skills/studio-streaming/command-palette/donate-FAQ/sound-presets) ARE migrated (loaders + data/*.json + fetch wiring all present); docs/design/infinite-of-x.md v0.133 table is correct, the old gap line was stale. Only remaining: calculator.rs button labels, explicitly acceptable (pure UI layout).",
     "Lower-priority doc drift: docs/06-SOURCE-OF-TRUTH-MAP.md FIXED v0.249.2 (dead server/crates paths -> src/relay; section-5 sub-crate guidance rewritten for single-crate reality). BUGS.md:189 + vr-tracking.md:29 are NOT drift (historical bug text / crates.io URL). Other listed docs (02-ARCHITECTURE, engine-*.md, index/README) still unaudited — sweep when convenient, low priority.",
     "10 of 21 agent scopes still unaudited — check `node scripts/agent-status.js` for current list under 'Unaudited scopes'.",
-    "Inc4 deferred: native chat messages are sent UNSIGNED (helper crate::net::identity::pq_sign_chat exists; send-site wiring across many chat.rs sites deferred). Relay soft-allows (require_pq OFF). Wire pq_signature at native send sites in a focused pass.",
-    "Inc6 ATTENDED (operator gate): just security-review on full crypto/relay diff -> deploy -> just pq-wipe yes -> operator re-onboards web+native from seed and verifies a cross-client DM round-trips.",
-    "Inc5c-tail (focused follow): standalone web pages still Ed25519-sign relay auth endpoints -> broken until re-PQ d (each needs pq.js + Dilithium-from-seed plumbing in its own page identity context): web/pages/settings-app.js (vault_sync), web/pages/admin-app.js (getSignedAuth admin_stats), web/pages/market-app.js (listing review create/delete). NOTE: already broken the moment Dilithium became identity; relay swap is the correct end-state not a new regression. Native does NOT client-call these (local config) — no native work.",
-    "Inc4 deferred: native chat sent UNSIGNED (helper net::identity::pq_sign_chat exists; wire pq_signature at chat.rs send sites in a focused pass). Relay allows absent (would lock native out otherwise).",
-    "Inc6 ATTENDED (operator gate): just security-review on full crypto/relay diff -> deploy -> just pq-wipe yes (re-seeds #announcements) -> operator re-onboards web+native from seed, verifies a cross-client DM round-trips."
+    "TOP SECURITY GATE: HIGH-2/Inc3b — identify proof-of-possession (nonce challenge + Dilithium sig before socket binds to public_key). Pre-existing, gates public launch, NOT the Inc6 wipe. Own focused increment across relay+web+native identify.",
+    "HIGH-1 FIXED v0.267.0 (web fail-closed DM send + P2P fallback; relay handle_dm rejects non-bot encrypted:false). No more silent plaintext DM.",
+    "Inc5c-tail: standalone pages settings-app.js(vault), admin-app.js(admin_stats), market-app.js(reviews) Ed25519→need pq.js+Dilithium plumbing. Already broken since Dilithium became identity; relay at correct end-state. Native N/A.",
+    "Inc4 deferred: native chat sent UNSIGNED (helper net::identity::pq_sign_chat exists). Wire pq_signature at chat.rs sends; then MED-1 flip relay absent→reject.",
+    "Inc6 ATTENDED (operator gate): deploy → just pq-wipe yes (re-seeds #announcements) → operator re-onboards web+native from seed, verifies cross-client DM. No just security-review recipe — review done via independent agent (captured in CLAUDE.md crypto section)."
   ],
   "how_to_resume": [
     "1. Read CLAUDE.md (auto-loaded) — covers project rules.",

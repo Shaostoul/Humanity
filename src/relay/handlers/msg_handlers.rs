@@ -583,6 +583,21 @@ pub async fn handle_dm(
     if content.is_empty() {
         return;
     }
+    // Fail-closed zero-knowledge guard (security review HIGH-1): the relay
+    // refuses to store/forward a cleartext DM between human accounts. A
+    // buggy or hostile client cannot downgrade a DM to plaintext — full-PQ
+    // DMs are ALWAYS the sealed {v:1,r,s} envelope (`encrypted:true`).
+    // `bot_` senders (AI agents) are exempt — they have no seal keypair
+    // and their relay-mediated messages are not claimed to be E2EE. The
+    // server-side `/dm` command builds RelayMessage::Dm directly and does
+    // not pass through this handler, so it is unaffected.
+    if !encrypted && !my_key.starts_with("bot_") {
+        let _ = state.broadcast_tx.send(RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "DM rejected: messages must be end-to-end encrypted. Hard-refresh (Ctrl+Shift+R) to update your client.".to_string(),
+        });
+        return;
+    }
     let dm_role = state.db.get_role(my_key).unwrap_or_default();
     // Plaintext DMs are limited by visible characters. Encrypted DMs carry
     // an OPAQUE post-quantum ciphertext blob: ML-KEM-768 ek_ct alone is

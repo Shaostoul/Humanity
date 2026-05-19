@@ -1,18 +1,31 @@
 # Full-PQ Cutover — Execution Runbook
 
-**Status (v0.264.1):** Inc3 ✅ (relay, v0.262.33) · Inc2b.1/.2/.3 ✅
-(web, v0.262.34–v0.263.4) · Inc4 ✅ (native, v0.264.0). Core cutover
-SHIPPED + KAT-proven byte-identical web↔native↔relay. **NOT yet
-live-activated** — the live DB still has Ed25519-keyed accounts; going
-live needs the attended fresh-slate wipe (Inc6). Remaining: **Inc5b**
-relay-auth trim (`require_pq_signatures`, dual-sign soft-gate,
-`key_rotations`, `legacy_ed25519_history` — all dead; wipe recreates
-the schema so drops are free) · **Inc5c** re-PQ the Ed25519-coupled
-peripherals broken by the identity promotion (vault-sync,
-push-subscribe, signed-profile sign+verify — degraded, not the DM bug)
-· **Inc6 (attended)** `just security-review` → deploy → `just pq-wipe
-yes` → operator live web↔native DM verify. Operator chose to run the
-wipe as the final attended step (not mid-cutover).
+**Status (v0.267.0):** Inc3 ✅ · Inc2b.1/.2/.3 ✅ · Inc4 ✅ · Inc5a ✅
+(docs) · Inc5b ✅ (relay-auth trim, v0.265.0) · Inc5c-core ✅ (relay
+account-auth + chat client → Dilithium, v0.266.0). Independent
+security review DONE (full v0.262.28..HEAD diff): DM crypto **sound +
+KAT-proven cross-language**; **HIGH-1 silent-plaintext-DM-fallback
+FIXED v0.267.0** (web fail-closed + relay rejects non-bot
+`encrypted:false`). Core cutover SHIPPED + reviewed. **NOT yet
+live-activated** — live DB still has Ed25519 accounts; going live needs
+the attended fresh-slate wipe (Inc6).
+
+**Top remaining security gate — HIGH-2 / Inc3b (BEFORE public
+launch):** the relay binds a socket to a self-asserted `public_key` at
+`identify` with no challenge-response → Dilithium identity is spoofable
+(pre-existing; Ed25519 era identical). DM *confidentiality* still holds
+(sealed to the victim's seed-derived key). Fix = nonce challenge →
+client Dilithium-sig → relay verifies before binding (relay+web+native
+identify). Own focused increment; does NOT block the operator's
+attended Inc6 self-verify, DOES gate real-user onboarding.
+
+Other remaining: **Inc5c-tail** (standalone pages settings/admin/market
+re-PQ — already broken since Dilithium became identity, not a new
+regression) · native chat Dilithium-signing (Inc4 deferred follow) ·
+**Inc6 (attended, operator)** deploy → `just pq-wipe yes` (re-seeds
+#announcements) → operator live web↔native DM verify. (No
+`just security-review` recipe — review is done via an independent
+agent; CLAUDE.md crypto section holds its outcome.)
 
 **Operator decisions (locked):** full clean fresh-schema wipe (data
 loss fine; server not serving); DM = pure ML-KEM-768; Dilithium3 =

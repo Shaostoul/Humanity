@@ -935,18 +935,24 @@ sendMessage = async function() {
         content: val,
         timestamp: Date.now(),
       };
-      // Full-PQ E2EE: dual-seal (recipient + self) if the peer advertised
-      // a Kyber key. encryptDmContent returns null if our own PQ identity
-      // isn't ready → graceful plaintext fallback (relay still requires
-      // friendship + verified role, so this is not an open channel).
-      if (peerKyber) {
-        const enc = await encryptDmContent(val, peerKyber);
-        if (enc) {
-          dmPayload.content = enc.content;
-          dmPayload.nonce = enc.nonce;
-          dmPayload.encrypted = true;
-        }
+      // Full-PQ E2EE — FAIL CLOSED. A DM is only ever sent sealed. If the
+      // recipient hasn't advertised a Kyber key yet, or our own PQ
+      // identity isn't ready, ABORT — never transmit plaintext to the
+      // relay. The relay is zero-knowledge; friendship is access control,
+      // NOT confidentiality (the operator can read the DB). (Security
+      // review HIGH-1: the old "graceful plaintext fallback" leaked DMs.)
+      if (!peerKyber) {
+        addSystemMessage("🔒 Can't send yet — this person hasn't come online with a current post-quantum client, so there's no key to encrypt to. Try again once they've reconnected.");
+        return;
       }
+      const enc = await encryptDmContent(val, peerKyber);
+      if (!enc) {
+        addSystemMessage("🔒 Your encryption identity isn't ready yet. Wait a moment and resend (reload the page if it persists).");
+        return;
+      }
+      dmPayload.content = enc.content;
+      dmPayload.nonce = enc.nonce;
+      dmPayload.encrypted = true;
       ws.send(JSON.stringify(dmPayload));
       // Show locally immediately (plaintext) and keep DM list persistent.
       const sentTs = Date.now();

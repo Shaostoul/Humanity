@@ -477,19 +477,21 @@ async function sendP2PMessage(peerPubKey, text) {
     } catch {}
   }
 
-  // Fallback: relay DM (same payload as normal DM send in app.js).
+  // Fallback: relay DM — FAIL CLOSED. Only ever send sealed; never put
+  // plaintext on the relay (security review HIGH-1). If we can't seal
+  // (no peer Kyber key / PQ identity not ready), drop the relay fallback
+  // rather than leak. (The P2P direct path above is the happy path.)
   if (ws && ws.readyState === WebSocket.OPEN) {
-    const peerKyber = getPeerEcdhPublic(peerPubKey); // Kyber768 pub now
-    const payload = { type: 'dm', from: myKey, from_name: myName, to: peerPubKey, content: text, timestamp: Date.now() };
-    // Full-PQ: dual-seal via the peer's advertised Kyber key. encryptDmContent
-    // returns null if our PQ identity isn't ready → graceful plaintext.
-    if (peerKyber) {
-      try {
-        const enc = await encryptDmContent(text, peerKyber);
-        if (enc) { payload.content = enc.content; payload.nonce = enc.nonce; payload.encrypted = true; }
-      } catch {}
-    }
-    ws.send(JSON.stringify(payload));
+    const peerKyber = getPeerEcdhPublic(peerPubKey); // Kyber768 pub
+    if (!peerKyber) return;
+    let enc = null;
+    try { enc = await encryptDmContent(text, peerKyber); } catch {}
+    if (!enc) return;
+    ws.send(JSON.stringify({
+      type: 'dm', from: myKey, from_name: myName, to: peerPubKey,
+      content: enc.content, nonce: enc.nonce, encrypted: true,
+      timestamp: Date.now(),
+    }));
   }
 }
 
