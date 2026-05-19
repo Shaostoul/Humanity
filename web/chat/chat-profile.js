@@ -1197,7 +1197,7 @@ async function syncSystemProfile() {
     return;
   }
   const timestamp = Date.now();
-  const sig = await signMessage(myIdentity.privateKey, 'system_profile', timestamp);
+  const sig = await pqSignChatMessage('system_profile', timestamp); // full-PQ: Dilithium3 over system_profile\nts
   if (!sig) { alert('Signing failed.'); return; }
 
   try {
@@ -1222,7 +1222,7 @@ async function syncSystemProfile() {
 async function fetchSystemProfile() {
   if (!myIdentity || !myIdentity.canSign) return null;
   const timestamp = Date.now();
-  const sig = await signMessage(myIdentity.privateKey, 'system_profile', timestamp);
+  const sig = await pqSignChatMessage('system_profile', timestamp); // full-PQ: Dilithium3 over system_profile\nts
   if (!sig) return null;
   try {
     const params = new URLSearchParams({

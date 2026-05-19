@@ -213,7 +213,7 @@ function subscribeToPush() {
       var keys = sub.toJSON().keys;
       // Sign the request so the server knows which user this subscription belongs to.
       var ts = Date.now();
-      return signMessage(myIdentity.privateKey, 'push_subscribe', ts).then(function(sig) {
+      return pqSignChatMessage('push_subscribe', ts).then(function(sig) { // full-PQ: Dilithium3 over push_subscribe\nts
         return fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

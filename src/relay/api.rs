@@ -1706,7 +1706,7 @@ pub async fn create_listing_review(
     axum::extract::Path(listing_id): axum::extract::Path<String>,
     Json(body): Json<CreateReviewRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     // Reject requests older than 5 minutes.
     let now_ms = std::time::SystemTime::now()
@@ -1719,7 +1719,7 @@ pub async fn create_listing_review(
 
     // Verify signature over "review\n" + listing_id + "\n" + timestamp.
     let sig_content = format!("review\n{}", listing_id);
-    if !verify_ed25519_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
+    if !verify_dilithium_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -1746,7 +1746,7 @@ pub async fn delete_listing_review(
     axum::extract::Path((listing_id, review_id)): axum::extract::Path<(String, i64)>,
     Query(q): Query<VaultSyncQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1757,7 +1757,7 @@ pub async fn delete_listing_review(
     }
 
     let sig_content = format!("review_delete\n{}", review_id);
-    if !verify_ed25519_signature(&q.key, &sig_content, q.timestamp, &q.sig) {
+    if !verify_dilithium_signature(&q.key, &sig_content, q.timestamp, &q.sig) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -1836,7 +1836,7 @@ pub async fn create_trade_order(
     State(state): State<Arc<RelayState>>,
     Json(body): Json<CreateTradeOrderRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1847,7 +1847,7 @@ pub async fn create_trade_order(
     }
 
     let sig_content = format!("trade_order\n{}\n{}\n{}", body.item_type, body.quantity, body.price_per_unit);
-    if !verify_ed25519_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
+    if !verify_dilithium_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -1886,7 +1886,7 @@ pub async fn cancel_trade_order(
     axum::extract::Path(order_id): axum::extract::Path<i64>,
     Query(q): Query<VaultSyncQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1897,7 +1897,7 @@ pub async fn cancel_trade_order(
     }
 
     let sig_content = format!("cancel_order\n{}", order_id);
-    if !verify_ed25519_signature(&q.key, &sig_content, q.timestamp, &q.sig) {
+    if !verify_dilithium_signature(&q.key, &sig_content, q.timestamp, &q.sig) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -1922,7 +1922,7 @@ pub async fn fill_trade_order(
     axum::extract::Path(order_id): axum::extract::Path<i64>,
     Json(body): Json<FillOrderRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1933,7 +1933,7 @@ pub async fn fill_trade_order(
     }
 
     let sig_content = format!("fill_order\n{}\n{}", order_id, body.quantity);
-    if !verify_ed25519_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
+    if !verify_dilithium_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2249,7 +2249,7 @@ pub async fn vault_sync_put(
     state: State<Arc<RelayState>>,
     Json(body): Json<VaultSyncUpload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     // Reject requests older than 5 minutes to prevent replay attacks.
     let now_ms = std::time::SystemTime::now()
@@ -2260,7 +2260,7 @@ pub async fn vault_sync_put(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
     }
 
-    if !verify_ed25519_signature(&body.key, "vault_sync", body.timestamp, &body.sig) {
+    if !verify_dilithium_signature(&body.key, "vault_sync", body.timestamp, &body.sig) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2287,7 +2287,7 @@ pub async fn vault_sync_get(
     state: State<Arc<RelayState>>,
     Query(q): Query<VaultSyncQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2297,7 +2297,7 @@ pub async fn vault_sync_get(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
 
-    if !verify_ed25519_signature(&q.key, "vault_sync", q.timestamp, &q.sig) {
+    if !verify_dilithium_signature(&q.key, "vault_sync", q.timestamp, &q.sig) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2312,7 +2312,7 @@ pub async fn vault_sync_delete(
     state: State<Arc<RelayState>>,
     Json(body): Json<VaultSyncUpload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2321,7 +2321,7 @@ pub async fn vault_sync_delete(
     if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
-    if !verify_ed25519_signature(&body.key, "vault_sync", body.timestamp, &body.sig) {
+    if !verify_dilithium_signature(&body.key, "vault_sync", body.timestamp, &body.sig) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
     state.db.delete_vault_blob(&body.key)
@@ -2358,7 +2358,7 @@ pub async fn system_profile_put(
     state: State<Arc<RelayState>>,
     Json(body): Json<SystemProfileUpload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2368,7 +2368,7 @@ pub async fn system_profile_put(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
     }
 
-    if !verify_ed25519_signature(&body.key, "system_profile", body.timestamp, &body.sig) {
+    if !verify_dilithium_signature(&body.key, "system_profile", body.timestamp, &body.sig) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2387,7 +2387,7 @@ pub async fn system_profile_get(
     state: State<Arc<RelayState>>,
     Query(q): Query<SystemProfileQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2397,7 +2397,7 @@ pub async fn system_profile_get(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
 
-    if !verify_ed25519_signature(&q.key, "system_profile", q.timestamp, &q.sig) {
+    if !verify_dilithium_signature(&q.key, "system_profile", q.timestamp, &q.sig) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2412,7 +2412,7 @@ pub async fn system_profile_delete(
     state: State<Arc<RelayState>>,
     Json(body): Json<SystemProfileUpload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2421,7 +2421,7 @@ pub async fn system_profile_delete(
     if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
-    if !verify_ed25519_signature(&body.key, "system_profile", body.timestamp, &body.sig) {
+    if !verify_dilithium_signature(&body.key, "system_profile", body.timestamp, &body.sig) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
     state.db.delete_system_profile(&body.key)
@@ -2482,7 +2482,7 @@ pub async fn push_subscribe(
     state: State<Arc<RelayState>>,
     Json(body): Json<PushSubscribeRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2491,7 +2491,7 @@ pub async fn push_subscribe(
     if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
-    if !verify_ed25519_signature(&body.public_key, "push_subscribe", body.timestamp, &body.sig) {
+    if !verify_dilithium_signature(&body.public_key, "push_subscribe", body.timestamp, &body.sig) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2933,7 +2933,7 @@ pub async fn get_admin_stats(
     State(state): State<Arc<RelayState>>,
     Query(q): Query<AdminStatsQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_ed25519_signature;
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
     // Verify freshness (5 min window).
     let now_ms = std::time::SystemTime::now()
@@ -2945,7 +2945,7 @@ pub async fn get_admin_stats(
     }
 
     // Verify Ed25519 signature.
-    if !verify_ed25519_signature(&q.key, "admin_stats", q.timestamp, &q.sig) {
+    if !verify_dilithium_signature(&q.key, "admin_stats", q.timestamp, &q.sig) {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
