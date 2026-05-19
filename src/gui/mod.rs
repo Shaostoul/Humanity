@@ -1269,6 +1269,40 @@ pub struct GuiState {
 
 #[cfg(feature = "native")]
 impl GuiState {
+    /// Full-PQ: derive the Dilithium3 identity + Kyber768 DM key from
+    /// the in-memory BIP39 seed (`private_key_bytes`) and force a clean
+    /// reconnect so `identify` re-advertises `kyber_public`. Idempotent;
+    /// a no-op if the seed isn't unlocked. MUST be called from every
+    /// path that puts the seed into memory (passphrase unlock, seed
+    /// recovery, legacy plaintext load) — otherwise the client has its
+    /// persisted Dilithium identity but NO Kyber key, so it can neither
+    /// send nor receive encrypted DMs (it never advertises a key and
+    /// `try_encrypt_dm` fails `no_own_key`).
+    pub fn apply_pq_identity(&mut self) {
+        let seed = match self.private_key_bytes.as_ref() {
+            Some(s) => s.clone(),
+            None => return,
+        };
+        match crate::net::identity::derive_pq_identity(&seed) {
+            Ok(pq) => {
+                self.profile_public_key = pq.dilithium_hex;
+                self.kyber_public_b64 = pq.kyber_public_b64;
+                // Force a clean reconnect: drop the socket and clear the
+                // reconnect guards so the auto-connect path re-runs and
+                // sends `kyber_public` at identify. Without this the
+                // relay never learns our Kyber key and no peer can seal
+                // a DM to us.
+                self.ws_client = None;
+                self.ws_manually_disconnected = false;
+                self.ws_reconnect_timer = 0.0;
+                self.ws_reconnect_attempts = 0;
+                let kp = &self.profile_public_key[..16.min(self.profile_public_key.len())];
+                log::info!("PQ identity applied (Dilithium {kp}…); reconnecting to advertise Kyber");
+            }
+            Err(e) => log::error!("apply_pq_identity: PQ derivation failed: {e}"),
+        }
+    }
+
     /// Navigate to a sub-page, pushing the CURRENT page onto the back
     /// stack so Escape returns there. Use this for contextual openings
     /// (cog → ServerSettings, message → details modal, etc.). For

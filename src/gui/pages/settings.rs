@@ -337,15 +337,20 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             if widgets::primary_button(ui, theme, "  Recover Identity  ") {
                 let phrase = state.settings.seed_phrase_input.trim().to_string();
                 match crate::net::identity::derive_keypair_from_mnemonic(&phrase) {
-                    Ok((pubkey_hex, privkey_bytes)) => {
-                        state.settings.seed_phrase_recovery_status = format!("Identity recovered! Public key: {}...{}", &pubkey_hex[..8], &pubkey_hex[pubkey_hex.len()-8..]);
-                        state.profile_public_key = pubkey_hex;
+                    Ok((_ed25519_hex, privkey_bytes)) => {
+                        // Full-PQ: the chat identity is Dilithium3 (NOT the
+                        // Ed25519 hex). apply_pq_identity() derives it +
+                        // Kyber from the seed and forces the reconnect.
                         state.private_key_bytes = Some(privkey_bytes);
-                        // Disconnect existing connection so auto-connect uses new identity
                         if let Some(ref mut ws) = state.ws_client {
                             ws.disconnect();
                         }
-                        state.ws_client = None;
+                        state.apply_pq_identity();
+                        state.settings.seed_phrase_recovery_status = format!(
+                            "Identity recovered! {}…{}",
+                            &state.profile_public_key[..8.min(state.profile_public_key.len())],
+                            &state.profile_public_key[state.profile_public_key.len().saturating_sub(8)..]
+                        );
                         state.ws_status = "Reconnecting with recovered identity...".to_string();
                         state.identity_recovered = true;
                         state.history_fetched = false;

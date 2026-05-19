@@ -417,6 +417,10 @@ impl AppConfig {
                 if bytes.len() == 32 {
                     state.private_key_bytes = Some(bytes);
                     log::info!("Legacy plaintext key loaded into memory (encrypt via Settings)");
+                    // Full-PQ: derive Dilithium identity + Kyber DM key from
+                    // the seed so a legacy-key launch is DM-capable from the
+                    // first auto-connect (advertises kyber_public).
+                    state.apply_pq_identity();
                 }
             }
         } else if self.needs_passphrase() {

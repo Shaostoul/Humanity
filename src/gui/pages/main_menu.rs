@@ -219,9 +219,11 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                         &pq.dilithium_hex[..8],
                                         &pq.dilithium_hex[pq.dilithium_hex.len()-8..]
                                     );
-                                    state.profile_public_key = pq.dilithium_hex;
-                                    state.kyber_public_b64 = pq.kyber_public_b64;
                                     state.private_key_bytes = Some(privkey_bytes);
+                                    // Canonical: derive Dilithium+Kyber and
+                                    // force the reconnect that advertises
+                                    // kyber_public (same path as unlock).
+                                    state.apply_pq_identity();
                                     state.identity_recovered = true;
                                     state.settings.seed_phrase_input.clear();
                                     state.settings.seed_phrase_show_recover = false;

@@ -152,6 +152,10 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     state.passphrase_input.clear();
                     state.passphrase_status.clear();
                     log::info!("Private key unlocked successfully");
+                    // Full-PQ: derive Dilithium+Kyber from the now-unlocked
+                    // seed and reconnect so we advertise kyber_public —
+                    // otherwise DMs are impossible (no_own_key / no peer key).
+                    state.apply_pq_identity();
                 }
                 Err(e) => {
                     state.passphrase_status = format!("Wrong passphrase: {}", e);
@@ -233,6 +237,7 @@ fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 state.passphrase_status = "Passphrase changed successfully!".to_string();
                                 crate::config::AppConfig::from_gui_state(state).save();
                                 log::info!("Passphrase changed successfully");
+                                state.apply_pq_identity();
                             }
                             Err(e) => {
                                 state.passphrase_status = format!("Re-encryption failed: {}", e);
