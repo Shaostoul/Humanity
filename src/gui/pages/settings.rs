@@ -287,26 +287,58 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         // phrase below — identical on every device, nothing to copy or
         // import. The old "ECDH public / Import JSON" panel was removed.
 
-        // Seed phrase backup
-        ui.label(RichText::new("Seed Phrase Backup").color(theme.text_secondary()).strong());
+        // Identity & seed phrase
+        ui.label(RichText::new("Identity & Seed Phrase").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new("Your 24-word seed phrase backs up your identity and wallet.").color(theme.text_muted()).size(theme.font_size_small));
 
-        ui.add_space(theme.spacing_xs);
-        if widgets::secondary_button(ui, theme, if state.settings.seed_phrase_visible { "Hide Seed Phrase" } else { "Show Seed Phrase" }) {
-            state.settings.seed_phrase_visible = !state.settings.seed_phrase_visible;
-        }
-
-        if state.settings.seed_phrase_visible {
+        if state.private_key_bytes.is_none() {
+            // No identity on this device — let the user CREATE one. This
+            // is the primitive native was missing entirely (web had it):
+            // without it a first-time native user can never get a seed.
+            ui.label(RichText::new("No identity on this device yet. Generate one (creates a fresh 24-word seed — your only backup), or recover an existing seed below.").color(theme.text_muted()).size(theme.font_size_small));
             ui.add_space(theme.spacing_xs);
-            egui::Frame::none()
-                .fill(Color32::from_rgb(40, 30, 20))
-                .rounding(Rounding::same(4))
-                .inner_margin(8.0)
-                .stroke(Stroke::new(1.0, theme.warning()))
-                .show(ui, |ui| {
-                    ui.label(RichText::new("No seed phrase generated yet.").color(theme.warning()).size(theme.font_size_small));
-                });
+            if widgets::primary_button(ui, theme, "  Generate New Identity  ") {
+                let seed = crate::net::identity::generate_new_seed();
+                state.private_key_bytes = Some(seed);
+                // Derive Dilithium+Kyber + reconnect to advertise it.
+                state.apply_pq_identity();
+                state.settings.seed_phrase_visible = true;
+                state.settings.seed_phrase_recovery_status =
+                    "New identity generated. WRITE DOWN the 24 words below — they are the ONLY way to recover this account.".to_string();
+                // Prompt to encrypt the new seed with a passphrase.
+                state.passphrase_needed = true;
+                state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
+            }
+            if !state.settings.seed_phrase_recovery_status.is_empty() {
+                ui.add_space(theme.spacing_xs);
+                ui.label(RichText::new(&state.settings.seed_phrase_recovery_status).color(theme.success()).size(theme.font_size_small));
+            }
+        } else {
+            ui.label(RichText::new("Your 24-word seed phrase backs up your identity and wallet. Anyone with it controls your account — never share it.").color(theme.text_muted()).size(theme.font_size_small));
+            ui.add_space(theme.spacing_xs);
+            if widgets::secondary_button(ui, theme, if state.settings.seed_phrase_visible { "Hide Seed Phrase" } else { "Show Seed Phrase" }) {
+                state.settings.seed_phrase_visible = !state.settings.seed_phrase_visible;
+            }
+            if state.settings.seed_phrase_visible {
+                ui.add_space(theme.spacing_xs);
+                // Render the REAL phrase from the in-memory seed (this was
+                // previously a stub that always said "not generated yet").
+                let phrase = state.private_key_bytes.as_ref()
+                    .and_then(|s| crate::net::identity::mnemonic_from_seed(s))
+                    .unwrap_or_else(|| "(cannot render — key is not a 32-byte BIP39 seed)".to_string());
+                egui::Frame::none()
+                    .fill(Color32::from_rgb(40, 30, 20))
+                    .rounding(Rounding::same(4))
+                    .inner_margin(8.0)
+                    .stroke(Stroke::new(1.0, theme.warning()))
+                    .show(ui, |ui| {
+                        ui.label(RichText::new(&phrase).color(theme.warning()).size(theme.font_size_small));
+                        ui.add_space(theme.spacing_xs);
+                        if widgets::secondary_button(ui, theme, "Copy") {
+                            ui.ctx().copy_text(phrase.clone());
+                        }
+                    });
+            }
         }
 
         ui.add_space(theme.spacing_lg);

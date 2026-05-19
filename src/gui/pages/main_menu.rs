@@ -179,10 +179,33 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 
     ui.add_space(12.0);
-    // v0.197.0: removed Real/Sim default-mode radio. Real/Sim toggle
-    // and concept removed app-wide — pages commit to Real and
-    // game-mode equivalents (FPS, in-world inventory, etc.) live
-    // inside the game loop, not as toggleable views.
+
+    // ── Generate a New Identity ──
+    // The onboarding header promises the PQ identity is "generated
+    // automatically" — but nothing actually created it (Finish Setup
+    // only advanced the step), so new users ended up identity-less.
+    // This button is that missing primitive.
+    if state.private_key_bytes.is_none() {
+        ui.horizontal(|ui| {
+            ui.add_space(40.0);
+            if widgets::primary_button(ui, theme, "  Generate New Identity  ") {
+                let seed = crate::net::identity::generate_new_seed();
+                state.private_key_bytes = Some(seed);
+                state.apply_pq_identity(); // derive Dilithium+Kyber + connect
+                state.identity_recovered = true;
+                state.settings.seed_phrase_recovery_status =
+                    "Identity created. Back up your 24-word seed phrase in Settings → Identity now — it is the ONLY way to restore this account.".to_string();
+                state.passphrase_needed = true;
+                state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
+            }
+        });
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.add_space(40.0);
+            ui.label(RichText::new("Creates a fresh 24-word seed (your only backup). Or recover an existing one below.").size(11.0).color(theme.text_secondary()));
+        });
+        ui.add_space(8.0);
+    }
 
     // ── Recover from Seed Phrase ──
     ui.horizontal(|ui| {
@@ -271,8 +294,16 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     ui.add_space(16.0);
     ui.vertical_centered(|ui| {
-        if widgets::primary_button(ui, theme, "  Finish Setup  ") {
-            state.onboarding_step = 3;
+        let has_identity = state.private_key_bytes.is_some();
+        if has_identity {
+            if widgets::primary_button(ui, theme, "  Finish Setup  ") {
+                state.onboarding_step = 3;
+            }
+        } else {
+            // Cannot finish without an identity — that was the ghost-
+            // account bug. Force Generate or Recover first.
+            ui.label(RichText::new("Generate or recover an identity above to continue.")
+                .size(12.0).color(theme.warning()));
         }
         ui.add_space(4.0);
         if ui.small_button("Back").clicked() {

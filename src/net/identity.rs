@@ -101,9 +101,50 @@ pub fn pq_sign_chat(seed32: &[u8], content: &str, timestamp: u64) -> String {
     hex::encode(dil.sign(format!("{content}\n{timestamp}").as_bytes()))
 }
 
+/// Generate a fresh 32-byte BIP39 seed (256-bit entropy) from the OS
+/// CSPRNG. This 32-byte value IS the identity — it deterministically
+/// re-derives Ed25519 (Solana wallet), Dilithium3 (the chat identity),
+/// and Kyber768 (DM). Persist it (encrypted) and back it up as the
+/// 24-word phrase via `mnemonic_from_seed`.
+pub fn generate_new_seed() -> Vec<u8> {
+    let mut entropy = [0u8; 32];
+    getrandom::getrandom(&mut entropy).expect("OS RNG failed");
+    entropy.to_vec()
+}
+
+/// Render a 32-byte seed as its 24-word BIP39 mnemonic, for backup and
+/// in-app display. Exact inverse of `derive_keypair_from_mnemonic`'s
+/// entropy path: re-entering this phrase restores the same identity.
+pub fn mnemonic_from_seed(seed: &[u8]) -> Option<String> {
+    if seed.len() != 32 {
+        return None;
+    }
+    bip39::Mnemonic::from_entropy(seed).ok().map(|m| m.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generate_seed_mnemonic_roundtrips_and_derives_pq() {
+        // Generate → phrase → recover must yield the SAME 32-byte seed,
+        // and that seed must derive a stable PQ identity. This is what
+        // makes "Generate New Identity" + later recovery consistent.
+        let seed = generate_new_seed();
+        assert_eq!(seed.len(), 32);
+        let phrase = mnemonic_from_seed(&seed).expect("mnemonic");
+        assert_eq!(phrase.split_whitespace().count(), 24);
+        let (_pk, recovered) =
+            derive_keypair_from_mnemonic(&phrase).expect("recover");
+        assert_eq!(recovered, seed, "phrase must restore the exact seed");
+        let a = derive_pq_identity(&seed).unwrap();
+        let b = derive_pq_identity(&recovered).unwrap();
+        assert_eq!(a.dilithium_hex, b.dilithium_hex);
+        assert_eq!(a.kyber_public_b64, b.kyber_public_b64);
+        // Two generated seeds must differ (distinct identities).
+        assert_ne!(generate_new_seed(), generate_new_seed());
+    }
 
     #[test]
     fn pq_identity_deterministic_from_seed() {
