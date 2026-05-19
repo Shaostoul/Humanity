@@ -418,24 +418,30 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(4.0);
 
                 if widgets::Button::primary("Connect").full_width().show(ui, theme) {
-                    let ws_url = derive_ws_url(&state.server_url);
-                    let name = state.user_name.clone();
-                    let pubkey = if state.profile_public_key.is_empty() {
-                        generate_random_hex_key()
+                    // Full-PQ guard: refuse to connect with a locked seed —
+                    // it would register a keyless name-squatter on the relay.
+                    if state.private_key_bytes.is_none() {
+                        state.ws_status = "Unlock your identity first (Settings → Security → Unlock, or Recover from seed). Connecting locked would squat your name with no encryption key.".to_string();
                     } else {
-                        state.profile_public_key.clone()
-                    };
-                    log::info!("Connecting to {} as {} (key: {})", ws_url, name, &pubkey[..8]);
-                    // Full-PQ: manual Connect must advertise the Kyber key too.
-                    state.ws_client = Some(crate::net::ws_client::WsClient::connect_with_kyber(
-                        &ws_url, &name, &pubkey, &state.kyber_public_b64,
-                    ));
-                    state.ws_status = "Connecting...".to_string();
-                    state.ws_manually_disconnected = false;
-                    state.ws_reconnect_timer = 0.0;
-                    state.ws_reconnect_delay = 5.0;
-                    state.ws_reconnect_attempts = 0;
-                    crate::config::AppConfig::from_gui_state(state).save();
+                        let ws_url = derive_ws_url(&state.server_url);
+                        let name = state.user_name.clone();
+                        let pubkey = if state.profile_public_key.is_empty() {
+                            generate_random_hex_key()
+                        } else {
+                            state.profile_public_key.clone()
+                        };
+                        log::info!("Connecting to {} as {} (key: {})", ws_url, name, &pubkey[..8]);
+                        // Full-PQ: manual Connect must advertise the Kyber key too.
+                        state.ws_client = Some(crate::net::ws_client::WsClient::connect_with_kyber(
+                            &ws_url, &name, &pubkey, &state.kyber_public_b64,
+                        ));
+                        state.ws_status = "Connecting...".to_string();
+                        state.ws_manually_disconnected = false;
+                        state.ws_reconnect_timer = 0.0;
+                        state.ws_reconnect_delay = 5.0;
+                        state.ws_reconnect_attempts = 0;
+                        crate::config::AppConfig::from_gui_state(state).save();
+                    }
                 }
             });
     }

@@ -1408,7 +1408,25 @@ mod native_app {
                         });
                     }
 
-                    // ── Auto-connect to server if configured but not connected (initial connect only) ──
+                    // ── Auto-connect to server if configured AND seed unlocked ──
+                    // Full-PQ guard (was the limited-mode squat bug): we must
+                    // NOT auto-connect with an encrypted/locked seed. A locked
+                    // identity can't derive Kyber, so a "connect" in that
+                    // state registers a keyless name-squatter on the relay
+                    // (Shaostoul → key-with-no-kyber), and every subsequent
+                    // generate / restart bounces to a new DesktopUser_NNNN.
+                    // Refuse to connect until private_key_bytes is in memory
+                    // (Settings → Security → Unlock, or Recover from seed,
+                    // or Generate New Identity).
+                    let seed_unlocked = state.gui_state.private_key_bytes.is_some();
+                    if !seed_unlocked
+                        && state.gui_state.ws_client.is_none()
+                        && !state.gui_state.encrypted_private_key.is_empty()
+                        && state.gui_state.ws_status != "Identity locked — Settings → Security → Unlock (or Recover from seed) to connect"
+                    {
+                        // Surface the actionable reason once.
+                        state.gui_state.ws_status = "Identity locked — Settings → Security → Unlock (or Recover from seed) to connect".to_string();
+                    }
                     if !state.gui_state.server_url.is_empty()
                         && state.gui_state.ws_client.is_none()
                         && !state.gui_state.user_name.is_empty()
@@ -1416,6 +1434,7 @@ mod native_app {
                         && !state.gui_state.ws_manually_disconnected
                         && state.gui_state.ws_reconnect_timer <= 0.0
                         && state.gui_state.ws_reconnect_attempts == 0
+                        && seed_unlocked
                     {
                         let ws_url = crate::gui::pages::chat::derive_ws_url(&state.gui_state.server_url);
                         let name = state.gui_state.user_name.clone();
