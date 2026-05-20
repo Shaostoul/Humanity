@@ -48,9 +48,12 @@ pub fn canonical_profile_message(
     )
 }
 
-/// Verify an Ed25519 signature over a profile gossip payload.
-/// Returns true only when both the public key and signature decode and the
-/// signature commits to the canonical message bytes.
+/// Verify a **Dilithium3** signature over a profile gossip payload.
+/// Returns true only when both the public key and signature decode and
+/// the signature commits to the canonical message bytes. Was Ed25519
+/// before the full-PQ cutover; users' identity keys are Dilithium3
+/// (1952-byte pubkey hex, 3309-byte sig hex), so an Ed25519 verify
+/// here is forgeable post-quantum. Closes task #5.
 #[allow(clippy::too_many_arguments)]
 pub fn verify_profile_signature(
     public_key_hex: &str,
@@ -65,23 +68,13 @@ pub fn verify_profile_signature(
     timestamp: u64,
     signature_hex: &str,
 ) -> bool {
-    use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-
     let Ok(pk_bytes) = hex::decode(public_key_hex) else { return false };
-    if pk_bytes.len() != 32 { return false; }
-    let pk_array: [u8; 32] = match pk_bytes.try_into() { Ok(a) => a, Err(_) => return false };
-    let Ok(verifying_key) = VerifyingKey::from_bytes(&pk_array) else { return false };
-
     let Ok(sig_bytes) = hex::decode(signature_hex) else { return false };
-    if sig_bytes.len() != 64 { return false; }
-    let sig_array: [u8; 64] = match sig_bytes.try_into() { Ok(a) => a, Err(_) => return false };
-    let signature = Signature::from_bytes(&sig_array);
-
     let message = canonical_profile_message(
         public_key_hex, name, bio, avatar_url, banner_url, socials,
         pronouns, location, website, timestamp,
     );
-    verifying_key.verify(message.as_bytes(), &signature).is_ok()
+    crate::relay::core::pq_crypto::verify_dilithium(&pk_bytes, message.as_bytes(), &sig_bytes).is_ok()
 }
 
 /// Decide whether to accept an inbound `ProfileGossip` payload.
@@ -536,9 +529,11 @@ pub async fn gossip_signed_object(
 
 /// Gossip a profile update to all connected federated servers.
 /// Called after a local user updates their profile. The `signature` is the
-/// client-supplied Ed25519 signature over `canonical_profile_message(...)`;
+/// client-supplied **Dilithium3** signature (hex) over `canonical_profile_message(...)`;
 /// pass an empty string when the client did not sign (peers will then accept
 /// under the trust-by-source model — see `should_accept_profile_gossip`).
+/// Was Ed25519 pre-cutover; switched in v0.276.0 so the profile signing path
+/// uses the same identity key the user actually holds (Dilithium3).
 #[allow(clippy::too_many_arguments)]
 pub async fn gossip_profile(
     state: &Arc<RelayState>,
@@ -582,17 +577,22 @@ pub async fn gossip_profile(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::{Signer, SigningKey};
+    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
-    fn fixture() -> (SigningKey, String) {
+    // Full-PQ: profile gossip now Dilithium3-signed (was Ed25519). The
+    // tests use a deterministic seed to keep them stable; the verifier
+    // path under test is the same one production uses
+    // (`verify_dilithium` inside `verify_profile_signature`).
+    fn fixture() -> (DilithiumKeypair, String) {
         let seed = [7u8; 32];
-        let sk = SigningKey::from_bytes(&seed);
-        let pk_hex = hex::encode(sk.verifying_key().to_bytes());
-        (sk, pk_hex)
+        let dil_seed = derive_dilithium_seed(&seed);
+        let kp = DilithiumKeypair::from_seed(&dil_seed);
+        let pk_hex = hex::encode(kp.public_key());
+        (kp, pk_hex)
     }
 
-    fn sign_profile(sk: &SigningKey, msg: &str) -> String {
-        hex::encode(sk.sign(msg.as_bytes()).to_bytes())
+    fn sign_profile(kp: &DilithiumKeypair, msg: &str) -> String {
+        hex::encode(kp.sign(msg.as_bytes()))
     }
 
     #[test]
@@ -642,9 +642,9 @@ mod tests {
     fn verify_rejects_wrong_key() {
         let (sk, _pk_hex) = fixture();
         let timestamp = 1_700_000_000_000u64;
-        let other_seed = [9u8; 32];
-        let other_sk = SigningKey::from_bytes(&other_seed);
-        let other_pk_hex = hex::encode(other_sk.verifying_key().to_bytes());
+        let other_dil_seed = derive_dilithium_seed(&[9u8; 32]);
+        let other_sk = DilithiumKeypair::from_seed(&other_dil_seed);
+        let other_pk_hex = hex::encode(other_sk.public_key());
 
         // Sign with one key, claim another's public key — should fail.
         let msg = canonical_profile_message(
