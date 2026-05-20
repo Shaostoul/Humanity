@@ -670,7 +670,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS — v0.277.1 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS — v0.277.2 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -1725,28 +1725,18 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
 
   // ── Cloud vault sync (relay-backed) ──
 
+  // Vault-sync auth, Dilithium3-signed (was Ed25519 pre-v0.266.0; the relay's
+  // identity-keyed endpoints all verify Dilithium now). Delegates to the
+  // shared helper installed by `/shared/pq-relay-auth.js` — which in turn
+  // depends on `/chat/pq.js`; both must be loaded before this script.
+  // Returns null when there's no plaintext identity backup in localStorage
+  // (wrapped-only users have to sync via the chat client). Inc5c-tail.
   async function vault_signSyncRequest() {
-    const backup = localStorage.getItem('humanity_key_backup');
-    const keyHex = localStorage.getItem('humanity_key');
-    if (!backup || !keyHex) return null;
-    try {
-      const parsed = JSON.parse(backup);
-      let privateKey;
-      if (parsed.jwk) {
-        privateKey = await crypto.subtle.importKey('jwk', parsed.jwk, 'Ed25519', false, ['sign']);
-      } else if (parsed.privateKeyPkcs8) {
-        const pkcs8Buf = Uint8Array.from(atob(parsed.privateKeyPkcs8), c => c.charCodeAt(0));
-        privateKey = await crypto.subtle.importKey('pkcs8', pkcs8Buf, 'Ed25519', false, ['sign']);
-      } else {
-        console.warn('Vault sync: unrecognised key_backup format');
-        return null;
-      }
-      const ts = Date.now();
-      const payload = `vault_sync\n${ts}`;
-      const sigBuf = await crypto.subtle.sign('Ed25519', privateKey, new TextEncoder().encode(payload));
-      const sig = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
-      return { key: keyHex, timestamp: ts, sig };
-    } catch(e) { console.warn('Vault sync sign failed:', e); return null; }
+    if (typeof window.getPqSignedAuth !== 'function') {
+      console.warn('Vault sync: pq-relay-auth.js not loaded');
+      return null;
+    }
+    return await window.getPqSignedAuth('vault_sync');
   }
 
   async function vault_syncToCloud() {

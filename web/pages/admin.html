@@ -158,6 +158,11 @@
   </div>
 </div>
 
+<!-- Dilithium identity bridge for relay REST auth (Inc5c-tail, v0.277.2). -->
+<!-- `pq.js` installs window.pqDeriveIdentity + window.pqSignMessage; -->
+<!-- `pq-relay-auth.js` installs window.getPqSignedAuth which the page uses. -->
+<script src="/chat/pq.js?v=1"></script>
+<script src="/shared/pq-relay-auth.js?v=1"></script>
 <script src="/pages/admin-app.js"></script>
 </body>
 </html>

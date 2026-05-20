@@ -1,6 +1,12 @@
 /**
  * HumanityOS Admin Dashboard
- * Requires admin role — authenticates via Ed25519 signature.
+ * Requires admin role — authenticates via Dilithium3 signature (was Ed25519
+ * pre-v0.266.0; the relay's identity-keyed endpoints all verify Dilithium
+ * now, so an Ed25519 sig here silently fails). Inc5c-tail (v0.277.2).
+ *
+ * Requires `/chat/pq.js` and `/shared/pq-relay-auth.js` to be loaded
+ * before this script — they install the `window.getPqSignedAuth` and
+ * `window.pqDeriveIdentity` globals we delegate to.
  */
 (function() {
   'use strict';
@@ -11,30 +17,18 @@
 
   // ── Identity helpers ──
 
+  // Thin wrapper around the shared Dilithium-signed-auth helper so call
+  // sites read the same as the pre-cutover code. Returns null when
+  // there's no plaintext identity backup in localStorage (wrapped-only
+  // users have to use the chat client; standalone pages cannot re-derive
+  // the seed without re-prompting for the vault passphrase, which is a
+  // separate scope).
   async function getSignedAuth(purpose) {
-    const backup = localStorage.getItem('humanity_key_backup');
-    const keyHex = localStorage.getItem('humanity_key');
-    if (!backup || !keyHex) return null;
-    try {
-      const parsed = JSON.parse(backup);
-      let privateKey;
-      if (parsed.jwk) {
-        privateKey = await crypto.subtle.importKey('jwk', parsed.jwk, 'Ed25519', false, ['sign']);
-      } else if (parsed.privateKeyPkcs8) {
-        const pkcs8Buf = Uint8Array.from(atob(parsed.privateKeyPkcs8), c => c.charCodeAt(0));
-        privateKey = await crypto.subtle.importKey('pkcs8', pkcs8Buf, 'Ed25519', false, ['sign']);
-      } else {
-        return null;
-      }
-      const ts = Date.now();
-      const payload = `${purpose}\n${ts}`;
-      const sigBuf = await crypto.subtle.sign('Ed25519', privateKey, new TextEncoder().encode(payload));
-      const sig = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
-      return { key: keyHex, timestamp: ts, sig };
-    } catch (e) {
-      console.warn('Admin auth sign failed:', e);
+    if (typeof window.getPqSignedAuth !== 'function') {
+      console.warn('Admin auth: pq-relay-auth.js not loaded');
       return null;
     }
+    return await window.getPqSignedAuth(purpose);
   }
 
   // ── Formatting helpers ──
