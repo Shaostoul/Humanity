@@ -136,6 +136,14 @@ pub struct RelayState {
     pub federation_connections: RwLock<HashMap<String, FederatedConnection>>,
     /// Rate limiter for federation message forwarding (server_id → last send times).
     pub federation_rate: std::sync::Mutex<HashMap<String, Vec<Instant>>>,
+    /// v0.279.0: per-source-IP identify rate limit. Sliding 60-second
+    /// window of identify-attempt timestamps. Pre-identify is the right
+    /// gate because identify is the only thing on the WS that's free
+    /// before authentication (post-identify, per-key Fibonacci backoff
+    /// already covers chat-send abuse). Without this, an attacker can
+    /// open thousands of WS, send `identify`, get the Dilithium challenge,
+    /// disconnect, repeat — exhausting RNG + DB lookup CPU on the relay.
+    pub identify_rate: std::sync::Mutex<HashMap<String, Vec<Instant>>>,
     /// VAPID keypair for WebPush notifications (P-256/ES256).
     pub vapid_key: Option<ES256KeyPair>,
     /// Server configuration loaded from data/server-config.json (funding, membership, etc.).
@@ -243,6 +251,7 @@ impl RelayState {
             active_stream: RwLock::new(None),
             federation_connections: RwLock::new(HashMap::new()),
             federation_rate: std::sync::Mutex::new(HashMap::new()),
+            identify_rate: std::sync::Mutex::new(HashMap::new()),
             vapid_key: None,
             server_config,
             game_world: RwLock::new(GameWorld::new()),
@@ -2340,7 +2349,7 @@ impl Drop for ConnectionGuard {
 }
 
 /// Handle a single WebSocket connection.
-pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
+pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client_ip: String) {
     // Connection limit check: reject if at capacity.
     let prev = state.connection_count.fetch_add(1, Ordering::SeqCst);
     if prev >= state.max_connections {
@@ -2397,6 +2406,49 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 (String, Option<String>, Option<String>, Option<String>, Option<String>)
             = match parsed {
                 Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, kyber_public }) => {
+                    // v0.279.0: per-source-IP identify rate limit. Sliding
+                    // 60-second window, max 10 attempts per minute. Covers
+                    // both bot and human identify paths — every fresh
+                    // connection has to come through here, so this is the
+                    // single chokepoint for "stop a script from spamming
+                    // open-WS-identify-disconnect cycles." Behind nginx, the
+                    // real client IP arrives via X-Forwarded-For (see
+                    // mod.rs::ws_handler); if missing, we bucket as
+                    // "unknown" which means anonymous-IP traffic shares a
+                    // single bucket — strictest safe default.
+                    const IDENTIFY_RATE_WINDOW_SECS: u64 = 60;
+                    const IDENTIFY_RATE_MAX: usize = 10;
+                    // Compute pass/fail under the lock; do NOT hold the
+                    // std::sync::Mutex guard across the .await — std mutex
+                    // guards aren't Send, which breaks the tokio task.
+                    // We capture only `over_limit: bool` + the current
+                    // count for the log line, then drop the guard.
+                    let (over_limit, attempt_count) = {
+                        let mut rate = state.identify_rate.lock().unwrap();
+                        let times = rate.entry(client_ip.clone()).or_default();
+                        let now = Instant::now();
+                        times.retain(|t| now.duration_since(*t).as_secs() < IDENTIFY_RATE_WINDOW_SECS);
+                        let n = times.len();
+                        if n >= IDENTIFY_RATE_MAX {
+                            (true, n)
+                        } else {
+                            times.push(now);
+                            (false, n + 1)
+                        }
+                    }; // guard dropped here
+                    if over_limit {
+                        tracing::warn!(
+                            "Identify rate limit hit for ip={}: {} attempts in {}s",
+                            client_ip, attempt_count, IDENTIFY_RATE_WINDOW_SECS,
+                        );
+                        let err = RelayMessage::System {
+                            message: "Too many connection attempts. Try again in a minute.".to_string(),
+                        };
+                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                        let _ = ws_tx.close().await;
+                        return;
+                    }
+
                     // L-1: Bot keys require bot_secret matching API_SECRET.
                     if public_key.starts_with("bot_") {
                         let expected = std::env::var("API_SECRET").unwrap_or_default();
@@ -4122,57 +4174,26 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             }
                                         }
                                         "/dm" => {
-                                            // /dm <name> <message> — Send a DM.
-                                            let parts: Vec<&str> = trimmed.splitn(3, char::is_whitespace).collect();
-                                            let target_name = parts.get(1).unwrap_or(&"").to_string();
-                                            let dm_content = parts.get(2).unwrap_or(&"").to_string();
-                                            if target_name.is_empty() || dm_content.is_empty() {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /dm <name> <message>".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else if target_name.eq_ignore_ascii_case(&display) {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "You can't DM yourself.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else if dm_content.len() > if user_role == "admin" { 10_000 } else { 2_000 } {
-                                                let limit = if user_role == "admin" { 10_000 } else { 2_000 };
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("DM too long (max {} chars).", limit) };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else {
-                                                match state_clone.db.keys_for_name(&target_name) {
-                                                    Ok(keys) if !keys.is_empty() => {
-                                                        let target_key = keys[0].clone();
-                                                        let ts = std::time::SystemTime::now()
-                                                            .duration_since(std::time::UNIX_EPOCH)
-                                                            .unwrap_or_default()
-                                                            .as_millis() as u64;
-                                                        if let Err(e) = state_clone.db.store_dm(&my_key_for_recv, &display, &target_key, &dm_content, ts) {
-                                                            tracing::error!("Failed to store DM: {e}");
-                                                        }
-                                                        // Send to recipient (/dm command sends plaintext).
-                                                        let dm_msg = RelayMessage::Dm {
-                                                            from: my_key_for_recv.clone(),
-                                                            from_name: Some(display.clone()),
-                                                            to: target_key.clone(),
-                                                            content: dm_content.clone(),
-                                                            timestamp: ts,
-                                                            encrypted: false,
-                                                            nonce: None,
-                                                        };
-                                                        let _ = state_clone.broadcast_tx.send(dm_msg);
-                                                        // Send DM list update to both parties.
-                                                        send_dm_list_update(&state_clone, &my_key_for_recv);
-                                                        send_dm_list_update(&state_clone, &target_key);
-                                                        let private = RelayMessage::Private {
-                                                            to: my_key_for_recv.clone(),
-                                                            message: format!("💬 DM sent to {}.", target_name),
-                                                        };
-                                                        let _ = state_clone.broadcast_tx.send(private);
-                                                    }
-                                                    _ => {
-                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
-                                                        let _ = state_clone.broadcast_tx.send(private);
-                                                    }
-                                                }
-                                            }
+                                            // v0.279.0 LOW-1 cleanup: the old `/dm <name> <msg>`
+                                            // command built a `RelayMessage::Dm { encrypted: false }`
+                                            // server-side and stored plaintext in `messages` — the
+                                            // operator (anyone with DB read) could see every DM
+                                            // sent via this path. It bypassed `handle_dm` entirely,
+                                            // so the v0.267.0 "reject non-bot encrypted:false DMs"
+                                            // gate never fired here. Independent security review
+                                            // flagged it as LOW-1 ("acceptable with documented
+                                            // caveat") — we're now removing the caveat instead.
+                                            //
+                                            // The CLIENT is the only side that can build an E2EE
+                                            // envelope (recipient's Kyber pubkey + sender's secret);
+                                            // the server can't encrypt for the user. So the only
+                                            // safe `/dm` is one that points back at the chat UI's
+                                            // DM compose flow, which does build the envelope.
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "/dm is disabled. Use the DM panel on the left side of the chat client — your client will end-to-end encrypt the message before sending. (Removed in v0.279.0: the server-side /dm stored plaintext.)".to_string(),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
                                         }
                                         "/dms" => {
                                             // List DM conversations.

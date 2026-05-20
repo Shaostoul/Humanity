@@ -120,8 +120,28 @@ pub fn validate_environment() -> (String, u16) {
     if std::env::var("VAPID_PRIVATE_KEY").is_err() {
         tracing::warn!("VAPID keys not configured -- web push notifications will be disabled");
     }
-    if std::env::var("API_SECRET").is_err() {
-        tracing::warn!("API_SECRET not set -- bot API endpoints will reject all requests");
+    match std::env::var("API_SECRET") {
+        Err(_) => {
+            tracing::warn!("API_SECRET not set -- bot API endpoints will reject all requests");
+        }
+        Ok(s) if s.is_empty() => {
+            tracing::warn!("API_SECRET is empty -- bot API endpoints will reject all requests");
+        }
+        Ok(s) if s.len() < 32 => {
+            // v0.279.0 hardening: a weak shared bot secret defeats the whole
+            // point of constant-time comparison + Inc3b's bot fastpath. 32
+            // chars is the minimum we accept without screaming; below that
+            // a determined attacker could brute-force the bot identity from
+            // outside the network. We DON'T refuse to boot — that would
+            // brick a live relay on a config glitch — but the warning is
+            // loud so the operator sees it in journalctl.
+            tracing::warn!(
+                "API_SECRET is too short ({} chars) -- recommend >= 32 random chars. \
+                 Rotate via /opt/Humanity/.env on the VPS, then restart humanity-relay.",
+                s.len()
+            );
+        }
+        Ok(_) => {} // OK
     }
     if std::env::var("WEBHOOK_SECRET").is_err() {
         tracing::warn!("WEBHOOK_SECRET not set -- GitHub webhook endpoint will reject requests");
@@ -636,12 +656,27 @@ async fn ws_handler(
             return (StatusCode::FORBIDDEN, "Origin not allowed").into_response();
         }
     }
+    // v0.279.0: extract the real client IP for per-IP rate limiting at
+    // identify. nginx fronts the relay so the WS socket's peer is always
+    // 127.0.0.1 — the real IP is in X-Forwarded-For (or X-Real-IP as a
+    // fallback). Take only the first hop from XFF: it's the most trusted
+    // (closest-to-client) IP nginx itself wrote. Strip a port suffix if
+    // present. Falls back to "unknown" when neither header is set — the
+    // rate limiter treats "unknown" as a shared bucket, which is the
+    // strictest safe default (won't accidentally exempt anyone).
+    let client_ip = headers.get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| headers.get("x-real-ip").and_then(|v| v.to_str().ok()).map(|s| s.trim().to_string()))
+        .unwrap_or_else(|| "unknown".to_string());
+
     ws.max_frame_size(65_536)       // 64KB max frame
       .max_message_size(131_072)    // 128KB max message
-      .on_upgrade(move |socket| handle_socket(socket, state.0))
+      .on_upgrade(move |socket| handle_socket(socket, state.0, client_ip))
       .into_response()
 }
 
-async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
-    relay::handle_connection(socket, state).await;
+async fn handle_socket(socket: WebSocket, state: Arc<RelayState>, client_ip: String) {
+    relay::handle_connection(socket, state, client_ip).await;
 }
