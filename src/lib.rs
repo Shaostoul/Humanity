@@ -2244,6 +2244,20 @@ mod native_app {
                                             );
                                         }
                                     }
+                                    // v0.283.0: voice_room_signal / webrtc_signal stubs.
+                                    // The relay broadcasts these for active voice rooms but
+                                    // native has no WebRTC stack yet (the channel-list voice
+                                    // icon's click handler is a TODO in chat.rs:1060). Stubs
+                                    // keep the dispatcher exhaustive so future arms can detect
+                                    // unknown types via the catch-all without false positives.
+                                    // Implementing real voice means adding webrtc-rs + audio
+                                    // capture/playback + mute/deafen UI — weeks of work,
+                                    // tracked separately, not a propagation bug.
+                                    Some("voice_room_signal") | Some("webrtc_signal") | Some("voice_call") | Some("voice_room") | Some("voice_room_update") => {
+                                        // Intentional no-op. Web users in voice rooms still
+                                        // talk to each other; native users just don't hear/
+                                        // see voice activity yet.
+                                    }
                                     Some("federated_chat") => {
                                         // v0.282.0: chat from a federated peer server. Display
                                         // alongside local chat in the same channel, prefixed by
