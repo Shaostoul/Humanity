@@ -2291,6 +2291,18 @@ mod native_app {
                                             .subsec_nanos() % 10000) as u16;
                                         let fallback = format!("DesktopUser_{:04}", suffix);
                                         state.gui_state.profile_name = fallback.clone();
+                                        // Persist the fallback as the user_name + save the
+                                        // config so the NEXT launch reuses this name (relay
+                                        // accepts re-registration from the same key, so no
+                                        // collision). Previously, profile_name was set but
+                                        // user_name stayed at the conflicting value, so each
+                                        // boot tried "Shaostoul" → name_taken → a brand-new
+                                        // DesktopUser_NNNN → permanent server-side drip
+                                        // (operator reported 6+ entries on one key).
+                                        // The user can rename back to a preferred name from
+                                        // Settings once the conflicting registration clears.
+                                        state.gui_state.user_name = fallback.clone();
+                                        crate::config::AppConfig::from_gui_state(&state.gui_state).save();
 
                                         // Disconnect current connection
                                         if let Some(ref mut client) = state.gui_state.ws_client {
