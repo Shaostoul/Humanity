@@ -669,6 +669,17 @@ pub struct GuiState {
     pub show_hud: bool,
     pub settings: SettingsState,
     pub chat_input: String,
+    /// v0.282.0: peers currently typing in the active channel. Keyed by
+    /// sender pubkey to avoid duplicate "X is typing…" rows when a peer
+    /// emits multiple rate-limited typing events. Value = (display_name,
+    /// when_received) — the renderer prunes entries older than 3 seconds
+    /// to match the web client's auto-clear behavior.
+    pub chat_typing_users: std::collections::HashMap<String, (String, std::time::Instant)>,
+    /// v0.282.0: last time WE sent a typing indicator. Sites that want
+    /// to emit typing should consult this for the 3-second rate limit
+    /// rather than sending on every keystroke (matches the relay's
+    /// `TYPING_RATE_LIMIT_SECS` so we never get silently dropped).
+    pub chat_typing_last_sent: Option<std::time::Instant>,
     /// When the user clicks "Reply" on a message, this holds the parent context.
     /// Cleared on send or cancel. Drives the "Replying to ... [X]" banner above the input.
     pub chat_reply_to: Option<ReplyContext>,
@@ -1395,6 +1406,8 @@ impl Default for GuiState {
             show_hud: true,
             settings: SettingsState::default(),
             chat_input: String::new(),
+            chat_typing_users: std::collections::HashMap::new(),
+            chat_typing_last_sent: None,
             chat_reply_to: None,
             chat_messages: Vec::new(),
             chat_search_open: false,

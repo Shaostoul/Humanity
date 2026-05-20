@@ -2198,6 +2198,91 @@ mod native_app {
                                             state.gui_state.chat_messages.retain(|m| !(m.sender_key == from && m.timestamp_ms == ts));
                                         }
                                     }
+                                    Some("message_deleted") => {
+                                        // v0.282.0: admin/mod deletion via DeleteById (broadcast
+                                        // by relay when web admin uses the by-id path; native
+                                        // admins use the simpler `delete` arm above). Payload
+                                        // carries `from` + `timestamp` for client-side removal —
+                                        // the message_id is for the web's DOM-keyed approach,
+                                        // we use (sender_key, timestamp_ms) like everywhere else
+                                        // on native.
+                                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                        if !from.is_empty() && ts > 0 {
+                                            state.gui_state.chat_messages.retain(|m| !(m.sender_key == from && m.timestamp_ms == ts));
+                                        }
+                                    }
+                                    Some("typing") => {
+                                        // v0.282.0: typing indicator broadcast. Insert/refresh the
+                                        // sender's entry; the renderer prunes anything older than
+                                        // 3 seconds (matches web's auto-clear). Skip our own typing
+                                        // event — the relay echoes broadcasts to all sockets, so
+                                        // we'd otherwise see "Shaostoul is typing…" every time we
+                                        // touched the input on a different tab.
+                                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        if from.is_empty() || from == state.gui_state.profile_public_key {
+                                            // Continue silently — own echoes are noise.
+                                        } else {
+                                            let from_name = val.get("from_name").and_then(|v| v.as_str())
+                                                .unwrap_or_else(|| {
+                                                    // Fallback: look up display name in the user list.
+                                                    // Empty string yields "user" downstream when nothing matches.
+                                                    ""
+                                                })
+                                                .to_string();
+                                            let display = if from_name.is_empty() {
+                                                state.gui_state.chat_users.iter()
+                                                    .find(|u| u.public_key == from)
+                                                    .map(|u| u.name.clone())
+                                                    .unwrap_or_else(|| "Someone".to_string())
+                                            } else {
+                                                from_name
+                                            };
+                                            state.gui_state.chat_typing_users.insert(
+                                                from,
+                                                (display, std::time::Instant::now()),
+                                            );
+                                        }
+                                    }
+                                    Some("federated_chat") => {
+                                        // v0.282.0: chat from a federated peer server. Display
+                                        // alongside local chat in the same channel, prefixed by
+                                        // the originating server's name so users can tell where
+                                        // it came from. The relay only delivers federated_chat
+                                        // for channels it's federating, so we don't need a
+                                        // per-channel federation flag client-side.
+                                        let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let content = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                        let from_name = val.get("from_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let server_name = val.get("server_name").and_then(|v| v.as_str()).unwrap_or("federated").to_string();
+                                        let server_id = val.get("server_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        if !content.is_empty() && ts > 0 {
+                                            let ts_str = {
+                                                let secs = ts / 1000;
+                                                let h = (secs / 3600) % 24;
+                                                let m = (secs / 60) % 60;
+                                                format!("{:02}:{:02}", h, m)
+                                            };
+                                            state.gui_state.chat_messages.push(crate::gui::ChatMessage {
+                                                // Tag the displayed name with the origin server
+                                                // so federated messages are visually distinct.
+                                                // E.g. "Alice (other-server)".
+                                                sender_name: format!("{} ({})", from_name, server_name),
+                                                // sender_key uses the server_id so reactions/replies
+                                                // can target the federated origin (the relay won't
+                                                // honor cross-server reactions today, but the field
+                                                // shape is preserved for forward compat).
+                                                sender_key: server_id,
+                                                content,
+                                                timestamp: ts_str,
+                                                timestamp_ms: ts,
+                                                channel,
+                                                reactions: std::collections::HashMap::new(),
+                                                reply_to: None,
+                                            });
+                                        }
+                                    }
                                     Some("search_results") => {
                                         // Server-returned search results. Populate the search modal.
                                         if let Some(results) = val.get("results").and_then(|v| v.as_array()) {

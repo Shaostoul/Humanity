@@ -2711,6 +2711,44 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     });
                 }
 
+                // v0.282.0 typing indicator. Prune entries older than 3s so
+                // a typer who quit typing 5s ago doesn't linger forever, then
+                // render the names of users still in the active channel. We
+                // intentionally don't filter by channel here — typing events
+                // don't carry channel info (relay-side rate-limit is per-user,
+                // not per-channel), so showing all typers app-wide is the
+                // truthful answer until the protocol carries channel.
+                const TYPING_TTL: std::time::Duration = std::time::Duration::from_secs(3);
+                let now_typing_tick = std::time::Instant::now();
+                state.chat_typing_users.retain(|_, (_, t)| now_typing_tick.duration_since(*t) < TYPING_TTL);
+                if !state.chat_typing_users.is_empty() {
+                    let names: Vec<String> = state.chat_typing_users.values()
+                        .map(|(name, _)| name.clone())
+                        .collect();
+                    let label = match names.len() {
+                        0 => String::new(), // unreachable per the is_empty check above
+                        1 => format!("{} is typing…", names[0]),
+                        2 => format!("{} and {} are typing…", names[0], names[1]),
+                        _ => format!("{} and {} others are typing…", names[0], names.len() - 1),
+                    };
+                    if !label.is_empty() {
+                        ui.add_space(2.0);
+                        ui.horizontal(|ui| {
+                            ui.add_space(12.0);
+                            ui.label(
+                                egui::RichText::new(label)
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted())
+                                    .italics(),
+                            );
+                        });
+                        // Repaint so the prune-on-render keeps the line fresh
+                        // (otherwise a UI without other inputs would stick the
+                        // indicator past its TTL until something else redrew).
+                        ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+                    }
+                }
+
                 Frame::NONE
                     .fill(Color32::from_rgb(30, 30, 38))
                     .rounding(Rounding::same(theme.border_radius_lg as u8))
@@ -2736,6 +2774,33 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .desired_width(ui.available_width() - 104.0)
                             .hint_text(hint),
                     );
+
+                    // v0.282.0 outgoing typing event. Fire when the input
+                    // CHANGED (egui's response.changed() debounces to "actual
+                    // edit, not focus/scroll") AND we haven't sent one in
+                    // the last 3 seconds. Matches the relay's silent-drop
+                    // rate limit so we never waste bandwidth on rejected
+                    // sends. Skipped on empty input (clearing the box isn't
+                    // "typing"). Skipped when not connected.
+                    if response.changed() && !state.chat_input.is_empty() {
+                        let now = std::time::Instant::now();
+                        let should_send = state.chat_typing_last_sent
+                            .map(|t| now.duration_since(t).as_secs() >= 3)
+                            .unwrap_or(true);
+                        if should_send {
+                            if let Some(ref client) = state.ws_client {
+                                if client.is_connected() {
+                                    let m = serde_json::json!({
+                                        "type": "typing",
+                                        "from": state.profile_public_key,
+                                        "from_name": state.user_name,
+                                    });
+                                    client.send(&m.to_string());
+                                    state.chat_typing_last_sent = Some(now);
+                                }
+                            }
+                        }
+                    }
 
                     // (Clipboard image paste detection moved to the top of
                     // pub fn draw() in v0.233 because egui's TextEdit consumes
