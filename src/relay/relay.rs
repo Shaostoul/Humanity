@@ -144,6 +144,16 @@ pub struct RelayState {
     /// open thousands of WS, send `identify`, get the Dilithium challenge,
     /// disconnect, repeat — exhausting RNG + DB lookup CPU on the relay.
     pub identify_rate: std::sync::Mutex<HashMap<String, Vec<Instant>>>,
+    /// v0.280.0 anti-spam: per-source-IP tally of DISTINCT NEW pubkeys
+    /// registered in the last hour. Returning identities (any pubkey
+    /// that already has a `registered_names` row) don't count — this is
+    /// strictly about "how many fresh identities is this IP creating?"
+    /// Map: IP → Vec<(pubkey, when)>. Pruned to the hour window on every
+    /// access. Cap is a constant on the gate (currently 5/hr); a small
+    /// household / hackathon room can legitimately onboard 2-3 new users
+    /// in a session, so 5 leaves a buffer. Tune via that constant once
+    /// real traffic data exists.
+    pub new_identity_per_ip: std::sync::Mutex<HashMap<String, Vec<(String, Instant)>>>,
     /// VAPID keypair for WebPush notifications (P-256/ES256).
     pub vapid_key: Option<ES256KeyPair>,
     /// Server configuration loaded from data/server-config.json (funding, membership, etc.).
@@ -252,6 +262,7 @@ impl RelayState {
             federation_connections: RwLock::new(HashMap::new()),
             federation_rate: std::sync::Mutex::new(HashMap::new()),
             identify_rate: std::sync::Mutex::new(HashMap::new()),
+            new_identity_per_ip: std::sync::Mutex::new(HashMap::new()),
             vapid_key: None,
             server_config,
             game_world: RwLock::new(GameWorld::new()),
@@ -2509,6 +2520,54 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
                         continue;
                     }
+
+                    // v0.280.0 anti-spam: per-IP cap on DISTINCT NEW
+                    // identities created in the last hour. "New" =
+                    // no prior `registered_names` row for this pubkey.
+                    // Returning identities (already registered) are
+                    // exempt — this only deters scripted onboarding
+                    // floods from a single IP. Default cap of 5/hr
+                    // covers legitimate family/household onboarding
+                    // with headroom. Tune via the constants below if
+                    // real traffic warrants.
+                    let is_new = !state.db.pubkey_is_registered(&pending.public_key).unwrap_or(false);
+                    if is_new {
+                        const NEW_ID_WINDOW_SECS: u64 = 3600;
+                        const NEW_ID_MAX_PER_IP: usize = 5;
+                        // All map mutation under the lock; produce a
+                        // simple bool to drive the .await response,
+                        // dropping the guard before the await.
+                        let blocked = {
+                            let mut map = state.new_identity_per_ip.lock().unwrap();
+                            let entry = map.entry(client_ip.clone()).or_default();
+                            let now = Instant::now();
+                            entry.retain(|(_, when)| now.duration_since(*when).as_secs() < NEW_ID_WINDOW_SECS);
+                            let already_seen = entry.iter().any(|(pk, _)| pk == &pending.public_key);
+                            let distinct: std::collections::HashSet<&str> =
+                                entry.iter().map(|(pk, _)| pk.as_str()).collect();
+                            if already_seen {
+                                false
+                            } else if distinct.len() >= NEW_ID_MAX_PER_IP {
+                                true
+                            } else {
+                                entry.push((pending.public_key.clone(), now));
+                                false
+                            }
+                        };
+                        if blocked {
+                            tracing::warn!(
+                                "New-identity-per-IP cap hit for ip={}, new pubkey prefix={}",
+                                client_ip,
+                                &pending.public_key[..pending.public_key.len().min(16)],
+                            );
+                            let err = RelayMessage::System {
+                                message: "Too many new accounts from this connection in the last hour. Try again later, or contact the relay operator if this looks wrong.".to_string(),
+                            };
+                            let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                            let _ = ws_tx.close().await;
+                            return;
+                        }
+                    }
                     // Verified — proceed to bind with the stashed fields.
                     (pending.public_key, pending.display_name, pending.link_code, pending.invite_code, pending.kyber_public)
                 }
@@ -3350,6 +3409,42 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     };
                                     let _ = state_clone.broadcast_tx.send(private);
                                     continue;
+                                }
+
+                                // v0.280.0 anti-spam: time-gate new identities
+                                // from posting in public channels for the
+                                // first NEW_IDENTITY_GRACE_SECS seconds after
+                                // their first name registration. DMs are not
+                                // gated (already 1-to-1 + E2EE; no broadcast
+                                // amplification). Bots (`bot_*`) bypass —
+                                // they auth via bot_secret and the operator
+                                // controls onboarding. The grace period is
+                                // long enough to deter scripted flooding but
+                                // short enough that a real user clicking
+                                // through onboarding rarely hits it (a few
+                                // seconds of "read the welcome message"
+                                // already exceeds it).
+                                const NEW_IDENTITY_GRACE_SECS: i64 = 60;
+                                let is_bot = my_key_for_recv.starts_with("bot_");
+                                if !is_bot {
+                                    if let Ok(Some(reg_at_ms)) = state_clone.db.first_registered_at_for_key(&my_key_for_recv) {
+                                        let now_ms = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_millis() as i64;
+                                        let age_secs = (now_ms - reg_at_ms) / 1000;
+                                        if age_secs >= 0 && age_secs < NEW_IDENTITY_GRACE_SECS {
+                                            let wait = (NEW_IDENTITY_GRACE_SECS - age_secs).max(1);
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: format!(
+                                                    "Welcome! New accounts wait {NEW_IDENTITY_GRACE_SECS}s before posting in public channels (anti-spam). Try again in {wait}s. DMs work right away."
+                                                ),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                            continue;
+                                        }
+                                    }
                                 }
 
                                 // v0.200.0: enforce per-role message length limits
