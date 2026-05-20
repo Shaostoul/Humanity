@@ -423,9 +423,21 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .color(theme.text_muted()),
                     );
                     ui.add_space(6.0);
-                    if widgets::Button::primary("Unlock with Passphrase").full_width().show(ui, theme) {
+                    // v0.278.0: route to PIN modal if the user has set up
+                    // KeychainPin mode — otherwise it's the classic
+                    // passphrase modal. Keychain mode auto-unlocked at
+                    // startup; if it failed (keychain gone), this button
+                    // falls back to the passphrase modal which is the
+                    // recovery path.
+                    let (btn_label, target_mode) = match state.auto_unlock_mode {
+                        crate::auto_unlock::AutoUnlockMode::KeychainPin if !state.pin_encrypted_seed.is_empty() => {
+                            ("Unlock with PIN", crate::gui::PassphraseMode::PinUnlock)
+                        }
+                        _ => ("Unlock with Passphrase", crate::gui::PassphraseMode::Unlock),
+                    };
+                    if widgets::Button::primary(btn_label).full_width().show(ui, theme) {
                         state.passphrase_needed = true;
-                        state.passphrase_mode = crate::gui::PassphraseMode::Unlock;
+                        state.passphrase_mode = target_mode;
                     }
                     ui.add_space(4.0);
                     ui.label(

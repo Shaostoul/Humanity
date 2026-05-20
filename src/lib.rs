@@ -46,6 +46,12 @@ pub mod net;
 #[cfg(feature = "native")]
 pub mod config;
 
+// v0.278.0: optional silent / quick-PIN unlock paths on top of the
+// passphrase-encrypted vault. Native-only — relay/wasm don't carry an
+// interactive identity.
+#[cfg(feature = "native")]
+pub mod auto_unlock;
+
 #[cfg(feature = "native")]
 pub mod updater;
 

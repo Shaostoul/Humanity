@@ -126,6 +126,7 @@ Identity (federation objects): ML-DSA-65 (Dilithium3, FIPS 204), separate keypai
 | Solana wallet | Ed25519 (the BIP39 seed scalar) | `web/chat/crypto.js` `extractSolanaKeypair()` | Active — **Ed25519's ONLY remaining role** (seed source + Solana wallet); no longer the chat identity |
 | Vault encryption (web) | AES-256-GCM + PBKDF2-SHA-256, **600,000 iters** | `web/chat/crypto.js` | Active. Wraps only the Ed25519/BIP39 seed now (Dilithium+Kyber re-derive). |
 | Vault encryption (native) | AES-256-GCM + PBKDF2-SHA-256, **600,000 iters** (matches web) | `src/config.rs` | **v0.277.0** — bumped 100k → 600k. Vault format adds `key_iterations: u32` so legacy 100k vaults decrypt with their stored count and are silently re-encrypted at 600k on the next successful unlock (one-time per vault). |
+| Auto-unlock (native) | 3 modes: AlwaysPrompt (default) / Keychain / KeychainPin | `src/auto_unlock.rs` | **v0.278.0** — opt-in shortcuts on top of the passphrase vault. Keychain stashes the raw seed in the OS keychain (Windows DPAPI / macOS Keychain Services / Linux Secret Service) for silent startup. KeychainPin keeps a random 32-byte device key in the keychain + a `AES-GCM(seed, key=PBKDF2(PIN ‖ device_key, salt, 600k))` blob in `AppConfig`; cold theft of one without the other yields nothing. Passphrase is always the recovery fallback in all modes. |
 | Server-side KDF | Argon2id | `src/relay/core/kdf.rs` | Active |
 | ECDH P-256 DM | — | — | **DELETED** (web v0.263.4, native v0.264.0 — `dm_crypto.rs` removed) |
 

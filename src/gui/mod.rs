@@ -49,7 +49,13 @@ pub struct DonateAddress {
     pub label: String,
 }
 
-/// What the passphrase prompt is for.
+/// What the passphrase / PIN prompt is for.
+///
+/// The first three (SetNew, Unlock, Change) gate the BIP39-derived passphrase
+/// vault that has existed since the early native client. The PIN variants
+/// (v0.278.0 auto-unlock) gate the short PIN that wraps a keychain-stored
+/// device key. PIN and passphrase coexist: setting a PIN doesn't remove the
+/// passphrase vault — it's an alternate, faster unlock that lives on top.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PassphraseMode {
@@ -59,6 +65,15 @@ pub enum PassphraseMode {
     Unlock,
     /// Changing the passphrase (requires old + new).
     Change,
+    /// Setting a new PIN — requires the seed already in memory (called
+    /// either right after a successful passphrase unlock OR on a freshly
+    /// generated identity). Encrypts seed with PIN+device_key.
+    PinSetup,
+    /// Unlocking with the PIN. Device key already loaded from keychain.
+    PinUnlock,
+    /// Changing PIN — requires old PIN + new PIN. Re-encrypts the seed
+    /// blob; the device_key in the keychain stays the same.
+    PinChange,
 }
 
 /// Which page/overlay is currently active.
@@ -905,6 +920,30 @@ pub struct GuiState {
     /// (600_000). The Unlock site re-encrypts to the new count on the
     /// next successful unlock — silent one-time migration per vault.
     pub key_iterations: u32,
+
+    // ── v0.278.0 auto-unlock state ──
+    /// User's chosen unlock mode: AlwaysPrompt / Keychain / KeychainPin.
+    /// Default is AlwaysPrompt — opt-in is explicit.
+    pub auto_unlock_mode: crate::auto_unlock::AutoUnlockMode,
+    /// AES-GCM blob of the seed encrypted with `PIN ‖ device_key`. Empty
+    /// when KeychainPin mode is not set up. Persisted in AppConfig.
+    pub pin_encrypted_seed: String,
+    /// PBKDF2 salt for the PIN-encrypted seed (base64). Empty when unset.
+    pub pin_salt: String,
+    /// "Remember on this device" checkbox state on the unlock modal —
+    /// when true and the modal completes successfully, the seed is
+    /// stashed in the OS keychain and `auto_unlock_mode` flips to
+    /// `Keychain`. Resets to false after each modal close.
+    pub remember_on_device: bool,
+    /// PIN entry buffer (active digit-only field on the PinSetup /
+    /// PinUnlock / PinChange modal forms).
+    pub pin_input: String,
+    /// Confirm-PIN entry buffer for PinSetup / PinChange.
+    pub pin_confirm: String,
+    /// Current-PIN entry buffer for PinChange.
+    pub pin_old_input: String,
+    /// Status/error text displayed under the PIN entry fields.
+    pub pin_status: String,
     /// Full-PQ: our Kyber768 (ML-KEM-768) public key, base64. Derived
     /// deterministically from the BIP39 seed on recovery/unlock and
     /// advertised at identify; the secret re-derives from the seed on
@@ -1541,6 +1580,16 @@ impl Default for GuiState {
             // A loaded legacy config overwrites this with its stored value
             // (defaults to 100_000 via serde for pre-v0.277.0 configs).
             key_iterations: crate::config::PBKDF2_ITERATIONS_NEW,
+            // v0.278.0 auto-unlock — default is opt-out (always prompt).
+            // A loaded config overwrites this with the user's stored choice.
+            auto_unlock_mode: crate::auto_unlock::AutoUnlockMode::AlwaysPrompt,
+            pin_encrypted_seed: String::new(),
+            pin_salt: String::new(),
+            remember_on_device: false,
+            pin_input: String::new(),
+            pin_confirm: String::new(),
+            pin_old_input: String::new(),
+            pin_status: String::new(),
             kyber_public_b64: String::new(),
             peer_kyber_keys: std::collections::HashMap::new(),
             donate_solana_address: String::new(),

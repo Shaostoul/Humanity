@@ -81,6 +81,35 @@ pub struct AppConfig {
     #[serde(default = "default_legacy_iterations")]
     pub key_iterations: u32,
 
+    // ── v0.278.0: auto-unlock ───────────────────────────────────────────
+    // Three opt-in unlock modes coexist alongside the passphrase vault:
+    //   AlwaysPrompt  — original behavior (default for pre-v0.278 configs)
+    //   Keychain      — OS keychain stores raw seed; silent startup
+    //   KeychainPin   — keychain stores device key; PIN-encrypted seed
+    //                   blob lives in `pin_encrypted_seed` / `pin_salt`
+    //
+    // The passphrase-encrypted vault (`encrypted_private_key` + `key_salt`)
+    // is ALWAYS still present as the recovery path — auto-unlock modes
+    // add an alternate unlock; they never replace the passphrase. Losing
+    // the keychain entry falls back to the passphrase prompt without data
+    // loss.
+
+    /// How the seed should be unlocked at app launch. See `auto_unlock.rs`.
+    /// `serde(default)` → `AlwaysPrompt` for pre-v0.278 configs.
+    #[cfg(feature = "native")]
+    #[serde(default)]
+    pub auto_unlock_mode: crate::auto_unlock::AutoUnlockMode,
+
+    /// PIN-encrypted seed blob (KeychainPin mode only). Encrypted with
+    /// AES-256-GCM using a key derived from `PIN ‖ device_key` via
+    /// PBKDF2-SHA256 (`PIN_PBKDF2_ITERS`). The `device_key` lives in the
+    /// OS keychain — this blob without it is useless. Empty when not set.
+    #[serde(default)]
+    pub pin_encrypted_seed: String,
+    /// PBKDF2 salt for the PIN-encrypted seed (base64). Empty when unset.
+    #[serde(default)]
+    pub pin_salt: String,
+
     // Full-PQ: no DM keypair is persisted. Dilithium3 (identity) and
     // Kyber768 (DM) both re-derive deterministically from the BIP39 seed
     // (`encrypted_private_key`). The legacy plaintext ECDH fields were
@@ -367,6 +396,11 @@ impl AppConfig {
             encrypted_private_key: state.encrypted_private_key.clone(),
             key_salt: state.key_salt.clone(),
             key_iterations: state.key_iterations,
+            // v0.278.0 auto-unlock
+            #[cfg(feature = "native")]
+            auto_unlock_mode: state.auto_unlock_mode,
+            pin_encrypted_seed: state.pin_encrypted_seed.clone(),
+            pin_salt: state.pin_salt.clone(),
             chat_connection_collapsed: state.chat_connection_collapsed,
             chat_dm_collapsed: state.chat_dm_collapsed,
             chat_groups_collapsed: state.chat_groups_collapsed,
@@ -448,6 +482,12 @@ impl AppConfig {
         state.encrypted_private_key = self.encrypted_private_key.clone();
         state.key_salt = self.key_salt.clone();
         state.key_iterations = self.key_iterations;
+        // v0.278.0 auto-unlock — pull mode + PIN-encrypted seed in.
+        // Startup logic (see lib.rs) inspects state.auto_unlock_mode to
+        // decide between silent keychain load / PIN modal / passphrase modal.
+        state.auto_unlock_mode = self.auto_unlock_mode;
+        state.pin_encrypted_seed = self.pin_encrypted_seed.clone();
+        state.pin_salt = self.pin_salt.clone();
         // Full-PQ: Kyber/Dilithium re-derive from the seed — nothing to load.
 
         // Key handling: default to limited mode (no passphrase prompt on startup).
@@ -470,9 +510,59 @@ impl AppConfig {
                 }
             }
         } else if self.needs_passphrase() {
-            // Encrypted key exists but we don't prompt on startup.
-            // User can unlock from Settings > Security when they need signing.
-            log::info!("Encrypted key found; running in limited mode (unlock via Settings)");
+            // v0.278.0 auto-unlock: honor the user's mode choice on startup.
+            // Default (AlwaysPrompt) preserves the pre-v0.278 behavior — no
+            // modal, user clicks Unlock when they need signing.
+            use crate::auto_unlock::{AutoUnlockMode, KeychainSlot};
+            match self.auto_unlock_mode {
+                AutoUnlockMode::Keychain => {
+                    // Try silent load. The `profile_public_key` is the
+                    // Dilithium hex identity; falls back to public_key_hex
+                    // for legacy configs that haven't refreshed yet.
+                    let identity = if !self.public_key_hex.is_empty() {
+                        self.public_key_hex.as_str()
+                    } else {
+                        ""
+                    };
+                    if identity.is_empty() {
+                        log::warn!("Auto-unlock (Keychain): no public_key_hex in config; skipping silent unlock");
+                    } else {
+                        match crate::auto_unlock::keychain_load(KeychainSlot::Seed, identity) {
+                            Ok(Some(seed)) => {
+                                state.private_key_bytes = Some(seed.to_vec());
+                                state.apply_pq_identity();
+                                log::info!("Auto-unlock (Keychain): seed loaded from OS keychain — silent unlock OK");
+                            }
+                            Ok(None) => {
+                                // Keychain entry gone (user cleared it, new
+                                // device, OS reinstall). Fall back to the
+                                // passphrase prompt without panicking the
+                                // user — `needs_passphrase()` will surface
+                                // the Settings unlock path.
+                                log::warn!("Auto-unlock (Keychain): no keychain entry — falling back to passphrase mode");
+                            }
+                            Err(e) => {
+                                // Platform-level failure (no keychain
+                                // backend, permissions denied). Same
+                                // graceful degrade — keep the user signed
+                                // in via Settings Unlock.
+                                log::warn!("Auto-unlock (Keychain): keychain load failed: {}. Falling back to passphrase mode.", e);
+                            }
+                        }
+                    }
+                }
+                AutoUnlockMode::KeychainPin => {
+                    // Don't try to unlock automatically — wait for user
+                    // input. The startup PIN modal is queued by the UI
+                    // layer (chat unlock button + Settings) so we don't
+                    // pop a modal over the splash. The seed stays locked
+                    // until the user types their PIN.
+                    log::info!("Auto-unlock (KeychainPin): waiting for user PIN entry");
+                }
+                AutoUnlockMode::AlwaysPrompt => {
+                    log::info!("Encrypted key found; running in limited mode (unlock via Settings)");
+                }
+            }
         }
         // passphrase_needed stays false — no modal on startup
     }

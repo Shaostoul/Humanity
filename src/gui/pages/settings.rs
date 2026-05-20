@@ -453,6 +453,132 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         }
     });
 
+    // ── v0.278.0: Auto-unlock on app launch ────────────────────────────
+    // Three opt-in modes that coexist alongside the always-available
+    // passphrase. UI mirrors the auto_unlock::AutoUnlockMode enum.
+    widgets::card(ui, theme, |ui| {
+        ui.label(RichText::new("Unlock on App Launch").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        ui.label(RichText::new(
+            "Skip typing your passphrase every launch. Your passphrase remains the recovery option in all modes — these are just shortcuts.")
+            .color(theme.text_muted()).size(theme.font_size_small));
+        ui.add_space(theme.spacing_sm);
+
+        let current = state.auto_unlock_mode;
+        use crate::auto_unlock::AutoUnlockMode;
+
+        // Mode 1: Always prompt
+        let mut sel_always = current == AutoUnlockMode::AlwaysPrompt;
+        if ui.radio_value(&mut sel_always, true, "Always ask for passphrase").changed() && sel_always {
+            // Switching INTO AlwaysPrompt: clear keychain entries + PIN
+            // blob so we don't leave secrets on disk/keychain the user
+            // thinks they revoked.
+            let identity = state.profile_public_key.clone();
+            if !identity.is_empty() {
+                let _ = crate::auto_unlock::keychain_clear(crate::auto_unlock::KeychainSlot::Seed, &identity);
+                let _ = crate::auto_unlock::keychain_clear(crate::auto_unlock::KeychainSlot::DeviceKey, &identity);
+            }
+            state.pin_encrypted_seed.clear();
+            state.pin_salt.clear();
+            state.auto_unlock_mode = AutoUnlockMode::AlwaysPrompt;
+            crate::config::AppConfig::from_gui_state(state).save();
+        }
+        ui.label(RichText::new("Most secure. Use on shared or public machines.")
+            .color(theme.text_muted()).size(theme.font_size_small));
+        ui.add_space(theme.spacing_xs);
+
+        // Mode 2: Remember on this device (Keychain)
+        let mut sel_keychain = current == AutoUnlockMode::Keychain;
+        let key_locked = state.private_key_bytes.is_none();
+        let resp = ui.add_enabled(
+            !key_locked, // can only enable Keychain when seed is in memory
+            egui::RadioButton::new(sel_keychain, "Remember on this device"),
+        );
+        if resp.clicked() && !sel_keychain {
+            // Switching INTO Keychain. Need the seed in memory; stash it.
+            if let Some(ref kb) = state.private_key_bytes {
+                if kb.len() == 32 && !state.profile_public_key.is_empty() {
+                    let mut seed = [0u8; 32];
+                    seed.copy_from_slice(kb);
+                    match crate::auto_unlock::keychain_stash(
+                        crate::auto_unlock::KeychainSlot::Seed,
+                        &state.profile_public_key,
+                        &seed,
+                    ) {
+                        Ok(()) => {
+                            // Clear KeychainPin remnants if user switched
+                            // from KeychainPin → Keychain
+                            let _ = crate::auto_unlock::keychain_clear(
+                                crate::auto_unlock::KeychainSlot::DeviceKey,
+                                &state.profile_public_key,
+                            );
+                            state.pin_encrypted_seed.clear();
+                            state.pin_salt.clear();
+                            state.auto_unlock_mode = AutoUnlockMode::Keychain;
+                            crate::config::AppConfig::from_gui_state(state).save();
+                            sel_keychain = true;
+                        }
+                        Err(e) => {
+                            log::warn!("Keychain stash failed from Settings: {}", e);
+                        }
+                    }
+                }
+            }
+        }
+        let _ = sel_keychain; // explicit ack the radio bool is now-or-never
+        if key_locked && current != AutoUnlockMode::Keychain {
+            ui.label(RichText::new("(Unlock with passphrase first to enable.)")
+                .color(theme.text_muted()).size(theme.font_size_small));
+        } else {
+            ui.label(RichText::new(
+                "OS keychain (Windows Credential Manager / macOS Keychain) holds your seed. Silent unlock on launch.")
+                .color(theme.text_muted()).size(theme.font_size_small));
+        }
+        ui.add_space(theme.spacing_xs);
+
+        // Mode 3: Quick PIN
+        let mut sel_pin = current == AutoUnlockMode::KeychainPin;
+        let resp_pin = ui.add_enabled(
+            !key_locked,
+            egui::RadioButton::new(sel_pin, "Quick PIN (4-12 digits)"),
+        );
+        if resp_pin.clicked() && !sel_pin {
+            // Switching INTO KeychainPin: open the PinSetup modal so
+            // the user can pick a PIN. Mode flips only after a
+            // successful setup (the modal's "Set PIN" handler).
+            state.passphrase_needed = true;
+            state.passphrase_mode = crate::gui::PassphraseMode::PinSetup;
+            state.pin_status.clear();
+            state.pin_input.clear();
+            state.pin_confirm.clear();
+        }
+        let _ = sel_pin;
+        if key_locked && current != AutoUnlockMode::KeychainPin {
+            ui.label(RichText::new("(Unlock with passphrase first to enable.)")
+                .color(theme.text_muted()).size(theme.font_size_small));
+        } else {
+            ui.label(RichText::new(
+                "Small barrier against opportunistic OS-account access. PIN protects a device key kept in the OS keychain.")
+                .color(theme.text_muted()).size(theme.font_size_small));
+        }
+
+        ui.add_space(theme.spacing_sm);
+
+        // PIN management buttons, only relevant in KeychainPin mode
+        if current == AutoUnlockMode::KeychainPin {
+            ui.horizontal(|ui| {
+                if widgets::secondary_button(ui, theme, "Change PIN") {
+                    state.passphrase_needed = true;
+                    state.passphrase_mode = crate::gui::PassphraseMode::PinChange;
+                    state.pin_status.clear();
+                    state.pin_old_input.clear();
+                    state.pin_input.clear();
+                    state.pin_confirm.clear();
+                }
+            });
+        }
+    });
+
     ui.add_space(theme.spacing_md);
 
     // Donation Addresses section (admin/owner)

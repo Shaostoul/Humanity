@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.277.2"
+version = "0.278.0"
 edition = "2021"
 
 [[bin]]
@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard"]
+native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring"]
 relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -63,6 +63,12 @@ ureq = { version = "2", optional = true }
 # captures) — v0.232. Already a transitive dep via egui; declaring directly
 # so we can call get_image() on the clipboard. native feature only.
 arboard = { version = "3", optional = true, default-features = false, features = ["image-data"] }
+# Cross-platform OS keychain wrapper (Windows Credential Manager via DPAPI,
+# macOS Keychain Services, Linux Secret Service / KWallet). Used by the
+# v0.278.0 auto-unlock feature so users can opt into silent startup without
+# typing their full BIP39-derived passphrase every launch. native feature
+# only — relay/wasm builds don't carry an interactive identity.
+keyring = { version = "3", optional = true, default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
 bip39 = { version = "2", optional = true }
 ed25519-dalek = { version = "2", optional = true, features = ["rand_core"] }
 hex = { version = "0.4", optional = true }
