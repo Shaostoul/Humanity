@@ -1485,6 +1485,34 @@ mod native_app {
                                 let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
                                 log::debug!("WS recv: type={}", msg_type);
                                 match val.get("type").and_then(|t| t.as_str()) {
+                                    Some("identify_challenge") => {
+                                        // Inc3b — relay challenged us after `identify`.
+                                        // Sign the canonical preimage with Dilithium3 from
+                                        // our BIP39 seed and return `identify_response`.
+                                        // Closes HIGH-2 (identity spoofing at identify).
+                                        let nonce = val.get("nonce").and_then(|v| v.as_str()).unwrap_or("");
+                                        if nonce.is_empty() {
+                                            log::warn!("identify_challenge missing nonce");
+                                        } else if let Some(ref seed) = state.gui_state.private_key_bytes {
+                                            let preimage = format!(
+                                                "hum/identify/v1\n{}\n{}",
+                                                nonce, state.gui_state.profile_public_key
+                                            );
+                                            let sig = crate::net::identity::pq_sign_raw(seed, preimage.as_bytes());
+                                            use base64::{engine::general_purpose::STANDARD as B64, Engine};
+                                            let sig_b64 = B64.encode(&sig);
+                                            let response = serde_json::json!({
+                                                "type": "identify_response",
+                                                "sig_b64": sig_b64,
+                                            });
+                                            if let Some(ref ws_client) = state.gui_state.ws_client {
+                                                ws_client.send(&response.to_string());
+                                            }
+                                        } else {
+                                            log::error!("identify_challenge received but seed not unlocked — cannot sign. Unlock identity to connect.");
+                                            state.gui_state.ws_status = "Unlock your identity to complete connect (server requested challenge).".to_string();
+                                        }
+                                    }
                                     Some("chat") => {
                                         let sender_key = val.get("from")
                                             .and_then(|v| v.as_str())

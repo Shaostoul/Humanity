@@ -508,6 +508,27 @@ pub enum RelayMessage {
         kyber_public: Option<String>,
     },
 
+    /// Server-issued challenge after `identify`. The client must sign
+    /// the domain-separated preimage
+    ///   "hum/identify/v1\n" + nonce + "\n" + public_key_hex
+    /// with their Dilithium3 secret and return it as `IdentifyResponse`.
+    /// Until verified the relay does NOT bind the socket to the claimed
+    /// identity — this closes HIGH-2 (identify spoofing / impersonation).
+    #[serde(rename = "identify_challenge")]
+    IdentifyChallenge {
+        /// 32 random bytes, hex-encoded (64 chars). Fresh per socket.
+        nonce: String,
+    },
+
+    /// Client's response to `identify_challenge`. Carries the Dilithium3
+    /// signature over the canonical preimage; relay verifies against the
+    /// public_key it stashed at Phase 1 before binding the socket.
+    #[serde(rename = "identify_response")]
+    IdentifyResponse {
+        /// Base64 of the 3309-byte Dilithium3 signature.
+        sig_b64: String,
+    },
+
     /// A chat message, Dilithium3-signed (`pq_signature`).
     #[serde(rename = "chat")]
     Chat {
@@ -2335,6 +2356,21 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     let mut broadcast_rx = state.broadcast_tx.subscribe();
     let mut peer_key: Option<String> = None;
 
+    // Inc3b — identify proof-of-possession. After receiving `Identify`
+    // from a human (non-bot) client, we stash the unverified fields here
+    // and send `IdentifyChallenge { nonce }`. The client must Dilithium-
+    // sign the domain-separated preimage and return `IdentifyResponse`;
+    // only then do we bind the socket. Closes HIGH-2 (identity spoofing).
+    struct PendingIdentify {
+        public_key: String,
+        display_name: Option<String>,
+        link_code: Option<String>,
+        invite_code: Option<String>,
+        kyber_public: Option<String>,
+        nonce: String, // hex; empty for bot fast-path (no challenge issued)
+    }
+    let mut pending_identify: Option<PendingIdentify> = None;
+
     // Wait for the identify message with a timeout.
     let identify_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(IDENTIFY_TIMEOUT_SECS);
 
@@ -2349,25 +2385,84 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
         };
         let Some(Ok(msg)) = msg else { return; };
         if let Message::Text(text) = msg {
-            if let Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, kyber_public }) =
-                serde_json::from_str::<RelayMessage>(&text)
-            {
-                // L-1: Bot keys require bot_secret matching API_SECRET.
-                if public_key.starts_with("bot_") {
-                    let expected = std::env::var("API_SECRET").unwrap_or_default();
-                    let provided = bot_secret.as_deref().unwrap_or("");
-                    // H-2: Use constant-time comparison to prevent timing attacks.
-                    let ct_eq = provided.len() == expected.len() && provided.as_bytes().iter().zip(expected.as_bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0;
-                    if expected.is_empty() || !ct_eq {
-                        let err = RelayMessage::System {
-                            message: "Bot authentication failed: invalid or missing bot_secret.".to_string(),
-                        };
-                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
-                        let _ = ws_tx.close().await;
-                        return;
+            // ── Inc3b — identify proof-of-possession ──
+            // Two-phase: human (Dilithium) clients receive a server-issued
+            // nonce challenge after `Identify`; only after they return a
+            // valid Dilithium signature in `IdentifyResponse` do we bind.
+            // Bots authenticate by `bot_secret` (their key is the literal
+            // string `bot_*`, not a Dilithium pubkey) and skip the
+            // challenge. Closes HIGH-2 (identity spoofing at identify).
+            let parsed = serde_json::from_str::<RelayMessage>(&text);
+            let (public_key, display_name, link_code, invite_code, kyber_public):
+                (String, Option<String>, Option<String>, Option<String>, Option<String>)
+            = match parsed {
+                Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, kyber_public }) => {
+                    // L-1: Bot keys require bot_secret matching API_SECRET.
+                    if public_key.starts_with("bot_") {
+                        let expected = std::env::var("API_SECRET").unwrap_or_default();
+                        let provided = bot_secret.as_deref().unwrap_or("");
+                        // H-2: constant-time comparison to prevent timing attacks.
+                        let ct_eq = provided.len() == expected.len() && provided.as_bytes().iter().zip(expected.as_bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0;
+                        if expected.is_empty() || !ct_eq {
+                            let err = RelayMessage::System {
+                                message: "Bot authentication failed: invalid or missing bot_secret.".to_string(),
+                            };
+                            let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                            let _ = ws_tx.close().await;
+                            return;
+                        }
+                        // Bot authenticated — skip Dilithium challenge, proceed to bind.
+                        (public_key, display_name, link_code, invite_code, kyber_public)
+                    } else {
+                        // Human identity: issue the Dilithium nonce challenge.
+                        // Client must sign the canonical preimage
+                        //   "hum/identify/v1\n" + nonce_hex + "\n" + public_key_hex
+                        // and return it via IdentifyResponse before we bind.
+                        let mut nonce_bytes = [0u8; 32];
+                        if getrandom::getrandom(&mut nonce_bytes).is_err() {
+                            tracing::error!("RNG failed for identify nonce");
+                            continue;
+                        }
+                        let nonce = hex::encode(nonce_bytes);
+                        pending_identify = Some(PendingIdentify {
+                            public_key: public_key.clone(),
+                            display_name: display_name.clone(),
+                            link_code: link_code.clone(),
+                            invite_code: invite_code.clone(),
+                            kyber_public: kyber_public.clone(),
+                            nonce: nonce.clone(),
+                        });
+                        let challenge = RelayMessage::IdentifyChallenge { nonce };
+                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&challenge).unwrap().into())).await;
+                        continue;
                     }
                 }
-                let mut final_name = display_name.clone();
+                Ok(RelayMessage::IdentifyResponse { sig_b64 }) => {
+                    let Some(pending) = pending_identify.take() else {
+                        let err = RelayMessage::System {
+                            message: "No pending identify challenge — send Identify first.".to_string(),
+                        };
+                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                        continue;
+                    };
+                    let preimage = format!("hum/identify/v1\n{}\n{}", pending.nonce, pending.public_key);
+                    if !crate::relay::handlers::broadcast::verify_dilithium_b64(
+                        &pending.public_key,
+                        preimage.as_bytes(),
+                        &sig_b64,
+                    ) {
+                        let err = RelayMessage::System {
+                            message: "Identify challenge verification failed. Reconnect and re-identify.".to_string(),
+                        };
+                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                        continue;
+                    }
+                    // Verified — proceed to bind with the stashed fields.
+                    (pending.public_key, pending.display_name, pending.link_code, pending.invite_code, pending.kyber_public)
+                }
+                _ => continue,
+            };
+            let mut final_name = display_name.clone();
 
                 // Handle link code redemption.
                 if let Some(ref code) = link_code {
@@ -2755,7 +2850,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 }
 
                 break;
-            }
         }
     }
 

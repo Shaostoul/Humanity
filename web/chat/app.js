@@ -710,6 +710,38 @@ async function handleMessage(msg) {
       updateChannelHeader();
       updateInputForChannel();
       break;
+    case 'identify_challenge': {
+      // Full-PQ Inc3b: relay issued a nonce after our Identify. Sign the
+      // canonical preimage with our Dilithium3 secret and return it via
+      // identify_response — only then does the relay bind the socket to
+      // our claimed key. Closes HIGH-2 (identity spoofing).
+      try {
+        const nonce = msg.nonce || '';
+        if (!nonce || !myDilithiumSecret || typeof window.pqSignMessage !== 'function') {
+          console.error('identify_challenge: missing nonce or PQ identity not ready');
+          break;
+        }
+        const preimage = new TextEncoder().encode(
+          'hum/identify/v1\n' + nonce + '\n' + myKey
+        );
+        // pqSignMessage returns Uint8Array (3309 bytes for ML-DSA-65).
+        Promise.resolve(window.pqSignMessage(myDilithiumSecret, preimage))
+          .then(sigBytes => {
+            if (!sigBytes) {
+              console.error('identify_challenge: signing returned null');
+              return;
+            }
+            const sig_b64 = btoa(String.fromCharCode(...sigBytes));
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'identify_response', sig_b64 }));
+            }
+          })
+          .catch(e => console.error('identify_challenge sign failed:', e && e.message));
+      } catch (e) {
+        console.error('identify_challenge handler error:', e && e.message);
+      }
+      break;
+    }
     case 'peer_list':
       // Auto-reload on server update: if server_version changed, unregister SW and refresh.
       if (msg.server_version) {

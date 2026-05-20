@@ -101,6 +101,16 @@ pub fn pq_sign_chat(seed32: &[u8], content: &str, timestamp: u64) -> String {
     hex::encode(dil.sign(format!("{content}\n{timestamp}").as_bytes()))
 }
 
+/// Raw-bytes Dilithium3 signature (Vec<u8>, 3309 bytes). Used by Inc3b
+/// identify-challenge response, where the preimage is a domain-separated
+/// string ("hum/identify/v1\n" + nonce + "\n" + pubkey) — not chat's
+/// `content\ntimestamp` shape. Caller base64-encodes for the wire.
+pub fn pq_sign_raw(seed32: &[u8], message: &[u8]) -> Vec<u8> {
+    let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(seed32);
+    let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+    dil.sign(message)
+}
+
 /// Generate a fresh 32-byte BIP39 seed (256-bit entropy) from the OS
 /// CSPRNG. This 32-byte value IS the identity — it deterministically
 /// re-derives Ed25519 (Solana wallet), Dilithium3 (the chat identity),

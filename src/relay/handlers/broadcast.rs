@@ -91,6 +91,60 @@ pub fn verify_dilithium_signature(dilithium_pub_hex: &str, content: &str, timest
     crate::relay::core::pq_crypto::verify_dilithium(&pk, message.as_bytes(), &sig).is_ok()
 }
 
+/// Generic Dilithium3 verify for raw message bytes + base64 sig.
+/// Used by Inc3b identify proof-of-possession (the preimage is a
+/// domain-separated string, not chat's `content\ntimestamp` shape).
+/// `dilithium_pub_hex` = 1952-byte ML-DSA-65 key hex; `sig_b64` =
+/// base64 of the 3309-byte Dilithium signature. Returns false on any
+/// decode or verify failure.
+pub fn verify_dilithium_b64(dilithium_pub_hex: &str, message: &[u8], sig_b64: &str) -> bool {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let Ok(pk) = hex::decode(dilithium_pub_hex) else { return false };
+    let Ok(sig) = B64.decode(sig_b64.trim()) else { return false };
+    crate::relay::core::pq_crypto::verify_dilithium(&pk, message, &sig).is_ok()
+}
+
+#[cfg(test)]
+mod inc3b_tests {
+    use super::*;
+    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+
+    /// Round-trip: sign a domain-separated identify preimage with a
+    /// seed-derived Dilithium key, base64 the sig, verify_dilithium_b64
+    /// accepts it — and rejects tampered preimage / wrong key / corrupt
+    /// sig. This is the EXACT path the relay uses for Inc3b.
+    #[test]
+    fn identify_challenge_sign_verify_roundtrip() {
+        let seed = [11u8; 32];
+        let dil_seed = derive_dilithium_seed(&seed);
+        let kp = DilithiumKeypair::from_seed(&dil_seed);
+        let pk_hex = hex::encode(kp.public_key());
+        let preimage = b"hum/identify/v1\nabc123def456\ndeadbeefcafe";
+        let sig_b64 = B64.encode(&kp.sign(preimage));
+
+        // Happy path.
+        assert!(verify_dilithium_b64(&pk_hex, preimage, &sig_b64));
+
+        // Tampered preimage → reject.
+        assert!(!verify_dilithium_b64(&pk_hex, b"tampered preimage", &sig_b64));
+
+        // Wrong key → reject.
+        let other = DilithiumKeypair::from_seed(&derive_dilithium_seed(&[22u8; 32]));
+        let other_hex = hex::encode(other.public_key());
+        assert!(!verify_dilithium_b64(&other_hex, preimage, &sig_b64));
+
+        // Corrupt sig (single byte flipped) → reject.
+        let mut bad = kp.sign(preimage);
+        bad[0] ^= 0xFF;
+        let bad_b64 = B64.encode(&bad);
+        assert!(!verify_dilithium_b64(&pk_hex, preimage, &bad_b64));
+
+        // Garbage base64 → reject (not panic).
+        assert!(!verify_dilithium_b64(&pk_hex, preimage, "not~valid~base64!"));
+    }
+}
+
 /// Maximum tolerated drift for inbound timestamped messages.
 /// 5 minutes matches the existing `/api/vault/sync` freshness window.
 /// Any inbound message with a timestamp outside `[now - MAX, now + MAX]`
