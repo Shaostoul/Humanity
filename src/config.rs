@@ -9,8 +9,23 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Number of PBKDF2 iterations for key derivation.
-const PBKDF2_ITERATIONS: u32 = 100_000;
+/// Number of PBKDF2 iterations for NEW vaults (v0.277.0+).
+///
+/// Bumped from 100_000 → 600_000 to match the web client (`web/chat/crypto.js`).
+/// The web vault is the easier target (browsers run in shared sandboxes), so
+/// the native vault had been weaker than its sibling for no good reason.
+///
+/// Legacy vaults written before this bump are decrypted with their stored
+/// iteration count (see `AppConfig.key_iterations`, defaults to 100_000 for
+/// configs from before v0.277.0) and silently re-encrypted to 600_000 on the
+/// next successful unlock — the user pays the migration cost exactly once.
+pub const PBKDF2_ITERATIONS_NEW: u32 = 600_000;
+
+/// Legacy iteration count for vaults written before v0.277.0. New code MUST
+/// NOT call `pbkdf2_hmac` with this constant directly — always use the value
+/// stored in `AppConfig.key_iterations` so a future bump only needs to update
+/// `PBKDF2_ITERATIONS_NEW`, not chase every call site.
+pub const PBKDF2_ITERATIONS_LEGACY: u32 = 100_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
@@ -57,6 +72,14 @@ pub struct AppConfig {
     /// PBKDF2 salt: base64(random 16 bytes).
     #[serde(default)]
     pub key_salt: String,
+    /// PBKDF2 iteration count this vault was encrypted with. Defaults to
+    /// `PBKDF2_ITERATIONS_LEGACY` (100_000) for pre-v0.277.0 configs that
+    /// don't have the field. New encryptions write `PBKDF2_ITERATIONS_NEW`
+    /// (600_000). The unlock path re-encrypts silently when it sees a value
+    /// below `PBKDF2_ITERATIONS_NEW`, so the migration is one-time and
+    /// transparent.
+    #[serde(default = "default_legacy_iterations")]
+    pub key_iterations: u32,
 
     // Full-PQ: no DM keypair is persisted. Dilithium3 (identity) and
     // Kyber768 (DM) both re-derive deterministically from the BIP39 seed
@@ -131,6 +154,7 @@ pub struct DonateAddressConfig {
     pub label: String,
 }
 
+fn default_legacy_iterations() -> u32 { PBKDF2_ITERATIONS_LEGACY }
 fn default_fov() -> f32 { 90.0 }
 fn default_mouse_sensitivity() -> f32 { 3.0 }
 fn default_master_volume() -> f32 { 0.8 }
@@ -141,9 +165,15 @@ fn default_panel_width() -> f32 { 220.0 }
 
 /// Encrypt a private key with AES-256-GCM using a passphrase.
 ///
-/// Returns `(encrypted_base64, salt_base64)`.
+/// Always uses `PBKDF2_ITERATIONS_NEW` (600_000) — the bumped iteration
+/// count rolled out in v0.277.0 to match the web client. Returns the
+/// iteration count alongside the ciphertext+salt so the caller can stash
+/// it in `AppConfig.key_iterations` (we don't infer it from the file:
+/// makes vault metadata self-describing for any future bump).
+///
+/// Returns `(encrypted_base64, salt_base64, iterations)`.
 #[cfg(feature = "native")]
-pub fn encrypt_private_key(key_bytes: &[u8], passphrase: &str) -> Result<(String, String), String> {
+pub fn encrypt_private_key(key_bytes: &[u8], passphrase: &str) -> Result<(String, String, u32), String> {
     use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
     use aes_gcm::aead::generic_array::GenericArray;
     use base64::Engine;
@@ -158,7 +188,7 @@ pub fn encrypt_private_key(key_bytes: &[u8], passphrase: &str) -> Result<(String
     pbkdf2::pbkdf2_hmac::<sha2::Sha256>(
         passphrase.as_bytes(),
         &salt,
-        PBKDF2_ITERATIONS,
+        PBKDF2_ITERATIONS_NEW,
         &mut derived_key,
     );
 
@@ -177,12 +207,20 @@ pub fn encrypt_private_key(key_bytes: &[u8], passphrase: &str) -> Result<(String
     combined.extend_from_slice(&iv);
     combined.extend_from_slice(&ciphertext);
 
-    Ok((B64.encode(&combined), B64.encode(&salt)))
+    Ok((B64.encode(&combined), B64.encode(&salt), PBKDF2_ITERATIONS_NEW))
 }
 
-/// Decrypt a private key from its encrypted form.
+/// Decrypt a private key from its encrypted form using the iteration count
+/// stored in the vault. Caller passes `AppConfig.key_iterations` directly so
+/// a future bump only needs to change `PBKDF2_ITERATIONS_NEW`, not chase
+/// hardcoded counts at every call site.
+///
+/// A wrong passphrase, a corrupted blob, OR a mismatched iteration count all
+/// surface as the same "wrong passphrase" message — AES-GCM auth failure is
+/// the only signal the decrypt path returns, and it's deliberately ambiguous
+/// to avoid leaking which input was bad.
 #[cfg(feature = "native")]
-pub fn decrypt_private_key(encrypted: &str, salt: &str, passphrase: &str) -> Result<Vec<u8>, String> {
+pub fn decrypt_private_key(encrypted: &str, salt: &str, passphrase: &str, iterations: u32) -> Result<Vec<u8>, String> {
     use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
     use aes_gcm::aead::generic_array::GenericArray;
     use base64::Engine;
@@ -201,11 +239,17 @@ pub fn decrypt_private_key(encrypted: &str, salt: &str, passphrase: &str) -> Res
     let salt_bytes = B64.decode(salt)
         .map_err(|e| format!("Salt decode failed: {}", e))?;
 
+    // Defensive: a corrupt config with iterations == 0 would silently
+    // produce a deterministic-but-useless key. Treat anything below the
+    // legacy floor as the legacy floor — keeps the migration path open
+    // for vaults written by absurdly-old or fuzzed binaries.
+    let iters = iterations.max(PBKDF2_ITERATIONS_LEGACY);
+
     let mut derived_key = [0u8; 32];
     pbkdf2::pbkdf2_hmac::<sha2::Sha256>(
         passphrase.as_bytes(),
         &salt_bytes,
-        PBKDF2_ITERATIONS,
+        iters,
         &mut derived_key,
     );
 
@@ -322,6 +366,7 @@ impl AppConfig {
             private_key_hex: String::new(),
             encrypted_private_key: state.encrypted_private_key.clone(),
             key_salt: state.key_salt.clone(),
+            key_iterations: state.key_iterations,
             chat_connection_collapsed: state.chat_connection_collapsed,
             chat_dm_collapsed: state.chat_dm_collapsed,
             chat_groups_collapsed: state.chat_groups_collapsed,
@@ -402,6 +447,7 @@ impl AppConfig {
         // Store encrypted key fields so they persist through save cycles
         state.encrypted_private_key = self.encrypted_private_key.clone();
         state.key_salt = self.key_salt.clone();
+        state.key_iterations = self.key_iterations;
         // Full-PQ: Kyber/Dilithium re-derive from the seed — nothing to load.
 
         // Key handling: default to limited mode (no passphrase prompt on startup).
@@ -429,5 +475,109 @@ impl AppConfig {
             log::info!("Encrypted key found; running in limited mode (unlock via Settings)");
         }
         // passphrase_needed stays false — no modal on startup
+    }
+}
+
+#[cfg(all(test, feature = "native"))]
+mod pbkdf2_migration_tests {
+    //! Guard the 100k → 600k PBKDF2 migration (v0.277.0). Pre-v0.277.0
+    //! vaults must still decrypt with their stored legacy iter count, and
+    //! a new encrypt must stamp 600_000 — otherwise the silent-upgrade
+    //! path in `passphrase_modal::draw_unlock` runs forever on every unlock
+    //! (correct, but wastes CPU and never persists the bump).
+    use super::*;
+
+    /// Helper: encrypt a 32-byte test key at an explicit iter count.
+    /// Mirrors `encrypt_private_key` minus the iter-count constant so
+    /// the test can simulate a pre-v0.277.0 100k-iter vault.
+    fn encrypt_at(key_bytes: &[u8], passphrase: &str, iters: u32) -> (String, String, u32) {
+        use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
+        use aes_gcm::aead::generic_array::GenericArray;
+        use base64::Engine;
+        use base64::engine::general_purpose::STANDARD as B64;
+        let mut salt = [0u8; 16];
+        getrandom::getrandom(&mut salt).unwrap();
+        let mut derived = [0u8; 32];
+        pbkdf2::pbkdf2_hmac::<sha2::Sha256>(passphrase.as_bytes(), &salt, iters, &mut derived);
+        let mut iv = [0u8; 12];
+        getrandom::getrandom(&mut iv).unwrap();
+        let cipher = Aes256Gcm::new(GenericArray::from_slice(&derived));
+        let ct = cipher.encrypt(GenericArray::from_slice(&iv), key_bytes).unwrap();
+        let mut combined = Vec::with_capacity(12 + ct.len());
+        combined.extend_from_slice(&iv);
+        combined.extend_from_slice(&ct);
+        (B64.encode(&combined), B64.encode(&salt), iters)
+    }
+
+    #[test]
+    fn new_encrypts_use_600k_iters() {
+        let key = [42u8; 32];
+        let (_enc, _salt, iters) = encrypt_private_key(&key, "hunter2").unwrap();
+        assert_eq!(iters, PBKDF2_ITERATIONS_NEW);
+        assert_eq!(iters, 600_000);
+    }
+
+    #[test]
+    fn legacy_vault_decrypts_with_stored_iters() {
+        let key = [7u8; 32];
+        let (enc, salt, iters) = encrypt_at(&key, "legacy", PBKDF2_ITERATIONS_LEGACY);
+        assert_eq!(iters, 100_000);
+        let decrypted = decrypt_private_key(&enc, &salt, "legacy", iters).unwrap();
+        assert_eq!(decrypted, key);
+    }
+
+    #[test]
+    fn new_vault_decrypts_at_new_iters() {
+        let key = [9u8; 32];
+        let (enc, salt, iters) = encrypt_private_key(&key, "passw0rd").unwrap();
+        let decrypted = decrypt_private_key(&enc, &salt, "passw0rd", iters).unwrap();
+        assert_eq!(decrypted, key);
+    }
+
+    #[test]
+    fn wrong_iter_count_fails_decrypt() {
+        // Vault written at 100k; trying to unlock at 600k must fail —
+        // the derived key bytes are different, so AES-GCM auth rejects.
+        // This is what enforces the "iter count is metadata, not a guess"
+        // contract.
+        let key = [1u8; 32];
+        let (enc, salt, _) = encrypt_at(&key, "pw", PBKDF2_ITERATIONS_LEGACY);
+        let result = decrypt_private_key(&enc, &salt, "pw", PBKDF2_ITERATIONS_NEW);
+        assert!(result.is_err(), "decrypt with wrong iter count must fail");
+    }
+
+    #[test]
+    fn migration_round_trip() {
+        // Simulate the silent-upgrade path: encrypt at 100k, decrypt at 100k,
+        // re-encrypt (which now stamps 600k), decrypt at 600k.
+        let key = [123u8; 32];
+        let pass = "migrate-me";
+
+        let (enc_old, salt_old, iters_old) = encrypt_at(&key, pass, PBKDF2_ITERATIONS_LEGACY);
+        let decrypted_old = decrypt_private_key(&enc_old, &salt_old, pass, iters_old).unwrap();
+        assert_eq!(decrypted_old, key);
+
+        let (enc_new, salt_new, iters_new) = encrypt_private_key(&decrypted_old, pass).unwrap();
+        assert_eq!(iters_new, PBKDF2_ITERATIONS_NEW);
+        // Salt MUST be fresh — re-encrypt picks a new salt; reusing the
+        // old one would be a regression (same passphrase + same salt at
+        // a different iter count is fine cryptographically, but the new
+        // encrypt path is supposed to roll the salt every time).
+        assert_ne!(salt_new, salt_old);
+
+        let decrypted_new = decrypt_private_key(&enc_new, &salt_new, pass, iters_new).unwrap();
+        assert_eq!(decrypted_new, key);
+    }
+
+    #[test]
+    fn corrupt_zero_iter_count_is_clamped() {
+        // Defensive path: a fuzzed/corrupt config with iters=0 must NOT
+        // silently derive a deterministic zero-iter key. The decrypt
+        // function clamps to the legacy floor, so a 100k-iter vault still
+        // unlocks even if iters arrives as 0.
+        let key = [5u8; 32];
+        let (enc, salt, _) = encrypt_at(&key, "pw", PBKDF2_ITERATIONS_LEGACY);
+        let decrypted = decrypt_private_key(&enc, &salt, "pw", 0).unwrap();
+        assert_eq!(decrypted, key);
     }
 }

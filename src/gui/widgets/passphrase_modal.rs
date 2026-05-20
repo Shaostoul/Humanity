@@ -81,16 +81,20 @@ fn draw_set_new(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.passphrase_status = "Passphrases do not match.".to_string();
             } else if let Some(ref key_bytes) = state.private_key_bytes.clone() {
                 match crate::config::encrypt_private_key(key_bytes, &state.passphrase_input) {
-                    Ok((encrypted, salt)) => {
+                    Ok((encrypted, salt, iterations)) => {
                         state.encrypted_private_key = encrypted;
                         state.key_salt = salt;
+                        state.key_iterations = iterations;
                         state.passphrase_needed = false;
                         state.passphrase_input.clear();
                         state.passphrase_confirm.clear();
                         state.passphrase_status.clear();
                         // Save config (now with encrypted key, no plaintext)
                         crate::config::AppConfig::from_gui_state(state).save();
-                        log::info!("Private key encrypted and saved successfully");
+                        log::info!(
+                            "Private key encrypted and saved successfully ({} PBKDF2 iters)",
+                            iterations
+                        );
                     }
                     Err(e) => {
                         state.passphrase_status = format!("Encryption failed: {}", e);
@@ -145,8 +149,44 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 &state.encrypted_private_key,
                 &state.key_salt,
                 &state.passphrase_input,
+                state.key_iterations,
             ) {
                 Ok(key_bytes) => {
+                    // Silent migration: if the vault was written with the
+                    // legacy 100_000-iter count, re-encrypt at the new
+                    // 600_000 count using the same passphrase the user
+                    // just proved they know. Persist immediately so the
+                    // next unlock pays the new (higher) cost — exactly
+                    // once per vault. Failures here are non-fatal: the
+                    // unlock itself already succeeded, the user is in;
+                    // we log and move on. Worst case: we retry the
+                    // migration on the next unlock.
+                    if state.key_iterations < crate::config::PBKDF2_ITERATIONS_NEW {
+                        match crate::config::encrypt_private_key(
+                            &key_bytes,
+                            &state.passphrase_input,
+                        ) {
+                            Ok((new_encrypted, new_salt, new_iters)) => {
+                                let old_iters = state.key_iterations;
+                                state.encrypted_private_key = new_encrypted;
+                                state.key_salt = new_salt;
+                                state.key_iterations = new_iters;
+                                crate::config::AppConfig::from_gui_state(state).save();
+                                log::info!(
+                                    "Vault PBKDF2 silently upgraded: {} -> {} iters",
+                                    old_iters, new_iters,
+                                );
+                            }
+                            Err(e) => {
+                                log::warn!(
+                                    "Vault PBKDF2 upgrade failed (re-encrypt): {}. \
+                                     Continuing on legacy iter count; will retry next unlock.",
+                                    e
+                                );
+                            }
+                        }
+                    }
+
                     state.private_key_bytes = Some(key_bytes);
                     state.passphrase_needed = false;
                     state.passphrase_input.clear();
@@ -217,18 +257,23 @@ fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             } else if state.passphrase_input != state.passphrase_confirm {
                 state.passphrase_status = "New passphrases do not match.".to_string();
             } else {
-                // First decrypt with old passphrase
+                // First decrypt with old passphrase + the vault's stored
+                // iter count (legacy 100k or new 600k — both work)
                 match crate::config::decrypt_private_key(
                     &state.encrypted_private_key,
                     &state.key_salt,
                     &state.passphrase_old_input,
+                    state.key_iterations,
                 ) {
                     Ok(key_bytes) => {
-                        // Re-encrypt with new passphrase
+                        // Re-encrypt with new passphrase. Always lands at
+                        // the new (600k) iter count: change-passphrase IS
+                        // a re-encrypt, so it's a natural migration point.
                         match crate::config::encrypt_private_key(&key_bytes, &state.passphrase_input) {
-                            Ok((encrypted, salt)) => {
+                            Ok((encrypted, salt, iterations)) => {
                                 state.encrypted_private_key = encrypted;
                                 state.key_salt = salt;
+                                state.key_iterations = iterations;
                                 state.private_key_bytes = Some(key_bytes);
                                 state.passphrase_needed = false;
                                 state.passphrase_old_input.clear();
@@ -236,7 +281,10 @@ fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 state.passphrase_confirm.clear();
                                 state.passphrase_status = "Passphrase changed successfully!".to_string();
                                 crate::config::AppConfig::from_gui_state(state).save();
-                                log::info!("Passphrase changed successfully");
+                                log::info!(
+                                    "Passphrase changed successfully ({} PBKDF2 iters)",
+                                    iterations
+                                );
                                 state.apply_pq_identity();
                             }
                             Err(e) => {

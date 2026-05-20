@@ -899,6 +899,12 @@ pub struct GuiState {
     pub encrypted_private_key: String,
     /// The PBKDF2 salt (base64), persisted through save cycles.
     pub key_salt: String,
+    /// PBKDF2 iteration count the current vault was encrypted with.
+    /// Defaults to `PBKDF2_ITERATIONS_LEGACY` (100_000) for vaults written
+    /// before v0.277.0; new encryptions set it to `PBKDF2_ITERATIONS_NEW`
+    /// (600_000). The Unlock site re-encrypts to the new count on the
+    /// next successful unlock — silent one-time migration per vault.
+    pub key_iterations: u32,
     /// Full-PQ: our Kyber768 (ML-KEM-768) public key, base64. Derived
     /// deterministically from the BIP39 seed on recovery/unlock and
     /// advertised at identify; the secret re-derives from the seed on
@@ -1530,6 +1536,11 @@ impl Default for GuiState {
             passphrase_status: String::new(),
             encrypted_private_key: String::new(),
             key_salt: String::new(),
+            // Fresh GuiState has no vault yet; the new-encrypt path stamps
+            // `PBKDF2_ITERATIONS_NEW` when the user first picks a passphrase.
+            // A loaded legacy config overwrites this with its stored value
+            // (defaults to 100_000 via serde for pre-v0.277.0 configs).
+            key_iterations: crate::config::PBKDF2_ITERATIONS_NEW,
             kyber_public_b64: String::new(),
             peer_kyber_keys: std::collections::HashMap::new(),
             donate_solana_address: String::new(),
