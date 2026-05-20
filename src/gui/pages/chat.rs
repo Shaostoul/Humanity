@@ -395,6 +395,40 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
                 ui.add_space(4.0);
 
+                // Full-PQ: if the seed is locked (encrypted on disk, not in
+                // memory), surface a prominent unlock affordance and SHORT-
+                // CIRCUIT the rest of the connect panel. Without this the
+                // user sees a Connect button that silently no-ops because
+                // the limited-mode connect guard refuses without a seed.
+                let identity_locked = state.private_key_bytes.is_none()
+                    && !state.encrypted_private_key.is_empty();
+                if identity_locked {
+                    ui.label(
+                        RichText::new("Identity locked")
+                            .size(theme.font_size_body)
+                            .color(theme.warning())
+                            .strong(),
+                    );
+                    ui.label(
+                        RichText::new("Your seed is encrypted. Unlock it to connect (DMs need it for the post-quantum key).")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                    ui.add_space(6.0);
+                    if widgets::Button::primary("Unlock with Passphrase").full_width().show(ui, theme) {
+                        state.passphrase_needed = true;
+                        state.passphrase_mode = crate::gui::PassphraseMode::Unlock;
+                    }
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new("Don't have the passphrase? Open Settings → Identity & Seed Phrase → Recover from Seed Phrase, and enter your 24-word backup.")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                    // Skip the server/name/Connect form below — it can't help.
+                    return;
+                }
+
                 if state.server_url.is_empty() {
                     state.server_url = "https://united-humanity.us".to_string();
                 }
