@@ -49,7 +49,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .duration_since(std::time::UNIX_EPOCH)
                                 .unwrap_or_default()
                                 .as_millis() as u64;
-                            let m = serde_json::json!({
+                            let mut m = serde_json::json!({
                                 "type": "chat",
                                 "from": pk,
                                 "from_name": sender_name,
@@ -57,6 +57,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 "timestamp": ts,
                                 "channel": channel,
                             });
+                            // Inc2.MED-1: sign with Dilithium3 over
+                            // `content\ntimestamp` (relay now requires
+                            // pq_signature for non-bot chat).
+                            if let Some(seed) = state.private_key_bytes.as_ref() {
+                                m["pq_signature"] = serde_json::Value::String(
+                                    crate::net::identity::pq_sign_chat(seed, &url, ts)
+                                );
+                            }
                             client.send(&m.to_string());
                             log::info!("Clipboard image uploaded and sent to {}", channel);
                         }
@@ -2546,7 +2554,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 .unwrap_or_default()
                                 .as_millis() as u64;
                             let report_cmd = format!("/report {}", sender_name);
-                            let m = serde_json::json!({
+                            let mut m = serde_json::json!({
                                 "type": "chat",
                                 "from": state.profile_public_key,
                                 "from_name": state.user_name,
@@ -2554,6 +2562,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 "timestamp": ts,
                                 "channel": state.chat_active_channel,
                             });
+                            // Inc2.MED-1: Dilithium chat signature.
+                            if let Some(seed) = state.private_key_bytes.as_ref() {
+                                m["pq_signature"] = serde_json::Value::String(
+                                    crate::net::identity::pq_sign_chat(seed, &report_cmd, ts)
+                                );
+                            }
                             client.send(&m.to_string());
                         }
                     }
@@ -2969,6 +2983,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                             "content": r.preview,
                                             "timestamp": r.timestamp_ms,
                                         });
+                                    }
+                                    // Inc2.MED-1: Dilithium chat signature
+                                    // over `content\ntimestamp` (the relay
+                                    // now rejects non-bot chat without it).
+                                    if let Some(seed) = state.private_key_bytes.as_ref() {
+                                        chat_obj["pq_signature"] = serde_json::Value::String(
+                                            crate::net::identity::pq_sign_chat(seed, &content, ts)
+                                        );
                                     }
                                     Some(chat_obj.to_string())
                                 };
@@ -4506,7 +4528,7 @@ fn send_slash_command(state: &mut GuiState, command: &str) {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_millis() as u64;
-            let msg = serde_json::json!({
+            let mut msg = serde_json::json!({
                 "type": "chat",
                 "from": state.profile_public_key,
                 "from_name": state.user_name,
@@ -4514,6 +4536,12 @@ fn send_slash_command(state: &mut GuiState, command: &str) {
                 "timestamp": ts,
                 "channel": state.chat_active_channel,
             });
+            // Inc2.MED-1: Dilithium chat signature.
+            if let Some(seed) = state.private_key_bytes.as_ref() {
+                msg["pq_signature"] = serde_json::Value::String(
+                    crate::net::identity::pq_sign_chat(seed, command, ts)
+                );
+            }
             client.send(&msg.to_string());
         }
     }

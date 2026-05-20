@@ -4651,14 +4651,17 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 //  • present + valid   → authenticated (allow)
                                 //  • present + invalid → REJECT (tamper /
                                 //    forgery attempt)
-                                //  • absent → allow. The web client always
-                                //    PQ-signs; the native client does not yet
-                                //    (its send-site wiring is a tracked
-                                //    follow-up — see CLAUDE.md). Rejecting
-                                //    "absent" would lock native out, so we
-                                //    allow it until native signs too.
-                                // There is no Ed25519 path and no
-                                // require_pq toggle anymore (full-PQ).
+                                //  • absent → REJECT for non-bot senders
+                                //    (MED-1 closed: now that web + native both
+                                //    sign chat, an unsigned chat message from
+                                //    a human key is an out-of-date client OR
+                                //    an injection attempt). `bot_*` senders
+                                //    are exempt — bots have no Dilithium key
+                                //    (they auth via bot_secret at identify).
+                                // Inc3b already authenticated the SOCKET to
+                                // the claimed key; pq_signature gates message
+                                // INTEGRITY (binds content+ts to the same key).
+                                // There is no Ed25519 path (full-PQ).
                                 {
                                     let pq_sig_opt = serde_json::from_str::<serde_json::Value>(&text)
                                         .ok()
@@ -4666,17 +4669,32 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         .and_then(|v| v.get("pq_signature"))
                                         .and_then(|v| v.as_str())
                                         .map(|s| s.to_string());
-                                    if let Some(pq_sig) = pq_sig_opt.as_ref() {
-                                        let ok = crate::relay::handlers::broadcast::verify_dilithium_signature(
-                                            &my_key_for_recv, &content, timestamp, pq_sig,
-                                        );
-                                        if !ok {
-                                            let kp = &my_key_for_recv[..8.min(my_key_for_recv.len())];
+                                    let is_bot = my_key_for_recv.starts_with("bot_");
+                                    let kp = &my_key_for_recv[..8.min(my_key_for_recv.len())];
+                                    match pq_sig_opt.as_ref() {
+                                        Some(pq_sig) => {
+                                            let ok = crate::relay::handlers::broadcast::verify_dilithium_signature(
+                                                &my_key_for_recv, &content, timestamp, pq_sig,
+                                            );
+                                            if !ok {
+                                                tracing::warn!(target: "pq_verify",
+                                                    "PQ-REJECT key={kp} invalid pq_signature");
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                    to: my_key_for_recv.clone(),
+                                                    message: "Message rejected: your post-quantum signature failed to verify. Hard-refresh (Ctrl+Shift+R) to update your client.".to_string(),
+                                                });
+                                                continue;
+                                            }
+                                        }
+                                        None if is_bot => {
+                                            // Bots send unsigned (no Dilithium key).
+                                        }
+                                        None => {
                                             tracing::warn!(target: "pq_verify",
-                                                "PQ-REJECT key={kp} invalid pq_signature");
+                                                "PQ-REJECT key={kp} missing pq_signature (MED-1 enforced)");
                                             let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                                 to: my_key_for_recv.clone(),
-                                                message: "Message rejected: your post-quantum signature failed to verify. Hard-refresh (Ctrl+Shift+R) to update your client.".to_string(),
+                                                message: "Message rejected: chat messages must be post-quantum signed. Update your client (Ctrl+Shift+R on web, install v0.275.1+ for desktop).".to_string(),
                                             });
                                             continue;
                                         }
