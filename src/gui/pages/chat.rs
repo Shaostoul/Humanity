@@ -1875,6 +1875,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 let mut pending_edit_cancel = false;
                 // Report button clicks (from context menu) — buffered to send /report slash command.
                 let mut pending_reports: Vec<(String, String)> = Vec::new();
+                // v0.281.0: Delete button clicks (from context menu) — buffered
+                // so the borrow on `state.chat_messages` ends before we mutate
+                // state to send WS. Pairs as (sender_key, timestamp_ms); the
+                // server fills the rest from its own auth context.
+                let mut pending_deletes: Vec<(String, u64)> = Vec::new();
 
                 // Remove default item spacing so rows sit flush
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
@@ -2090,6 +2095,19 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // Right-click context menu — same actions as the inline
                         // pill buttons but quicker to reach.
                         let is_own = msg.sender_key == state.profile_public_key;
+                        // v0.281.0: derive my role from the populated user list.
+                        // chat_users is the authoritative client-side mirror of
+                        // server-known roles (driven by relay's user_list /
+                        // peer_joined events); looking up my own pubkey there
+                        // gives the server-visible role without a roundtrip.
+                        // Falls back to "" when not yet populated (pre-list
+                        // frames) — the Delete entry just won't render those
+                        // frames; harmless.
+                        let my_role = state.chat_users.iter()
+                            .find(|u| u.public_key == state.profile_public_key)
+                            .map(|u| u.role.clone())
+                            .unwrap_or_default();
+                        let is_admin_or_mod = my_role == "admin" || my_role == "mod" || my_role == "moderator";
                         row_resp.response.context_menu(|ui| {
                             ui.set_min_width(160.0);
                             // Plain text labels — leading emoji glyphs were
@@ -2128,6 +2146,21 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             if is_own && msg.timestamp_ms > 0 && ui.button("Edit").clicked() {
                                 pending_edit = Some((msg.timestamp_ms, msg.content.clone()));
                                 ui.close_menu();
+                            }
+                            // v0.281.0: Delete entry — own messages always; any
+                            // message when the current user is admin or mod.
+                            // Server enforces the same predicate so a stale UI
+                            // can't bypass; we just hide the option when it's
+                            // certain to be rejected.
+                            if msg.timestamp_ms > 0 && (is_own || is_admin_or_mod) {
+                                let label = if is_own { "Delete" } else { "Delete (admin)" };
+                                if ui.button(label).clicked() {
+                                    pending_deletes.push((
+                                        msg.sender_key.clone(),
+                                        msg.timestamp_ms,
+                                    ));
+                                    ui.close_menu();
+                                }
                             }
                             ui.separator();
                             if ui.button("Report").clicked() {
@@ -2581,6 +2614,24 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 );
                             }
                             client.send(&m.to_string());
+                        }
+                    }
+                }
+
+                // v0.281.0: send pending delete requests via WebSocket.
+                // Protocol: RelayMessage::Delete { from, timestamp }. The
+                // relay decides whether to honor based on requester's role
+                // (own / admin / mod), so we don't gate locally beyond
+                // hiding the menu entry for the non-eligible cases.
+                for (from_key, ts) in pending_deletes {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let r = serde_json::json!({
+                                "type": "delete",
+                                "from": from_key,
+                                "timestamp": ts,
+                            });
+                            client.send(&r.to_string());
                         }
                     }
                 }

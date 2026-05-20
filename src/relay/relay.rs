@@ -4940,13 +4940,52 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 };
                                 let _ = state_clone.broadcast_tx.send(reaction);
                             }
-                            // Delete own message — broadcast removal to all peers.
-                            RelayMessage::Delete { timestamp, .. } => {
-                                if let Err(e) = state_clone.db.delete_message(&my_key_for_recv, timestamp) {
-                                    tracing::error!("Failed to delete message: {e}");
+                            // Delete a message — broadcast removal to all peers.
+                            // Own messages: any user can delete. Other people's
+                            // messages: only admin or mod. The native client
+                            // sends `from = msg.sender_key` for admin deletions
+                            // (was always overridden with my_key pre-v0.281.0,
+                            // making admin deletion via this path impossible —
+                            // operators had to use the never-wired DeleteById
+                            // route).
+                            RelayMessage::Delete { from, timestamp } => {
+                                let target_from = if from.is_empty() {
+                                    my_key_for_recv.clone()
+                                } else {
+                                    from
+                                };
+                                let is_own = target_from == my_key_for_recv;
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                let is_admin_or_mod = role == "admin" || role == "mod" || role == "moderator";
+                                if !is_own && !is_admin_or_mod {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "You can only delete your own messages.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    match state_clone.db.delete_message(&target_from, timestamp) {
+                                        Ok(true) => {
+                                            // Broadcast removal so every connected
+                                            // client drops the row. The 'from'
+                                            // field carries the ORIGINAL sender so
+                                            // clients can find + remove the right
+                                            // message; without it admin deletion
+                                            // would silently no-op on every other
+                                            // client.
+                                            let del = RelayMessage::Delete { from: target_from, timestamp };
+                                            let _ = state_clone.broadcast_tx.send(del);
+                                        }
+                                        Ok(false) => {
+                                            // No matching message — silent: the
+                                            // client may have a stale view, no
+                                            // need to scold.
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Failed to delete message: {e}");
+                                        }
+                                    }
                                 }
-                                let del = RelayMessage::Delete { from: my_key_for_recv.clone(), timestamp };
-                                let _ = state_clone.broadcast_tx.send(del);
                             }
                             // Edit own message — validate and broadcast.
                             RelayMessage::Edit { timestamp, new_content, channel: edit_channel, .. } => {

@@ -2185,6 +2185,19 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    Some("delete") => {
+                                        // v0.281.0: deletion broadcast (own delete OR admin/mod
+                                        // moderation). Drop the matching message from the local
+                                        // view by sender_key + timestamp_ms. We don't try to be
+                                        // clever about preserving thread context — pin/reaction
+                                        // state for an absent message just lingers harmlessly until
+                                        // the next channel refetch.
+                                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                        if !from.is_empty() && ts > 0 {
+                                            state.gui_state.chat_messages.retain(|m| !(m.sender_key == from && m.timestamp_ms == ts));
+                                        }
+                                    }
                                     Some("search_results") => {
                                         // Server-returned search results. Populate the search modal.
                                         if let Some(results) = val.get("results").and_then(|v| v.as_array()) {
