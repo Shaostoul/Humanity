@@ -6,23 +6,27 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 
 > **⚠️ START HERE (mandatory, every session):**
 > 0. Run `just clean-worktrees` to kill stale AI context before it corrupts new work
-> 1. **READ `data/coordination/orchestrator_state.json`** — running session journal. Tells you what the previous orchestrator was doing, what decisions were made, what scopes have active claims, what NOT to redo.
-> 2. **Run `node scripts/agent-status.js`** — per-scope coordinator-friendly summary aggregating `data/coordination/sessions/*.json`.
-> 3. Read `docs/FEATURES.md` for complete feature inventory with file paths (never rebuild what exists)
-> 4. Read `docs/PAGES.md` for the canonical UI page registry (32 native + 38 web, with purpose / audience / parity)
-> 5. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
-> 6. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
-> 7. Read `docs/SOP.md` for version sync, deploy, and development procedures
-> 8. Read `docs/design/ui-system.md` before touching any widget, page, or visual code
-> 9. Read `docs/design/infinite-of-x.md` before writing any list-shaped literal in code
-> 10. Read `docs/design/storage-architecture.md` before touching any storage / signed object / federation code
-> 11. **Before pushing a release**: `git status --short` and stage any untracked .rs/.ron/.csv. Local builds pass with untracked files; CI fails on fresh checkout.
-> 12. **After pushing a Rust release**: run `just build-game` to produce a versioned local exe — CI doesn't build Windows.
-> 13. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
-> 14. If agents report editing files under `native/src/`, `server/src/`, or `crates/`, those paths don't exist anymore. Run `just clean-worktrees` and redo against the real `src/` tree.
-> 15. **Before claiming a multi-AI scope**, check `data/coordination/agent_registry.ron` for ownership rules and the `agent_sessions` SQLite table for active claims.
-> 16. **Before ending the session** with significant changes, update `data/coordination/orchestrator_state.json` so the next orchestrator picks up cleanly.
-> 17. **Before quoting algorithms / tech specifics in user-facing copy** (X posts, README, marketing): grep the actual code or read the Cryptography section. Memory + docs may lag behind code during migrations.
+> 1. **READ `docs/PRIORITIES.md`** — strict-ranked backlog. The TOP item of TIER 0 is what gets worked on next. New convention as of v0.283.x.
+> 2. **READ `data/coordination/orchestrator_state.json`** — running session journal. Tells you what the previous orchestrator was doing, what decisions were made, what scopes have active claims, what NOT to redo.
+> 3. **Run `node scripts/agent-status.js`** — per-scope coordinator-friendly summary aggregating `data/coordination/sessions/*.json`.
+> 4. Read `docs/FEATURES.md` for complete feature inventory with file paths (never rebuild what exists)
+> 5. Read `docs/PAGES.md` for the canonical UI page registry (32 native + 38 web, with purpose / audience / parity)
+> 6. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
+> 7. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
+> 8. Read `docs/SOP.md` for version sync, deploy, and development procedures
+> 9. Read `docs/design/ui-system.md` before touching any widget, page, or visual code
+> 10. Read `docs/design/infinite-of-x.md` before writing any list-shaped literal in code
+> 11. Read `docs/design/storage-architecture.md` before touching any storage / signed object / federation code
+> 12. **Before pushing a release**: `git status --short` and stage any untracked .rs/.ron/.csv. Local builds pass with untracked files; CI fails on fresh checkout.
+> 13. **After pushing a Rust release**: run `just build-game` to produce a versioned local exe — CI doesn't build Windows.
+> 14. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
+> 15. If agents report editing files under `native/src/`, `server/src/`, or `crates/`, those paths don't exist anymore. Run `just clean-worktrees` and redo against the real `src/` tree.
+> 16. **Before claiming a multi-AI scope**, check `data/coordination/agent_registry.ron` for ownership rules and the `agent_sessions` SQLite table for active claims.
+> 17. **Before ending the session** with significant changes: update `docs/PRIORITIES.md` (what's next) AND `data/coordination/orchestrator_state.json` (why we got here). End the reply with a "Next:" pointer (the session-end convention adopted in v0.283.x).
+> 18. **Before quoting algorithms / tech specifics in user-facing copy** (X posts, README, marketing): grep the actual code or read the Cryptography section. Memory + docs may lag behind code during migrations.
+>
+> **When things go wrong:** read `docs/INCIDENT-PLAYBOOK.md` (recipes for live failures + lessons from past incidents).
+> **For long-term posture:** `docs/BUS-FACTOR.md` (succession), `docs/SECURITY-CADENCE.md` (mandatory periodic exercises), `docs/HEALTH-DASHBOARD.md` (SLOs + alert criteria).
 
 ## Non-negotiable design rules
 

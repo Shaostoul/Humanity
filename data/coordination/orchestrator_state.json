@@ -1,6 +1,7 @@
 {
   "_purpose": "Orchestrator continuity across Claude Code sessions. The HUMAN talks to ONE AI (the orchestrator); that AI dispatches scope-specific work via the Agent tool. When the human starts a fresh Claude Code session, the new orchestrator MUST read this file early in startup so it knows: what was last being worked on, what's pending, what decisions were just made, what scopes are currently claimed, what to NOT re-do.",
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
+  "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "post-cutover hardening sweep CLOSED (2026-05-19) — all 6 security tasks shipped; Inc6 attended wipe is the only remaining gate",
   "current_focus": "Full-PQ cutover hardening sweep DONE. Shipped this session: Inc3b identify proof-of-possession (v0.274.0, closes HIGH-2), native chat signing + absent->reject gate (v0.275.0, closes MED-1), pq-wipe.sh hardening against CI-build race + missing binary + cold-start sleep race (v0.275.0), federation profile gossip Ed25519->Dilithium3 (v0.276.0, was forgeable PQ + would silently reject after Inc3), native vault PBKDF2 100k->600k with backwards-compat migration (v0.277.0, matches web), Inc5c-tail unwrapped path (v0.277.2: admin-app.js + settings-app.js sign relay REST with Dilithium via new shared helper web/shared/pq-relay-auth.js; market-app.js confirmed UI-only no fix needed; wrapped-only users still see 'Sign in via Chat first' — separate UX scope). Six security-review tasks: ALL CLOSED. Going live = attended Inc6 wipe (operator owns it).",
   "open_questions_for_human": [
@@ -272,11 +273,12 @@
   ],
   "how_to_resume": [
     "1. Read CLAUDE.md (auto-loaded) — covers project rules.",
-    "2. Run `git status` and `git log --oneline -10` to see recent state.",
-    "3. Read this file (orchestrator_state.json) — the running journal.",
-    "4. Run `node scripts/agent-status.js` for per-scope coordinator-friendly summary.",
-    "5. Read docs/STATUS.md and docs/FEATURES.md for the static feature inventory.",
-    "6. Check data/coordination/agent_registry.ron for the canonical scope list.",
-    "7. THEN start work."
+    "2. **Read docs/PRIORITIES.md — top of TIER 0 is your next action.**",
+    "3. Run `git status` and `git log --oneline -10` to see recent state.",
+    "4. Read this file (orchestrator_state.json) — running journal of WHY past decisions were made.",
+    "5. Run `node scripts/agent-status.js` for per-scope coordinator-friendly summary.",
+    "6. Read docs/STATUS.md and docs/FEATURES.md for the static feature inventory.",
+    "7. Check data/coordination/agent_registry.ron for the canonical scope list.",
+    "8. THEN start work. End the session by updating PRIORITIES.md (what's next) and appending a decision to this file's `recent_decisions` (why we got here)."
   ]
 }
