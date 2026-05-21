@@ -141,6 +141,51 @@
 
     // Federation
     renderFederation(data.federation || []);
+
+    // System health (in-app-ops first slice)
+    renderSystem(data.system || null);
+  }
+
+  // Render the System Health panel from the admin-stats `system` object.
+  // Replaces the operator's SSH for disk / version / watchdog / backup.
+  function renderSystem(sys) {
+    const el = document.getElementById('system-health');
+    if (!el) return;
+    if (!sys) { el.innerHTML = '<p style="color:#666">No system data.</p>'; return; }
+    const rows = [];
+    rows.push(['Relay version', sys.version || '?']);
+    // Watchdog state with a color cue.
+    const wd = sys.watchdog_state || 'unknown';
+    const wdColor = wd === 'up' ? '#2ecc71' : (wd === 'unknown' ? '#888' : '#e67e22');
+    rows.push(['Watchdog', '<span style="color:' + wdColor + '">' + escapeHtml(wd) + '</span>']);
+    // Disk.
+    if (sys.disk) {
+      const d = sys.disk;
+      const pct = d.used_pct != null ? d.used_pct : '?';
+      const pctColor = pct >= 90 ? '#e74c3c' : (pct >= 80 ? '#e67e22' : '#2ecc71');
+      rows.push(['Disk', '<span style="color:' + pctColor + '">' + pct + '% used</span> (' +
+        formatBytes(d.used_bytes) + ' / ' + formatBytes(d.total_bytes) + ', ' +
+        formatBytes(d.avail_bytes) + ' free)']);
+    } else {
+      rows.push(['Disk', '<span style="color:#888">unavailable</span>']);
+    }
+    // Backup freshness.
+    if (sys.backup) {
+      const b = sys.backup;
+      const ageMin = Math.floor((b.newest_age_secs || 0) / 60);
+      const ageStr = ageMin < 60 ? ageMin + 'm ago' : Math.floor(ageMin / 60) + 'h ago';
+      // Backups run every 30 min; flag if the newest is much older.
+      const stale = (b.newest_age_secs || 0) > 3600;
+      const ageColor = stale ? '#e67e22' : '#2ecc71';
+      rows.push(['Newest backup', '<span style="color:' + ageColor + '">' + ageStr + '</span> (' +
+        formatBytes(b.newest_size_bytes) + ', ' + b.count + ' kept)']);
+    } else {
+      rows.push(['Backups', '<span style="color:#e67e22">none found</span>']);
+    }
+    el.innerHTML = '<table style="width:100%;border-collapse:collapse">' +
+      rows.map(r => '<tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">' +
+        r[0] + '</td><td style="padding:4px 0">' + r[1] + '</td></tr>').join('') +
+      '</table>';
   }
 
   function renderActivityChart(hourlyData) {

@@ -3020,6 +3020,11 @@ pub async fn get_admin_stats(
     let game_time = game_world.game_time;
     drop(game_world);
 
+    // v0.286.x in-app-ops: system/health fields the operator otherwise
+    // SSHes for (disk, version, watchdog state, backup status). All
+    // best-effort — a probe failure yields a null/"unknown", never a 500.
+    let system = gather_system_health();
+
     Ok(Json(serde_json::json!({
         "user_count": user_count,
         "online_count": online_count,
@@ -3035,7 +3040,83 @@ pub async fn get_admin_stats(
         "game_players": game_players,
         "game_entities": game_entities,
         "game_time": game_time,
+        "system": system,
     })))
+}
+
+/// Gather host/process health for the admin dashboard's System panel —
+/// the things an operator currently SSHes for. All probes are best-
+/// effort: any failure becomes a null/"unknown" field, never an error,
+/// so the admin endpoint can't be taken down by a flaky probe.
+/// (in-app-ops first slice, v0.286.x — see docs/design/in-app-ops.md.)
+#[cfg(feature = "relay")]
+fn gather_system_health() -> serde_json::Value {
+    use std::process::Command;
+
+    // Build version (compile-time).
+    let version = env!("BUILD_VERSION");
+
+    // Disk usage of the filesystem holding the CWD (= /opt/Humanity on
+    // the VPS). `df -P -k .` is POSIX-portable; parse the data row.
+    // Fields: Filesystem 1024-blocks Used Available Capacity Mounted-on
+    let disk = (|| {
+        let out = Command::new("df").args(["-P", "-k", "."]).output().ok()?;
+        if !out.status.success() { return None; }
+        let text = String::from_utf8_lossy(&out.stdout);
+        let row = text.lines().nth(1)?; // skip header
+        let cols: Vec<&str> = row.split_whitespace().collect();
+        if cols.len() < 5 { return None; }
+        let total_kb: u64 = cols[1].parse().ok()?;
+        let used_kb: u64 = cols[2].parse().ok()?;
+        let avail_kb: u64 = cols[3].parse().ok()?;
+        let pct: u32 = cols[4].trim_end_matches('%').parse().ok()?;
+        Some(serde_json::json!({
+            "total_bytes": total_kb * 1024,
+            "used_bytes": used_kb * 1024,
+            "avail_bytes": avail_kb * 1024,
+            "used_pct": pct,
+        }))
+    })().unwrap_or(serde_json::Value::Null);
+
+    // Watchdog last-known state (written by humanity-relay-watchdog.sh to
+    // tmpfs). "up" / "suspect" / "healing" / "down-critical" / absent.
+    let watchdog_state = std::fs::read_to_string("/run/humanity-relay-watchdog.state")
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|_| "unknown".to_string());
+
+    // Newest DB backup (the humanity-backup-db timer writes backups/relay-*.db).
+    let backup = (|| {
+        let mut newest: Option<(std::time::SystemTime, std::path::PathBuf, u64)> = None;
+        let mut count = 0u32;
+        for e in std::fs::read_dir("backups").ok()?.flatten() {
+            let p = e.path();
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if name.starts_with("relay-") && name.ends_with(".db") {
+                count += 1;
+                if let Ok(md) = e.metadata() {
+                    let mt = md.modified().unwrap_or(std::time::UNIX_EPOCH);
+                    if newest.as_ref().map_or(true, |(t, _, _)| mt > *t) {
+                        newest = Some((mt, p.clone(), md.len()));
+                    }
+                }
+            }
+        }
+        let (mt, path, size) = newest?;
+        let age_secs = mt.elapsed().map(|d| d.as_secs()).unwrap_or(0);
+        Some(serde_json::json!({
+            "newest_file": path.file_name().and_then(|n| n.to_str()).unwrap_or(""),
+            "newest_age_secs": age_secs,
+            "newest_size_bytes": size,
+            "count": count,
+        }))
+    })().unwrap_or(serde_json::Value::Null);
+
+    serde_json::json!({
+        "version": version,
+        "disk": disk,
+        "watchdog_state": watchdog_state,
+        "backup": backup,
+    })
 }
 
 // ── Guilds API ──────────────────────────────────────────────────────────
