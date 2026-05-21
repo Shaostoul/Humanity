@@ -114,6 +114,33 @@ function closeSoundMenuOutside(e) {
     document.removeEventListener('click', closeSoundMenuOutside);
   }
 }
+
+// ── Account & Identity menu (header popover) ──
+// Native parity: the left rail has NO persistent identity header. Profile,
+// public key, contact-card share/add, peer sync, key protection, system info,
+// and devices live OFF the channel list. Web mirrors this by relocating the
+// #my-identity block into this header popover (see relocateIdentityToMenu),
+// toggled by #account-toggle. Same open/close + outside-click pattern as the
+// sound menu. Must be global (called from inline onclick).
+function toggleIdentityMenu() {
+  const menu = document.getElementById('identity-menu');
+  if (!menu) return;
+  if (menu.style.display === 'none' || !menu.style.display) {
+    menu.style.display = 'block';
+    setTimeout(() => document.addEventListener('click', closeIdentityMenuOutside), 0);
+  } else {
+    menu.style.display = 'none';
+  }
+}
+function closeIdentityMenuOutside(e) {
+  const menu = document.getElementById('identity-menu');
+  if (!menu) return;
+  // Keep open when the click is inside the menu or on its toggle button.
+  if (!menu.contains(e.target) && !e.target.closest('#account-toggle')) {
+    menu.style.display = 'none';
+    document.removeEventListener('click', closeIdentityMenuOutside);
+  }
+}
 function renderSoundOptions() {
   const container = document.getElementById('sound-options');
   container.innerHTML = Object.entries(SOUND_PRESETS).map(([key, preset]) => {
@@ -1207,6 +1234,24 @@ var federatedServersFetched = false;
   }
   setTimeout(relocateStudioToRightRail, 0);
   window.relocateStudioToRightRail = relocateStudioToRightRail;
+
+  // Web-native parity (Track W): native's left rail starts clean (scratchpad →
+  // DMs → Groups → Servers) with NO persistent identity header. Web's
+  // #my-identity block sat at the top of the left #sidebar; relocate it at
+  // runtime into the header #identity-menu popover (toggled by #account-toggle),
+  // keeping every control's id/handler intact — same runtime-move approach as
+  // relocateStudioToRightRail. Graceful: if this never runs, the block simply
+  // stays in the sidebar. See docs/design/web-native-parity.md (parity step 1).
+  function relocateIdentityToMenu() {
+    const block = document.getElementById('my-identity');
+    const menu = document.getElementById('identity-menu');
+    if (!block || !menu) return;
+    if (menu.contains(block)) return; // already moved (idempotent)
+    block.style.marginBottom = '0'; // shed sidebar spacing inside the popover
+    menu.appendChild(block);
+  }
+  setTimeout(relocateIdentityToMenu, 0);
+  window.relocateIdentityToMenu = relocateIdentityToMenu;
 
   // ── Server List Rendering ──
   function getServerOrder() {

@@ -129,6 +129,11 @@
           data-tip-title="People & Streams"
           data-tip-desc="Opens the sidebar showing online members, voice participants, and streaming controls."
           data-tip-detail="Shows STREAMING, VOIP, ONLINE, and OFFLINE presence sections"><span class="pg-ico" data-icon="users" data-size="16"></span></button>
+        <button id="account-toggle" onclick="toggleIdentityMenu()"
+          data-tip-title="Account &amp; Identity"
+          data-tip-desc="Your profile, public key, contact card, devices, and security."
+          data-tip-detail="Moved off the channel list (native parity) — opens a menu with Profile, key, Share/Add contact, Sync, Protect key, System info, Devices."
+          style="background:none;border:none;color:var(--text);cursor:pointer;font-size:1.1rem;padding:0.2rem;">👤</button>
         <div id="status" class="disconnected"><span class="dot"></span><span id="status-text">Disconnected</span></div>
       </div>
       <div id="sound-menu" style="display:none;position:absolute;top:3rem;right:5rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:0.6rem;z-index:200;min-width:200px;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
@@ -140,6 +145,13 @@
             Sounds enabled
           </label>
         </div>
+      </div>
+      <!-- Account & Identity popover. The #my-identity block (defined inside
+           #sidebar) is relocated here at runtime by relocateIdentityToMenu()
+           in chat-ui.js, matching native's clean left rail (no identity
+           header in the channel list). -->
+      <div id="identity-menu" style="display:none;position:absolute;top:3rem;right:1rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:0.6rem;z-index:200;min-width:264px;max-width:340px;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.45rem;font-weight:600;">ACCOUNT &amp; IDENTITY</div>
       </div>
     </header>
     <div class="main">
