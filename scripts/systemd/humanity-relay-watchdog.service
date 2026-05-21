@@ -1,0 +1,19 @@
+# HumanityOS relay watchdog -- oneshot, driven by the .timer.
+# Installed/refreshed automatically by the deploy workflow from the
+# repo copy (scripts/), so the protection is version-controlled and
+# survives a VPS rebuild. See scripts/humanity-relay-watchdog.sh for
+# the WHY (incident 2026-05-21: missing binary -> 25-min silent
+# crash-loop; systemd Restart=always misses alive-but-hung + gives up
+# silently at StartLimit).
+[Unit]
+Description=HumanityOS relay watchdog (HTTP-liveness check + self-heal restart)
+After=network.target humanity-relay.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/Humanity/scripts/humanity-relay-watchdog.sh
+# Never compete with the relay for resources.
+Nice=10
+IOSchedulingClass=idle
+# A watchdog hiccup must never wedge anything.
+TimeoutStartSec=60

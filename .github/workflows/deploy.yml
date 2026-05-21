@@ -60,9 +60,18 @@ jobs:
             chmod +x scripts/humanity-backup-db.sh || true
             cp -f scripts/humanity-backup-db.sh /usr/local/bin/humanity-backup-db || true
 
+            # v0.285.x: install the relay watchdog timer (incident
+            # 2026-05-21). HTTP-liveness check + self-heal restart every
+            # 2 min, catching alive-but-hung + systemd-gave-up cases that
+            # Restart=always misses.
+            chmod +x scripts/humanity-relay-watchdog.sh || true
+            cp -f scripts/systemd/humanity-relay-watchdog.service /etc/systemd/system/humanity-relay-watchdog.service || true
+            cp -f scripts/systemd/humanity-relay-watchdog.timer   /etc/systemd/system/humanity-relay-watchdog.timer   || true
+
             systemctl daemon-reload || true
             systemctl enable --now humanity-disk-guard.timer || true
             systemctl enable --now humanity-backup-db.timer || true
+            systemctl enable --now humanity-relay-watchdog.timer || true
 
             # ── Server→Services sudoers (v0.262.16) ──
             # Grants the non-root relay user start/stop on exactly the 2

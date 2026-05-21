@@ -1,0 +1,17 @@
+# Runs the relay watchdog every 2 minutes, plus shortly after boot.
+# Deploy-INDEPENDENT on purpose (same lesson as the disk-guard timer):
+# a relay can die between deploys, or with no deploys for days. 2 min
+# means the worst-case detection + self-heal window is ~4 min (first
+# failure recorded, second failure heals), versus the 25-min unattended
+# outage on 2026-05-21.
+[Unit]
+Description=Run the HumanityOS relay watchdog every 2 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+# If the VPS was off when a run was due, run once on next boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
