@@ -535,34 +535,44 @@ pub async fn github_webhook(
         .or_else(|_| std::env::var("WEBHOOK_SECRET"))
         .unwrap_or_default();
 
+    // v0.284.x: FAIL CLOSED. Previously this accepted unsigned POSTs when
+    // no secret was configured ("backward compatibility"), which meant
+    // anyone could POST a forged GitHub push event to
+    // /api/github-webhook and inject a fake "📦 repo — commits pushed by
+    // X" message into #announcements. The deploy announcements people
+    // actually rely on come from the CI Deploy Bot via /api/send +
+    // API_SECRET (a SEPARATE path), so refusing here costs nothing real.
+    // If the operator ever wants per-commit webhook announcements again,
+    // set WEBHOOK_SECRET on the VPS + re-create the GitHub webhook with
+    // the same secret.
     if webhook_secret.is_empty() {
-        // No secret configured — accept for backward compatibility but warn.
-        tracing::warn!("GITHUB_WEBHOOK_SECRET not configured — accepting webhook without signature verification");
-    } else {
-        let sig_header = headers
-            .get("x-hub-signature-256")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("sha256="))
-            .unwrap_or("");
+        tracing::warn!("github_webhook: WEBHOOK_SECRET not set — rejecting (fail-closed). Set it to enable the endpoint.");
+        return Err((StatusCode::SERVICE_UNAVAILABLE, "Webhook endpoint disabled (no secret configured).".into()));
+    }
 
-        if sig_header.is_empty() {
-            return Err((StatusCode::UNAUTHORIZED, "Missing X-Hub-Signature-256 header.".into()));
-        }
+    let sig_header = headers
+        .get("x-hub-signature-256")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("sha256="))
+        .unwrap_or("");
 
-        // Compute HMAC-SHA256.
-        use hmac::{Hmac, Mac};
-        use sha2::Sha256;
-        type HmacSha256 = Hmac<Sha256>;
+    if sig_header.is_empty() {
+        return Err((StatusCode::UNAUTHORIZED, "Missing X-Hub-Signature-256 header.".into()));
+    }
 
-        let mut mac = HmacSha256::new_from_slice(webhook_secret.as_bytes())
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "HMAC key error.".into()))?;
-        mac.update(&body);
-        let expected = hex::encode(mac.finalize().into_bytes());
+    // Compute HMAC-SHA256.
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    type HmacSha256 = Hmac<Sha256>;
 
-        // Constant-time comparison.
-        if expected.len() != sig_header.len() || !constant_time_eq(expected.as_bytes(), sig_header.as_bytes()) {
-            return Err((StatusCode::UNAUTHORIZED, "Invalid webhook signature.".into()));
-        }
+    let mut mac = HmacSha256::new_from_slice(webhook_secret.as_bytes())
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "HMAC key error.".into()))?;
+    mac.update(&body);
+    let expected = hex::encode(mac.finalize().into_bytes());
+
+    // Constant-time comparison.
+    if expected.len() != sig_header.len() || !constant_time_eq(expected.as_bytes(), sig_header.as_bytes()) {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid webhook signature.".into()));
     }
 
     let payload: GitHubPushEvent = serde_json::from_slice(&body)

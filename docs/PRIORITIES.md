@@ -6,14 +6,14 @@
 
 ## Active focus
 <!-- Set this to the single most important thing right now. Should match the top item in TIER 0. -->
-**TIER 0 #1 — re-point or remove the stale GitHub webhook.** Off-site backup is now SOLVED (the device-mesh stopgap: operator's PC pulls the relay DB every 6h via scheduled task — see below + `docs/design/device-mesh.md`). Next smallest blocker is the webhook pointing at a dead ngrok URL.
+**TIER 0 #1 — fix nginx `/health` routing.** The webhook decision is now DONE (deleted + endpoint fail-closed, v0.285.0). Off-site backup is SOLVED (device-mesh stopgap). The remaining pre-public blocker is the public `/health` 404, which off-site monitoring (TIER 1 #2) needs.
 
 ## TIER 0 — pre-public launch blockers
 Items here are mandatory before inviting public users. Operator-attended where noted. **Order matters within the tier.**
 
-1. **Re-point or remove the GitHub webhook.** The configured webhook points to a stale ngrok URL (`pandanaceous-equationally-chia.ngrok-free.dev`) and has been returning 404 for months. Operator decides: (a) re-point to `https://united-humanity.us/api/github-webhook` + generate fresh `WEBHOOK_SECRET` + set on both sides, OR (b) delete the webhook entirely if deploy-bot announcements aren't wanted. The relay's `/api/github-webhook` endpoint currently accepts forgeries (no secret set) but nothing reaches it.
+1. **Fix nginx `/health` routing.** Internal `http://localhost:3210/health` returns 200; public `https://united-humanity.us/health` returns 404. nginx isn't routing the path. Trivial nginx config addition (`location = /health { proxy_pass http://127.0.0.1:3210; }`). Matters because off-site monitoring (TIER 1 #2) needs the public endpoint to work.
 
-2. **Fix nginx `/health` routing.** Internal `http://localhost:3210/health` returns 200; public `https://united-humanity.us/health` returns 404. nginx isn't routing the path. Trivial nginx config addition (`location = /health { proxy_pass http://127.0.0.1:3210; }`). Matters because off-site monitoring (TIER 1 #2) needs the public endpoint to work.
+2. **DONE: GitHub webhook deleted + endpoint fail-closed (v0.285.0).** The stale webhook (pointed at a dead ngrok URL, 404 for months) was deleted from the GitHub repo. The relay's `/api/github-webhook` endpoint now FAILS CLOSED — rejects when `WEBHOOK_SECRET` is unset (was fail-open, a forged-announcement spoof vector). Note: this webhook was NEVER the update-autoposter — that's the CI Deploy Bot via `/api/send` + `API_SECRET`, a separate path that's unaffected and healthy.
 
 3. **DONE: off-site backup (stopgap).** 2026-05-20: `scripts/backup-relay-from-vps.ps1` + a Windows scheduled task ("HumanityOS Relay Backup Pull", every 6h) now pull the live relay DB from the VPS to the operator's PC — genuine 3-2-1 backup (live DB / VPS-local 30-min snapshots / off-site PC). This is the "immediate" half of the device-mesh vision (`docs/design/device-mesh.md`); the full in-app version is TIER 2. NOTE: the PC backup is off-site but a SINGLE off-site copy. A second target (phone, NAS, or a cheap second VPS) would make it 3-2-1-with-redundancy. Phase B of the device mesh generalizes this.
 
