@@ -112,7 +112,29 @@ gh run list --limit 5 --workflow=deploy-to-vps.yml
 
 ## Section 2 — Past incidents (root-cause + lesson, append-only)
 
-### 2026-05-19 — disk-guard / cargo-build race during pq-wipe
+### 2026-05-21 — release-mirror bloat → disk-guard nuked target/ → relay crash-loop → discovered GLIBC mismatch in pre-built binaries
+
+**What happened**: `/var/www/humanity/releases/` had accumulated 287 versioned release dirs since v0.122.0 (April 30) with no retention policy. Each dir is ~345 MB (Linux + macOS x64 + macOS arm64 + Windows binaries × 2 — raw + tar.gz — plus torrents and data archives). Total: 91 GB. At 00:01:55Z on 2026-05-21 the disk-guard timer fired (`disk 92% >= 88% — removing build cache /opt/Humanity/target`), correctly identified `target/` as a reclaimable build cache, but no subsequent deploy was triggered so the relay binary at `/opt/Humanity/target/release/HumanityOS` was simply gone. systemd crash-looped the service for ~25 minutes before discovery.
+
+Compound lesson: while diagnosing, I attempted to recover by copying the pre-built Linux binary from the release mirror (`cp /var/www/humanity/releases/v0.283.1/HumanityOS-linux-x64 /opt/Humanity/target/release/HumanityOS`). The binary copied fine but failed to start with `libssl.so.3: cannot open shared object file` AND `GLIBC_2.32/2.33/2.34/2.35 not found`. **The pre-built binaries in the release mirror were built on the GitHub Actions Ubuntu runner (modern GLIBC 2.35+, OpenSSL 3.x) and CANNOT run on this VPS (Debian 11 / bullseye, GLIBC 2.31, OpenSSL 1.1).** Every previous CI deploy that "worked" actually rebuilt on the VPS via the `cargo build --release` step, never relying on the pre-built artifact. The release mirror's binaries serve END USERS (whose distros usually have newer libraries), NOT the relay's own boot.
+
+**Fix (operational)**: 
+1. Stopped disk-guard timer to avoid mid-recovery race.
+2. Deleted 277 older release dirs (`v0.122.0` through `v0.275.1`), keeping the last 10. Disk went 91% → 13%.
+3. Regenerated `manifest.json` via `/usr/local/bin/regen-releases-manifest`.
+4. Re-enabled disk-guard timer.
+5. Pushed a commit to trigger CI deploy → CI SSHed VPS and ran `cargo build --release --features relay --no-default-features`, restarted the service.
+
+**Fix (preventive)**: 
+1. Added TIER 0 hardening item to `docs/PRIORITIES.md`: extend disk-guard (or add a parallel `releases-rotator.timer`) to enforce retention on `/var/www/humanity/releases/` automatically. The disk-guard's current scope is `/opt/Humanity/backups/` and `/opt/Humanity/target/`, but the actual bloat lives elsewhere.
+2. Documented the pre-built-binary GLIBC mismatch here so future recovery attempts skip the cp-from-mirror path and go straight to "trigger CI deploy" or "rebuild on VPS."
+
+**Lessons**:
+- Disk-guard's threshold trips on disk usage caused by something it doesn't manage. Cleanup scope and trigger scope must match: if disk-guard reclaims `target/`, it must ALSO be empowered to reclaim the real bloat (releases) OR a different mechanism must run with sufficient frequency.
+- Pre-built CI artifacts are NOT portable to the VPS. They serve users; the relay's own binary always rebuilds locally. Don't conflate the two.
+- Disk pressure can cascade. The release mirror's unrotated growth caused the disk-guard fire that caused the target/ wipe that caused the relay crash. Single-system disk hygiene needs an explicit owner per directory tree.
+
+
 **What happened**: an attended `pq-wipe.sh` ran while a `cargo build --features relay` was in progress. The disk-guard had rm'd `target/` (legitimately, disk was pressured); the build was rebuilding; the wipe stopped systemd, started it, found no binary (build still running), the empty `relay.db` got created without the schema the new code expected, the offline seed step then hit 888 "no such table" sqlite errors, the relay crash-looped.
 
 **Fix**: v0.275.0 hardened `pq-wipe.sh` — refuses to run if a `cargo build --features relay` process is alive (pgrep), refuses if the relay binary is missing, polls 30s for schema readiness with diagnostics on failure, verifies seeded message count matches the archive length.
