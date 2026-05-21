@@ -203,6 +203,38 @@
 .unified-section[data-usid^="server-"] > .unified-header {
   background: rgba(24, 46, 110, 0.34);
 }
+
+/* Scratchpad — local-only top row (native parity).
+   Native draws a standalone "# scratchpad" row at the very top of the left
+   rail (above DMs/Groups/Servers) for a workspace not attached to any
+   server/group/DM. Styled as a peer of the section headers, with the amber
+   "local-only" identity the web scratch-pad already used, and native's purple
+   active accent (rgb(160,140,200)). */
+.sidebar-unified-left .unified-scratch-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.28rem 0.42rem;
+  margin-bottom: 0.22rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-style: italic;
+  color: var(--warning, #e0a030);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  cursor: pointer;
+}
+.sidebar-unified-left .unified-scratch-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.sidebar-unified-left .unified-scratch-row.active {
+  background: rgba(120, 100, 170, 0.28);
+  border-color: rgba(160, 140, 200, 0.5);
+  border-left: 3px solid rgb(160, 140, 200);
+  padding-left: calc(0.42rem - 2px);
+  color: var(--text);
+}
 .unified-subhead {
   font-size: var(--text-xs);
   text-transform: uppercase;

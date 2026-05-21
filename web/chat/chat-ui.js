@@ -1051,6 +1051,47 @@ var federatedServersFetched = false;
     if (!unified.querySelector('[data-sid="groups"]')) unified.appendChild(mkSection('groups', 'Groups', tabGroups));
     if (!unified.querySelector('[data-sid="servers"]')) unified.appendChild(mkSection('servers', 'Servers', tabServers));
 
+    // ── Scratchpad: standalone top row (native parity) ──
+    // Native (`draw_left_panel`) renders a "# scratchpad" row at the very TOP
+    // of the left rail — above DMs/Groups/Servers — for a local-only workspace
+    // not attached to any server/group/DM. Web previously nested its
+    // `__scratch__` channel INSIDE the Humanity server's channel list (so it
+    // vanished when that server collapsed). Promote it to a peer top row here;
+    // the in-server copy is removed in renderServerList to avoid duplication.
+    let scratchRow = document.getElementById('unified-scratch-row');
+    if (!scratchRow) {
+      scratchRow = document.createElement('button');
+      scratchRow.id = 'unified-scratch-row';
+      scratchRow.type = 'button';
+      scratchRow.className = 'unified-scratch-row';
+      scratchRow.title = 'Local workspace. Nothing sent to anyone.';
+      scratchRow.textContent = '# scratch-pad';
+      scratchRow.onclick = function() {
+        if (typeof switchChannel === 'function') switchChannel('__scratch__');
+      };
+      unified.insertBefore(scratchRow, unified.firstChild);
+    }
+    // Keep the row's active highlight in sync with the current context.
+    function refreshScratchActive() {
+      const isScratch = (typeof activeChannel !== 'undefined' && activeChannel === '__scratch__')
+        && !(typeof activeDmPartner !== 'undefined' && activeDmPartner)
+        && !(typeof activeGroupId !== 'undefined' && activeGroupId);
+      scratchRow.classList.toggle('active', !!isScratch);
+    }
+    window.refreshScratchActive = refreshScratchActive;
+    // Wrap switchChannel once so every context change refreshes the highlight
+    // (channel-list re-render handles the in-list items; this top row is
+    // outside that container, so it needs its own sync hook).
+    if (!window.__scratchRowWrapped && typeof switchChannel === 'function') {
+      const _origSwitchForScratch = switchChannel;
+      switchChannel = function(id) {
+        _origSwitchForScratch(id);
+        try { refreshScratchActive(); } catch (e) {}
+      };
+      window.__scratchRowWrapped = true;
+    }
+    refreshScratchActive();
+
     function refreshUnifiedLeftHeaderCounts() {
       const serverCount = (channelList || []).length;
       const groupCount = (myGroups || []).length;
@@ -1295,9 +1336,9 @@ var federatedServersFetched = false;
     }
     voiceHtml += '</div>';
 
-    // Scratch Pad channel (always first, local-only)
-    const scratchActive = activeChannel === '__scratch__' && !activeDmPartner && !activeGroupId;
-    const scratchHtml = `<div class="channel-item scratch-pad-item${scratchActive ? ' active' : ''}" data-channel-id="__scratch__" title="Local workspace. Nothing sent to anyone." style="color:var(--warning,#e0a030);font-style:italic;">scratch-pad</div>`;
+    // Scratch-pad moved to a standalone top row in the unified left sidebar
+    // (see initUnifiedLeftSidebar → #unified-scratch-row) to match native,
+    // which renders it above DMs/Groups/Servers. No longer nested here.
 
     let html = `<div class="server-group${isCollapsed ? ' collapsed' : ''}" data-server="Humanity">
       <div class="server-group-header" data-server-toggle="Humanity" style="font-weight:bold;">
@@ -1305,7 +1346,7 @@ var federatedServersFetched = false;
         <span class="srv-name">🟢 🅷 Humanity</span>
         ${pinnedBtnsHtml}
       </div>
-      <div class="server-group-channels">${scratchHtml}${channelsHtml}${createChannelBtn}${voiceHtml}</div>
+      <div class="server-group-channels">${channelsHtml}${createChannelBtn}${voiceHtml}</div>
     </div>`;
 
     // Federated servers.
