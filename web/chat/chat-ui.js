@@ -1148,6 +1148,25 @@ var federatedServersFetched = false;
   setTimeout(initUnifiedLeftSidebar, 0);
   setTimeout(initPanelResizers, 0);
 
+  // Web-native parity (Track W): the native chat puts streaming/studio on
+  // the RIGHT for streamers, not the left. The static markup still has the
+  // studio panel inside the left #sidebar; relocate it at runtime to the
+  // TOP of the right rail (above the people/friends list), matching the
+  // parity design. Runtime move (vs HTML cut-paste) keeps it reversible
+  // and preserves every studio control's id/handler — the element just
+  // changes parent. Mirrors how initUnifiedLeftSidebar restructures the
+  // left rail. See docs/design/web-native-parity.md + studio-streaming.md.
+  function relocateStudioToRightRail() {
+    const studio = document.getElementById('stream-studio-panel');
+    const rightRail = document.getElementById('right-sidebar');
+    if (!studio || !rightRail) return;
+    // Already moved? (idempotent — init can run more than once.)
+    if (studio.parentElement === rightRail) return;
+    rightRail.insertBefore(studio, rightRail.firstChild);
+  }
+  setTimeout(relocateStudioToRightRail, 0);
+  window.relocateStudioToRightRail = relocateStudioToRightRail;
+
   // ── Server List Rendering ──
   function getServerOrder() {
     try {

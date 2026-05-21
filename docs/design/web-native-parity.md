@@ -22,7 +22,8 @@
 
 ## Migration order
 
-1. **Left rail: tabs → stacked collapsible sections.** Highest-impact; defines the navigation feel. Reuses the existing DM/Group/Server data + render functions, just restructures the container from tab-switching to stacked-with-carets. (Studio gets pulled out of the left rail here; its right-rail home is Track S.)
+1. **Left rail: tabs → stacked collapsible sections. ✅ ALREADY DONE (verified 2026-05-20).** The static `index.html` still has the tab markup, but `chat-ui.js::initUnifiedLeftSidebar` (called at runtime via `setTimeout(..., 0)`) rewrites it into stacked collapsible `.unified-section`s in native's order (DMs/Groups/Servers) with header counts + carets, and the CSS forces all panes visible in unified mode (`.sidebar-unified-left .sidebar-tab-content { display:block !important }`). The web left rail already matches native's structure. **Lesson: the static HTML misled the audit; the runtime DOM is the truth — always verify the rendered state, don't rebuild from the markup.**
+   - **Studio relocation (1b) — DONE v0.287.4.** The studio panel (`#stream-studio-panel`) was still in the left rail; native puts streaming on the right. `relocateStudioToRightRail()` (chat-ui.js) now moves it to the TOP of `#right-sidebar` at runtime (above the people list), preserving every control's id/handler. The full right-rail studio *widget redesign* (compact widget + modal + viewers) is Track S; this step just gets it onto the correct side.
 2. **Right rail: align sections + naming + collapse** to Friends/Members like native.
 3. **Message rows + timestamp pill + inline reactions** — the biggest CSS surface; do after the rails so the frame is right first.
 4. **Channel header + composer affordances.**
