@@ -6,16 +6,16 @@
 
 ## Active focus
 <!-- Set this to the single most important thing right now. Should match the top item in TIER 0. -->
-**TIER 0 #1 — off-site backup replication.** Local backup automation is now correct (the v0.283.4 script fix + in-repo source-of-truth ship). But ALL backups live on the same VPS disk as the live DB. If the disk dies, both die. Need rsync to a second host (cheapest), or Litestream to S3-compatible storage (cleanest). Document the cadence in `docs/SECURITY-CADENCE.md` once chosen.
+**TIER 0 #1 — re-point or remove the stale GitHub webhook.** Off-site backup is now SOLVED (the device-mesh stopgap: operator's PC pulls the relay DB every 6h via scheduled task — see below + `docs/design/device-mesh.md`). Next smallest blocker is the webhook pointing at a dead ngrok URL.
 
 ## TIER 0 — pre-public launch blockers
 Items here are mandatory before inviting public users. Operator-attended where noted. **Order matters within the tier.**
 
-1. **Off-site backup replication.** Today: local sqlite3 .backup every 30 min (v0.283.4 fixed the broken path). Single-disk SPOF. Pick a destination (another VPS via rsync, S3-compatible bucket via Litestream, BackBlaze B2, etc.) + wire a cron/timer.
+1. **Re-point or remove the GitHub webhook.** The configured webhook points to a stale ngrok URL (`pandanaceous-equationally-chia.ngrok-free.dev`) and has been returning 404 for months. Operator decides: (a) re-point to `https://united-humanity.us/api/github-webhook` + generate fresh `WEBHOOK_SECRET` + set on both sides, OR (b) delete the webhook entirely if deploy-bot announcements aren't wanted. The relay's `/api/github-webhook` endpoint currently accepts forgeries (no secret set) but nothing reaches it.
 
-2. **Re-point or remove the GitHub webhook.** The configured webhook points to a stale ngrok URL (`pandanaceous-equationally-chia.ngrok-free.dev`) and has been returning 404 for months. Operator decides: (a) re-point to `https://united-humanity.us/api/github-webhook` + generate fresh `WEBHOOK_SECRET` + set on both sides, OR (b) delete the webhook entirely if deploy-bot announcements aren't wanted. The relay's `/api/github-webhook` endpoint currently accepts forgeries (no secret set) but nothing reaches it.
+2. **Fix nginx `/health` routing.** Internal `http://localhost:3210/health` returns 200; public `https://united-humanity.us/health` returns 404. nginx isn't routing the path. Trivial nginx config addition (`location = /health { proxy_pass http://127.0.0.1:3210; }`). Matters because off-site monitoring (TIER 1 #2) needs the public endpoint to work.
 
-3. **Fix nginx `/health` routing.** Internal `http://localhost:3210/health` returns 200; public `https://united-humanity.us/health` returns 404. nginx isn't routing the path. Trivial nginx config addition (`location = /health { proxy_pass http://127.0.0.1:3210; }`). Matters because off-site monitoring (TIER 1 #2) needs the public endpoint to work.
+3. **DONE: off-site backup (stopgap).** 2026-05-20: `scripts/backup-relay-from-vps.ps1` + a Windows scheduled task ("HumanityOS Relay Backup Pull", every 6h) now pull the live relay DB from the VPS to the operator's PC — genuine 3-2-1 backup (live DB / VPS-local 30-min snapshots / off-site PC). This is the "immediate" half of the device-mesh vision (`docs/design/device-mesh.md`); the full in-app version is TIER 2. NOTE: the PC backup is off-site but a SINGLE off-site copy. A second target (phone, NAS, or a cheap second VPS) would make it 3-2-1-with-redundancy. Phase B of the device mesh generalizes this.
 
 4. **DONE: 2026-05-21 release-mirror cleanup + retention automation.** Cleaned 277 old release dirs from `/var/www/humanity/releases/` (freed 91 GB; 91% → 13%). v0.283.4 extends `scripts/humanity-disk-guard.sh` to enforce 10-version retention automatically on every 20-min cycle + regenerate the manifest. Cascade is structurally prevented from recurring.
 
@@ -54,6 +54,8 @@ Items here are real features the system promises but doesn't deliver on every pl
 4. **Litestream / continuous backup.** Beyond the nightly rsync floor in TIER 0, set up real continuous replication. SQLite WAL → S3-compatible blob storage. RPO ~1 minute, RTO ~10 minutes from cold.
 
 5. **Mobile clients.** Android (JNI bridge for keyring + AndroidKeyStore; new keychain backend), iOS (Keychain Services already works via `keyring` crate — needs only an iOS build target). Big effort either way.
+
+6. **Device mesh** (design doc: `docs/design/device-mesh.md`). The operator's vision: your devices back up each other + the relay; review all devices' system-info (hardware, storage, health) from any one device; device roles (battle-station / accessory / relay / archive). Phased: A) system-info reporting + "My Devices" dashboard, B) backup designation + pull + encryption-at-rest (subsumes the shipped PowerShell stopgap), C) restore flow, D) LAN direct-sync + mobile mesh members + remote wipe. The VPS-as-rendezvous architecture (devices report up, read all-devices down) fits the existing federation model. On-mission sovereignty tooling — give it to every user, not just the operator.
 
 ## TIER 3 — UX accessibility (the ELI5 mandate)
 The platform's mission requires this layer. Not optional, just sequenced after the load-bearing security/feature work.
