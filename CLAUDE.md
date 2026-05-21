@@ -30,6 +30,8 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 
 ## Non-negotiable design rules
 
+**GUI-first configurability (no-CLI-required).** Anything an operator/admin/user can configure or do MUST be reachable from inside the app, not only from a shell. A button that "just runs the console command" under the hood is fine — the point is that nobody should HAVE to touch a terminal to set up, use, or modify the system. This serves three constituencies at once: the operator (who prefers it), tech-illiterate users (the accessibility mission), and AI agents (a discoverable in-app action surface means an AI knows exactly what's possible instead of guessing at shell commands). When you build a feature that has any ops/config dimension, build its in-app control in the SAME increment — or, if deferring, log it in `docs/design/in-app-ops.md` so the CLI debt is tracked, never silently accepted. North star: every admin action lives in a data-driven registry the GUI renders AND an AI can enumerate. See `docs/design/in-app-ops.md`.
+
 **Rust-first canonical UI.** Any new UI pattern must be implementable in native egui first. Web (HTML/CSS) mirrors it. Not the other way around. See `docs/design/ui-system.md`.
 
 **One theme source.** Design tokens (colors, spacing, radii, fonts) live in `data/gui/theme.ron`. Native reads it directly. Web's `theme.css` is regenerated from it by `node scripts/gen-theme-css.js`. Do not hand-edit color values in `theme.css` — edit the RON and regenerate.
