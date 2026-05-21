@@ -1551,6 +1551,24 @@ mod native_app {
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("general")
                                             .to_string();
+                                        // Robust dedup (fixes the 2026-05-20 "reply duplicated
+                                        // after a while" report). The chat_sent_timestamps
+                                        // fast-path above only catches the FIRST echo of our
+                                        // OWN sends — it removes the entry on match, so it's
+                                        // one-shot. A LATER replay of the same message (the WS
+                                        // reconnect history re-fetch resets history_fetched and
+                                        // re-pulls the last 50; or a duplicate broadcast) would
+                                        // otherwise sail past the consumed fast-path and append
+                                        // a second copy that only clears on app restart (in-
+                                        // memory only; the relay always had one copy). A message
+                                        // is uniquely identified by (sender_key, timestamp_ms)
+                                        // — ms precision, per-sender — so skip if we already
+                                        // hold it. Cheap: chat_messages is bounded to 200.
+                                        if state.gui_state.chat_messages.iter()
+                                            .any(|m| m.sender_key == sender_key && m.timestamp_ms == timestamp)
+                                        {
+                                            continue;
+                                        }
                                         // Decode reply_to context if present (threads).
                                         let reply_to = val.get("reply_to").and_then(|r| {
                                             let from = r.get("from")?.as_str()?.to_string();
@@ -2670,6 +2688,22 @@ mod native_app {
                                                     && state.gui_state.chat_sent_timestamps.contains(&timestamp)
                                                 {
                                                     state.gui_state.chat_sent_timestamps.retain(|&t| t != timestamp);
+                                                    skipped += 1;
+                                                    continue;
+                                                }
+                                                // Robust content dedup (2026-05-20 fix): this fetch
+                                                // runs on EVERY reconnect (history_fetched resets on
+                                                // disconnect just below), so without checking the
+                                                // existing buffer it would re-append every message
+                                                // already on screen from the live broadcast — the
+                                                // duplication the operator saw. (sender_key,
+                                                // timestamp_ms) uniquely identifies a message; skip
+                                                // anything we already hold. The chat_sent_timestamps
+                                                // path above is a one-shot fast-path that this
+                                                // backstops.
+                                                if state.gui_state.chat_messages.iter()
+                                                    .any(|m| m.sender_key == sender_key && m.timestamp_ms == timestamp)
+                                                {
                                                     skipped += 1;
                                                     continue;
                                                 }

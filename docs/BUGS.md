@@ -4,6 +4,13 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Resolved Bugs
 
+### BUG-037: Chat message duplicates in-memory after a delay, clears on app restart
+- **Status**: Fixed
+- **Version Fixed**: v0.284.0
+- **Reported**: 2026-05-20 (operator saw a #general reply duplicate "after some random amount of time"; closing + reopening the app cleared it)
+- **Root cause**: The native client deduped its own sent messages via `chat_sent_timestamps`, but that list is ONE-SHOT — the live-broadcast handler removes the timestamp on the first echo (`src/lib.rs` ~line 1536). On a WS reconnect, `history_fetched` resets (~line 2704) and the client re-fetches the last 50 messages from `/api/messages`. The history-fetch dedup only checked `chat_sent_timestamps` (already consumed) and never checked whether the message was ALREADY in `chat_messages`, so it re-appended copies already on screen. In-memory only (the relay always had exactly one copy), which is why a restart → fresh fetch showed the correct single copy.
+- **Fix**: Added a robust content-based dedup — skip the append if `chat_messages` already holds a message with the same `(sender_key, timestamp_ms)` — to BOTH the live-broadcast handler and the history-fetch loop. `(sender_key, timestamp_ms)` uniquely identifies a message (ms precision, per-sender). The `chat_sent_timestamps` fast-path is kept as an optimization; the content dedup is the order-independent backstop that survives reconnect replays + duplicate broadcasts.
+
 ### BUG-001: Backup button on settings page broken
 - **Status**: Fixed
 - **Version Fixed**: v0.15.1
