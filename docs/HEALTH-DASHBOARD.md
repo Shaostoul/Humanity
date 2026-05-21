@@ -65,29 +65,52 @@
 - A bot authentication fails (logged in `tracing::warn!`).
 - Deploy bot reports a CI failure (already surfaces in #announcements).
 
-## Instrumentation plan (TIER 1 #2 — not yet built)
+## Instrumentation plan — status
 
-Minimum viable:
-1. **Health check loop**: a second VPS or even a free service (UptimeRobot, BetterStack, etc.) hits `https://united-humanity.us/health` every 60s. Posts to ntfy.sh / Telegram bot / email on failure. Cost: free tier viable; ~$5/mo for a paid tier with longer history.
-2. **Log shipping**: `journalctl -u humanity-relay` → grepped for `ERROR`/`WARN` patterns. Aggregate count → alert on threshold. Simplest: `journalctl -p err --since "1 hour ago" | wc -l` in a cron, post if > 10.
-3. **Disk + cert expiry**: weekly cron on VPS itself: `df`, `certbot certificates`, post results to a notify channel.
+**DONE (v0.285.2–v0.286.x):** VPS-side detection + self-heal + configurable external alerting. See "Existing observability" + "Alert configuration" below.
 
-Better:
-1. **Prometheus**: relay exposes `/metrics` (need to add — `prometheus` crate, scrape RelayState counters). Prometheus on a second host scrapes. Grafana for dashboards. Alertmanager for routing. Cost: free if self-hosted on a 2nd $5/mo VPS.
-2. **Trace sampling**: `tracing-subscriber` already in deps; emit spans to a collector (OpenTelemetry → Jaeger or Tempo). Useful for diagnosing latency outliers.
+**Remaining:**
+1. **Off-box health monitor** (the other half of TIER 1 #2): a free service (UptimeRobot, BetterStack) or a check from the operator's PC hits `https://united-humanity.us/health` every ~60s and alerts on failure — covers whole-VPS-down, which the on-VPS watchdog can't. Can reuse the same `humanity-alert.js` channels.
+2. **Log-rate alerting**: `journalctl -p err --since "1 hour ago" | wc -l` in a cron → fan out via `humanity-alert.js` if over threshold.
+3. **Cert-expiry pre-warning**: weekly cron checks `certbot certificates`, alerts if < 14 days (belt-and-suspenders on top of auto-renew).
 
-Defer:
-- Distributed tracing across federation peers (only useful when there are 3+ peers).
-- Real-time anomaly detection (only useful at significant user count).
+Better (future): Prometheus `/metrics` (needs a `prometheus` crate + RelayState counters) + Grafana + Alertmanager; trace sampling via the already-present `tracing-subscriber`. Defer: distributed tracing across federation peers; real-time anomaly detection (only useful at scale).
 
 ## Existing observability (what we have today)
 
-- **`/health` endpoint** returns `{"status":"ok"}` with HTTP 200 (basic liveness). Returns peer count under `/api/stats`.
-- **journalctl logs** for `humanity-relay.service` capture `tracing` output. `RUST_LOG=info` default, configurable in `.env`.
+- **`/health` endpoint** returns `{"status":"ok"}` with HTTP 200 (basic liveness). Returns peer count under `/api/stats`. Public route works as of v0.285.2 (`https://united-humanity.us/health`).
+- **Relay watchdog** (`humanity-relay-watchdog.timer`, every 2 min, v0.285.2): HTTP-liveness check + self-heal restart. Detection + self-heal for "relay down/hung, VPS up."
+- **Configurable external alerting** (v0.286.x, TIER 1 #2): the watchdog + disk-guard fan critical alerts out to admin-configured channels via `scripts/humanity-alert.js`. See "Alert configuration" below.
+- **SQLite corruption resilience** (v0.286.0): boot-time integrity check + restore-from-healthy-backup or refuse-to-start.
+- **journalctl logs** for `humanity-relay.service` capture `tracing` output. `RUST_LOG=info` default, configurable in `.env`. Watchdog logs under tag `humanity-relay-watchdog`; disk-guard under `humanity-disk-guard`.
 - **GitHub deploy log** for CI run history.
 - **Deploy Bot's announcements** in `#announcements` for successful deploys — semi-passive monitoring (a missing announcement = something is wrong).
 
-That's it. Everything else needs to be built.
+## Alert configuration (per server admin)
+
+The watchdog + disk-guard send critical alerts out through whatever channels the admin configures. **It's opt-in: no config = silent no-op.**
+
+1. On the VPS: `cp /opt/Humanity/data/alert-channels.example.json /opt/Humanity/data/alert-channels.secrets.json` (the `.secrets.json` name is gitignored — it holds tokens/URLs).
+2. Edit it; set `"enabled": true` on the channels you want. Supported types:
+   - **`ntfy`** — phone push; just a topic URL (`https://ntfy.sh/<random-topic>`). Easiest.
+   - **`discord`** — an incoming-webhook URL.
+   - **`telegram`** — a bot token + chat id.
+   - **`webhook`** / **`slack`** — POST JSON to any URL (covers Slack incoming webhooks + custom receivers).
+3. Test without sending real alerts:
+   `HUMANITY_ALERT_DRYRUN=1 node /opt/Humanity/scripts/humanity-alert.js "test" critical`
+   then for real (drop the env var) once you trust it.
+
+What fires an external alert (anti-spam: once on down, once on recovery — never per-cycle):
+- Relay DOWN, watchdog auto-restarting → **warn**
+- Relay DOWN + binary missing (restart can't fix, needs a deploy) → **critical**
+- Relay RECOVERED → **info**
+- Disk critical after auto-reclaim → **critical**
+
+**Still missing — the off-box layer.** All the above runs ON the VPS, so it covers "relay down / VPS up." It does NOT cover whole-VPS-down (power/network loss) — that needs an external monitor (a free uptime service like UptimeRobot/BetterStack hitting the public `/health`, or a check from the operator's PC). Wiring that is the remaining half of TIER 1 #2; it can reuse the same alert channels.
+
+Better (future):
+- **Prometheus**: relay exposes `/metrics` (need to add — `prometheus` crate, scrape RelayState counters). Prometheus on a second host scrapes. Grafana for dashboards. Alertmanager for routing.
+- **Trace sampling**: `tracing-subscriber` already in deps; emit spans to a collector (OpenTelemetry → Jaeger or Tempo).
 
 ## Manual health check — what an operator does today
 

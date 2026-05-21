@@ -1,0 +1,33 @@
+{
+  "_README": "Server-admin alert channel config for HumanityOS. COPY THIS to data/alert-channels.secrets.json (that name is gitignored because these entries hold tokens/URLs) and fill in the channels you want. The relay watchdog + disk-guard fan critical alerts out to every enabled channel via scripts/humanity-alert.js. No file / nothing enabled = silent no-op (alerting is opt-in). Each channel: set enabled:true to turn it on. `label` is optional, just for your own readability in logs. Test any time WITHOUT sending: HUMANITY_ALERT_DRYRUN=1 node scripts/humanity-alert.js \"test message\" critical",
+
+  "channels": [
+    {
+      "type": "ntfy",
+      "label": "my phone",
+      "enabled": false,
+      "topic": "https://ntfy.sh/CHANGE-ME-to-a-long-random-topic-name",
+      "title": "HumanityOS Relay"
+    },
+    {
+      "type": "discord",
+      "label": "ops channel",
+      "enabled": false,
+      "webhook_url": "https://discord.com/api/webhooks/XXXX/YYYY"
+    },
+    {
+      "type": "telegram",
+      "label": "alerts bot",
+      "enabled": false,
+      "bot_token": "123456:ABC-DEF...",
+      "chat_id": "123456789"
+    },
+    {
+      "type": "webhook",
+      "label": "generic / Slack / custom",
+      "enabled": false,
+      "url": "https://hooks.slack.com/services/XXX/YYY/ZZZ",
+      "method": "POST"
+    }
+  ]
+}

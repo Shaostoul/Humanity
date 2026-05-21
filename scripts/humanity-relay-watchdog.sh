@@ -43,6 +43,8 @@ log() { logger -t "$LOG_TAG" -- "$*" 2>/dev/null || echo "[$LOG_TAG] $*"; }
 
 # Post to #announcements via the bot API (best-effort; only works when
 # the relay is up, which for the recovery notice it is by definition).
+# In-app announce to #announcements (works only when the relay is up,
+# which for the recovery notice it is by definition).
 announce() {
   local content="$1"
   [ -f "$REPO/.env" ] || return 0
@@ -58,14 +60,35 @@ announce() {
     -d "$body" >/dev/null 2>&1 || true
 }
 
+# EXTERNAL alert fanout (ntfy/Discord/Telegram/webhook) via the shared
+# node helper. Works even when the relay is DOWN (this is a separate
+# process). No-op if the admin hasn't configured any channels. Best-
+# effort; never blocks. severity: info | warn | critical.
+external_alert() {
+  local msg="$1" sev="${2:-warn}"
+  command -v node >/dev/null 2>&1 || return 0
+  [ -f "$REPO/scripts/humanity-alert.js" ] || return 0
+  node "$REPO/scripts/humanity-alert.js" "$msg" "$sev" >/dev/null 2>&1 || true
+}
+
 code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "$HEALTH_URL" 2>/dev/null || echo '000')"
 prev="$(cat "$STATE_FILE" 2>/dev/null || echo 'unknown')"
 
+# State machine (anti-spam: external alerts fire ONCE on the down
+# transition and ONCE on recovery, never every 2-min cycle):
+#   up           healthy
+#   suspect      one failed check (absorb a transient slow response)
+#   healing      confirmed down, binary present, restart attempted
+#   down-critical confirmed down, binary MISSING (restart can't fix)
+
 if [ "$code" = "200" ]; then
-  if [ "$prev" = "down" ] || [ "$prev" = "healing" ]; then
-    log "RECOVERED: relay healthy again (HTTP 200, was '$prev')"
-    announce "[Watchdog] Relay recovered and is responding again."
-  fi
+  case "$prev" in
+    suspect|healing|down-critical)
+      log "RECOVERED: relay healthy again (HTTP 200, was '$prev')"
+      announce "[Watchdog] Relay recovered and is responding again."
+      external_alert "HumanityOS relay RECOVERED and is responding again." "info"
+      ;;
+  esac
   echo "up" > "$STATE_FILE"
   exit 0
 fi
@@ -74,20 +97,31 @@ fi
 log "health check FAILED (HTTP $code)"
 
 if [ "$prev" = "up" ] || [ "$prev" = "unknown" ]; then
-  # First failure in this episode. Record + wait one cycle before acting,
-  # so a single transient slow response doesn't trigger a restart.
-  echo "down" > "$STATE_FILE"
+  # First failure this episode. Record + wait one cycle before acting,
+  # so a single transient slow response doesn't trigger a restart/alert.
+  echo "suspect" > "$STATE_FILE"
   log "first failure recorded; will self-heal next cycle if still down"
   exit 0
 fi
 
 # Second+ consecutive failure -> self-heal.
 if [ ! -x "$BINARY" ]; then
-  log "CRITICAL: relay binary missing/not executable at $BINARY -- CANNOT self-heal (needs a deploy/rebuild, not a restart). See INCIDENT-PLAYBOOK 2026-05-21."
-  echo "down" > "$STATE_FILE"
+  # Binary missing -> a restart cannot fix this (needs a deploy/rebuild,
+  # per the 2026-05-21 incident). Alert CRITICAL once, then go quiet.
+  if [ "$prev" != "down-critical" ]; then
+    log "CRITICAL: relay binary missing/not executable at $BINARY -- CANNOT self-heal (needs a deploy/rebuild). See INCIDENT-PLAYBOOK 2026-05-21."
+    external_alert "HumanityOS relay DOWN and binary is MISSING at $BINARY -- a restart cannot fix this, it needs a deploy/rebuild. (Likely cause: build cache reclaimed without a follow-up deploy.)" "critical"
+  fi
+  echo "down-critical" > "$STATE_FILE"
   exit 1
 fi
 
+# Binary present -> self-heal by restart. Alert WARN once (on the first
+# confirmed-down transition from 'suspect'); subsequent restart attempts
+# while still down stay quiet to avoid spam.
+if [ "$prev" = "suspect" ]; then
+  external_alert "HumanityOS relay is DOWN (health check failing). Watchdog is auto-restarting it." "warn"
+fi
 log "self-heal: reset-failed + restart $UNIT"
 systemctl reset-failed "$UNIT" 2>/dev/null || true
 systemctl restart "$UNIT" 2>/dev/null || true

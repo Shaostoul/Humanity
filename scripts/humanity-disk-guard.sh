@@ -135,17 +135,25 @@ if [ "${pct:-0}" -ge "$CRIT_PCT" ]; then
   log "CRITICAL: disk still ${pct}% -- vacuuming journald to 50M"
   journalctl --vacuum-size=50M >/dev/null 2>&1 || true
   pct="$(usage_pct)"
+  CRIT_MSG="[Disk Guard] VPS root disk at ${pct}% AFTER auto-reclaim + log vacuum. Build cache + backup rotation no longer enough -- investigate (uploads / db / unexpected growth)."
+  # In-app announce (only lands if the relay is up).
   if [ -f "$REPO/.env" ]; then
     SECRET="$(grep '^API_SECRET' "$REPO/.env" | cut -d= -f2- | tr -d '\r' || true)"
     if [ -n "${SECRET:-}" ]; then
       # Plain ASCII on purpose — chat clients render this; no
       # emoji/variation-selector glyph risk.
-      BODY="{\"channel\":\"announcements\",\"content\":\"[Disk Guard] VPS root disk at ${pct}% AFTER auto-reclaim + log vacuum. Build cache + backup rotation no longer enough -- investigate (uploads / db / unexpected growth).\",\"from_name\":\"Disk Guard\"}"
+      BODY="{\"channel\":\"announcements\",\"content\":\"${CRIT_MSG}\",\"from_name\":\"Disk Guard\"}"
       curl -s --max-time 10 -X POST "http://localhost:3210/api/send" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${SECRET}" \
         -d "$BODY" >/dev/null 2>&1 || log "alert POST failed (relay down?)"
     fi
+  fi
+  # EXTERNAL alert fanout (works even if the relay is down). No-op if no
+  # channels configured. Shares the admin's data/alert-channels.secrets.json
+  # with the relay watchdog.
+  if command -v node >/dev/null 2>&1 && [ -f "$REPO/scripts/humanity-alert.js" ]; then
+    node "$REPO/scripts/humanity-alert.js" "$CRIT_MSG" "critical" >/dev/null 2>&1 || true
   fi
 fi
 
