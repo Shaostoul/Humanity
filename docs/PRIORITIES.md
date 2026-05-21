@@ -6,21 +6,22 @@
 
 ## Active focus
 <!-- Set this to the single most important thing right now. Should match the top item in TIER 0. -->
-**v0.283.x — strategic infrastructure docs (this file, BUS-FACTOR, INCIDENT-PLAYBOOK, SECURITY-CADENCE, HEALTH-DASHBOARD)** — once shipped, switch to TIER 0 #1.
+**TIER 0 #1 — clean up orphan Ed25519 admin rows + audit ADMIN_KEYS env var on the VPS.** Inc6 wipe is DONE (verified via read-only SQL inventory 2026-05-20). Live DB is the post-wipe fresh schema. The only artifact left is 4 pre-PQ Ed25519 pubkeys still listed in `ADMIN_KEYS` in `/opt/Humanity/.env`; the relay startup INSERTs them as admin role rows on every boot. They can't log in (Inc3b blocks them) but they're dead-weight and should be cleaned to remove confusion.
 
 ## TIER 0 — pre-public launch blockers
 Items here are mandatory before inviting public users. Operator-attended where noted. **Order matters within the tier.**
 
-1. **Inc6 — attended fresh-slate wipe.** Operator runs `just pq-wipe yes` on VPS; re-onboards web+native from seed; verifies cross-client DM round-trip. All supporting code shipped; this is the activation flip.
-   - Blockers: nothing in code; needs operator availability.
-   - Recovery if it goes wrong: `/opt/Humanity/backups/relay-PREWIPE-<ts>.db` exists by construction.
-   - Doc: orchestrator_state.json `open_questions_for_human` Inc6 entry.
+1. **Cleanup orphan Ed25519 admin rows + ADMIN_KEYS env.** SSH the VPS, identify the operator's current Dilithium hex (from `registered_names`), update `/opt/Humanity/.env`'s `ADMIN_KEYS` to that Dilithium hex, `DELETE FROM user_roles WHERE LENGTH(public_key) = 64` to drop the orphan Ed25519 admins, restart relay. Verify post-restart that `user_roles` has only Dilithium-length pubkeys.
+   - Why it matters: invite-time confusion is the failure mode. New users join, ask "why are there phantom admins listed?", or worse, an attacker who somehow recovers an old Ed25519 key sees there's a registered admin slot they could try to claim.
+   - Recovery: trivial — the wipe backup is still in `backups/`.
 
 2. **TLS auto-renew sanity check.** SSH `humanity-vps` → `systemctl list-timers | grep certbot` → confirm a recent run + a near-future scheduled one. If absent, `apt-get install certbot python3-certbot-nginx && certbot --nginx`.
 
 3. **API_SECRET length audit.** SSH `humanity-vps` → `grep API_SECRET /opt/Humanity/.env | cut -d= -f2 | tr -d '\r\n' | wc -c`. If < 32 chars: rotate. v0.279.0 warns at startup but doesn't refuse to boot.
 
 4. **VPS backup automation.** Currently relies on `pq-wipe.sh` snapshots + nothing else for disaster recovery. Real solution: Litestream replication to S3-compatible storage (or another VPS). Interim: nightly `rsync` of `/opt/Humanity/data/relay.db` to a second box via cron. Disk-guard rotates `backups/` already.
+
+5. **DONE: Inc6 attended wipe.** Verified 2026-05-20 via read-only SQL on live VPS. Channels = 2 (fresh-schema defaults), bulk tables empty, registered_names = 3 (Shaostoul + Brave + Deploy Bot), #announcements re-seeded from archive (888 archive msgs + 31 post-wipe deploy bot). Cross-client DM round-trip not formally verified but live messages exist in `direct_messages`. Backup snapshot at `/opt/Humanity/backups/relay-PREWIPE-*.db`.
 
 ## TIER 1 — hardening before invites scale beyond known group
 Items here protect against the realistic adversary (script kiddie, opportunistic abuser, eager fan with sticky fingers). Order within tier is flexible; pick what's cheapest first.
