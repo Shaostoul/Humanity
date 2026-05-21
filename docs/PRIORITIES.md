@@ -34,13 +34,13 @@ Items here protect against the realistic adversary (script kiddie, opportunistic
 
 1. **DDoS protection.** Today: nginx rate-limit per IP, the v0.279.0 + v0.280.0 in-app gates. No L7 WAF in front. Options: Cloudflare free tier (proxy + DDoS Pro), or `fail2ban` tuned for nginx access logs. Cloudflare adds dependency on a third party for the chat-tab path; document the trade-off before committing.
 
-2. **Monitoring + alerting.** Today: zero. No alert when the relay dies between deploys. Bare minimum: curl-cron from a second host hitting `https://united-humanity.us/health` every 60s + ntfy.sh push on failure. Better: Prometheus + Grafana via the existing relay endpoints.
+2. **Monitoring + alerting (PARTIAL — local watchdog done, external alerting pending).** v0.285.2 added `humanity-relay-watchdog.timer` (every 2 min): HTTP-liveness check + self-heal restart + recovery announcement to #announcements. That covers detection + self-heal + on-recovery notice. STILL MISSING: an *external* (off-VPS) alert so the operator is notified when the relay is down AND can't announce (e.g., relay down + can't post to its own #announcements). Add: curl-cron from a second host (or the operator's PC, or a free uptime service like UptimeRobot/BetterStack) hitting `https://united-humanity.us/health` → ntfy.sh / Telegram / email push on failure. The public /health route now works (v0.285.2) so this is unblocked.
 
-3. **SQLite WAL corruption recovery.** What happens if the WAL gets torn (power loss, kernel panic)? Today: unclear; `Storage::open` panics on schema mismatch and probably on WAL corruption too. Add a recovery path: `.recover` mode that detects corruption, copies the DB aside, replays the WAL, falls back to the most recent backup if unrecoverable. Document in INCIDENT-PLAYBOOK.
+3. **DONE: SQLite corruption recovery (v0.286.0).** `Storage::open_resilient` verifies integrity on boot (quick_check); on corruption it restores the newest *healthy* `backups/relay-*.db` (quarantining the corrupt file), and if no healthy backup exists it refuses to start (loud failure, watchdog alerts) rather than silently wiping. 4 tests in `resilient_open_tests`. The relay boot site uses it.
 
 4. **Federation activation decision.** The federation code is implemented but zero peers are configured. Decision: leave it dormant (and disable the inbound `federation_hello` accept) OR activate it (need to vet trust tiers, federation policy, abuse model). Either way: stop the ambiguous "implemented but untested" middle ground.
 
-5. **Crash-loop autorestart caps + alerts.** systemd will restart `humanity-relay` forever today. If a bug causes immediate crash, the relay flaps without anyone noticing. Set `StartLimitInterval` + `StartLimitBurst` in the unit; pipe failure to a notification.
+5. **DONE (via watchdog, v0.285.2): crash-loop detection.** Rather than systemd StartLimit (which would GIVE UP and leave the relay dead — bad for unattended), the watchdog detects sustained failure + self-heals (reset-failed + restart), and logs CRITICAL if the binary is missing (the one case a restart can't fix — needs a deploy). The external-alert half is folded into #2.
 
 ## TIER 2 — big-feature gaps
 Items here are real features the system promises but doesn't deliver on every platform. Weeks of work each.

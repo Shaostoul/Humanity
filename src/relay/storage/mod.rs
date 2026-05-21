@@ -233,6 +233,162 @@ impl Storage {
         f(&mut conn)
     }
 
+    /// Open the DB with corruption detection + backup-restore recovery.
+    ///
+    /// This is the boot-path entry point the relay should use (the plain
+    /// `open()` below is unchanged and used everywhere else / by tests).
+    ///
+    /// Healthy path = `open()` + one fast `PRAGMA quick_check`. Identical
+    /// behavior to `open()` for a healthy DB; the only addition is the
+    /// integrity probe.
+    ///
+    /// On detected corruption (open error OR failed quick_check):
+    ///   1. Walk `backups_dir`'s `relay-*.db` newest-first, verifying each
+    ///      READ-ONLY (no mutation of the backup) until one passes
+    ///      quick_check.
+    ///   2. The first healthy backup: quarantine the corrupt live file(s)
+    ///      to `<path>.corrupt-<ts>` (preserved for forensics, NOT
+    ///      deleted), copy the backup into place, open + verify it.
+    ///   3. If NO backup verifies clean: DO NOT touch the live file and
+    ///      return Err. The relay then refuses to start (the boot site
+    ///      `.expect()`s) — a loud, visible failure the watchdog flags —
+    ///      rather than silently running on corrupt data OR silently
+    ///      creating a fresh empty schema (which would masquerade as a
+    ///      wipe). Refusing-to-start is the safe failure for an
+    ///      unattended relay: no surprise data loss; operator decides.
+    ///
+    /// Added after the 2026-05-21 incident review (TIER 1 #3 SQLite WAL
+    /// corruption recovery). See docs/INCIDENT-PLAYBOOK.md.
+    pub fn open_resilient(path: &Path, backups_dir: &Path) -> Result<Self, rusqlite::Error> {
+        // Healthy path (the overwhelming common case).
+        match Self::open_and_verify(path) {
+            Ok(s) => return Ok(s),
+            Err(e) => {
+                tracing::error!(
+                    "DB at {} failed to open or passed integrity check ({}). Entering recovery.",
+                    path.display(), e
+                );
+            }
+        }
+
+        // Recovery: newest-first, restore the first backup that verifies.
+        let candidates = Self::list_backups(backups_dir);
+        tracing::warn!("Recovery: {} backup candidate(s) in {}", candidates.len(), backups_dir.display());
+        for backup in &candidates {
+            if !Self::verify_readonly(backup) {
+                tracing::warn!("Recovery: backup {} also fails integrity — trying older", backup.display());
+                continue;
+            }
+            // Healthy backup found. Quarantine the corrupt live file(s),
+            // copy the backup into place, open + verify.
+            Self::quarantine_corrupt(path);
+            match std::fs::copy(backup, path) {
+                Ok(_) => match Self::open_and_verify(path) {
+                    Ok(s) => {
+                        tracing::warn!("DB RECOVERED from backup {}", backup.display());
+                        return Ok(s);
+                    }
+                    Err(e) => {
+                        tracing::error!("Restored backup {} failed post-copy verify: {}", backup.display(), e);
+                        // Fall through to the loud-failure path below.
+                        break;
+                    }
+                },
+                Err(e) => {
+                    tracing::error!("Failed to copy backup {} into place: {}", backup.display(), e);
+                    break;
+                }
+            }
+        }
+
+        // No healthy backup (or post-copy verify failed). Fail loud —
+        // refuse to start rather than silently wipe or run corrupt.
+        tracing::error!(
+            "DB recovery FAILED: no healthy backup in {}. Refusing to start on corrupt data — operator intervention required (restore a known-good backup, or run scripts/pq-wipe.sh for an intentional fresh slate).",
+            backups_dir.display()
+        );
+        Err(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
+            Some(format!("DB at {} corrupt and no healthy backup in {}", path.display(), backups_dir.display())),
+        ))
+    }
+
+    /// `open()` plus a fast `PRAGMA quick_check`. Returns Err if the open
+    /// fails OR the integrity probe is not "ok". Used for the live path
+    /// (migrations run, which is correct there).
+    fn open_and_verify(path: &Path) -> Result<Self, rusqlite::Error> {
+        let storage = Self::open(path)?;
+        let ok: String = storage.with_conn(|c| {
+            c.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0))
+        })?;
+        if ok != "ok" {
+            return Err(rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
+                Some(format!("quick_check returned '{}'", ok)),
+            ));
+        }
+        Ok(storage)
+    }
+
+    /// Verify a candidate backup WITHOUT mutating it: open read-only and
+    /// run quick_check. Read-only matters — we must not run migrations or
+    /// touch the WAL of a backup we might not even use.
+    fn verify_readonly(path: &Path) -> bool {
+        use rusqlite::OpenFlags;
+        let conn = match Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        ) {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+        matches!(
+            conn.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0)),
+            Ok(s) if s == "ok"
+        )
+    }
+
+    /// List `relay-*.db` backups in `backups_dir`, newest-first by mtime.
+    fn list_backups(backups_dir: &Path) -> Vec<std::path::PathBuf> {
+        let mut entries: Vec<(std::time::SystemTime, std::path::PathBuf)> = std::fs::read_dir(backups_dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|e| {
+                let p = e.path();
+                let name = p.file_name()?.to_str()?;
+                if name.starts_with("relay-") && name.ends_with(".db") {
+                    let mtime = e.metadata().ok()?.modified().ok()?;
+                    Some((mtime, p))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        entries.sort_by(|a, b| b.0.cmp(&a.0)); // newest first
+        entries.into_iter().map(|(_, p)| p).collect()
+    }
+
+    /// Move a corrupt DB file (plus its -wal/-shm sidecars) aside to
+    /// `<path>.corrupt-<ts>` for forensics. Best-effort; never panics.
+    fn quarantine_corrupt(path: &Path) {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        for suffix in ["", "-wal", "-shm"] {
+            let src = std::path::PathBuf::from(format!("{}{}", path.display(), suffix));
+            if src.exists() {
+                let dst = std::path::PathBuf::from(format!("{}.corrupt-{}{}", path.display(), ts, suffix));
+                if let Err(e) = std::fs::rename(&src, &dst) {
+                    tracing::warn!("quarantine: could not move {} aside: {}", src.display(), e);
+                } else {
+                    tracing::warn!("quarantine: moved {} -> {}", src.display(), dst.display());
+                }
+            }
+        }
+    }
+
     /// Open or create the database at the given path.
     pub fn open(path: &Path) -> Result<Self, rusqlite::Error> {
         let conn = Connection::open(path)?;
@@ -1749,3 +1905,135 @@ pub use notification_prefs::NotifPrefs;
 pub use bugs::BugReport;
 pub use reputation::{ReputationRecord, ReputationEventRecord};
 pub use trading::TradeRecord;
+
+#[cfg(test)]
+mod resilient_open_tests {
+    //! Coverage for open_resilient() corruption detection + backup
+    //! restore (TIER 1 #3, post-2026-05-21). The healthy path must be a
+    //! no-op wrapper around open(); the corrupt path must restore the
+    //! newest HEALTHY backup; with no healthy backup it must FAIL LOUD
+    //! (Err) rather than silently wipe or run corrupt.
+    use super::*;
+
+    fn tmp_dir(tag: &str) -> std::path::PathBuf {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("hum_resilient_{tag}_{pid}_{nanos}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Create a real, healthy relay DB at `path` with one known message
+    /// so we can later assert which DB we ended up with.
+    fn make_healthy_db(path: &Path, marker_ts: u64) {
+        let s = Storage::open(path).expect("open healthy");
+        s.with_conn(|c| {
+            c.execute(
+                "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id)
+                 VALUES ('chat','pk','name','hello', ?1, '{}', 'general')",
+                rusqlite::params![marker_ts as i64],
+            )
+        }).unwrap();
+        // Drop so WAL is checkpointed + file is closed before we copy it.
+        drop(s);
+    }
+
+    fn marker_count(path: &Path, ts: u64) -> i64 {
+        let s = Storage::open(path).unwrap();
+        s.with_conn(|c| c.query_row(
+            "SELECT COUNT(*) FROM messages WHERE timestamp = ?1",
+            rusqlite::params![ts as i64],
+            |r| r.get::<_, i64>(0),
+        )).unwrap()
+    }
+
+    #[test]
+    fn healthy_db_opens_normally() {
+        let dir = tmp_dir("healthy");
+        let db = dir.join("relay.db");
+        let backups = dir.join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+        make_healthy_db(&db, 111);
+
+        let s = Storage::open_resilient(&db, &backups).expect("healthy open_resilient");
+        // The marker row is intact -> we opened the real DB, not a fresh one.
+        let n = s.with_conn(|c| c.query_row(
+            "SELECT COUNT(*) FROM messages WHERE timestamp = 111",
+            [], |r| r.get::<_, i64>(0),
+        )).unwrap();
+        assert_eq!(n, 1);
+    }
+
+    #[test]
+    fn corrupt_db_restores_newest_healthy_backup() {
+        let dir = tmp_dir("restore");
+        let db = dir.join("relay.db");
+        let backups = dir.join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+
+        // A healthy backup carrying marker 222.
+        let backup = backups.join("relay-20260101-000000.db");
+        make_healthy_db(&backup, 222);
+
+        // The live DB is garbage (not a SQLite file at all).
+        std::fs::write(&db, b"this is not a database, it is corrupt garbage").unwrap();
+
+        let s = Storage::open_resilient(&db, &backups).expect("should recover from backup");
+        // We restored the backup -> marker 222 present.
+        let n = s.with_conn(|c| c.query_row(
+            "SELECT COUNT(*) FROM messages WHERE timestamp = 222",
+            [], |r| r.get::<_, i64>(0),
+        )).unwrap();
+        assert_eq!(n, 1);
+        // The corrupt original was quarantined, not deleted.
+        let quarantined = std::fs::read_dir(&dir).unwrap()
+            .flatten()
+            .any(|e| e.file_name().to_string_lossy().contains("relay.db.corrupt-"));
+        assert!(quarantined, "expected a quarantined relay.db.corrupt-* file");
+    }
+
+    #[test]
+    fn corrupt_db_no_backup_fails_loud_without_wiping() {
+        let dir = tmp_dir("noback");
+        let db = dir.join("relay.db");
+        let backups = dir.join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+
+        // Corrupt live DB, EMPTY backups dir.
+        std::fs::write(&db, b"corrupt, and no backups exist").unwrap();
+        let before = std::fs::read(&db).unwrap();
+
+        let result = Storage::open_resilient(&db, &backups);
+        assert!(result.is_err(), "must fail loud when no healthy backup exists");
+        // CRITICAL: the corrupt file must be LEFT IN PLACE (not quarantined
+        // into a fresh-empty-schema situation, not wiped). Operator decides.
+        let after = std::fs::read(&db).unwrap();
+        assert_eq!(before, after, "corrupt live DB must be untouched on failed recovery");
+    }
+
+    #[test]
+    fn skips_corrupt_backup_for_older_healthy_one() {
+        let dir = tmp_dir("skip");
+        let db = dir.join("relay.db");
+        let backups = dir.join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+
+        // Older healthy backup (marker 333).
+        let good = backups.join("relay-20260101-000000.db");
+        make_healthy_db(&good, 333);
+        // Make sure the newer one has a later mtime by writing it second.
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        // Newer but CORRUPT backup.
+        let bad = backups.join("relay-20260102-000000.db");
+        std::fs::write(&bad, b"newer but corrupt backup").unwrap();
+
+        // Corrupt live DB.
+        std::fs::write(&db, b"corrupt live").unwrap();
+
+        let s = Storage::open_resilient(&db, &backups).expect("should fall back to older healthy backup");
+        assert_eq!(marker_count(&db, 333), 1, "should have restored the older HEALTHY backup");
+    }
+}

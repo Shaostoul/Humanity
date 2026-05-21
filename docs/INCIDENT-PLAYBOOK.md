@@ -58,7 +58,7 @@ If `/opt` is near 100%:
 4. **Fall back to backup**: `ls /opt/Humanity/backups/ | sort -r | head -5` — pick the most recent good one. `cp` to `/opt/Humanity/data/relay.db`, restart.
 5. **Inc6-style fresh slate**: `bash /opt/Humanity/scripts/pq-wipe.sh --yes`. Last resort; users re-onboard from seed.
 
-> TODO: TIER 1 #3 — write a `.recover`-mode startup option so this doesn't require manual SSH intervention.
+> **AUTOMATED since v0.286.0:** the relay now boots via `Storage::open_resilient` — on a failed integrity check it auto-restores the newest *healthy* `backups/relay-*.db` (quarantining the corrupt file to `relay.db.corrupt-<ts>`), and if NO healthy backup exists it refuses to start (loud failure, watchdog alerts) rather than silently wiping. The manual steps above are the fallback if the automated recovery itself can't find a good backup. The relay watchdog (`humanity-relay-watchdog.timer`, every 2 min) catches the refuse-to-start case and logs CRITICAL.
 
 ### Stolen seed phrase (user reports)
 The user's identity is the seed. Anyone with the seed is them. There is no central revocation today (key_rotation was removed in Inc5b).
