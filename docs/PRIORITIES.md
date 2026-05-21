@@ -5,8 +5,8 @@
 > **Update rule:** every session that meaningfully changes scope updates this file before ending. The orchestrator_state.json journal records WHY a decision was made; this file records WHAT comes next. Don't mistake one for the other.
 
 ## Active focus
-<!-- Set this to the single most important thing right now. Should match the top item in TIER 0. -->
-**TIER 0 #1 — fix nginx `/health` routing.** The webhook decision is now DONE (deleted + endpoint fail-closed, v0.285.0). Off-site backup is SOLVED (device-mesh stopgap). The remaining pre-public blocker is the public `/health` 404, which off-site monitoring (TIER 1 #2) needs.
+<!-- Set this to the single most important thing right now. -->
+**TIER 0 is fully closed. TIER 1 code-actionable items are done (corruption resilience, watchdog, configurable external alerting). The 3 remaining TIER 1 items ALL need an operator product DECISION, not code — see TIER 1 below. Next code work is whichever of those the operator green-lights, otherwise TIER 2/3.**
 
 ## TIER 0 — pre-public launch blockers
 Items here are mandatory before inviting public users. Operator-attended where noted. **Order matters within the tier.**
@@ -32,9 +32,9 @@ Items here are mandatory before inviting public users. Operator-attended where n
 ## TIER 1 — hardening before invites scale beyond known group
 Items here protect against the realistic adversary (script kiddie, opportunistic abuser, eager fan with sticky fingers). Order within tier is flexible; pick what's cheapest first.
 
-1. **DDoS protection.** Today: nginx rate-limit per IP, the v0.279.0 + v0.280.0 in-app gates. No L7 WAF in front. Options: Cloudflare free tier (proxy + DDoS Pro), or `fail2ban` tuned for nginx access logs. Cloudflare adds dependency on a third party for the chat-tab path; document the trade-off before committing.
+1. **DDoS protection — NEEDS OPERATOR DECISION.** Today: nginx rate-limit per IP, the v0.279.0 + v0.280.0 in-app gates. No L7 WAF in front. Options: (a) Cloudflare free tier (proxy + DDoS Pro) — strongest, but adds a third-party dependency on the chat path + they see plaintext TLS-terminated traffic; (b) `fail2ban` tuned for nginx access logs — self-hosted, no third party, weaker against distributed attacks. Decide which before public scale.
 
-2. **Monitoring + alerting (PARTIAL — local watchdog done, external alerting pending).** v0.285.2 added `humanity-relay-watchdog.timer` (every 2 min): HTTP-liveness check + self-heal restart + recovery announcement to #announcements. That covers detection + self-heal + on-recovery notice. STILL MISSING: an *external* (off-VPS) alert so the operator is notified when the relay is down AND can't announce (e.g., relay down + can't post to its own #announcements). Add: curl-cron from a second host (or the operator's PC, or a free uptime service like UptimeRobot/BetterStack) hitting `https://united-humanity.us/health` → ntfy.sh / Telegram / email push on failure. The public /health route now works (v0.285.2) so this is unblocked.
+2. **Monitoring + alerting — VPS-side DONE (v0.286.2); off-box half NEEDS OPERATOR DECISION.** DONE: `humanity-relay-watchdog.timer` (2-min HTTP-liveness + self-heal restart) + `scripts/humanity-alert.js` configurable multi-channel external alerting (ntfy/Discord/Telegram/webhook), wired into the watchdog + disk-guard, anti-spam (once on down, once on recovery). Admin opt-in via `data/alert-channels.secrets.json` (see HEALTH-DASHBOARD.md "Alert configuration"). REMAINING (decision): an OFF-box monitor for whole-VPS-down (the on-VPS watchdog can't see its own host dying). Options: a free uptime service (UptimeRobot/BetterStack) hitting the public `/health`, OR a scheduled task on the operator's PC (reusing the backup-pull pattern + the same alert channels). Operator picks the destination; then ~30 min to wire.
 
 3. **DONE: SQLite corruption recovery (v0.286.0).** `Storage::open_resilient` verifies integrity on boot (quick_check); on corruption it restores the newest *healthy* `backups/relay-*.db` (quarantining the corrupt file), and if no healthy backup exists it refuses to start (loud failure, watchdog alerts) rather than silently wiping. 4 tests in `resilient_open_tests`. The relay boot site uses it.
 
