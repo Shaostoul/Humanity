@@ -1,0 +1,46 @@
+# HumanityOS nginx fail2ban jails.
+# =====================================================================
+# Installed to /etc/fail2ban/jail.d/nginx.local by the deploy workflow
+# (version-controlled, survives a VPS rebuild). Defense-in-depth on top
+# of the in-app anti-abuse gates (v0.279/v0.280 identify rate-limit +
+# new-identity caps) and the nginx limit_req zones.
+#
+# Conservative by design: legitimate users do NOT trip these. The
+# rate-limit jail only fires when nginx itself logged a limit_req
+# rejection (i.e. a client already blew past a configured zone); the
+# botsearch jail only fires on requests to exploit paths nobody
+# legitimate ever hits.
+#
+# TIER 1 #1 (operator chose self-hosted fail2ban over Cloudflare).
+# =====================================================================
+
+[DEFAULT]
+# Never ban loopback / private ranges: the relay's own localhost calls,
+# internal health checks, LAN. Public abusive IPs are still banned.
+ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 192.168.0.0/16 172.16.0.0/12
+# Bans drop the IP at the firewall (ufw/iptables) via the default action.
+bantime  = 1h
+findtime = 10m
+
+# --- Ban IPs that repeatedly trip nginx's limit_req rate limits. ---
+# nginx writes "limiting requests" to the error log ONLY when a client
+# exceeds a configured zone (api_read_limit / upload_limit / ws). Ten
+# trips in a minute = clearly abusive; ban for an hour.
+[nginx-limit-req]
+enabled  = true
+filter   = nginx-limit-req
+logpath  = /var/log/nginx/error.log
+maxretry = 10
+findtime = 60
+bantime  = 3600
+
+# --- Ban IPs probing for common exploit paths. ---
+# wp-admin, phpMyAdmin, .env, .git, etc. Legitimate users never request
+# these; vuln scanners hammer them constantly. Two strikes, banned a day.
+[nginx-botsearch]
+enabled  = true
+filter   = nginx-botsearch
+logpath  = /var/log/nginx/access.log
+maxretry = 2
+findtime = 600
+bantime  = 86400

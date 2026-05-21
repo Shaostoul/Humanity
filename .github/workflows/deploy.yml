@@ -73,6 +73,15 @@ jobs:
             systemctl enable --now humanity-backup-db.timer || true
             systemctl enable --now humanity-relay-watchdog.timer || true
 
+            # v0.286.x (TIER 1 #1): install nginx fail2ban jails (rate-
+            # limit-abuse + bot-scanner) if fail2ban is present. Defense-
+            # in-depth on top of the in-app gates. Conservative thresholds
+            # (legit users don't trip them); reload is idempotent.
+            if command -v fail2ban-client >/dev/null 2>&1; then
+              cp -f scripts/fail2ban/nginx.local /etc/fail2ban/jail.d/nginx.local || true
+              fail2ban-client reload >/dev/null 2>&1 || systemctl reload fail2ban || true
+            fi
+
             # ── Server→Services sudoers (v0.262.16) ──
             # Grants the non-root relay user start/stop on exactly the 2
             # feature daemons (see scripts/sudoers.d/humanity-relay-services).
