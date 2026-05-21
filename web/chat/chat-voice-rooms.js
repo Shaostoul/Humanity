@@ -917,33 +917,22 @@ function renderUnifiedRightSidebar() {
   }
 
   const sections = [];
-  const friendKeys = new Set();
 
-  // ── Friends (mutual follows) — shown once, never repeated below ──────────
+  // Web-native parity (Track W): match native's right rail exactly —
+  //   • a Friends section (mutual follows), AND
+  //   • a full server-member section listing EVERY connected member
+  //     (native repeats friends here too; its count is the true total),
+  //   • NO Groups section (native keeps Groups in the LEFT rail only).
+  // Web previously de-duped across sections + added a Groups block, which
+  // made the server count read low ("United-Humanity (1)" where native
+  // showed "(3)") and diverged structurally. This aligns both.
+
+  // ── Friends (mutual follows) ──────────────────────────────────────────────
   const friendUsers = users.filter(u => u.public_key !== myKey && isFriend(u.public_key));
-  friendUsers.forEach(u => friendKeys.add(u.public_key));
   sections.push(section('friends', 'Friends', friendUsers, true));
 
-  // ── Groups — exclude friends and self to avoid duplicates ────────────────
-  const groups = myGroups || [];
-  if (groups.length === 0) {
-    sections.push(section('group-none', 'Groups', [], false));
-  } else {
-    groups.forEach(g => {
-      const members = (groupMembersByGroup[g.id] || [])
-        .map(m => byKey.get(m.key) || { public_key: m.key, name: shortKey(m.key), online: false })
-        .filter(u => u.public_key !== myKey && !friendKeys.has(u.public_key));
-      sections.push(section('group-' + g.id, `${esc(g.name)}`, members, false));
-    });
-  }
-
-  // ── Server — exclude self, friends, and group members already shown ──────
-  const shownKeys = new Set([...friendKeys, myKey]);
-  groups.forEach(g => {
-    (groupMembersByGroup[g.id] || []).forEach(m => shownKeys.add(m.key));
-  });
-  const serverUsers = users.filter(u => !shownKeys.has(u.public_key));
-  sections.push(section('server-main', 'United-Humanity', serverUsers, false));
+  // ── Server members — the full connected list (matches native's count) ─────
+  sections.push(section('server-main', 'United-Humanity', users, false));
 
   peerList.innerHTML = sections.join('');
 }
