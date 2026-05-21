@@ -213,7 +213,15 @@
       z-index: 5500;
       isolation: isolate;
       font-size: 15px !important; /* fixed so global font-size slider doesn't break nav */
+      /* Web-native parity (Track W): labels are always shown (below), so the
+         row can exceed the viewport width — scroll horizontally rather than
+         clip/overflow. Thin scrollbar keeps it unobtrusive. */
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
     }
+    .hub-nav::-webkit-scrollbar { height: 4px; }
+    .hub-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
     /* Spacer pushes page content below the fixed nav */
     .hub-nav-spacer {
       height: 41px; /* 40px nav + 1px separator */
@@ -247,15 +255,16 @@
       animation: channeling 3s linear infinite;
     }
 
-    /* ── Tab (icon-only by default) ── */
+    /* ── Tab (icon + label, native-parity: labels always shown) ── */
     .hub-nav .tab {
       position: relative;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 30px;
+      width: auto;
       height: 28px;
-      padding: 0;
+      padding: 0 0.5rem;
+      gap: 0.3rem;
       color: var(--text-muted);
       cursor: pointer;
       border-radius: var(--radius);
@@ -283,14 +292,15 @@
       transition: opacity 0.1s, width 0.15s, height 0.15s;
     }
 
-    /* Label hidden on inactive tabs — only visible when active */
+    /* Label always shown (native parity). color:inherit so inactive labels
+       are muted like their icon + active labels go bright — preserving the
+       active/inactive distinction without hiding the label. */
     .hub-nav .tab .tab-label {
-      display: none;
+      display: inline-flex;
       font-size: 0.76rem;
       font-weight: 600;
       white-space: nowrap;
-      margin-left: 0.3rem;
-      color: #fff;
+      color: inherit;
     }
 
     /* ── Hover: tooltip below, icon stays fully visible ── */
@@ -301,7 +311,7 @@
     .hub-nav .tab:not(.active):hover .tab-icon img,
     .hub-nav .tab:not(.active):hover .tab-icon svg { opacity: 1; }
     .hub-nav .tab:not(.active):hover::after {
-      content: attr(data-tip);
+      content: none; /* label is always shown now (native parity) — tooltip redundant */
       position: absolute;
       /* sits below the button with a gap so the icon is never obscured */
       top: calc(100% + 10px);
@@ -323,8 +333,8 @@
     /* ── Active: expand to show icon + label, RGB border ── */
     .hub-nav .tab.active {
       width: auto;
-      padding: 0 0.55rem 0 0.4rem;
-      gap: 0;
+      padding: 0 0.5rem;
+      gap: 0.3rem; /* match the base tab gap now that all tabs show icon+label */
       color: #fff;
       animation: channeling 3s linear infinite;
     }
@@ -1252,7 +1262,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.287.6';
+    var CURRENT_VERSION = '0.287.7';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
