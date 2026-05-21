@@ -83,6 +83,34 @@ log "backups rotated: ${before_files} -> ${after_files} files (kept ${BIN_KEEP} 
 apt-get clean >/dev/null 2>&1 || true
 journalctl --vacuum-size="$JOURNAL_MAX" >/dev/null 2>&1 || true
 
+# ── ALWAYS: release-mirror retention (added 2026-05-21 after the
+# release-mirror-bloat incident). The /var/www/humanity/releases/
+# tree accumulates one versioned dir per release (~345 MB each:
+# Linux + macOS x64 + macOS arm64 + Windows binaries × raw + tar.gz
+# + torrents + data archive). With 287 versions unrotated we hit
+# 91 GB and the cascade chain went: disk 92% → target/ wipe →
+# missing binary → relay crash-loop. Cap retention here so the
+# cascade cannot re-fire. After deletion, regenerate manifest.json
+# so it does not reference removed versions.
+RELEASES_DIR="/var/www/humanity/releases"
+RELEASES_KEEP="${HUMANITY_RELEASES_KEEP:-10}"
+if [ -d "$RELEASES_DIR" ]; then
+  before_releases="$( ls -1d "$RELEASES_DIR"/v* 2>/dev/null | wc -l || echo '?' )"
+  # Sort version-aware (so v0.10.0 > v0.9.0, not lexical), drop the
+  # newest N, rm the rest. Empty result on first run when count <= N.
+  ls -1d "$RELEASES_DIR"/v* 2>/dev/null | sort -V | head -n -"$RELEASES_KEEP" | xargs -r rm -rf || true
+  after_releases="$( ls -1d "$RELEASES_DIR"/v* 2>/dev/null | wc -l || echo '?' )"
+  if [ "$before_releases" != "$after_releases" ]; then
+    log "release mirror rotated: ${before_releases} -> ${after_releases} versions (kept ${RELEASES_KEEP}); regenerating manifest"
+    # regen-releases-manifest is a separate VPS-only script; best-
+    # effort. If absent, the manifest may reference deleted versions
+    # but the actual download endpoints just 404 them.
+    if [ -x /usr/local/bin/regen-releases-manifest ]; then
+      /usr/local/bin/regen-releases-manifest >/dev/null 2>&1 || log "manifest regen failed (non-fatal)"
+    fi
+  fi
+fi
+
 # ── OPT-IN: data-backup rotation (only if operator set DB_KEEP) ──
 if [ -n "$DB_KEEP" ]; then
   log "DB rotation ENABLED by operator (HUMANITY_DB_BACKUP_KEEP=${DB_KEEP}) — keeping newest ${DB_KEEP} relay-*.db"

@@ -50,8 +50,19 @@ jobs:
             chmod +x scripts/humanity-disk-guard.sh || true
             cp -f scripts/systemd/humanity-disk-guard.service /etc/systemd/system/humanity-disk-guard.service || true
             cp -f scripts/systemd/humanity-disk-guard.timer   /etc/systemd/system/humanity-disk-guard.timer   || true
+
+            # v0.283.4: install the (corrected) DB backup script too.
+            # The pre-fix on-VPS copy pointed at the pre-v0.90.0 layout
+            # path (/opt/Humanity/crates/humanity-relay/data/relay.db)
+            # and silently backed up an auto-created empty DB for over
+            # a month. The in-repo version is the source of truth from
+            # now on; this step keeps the deployed copy in sync.
+            chmod +x scripts/humanity-backup-db.sh || true
+            cp -f scripts/humanity-backup-db.sh /usr/local/bin/humanity-backup-db || true
+
             systemctl daemon-reload || true
             systemctl enable --now humanity-disk-guard.timer || true
+            systemctl enable --now humanity-backup-db.timer || true
 
             # ── Server→Services sudoers (v0.262.16) ──
             # Grants the non-root relay user start/stop on exactly the 2

@@ -6,26 +6,28 @@
 
 ## Active focus
 <!-- Set this to the single most important thing right now. Should match the top item in TIER 0. -->
-**TIER 0 #1 — release-mirror retention automation.** 2026-05-21 incident proved this: 287 release dirs in `/var/www/humanity/releases/` (no retention) drove disk to 92%, disk-guard correctly reclaimed `target/`, but with no deploy follow-up the relay crash-looped. Cleaned up by hand (deleted 277 old release dirs, freed 91 GB), but the underlying gap remains — disk-guard's scope must include `/var/www/humanity/releases/` OR a separate releases-rotator timer must enforce retention. See `docs/INCIDENT-PLAYBOOK.md` for the full chain.
+**TIER 0 #1 — off-site backup replication.** Local backup automation is now correct (the v0.283.4 script fix + in-repo source-of-truth ship). But ALL backups live on the same VPS disk as the live DB. If the disk dies, both die. Need rsync to a second host (cheapest), or Litestream to S3-compatible storage (cleanest). Document the cadence in `docs/SECURITY-CADENCE.md` once chosen.
 
 ## TIER 0 — pre-public launch blockers
 Items here are mandatory before inviting public users. Operator-attended where noted. **Order matters within the tier.**
 
-1. **Automate release-mirror retention** (the gap exposed by the 2026-05-21 incident). Either extend `scripts/humanity-disk-guard.sh` to cap `/var/www/humanity/releases/` at the last N versions (suggest N=10, matches the post-incident state) and re-run the existing `regen-releases-manifest`, OR add a parallel `releases-rotator.service` + `.timer` that runs daily. Without this, we'll re-bloat in ~3 weeks and hit the same cascade.
-   - Why it matters: this is the cascade root cause that brought the live relay down for ~25 minutes today. Without retention the cascade re-fires automatically.
-   - Implementation note: `regen-releases-manifest` already exists at `/usr/local/bin/`. Extend; don't reimplement.
+1. **Off-site backup replication.** Today: local sqlite3 .backup every 30 min (v0.283.4 fixed the broken path). Single-disk SPOF. Pick a destination (another VPS via rsync, S3-compatible bucket via Litestream, BackBlaze B2, etc.) + wire a cron/timer.
 
-2. **Cleanup orphan Ed25519 admin rows + ADMIN_KEYS env.** DONE 2026-05-21 during the recovery sweep — `ADMIN_KEYS` updated to Shaostoul's Dilithium hex (3904 chars), 4 orphan Ed25519 admin rows DELETEd from `user_roles`, relay restarted, verified only Dilithium-length pubkeys remain.
+2. **Re-point or remove the GitHub webhook.** The configured webhook points to a stale ngrok URL (`pandanaceous-equationally-chia.ngrok-free.dev`) and has been returning 404 for months. Operator decides: (a) re-point to `https://united-humanity.us/api/github-webhook` + generate fresh `WEBHOOK_SECRET` + set on both sides, OR (b) delete the webhook entirely if deploy-bot announcements aren't wanted. The relay's `/api/github-webhook` endpoint currently accepts forgeries (no secret set) but nothing reaches it.
 
-3. **TLS auto-renew sanity check.** SSH `humanity-vps` → `systemctl list-timers | grep certbot` → confirm a recent run + a near-future scheduled one. If absent, `apt-get install certbot python3-certbot-nginx && certbot --nginx`.
+3. **Fix nginx `/health` routing.** Internal `http://localhost:3210/health` returns 200; public `https://united-humanity.us/health` returns 404. nginx isn't routing the path. Trivial nginx config addition (`location = /health { proxy_pass http://127.0.0.1:3210; }`). Matters because off-site monitoring (TIER 1 #2) needs the public endpoint to work.
 
-4. **API_SECRET length audit.** SSH `humanity-vps` → `grep API_SECRET /opt/Humanity/.env | cut -d= -f2 | tr -d '\r\n' | wc -c`. If < 32 chars: rotate. v0.279.0 warns at startup but doesn't refuse to boot.
+4. **DONE: 2026-05-21 release-mirror cleanup + retention automation.** Cleaned 277 old release dirs from `/var/www/humanity/releases/` (freed 91 GB; 91% → 13%). v0.283.4 extends `scripts/humanity-disk-guard.sh` to enforce 10-version retention automatically on every 20-min cycle + regenerate the manifest. Cascade is structurally prevented from recurring.
 
-5. **VPS backup automation.** Currently relies on `pq-wipe.sh` snapshots + nothing else for disaster recovery. Real solution: Litestream replication to S3-compatible storage (or another VPS). Interim: nightly `rsync` of `/opt/Humanity/data/relay.db` to a second box via cron. Disk-guard rotates `backups/` already.
+5. **DONE: backup script repaired + in-repo.** The pre-v0.90.0 path bug was silently backing up an empty fossil DB for over a month. v0.283.4 ships `scripts/humanity-backup-db.sh` as the source of truth, the `deploy.yml` workflow now copies it to `/usr/local/bin/humanity-backup-db` on every deploy. Fossil backups moved to `backups/fossil-pre-v0.90/` for historical interest only.
 
-6. **DONE: Inc6 attended wipe.** Verified 2026-05-20 via read-only SQL on live VPS. Channels = 2 (fresh-schema defaults), bulk tables empty, registered_names = 3 (Shaostoul + Brave + Deploy Bot), #announcements re-seeded from archive (888 archive msgs + 31 post-wipe deploy bot). Cross-client DM round-trip not formally verified but live messages exist in `direct_messages`. Backup snapshot at `/opt/Humanity/backups/relay-PREWIPE-*.db`.
+6. **DONE: Orphan Ed25519 admin rows cleanup.** 2026-05-21: ADMIN_KEYS env updated to Shaostoul's Dilithium hex (3904 chars), 4 orphan rows DELETEd, relay restarted, verified `user_roles` is Dilithium-only.
 
-7. **DONE: 2026-05-21 release-mirror cleanup + orphan-admin cleanup.** Deleted 277 old release dirs from `/var/www/humanity/releases/` (freed 91 GB; disk went 91% → 13%). Manifest regenerated. ADMIN_KEYS updated to Shaostoul's Dilithium hex; 4 orphan Ed25519 user_roles rows DELETEd. Relay rebuilt + restarted via CI deploy after the disk freed. See `INCIDENT-PLAYBOOK.md` for the cascade chain.
+7. **DONE: Inc6 attended wipe.** Verified 2026-05-20 by direct SQL.
+
+8. **DONE: TLS auto-renew sanity check.** certbot.timer runs on a 12h cycle; last run 2026-05-20 16:42, next 2026-05-21 06:15. All 3 certs valid 50-68 days out. No action needed.
+
+9. **DONE: API_SECRET length audit.** 64 chars (above 32-char threshold). No action needed.
 
 ## TIER 1 — hardening before invites scale beyond known group
 Items here protect against the realistic adversary (script kiddie, opportunistic abuser, eager fan with sticky fingers). Order within tier is flexible; pick what's cheapest first.
