@@ -250,8 +250,23 @@ pub async fn run_relay() {
     if !already_seeded {
         let _ = db.create_channel("announcements", "announcements", Some("Project updates and news"), "system", true);
         let _ = db.set_channel_position("announcements", 2);
+        // #announcements is a read-only broadcast channel — it carries no voice
+        // channel. (Without this it inherits the voice_enabled column default of
+        // 1.) Mirrors native, which shows a mic only on voice-enabled channels.
+        let _ = db.set_channel_voice_enabled("announcements", false);
         let _ = db.set_state("default_channels_seeded", "true");
         tracing::info!("Default channels seeded (first boot): general + announcements");
+    }
+
+    // One-time correction for installs seeded before the line above existed:
+    // #announcements was created with voice_enabled at its column default (1),
+    // so it wrongly advertised a voice channel. Disable it once. Guarded by a
+    // state flag so an operator who later deliberately re-enables voice on it
+    // won't have that choice reverted on the next boot.
+    if db.get_state("announcements_voice_disabled_v1").ok().flatten().is_none() {
+        let _ = db.set_channel_voice_enabled("announcements", false);
+        let _ = db.set_state("announcements_voice_disabled_v1", "true");
+        tracing::info!("Migration: disabled voice on #announcements (broadcast channel)");
     }
 
     let mut relay_state = RelayState::new(db);

@@ -10,6 +10,10 @@
 // after the channel name. Eye = read-only, node-graph = federated.
 const CH_BADGE_READONLY = '<span class="ch-badge" title="Read-only — only admins/mods can post"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.6 8C3.1 5.1 5.3 3.8 8 3.8s4.9 1.3 6.4 4.2C12.9 10.9 10.7 12.2 8 12.2S3.1 10.9 1.6 8Z"/><circle cx="8" cy="8" r="1.8" fill="currentColor" stroke="none"/></svg></span>';
 const CH_BADGE_FEDERATED = '<span class="ch-badge" title="Federated channel"><svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor"><g stroke="currentColor" stroke-width="1"><line x1="8" y1="8" x2="8" y2="2.8"/><line x1="8" y1="8" x2="3.5" y2="10.6"/><line x1="8" y1="8" x2="12.5" y2="10.6"/></g><circle cx="8" cy="8" r="1.9"/><circle cx="8" cy="2.8" r="1.4"/><circle cx="3.5" cy="10.6" r="1.4"/><circle cx="12.5" cy="10.6" r="1.4"/></svg></span>';
+// Voice indicator — native shows a mic at the START of a channel row when the
+// channel has voice enabled (src/gui/pages/chat.rs ~1378 paint_mic), replacing
+// the old standalone "Voice Channels" section. Muted, brightening on hover.
+const CH_ICON_VOICE = '<span class="ch-mic" title="Voice enabled"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="6" y="1.8" width="4" height="7.2" rx="2" fill="currentColor" stroke="none"/><path d="M4.3 7.4a3.7 3.7 0 007.4 0"/><line x1="8" y1="11.1" x2="8" y2="13.6"/><line x1="5.8" y1="13.6" x2="10.2" y2="13.6"/></svg></span>';
 
 // ── Key Bindings ──
 document.getElementById('name-input').addEventListener('keydown', (e) => {
@@ -1317,8 +1321,9 @@ var federatedServersFetched = false;
       const isActive = ch.id === activeChannel && !activeDmPartner && !activeGroupId;
       const title = ch.description ? ` title="${esc(ch.description)}"` : '';
       const badges = (ch.read_only ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
+      const micHtml = ch.voice_enabled ? CH_ICON_VOICE : '';
       const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
-      return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${cogHtml}<span class="ch-label">${esc(ch.name)}</span>${badges}</div>`;
+      return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label">${esc(ch.name)}</span>${badges}</div>`;
     }).join('');
 
     // Text channel create button (admin/mod only)
@@ -1327,38 +1332,10 @@ var federatedServersFetched = false;
       createChannelBtn = '<div style="padding:var(--space-xs) 0;"><button class="vr-btn" data-action="create-text-channel" style="width:100%;margin-top:var(--space-xs);font-size:0.7rem;">+ Create Channel</button></div>';
     }
 
-    // Persistent voice channels section
-    const voiceChannels = window._voiceChannels || [];
-    let voiceHtml = '<div class="voice-rooms-section"><h4>🔊 Voice Channels</h4>';
-    for (const vc of voiceChannels) {
-      const inRoom = vc.participants.some(p => p.public_key === myKey);
-      const hasParticipants = vc.participants.length > 0;
-      const dimClass = hasParticipants ? '' : ' vc-empty';
-      const vcCogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="voice" data-cog-id="${vc.id}" data-cog-name="${esc(vc.name)}">⚙️</span>` : '';
-      voiceHtml += `<div class="voice-room-item${inRoom ? ' in-room' : ''}${dimClass}" data-vc-id="${vc.id}">
-        <div class="vr-name">${vcCogHtml}🔊 ${esc(vc.name)}${hasParticipants ? ' <span class="vr-count">(' + vc.participants.length + ')</span>' : ''}</div>`;
-      if (hasParticipants) {
-        voiceHtml += '<div class="vr-participants">';
-        const qMap = window._peerQualityCache || new Map();
-        for (const p of vc.participants) {
-          const q = qMap.get(p.public_key) || '';
-          const qBadge = q ? ` <span class="quality-indicator">${q}</span>` : '';
-          voiceHtml += `<div class="vr-participant" data-participant-key="${p.public_key}">🎤 ${esc(p.display_name)}${qBadge}</div>`;
-        }
-        voiceHtml += '</div>';
-      }
-      voiceHtml += '<div style="margin-top:var(--space-xs);">';
-      if (inRoom) {
-        voiceHtml += '<button class="vr-btn vr-leave" data-action="vc-leave">Leave</button>';
-      } else {
-        voiceHtml += `<button class="vr-btn vr-join" data-action="vc-join" data-vc-id="${vc.id}">Join</button>`;
-      }
-      voiceHtml += '</div></div>';
-    }
-    if (myRoleCh === 'admin' || myRoleCh === 'mod') {
-      voiceHtml += '<button class="vr-btn" data-action="vc-create" style="margin-top:var(--space-sm);width:100%;">+ Create Voice Channel</button>';
-    }
-    voiceHtml += '</div>';
+    // Native parity: there is NO standalone "Voice Channels" section. Voice is
+    // surfaced as a mic indicator on each voice-enabled text channel row above
+    // (CH_ICON_VOICE), mirroring native's draw_servers_section. The old
+    // window._voiceChannels rooms UI was removed here in v0.290.x.
 
     // Scratch-pad moved to a standalone top row in the unified left sidebar
     // (see initUnifiedLeftSidebar → #unified-scratch-row) to match native,
@@ -1369,7 +1346,7 @@ var federatedServersFetched = false;
         <span class="collapse-arrow">▼</span>
         <span class="srv-name">🟢 🅷 Humanity</span>
       </div>
-      <div class="server-group-channels">${channelsHtml}${createChannelBtn}${voiceHtml}</div>
+      <div class="server-group-channels">${channelsHtml}${createChannelBtn}</div>
     </div>`;
 
     // Federated servers.

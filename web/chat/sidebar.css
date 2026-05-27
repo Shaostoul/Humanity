@@ -84,6 +84,18 @@
   opacity: 0.8;
 }
 .channel-item.active .ch-badge { color: var(--accent); opacity: 0.95; }
+/* Voice mic indicator — sits at the START of the row (before the name), muted,
+   brightening on hover; matches native's per-channel mic. */
+.channel-item .ch-mic {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 5px;
+  color: var(--text-muted);
+  vertical-align: middle;
+  opacity: 0.75;
+}
+.channel-item:hover .ch-mic { color: var(--text); opacity: 1; }
+.channel-item.active .ch-mic { color: var(--accent); opacity: 0.95; }
 
 #channel-header {
   background: var(--bg-secondary);
@@ -142,10 +154,13 @@
   color: var(--text-muted);
   letter-spacing: 0.08em;
 }
+/* Flat tinted bands (no border) — mirrors native draw_*_section, which fills
+   the header (tint+brightness) and body (tint) as flush rects with NO outline.
+   The old 1px border read as a "card"; native has none. */
 .unified-section {
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 0;
-  margin-bottom: 0.28rem;
+  margin-bottom: 2px;
   overflow: hidden;
   background: var(--bg-primary);
 }
@@ -160,20 +175,26 @@
   font-size: 0.76rem;
   font-weight: 600;
 }
-/* Left nav compaction */
-.sidebar-unified-left .unified-section {
+/* Nav compaction — applied to BOTH the left rail and the right rail
+   (#right-sidebar Friends/Members) so density matches native's uniformly tight
+   sections instead of the bulkier default padding. */
+.sidebar-unified-left .unified-section,
+#right-sidebar .unified-section {
   margin-bottom: 0.22rem;
   border-radius: 0;
 }
-.sidebar-unified-left .unified-header {
+.sidebar-unified-left .unified-header,
+#right-sidebar .unified-header {
   padding: 0.28rem 0.42rem;
   font-size: var(--text-xs);
 }
-.sidebar-unified-left .unified-body {
+.sidebar-unified-left .unified-body,
+#right-sidebar .unified-body {
   padding: 0.22rem 0.28rem;
 }
 .sidebar-unified-left .channel-item,
-.sidebar-unified-left .dm-item {
+.sidebar-unified-left .dm-item,
+#right-sidebar .peer {
   padding-top: var(--space-xs);
   padding-bottom: var(--space-xs);
   font-size: 0.73rem;
@@ -192,17 +213,14 @@
 .unified-section[data-sid="dms"],
 .unified-section[data-usid="friends"] {
   background: var(--dm-bg);
-  border-color: var(--dm-row-hover);
 }
 .unified-section[data-sid="groups"],
 .unified-section[data-usid^="group-"] {
   background: var(--group-bg);
-  border-color: var(--group-row-hover);
 }
 .unified-section[data-sid="servers"],
 .unified-section[data-usid^="server-"] {
   background: var(--server-bg);
-  border-color: var(--server-row-hover);
 }
 
 .unified-section[data-sid="dms"] > .unified-header,
@@ -235,7 +253,7 @@
   font-style: italic;
   color: var(--warning, #e0a030);
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 0;
   cursor: pointer;
 }
@@ -244,7 +262,6 @@
 }
 .sidebar-unified-left .unified-scratch-row.active {
   background: rgba(120, 100, 170, 0.28);
-  border-color: rgba(160, 140, 200, 0.5);
   border-left: 3px solid rgb(160, 140, 200);
   padding-left: calc(0.42rem - 2px);
   color: var(--text);
