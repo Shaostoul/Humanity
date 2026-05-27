@@ -127,14 +127,14 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   const identiconHtml = isBotMsg2 ? '<span class="identicon" style="font-size:calc(var(--avatar-size) * 0.75);line-height:var(--avatar-size);text-align:center;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
   const e2eeBadge = isEncrypted ? '<span class="dm-e2ee" title="End-to-end encrypted" style="opacity:0.6;margin-left:var(--space-xs);">' + hosIcon('lock', 12) + '</span>' : '';
 
-  el.innerHTML = `
-    <div class="msg-gutter">${isContinuation ? '' : identiconHtml}</div>
-    <div class="msg-main">
-      ${isContinuation ? '' : `<div class="meta"><span class="author${isMe ? ' you' : ''}">${esc(author)}</span></div>`}
-      ${timestampPillHTML({ time: formatTimePill(timestamp), extra: e2eeBadge })}
-      <div class="body">${formatBody(body)}</div>
-    </div>
-  `;
+  const metaHtml = `<div class="meta"><span class="author${isMe ? ' you' : ''}">${esc(author)}</span></div>`;
+  el.innerHTML = messageRowHTML({
+    isContinuation,
+    identiconHtml,
+    metaHtml,
+    pillHtml: timestampPillHTML({ time: formatTimePill(timestamp), extra: e2eeBadge }),
+    bodyHtml: formatBody(body),
+  });
 
   appendMessage(el);
   if (window.twemoji) twemoji.parse(el);

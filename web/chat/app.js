@@ -1376,21 +1376,21 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     threadBadgeHtml = `<div class="thread-badge" data-thread-from="${esc(fromKey)}" data-thread-ts="${timestamp}">${hosIcon('chat', 16)} ${threadCount} ${threadCount === 1 ? 'reply' : 'replies'}</div>`;
   }
 
-  el.innerHTML = `
-    <div class="msg-gutter">${isContinuation ? '' : identiconHtml}</div>
-    <div class="msg-main">
-      ${replyIndicatorHtml}
-      ${isContinuation ? '' : `<div class="meta">
+  const metaHtml = `<div class="meta">
         <span class="author${authorClass}" data-username="${isFed ? '' : esc(author)}" data-pubkey="${esc(fromKey)}" style="cursor:pointer;">${isFed ? author : esc(author)}</span>${badge}
         ${sigBadge}
-      </div>`}
-      ${timestampPillHTML({ time: timePill, thorn: true })}
-      <span class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></span>
-      <div class="body">${bodyHtml}</div>
-      ${threadBadgeHtml}
-    </div>
-    ${actions}
-  `;
+      </div>`;
+  el.innerHTML = messageRowHTML({
+    isContinuation,
+    identiconHtml,
+    metaHtml,
+    pillHtml: timestampPillHTML({ time: timePill, thorn: true }),
+    reactionsHtml: `<span class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></span>`,
+    bodyHtml,
+    replyIndicatorHtml,
+    threadBadgeHtml,
+    actionsHtml: actions,
+  });
 
   // Context menu on author name click.
   const authorEl = el.querySelector('.author');
