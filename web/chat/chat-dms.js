@@ -131,7 +131,7 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
     <div class="msg-gutter">${isContinuation ? '' : identiconHtml}</div>
     <div class="msg-main">
       ${isContinuation ? '' : `<div class="meta"><span class="author${isMe ? ' you' : ''}">${esc(author)}</span></div>`}
-      <span class="ts-pill"><span class="ts-time">${formatTimePill(timestamp)}</span>${e2eeBadge}</span>
+      ${timestampPillHTML({ time: formatTimePill(timestamp), extra: e2eeBadge })}
       <div class="body">${formatBody(body)}</div>
     </div>
   `;

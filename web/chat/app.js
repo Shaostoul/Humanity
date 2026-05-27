@@ -1384,7 +1384,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
         <span class="author${authorClass}" data-username="${isFed ? '' : esc(author)}" data-pubkey="${esc(fromKey)}" style="cursor:pointer;">${isFed ? author : esc(author)}</span>${badge}
         ${sigBadge}
       </div>`}
-      <span class="ts-pill"><span class="ts-time">${timePill}</span><span class="ts-thorn" title="React">Þ</span></span>
+      ${timestampPillHTML({ time: timePill, thorn: true })}
       <span class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></span>
       <div class="body">${bodyHtml}</div>
       ${threadBadgeHtml}

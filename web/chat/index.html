@@ -696,6 +696,9 @@
        BIP39 seed as the Ed25519 key. Must load before app.js calls
        attachPqIdentity(). Self-loads the vendored same-origin bundle. -->
   <script src="/chat/pq.js?v=1"></script>
+  <!-- Clean view modules (docs/design/chat-layout.md) — one per native draw_*.
+       Load before app.js so its renderers can call them. -->
+  <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/app.js?v=4"></script>
   <script src="/chat/chat-messages.js?v=4"></script>
   <script src="/chat/chat-dms.js?v=4"></script>
