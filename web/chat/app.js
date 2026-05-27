@@ -1296,7 +1296,11 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   el.dataset.timestamp = timestamp;
   if (messageId != null) el.dataset.messageId = messageId;
 
-  const time = formatTime(timestamp);
+  // Native-parity sender grouping: continuation rows drop the avatar + name.
+  const isContinuation = isMessageContinuation(fromKey, timestamp);
+  if (isContinuation) el.classList.add('continuation');
+
+  const timePill = formatTimePill(timestamp);
   const isMe = fromKey === myKey;
   const isBot = fromKey && fromKey.startsWith('bot_');
   const isFed = fromKey && fromKey.startsWith('fed:');
@@ -1336,8 +1340,8 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   actions += '</div>';
 
   const isBotMsg = fromKey && fromKey.startsWith('bot_');
-  const identiconSrc = (!isBotMsg && fromKey) ? generateIdenticon(fromKey, 20) : '';
-  const identiconHtml = isBotMsg ? '<span class="identicon" style="font-size:18px;line-height:20px;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
+  const identiconSrc = (!isBotMsg && fromKey) ? generateIdenticon(fromKey, 32) : '';
+  const identiconHtml = isBotMsg ? '<span class="identicon" style="font-size:24px;line-height:32px;text-align:center;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
 
   // Look up role for author badge.
   const peerRole = (peerData[fromKey] && peerData[fromKey].role) ? peerData[fromKey].role : '';
@@ -1373,16 +1377,18 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   }
 
   el.innerHTML = `
-    ${replyIndicatorHtml}
-    <div class="meta">
-      ${identiconHtml}
-      <span class="author${authorClass}" data-username="${isFed ? '' : esc(author)}" data-pubkey="${esc(fromKey)}" style="cursor:pointer;">${isFed ? author : esc(author)}</span>${badge}
-      ${sigBadge}
-      <span class="time">${time}</span>
+    <div class="msg-gutter">${isContinuation ? '' : identiconHtml}</div>
+    <div class="msg-main">
+      ${replyIndicatorHtml}
+      ${isContinuation ? '' : `<div class="meta">
+        <span class="author${authorClass}" data-username="${isFed ? '' : esc(author)}" data-pubkey="${esc(fromKey)}" style="cursor:pointer;">${isFed ? author : esc(author)}</span>${badge}
+        ${sigBadge}
+      </div>`}
+      <span class="ts-pill"><span class="ts-time">${timePill}</span><span class="ts-thorn" title="React">Þ</span></span>
+      <span class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></span>
+      <div class="body">${bodyHtml}</div>
+      ${threadBadgeHtml}
     </div>
-    <div class="body">${bodyHtml}</div>
-    <div class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></div>
-    ${threadBadgeHtml}
     ${actions}
   `;
 
@@ -1400,6 +1406,16 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     e.stopPropagation();
     showReactionPicker(e.target, fromKey, timestamp, el);
   });
+
+  // Click the Þ in the timestamp pill → reaction picker (native parity:
+  // the pill's thorn is the primary add-reaction affordance).
+  const thornEl = el.querySelector('.ts-thorn');
+  if (thornEl) {
+    thornEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showReactionPicker(e.target, fromKey, timestamp, el);
+    });
+  }
 
   // Click reply button → show reply preview bar above input.
   el.querySelector('.reply-btn').addEventListener('click', (e) => {
@@ -1815,6 +1831,28 @@ function formatTime(ts) {
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + time;
   }
   return time;
+}
+
+// Compact HH:MM for the message timestamp pill (native parity). The date
+// lives in the date-separator between days, so per-message time is just
+// hour:minute. 24h to match the native app's pill.
+function formatTimePill(ts) {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+// Decide whether a new message should visually GROUP with the one above it:
+// same sender, within 5 minutes, and the previous DOM node is an actual
+// message (not a date-separator / notice). Native collapses these so the
+// avatar + name show once and continuations show just the time pill.
+function isMessageContinuation(fromKey, timestamp) {
+  if (!fromKey) return false;
+  const mc = document.getElementById('messages');
+  const prev = mc && mc.lastElementChild;
+  if (!prev || !prev.classList || !prev.classList.contains('message')) return false;
+  if (prev.classList.contains('system')) return false;
+  if (prev.dataset.from !== fromKey) return false;
+  const dt = Math.abs((Number(timestamp) || 0) - (Number(prev.dataset.timestamp) || 0));
+  return dt < 5 * 60 * 1000;
 }
 
 function formatBody(text) {

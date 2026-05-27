@@ -116,21 +116,24 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   el.dataset.from = fromKey;
   el.dataset.timestamp = timestamp;
 
-  const time = formatTime(timestamp);
+  // Native-parity sender grouping (mirrors the main-channel builder).
+  const isContinuation = (typeof isMessageContinuation === 'function') && isMessageContinuation(fromKey, timestamp);
+  if (isContinuation) el.classList.add('continuation');
+
   const isMe = fromKey === myKey;
 
   const isBotMsg2 = fromKey && fromKey.startsWith('bot_');
-  const identiconSrc = (!isBotMsg2 && fromKey) ? generateIdenticon(fromKey, 20) : '';
-  const identiconHtml = isBotMsg2 ? '<span class="identicon" style="font-size:18px;line-height:20px;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
-  const e2eeBadge = isEncrypted ? '<span title="End-to-end encrypted" style="font-size:0.65rem;opacity:0.6;margin-left:var(--space-sm);">' + hosIcon('lock', 14) + '</span>' : '';
+  const identiconSrc = (!isBotMsg2 && fromKey) ? generateIdenticon(fromKey, 32) : '';
+  const identiconHtml = isBotMsg2 ? '<span class="identicon" style="font-size:24px;line-height:32px;text-align:center;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
+  const e2eeBadge = isEncrypted ? '<span class="dm-e2ee" title="End-to-end encrypted" style="opacity:0.6;margin-left:var(--space-xs);">' + hosIcon('lock', 12) + '</span>' : '';
 
   el.innerHTML = `
-    <div class="meta">
-      ${identiconHtml}
-      <span class="author${isMe ? ' you' : ''}">${esc(author)}</span>
-      <span class="time">${time}</span>${e2eeBadge}
+    <div class="msg-gutter">${isContinuation ? '' : identiconHtml}</div>
+    <div class="msg-main">
+      ${isContinuation ? '' : `<div class="meta"><span class="author${isMe ? ' you' : ''}">${esc(author)}</span></div>`}
+      <span class="ts-pill"><span class="ts-time">${formatTimePill(timestamp)}</span>${e2eeBadge}</span>
+      <div class="body">${formatBody(body)}</div>
     </div>
-    <div class="body">${formatBody(body)}</div>
   `;
 
   appendMessage(el);
