@@ -72,6 +72,9 @@
   font-weight: 600;
 }
 .channel-item::before { content: '# '; opacity: 0.6; }
+/* Server channels render the mic + the "#" themselves (mic must sit LEFT of the
+   #), so suppress the automatic prefix on those rows. */
+.channel-item.srv-chan::before { content: none; }
 .channel-item .ch-label { vertical-align: middle; }
 /* Property badges (eye = read-only, node-graph = federated) — mirror native's
    channel status icons; muted, brightening to accent on the active channel. */
@@ -84,8 +87,9 @@
   opacity: 0.8;
 }
 .channel-item.active .ch-badge { color: var(--accent); opacity: 0.95; }
-/* Voice mic indicator — sits at the START of the row (before the name), muted,
-   brightening on hover; matches native's per-channel mic. */
+/* Voice mic — clickable button at the START of the row (left of the #). Muted;
+   brightens on hover; turns accent when joined. Matches native's per-channel
+   mic (click = join voice, click again = leave). */
 .channel-item .ch-mic {
   display: inline-flex;
   align-items: center;
@@ -93,9 +97,12 @@
   color: var(--text-muted);
   vertical-align: middle;
   opacity: 0.75;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
 }
-.channel-item:hover .ch-mic { color: var(--text); opacity: 1; }
-.channel-item.active .ch-mic { color: var(--accent); opacity: 0.95; }
+.channel-item .ch-mic:hover { color: var(--text); opacity: 1; }
+.channel-item.active .ch-mic { color: var(--text); opacity: 0.95; }
+.channel-item .ch-mic.joined { color: var(--accent); opacity: 1; }
 
 #channel-header {
   background: var(--bg-secondary);
@@ -165,16 +172,60 @@
   background: var(--bg-primary);
 }
 .unified-section > .unified-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
   width: 100%;
-  text-align: left;
   padding: 0.36rem 0.48rem;
   background: rgba(255,255,255,0.03);
   border: none;
   color: var(--text);
-  cursor: pointer;
   font-size: 0.76rem;
   font-weight: 600;
 }
+/* Collapse toggle = the label+count; fills the row as a transparent button. */
+.unified-header .uh-toggle {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Right-aligned section action icons (cog / + / arrow), mirror native. */
+.unified-header .uh-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.unified-header .uh-act-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 18px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: color 0.12s, opacity 0.12s, background 0.12s;
+}
+.unified-header .uh-act-btn:hover {
+  color: var(--text);
+  opacity: 1;
+  background: rgba(255,255,255,0.08);
+}
+.unified-header .uh-act-btn svg { pointer-events: none; }
 /* Nav compaction — applied to BOTH the left rail and the right rail
    (#right-sidebar Friends/Members) so density matches native's uniformly tight
    sections instead of the bulkier default padding. */

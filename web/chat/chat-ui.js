@@ -10,10 +10,46 @@
 // after the channel name. Eye = read-only, node-graph = federated.
 const CH_BADGE_READONLY = '<span class="ch-badge" title="Read-only — only admins/mods can post"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.6 8C3.1 5.1 5.3 3.8 8 3.8s4.9 1.3 6.4 4.2C12.9 10.9 10.7 12.2 8 12.2S3.1 10.9 1.6 8Z"/><circle cx="8" cy="8" r="1.8" fill="currentColor" stroke="none"/></svg></span>';
 const CH_BADGE_FEDERATED = '<span class="ch-badge" title="Federated channel"><svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor"><g stroke="currentColor" stroke-width="1"><line x1="8" y1="8" x2="8" y2="2.8"/><line x1="8" y1="8" x2="3.5" y2="10.6"/><line x1="8" y1="8" x2="12.5" y2="10.6"/></g><circle cx="8" cy="8" r="1.9"/><circle cx="8" cy="2.8" r="1.4"/><circle cx="3.5" cy="10.6" r="1.4"/><circle cx="12.5" cy="10.6" r="1.4"/></svg></span>';
-// Voice indicator — native shows a mic at the START of a channel row when the
-// channel has voice enabled (src/gui/pages/chat.rs ~1378 paint_mic), replacing
-// the old standalone "Voice Channels" section. Muted, brightening on hover.
-const CH_ICON_VOICE = '<span class="ch-mic" title="Voice enabled"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="6" y="1.8" width="4" height="7.2" rx="2" fill="currentColor" stroke="none"/><path d="M4.3 7.4a3.7 3.7 0 007.4 0"/><line x1="8" y1="11.1" x2="8" y2="13.6"/><line x1="5.8" y1="13.6" x2="10.2" y2="13.6"/></svg></span>';
+// Mic glyph — native shows a clickable mic at the START of a voice-enabled
+// channel row (left of the #), src/gui/pages/chat.rs ~1378 paint_mic. Click =
+// join voice for that channel; click again = leave (sends voice_join/voice_leave
+// with the channel name, exactly like native). The standalone "Voice Channels"
+// section was removed in favour of this per-channel mic.
+const MIC_SVG = '<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="6" y="1.8" width="4" height="7.2" rx="2" fill="currentColor" stroke="none"/><path d="M4.3 7.4a3.7 3.7 0 007.4 0"/><line x1="8" y1="11.1" x2="8" y2="13.6"/><line x1="5.8" y1="13.6" x2="10.2" y2="13.6"/></svg>';
+
+// Section-header action icons (mirror native draw_*_section header buttons):
+// DMs → cog (settings), Groups → plus (create) + arrow (join), Servers → plus
+// (add server). Muted; brighten on hover via .uh-act-btn CSS.
+const UH_ICON_COG = '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M8 5.2a2.8 2.8 0 100 5.6 2.8 2.8 0 000-5.6zm0 4.1a1.3 1.3 0 110-2.6 1.3 1.3 0 010 2.6z"/><path d="M13.5 8c0-.3 0-.6-.05-.9l1.3-1-1.3-2.2-1.5.6a4.6 4.6 0 00-1.5-.9L10.2 1.5h-2.6L7.4 3.1a4.6 4.6 0 00-1.5.9l-1.5-.6-1.3 2.2 1.3 1c-.05.3-.05.6-.05.9s0 .6.05.9l-1.3 1 1.3 2.2 1.5-.6c.45.4.95.7 1.5.9l.2 1.6h2.6l.25-1.6c.55-.2 1.05-.5 1.5-.9l1.5.6 1.3-2.2-1.3-1c.05-.3.05-.6.05-.9z" opacity="0.55"/></svg>';
+const UH_ICON_PLUS = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="8" y1="3.5" x2="8" y2="12.5"/><line x1="3.5" y1="8" x2="12.5" y2="8"/></svg>';
+const UH_ICON_ARROW = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="12" y2="8"/><polyline points="8.5,4.5 12.5,8 8.5,11.5"/></svg>';
+
+// Track which channels we've joined voice on (client-side, mirrors native's
+// ch.voice_joined). Sending voice_join/voice_leave matches native's wire format
+// exactly; the relay does not yet bridge per-channel audio — that's the WebRTC
+// transport track — so today this is the join/leave signal + visual state.
+window._voiceJoinedChannels = window._voiceJoinedChannels || new Set();
+function toggleChannelVoice(channel) {
+  if (!channel) return;
+  const joined = window._voiceJoinedChannels.has(channel);
+  if (joined) window._voiceJoinedChannels.delete(channel);
+  else window._voiceJoinedChannels.add(channel);
+  if (typeof ws !== 'undefined' && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: joined ? 'voice_leave' : 'voice_join', channel }));
+  }
+  if (typeof renderServerList === 'function') renderServerList();
+}
+
+// DM settings (the DMs-section cog). Native opens a small popup whose only live
+// control is a DM-notifications toggle; mirror that intent as a mute toggle.
+window.openDmSettings = function() {
+  const key = 'hos_dm_notifications_muted';
+  const muted = localStorage.getItem(key) === '1';
+  localStorage.setItem(key, muted ? '0' : '1');
+  const msg = muted ? '🔔 DM notifications unmuted' : '🔕 DM notifications muted';
+  if (typeof addNotice === 'function') addNotice(msg, muted ? 'green' : 'orange', 4);
+  else if (typeof addSystemMessage === 'function') addSystemMessage(msg);
+};
 
 // ── Key Bindings ──
 document.getElementById('name-input').addEventListener('keydown', (e) => {
@@ -191,13 +227,16 @@ function notifyNewMessage(author, content, isDm) {
     startTitleFlash();
   }
 
-  // Always notify on @mention or DM, even if focused.
-  if (mentioned || isDm || !windowFocused) {
+  // DM notifications can be muted via the DMs-section cog (DM settings).
+  const dmMuted = isDm && localStorage.getItem('hos_dm_notifications_muted') === '1';
+
+  // Always notify on @mention or DM, even if focused (unless DMs are muted).
+  if (!dmMuted && (mentioned || isDm || !windowFocused)) {
     playNotificationChime();
   }
 
   // Browser notification (if permitted).
-  if (Notification.permission === 'granted' && (!windowFocused || mentioned || isDm)) {
+  if (!dmMuted && Notification.permission === 'granted' && (!windowFocused || mentioned || isDm)) {
     const prefix = isDm ? '💬 DM from ' : '';
     const n = new Notification(prefix + author, {
       body: content.substring(0, 100),
@@ -1062,31 +1101,67 @@ var federatedServersFetched = false;
       tabs.insertAdjacentElement('afterend', unified);
     }
 
-    const mkSection = (id, label, panel) => {
+    // Header = a flex row: a [collapse toggle button] + an optional [action
+    // icons] span. Buttons are siblings (not nested) so the markup is valid and
+    // each gets its own click. Mirrors native draw_*_section header buttons.
+    const mkSection = (id, label, panel, actions) => {
       const wrap = document.createElement('div');
       wrap.className = 'unified-section';
       wrap.dataset.sid = id;
-      const head = document.createElement('button');
+      const head = document.createElement('div');
       head.className = 'unified-header';
-      head.dataset.baseLabel = label;
-      head.textContent = label + ' ▾';
+      const toggle = document.createElement('button');
+      toggle.className = 'uh-toggle';
+      toggle.type = 'button';
+      toggle.dataset.baseLabel = label;
+      toggle.textContent = label + ' ▾';
+      toggle.onclick = () => {
+        wrap.classList.toggle('collapsed');
+        refreshUnifiedLeftHeaderCounts();
+      };
+      head.appendChild(toggle);
+      if (actions && actions.length) {
+        const act = document.createElement('span');
+        act.className = 'uh-actions';
+        for (const a of actions) {
+          const b = document.createElement('button');
+          b.className = 'uh-act-btn';
+          b.type = 'button';
+          b.title = a.title;
+          b.innerHTML = a.icon;
+          b.onclick = (e) => { e.stopPropagation(); try { a.onClick(); } catch (err) { console.error(err); } };
+          act.appendChild(b);
+        }
+        head.appendChild(act);
+      }
       const body = document.createElement('div');
       body.className = 'unified-body';
       body.appendChild(panel);
       panel.classList.add('force-show');
-      head.onclick = () => {
-        wrap.classList.toggle('collapsed');
-        refreshUnifiedLeftHeaderCounts();
-      };
       wrap.appendChild(head);
       wrap.appendChild(body);
       return wrap;
     };
 
+    // Native-parity section header actions:
+    //   DMs    → cog (DM settings: toggle DM notification mute)
+    //   Groups → + (create group), → (join by invite)
+    //   Servers→ + (add server)
+    const dmActions = [
+      { title: 'DM settings', icon: UH_ICON_COG, onClick: () => window.openDmSettings && window.openDmSettings() },
+    ];
+    const groupActions = [
+      { title: 'Create group', icon: UH_ICON_PLUS, onClick: () => window.promptCreateGroup && window.promptCreateGroup() },
+      { title: 'Join group by invite', icon: UH_ICON_ARROW, onClick: () => window.promptJoinGroup && window.promptJoinGroup() },
+    ];
+    const serverActions = [
+      { title: 'Add server', icon: UH_ICON_PLUS, onClick: () => window.promptAddServer && window.promptAddServer() },
+    ];
+
     // Requested order: DMs (top), Groups (middle), Servers (bottom)
-    if (!unified.querySelector('[data-sid="dms"]')) unified.appendChild(mkSection('dms', 'DMs', tabDms));
-    if (!unified.querySelector('[data-sid="groups"]')) unified.appendChild(mkSection('groups', 'Groups', tabGroups));
-    if (!unified.querySelector('[data-sid="servers"]')) unified.appendChild(mkSection('servers', 'Servers', tabServers));
+    if (!unified.querySelector('[data-sid="dms"]')) unified.appendChild(mkSection('dms', 'DMs', tabDms, dmActions));
+    if (!unified.querySelector('[data-sid="groups"]')) unified.appendChild(mkSection('groups', 'Groups', tabGroups, groupActions));
+    if (!unified.querySelector('[data-sid="servers"]')) unified.appendChild(mkSection('servers', 'Servers', tabServers, serverActions));
 
     // ── Scratchpad: standalone top row (native parity) ──
     // Native (`draw_left_panel`) renders a "# scratchpad" row at the very TOP
@@ -1140,7 +1215,9 @@ var federatedServersFetched = false;
       };
       unified.querySelectorAll('.unified-section[data-sid]').forEach(sec => {
         const sid = sec.getAttribute('data-sid');
-        const head = sec.querySelector('.unified-header');
+        // Update only the collapse-toggle's label — the action icons live in a
+        // sibling .uh-actions span and must not be clobbered.
+        const head = sec.querySelector('.unified-header .uh-toggle') || sec.querySelector('.unified-header');
         if (!head || !mapping[sid]) return;
         const collapsed = sec.classList.contains('collapsed');
         head.textContent = `${mapping[sid].label} (${mapping[sid].count}) ${collapsed ? '▸' : '▾'}`;
@@ -1321,9 +1398,16 @@ var federatedServersFetched = false;
       const isActive = ch.id === activeChannel && !activeDmPartner && !activeGroupId;
       const title = ch.description ? ` title="${esc(ch.description)}"` : '';
       const badges = (ch.read_only ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
-      const micHtml = ch.voice_enabled ? CH_ICON_VOICE : '';
+      // Mic sits LEFT of the # (native order: mic, cog, #name). Clickable —
+      // toggles voice join/leave for the channel; joined = accent + filled.
+      const voiceJoined = !!(window._voiceJoinedChannels && window._voiceJoinedChannels.has(ch.name));
+      const micHtml = ch.voice_enabled
+        ? `<span class="ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.name)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
+        : '';
       const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
-      return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label">${esc(ch.name)}</span>${badges}</div>`;
+      // .srv-chan suppresses the auto "# " ::before so the mic can sit before the
+      // hash; the hash is rendered as part of the label instead.
+      return `<div class="channel-item srv-chan${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label"># ${esc(ch.name)}</span>${badges}</div>`;
     }).join('');
 
     // Text channel create button (admin/mod only)
@@ -1344,7 +1428,7 @@ var federatedServersFetched = false;
     let html = `<div class="server-group${isCollapsed ? ' collapsed' : ''}" data-server="Humanity">
       <div class="server-group-header" data-server-toggle="Humanity" style="font-weight:bold;">
         <span class="collapse-arrow">▼</span>
-        <span class="srv-name">🟢 🅷 Humanity</span>
+        <span class="srv-name">🟢 ${esc(location.host || 'united-humanity.us')}</span>
       </div>
       <div class="server-group-channels">${channelsHtml}${createChannelBtn}</div>
     </div>`;
@@ -1430,6 +1514,13 @@ var federatedServersFetched = false;
         collapsed.add(serverName);
       }
       saveCollapsedServers(collapsed);
+      return;
+    }
+    // Channel mic — toggle voice join/leave for this channel (don't switch to it).
+    const micEl = e.target.closest('.ch-mic');
+    if (micEl) {
+      const vch = micEl.getAttribute('data-voice-channel');
+      if (vch) toggleChannelVoice(vch);
       return;
     }
     // Channel click (skip if clicking the settings cog)

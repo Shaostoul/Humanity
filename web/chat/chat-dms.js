@@ -163,15 +163,14 @@ function renderDmList() {
   list.innerHTML = dmConversations.map(c => {
     const isActive = activeDmPartner === c.partner_key;
     const unread = c.unread_count > 0 ? '<span class="dm-unread"></span>' : '';
-    const previewText = dmSafePreview(c.last_message);
-    const preview = previewText.length > 30 ? previewText.substring(0, 30) + '…' : previewText;
     const timeStr = formatTime(c.last_timestamp);
+    // Native parity: the left-panel DM row shows only the name (+ unread dot)
+    // and a right-aligned time — NO message preview. The relay-stored DM body
+    // is an opaque E2EE envelope anyway; any preview belongs in the open
+    // conversation, not the sidebar (operator, 2026-05-27).
     return `<div class="dm-item${isActive ? ' active' : ''}" onclick="openDmConversation('${esc(c.partner_key)}', '${esc(c.partner_name)}')">
-      <div style="flex:1;min-width:0;">
-        <div class="dm-name">${esc(c.partner_name)} ${unread}</div>
-        <div class="dm-preview">${esc(preview)}</div>
-      </div>
-      <div class="dm-time">${timeStr}</div>
+      <span class="dm-name">${esc(c.partner_name)} ${unread}</span>
+      <span class="dm-time">${timeStr}</span>
     </div>`;
   }).join('');
   if (window.twemoji) twemoji.parse(list);
