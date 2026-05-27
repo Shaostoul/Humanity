@@ -1533,6 +1533,30 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_signed_objects_received_at
                 ON signed_objects(received_at);
 
+            -- P2P groups (docs/design/p2p-groups.md, Phase 1). PROJECTION of the
+            -- group_v1 + group_member_v1 signed objects — a fast-read cache; the
+            -- signed objects remain the authority and replicate peer-to-peer.
+            -- group_id = the group_v1 object's object_id (self-certifying).
+            CREATE TABLE IF NOT EXISTS p2p_groups (
+                group_id        TEXT PRIMARY KEY,
+                name            TEXT NOT NULL,
+                creator_fp      TEXT NOT NULL,
+                creator_pubkey  BLOB NOT NULL,
+                created_at      INTEGER
+            );
+
+            -- The fold of the append-only membership log: who is currently in.
+            CREATE TABLE IF NOT EXISTS p2p_group_roster (
+                group_id      TEXT NOT NULL,
+                member_fp     TEXT NOT NULL,
+                member_pubkey BLOB NOT NULL,
+                active        INTEGER NOT NULL DEFAULT 1,
+                updated_at    INTEGER NOT NULL,
+                PRIMARY KEY (group_id, member_fp)
+            );
+            CREATE INDEX IF NOT EXISTS idx_p2p_roster_member
+                ON p2p_group_roster(member_fp);
+
             -- Phase 1 PR 2: Verifiable Credentials fast-lookup index.
             -- Auto-populated when a known VC schema is stored. The credential itself
             -- (signed authority) lives in signed_objects keyed by vc_object_id.
@@ -1887,6 +1911,7 @@ mod governance;
 mod issuer_trust;
 mod recovery;
 mod signed_objects;
+mod groups_p2p;
 mod signed_profiles;
 mod trust_score;
 mod notification_prefs;

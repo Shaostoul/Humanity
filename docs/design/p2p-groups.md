@@ -93,12 +93,14 @@ Group message logs reconcile peer-to-peer on connect (DataChannel sync/merge, ne
 - **Phase 4 — Relay-independence (the payoff).** Multi-relay signaling failover + peer-assisted signaling + TURN/peer-relay fallback + peer store-and-forward. *Exit:* kill the home relay; a group with ≥1 other reachable member still creates/joins/messages. **This is where "united-humanity.us down → groups still work" is true.**
 - **Phase 5 — Serverless discovery (later).** mDNS (LAN) + optional DHT for fully relay-free bootstrap.
 
-## Open decisions (need operator review before Phase 2/4)
+## Decisions (settled 2026-05-27, operator)
 
-1. **TURN fallback.** True P2P with home users behind symmetric NAT will *fail to connect* a meaningful fraction of the time without TURN. Options: (a) operator runs a small TURN server (cheap, but it's infra that, if down, degrades — though only to "can't connect that one peer," not "group is gone"); (b) elect a well-connected member as a peer-TURN relay; (c) accept NAT failures and rely on at-least-one-reachable-peer. Recommendation: (a)+(b) — TURN when available, peer-relay otherwise.
-2. **Encryption scheme.** Epoch group-key (recommended, scales + FS) vs. per-message N-KEM (simpler, no rotation). Recommendation: epoch key.
-3. **Relay role.** Keep relays as *optional accelerators* (recommended — best UX when up, full function when down) vs. strictly peer-only (purest, worse cold-start UX). Recommendation: optional accelerator.
-4. **Migration of existing relay-mediated groups** into signed objects (one-time, on Phase 1 deploy) — straightforward; the live DB has the rows to mint `group_v1` + membership log from.
+1. **TURN fallback — DECIDED: (a)+(b).** Operator-run TURN server when available, **plus** peer-as-TURN (elect a well-connected member to relay) as fallback. Rationale: the mission is *everyone*, including users behind symmetric/carrier-grade NAT who can't hole-punch; skipping TURN silently locks them out. Not a single point of failure — TURN down only costs the hardest-NAT pairs their fallback, never the whole group. Lands in Phase 4.
+2. **Encryption scheme — DECIDED: per-epoch group key.** One shared group key; messages encrypted once (O(1), scales to large groups); re-key on every join/remove (new epoch) so removed members are cut off from future messages (forward secrecy). Rejected per-message N-KEM (simpler but O(N) per message — won't scale to "billions"-sized groups). Lands in Phase 2.
+3. **Relay role — DECIDED: optional accelerator.** Relays, when up, cache message history (fast offline catch-up), assist signaling, and show presence; when down, everything still works peer-to-peer. Rejected strictly-peer-only (purest but bad cold-start/catch-up UX across timezones). This is what makes "relay down ≠ group dead" true while keeping good everyday UX. Shapes Phases 3–4.
+
+**Still open (lower stakes, decide during build):**
+- **Migration of existing relay-mediated groups** into signed objects (one-time, on Phase 1 deploy) — straightforward; the live DB has the rows to mint `group_v1` + a membership log from. Decide whether to migrate the (currently 1) live group or start fresh post-cutover.
 
 ## Security notes
 - Admission must verify the ticket secret AND that the admitting key is authorized by the membership log fold — never trust a self-claimed admit.
