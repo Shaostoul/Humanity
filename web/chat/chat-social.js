@@ -214,11 +214,22 @@ function addFollowContextMenu() {
 function renderGroupList() {
   const container = document.getElementById('tab-groups');
   if (!container) return;
-  if (myGroups.length === 0) {
-    container.innerHTML = '<div style="padding:var(--space-md);color:var(--text-muted);font-size:0.8rem;">No groups yet.<br>Use <code>/group-create &lt;name&gt;</code> to create one.</div>';
-    return;
+  // Lazily fetch P2P (sovereign signed-object) groups once; create/join re-fetch
+  // via window.loadP2pGroups(). These render above the legacy relay-mediated ones.
+  if (!window._p2pGroupsFetched && typeof window.loadP2pGroups === 'function') {
+    window._p2pGroupsFetched = true;
+    window.loadP2pGroups();
   }
+  const p2pGroups = window._p2pGroups || [];
   let html = '';
+  // P2P groups (the new model). Click → roster + invite dialog.
+  for (const g of p2pGroups) {
+    html += `<div class="channel-item" data-p2p-group-id="${esc(g.group_id)}" style="cursor:pointer;">
+      <span style="opacity:0.6">${hosIcon('users', 16)} </span>${esc(g.name)}
+      <span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${(g.members || []).length}</span>
+    </div>`;
+  }
+  // Legacy relay-mediated groups (shown until migrated — Phase 1 step e).
   for (const g of myGroups) {
     const isActive = activeGroupId === g.id;
     const unread = groupUnread[g.id] || 0;
@@ -228,11 +239,22 @@ function renderGroupList() {
       ${badge}
     </div>`;
   }
+  if (p2pGroups.length === 0 && myGroups.length === 0) {
+    html += '<div style="padding:var(--space-md);color:var(--text-muted);font-size:0.8rem;">No groups yet. Create one, or paste an invite ticket to join.</div>';
+  }
   html += '<div style="display:flex;gap:var(--space-sm);padding:var(--space-sm) 0;">'
        + '<button class="vr-btn" onclick="promptCreateGroup()" style="flex:1;font-size:0.7rem;">+ Create Group</button>'
        + '<button class="vr-btn" onclick="promptJoinGroup()" style="flex:1;font-size:0.7rem;">+ Join Group</button>'
        + '</div>';
   container.innerHTML = html;
+  // P2P group rows → roster + invite dialog (messaging is Phase 2).
+  container.querySelectorAll('[data-p2p-group-id]').forEach(el => {
+    el.onclick = () => {
+      const gid = el.dataset.p2pGroupId;
+      const g = (window._p2pGroups || []).find(x => x.group_id === gid);
+      if (g && typeof window.openP2pGroupDialog === 'function') window.openP2pGroupDialog(gid, g.name, g.members);
+    };
+  });
   // Click handler for groups
   container.querySelectorAll('[data-group-id]').forEach(el => {
     el.onclick = () => openGroup(el.dataset.groupId);
@@ -269,18 +291,27 @@ function renderGroupList() {
   if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
 }
 
+// Create/join now use the P2P signed-object model (docs/design/p2p-groups.md):
+// a group is a sovereign signed object, and joining uses a creator-signed invite
+// ticket (works even when the creator is offline). The old relay-mediated
+// group_create/group_join WS path is retired here (legacy groups still render
+// until migrated — Phase 1 step e).
 function promptCreateGroup() {
   const name = prompt('Group name:');
-  if (name && name.trim() && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'group_create', name: name.trim() }));
-  }
+  if (!name || !name.trim()) return;
+  if (typeof window.createP2pGroup !== 'function') return;
+  window.createP2pGroup(name.trim()).catch((e) => {
+    if (typeof addNotice === 'function') addNotice('Create failed: ' + e.message, 'red', 6);
+  });
 }
 
 function promptJoinGroup() {
-  const code = prompt('Enter group invite code:');
-  if (code && code.trim() && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'group_join', invite_code: code.trim() }));
-  }
+  const ticket = prompt('Paste your group invite ticket:');
+  if (!ticket || !ticket.trim()) return;
+  if (typeof window.joinP2pGroupByTicket !== 'function') return;
+  window.joinP2pGroupByTicket(ticket.trim()).catch((e) => {
+    if (typeof addNotice === 'function') addNotice('Join failed: ' + e.message, 'red', 6);
+  });
 }
 
 function openGroup(groupId) {

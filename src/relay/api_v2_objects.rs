@@ -275,3 +275,59 @@ pub async fn count_objects(
             .into_response(),
     }
 }
+
+/// Query params for `GET /api/v2/groups`.
+#[derive(Debug, Deserialize)]
+pub struct MyGroupsQuery {
+    /// Hex-encoded Dilithium3 public key of the member.
+    pub pubkey: Option<String>,
+}
+
+/// A P2P group + its current roster, as seen by the relay's projection.
+#[derive(Debug, Serialize)]
+pub struct P2pGroupView {
+    pub group_id: String,
+    pub name: String,
+    /// Active member public keys, hex-encoded.
+    pub members: Vec<String>,
+}
+
+/// `GET /api/v2/groups?pubkey=<hex>` — the P2P groups the given member is in,
+/// each with its current roster, read from the projection (docs/design/p2p-groups.md
+/// Phase 1). Read-only convenience view; the authority is the signed objects.
+pub async fn my_p2p_groups(
+    State(state): State<Arc<RelayState>>,
+    Query(q): Query<MyGroupsQuery>,
+) -> impl IntoResponse {
+    let pubkey_hex = match q.pubkey {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "pubkey (hex) required"})))
+                .into_response();
+        }
+    };
+    // ASCII-hex only (so byte-slicing below can't split a multi-byte char).
+    if pubkey_hex.len() % 2 != 0 || !pubkey_hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "pubkey not hex"})))
+            .into_response();
+    }
+    let pubkey: Vec<u8> = (0..pubkey_hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&pubkey_hex[i..i + 2], 16).unwrap())
+        .collect();
+    let groups = state.db.p2p_groups_for_member(&pubkey).unwrap_or_default();
+    let out: Vec<P2pGroupView> = groups
+        .into_iter()
+        .map(|(group_id, name)| {
+            let members = state
+                .db
+                .p2p_group_roster(&group_id)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|m| m.member_pubkey.iter().map(|b| format!("{b:02x}")).collect::<String>())
+                .collect();
+            P2pGroupView { group_id, name, members }
+        })
+        .collect();
+    (StatusCode::OK, Json(serde_json::json!({"groups": out}))).into_response()
+}

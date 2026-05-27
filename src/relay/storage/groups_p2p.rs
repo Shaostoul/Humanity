@@ -334,6 +334,25 @@ impl Storage {
         })
     }
 
+    /// The P2P groups a given member (by their Dilithium pubkey) is currently
+    /// in — `(group_id, name)` pairs. Drives the client's group list.
+    pub fn p2p_groups_for_member(&self, member_pubkey: &[u8]) -> Result<Vec<(String, String)>, rusqlite::Error> {
+        let fp = author_fingerprint(member_pubkey);
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT g.group_id, g.name
+                 FROM p2p_groups g
+                 JOIN p2p_group_roster r ON r.group_id = g.group_id
+                 WHERE r.member_fp = ?1 AND r.active = 1
+                 ORDER BY g.name COLLATE NOCASE",
+            )?;
+            let rows = stmt.query_map(params![fp], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            rows.collect()
+        })
+    }
+
     /// Whether a public key is an active member of a P2P group.
     pub fn p2p_group_has_member(&self, group_id: &str, pubkey: &[u8]) -> Result<bool, rusqlite::Error> {
         let fp = author_fingerprint(pubkey);

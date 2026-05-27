@@ -581,6 +581,7 @@ pub async fn run_relay() {
         .route("/api/v2/objects", get(api_v2_objects::list_objects).post(api_v2_objects::post_object))
         .route("/api/v2/objects/count", get(api_v2_objects::count_objects))
         .route("/api/v2/objects/{object_id}", get(api_v2_objects::get_object_by_id))
+        .route("/api/v2/groups", get(api_v2_objects::my_p2p_groups))
         // === API v2: DID resolver (Phase 1 PR 1) ===
         .route("/api/v2/did/{did}", get(api_v2_did::resolve_did))
         // === API v2: Verifiable Credentials (Phase 1 PR 2) ===
