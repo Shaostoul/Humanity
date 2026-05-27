@@ -28,6 +28,10 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 > **When things go wrong:** read `docs/INCIDENT-PLAYBOOK.md` (recipes for live failures + lessons from past incidents).
 > **For long-term posture:** `docs/BUS-FACTOR.md` (succession), `docs/SECURITY-CADENCE.md` (mandatory periodic exercises), `docs/HEALTH-DASHBOARD.md` (SLOs + alert criteria).
 
+## Working norm (operator preference)
+
+**Work directed tasks through to completion.** When the operator points you at clear work, do the whole thing and report when it's actually *done*. Do NOT manufacture mid-task "should I proceed?" checkpoints, and never cite reply length or "session/context length" as a reason to defer or split work — that's an internal token concern, irrelevant to the operator, who replies fast and is usually waiting on you. Pause ONLY for genuine decisions only the operator can make (a taste call or a real direction fork), never to ask permission to continue work already directed. "Do it right" means carefully and completely, not later. (Established 2026-05-26 after the operator corrected this twice; mirrored in their memory User Preferences.)
+
 ## Non-negotiable design rules
 
 **GUI-first configurability (no-CLI-required).** Anything an operator/admin/user can configure or do MUST be reachable from inside the app, not only from a shell. A button that "just runs the console command" under the hood is fine — the point is that nobody should HAVE to touch a terminal to set up, use, or modify the system. This serves three constituencies at once: the operator (who prefers it), tech-illiterate users (the accessibility mission), and AI agents (a discoverable in-app action surface means an AI knows exactly what's possible instead of guessing at shell commands). When you build a feature that has any ops/config dimension, build its in-app control in the SAME increment — or, if deferring, log it in `docs/design/in-app-ops.md` so the CLI debt is tracked, never silently accepted. North star: every admin action lives in a data-driven registry the GUI renders AND an AI can enumerate. See `docs/design/in-app-ops.md`.
