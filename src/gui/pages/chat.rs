@@ -3811,14 +3811,21 @@ fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
             ui.add(egui::TextEdit::singleline(&mut state.edit_channel_description).desired_width(220.0));
         });
 
-        // Voice enabled toggle.
-        let mut voice_enabled = state.chat_channels.iter()
+        // Channel flag toggles. These mutate the local ChatChannel for instant
+        // feedback; the Save button persists them to the relay below. Read the
+        // current values out of chat_channels (the modal's source of truth).
+        let (mut voice_enabled, mut read_only) = state.chat_channels.iter()
             .find(|c| c.id == state.edit_channel_id)
-            .map(|c| c.voice_enabled)
-            .unwrap_or(true);
+            .map(|c| (c.voice_enabled, c.read_only))
+            .unwrap_or((true, false));
         if ui.checkbox(&mut voice_enabled, "Voice enabled").changed() {
             if let Some(ch) = state.chat_channels.iter_mut().find(|c| c.id == state.edit_channel_id) {
                 ch.voice_enabled = voice_enabled;
+            }
+        }
+        if ui.checkbox(&mut read_only, "Read-only (only admins/mods can post)").changed() {
+            if let Some(ch) = state.chat_channels.iter_mut().find(|c| c.id == state.edit_channel_id) {
+                ch.read_only = read_only;
             }
         }
 
@@ -3830,14 +3837,23 @@ fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                 if widgets::Button::primary("Save").show(ui, theme) {
                     if let Some(ref client) = state.ws_client {
                         if client.is_connected() {
+                            // `channel_update` — NOT the old `channel_edit`, which
+                            // the relay never had a handler for (so name, desc AND
+                            // the flag toggles were all silently dropped). The
+                            // relay's channel_update handler is admin-gated, applies
+                            // each provided field, and rebroadcasts channel_list;
+                            // omitted fields (e.g. federated) are left unchanged.
+                            // Mirrors server_settings.rs's Channels-page Save.
                             let msg = serde_json::json!({
-                                "type": "channel_edit",
+                                "type": "channel_update",
                                 "channel_id": state.edit_channel_id,
                                 "name": state.edit_channel_name.trim(),
                                 "description": state.edit_channel_description.trim(),
+                                "read_only": read_only,
+                                "voice_enabled": voice_enabled,
                             });
                             client.send(&msg.to_string());
-                            log::info!("Channel edit: {} -> {}", state.edit_channel_id, state.edit_channel_name.trim());
+                            log::info!("Channel update: {} (read_only={read_only}, voice_enabled={voice_enabled})", state.edit_channel_id);
                         }
                     }
                     state.show_channel_edit_modal = false;

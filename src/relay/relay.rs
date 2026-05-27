@@ -5910,3 +5910,49 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     }
 }
 
+#[cfg(test)]
+mod channel_update_wire_tests {
+    use super::*;
+
+    // Guards the wire contract the native chat channel-edit modal now relies on.
+    // The modal used to send `{"type":"channel_edit", ...}` — a type the relay
+    // never had a handler for — so name, description, AND the voice/read-only
+    // toggles were all silently dropped on Save (operator: "I disabled voice on
+    // #announcements but it came back"). It now sends `channel_update`, which
+    // MUST deserialize into RelayMessage::ChannelUpdate with the flags set.
+    #[test]
+    fn channel_update_deserializes_with_flags() {
+        let json = r#"{
+            "type": "channel_update",
+            "channel_id": "announcements",
+            "name": "announcements",
+            "description": "Project updates and news",
+            "read_only": true,
+            "voice_enabled": false
+        }"#;
+        let msg: RelayMessage = serde_json::from_str(json).expect("channel_update must parse");
+        match msg {
+            RelayMessage::ChannelUpdate { channel_id, name, description, read_only, voice_enabled, federated } => {
+                assert_eq!(channel_id, "announcements");
+                assert_eq!(name.as_deref(), Some("announcements"));
+                assert_eq!(description.as_deref(), Some("Project updates and news"));
+                assert_eq!(read_only, Some(true));
+                assert_eq!(voice_enabled, Some(false));
+                // Omitted fields stay None so the relay leaves them unchanged.
+                assert_eq!(federated, None);
+            }
+            other => panic!("expected ChannelUpdate, got {other:?}"),
+        }
+    }
+
+    // The legacy `channel_edit` type must NOT map to ChannelUpdate — that's
+    // precisely why the old modal was a silent no-op for channel flags.
+    #[test]
+    fn legacy_channel_edit_is_not_a_channel_update() {
+        let json = r#"{"type":"channel_edit","channel_id":"x","name":"y","description":"z"}"#;
+        if let Ok(RelayMessage::ChannelUpdate { .. }) = serde_json::from_str::<RelayMessage>(json) {
+            panic!("channel_edit must not deserialize as ChannelUpdate");
+        }
+    }
+}
+

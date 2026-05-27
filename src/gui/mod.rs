@@ -488,12 +488,12 @@ pub struct ChatChannel {
     pub voice_joined: bool,
     /// Whether voice is enabled for this channel (shows mic icon).
     pub voice_enabled: bool,
-    /// Whether the channel is read-only for non-admins. Settable from
-    /// Server Settings → Channels. Currently client-side state until the
-    /// server-side `channel_update` handler lands (TODO follow-up).
+    /// Whether the channel is read-only for non-admins. Settable from the
+    /// Server Settings → Channels page and the chat channel-edit modal;
+    /// persisted by the relay's admin-gated `channel_update` handler.
     pub read_only: bool,
     /// Whether the channel federates to peer servers. Settable from
-    /// Server Settings → Channels. Same persistence caveat as `read_only`.
+    /// Server Settings → Channels; persisted via `channel_update`.
     pub federated: bool,
 }
 
