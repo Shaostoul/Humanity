@@ -56,6 +56,12 @@ theme:
 pq-kat:
     node scripts/pq-kat.mjs
 
+# Cross-language canonical-CBOR / signed-object KAT: asserts the web encoder
+# (web/shared/canonical-cbor.js) builds byte-identical objects to the Rust relay
+# for a fixed group_v1 input. Run before shipping any signed-object change.
+group-kat:
+    node scripts/group-object-kat.mjs
+
 # Rebuild the vendored same-origin post-quantum bundle (pins versions,
 # bundles with esbuild, verifies the KAT). Needs network for npm.
 pq-vendor:

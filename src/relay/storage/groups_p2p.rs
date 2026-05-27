@@ -289,6 +289,47 @@ mod tests {
         assert_eq!(db.p2p_group_roster(&gid).unwrap().len(), 1, "only creator remains");
     }
 
+    // Cross-language KAT: the canonical CBOR + object_id for a fixed group_v1
+    // input. The web encoder (web/shared/canonical-cbor.js, exercised by
+    // scripts/group-object-kat.mjs) MUST reproduce these exact values, or a
+    // web-built group object would be unverifiable by the relay. The two GOLDEN
+    // constants are duplicated in that script on purpose — editing the encoding
+    // must break BOTH or neither.
+    const GOLDEN_PAYLOAD_HEX: &str = "a1646e616d65696b61742d67726f7570";
+    const GOLDEN_OBJECT_ID: &str =
+        "c909a8dfa825419c4034608b6f6482b883c15d3cbf88d1f1c76b01fe70f7db9b";
+
+    #[test]
+    fn group_v1_canonical_kat() {
+        use crate::relay::core::object::Object;
+        use crate::relay::core::encoding::{to_canonical_bytes, cbor_map, cbor_text};
+        use crate::relay::core::pq_crypto::{DILITHIUM_PK_LEN, DILITHIUM_SIG_LEN};
+
+        // Deterministic, language-neutral fixed input.
+        let payload = to_canonical_bytes(&cbor_map(vec![("name", cbor_text("kat-group"))])).unwrap();
+        let payload_hex: String = payload.iter().map(|b| format!("{b:02x}")).collect();
+
+        let obj = Object {
+            protocol_version: 1,
+            object_type: "group_v1".to_string(),
+            space_id: None,
+            channel_id: None,
+            author_public_key: (0..DILITHIUM_PK_LEN).map(|i| (i % 256) as u8).collect(),
+            created_at: Some(1000),
+            references: vec![],
+            payload_schema_version: 1,
+            payload_encoding: "cbor_canonical_v1".to_string(),
+            payload,
+            signature: (0..DILITHIUM_SIG_LEN).map(|i| (i % 256) as u8).collect(),
+        };
+        let object_id = obj.object_id().unwrap().to_hex();
+        eprintln!("GROUP_KAT payload_hex={payload_hex}");
+        eprintln!("GROUP_KAT object_id={object_id}");
+
+        assert_eq!(payload_hex, GOLDEN_PAYLOAD_HEX, "payload encoding drifted");
+        assert_eq!(object_id, GOLDEN_OBJECT_ID, "canonical object_id drifted (web↔native)");
+    }
+
     #[test]
     fn non_creator_admit_is_ignored() {
         let db = make_test_storage();
