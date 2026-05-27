@@ -1,11 +1,14 @@
 /* messages.css — Message bubbles, replies, reactions, threads, attachments */
 
 .message {
-  margin-bottom: var(--space-sm);
+  /* Native parity (step 3a): flat rows, not nested bubbles. Native draws
+     messages as flat rows with bg only on hover; web used to wrap each
+     message in a card AND nest the body in a second bubble. Flatten both. */
+  margin-bottom: 1px;
   line-height: 1.4;
-  padding: var(--space-md) var(--space-lg);
-  background: rgba(255,255,255,0.02);
-  border-radius: var(--radius);
+  padding: 2px var(--space-md);
+  background: none;
+  border-radius: var(--radius-sm);
 }
 
 .message .meta {
@@ -36,7 +39,6 @@
   flex-wrap: wrap;
   gap: var(--space-xs);
   margin-top: var(--space-xs);
-  padding-left: 1.6rem;
 }
 .reactions:empty { display: none; }
 .reaction-badge {
@@ -81,12 +83,10 @@
 }
 
 .message .body {
+  /* Flat: no nested bubble bg/padding, no 1.6rem indent — content flows
+     directly under the meta line like native. (step 3a) */
   font-size: var(--text-base);
-  margin-top: var(--space-sm);
-  margin-left: 1.6rem;
-  padding: var(--space-sm) var(--space-md);
-  background: rgba(255,255,255,0.025);
-  border-radius: var(--radius);
+  margin-top: 2px;
   word-wrap: break-word;
   white-space: pre-wrap;
 }
@@ -409,7 +409,7 @@
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-sm);
   padding: var(--space-md) var(--space-lg);
-  margin: var(--space-sm) 0 var(--space-sm) 1.6rem;
+  margin: var(--space-sm) 0;
   font-size: var(--text-sm);
   max-width: 500px;
   cursor: pointer;
