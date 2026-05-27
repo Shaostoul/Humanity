@@ -86,6 +86,10 @@
   --row-height: 15.883123px;
   --header-height: 16px;
   --content-width: none;
+
+  /* Chat message-row avatar (shared with native widgets/row.rs) */
+  --avatar-size: 32px;
+  --avatar-gap: 8px;
 }
 /* ======================== END AUTO-GENERATED ======================== */
 

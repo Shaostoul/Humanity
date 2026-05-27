@@ -184,6 +184,10 @@ function buildCss(tokens) {
   lines.push(`  --row-height: ${n(t.row_height, 18)}px;`);
   lines.push(`  --header-height: ${n(t.header_height, 24)}px;`);
   lines.push(`  --content-width: none;`);
+  lines.push('');
+  lines.push('  /* Chat message-row avatar (shared with native widgets/row.rs) */');
+  lines.push(`  --avatar-size: ${n(t.avatar_size, 32)}px;`);
+  lines.push(`  --avatar-gap: ${n(t.avatar_gap, 8)}px;`);
   lines.push('}');
   lines.push(END);
 

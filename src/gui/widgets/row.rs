@@ -26,13 +26,11 @@ const HOVER_BLUE: Color32 = Color32::from_rgb(52, 152, 219);
 /// Interpunct separator between timestamp and message content.
 pub const INTERPUNCT: &str = " \u{00B7} "; // ` · `
 
-/// Fixed size of the icon/userbox column, used for every message in every
-/// channel so all users' text aligns. Changing this number shifts every
-/// message's indent consistently.
-const USERBOX_SIZE: f32 = 32.0;
-
-/// Horizontal gap between userbox and message text.
-const USERBOX_GAP: f32 = 8.0;
+// The avatar/userbox column size and its gap to the message text now live in
+// the shared theme (data/gui/theme.ron → theme.avatar_size / theme.avatar_gap)
+// so the web view and native read ONE source — gen-theme-css.js emits them as
+// --avatar-size / --avatar-gap. Access via the `theme` param inside
+// message_row. Changing avatar_size shifts every message's indent consistently.
 
 /// Render a universal row with optional userbox and word-wrapped content.
 ///
@@ -85,7 +83,7 @@ pub fn message_row(
 
     // Constant content offset for every sender, every line — this is the
     // alignment invariant that keeps the channel visually tidy.
-    let content_left_offset = USERBOX_SIZE + USERBOX_GAP;
+    let content_left_offset = theme.avatar_size + theme.avatar_gap;
     let content_width = (full_width - content_left_offset - 4.0).max(100.0);
 
     // Strip " UTC" so timestamps are tight.
@@ -293,7 +291,7 @@ pub fn message_row(
         // (overflow gets painted on top of subsequent row bgs).
         userbox_hit = Rect::from_min_size(
             egui::pos2(hx, hy),
-            Vec2::splat(USERBOX_SIZE),
+            Vec2::splat(theme.avatar_size),
         );
         deferred_avatar = Some(DeferredAvatar {
             rect: userbox_hit,

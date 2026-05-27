@@ -5,7 +5,7 @@
      Avatar + name show once per sender group; continuations show just the
      timestamp pill. Flat (bg on hover only), not nested bubbles. */
   display: flex;
-  gap: var(--space-sm);
+  gap: var(--avatar-gap);
   align-items: flex-start;
   margin-bottom: 1px;
   line-height: 1.4;
@@ -20,7 +20,7 @@
 
 /* Left gutter: 32px avatar on a group's first message; empty (but keeps its
    width) on continuation rows so all content stays aligned under the name. */
-.msg-gutter { flex-shrink: 0; width: 32px; }
+.msg-gutter { flex-shrink: 0; width: var(--avatar-size); }
 .msg-main { flex: 1; min-width: 0; display: flow-root; }
 
 /* Timestamp pill — compact HH:MM + Þ (the add-reaction affordance). Floats
@@ -65,8 +65,8 @@
 .message .author.you { color: var(--success); }
 
 .identicon {
-  width: 32px;
-  height: 32px;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
   border-radius: var(--radius-sm);
   display: block;
 }

@@ -65,6 +65,13 @@ pub struct Theme {
     pub icon_size: f32,
     #[serde(default = "default_icon_small")]
     pub icon_small: f32,
+    // Chat message-row avatar: the gutter square + its gap to the content.
+    // Shared with the web view via gen-theme-css.js (--avatar-size/--avatar-gap)
+    // so both platforms read ONE source. See widgets/row.rs.
+    #[serde(default = "default_avatar_size")]
+    pub avatar_size: f32,
+    #[serde(default = "default_avatar_gap")]
+    pub avatar_gap: f32,
     #[serde(default = "default_row_height")]
     pub row_height: f32,
     #[serde(default = "default_header_height")]
@@ -460,6 +467,8 @@ fn default_item_padding() -> f32 { 4.0 }
 fn default_panel_margin() -> f32 { 8.0 }
 fn default_icon_size() -> f32 { 32.0 }
 fn default_icon_small() -> f32 { 16.0 }
+fn default_avatar_size() -> f32 { 32.0 }
+fn default_avatar_gap() -> f32 { 8.0 }
 fn default_row_height() -> f32 { 18.0 }
 fn default_header_height() -> f32 { 36.0 }
 fn default_border_width() -> f32 { 1.0 }
@@ -564,6 +573,8 @@ fn default_theme() -> Theme {
         panel_margin: 8.0,
         icon_size: 32.0,
         icon_small: 16.0,
+        avatar_size: 32.0,
+        avatar_gap: 8.0,
         row_height: 18.0,
         header_height: 36.0,
         border_width: 1.0,
