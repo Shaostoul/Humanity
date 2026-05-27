@@ -46,6 +46,7 @@ local-heron-admin.json
 
 # ── Database artifacts ──
 *.bak
+*.bak-*
 *.backup
 *.dump
 *.sqlite-shm

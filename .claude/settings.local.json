@@ -4,7 +4,8 @@
       "Bash(just clean-worktrees *)",
       "Bash(node -p \"require\\('fs'\\).readFileSync\\('Cargo.toml','utf8'\\).match\\(/^version\\\\s*=\\\\s*\\\\\"\\(.+?\\)\\\\\"/m\\)[1]\")",
       "Bash(gh release *)",
-      "Bash(cargo check *)"
+      "Bash(cargo check *)",
+      "Bash(xargs wc -l)"
     ],
     "deny": [
       "mcp__Claude_Preview__preview_start",
@@ -21,7 +22,6 @@
       "mcp__Claude_Preview__preview_resize"
     ]
   },
-  "disableAllHooks": true,
   "enabledPlugins": {
     "preview@anthropic-tools": false
   }
