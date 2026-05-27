@@ -81,6 +81,24 @@ fn read_bytes(object: &Object, field: &str) -> Option<Vec<u8>> {
     None
 }
 
+/// Read a CBOR unsigned-integer field from an object payload.
+fn read_uint(object: &Object, field: &str) -> Option<u64> {
+    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
+    if let ciborium::Value::Map(entries) = value {
+        for (k, v) in entries {
+            if let (ciborium::Value::Text(name), ciborium::Value::Integer(i)) = (k, v) {
+                if name == field {
+                    let raw: i128 = i.into();
+                    if (0..=u64::MAX as i128).contains(&raw) {
+                        return Some(raw as u64);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// A member of a P2P group (active roster entry).
 #[derive(Debug, Clone)]
 pub struct P2pGroupMember {
@@ -184,6 +202,120 @@ impl Storage {
         })
     }
 
+    /// Project a creator-signed `group_invite_v1` capability into
+    /// `p2p_group_invites`. The author MUST be the group creator (Phase 1).
+    /// No-op for other object types.
+    pub fn index_group_invite(&self, object: &Object) -> Result<bool, rusqlite::Error> {
+        if object.object_type != "group_invite_v1" {
+            return Ok(false);
+        }
+        let group_id = match object.references.first() {
+            Some(g) => g.clone(),
+            None => return Ok(false),
+        };
+        let secret_hash = match read_bytes(object, "secret_hash") {
+            Some(s) if s.len() == 32 => s,
+            _ => return Ok(false),
+        };
+        let expires_at = match read_uint(object, "expires_at") {
+            Some(e) => e as i64,
+            None => return Ok(false),
+        };
+        let invite_id = match object.object_id() {
+            Ok(id) => id.to_hex(),
+            Err(_) => return Ok(false),
+        };
+
+        // Authorization: only the group creator may issue invites (Phase 1).
+        let creator_pubkey: Option<Vec<u8>> = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT creator_pubkey FROM p2p_groups WHERE group_id = ?1",
+                params![group_id],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .optional()
+        })?;
+        let creator_pubkey = match creator_pubkey {
+            Some(pk) => pk,
+            None => return Ok(false), // unknown group yet
+        };
+        if object.author_public_key != creator_pubkey {
+            return Ok(false); // only the creator may invite
+        }
+
+        let created_at = object.created_at.map(|t| t as i64);
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT OR IGNORE INTO p2p_group_invites
+                   (invite_id, group_id, secret_hash, expires_at, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![invite_id, group_id, secret_hash, expires_at, created_at],
+            )?;
+            Ok(true)
+        })
+    }
+
+    /// Project a `group_join_v1`: a joiner self-admits by revealing the invite
+    /// secret. Valid iff the referenced invite is creator-signed (already
+    /// established when the invite was projected), targets this group, has not
+    /// expired, and `BLAKE3(revealed_secret)` matches the invite's commitment.
+    /// On success the JOIN AUTHOR becomes an active roster member — no creator
+    /// needs to be online. No-op for other object types.
+    pub fn index_group_join(&self, object: &Object) -> Result<bool, rusqlite::Error> {
+        if object.object_type != "group_join_v1" {
+            return Ok(false);
+        }
+        let group_id = match object.references.first() {
+            Some(g) => g.clone(),
+            None => return Ok(false),
+        };
+        let invite_id = match object.references.get(1) {
+            Some(i) => i.clone(),
+            None => return Ok(false),
+        };
+        let secret = match read_bytes(object, "secret") {
+            Some(s) if !s.is_empty() => s,
+            _ => return Ok(false),
+        };
+
+        let invite: Option<(Vec<u8>, i64)> = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT secret_hash, expires_at FROM p2p_group_invites
+                 WHERE invite_id = ?1 AND group_id = ?2",
+                params![invite_id, group_id],
+                |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .optional()
+        })?;
+        let (secret_hash, expires_at) = match invite {
+            Some(x) => x,
+            None => return Ok(false), // unknown/foreign invite
+        };
+        let now = now_millis() as i64;
+        if now >= expires_at {
+            return Ok(false); // invite expired
+        }
+        // Constant-importance check: the revealed secret must match the
+        // creator's commitment (stops anyone who lacks the ticket from joining).
+        if blake3::hash(&secret).as_bytes()[..] != secret_hash[..] {
+            return Ok(false);
+        }
+
+        let member_fp = author_fingerprint(&object.author_public_key);
+        let member_pubkey = object.author_public_key.clone();
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO p2p_group_roster
+                   (group_id, member_fp, member_pubkey, active, updated_at)
+                 VALUES (?1, ?2, ?3, 1, ?4)
+                 ON CONFLICT(group_id, member_fp) DO UPDATE SET
+                   active = 1, updated_at = excluded.updated_at",
+                params![group_id, member_fp, member_pubkey, now],
+            )?;
+            Ok(true)
+        })
+    }
+
     /// The active roster of a P2P group (the fold of its membership log).
     pub fn p2p_group_roster(&self, group_id: &str) -> Result<Vec<P2pGroupMember>, rusqlite::Error> {
         self.with_conn(|conn| {
@@ -250,6 +382,33 @@ mod tests {
             .payload_cbor(&Value::Map(vec![
                 (Value::Text("action".into()), Value::Text(action.into())),
                 (Value::Text("subject".into()), Value::Bytes(subject_pk.to_vec())),
+            ]))
+            .unwrap()
+            .sign(by)
+            .unwrap()
+    }
+
+    fn invite_obj(by: &DilithiumKeypair, group_id: &str, secret: &[u8], expires_at: u64) -> Object {
+        let sh = blake3::hash(secret);
+        ObjectBuilder::new("group_invite_v1")
+            .reference(group_id)
+            .created_at(1002)
+            .payload_cbor(&Value::Map(vec![
+                (Value::Text("expires_at".into()), Value::Integer(expires_at.into())),
+                (Value::Text("secret_hash".into()), Value::Bytes(sh.as_bytes().to_vec())),
+            ]))
+            .unwrap()
+            .sign(by)
+            .unwrap()
+    }
+
+    fn join_obj(by: &DilithiumKeypair, group_id: &str, invite_id: &str, secret: &[u8]) -> Object {
+        ObjectBuilder::new("group_join_v1")
+            .reference(group_id)
+            .reference(invite_id)
+            .created_at(1003)
+            .payload_cbor(&Value::Map(vec![
+                (Value::Text("secret".into()), Value::Bytes(secret.to_vec())),
             ]))
             .unwrap()
             .sign(by)
@@ -346,5 +505,71 @@ mod tests {
         db.put_signed_object(&member_obj(&attacker, &gid, "admit", &mallory.public_key()), None).unwrap();
         assert!(!db.p2p_group_has_member(&gid, &mallory.public_key()).unwrap());
         assert_eq!(db.p2p_group_roster(&gid).unwrap().len(), 1, "roster unchanged");
+    }
+
+    #[test]
+    fn invite_join_admits_without_creator_online() {
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let alice = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+
+        let secret = [9u8; 16];
+        let inv = invite_obj(&creator, &gid, &secret, 9_999_999_999_999);
+        let invite_id = inv.object_id().unwrap().to_hex();
+        db.put_signed_object(&inv, None).unwrap();
+
+        // Alice joins by revealing the secret — the creator is NOT involved here.
+        db.put_signed_object(&join_obj(&alice, &gid, &invite_id, &secret), None).unwrap();
+        assert!(db.p2p_group_has_member(&gid, &alice.public_key()).unwrap());
+        assert_eq!(db.p2p_group_roster(&gid).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn wrong_secret_or_expired_invite_rejects_join() {
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let alice = DilithiumKeypair::generate().unwrap();
+        let bob = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+
+        let secret = [9u8; 16];
+        let inv = invite_obj(&creator, &gid, &secret, 9_999_999_999_999);
+        let invite_id = inv.object_id().unwrap().to_hex();
+        db.put_signed_object(&inv, None).unwrap();
+        // Wrong secret → rejected.
+        db.put_signed_object(&join_obj(&alice, &gid, &invite_id, &[0u8; 16]), None).unwrap();
+        assert!(!db.p2p_group_has_member(&gid, &alice.public_key()).unwrap());
+
+        // Expired invite → rejected even with the correct secret.
+        let exp = invite_obj(&creator, &gid, &secret, 1);
+        let exp_id = exp.object_id().unwrap().to_hex();
+        db.put_signed_object(&exp, None).unwrap();
+        db.put_signed_object(&join_obj(&bob, &gid, &exp_id, &secret), None).unwrap();
+        assert!(!db.p2p_group_has_member(&gid, &bob.public_key()).unwrap());
+    }
+
+    #[test]
+    fn invite_from_non_creator_is_ignored() {
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let attacker = DilithiumKeypair::generate().unwrap();
+        let mallory = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+
+        // Attacker issues an invite for a group they don't own → not projected.
+        let secret = [9u8; 16];
+        let inv = invite_obj(&attacker, &gid, &secret, 9_999_999_999_999);
+        let invite_id = inv.object_id().unwrap().to_hex();
+        db.put_signed_object(&inv, None).unwrap();
+        // Join referencing the bogus invite → no invite row → rejected.
+        db.put_signed_object(&join_obj(&mallory, &gid, &invite_id, &secret), None).unwrap();
+        assert!(!db.p2p_group_has_member(&gid, &mallory.public_key()).unwrap());
     }
 }

@@ -1557,6 +1557,21 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_p2p_roster_member
                 ON p2p_group_roster(member_fp);
 
+            -- Creator-signed invite capabilities (projection of group_invite_v1).
+            -- secret_hash = BLAKE3(invite secret); a joiner proves they hold the
+            -- out-of-band ticket by revealing the secret in their group_join_v1.
+            -- Lets members join WITHOUT the creator being online (the creator's
+            -- signature on the invite is the standing authorization).
+            CREATE TABLE IF NOT EXISTS p2p_group_invites (
+                invite_id    TEXT PRIMARY KEY,
+                group_id     TEXT NOT NULL,
+                secret_hash  BLOB NOT NULL,
+                expires_at   INTEGER NOT NULL,
+                created_at   INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_p2p_invites_group
+                ON p2p_group_invites(group_id);
+
             -- Phase 1 PR 2: Verifiable Credentials fast-lookup index.
             -- Auto-populated when a known VC schema is stored. The credential itself
             -- (signed authority) lives in signed_objects keyed by vc_object_id.

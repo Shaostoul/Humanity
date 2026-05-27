@@ -141,9 +141,12 @@ impl Storage {
             let _ = self.index_recovery_request(object);
             let _ = self.index_recovery_approval(object);
             // Auto-index P2P groups (docs/design/p2p-groups.md): group identity +
-            // membership-log fold into the roster projection.
+            // membership-log fold into the roster projection, plus creator-signed
+            // invite capabilities and secret-revealing self-admission joins.
             let _ = self.index_group(object);
             let _ = self.index_group_member(object);
+            let _ = self.index_group_invite(object);
+            let _ = self.index_group_join(object);
             // Auto-process disputes: lower the disputed issuer's trust score from
             // this observer's perspective. We use source_server as the observer key
             // (or "self" for locally-submitted disputes).

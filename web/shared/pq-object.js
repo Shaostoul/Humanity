@@ -16,7 +16,7 @@
 // and doesn't hard-bind to a CDN vs vendored bundle. The chat client wires the
 // real Dilithium sign (window.pqSignMessage / HumOS.pq.pqSign) + blake3.
 
-import { encodeObjectCanonical, cborText, cborBytes, cborMap } from './canonical-cbor.js';
+import { encodeObjectCanonical, cborText, cborBytes, cborMap, cborUint } from './canonical-cbor.js';
 
 const DILITHIUM_SIG_LEN = 3309;
 const PAYLOAD_ENCODING_PLAINTEXT = 'cbor_canonical_v1';
@@ -130,4 +130,82 @@ export async function buildGroupMemberV1({ groupId, action, subjectPubkey, autho
     authorPublicKey, sign, blake3,
     createdAt: createdAt ?? Date.now(),
   });
+}
+
+/** `group_invite_v1` payload: `{ expires_at, secret_hash }` (creator-signed). */
+export function groupInviteV1Payload(secretHash, expiresAt) {
+  return cborMap([
+    [cborText('expires_at'), cborUint(expiresAt)],
+    [cborText('secret_hash'), cborBytes(secretHash)],
+  ]);
+}
+
+/** `group_join_v1` payload: `{ secret }` (joiner reveals the invite secret). */
+export function groupJoinV1Payload(secret) {
+  return cborMap([[cborText('secret'), cborBytes(secret)]]);
+}
+
+/** A fresh 32-byte invite secret. */
+export function randomInviteSecret() {
+  return crypto.getRandomValues(new Uint8Array(32));
+}
+
+/**
+ * Build + sign a `group_invite_v1` capability. The creator signs a commitment
+ * to `BLAKE3(secret)` + an expiry; the ticket (below) carries the secret
+ * out-of-band so a holder can self-admit without the creator online.
+ * Returns `{ objectId (= the invite id), submission }`.
+ */
+export async function buildGroupInviteV1({ groupId, secret, expiresAt, authorPublicKey, sign, blake3, createdAt }) {
+  const secretHash = blake3(secret);
+  return buildSignedObject({
+    objectType: 'group_invite_v1',
+    payload: groupInviteV1Payload(secretHash, expiresAt),
+    references: [groupId],
+    authorPublicKey, sign, blake3,
+    createdAt: createdAt ?? Date.now(),
+  });
+}
+
+/**
+ * Build + sign a `group_join_v1`: self-admission by revealing the invite secret.
+ * References [groupId, inviteId]. The relay/peers admit the join author iff the
+ * secret matches the creator-signed invite and it hasn't expired.
+ */
+export async function buildGroupJoinV1({ groupId, inviteId, secret, authorPublicKey, sign, blake3, createdAt }) {
+  return buildSignedObject({
+    objectType: 'group_join_v1',
+    payload: groupJoinV1Payload(secret),
+    references: [groupId, inviteId],
+    authorPublicKey, sign, blake3,
+    createdAt: createdAt ?? Date.now(),
+  });
+}
+
+/* ── Connection ticket (shared out-of-band: copy/paste or QR) ──
+ * Phase 1 carries what a joiner needs to self-admit through any relay:
+ * group id + name, the invite id, and the secret. (Phase 4 adds bootstrap
+ * peers + kyber pubs for relay-free connection.) It is NOT itself signed —
+ * its authority is the creator-signed group_invite_v1 it points at, which the
+ * relay/peers already hold and verify. */
+export function encodeInviteTicket({ groupId, groupName, inviteId, secret }) {
+  const obj = {
+    v: 1,
+    g: groupId,
+    n: groupName,
+    i: inviteId,
+    s: _b64(secret),
+  };
+  const json = JSON.stringify(obj);
+  // base64url so it is URL/QR-safe.
+  return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+export function decodeInviteTicket(str) {
+  const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  const json = atob(b64);
+  const o = JSON.parse(json);
+  if (!o || o.v !== 1 || !o.g || !o.i || !o.s) throw new Error('invalid invite ticket');
+  const secret = Uint8Array.from(atob(o.s), (c) => c.charCodeAt(0));
+  return { groupId: o.g, groupName: o.n || '', inviteId: o.i, secret };
 }
