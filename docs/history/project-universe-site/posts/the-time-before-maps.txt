@@ -1,0 +1,4 @@
+# The Time Before Maps
+(https://shaostoul.com/game/features/the-time-before-maps/ | 2023-07-05T13:23:48)
+
+Currently there's no map system for navigating spacecraft. We want to add one eventually, but there's more we have to do before we can. For now you can navigate the craft using the door signs.

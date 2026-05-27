@@ -1,0 +1,68 @@
+# Database Hierarchy
+(https://shaostoul.com/blog/database-hierarchy/ | 2025-02-06T23:23:29)
+
+ChapGPT o3-mini-high Recommended Database Heirarchy for Project Universe
+
+Below is a concise, hierarchical list of the conceptualized database/table structure with a one‐line description for each item:
+
+Accounts & Player Data
+
+Accounts Table: Stores user credentials and basic account details.
+
+Characters Table: Contains full player profiles including progress, skills, and persistent inventory.
+
+World/Places Data
+
+Star Systems Table: Defines star systems with coordinates, names, and procedural seeds.
+
+Celestial Bodies Table: Records planets, moons, and asteroids with environmental and dynamic state info.
+
+Settlements & Stations Table: Tracks player-built and NPC colonies, space stations, and outposts.
+
+Jump Gates/Routes Table: Lists FTL nodes and their connections between star systems.
+
+World Events Table: Logs significant events (anomalies, battles, environmental shifts) affecting the universe.
+
+Things/Entities Data
+
+Raw Materials & Building Blocks Table: Defines elemental, alloy, chemical, and construction material properties.
+
+Crafted Equipment Tables:
+
+Weapons Table: Contains weapon definitions with damage, range, and special effects.
+
+Armor Table: Stores armor specifications including defense ratings and materials.
+
+Tools & Equipment Table: Holds data for utilitarian items like farming, mining, and crafting tools.
+
+Vehicles & Ships Table: Manages customizable ship/vehicle designs, components, and physics attributes.
+
+Crafting Recipes & Blueprints Table: Lists item blueprints and required components for crafting.
+
+Economy & Trade Data
+
+Market Orders Table: Manages active buy/sell orders with pricing, quantities, and location details.
+
+Commodity/Resource Stats Table: Aggregates regional supply, demand, and pricing information.
+
+Trade Routes & Hubs Table: Tracks dynamic trade flows and identifies major economic nodes.
+
+Transaction Logs Table: Records every trade and economic event for auditing and analytics.
+
+NPC & Faction Data
+
+NPC Entities Table: Stores persistent NPC profiles with individual behaviors and needs.
+
+Factions Table: Contains unified human faction data, reputations, and territorial control.
+
+AI/Behavior Data Table: Holds parameters and scripts driving dynamic NPC actions and events.
+
+Simulation & Global State Data
+
+Global State Variables Table: Tracks real-time environmental, physics, and economic simulation metrics.
+
+Event Triggers & Scripts Table: Defines conditions and automated actions that drive world changes.
+
+Logging/Analytics Table: Maintains a time-series log of game events and state changes for monitoring.
+
+This structure is designed to support a persistent, evolving universe with both static and dynamic content, enabling real-time gameplay and offline/online synchronization.

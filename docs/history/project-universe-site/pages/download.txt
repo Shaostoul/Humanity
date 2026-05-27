@@ -1,0 +1,43 @@
+# Download
+(https://shaostoul.com/game/download/ | 2023-05-21T14:23:22)
+
+Thanks for your interest in downloading Project Universe! Listed below are all the builds posted to this website. Old versions have their associated zip file deleted to save server storage space.
+Currently available download is for the Unity build which is no longer the game engine we're using. We've switched to Unreal Engine 5 in favor of it's better support, features, and performance capabilities. There's presently no UE5 version available.
+
+				Project Universe v1.0.2
+
+			2023-June-16
+
+			No Comments
+
+									Project Universe Alpha 1.0.2.zip
+Good new everyone! The next build is here! Thanks to community feedback we're already identifying bugs and squashing 'em!
+Reactor controls have been largely finished, and most of the reactor behavior is done
+Render state manger is much less likely to trip up, so the ship stops disappearing
+Esc now closes the inventory and game menu
+Jump sound fixes
+Elevator sound control improvements. Fixed some bugs with the core coolant
+
+				Project Universe v1.0.0
+
+			2023-May-21
+
+			No Comments
+
+Project Universe Alpha 1.0.0.zip
+
+Good news everyone! The first public release of Project Universe is officially here! There's not much to do, but you can explore what's currently available. No saving/loading progress, yet.
+
+radiation
+
+atmospherics
+
+reactor/power system
+
+volume rendering system
+
+remote control drones
+
+basic space flight
+
+mining

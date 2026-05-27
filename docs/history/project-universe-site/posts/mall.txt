@@ -1,0 +1,22 @@
+# Mall
+(https://shaostoul.com/game/features/mall/ | 2023-09-13T01:25:40)
+
+The mall is a dedicated location where users can socialize and buy/sell real-life/virtual goods/services to generate revenue without requiring us to place intrusive immersion breaking ads throughout our platform. The best example of how the mall will function is similar to the shopping scene from the movie Ready Player One.
+Any online retailer is able to be added to the mall when they provide us with a dedicated affiliate link; theoretically this means every website on the internet is a potential partner resulting in significant revenue providing funding for development.
+We want to be able to sell any product/service through our platform and have a 3D representation of products when possible. Users could virtually shop for new clothes, vehicles, or even houses for real-life purchase; obviously the virtual experience will be different than the real-life experience, but it gives us another way of trying-before-buying.
+Shown below is a concept layout illustrating how we want to have various sections dedicated to specific things ensuring users understand when they're buying real-life products/services and virtual products/services.
+
+Our primary method of funding development (excluding crowdfunding) is done via affiliate marketing. Businesses providing us affiliate links are advertised in-game at kiosks specifically designated for them within the mall.
+Businesses are listed in the mall starting with those who donate the most followed by the date the business provides the affiliate link. All businesses receive the bare minimum dedicated kiosk; by donating a larger kiosk and other options become available.
+If you're a business interested in becoming an affiliate be sure to contact us!
+Affiliates:
+Amazon
+Register a SNAP EBT card
+Try Amazon Fresh
+Try Audible Plus
+Audible Gift Memberships
+Try Audible Premium Plus and Get Up to Two Free Audiobooks
+Join Amazon Family 30-Day Free Trial
+Join Amazon Prime - Start Free Trial Now
+Prime Student 6-month Trial
+XeroShoes

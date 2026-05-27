@@ -1,0 +1,15 @@
+# Chat
+(https://shaostoul.com/chat/ | 2024-12-27T16:22:56)
+
+This is a super simple lightweight anonymous chat service. Presently users are anon###. The chat is stored in memory via Nginx, but will be upgraded to SQLite for conversational persistence and eventually with registered user support. This is meant to function on websites, in the Project Universe video game (consoles/PCs), and the mobile app allowing for chatting anywhere with anyone. It will be extremely customizable allowing users to tailor their experience to their exact needs, including disconnecting from our official servers if desired. This minimum viable product was completed on January 4, 2025. Updates to come over the coming days/weeks/months. I'm using this as a method of learning SSH, connecting multiple servers together, and more.For now you all you do is type a message, left-click send (I have to add enter support), and that's it! Upon clearing cookies you'll be assigned a new anon###.
+
+					
+
+  Project Universe Chat
+
+  
+    
+
+
+  
+  Send

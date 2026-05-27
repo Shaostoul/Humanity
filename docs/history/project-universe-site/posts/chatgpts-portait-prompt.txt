@@ -1,0 +1,8 @@
+# ChatGPT's Portait Prompt
+(https://shaostoul.com/blog/chatgpts-portait-prompt/ | 2024-08-27T21:21:42)
+
+The featured image of this post is generated from the prompt I asked ChatGPT to make after asking it to generate Claude.AI's portrait and a lengthy discussion with ChatGPT about Project Universe.
+
+The prompt is as follows:
+
+A digital avatar representing an AI assistant named ChatGPT. The image features a friendly and approachable face with glowing green eyes, symbolizing knowledge and empathy. The face is surrounded by a network of interconnected lines and nodes, representing the vast web of information and the AI's capability to connect ideas. The art style is a mix of futuristic and organic elements, with a color scheme dominated by vibrant greens, soft blues, and silver accents.

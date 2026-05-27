@@ -1,0 +1,4 @@
+# Breaker Rooms for Power
+(https://shaostoul.com/game/features/breaker-rooms-for-power/ | 2023-07-05T12:58:45)
+
+Another step down the power chain allowing finer control of whether a door, light, machine, hydroponics, or something else receives power.

@@ -1,0 +1,20 @@
+# Project Universe v1.0.0
+(https://shaostoul.com/game/build/project-universe-v1-0-0/ | 2023-05-21T22:12:18)
+
+Project Universe Alpha 1.0.0.zip
+
+Good news everyone! The first public release of Project Universe is officially here! There's not much to do, but you can explore what's currently available. No saving/loading progress, yet.
+
+radiation
+
+atmospherics
+
+reactor/power system
+
+volume rendering system
+
+remote control drones
+
+basic space flight
+
+mining

@@ -1,0 +1,118 @@
+# Recycling PET Plastic into 3D Printing Filament
+(https://shaostoul.com/blog/recycling-pet-plastic-into-3d-printing-filament/ | 2024-09-07T02:27:41)
+
+Up to this point I've primarily used PETG and PLA filament for all my 3D printing needs, recently however I've learned of an alternative source of plastic for filament, PolyEthylene Terephthalate or PET for short. This plastic is most commonly seen as polyester clothing and plastic beverage bottles. For the sake of simplicity we're focusing on recycling plastic 2 liter bottles into 3D printing filament, then once we have that down we can look into recycling other PET sources.
+
+For more info about PET check out:
+
+Wikipedia.org
+
+SpecialChem.com
+
+Material-Properties.org
+
+I'm primarily creating this page to document my experience, provide access to any 3D models I make for this, and whatever else happens along the way. We're starting with original concept from Recreator3D, cooperating with them and their community. My big bro has already created a working version of the Recreator, so my focus is on improving the design however possible.
+
+You can view his latest video and other content on his page here: instagram.com/p/C_Uc3YcpCHn/
+
+									Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut elit tellus, luctus nec ullamcorper mattis, pulvinar dapibus leo.
+
+					 Stage 1: Preparation
+
+									1. Pre-Rinse with Water:
+
+Rinse the bottle with warm water to remove any loose debris or surface dirt.
+
+2. Vinegar Solution (Acidic Cleaner):
+
+Fill the bottle halfway with a mix of 1 part white vinegar to 1 part water.
+
+Shake well and let it sit for 10–15 minutes.
+
+Vinegar helps to break down grease, kill bacteria, and dissolve mineral deposits.
+
+Shake the solution around to scrub the inside.
+
+3. Add Baking Soda (For Deeper Cleaning):
+
+For stubborn residues or smells, add 1 tablespoon of baking soda to the vinegar-water solution. The fizzing reaction helps to lift grime.
+
+Shake the bottle again and let it sit for a few more minutes.
+
+4. Scrubbing (Optional):
+
+If you have access to a bottle brush, scrub the inside for extra cleaning power.
+
+Make sure to reach the bottom and the sides thoroughly.
+
+5. Rinse with Soapy Water:
+
+After using vinegar and baking soda, give the bottle a good rinse with warm, soapy water (dish soap works well).
+
+Shake it again and let it sit for a few minutes before rinsing with warm water.
+
+6. Final Rinse with Clean Water:
+
+Rinse thoroughly to remove all soap, vinegar, and baking soda residue.
+
+7. Air Dry:
+
+Let the bottles air dry upside down to ensure no water is trapped inside, which could promote mold growth.
+
+Other Optional Add-ons:
+
+Hydrogen Peroxide (if sterilization is needed): For extra sanitation, fill the bottle with a 3% hydrogen peroxide solution after cleaning and let it sit for 10 minutes before a final rinse.
+
+Lemon Juice: Can also be added for an extra antibacterial boost and fresh scent.
+
+					 Stage 2: Drying
+
+									1. Prevents Moisture Absorption
+
+Many plastics, especially those commonly used in 3D printing (such as PLA, ABS, PETG, and Nylon), are hygroscopic, meaning they absorb moisture from the air over time. When filament absorbs water, it can create several issues during the printing process.
+
+2. Improves Print Quality
+
+When moist filament is heated in the printer’s extruder, the absorbed water can vaporize, leading to small steam bubbles. These bubbles can cause:
+
+Inconsistent extrusion: The filament might not flow smoothly, leading to rough or uneven surfaces.
+
+Poor adhesion: The layers of the print might not stick together well, resulting in weaker structures.
+
+Stringing and oozing: Water vapor can cause filament to string between movements, leaving unwanted thin threads of plastic on the print.
+
+By drying the filament, you reduce these risks and improve the overall quality of the prints.
+
+3. Enhances Dimensional Accuracy
+
+Moist filament can cause inconsistent extrusion, leading to variances in the thickness of the printed layers. This results in poor dimensional accuracy, where the final print might not match the desired measurements. Drying filament ensures consistent flow, improving the precision of printed objects.
+
+4. Increases Mechanical Strength
+
+Parts printed with moist filament tend to be more brittle and less durable due to the internal flaws (such as voids from steam bubbles) introduced during printing. Drying the filament before use ensures that the printed layers bond more effectively, producing stronger and more reliable parts.
+
+5. Reduces Print Failures
+
+Moist filament can lead to frequent print failures, including:
+
+Clogging of the nozzle: Steam from moisture can cause partial or full blockages in the printer’s nozzle.
+
+Under-extrusion: Filament might not extrude at the expected rate, leading to gaps or weak spots in the print.
+
+Drying the filament helps ensure smooth, consistent extrusion, reducing the chances of failed prints.
+
+6. Critical for High-Performance Materials
+
+For filaments like Nylon, Polycarbonate, or TPU, which are even more susceptible to moisture, drying is crucial to achieve optimal performance. These materials are often used for parts requiring high strength or temperature resistance, and any moisture can significantly impact their properties.
+
+					 Stage 3: Stripping
+
+									WIP
+
+					 Stage 4: Filamentization
+
+									WIP
+
+					 Stage 5: Printing
+
+									WIP

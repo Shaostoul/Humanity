@@ -1,0 +1,77 @@
+# Volunteers
+(https://shaostoul.com/fam/volunteers/ | 2017-12-24T12:00:47)
+
+Michael Boisson ~ Shaostoul
+
+									Name: Michael Boisson
+Username: Shaostoul
+Joined: 2017
+Contributing as: Founder, Game/Web Developer (2D art, 3D art, sound design, level design, programming, Unity3D), Business Relations, Public Relations, Marketing, Discord Administrator/Moderator, Community Manager, Onboarding, Advocate, Social Media Manager, Videographer
+
+					 Kevin Glaubitz ~ PagalSteel
+
+									Name: Kevin Glaubitz
+Username: Pagan Steel
+Joined: 2017
+Contributing as: Family, investor, mentor,
+Summary: How to quickly sum up 60 years of life? My name is Kevin Glaubitz, I was born in Southern California. I joined a volunteer department at 17. After High School I joined the California Conservation Corps and was stationed in the Humboldt Redwoods.I eventually joined the U.S. Navy and volunteered for Submarine Service. And was trained to be an Electronics Technician. My first station was in Bangor Washington, I also bought my first computer there. An Amiga 1000. My second Station was in Cape Canaveral Florida, where I met and married my wife, Destiny, she had two sons Matthew and Michael.After we were married, my next station was back at Bangor Washington. Destiny and I had a son, Paul.
+I did the rest of my Career at Bangor, a full 20 years. I raised the 3 boys to be men of conscience, and thought. I built my own computers from time to time, as technology advanced. I played video games on computers, and the Internet when it became affordable, and board games with friends. Favorite Computer game is City of Heroes, favorite Board game is Battletech.
+After the NAVY, I landed a job with the Department of Defense, working on Submarines.Where I still work.
+I have 2 3D printers, a Prusa MK3S, and a Phrozen Sonic mini 4K.
+
+					 Destiny Glaubitz ~ Dizzy
+
+									Name: Destiny Glaubitz
+Username: Dizzy
+Joined: 2017
+Contributing as: Family, investor, mentor,
+Summary: My name is Destiny Glaubitz, my focus for Project Universe is Care-giving and Farming. I am an entrepreneur in care-giving, death doula/soul midwifery, minister, cosmetologist, hypnotherapist, NLP practitioner, and psychic medium.My Mother was born and raised in Missouri, she had 6 siblings and they all slept in one room on one bed. She and her family picked cotton to make money for food and utilities.
+My Father was born and raised in Key West, he had 1 sibling. He was always in the ocean, he brought home seafood everyday, sold shells and coral for money.
+I was born and raised in Key west.
+We depended upon the sea and the mature landscape that gave us edible offerings.
+My mother at times had to count our vegetable so everyone at the same nutrition, ie. 12 peas or 8 green beans. As a child I didn't know better but I was happy and loved. The fresh food we consumed daily made our health optimum.
+Fast forward to today, I'm a mother with 3 biological sons and a few kids that we “adopted” so they could have a chance to a normal life and adulthood. Love them all.
+Living in the PNW gave us totally different obstacles than my childhood experience.
+
+					 Matthew Boisson ~ R1BC4G35SP3LNKR
+
+									Name: Matthew Boisson
+Username: R1BC4G3SP3LNKR
+Joined: 2017
+Contributing as: Family, investor, mentor, web developer, business developer
+Summary: I was first introduced to the internet in 1993, when I was seven years old. This is when I played some of the first internet based games, at that point I realized that I would pursue a career working around the internet as I wasn't impressed by the lack of a graphic user interface or rather lack of graphics in general. I additionally recognized that education as we knew it would be changing in the near future.Started my first business in 2006 selling European automotive performance products. By 2008 the business has opened up to carrying Japanese and American domestic performance products as well.
+Started my second business in 2009 following the recession of 2008 where the goal was to rebuild my home town as much as I could by providing business development services oriented to serve those in economically depressed areas. I ran this business until 2021 where the mandates annihilated most of my clients leaving me to pivot once more. I have watched Michael's endeavour closely, offered criticism where it was needed, and have been happy to watch this grow into what it is today. I am proud to be here supporting him and this project.
+
+					 Paul Glaubitz ~ ErectRooster
+
+									Name: Paul Glaubitz
+Username: ErectRooster
+Joined: 2017
+Contributing as: Family, investor, mentor, web developer, business developer
+Summary: Paul is Michael's younger brother. When they were young Michael taught him how to play video games. Took wrestling in school, performed exceptionally well. With a penchant for respect & honor he joined the US Marine Corps. Upon serving 4 years in the Marine Corps he used his GI bill to get a house & has essentially been retired since. He helps his friends without expectation of payment. He's fiercely loyal to those he cares about. He’s pragmatic about life.He wants to do more to help humanity & Project Universe provides him the opportunity to contribute in any way he can.
+
+					 Jasmine Diaz ~ Respectable Shmeckle
+
+									Name: Jasmine Diaz
+Username: Badonkaconck
+Joined: 2019
+Contributing as: Family, investor, mentor,
+Summary: Jasmine studied business, art, science, philosophy, & human psychology. She’s worked a great deal as a teacher of life skills for everyone she has the opportunity to help. She often compassionately helps others without expectation of reward. She believes there’s a significant advantage to voluntarily collaborating & supporting one another. She fosters the cooperative caring mindset to every group she’s a part of.
+
+					 Patrick McGuinness ~ CDR Ash
+
+									Name: Patrick McGuinness
+Username: CDR Ash
+Joined: 2019
+Contributing as: Unity developer, 2D/3D artist, level design
+Summary: Patrick McGuinness has been programming and modeling for the last six years, refining his skills and capabilities. He joined Project Universe in late 2019 while on the mend from a serious illness and has spent the last three years developing the game. Involved in both the conceptual and practical design of the game, he has worked tirelessly to bring the game to life. Recent progress has nearly completed a demo of several core features of the game, including inventory, power, equipment, mining, production, environmental systems, and a nuclear reactor. He has especially enjoyed the math behind the nuclear, radiation, and power systems, as well as the challenge of implementing those systems into the game.
+
+					 Nathan Ruesch ~ HaloReach252
+
+									Name: Nathan Ruesch
+Username: HaloReach252
+Joined: 2019
+Contributing as:
+Summary: I got my first computer at the age of 5, and have been hooked on creating ever since. My first foray into creating stuff was with the Warcraft 3 World Editor, where I would create melee maps for me to play with AI. When I turned 12, I started looking into game dev as a potential career, and found Unity. The first project I made was with the ball rolling tutorial they had at the time. I followed it, then made a few things myself such as powerups and enemies.The first game I released was for the dreamhack jam. It was a bullet hell game inspired by Realm of the Mad God. I worked in a duo, with them doing art and me code. The next project I released was a solo game, made for the Ludum Dare game jam. It was LD42 and ran in August of 2018. I made a game where you were stuck in a warehouse while a teleporter endlessly spawned boxes and threw them around the room, and you had to dodge them.
+In December of 2021, I got married to the love of my life. 3 months later in March of 2022 we found out she was pregnant! It was unexpected, but we were happy nonetheless. In November of 2022, my first born daughter was born.
+I’m excited to see where my life goes!

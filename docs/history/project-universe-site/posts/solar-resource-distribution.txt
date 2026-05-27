@@ -1,0 +1,4 @@
+# Solar Resource Distribution
+(https://shaostoul.com/game/solar-resource-distribution/ | 2023-12-13T00:05:24)
+
+This post is dedicated to raw resource distribution in solar systems; we're using our solar system as the default example. This data was originally assembled by a volunteer within our Discord community and is now open to the public to refine further as comments here or within our Discord.

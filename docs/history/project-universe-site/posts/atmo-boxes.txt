@@ -1,0 +1,4 @@
+# Atmo Boxes
+(https://shaostoul.com/game/features/atmo-boxes/ | 2023-06-12T14:59:35)
+
+Whether it's in space or on Earth humans require a specific type of atmosphere to live. These atmo boxes let us know the oxygen level, atmospheric pressure, temperature, and toxicity level of the room we're in and/or entering. We don't want to accidentally enter a room exposed to the vacuum of space without wearing our spacesuit!

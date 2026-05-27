@@ -1,0 +1,4 @@
+# From Reactor To Routers Then Substations Then Rooms
+(https://shaostoul.com/game/features/from-reactor-to-routers-then-substations-then-rooms/ | 2023-07-05T13:42:09)
+
+Power for homeships are generated at reactors, that power then flows to routers which then distributes power to substations then breaker rooms. Excluding shutting off the reactor, routers are the best way of turning power on/off for large sections of the ship.

@@ -1,0 +1,10 @@
+# Project Universe v1.0.2
+(https://shaostoul.com/game/build/project-universe-v1-0-2/ | 2023-06-16T19:04:09)
+
+Project Universe Alpha 1.0.2.zip
+Good new everyone! The next build is here! Thanks to community feedback we're already identifying bugs and squashing 'em!
+Reactor controls have been largely finished, and most of the reactor behavior is done
+Render state manger is much less likely to trip up, so the ship stops disappearing
+Esc now closes the inventory and game menu
+Jump sound fixes
+Elevator sound control improvements. Fixed some bugs with the core coolant

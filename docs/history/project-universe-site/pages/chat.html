@@ -1,0 +1,184 @@
+<!-- id=9029 | https://shaostoul.com/chat/ | 2024-12-27T16:22:56 -->
+<h1>Chat</h1>
+		<div data-elementor-type="wp-page" data-elementor-id="9029" class="elementor elementor-9029" data-elementor-post-type="page">
+				<div class="elementor-element elementor-element-26e8a9a e-flex e-con-boxed e-con e-parent" data-id="26e8a9a" data-element_type="container" data-e-type="container">
+					<div class="e-con-inner">
+				<div class="elementor-element elementor-element-2bf47eb elementor-widget elementor-widget-text-editor" data-id="2bf47eb" data-element_type="widget" data-e-type="widget" data-widget_type="text-editor.default">
+				<div class="elementor-widget-container">
+									<p>This is a super simple lightweight anonymous chat service. Presently users are anon###. The chat is stored in memory via Nginx, but will be upgraded to SQLite for conversational persistence and eventually with registered user support. This is meant to function on websites, in the Project Universe video game (consoles/PCs), and the mobile app allowing for chatting anywhere with anyone. It will be extremely customizable allowing users to tailor their experience to their exact needs, including disconnecting from our official servers if desired. This minimum viable product was completed on January 4, 2025. Updates to come over the coming days/weeks/months. I&#8217;m using this as a method of learning SSH, connecting multiple servers together, and more.<br /><br />For now you all you do is type a message, left-click send (I have to add enter support), and that&#8217;s it! Upon clearing cookies you&#8217;ll be assigned a new anon###.</p>								</div>
+				</div>
+					</div>
+				</div>
+		<div class="elementor-element elementor-element-be597c2 e-flex e-con-boxed e-con e-parent" data-id="be597c2" data-element_type="container" data-e-type="container">
+					<div class="e-con-inner">
+				<div class="elementor-element elementor-element-18d54a4 elementor-widget elementor-widget-html" data-id="18d54a4" data-element_type="widget" data-e-type="widget" data-widget_type="html.default">
+				<div class="elementor-widget-container">
+					<!-- START OF CHAT SNIPPET -->
+<div>
+  <h2>Project Universe Chat</h2>
+  <div id="chatLog" 
+     style="
+       min-height:200px;
+       border:1px solid #008000;
+       padding:1rem;
+       margin-bottom:1rem;
+       overflow:auto;
+       background-color: black;
+       color: white;
+     ">
+    <!-- Messages will appear here -->
+  </div>
+  <input type="text" id="messageInput" placeholder="Type a message..." style="width:80%;" />
+  <button id="sendBtn">Send</button>
+</div>
+
+<!-- Subscriptions-Transport-WS library from a CDN -->
+<script src="https://cdn.jsdelivr.net/npm/subscriptions-transport-ws@0.11.0/browser/client.js"></script>
+
+<script>
+(async function () {
+  try {
+    // Fetch WordPress username or fallback to anon
+    const res = await fetch('https://shaostoul.com/wp-json/mychat/v1/auth', {
+      credentials: 'include',
+    });
+    const data = await res.json();
+
+    let username;
+
+    if (data.logged_in) {
+      username = data.username; // Use WordPress username
+      console.log('Logged in user:', username);
+    } else {
+      username = localStorage.getItem('chatAnonUsername');
+      if (!username) {
+        username = `Anon${Math.floor(Math.random() * 1000)}`;
+        localStorage.setItem('chatAnonUsername', username);
+      }
+      console.log('Anonymous user:', username);
+    }
+
+    localStorage.setItem('chatUsername', username);
+    console.log(`Final username set to: ${username}`);
+
+    // GraphQL Endpoints
+    const HTTP_ENDPOINT = 'https://chat.shaostoul.com/graphql';
+    const WS_ENDPOINT = 'wss://chat.shaostoul.com/graphql';
+
+    // WebSocket client for subscriptions
+    const wsClient = new window.SubscriptionsTransportWs.SubscriptionClient(
+      WS_ENDPOINT,
+      {
+        reconnect: true,
+        connectionParams: {
+          username: username, // Pass username with WebSocket connection
+        },
+      }
+    );
+
+    // Subscription query
+    const subscriptionQuery = `
+      subscription OnMessageAdded($roomName: String!) {
+        messageAdded(roomName: $roomName) {
+          sender
+          text
+          timestamp
+        }
+      }
+    `;
+
+    wsClient.request({
+      query: subscriptionQuery,
+      variables: { roomName: 'master' },
+    }).subscribe({
+      next({ data }) {
+        console.log('Subscription data received:', data);
+        if (!data || !data.messageAdded) return;
+
+        const { sender, text, timestamp } = data.messageAdded;
+        const chatLog = document.getElementById('chatLog');
+        const p = document.createElement('p');
+        p.innerText = `${sender}: ${text} (${new Date(timestamp).toLocaleTimeString()})`;
+        chatLog.appendChild(p);
+        chatLog.scrollTop = chatLog.scrollHeight; // Auto-scroll
+      },
+      error(err) {
+        console.error('Subscription error:', err);
+      },
+    });
+
+    // Mutation query
+    const mutationQuery = `
+      mutation SendMessage($roomName: String!, $text: String!) {
+        sendMessage(roomName: $roomName, text: $text) {
+          sender
+          text
+          timestamp
+        }
+      }
+    `;
+
+function sendMessage(text) {
+  console.log('Sending message:', text); // Log the message being sent
+  return fetch('https://chat.shaostoul.com/graphql', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-username': localStorage.getItem('chatUsername') || 'anon', // Pass username
+    },
+    body: JSON.stringify({
+      query: `
+        mutation SendMessage($roomName: String!, $text: String!) {
+          sendMessage(roomName: $roomName, text: $text) {
+            sender
+            text
+            timestamp
+          }
+        }
+      `,
+      variables: {
+        roomName: 'master',
+        text: text,
+      },
+    }),
+  })
+    .then((res) => {
+      console.log('Response status:', res.status); // Log response status
+      return res.json();
+    })
+    .then((json) => {
+      if (json.errors) {
+        console.error('Mutation errors:', json.errors); // Log any errors
+        throw new Error('Failed to send message');
+      }
+      console.log('Mutation result:', json.data.sendMessage); // Log successful result
+      return json.data.sendMessage;
+    })
+    .catch((error) => {
+      console.error('Failed to send message:', error); // Log fetch errors
+    });
+}
+
+
+    // Send message on button click
+    document.getElementById('sendBtn').addEventListener('click', () => {
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if (!text) return;
+      sendMessage(text).then((msg) => {
+        console.log('Message sent successfully:', msg);
+        input.value = '';
+      });
+    });
+  } catch (error) {
+    console.error('Error initializing chat:', error);
+  }
+})();
+</script>
+<!-- END OF CHAT SNIPPET -->
+				</div>
+				</div>
+					</div>
+				</div>
+				</div>
+		

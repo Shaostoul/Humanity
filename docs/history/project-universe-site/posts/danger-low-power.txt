@@ -1,0 +1,4 @@
+# Danger: Low Power
+(https://shaostoul.com/game/features/danger-low-power/ | 2023-07-05T13:26:14)
+
+Whether it be intentional, you've run out of fuel/battery power, been attacked resulting in the need to enact repairs, or something else, a ship without power is a dangerous place. The most obvious threat is you're now running out of oxygen and may not have access to more until restoring power.

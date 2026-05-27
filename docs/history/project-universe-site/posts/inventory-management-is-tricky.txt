@@ -1,0 +1,4 @@
+# Inventory Management Is Tricky
+(https://shaostoul.com/game/features/inventory-management-is-tricky/ | 2023-07-05T13:19:09)
+
+We want to give players the best control of their character, character's equipment/inventory, homeship's inventory, and so forth. Ideally it'll be as user friendly as possible, especially when players start gathering large amounts of resources.

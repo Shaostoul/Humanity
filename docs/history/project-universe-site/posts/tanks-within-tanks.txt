@@ -1,0 +1,4 @@
+# Tanks Within Tanks
+(https://shaostoul.com/game/features/tanks-within-tanks/ | 2023-07-05T13:33:31)
+
+Spacecraft are just containers within containers within containers. If one container happens to carry a large amount of water and it breaks that water is now filling another container; unless of course it's venting straight to space! Water is incredibly dangerous in space, so keep an eye out on water levels to make sure you haven't sprung a leak.

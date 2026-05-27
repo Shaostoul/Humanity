@@ -1,0 +1,4 @@
+# Steam to Electricity
+(https://shaostoul.com/game/features/steam-to-electricity/ | 2023-06-24T16:45:54)
+
+Regardless of how we generate steam (nuclear, coal, solar, or otherwise) we harness its power by spinning turbines to generate electricity.

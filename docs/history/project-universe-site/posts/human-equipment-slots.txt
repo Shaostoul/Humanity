@@ -1,0 +1,72 @@
+# Human Equipment Slots
+(https://shaostoul.com/game/human-equipment-slots/ | 2023-05-05T15:34:28)
+
+Left Arm
+Shoulder
+Upper Arm
+Elbow
+Forearm
+Wrist
+Hand
+Palm
+Thumb Finger
+Index Finger
+Middle Finger
+Ring Finger
+Pinky Finger
+
+									Left Leg
+Hip
+Thigh
+Knee
+Shin
+Ankle
+Foot
+Sole
+Thumb Toe
+Index Toe
+Middle Toe
+Ring Toe
+Pinky Toe
+
+									Head
+Cap
+Eyes
+Ears
+Nose
+Mouth
+Neck
+
+									Torso
+Chest
+Back
+Waist
+Groin
+
+									Righ Leg
+Hip
+Thigh
+Knee
+Shin
+Ankle
+Foot
+Sole
+Thumb Toe
+Index Toe
+Middle Toe
+Ring Toe
+Pinky Toe
+
+									Right Arm
+Shoulder
+Upper Arm
+Elbow
+Forearm
+Wrist
+Hand
+Palm
+Thumb Finger
+Index Finger
+Middle Finger
+Ring Finger
+Pinky Finger

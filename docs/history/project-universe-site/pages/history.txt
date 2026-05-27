@@ -1,0 +1,36 @@
+# History
+(https://shaostoul.com/personal/history/ | 2023-05-22T00:32:45)
+
+1988 January 29 3:12AMMichael Patrick Boisson born in Tampa, Florida, USA, Earth, Sun Solar System, Milky Way Galaxy.
+
+1992First introduced to video games via the NES with Mario/Duck Hunt and Ninja Turtles.
+
+1994First introduced to computers via Dad's Amiga 4000 then began learning game development by modifying existing and creating custom code for Master of Magic, Magic Carpet, BattleTech Crescent Hawk’s Inception, Frontier Elite 2.
+
+2003Began creating custom games for WarCraft 3: The Frozen Throne; first introduction to easy to use developer tools packaged with the game
+
+ 2004Began learning 3D modeling via Rhino3D to add spaceships to Freelancer
+Sought a unique username for use in video games as previous names were taken; decided on Shaostoul after googling returned zero results.
+
+2005Began learning Computer Aided Design (AutoCAD 2000) CAD/3D modeling in high-school for 3D printing.
+
+2006Graduated high-school then began modding, creating tutorials for modding, and helping others mod Dwarf Fortress.
+
+2014Began modding, creating tutorials for modding, and helping others mod Space Engineers.
+First introduced to Physically Based Rendering (PBR) for in-game textures.
+Began using Blender3D as primary modeling software.
+
+2016 MayRendered bedridden via life-threatening intestinal bleeding, cause later deemed Ulcerative Colitis/Crohn’s disease. Lost ability to hold a job, couldn’t sit at and use my computer, resorted to helping others mod Space Engineers via cellphone. Community donations/gifts have given me everything I have today.
+
+2017 December 24Dedicated my life to humanity’s betterment however possible as thanks for humanity helping me stay alive. Went to the ER a week before Christmas when Crohn’s disease complications led to a fistula which became infected with e-coli and salmonella causing sepsis and nearly killed me. On Christmas Eve I returned home from the hospital after a week in the ICU. This experience forced me to rethink my life which led to Project Universe's creation.
+
+2018 MarchGuest spoke at Emerald City Comic Con about the benefits of video game modding on individuals, communities, and developers. Marek Rosa the CEO of Keen Software House sponsored fellow modders Matt Finch, Daniel Osborne, Brant Martin, and myself to go.
+
+2019 January 28Invited humanity to voluntarily join me in researching and developing means of permanently ending poverty in hopes of uniting humanity via Project Universe.
+
+2019 DecemberSwitched Project Universe from CryEngine/Lumberyard to the Unity game engine.
+Patrick McGuinness (CDR Ash on Discord) becomes lead game developer so I can develop the website, learn how to start/run a business, run the social media presence, learn what humanity's already doing to end poverty and how to integrate that into the game, etc.
+
+2020Quarantines hit, many volunteers disappear, development slows down significantly.
+
+2023 May 30First publicly playable early development build of Project Universe made available to download.

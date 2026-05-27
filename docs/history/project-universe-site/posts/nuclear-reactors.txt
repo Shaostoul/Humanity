@@ -1,0 +1,4 @@
+# Nuclear Reactors
+(https://shaostoul.com/game/features/nuclear-reactors/ | 2023-06-24T19:47:11)
+
+Nuclear reactors use radioactive material (IE: Uranium-235) to boil water creating steam spinning turbines generating reliably consistent electricity. Nuclear reactors are steam engines. There are multiple ways of dealing with nuclear waste. The simplest is ejecting them into space. There's fungus which consumes radiation. We can turn it into ammunition with better penetration than lead.

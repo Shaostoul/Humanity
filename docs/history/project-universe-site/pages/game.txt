@@ -1,0 +1,86 @@
+# Game
+(https://shaostoul.com/game/ | 2024-02-11T20:00:05)
+
+Project Universe: The Game
+Preamble
+This webpage offers a meager glimpse into Project Universe's overall form.
+A perpetual work-in-progress irregularly updated 600-ish page book going into more detail about every aspect is available on docs.shaostoul.com/
+All documentation, including stuff not in the book, is available as a GitHub repository on github.com/Shaostoul/Project_Universe_Documentation mirroring the same named folder on my computer's storage drive.
+I apologize for the many bugs, errors, and glitches you're likely to encounter utilizing everything involved with Project Universe. I'm learning as I go, thanks for your patience and understanding. Feedback and voluntary contributions of any skill level are welcome, join the Discord! Learning, creating, and fumbling through the darkness together!
+Game Download
+There's a Unity version with a functioning nuclear reactor, semi-decorated spaceship interior, and other features available here.
+Introduction
+We aim to provide an immersive, engaging, and high-quality educational experience. Carefully designed gameplay allows players to learn and practice a broad range of real-world skills—such as farming, building, crafting, and more—in a rich, lifelike environment that mirrors the complexities and challenges of real life. The game encourages hands-on learning through interactive gameplay, allowing players to experiment, solve problems, and acquire valuable knowledge that translates into practical abilities.
+Game Systems
+The game consists of a variety of interconnected systems that players will engage with to live their lives building their self-sustaining futures as a crew member of the fleet. These systems cover everything from resource gathering and farming to building, crafting, energy management, and community development, providing a comprehensive experience that mirrors the complexities of real-world self-sufficiency. These include, but aren't limited to:
+Farming: Cultivate crops, manage resources, and learn realistic farming techniques to produce food, whether on Earth or in space. The farming system mirrors real-world challenges, such as soil quality, irrigation, pests, and seasonal changes. Players will also learn about permaculture, hydroponics, and sustainable agriculture methods.
+
+Building: Construct homes, workshops, greenhouses, and community spaces using various materials like wood, metal, stone, and composites. Players will learn foundational construction techniques that can be applied in real life, focusing on safety, efficiency, and sustainability. The building system includes designing layouts, reinforcing structures, and working with limited resources to create energy-efficient, durable spaces.
+
+Crafting: Gather raw materials like wood, minerals, and metals to craft tools, furniture, clothes, and other essential items necessary for daily life. Crafting encourages creativity, problem-solving, and the efficient use of available resources. The crafting system also includes advanced skills such as metalworking, woodworking, textiles, and electronics.
+
+Cooking & Nutrition: Learn to prepare nutritious meals using the crops you grow, hunted game, or ingredients gathered from the environment. The cooking system emphasizes health, dietary balance, and food preservation methods like drying, fermenting, and canning. Players will also learn about the nutritional values of different ingredients and how to plan meals for a balanced diet.
+
+Exploring & Resource Gathering: Venture out into unknown environments to gather essential resources, discover new opportunities, and expand your territory. Exploration will teach navigation, survival skills, and adaptability in challenging conditions, including identifying edible plants, gathering medicinal herbs, and locating water sources. The game encourages players to adapt to various biomes, whether they are forests, deserts, mountains, or oceans.
+
+Water Management: Collect and purify water for drinking, farming, and other daily needs. Players will learn about rainwater harvesting, filtration systems, irrigation techniques, and water conservation practices, which are crucial for maintaining a self-sufficient homestead, especially in arid environments.
+
+Energy Production: Generate power to sustain your homestead using renewable energy sources like solar panels, wind turbines, or hydroelectric generators. The energy system will teach players about setting up and maintaining off-grid power solutions, including energy storage and managing consumption efficiently.
+
+Waste Management & Recycling: Manage waste effectively by composting organic materials, recycling scrap metal and plastics, and minimizing overall waste production. Players will learn how to turn waste into valuable resources, such as compost for farming or materials for crafting, promoting a zero-waste lifestyle.
+
+Animal Husbandry: Raise livestock like chickens, goats, bees, and fish to produce food, materials, and other resources. Players will learn how to care for animals, breed them, and use their products effectively, such as collecting eggs, milk, honey, and wool. The system emphasizes humane treatment and the interdependence between animals and humans in a sustainable ecosystem.
+
+Healthcare & First Aid: Learn to manage basic healthcare needs, from treating minor injuries to addressing common ailments. Players will gain knowledge of natural remedies using herbs, setting up a basic first aid kit, and understanding human physiology to care for themselves and others during emergencies.
+
+Trade & Economy: Establish trade with NPCs or other players to exchange surplus goods and acquire what you need. The economic system will cover bartering, setting up local markets, and understanding supply and demand. This system fosters collaboration and the importance of community in building self-sufficiency.
+
+Community Building: Collaborate with NPCs or other players to build a thriving community. Players will learn leadership, communication, and organizational skills by working together to achieve common goals, such as building communal infrastructure, sharing resources, and organizing events or activities to improve the quality of life.
+
+Skill Progression & Education: Develop your character by gaining proficiency in various trades and skills. Players can advance from beginner to expert in fields like carpentry, welding, herbal medicine, and more. This progression system is designed to emulate a lifelong learning experience, providing a sense of accomplishment as new skills are mastered.
+
+Game Lore
+The lore of Project Universe introduces players to humanity's greatest endeavor: an interstellar journey to secure a future among the stars. Before the game begins, humanity has already embarked on a bold mission—launching the first fleet of interstellar colony ships to explore and settle distant worlds. This fleet represents the culmination of human adaptability and technological prowess, serving as a prototype for future space colonization.
+Humanity's Grand Fleet
+The expedition fleet is a testament to humanity's bold spirit, with a capacity rivaling the population of Earth. Comprised of massive colony ships, mid-sized research and industrial habitats, and smaller craft, the fleet is an adaptable network capable of connecting and transforming based on the challenges faced during the journey. Players are the crew of this fleet—explorers, scientists, and pioneers tasked with shaping humanity's future beyond the solar system.
+The fleet's mission is a critical experiment in sustainability and expansion. Players must grapple with managing resources like air, water, food, and energy while contending with the logistics of providing for a vast population. The lessons learned aboard this expedition will shape the future of human space colonization, serving as a crucial experiment in how humanity can sustain itself and thrive in deep space.
+The Main Story Arc
+As players join the game, they step into the roles of ordinary crew members aboard this monumental fleet. The story truly begins with the release of the game, as players navigate the fleet's journey from system to system, facing challenges of self-sustenance, resource management, and expansion. From cultivating crops to managing energy, defending against external threats, and exploring the remnants of ancient civilizations, players have a direct hand in ensuring the success of the fleet and, ultimately, humanity's future among the stars.
+The adventure takes an unexpected turn when the fleet encounters a mysterious Dyson sphere and signs of ancient, long-forgotten civilizations. Players must not only ensure the fleet’s survival but also uncover cosmic secrets that could be the key to humanity's future. This is where the collaborative nature of Project Universe shines—every player’s role, whether in crafting, exploration, research, or leadership, contributes to the unfolding story of humanity's quest to forge a new destiny among the stars.
+Play Methods
+Project Universe is designed to be as versatile as possible to accommodate different play styles and preferences. The game supports multiple play methods:
+Offline Single Player: The goal is to make as much of the game as possible accessible in offline single-player mode. This ensures that even those without a stable internet connection can learn and practice self-sufficiency skills at their own pace.
+
+Cooperative Multiplayer: Real life is inherently cooperative, and so is Project Universe. Players can join friends or other members of the community to collaborate on building, farming, and creating a sustainable lifestyle. Co-op play is about combining strengths and sharing knowledge to thrive together.
+
+Persistent Online World: Project Universe also features a persistent online world where players can interact with others, build communities, and trade resources on a larger scale. This mode supports the growth of thriving societies and gives players the opportunity to contribute to a shared world vision.
+
+Platform Accessibility
+To ensure that Project Universe is accessible to as many people as possible, we are developing it to be compatible with a wide range of devices:
+PC: Full support for PCs, providing the highest level of graphical fidelity and customization.
+
+Consoles: Play on major gaming consoles, making Project Universe accessible to console gamers around the world.
+
+Mobile Devices: We are also working on making a mobile-friendly version of the game, allowing players to access key features and continue their progress on the go.
+
+Other Devices: Our goal is to extend accessibility to other platforms, such as VR headsets for an even more immersive experience and low-spec devices for those with limited hardware capabilities.
+
+Development Approach
+Project Universe is being developed as a free open-source public domain project. These principles are at the heart of what makes Project Universe special:
+Open Source: Project Universe is open source, meaning anyone can inspect, modify, and improve the code. This transparency empowers the community to shape the game and fosters collaboration, innovation, and adaptability. It ensures that the game continues to evolve and adapt based on community needs and contributions.
+
+Free: Project Universe is and always will be free. This means there are no financial barriers to accessing the game or its educational tools. Our mission is to provide opportunities for self-sufficiency to as many people as possible, without cost.
+
+Public Domain: Project Universe is in the public domain, which ensures that it belongs to everyone, not just a select group. Anyone can use, modify, or build upon the game and its systems without restriction. This open accessibility makes it a shared resource for all humanity, supporting our collective journey toward a better future.
+
+How You Can Contribute
+There are many ways to contribute to Project Universe, ranging from direct involvement in the development to providing support in other valuable forms:
+Join the Family: By simply becoming part of our community and spreading the word, you help us grow. At its core, this is the driving force behind uniting humanity. Every new member brings us closer to a united humanity and amplifies our collective impact.
+
+Donations: Financial support is always welcome and helps us maintain development momentum, acquire necessary resources, and expand our reach.
+
+Volunteering Time: Whether you have skills to share or want to learn alongside us, we'd love to have you on board. If you know coding, 3D modeling, game design, or any other valuable skills, you can help speed up development. But even if you're just starting out, there's room for everyone to contribute. None of us know everything needed to make this happen—learning together is part of the journey, and your efforts will enrich the game and our community.
+
+Providing Goods/Services: If you have access to tools, software, hardware, or other resources that could help, contributions of goods or services are invaluable to our effort. This can include anything from donating computers, software licenses, and 3D printers, to offering services like logistics, marketing support, or expertise in specific fields. Every contribution helps us bridge the gap between vision and reality, making it easier for us to progress and achieve our collective goal.
+
+Testing & Feedback: Testing and feedback are crucial aspects of Project Universe's success. Playtesting the game and providing feedback not only helps us improve the experience but also ensures it meets the diverse needs of all players. Feedback is one of the most impactful ways to shape the game, yet it is often underprovided. We encourage everyone to take part—your insights and perspectives.

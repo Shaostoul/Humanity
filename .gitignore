@@ -5,6 +5,10 @@
 *.old.exe
 
 # ── Runtime data (local only, never committed) ──
+# Project Universe (shaostoul.com) archive staging — texts get curated into
+# docs/history/ deliberately; the bulky 2020-era media is staged here for the
+# relay media catalog and must NOT bloat git. See scripts/archive-wordpress.js.
+/_pu-archive/
 /logs/*
 !/logs/.gitkeep
 /saves/*

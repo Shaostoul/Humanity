@@ -1,0 +1,72 @@
+# CCPA Compliance Statement
+(https://shaostoul.com/document/legal/ccpa-compliance-statement/ | 2024-07-17T18:58:39)
+
+At Shaostoul.com and Project Universe, we are committed to protecting the privacy and personal information of our users. This CCPA Compliance Statement outlines our practices in accordance with the California Consumer Privacy Act (CCPA) and provides information about your rights as a California resident.
+
+1. Scope
+
+This statement applies to all personal information we collect from California residents in the course of operating our website and services.
+
+2. Information We May Collect
+
+We may collect the following categories of personal information from California residents:
+
+Identifiers: Such as name, email address, IP address, and other similar identifiers.
+
+Commercial Information: Such as transaction history and purchase information.
+
+Internet Activity: Such as browsing history, search history, and interactions with our website and advertisements.
+
+Geolocation Data: Such as physical location or movements.
+
+Professional or Employment Information: Such as job title and company.
+
+Inferences: Drawn from any of the above information to create a profile about your preferences and behavior.
+
+3. Use of Personal Information
+
+We use the collected personal information for the following business purposes:
+
+Providing Services: To operate, maintain, and provide you with the features and functionality of our website and services.
+
+Improving Services: To understand and analyze how you use our website and services, and to develop new products, services, features, and functionality.
+
+Communications: To communicate with you, including sending you updates, promotional materials, and other information.
+
+Compliance and Protection: To comply with legal obligations, resolve disputes, and enforce our agreements.
+
+4. Sharing Personal Information
+
+We do not sell personal information. However, we may share your personal information with third parties for business purposes, including:
+
+Service Providers: To perform services on our behalf, such as payment processing, data analysis, and marketing assistance.
+
+Business Transfers: In connection with a merger, acquisition, or sale of all or a portion of our assets.
+
+Legal Obligations: To comply with legal requirements, such as responding to subpoenas, court orders, or other legal processes.
+
+5. Your Rights Under CCPA
+
+As a California resident, you have the following rights under the CCPA:
+
+Right to Know: You have the right to request information about the personal information we collect, use, and disclose about you.
+
+Right to Delete: You have the right to request the deletion of your personal information that we have collected, subject to certain exceptions.
+
+Right to Opt-Out: You have the right to opt-out of the sale of your personal information. (Note: We do not sell personal information.)
+
+Right to Non-Discrimination: You have the right to not be discriminated against for exercising your CCPA rights.
+
+6. Exercising Your Rights
+
+To exercise your rights under the CCPA, please contact us at [contact@shaostoul.com]. We will verify your request using the information associated with your account, including your email address. You may designate an authorized agent to make a request on your behalf by providing written permission and verifying your identity.
+
+7. Changes to This Statement
+
+We reserve the right to modify this CCPA Compliance Statement at any time. Any changes will be posted on this page, and it is your responsibility to review this statement periodically. Your continued use of our services after any changes constitutes your acceptance of the new statement.
+
+8. Contact Information
+
+If you have any questions or concerns about this CCPA Compliance Statement or our privacy practices, please contact us at [contact@shaostoul.com].
+
+Thank you for your trust in Shaostoul.com and Project Universe. We are committed to protecting your privacy and ensuring compliance with the CCPA.
