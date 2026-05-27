@@ -47,6 +47,7 @@
     icon_small: 15.78625,
     avatar_size: 32.0,
     avatar_gap: 8.0,
+    pill_radius: 9.0,
     row_height: 15.883123,
     header_height: 16.0,
     border_width: 1.0,

@@ -1341,7 +1341,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
 
   const isBotMsg = fromKey && fromKey.startsWith('bot_');
   const identiconSrc = (!isBotMsg && fromKey) ? generateIdenticon(fromKey, 32) : '';
-  const identiconHtml = isBotMsg ? '<span class="identicon" style="font-size:24px;line-height:32px;text-align:center;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
+  const identiconHtml = isBotMsg ? '<span class="identicon" style="font-size:calc(var(--avatar-size) * 0.75);line-height:var(--avatar-size);text-align:center;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
 
   // Look up role for author badge.
   const peerRole = (peerData[fromKey] && peerData[fromKey].role) ? peerData[fromKey].role : '';

@@ -87,9 +87,21 @@
   --header-height: 16px;
   --content-width: none;
 
-  /* Chat message-row avatar (shared with native widgets/row.rs) */
+  /* Chat message-row avatar + pill (shared with native widgets/row.rs) */
   --avatar-size: 32px;
   --avatar-gap: 8px;
+  --pill-radius: 9px;
+
+  /* Chat section tints — shared with native draw_dm/groups/servers_section */
+  --dm-bg: #2d0f0f;
+  --dm-row-bg: #371414;
+  --dm-row-hover: #461919;
+  --group-bg: #0f2d0f;
+  --group-row-bg: #143714;
+  --group-row-hover: #194619;
+  --server-bg: #0f0f2d;
+  --server-row-bg: #141437;
+  --server-row-hover: #191946;
 }
 /* ======================== END AUTO-GENERATED ======================== */
 

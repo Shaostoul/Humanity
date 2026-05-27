@@ -4318,10 +4318,10 @@ fn paint_timestamp_pill(
     // Pill background — fully OPAQUE so the underlying transparent layout
     // spacer doesn't let message text bleed through. Earlier the alpha
     // was 200 which produced visible text overlap on long pill widths.
-    painter.rect_filled(rect, Rounding::same(9), theme.bg_card());
+    painter.rect_filled(rect, theme.pill_radius, theme.bg_card());
     painter.rect_stroke(
         rect,
-        Rounding::same(9),
+        theme.pill_radius,
         Stroke::new(1.0, theme.border()),
         egui::StrokeKind::Inside,
     );

@@ -175,33 +175,35 @@
 }
 
 /* Context color coding (shared left/right): DMs red, Groups green, Servers blue */
+/* Section tints come from theme.ron (dm_bg/group_bg/server_bg etc.) via the
+   --dm-*/--group-*/--server-* vars — same source native's draw_*_section reads. */
 .unified-section[data-sid="dms"],
 .unified-section[data-usid="friends"] {
-  background: rgba(120, 20, 20, 0.22);
-  border-color: rgba(170, 60, 60, 0.45);
+  background: var(--dm-bg);
+  border-color: var(--dm-row-hover);
 }
 .unified-section[data-sid="groups"],
 .unified-section[data-usid^="group-"] {
-  background: rgba(24, 92, 32, 0.22);
-  border-color: rgba(74, 168, 88, 0.42);
+  background: var(--group-bg);
+  border-color: var(--group-row-hover);
 }
 .unified-section[data-sid="servers"],
 .unified-section[data-usid^="server-"] {
-  background: rgba(24, 46, 110, 0.22);
-  border-color: rgba(86, 130, 220, 0.42);
+  background: var(--server-bg);
+  border-color: var(--server-row-hover);
 }
 
 .unified-section[data-sid="dms"] > .unified-header,
 .unified-section[data-usid="friends"] > .unified-header {
-  background: rgba(120, 20, 20, 0.34);
+  background: var(--dm-row-bg);
 }
 .unified-section[data-sid="groups"] > .unified-header,
 .unified-section[data-usid^="group-"] > .unified-header {
-  background: rgba(24, 92, 32, 0.34);
+  background: var(--group-row-bg);
 }
 .unified-section[data-sid="servers"] > .unified-header,
 .unified-section[data-usid^="server-"] > .unified-header {
-  background: rgba(24, 46, 110, 0.34);
+  background: var(--server-row-bg);
 }
 
 /* Scratchpad — local-only top row (native parity).

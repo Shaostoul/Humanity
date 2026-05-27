@@ -35,7 +35,7 @@
   padding: 0 6px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--pill-radius);
   font-size: var(--text-xs);
   line-height: 1.7;
   white-space: nowrap;

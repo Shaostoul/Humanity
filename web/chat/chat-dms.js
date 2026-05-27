@@ -124,7 +124,7 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
 
   const isBotMsg2 = fromKey && fromKey.startsWith('bot_');
   const identiconSrc = (!isBotMsg2 && fromKey) ? generateIdenticon(fromKey, 32) : '';
-  const identiconHtml = isBotMsg2 ? '<span class="identicon" style="font-size:24px;line-height:32px;text-align:center;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
+  const identiconHtml = isBotMsg2 ? '<span class="identicon" style="font-size:calc(var(--avatar-size) * 0.75);line-height:var(--avatar-size);text-align:center;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
   const e2eeBadge = isEncrypted ? '<span class="dm-e2ee" title="End-to-end encrypted" style="opacity:0.6;margin-left:var(--space-xs);">' + hosIcon('lock', 12) + '</span>' : '';
 
   el.innerHTML = `

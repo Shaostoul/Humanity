@@ -72,6 +72,9 @@ pub struct Theme {
     pub avatar_size: f32,
     #[serde(default = "default_avatar_gap")]
     pub avatar_gap: f32,
+    // Chat timestamp-pill corner radius. Shared with web (--pill-radius).
+    #[serde(default = "default_pill_radius")]
+    pub pill_radius: f32,
     #[serde(default = "default_row_height")]
     pub row_height: f32,
     #[serde(default = "default_header_height")]
@@ -469,6 +472,7 @@ fn default_icon_size() -> f32 { 32.0 }
 fn default_icon_small() -> f32 { 16.0 }
 fn default_avatar_size() -> f32 { 32.0 }
 fn default_avatar_gap() -> f32 { 8.0 }
+fn default_pill_radius() -> f32 { 9.0 }
 fn default_row_height() -> f32 { 18.0 }
 fn default_header_height() -> f32 { 36.0 }
 fn default_border_width() -> f32 { 1.0 }
@@ -575,6 +579,7 @@ fn default_theme() -> Theme {
         icon_small: 16.0,
         avatar_size: 32.0,
         avatar_gap: 8.0,
+        pill_radius: 9.0,
         row_height: 18.0,
         header_height: 36.0,
         border_width: 1.0,

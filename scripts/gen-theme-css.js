@@ -185,9 +185,21 @@ function buildCss(tokens) {
   lines.push(`  --header-height: ${n(t.header_height, 24)}px;`);
   lines.push(`  --content-width: none;`);
   lines.push('');
-  lines.push('  /* Chat message-row avatar (shared with native widgets/row.rs) */');
+  lines.push('  /* Chat message-row avatar + pill (shared with native widgets/row.rs) */');
   lines.push(`  --avatar-size: ${n(t.avatar_size, 32)}px;`);
   lines.push(`  --avatar-gap: ${n(t.avatar_gap, 8)}px;`);
+  lines.push(`  --pill-radius: ${n(t.pill_radius, 9)}px;`);
+  lines.push('');
+  lines.push('  /* Chat section tints — shared with native draw_dm/groups/servers_section */');
+  lines.push(`  --dm-bg: ${c('dm_bg')};`);
+  lines.push(`  --dm-row-bg: ${c('dm_row_bg')};`);
+  lines.push(`  --dm-row-hover: ${c('dm_row_hover')};`);
+  lines.push(`  --group-bg: ${c('group_bg')};`);
+  lines.push(`  --group-row-bg: ${c('group_row_bg')};`);
+  lines.push(`  --group-row-hover: ${c('group_row_hover')};`);
+  lines.push(`  --server-bg: ${c('server_bg')};`);
+  lines.push(`  --server-row-bg: ${c('server_row_bg')};`);
+  lines.push(`  --server-row-hover: ${c('server_row_hover')};`);
   lines.push('}');
   lines.push(END);
 
