@@ -72,6 +72,18 @@
   font-weight: 600;
 }
 .channel-item::before { content: '# '; opacity: 0.6; }
+.channel-item .ch-label { vertical-align: middle; }
+/* Property badges (eye = read-only, node-graph = federated) — mirror native's
+   channel status icons; muted, brightening to accent on the active channel. */
+.channel-item .ch-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  color: var(--text-muted);
+  vertical-align: middle;
+  opacity: 0.8;
+}
+.channel-item.active .ch-badge { color: var(--accent); opacity: 0.95; }
 
 #channel-header {
   background: var(--bg-secondary);

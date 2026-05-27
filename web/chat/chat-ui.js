@@ -5,6 +5,12 @@
 //   esc, switchChannel, openDmConversation, sendMessage)
 // ─────────────────────────────────────────────────────────────────────────
 
+// Channel property badges — mirror native's channel status icons
+// (src/gui/pages/chat.rs paint_eye / paint_federation), muted color, drawn
+// after the channel name. Eye = read-only, node-graph = federated.
+const CH_BADGE_READONLY = '<span class="ch-badge" title="Read-only — only admins/mods can post"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.6 8C3.1 5.1 5.3 3.8 8 3.8s4.9 1.3 6.4 4.2C12.9 10.9 10.7 12.2 8 12.2S3.1 10.9 1.6 8Z"/><circle cx="8" cy="8" r="1.8" fill="currentColor" stroke="none"/></svg></span>';
+const CH_BADGE_FEDERATED = '<span class="ch-badge" title="Federated channel"><svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor"><g stroke="currentColor" stroke-width="1"><line x1="8" y1="8" x2="8" y2="2.8"/><line x1="8" y1="8" x2="3.5" y2="10.6"/><line x1="8" y1="8" x2="12.5" y2="10.6"/></g><circle cx="8" cy="8" r="1.9"/><circle cx="8" cy="2.8" r="1.4"/><circle cx="3.5" cy="10.6" r="1.4"/><circle cx="12.5" cy="10.6" r="1.4"/></svg></span>';
+
 // ── Key Bindings ──
 document.getElementById('name-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') connect();
@@ -1302,45 +1308,18 @@ var federatedServersFetched = false;
     const isCollapsed = collapsed.has('Humanity');
     const myRoleCh = (window.myPeerRole || '').toLowerCase();
 
-    // Standard channels rendered as monochromatic icon buttons on the server header row.
-    // SVG icons mirror the hub-nav rounded-square aesthetic.
-    const PINNED_CHANNELS = {
-      welcome: {
-        tip: 'Welcome',
-        icon: `<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M14 2H2a1 1 0 00-1 1v8a1 1 0 001 1h3v3l4-3h5a1 1 0 001-1V3a1 1 0 00-1-1zM6 8H4V7h2v1zm3 0H7V7h2v1zm3 0h-2V7h2v1z"/></svg>`,
-      },
-      rules: {
-        tip: 'Rules',
-        icon: `<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M11 1H5a2 2 0 00-2 2v10a2 2 0 002 2h6a2 2 0 002-2V3a2 2 0 00-2-2zM5 5h6v1.5H5V5zm0 3h6v1.5H5V8zm0 3h4v1.5H5V11z"/></svg>`,
-      },
-      announcements: {
-        tip: 'Announcements',
-        icon: `<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M12.5 1.5v13L7 11H4a1.5 1.5 0 01-1.5-1.5v-3A1.5 1.5 0 014 5h3l5.5-3.5z"/><path d="M4.5 11h.5l.8 3.5H4.7l-.7-3.5z"/><circle cx="14" cy="8" r="1"/></svg>`,
-      },
-    };
-    const pinnedIds = new Set(Object.keys(PINNED_CHANNELS));
-
-    const channelsHtml = channelList
-      .filter(ch => !pinnedIds.has(ch.id))  // hide pinned channels from main list
-      .map(ch => {
-        const isActive = ch.id === activeChannel && !activeDmPartner && !activeGroupId;
-        const title = ch.description ? ` title="${esc(ch.description)}"` : '';
-        const lock = ch.read_only ? ' 🔒' : '';
-        const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
-        return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${cogHtml}${esc(ch.name)}${lock}</div>`;
-      }).join('');
-
-    // Build pinned icon buttons — only show if the channel actually exists.
-    const existingPinnedIds = channelList.filter(ch => pinnedIds.has(ch.id)).map(ch => ch.id);
-    const pinnedBtnsHtml = existingPinnedIds.length > 0
-      ? `<div class="server-pinned-btns">${existingPinnedIds.map(id => {
-          const p = PINNED_CHANNELS[id];
-          const isActive = id === activeChannel && !activeDmPartner && !activeGroupId;
-          const count = (window.unreadChannelCounts && window.unreadChannelCounts[id]) || 0;
-          const badge = count > 0 ? `<span class="pinned-notif-badge">${count > 99 ? '99+' : count}</span>` : '';
-          return `<button onclick="event.stopPropagation();switchChannel('${esc(id)}')" title="${p.tip}" class="${isActive ? 'active-ch' : ''}" data-pinned-id="${esc(id)}">${p.icon}${badge}</button>`;
-        }).join('')}</div>`
-      : '';
+    // Every channel renders as a normal row — mirrors native, where
+    // #announcements is just a read-only channel, not a separate widget.
+    // Property badges after the name match native's channel status icons
+    // (src/gui/pages/chat.rs ~1027): eye = read-only, node-graph = federated,
+    // both drawn in muted color.
+    const channelsHtml = channelList.map(ch => {
+      const isActive = ch.id === activeChannel && !activeDmPartner && !activeGroupId;
+      const title = ch.description ? ` title="${esc(ch.description)}"` : '';
+      const badges = (ch.read_only ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
+      const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
+      return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${cogHtml}<span class="ch-label">${esc(ch.name)}</span>${badges}</div>`;
+    }).join('');
 
     // Text channel create button (admin/mod only)
     let createChannelBtn = '';
@@ -1389,7 +1368,6 @@ var federatedServersFetched = false;
       <div class="server-group-header" data-server-toggle="Humanity" style="font-weight:bold;">
         <span class="collapse-arrow">▼</span>
         <span class="srv-name">🟢 🅷 Humanity</span>
-        ${pinnedBtnsHtml}
       </div>
       <div class="server-group-channels">${channelsHtml}${createChannelBtn}${voiceHtml}</div>
     </div>`;
@@ -1573,36 +1551,12 @@ function markUnread(channelId) {
   unreadChannels.add(channelId);
   window.unreadChannelCounts[channelId] = (window.unreadChannelCounts[channelId] || 0) + 1;
   renderUnreadDots();
-  updatePinnedBadges();
 }
 
 function clearUnread(channelId) {
   unreadChannels.delete(channelId);
   delete window.unreadChannelCounts[channelId];
   renderUnreadDots();
-  updatePinnedBadges();
-}
-
-/**
- * Updates the notification count badges on pinned channel icon buttons
- * without re-rendering the full server list — just patches the DOM in place.
- */
-function updatePinnedBadges() {
-  document.querySelectorAll('.server-pinned-btns button[data-pinned-id]').forEach(btn => {
-    const id = btn.getAttribute('data-pinned-id');
-    const count = (window.unreadChannelCounts && window.unreadChannelCounts[id]) || 0;
-    let badge = btn.querySelector('.pinned-notif-badge');
-    if (count > 0) {
-      if (!badge) {
-        badge = document.createElement('span');
-        badge.className = 'pinned-notif-badge';
-        btn.appendChild(badge);
-      }
-      badge.textContent = count > 99 ? '99+' : String(count);
-    } else {
-      if (badge) badge.remove();
-    }
-  });
 }
 
 function renderUnreadDots() {
