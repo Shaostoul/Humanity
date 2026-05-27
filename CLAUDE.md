@@ -32,6 +32,20 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 
 **Work directed tasks through to completion.** When the operator points you at clear work, do the whole thing and report when it's actually *done*. Do NOT manufacture mid-task "should I proceed?" checkpoints, and never cite reply length or "session/context length" as a reason to defer or split work — that's an internal token concern, irrelevant to the operator, who replies fast and is usually waiting on you. Pause ONLY for genuine decisions only the operator can make (a taste call or a real direction fork), never to ask permission to continue work already directed. "Do it right" means carefully and completely, not later. (Established 2026-05-26 after the operator corrected this twice; mirrored in their memory User Preferences.)
 
+## Cross-session persistence (perpetual)
+
+Your memory between sessions is the **disk, not the conversation**. Anything only "internalized" in-context is lost at session end — or sooner, on a crash or context compaction. So **persist durable knowledge to its store the moment it's established, not deferred to session end** (the session may not get a clean end). What goes where:
+
+| What you learned | Where it persists | When to write it |
+|---|---|---|
+| Operator correction / working preference | this file (a norm section) + memory `User Preferences` | the moment it's given |
+| Decision + the WHY behind it | `data/coordination/orchestrator_state.json` → `recent_decisions` | at each significant decision/checkpoint |
+| What to work on next | `docs/PRIORITIES.md` | whenever scope/priority shifts |
+| Lesson / gotcha / incident | the right `docs/` file (`INCIDENT-PLAYBOOK.md`, the design doc, `BUGS.md`) | when learned |
+| Session narrative | `docs/history/<date>.md` | at session end |
+
+Session START already reloads `CLAUDE.md`, `MEMORY.md`, `orchestrator_state.json`, and `PRIORITIES.md` (see the START HERE checklist) — so what's on disk carries forward; what's only in-context does not. Write small + immediately; never let a durable learning live only in the current conversation.
+
 ## Non-negotiable design rules
 
 **GUI-first configurability (no-CLI-required).** Anything an operator/admin/user can configure or do MUST be reachable from inside the app, not only from a shell. A button that "just runs the console command" under the hood is fine — the point is that nobody should HAVE to touch a terminal to set up, use, or modify the system. This serves three constituencies at once: the operator (who prefers it), tech-illiterate users (the accessibility mission), and AI agents (a discoverable in-app action surface means an AI knows exactly what's possible instead of guessing at shell commands). When you build a feature that has any ops/config dimension, build its in-app control in the SAME increment — or, if deferring, log it in `docs/design/in-app-ops.md` so the CLI debt is tracked, never silently accepted. North star: every admin action lives in a data-driven registry the GUI renders AND an AI can enumerate. See `docs/design/in-app-ops.md`.
