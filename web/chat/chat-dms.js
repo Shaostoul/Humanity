@@ -37,7 +37,7 @@ function upsertDmConversation(partnerKey, partnerName, lastMessage, lastTimestam
   try {
     const recent = dmConversations.slice(0, 10).map(c => ({
       name: c.partner_name,
-      preview: c.last_message ? c.last_message.slice(0, 80) : '',
+      preview: dmSafePreview(c.last_message).slice(0, 80),
       time: c.last_timestamp ? new Date(Number(c.last_timestamp) * (c.last_timestamp < 1e12 ? 1000 : 1)).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
       unread: c.unread_count || 0,
     }));
@@ -140,6 +140,18 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   if (window.twemoji) twemoji.parse(el);
 }
 
+// DM previews loaded from the zero-knowledge relay arrive as the raw E2EE
+// envelope ({"v":1,"r":{...}}) — the relay can't decrypt them. Never show that
+// ciphertext; collapse it to a lock placeholder (matches the incoming-DM
+// handler in app.js and native's clean DM list).
+function dmSafePreview(raw) {
+  raw = String(raw || '');
+  if (/^\s*\{\s*"v"\s*:\s*\d/.test(raw) || raw.includes('"ek_ct') || /"r"\s*:\s*\{/.test(raw)) {
+    return '🔒 Encrypted message';
+  }
+  return raw;
+}
+
 /** Render the DM conversation list in the sidebar. */
 function renderDmList() {
   const list = document.getElementById('dm-list');
@@ -151,7 +163,8 @@ function renderDmList() {
   list.innerHTML = dmConversations.map(c => {
     const isActive = activeDmPartner === c.partner_key;
     const unread = c.unread_count > 0 ? '<span class="dm-unread"></span>' : '';
-    const preview = c.last_message.length > 30 ? c.last_message.substring(0, 30) + '…' : c.last_message;
+    const previewText = dmSafePreview(c.last_message);
+    const preview = previewText.length > 30 ? previewText.substring(0, 30) + '…' : previewText;
     const timeStr = formatTime(c.last_timestamp);
     return `<div class="dm-item${isActive ? ' active' : ''}" onclick="openDmConversation('${esc(c.partner_key)}', '${esc(c.partner_name)}')">
       <div style="flex:1;min-width:0;">
