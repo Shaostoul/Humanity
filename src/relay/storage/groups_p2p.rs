@@ -366,6 +366,113 @@ impl Storage {
             Ok(n > 0)
         })
     }
+
+    // ── Phase 2: E2EE group messages (the relay never decrypts) ──
+
+    /// Project a `group_epoch_key_v1` (the sealed per-epoch group key set).
+    /// Phase 1 authority: only the group creator may publish epoch keys. The
+    /// relay records WHICH object holds epoch N — the sealed keys stay opaque
+    /// inside the payload. No-op for other object types.
+    pub fn index_group_epoch_key(&self, object: &Object) -> Result<bool, rusqlite::Error> {
+        if object.object_type != "group_epoch_key_v1" {
+            return Ok(false);
+        }
+        let group_id = match object.references.first() {
+            Some(g) => g.clone(),
+            None => return Ok(false),
+        };
+        let epoch = match read_uint(object, "epoch") {
+            Some(e) => e as i64,
+            None => return Ok(false),
+        };
+        let object_id = match object.object_id() {
+            Ok(id) => id.to_hex(),
+            Err(_) => return Ok(false),
+        };
+        // Only the group creator may set epoch keys (Phase 1).
+        let creator_pubkey: Option<Vec<u8>> = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT creator_pubkey FROM p2p_groups WHERE group_id = ?1",
+                params![group_id],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .optional()
+        })?;
+        match creator_pubkey {
+            Some(pk) if pk == object.author_public_key => {}
+            _ => return Ok(false),
+        }
+        let created_at = object.created_at.map(|t| t as i64);
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT OR REPLACE INTO p2p_group_epochs (group_id, epoch, object_id, created_at)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![group_id, epoch, object_id, created_at],
+            )?;
+            Ok(true)
+        })
+    }
+
+    /// Project a `group_msg_v1` (an encrypted group message) into the message
+    /// log — only if its author is an active roster member. The relay stores
+    /// the opaque ciphertext (in signed_objects); it cannot read it. No-op for
+    /// other object types or non-member authors.
+    pub fn index_group_msg(&self, object: &Object) -> Result<bool, rusqlite::Error> {
+        if object.object_type != "group_msg_v1" {
+            return Ok(false);
+        }
+        let group_id = match object.references.first() {
+            Some(g) => g.clone(),
+            None => return Ok(false),
+        };
+        if !self.p2p_group_has_member(&group_id, &object.author_public_key)? {
+            return Ok(false); // only active members' messages are accepted
+        }
+        let epoch = read_uint(object, "epoch").unwrap_or(0) as i64;
+        let object_id = match object.object_id() {
+            Ok(id) => id.to_hex(),
+            Err(_) => return Ok(false),
+        };
+        let author_fp = author_fingerprint(&object.author_public_key);
+        let created_at = object.created_at.map(|t| t as i64).unwrap_or_else(|| now_millis() as i64);
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT OR IGNORE INTO p2p_group_messages
+                   (object_id, group_id, author_fp, epoch, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![object_id, group_id, author_fp, epoch, created_at],
+            )?;
+            Ok(true)
+        })
+    }
+
+    /// The object_id of the latest (highest-epoch) `group_epoch_key_v1` for a
+    /// group, if any — the member fetches it to unseal the current key.
+    pub fn p2p_group_latest_epoch_object(&self, group_id: &str) -> Result<Option<String>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT object_id FROM p2p_group_epochs
+                 WHERE group_id = ?1 ORDER BY epoch DESC LIMIT 1",
+                params![group_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+        })
+    }
+
+    /// object_ids of a group's messages, oldest→newest (capped). The caller
+    /// fetches each object and decrypts client-side.
+    pub fn p2p_group_message_ids(&self, group_id: &str, limit: usize) -> Result<Vec<String>, rusqlite::Error> {
+        let lim = limit.clamp(1, 500) as i64;
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT object_id FROM p2p_group_messages
+                 WHERE group_id = ?1 ORDER BY created_at ASC, object_id ASC LIMIT ?2",
+            )?;
+            let rows = stmt.query_map(params![group_id, lim], |row| row.get::<_, String>(0))?;
+            rows.collect()
+        })
+    }
 }
 
 #[cfg(test)]
@@ -428,6 +535,31 @@ mod tests {
             .created_at(1003)
             .payload_cbor(&Value::Map(vec![
                 (Value::Text("secret".into()), Value::Bytes(secret.to_vec())),
+            ]))
+            .unwrap()
+            .sign(by)
+            .unwrap()
+    }
+
+    fn epoch_obj(by: &DilithiumKeypair, group_id: &str, epoch: u64) -> Object {
+        ObjectBuilder::new("group_epoch_key_v1")
+            .reference(group_id)
+            .created_at(2000)
+            .payload_cbor(&Value::Map(vec![
+                (Value::Text("epoch".into()), Value::Integer(epoch.into())),
+            ]))
+            .unwrap()
+            .sign(by)
+            .unwrap()
+    }
+
+    fn msg_obj(by: &DilithiumKeypair, group_id: &str, epoch: u64) -> Object {
+        ObjectBuilder::new("group_msg_v1")
+            .reference(group_id)
+            .created_at(2001)
+            .payload_cbor(&Value::Map(vec![
+                (Value::Text("epoch".into()), Value::Integer(epoch.into())),
+                (Value::Text("ct".into()), Value::Bytes(vec![1, 2, 3, 4])),
             ]))
             .unwrap()
             .sign(by)
@@ -590,5 +722,51 @@ mod tests {
         // Join referencing the bogus invite → no invite row → rejected.
         db.put_signed_object(&join_obj(&mallory, &gid, &invite_id, &secret), None).unwrap();
         assert!(!db.p2p_group_has_member(&gid, &mallory.public_key()).unwrap());
+    }
+
+    #[test]
+    fn epoch_key_indexed_only_from_creator() {
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let attacker = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+
+        // A non-creator epoch key is ignored.
+        db.put_signed_object(&epoch_obj(&attacker, &gid, 1), None).unwrap();
+        assert_eq!(db.p2p_group_latest_epoch_object(&gid).unwrap(), None);
+
+        // The creator's epoch key is indexed as the latest.
+        let ek = epoch_obj(&creator, &gid, 1);
+        let ek_id = ek.object_id().unwrap().to_hex();
+        db.put_signed_object(&ek, None).unwrap();
+        assert_eq!(db.p2p_group_latest_epoch_object(&gid).unwrap(), Some(ek_id));
+    }
+
+    #[test]
+    fn only_member_messages_are_logged() {
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let alice = DilithiumKeypair::generate().unwrap();
+        let outsider = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+        db.put_signed_object(&member_obj(&creator, &gid, "admit", &alice.public_key()), None).unwrap();
+
+        let m = msg_obj(&alice, &gid, 1);
+        let mid = m.object_id().unwrap().to_hex();
+        db.put_signed_object(&m, None).unwrap();
+        // Outsider (non-member) message must NOT be logged.
+        db.put_signed_object(&msg_obj(&outsider, &gid, 1), None).unwrap();
+        let cm = msg_obj(&creator, &gid, 1);
+        let cmid = cm.object_id().unwrap().to_hex();
+        db.put_signed_object(&cm, None).unwrap();
+
+        let ids = db.p2p_group_message_ids(&gid, 100).unwrap();
+        assert!(ids.contains(&mid), "member message should be logged");
+        assert!(ids.contains(&cmid), "creator message should be logged");
+        assert_eq!(ids.len(), 2, "the outsider's message must not be logged");
     }
 }

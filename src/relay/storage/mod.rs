@@ -1572,6 +1572,32 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_p2p_invites_group
                 ON p2p_group_invites(group_id);
 
+            -- Phase 2: per-epoch group key objects (group_epoch_key_v1). The
+            -- relay only indexes WHICH object holds epoch N's sealed keys — it
+            -- never sees the key (each member's copy is ML-KEM-sealed inside the
+            -- object payload). Members fetch the object + decrypt their entry.
+            CREATE TABLE IF NOT EXISTS p2p_group_epochs (
+                group_id    TEXT NOT NULL,
+                epoch       INTEGER NOT NULL,
+                object_id   TEXT NOT NULL,
+                created_at  INTEGER,
+                PRIMARY KEY (group_id, epoch)
+            );
+
+            -- Phase 2: encrypted group message log (group_msg_v1). The relay
+            -- stores/serves the OPAQUE ciphertext (it cannot decrypt); only
+            -- active members (roster) are projected here. The payload lives in
+            -- signed_objects keyed by object_id.
+            CREATE TABLE IF NOT EXISTS p2p_group_messages (
+                object_id   TEXT PRIMARY KEY,
+                group_id    TEXT NOT NULL,
+                author_fp   TEXT NOT NULL,
+                epoch       INTEGER NOT NULL,
+                created_at  INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_p2p_messages_group
+                ON p2p_group_messages(group_id, created_at);
+
             -- Phase 1 PR 2: Verifiable Credentials fast-lookup index.
             -- Auto-populated when a known VC schema is stored. The credential itself
             -- (signed authority) lives in signed_objects keyed by vc_object_id.

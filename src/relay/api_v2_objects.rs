@@ -331,3 +331,65 @@ pub async fn my_p2p_groups(
         .collect();
     (StatusCode::OK, Json(serde_json::json!({"groups": out}))).into_response()
 }
+
+/// `GET /api/v2/groups/{group_id}/members` — the roster with each member's
+/// Kyber public key (looked up from their registered identity), so a sender can
+/// seal the epoch group key to every member. Public keys only — no secrets.
+pub async fn group_member_keys(
+    State(state): State<Arc<RelayState>>,
+    Path(group_id): Path<String>,
+) -> impl IntoResponse {
+    let roster = state.db.p2p_group_roster(&group_id).unwrap_or_default();
+    let members: Vec<serde_json::Value> = roster
+        .into_iter()
+        .map(|m| {
+            let pubkey_hex: String = m.member_pubkey.iter().map(|b| format!("{b:02x}")).collect();
+            // Kyber pub is keyed by the Dilithium identity hex in registered_names.
+            let kyber = state.db.get_kyber_public(&pubkey_hex).ok().flatten();
+            serde_json::json!({ "pubkey": pubkey_hex, "kyber_public": kyber })
+        })
+        .collect();
+    (StatusCode::OK, Json(serde_json::json!({ "members": members }))).into_response()
+}
+
+/// `GET /api/v2/groups/{group_id}/messages` — the group's encrypted messages
+/// (full signed objects; the relay cannot decrypt them). Oldest→newest, capped.
+pub async fn group_messages(
+    State(state): State<Arc<RelayState>>,
+    Path(group_id): Path<String>,
+) -> impl IntoResponse {
+    let ids = state.db.p2p_group_message_ids(&group_id, 200).unwrap_or_default();
+    let mut out: Vec<SignedObjectResponse> = Vec::with_capacity(ids.len());
+    for id in ids {
+        if let Ok(Some(rec)) = state.db.get_signed_object(&id) {
+            out.push(SignedObjectResponse::from(rec));
+        }
+    }
+    (StatusCode::OK, Json(serde_json::json!({ "messages": out }))).into_response()
+}
+
+/// `GET /api/v2/groups/{group_id}/epoch` — the latest `group_epoch_key_v1`
+/// object, so a member can unseal the current group key.
+pub async fn group_epoch_key(
+    State(state): State<Arc<RelayState>>,
+    Path(group_id): Path<String>,
+) -> impl IntoResponse {
+    match state.db.p2p_group_latest_epoch_object(&group_id) {
+        Ok(Some(oid)) => match state.db.get_signed_object(&oid) {
+            Ok(Some(rec)) => (
+                StatusCode::OK,
+                Json(serde_json::to_value(SignedObjectResponse::from(rec)).unwrap_or_default()),
+            )
+                .into_response(),
+            _ => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "epoch object missing"})))
+                .into_response(),
+        },
+        Ok(None) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "no epoch key yet"})))
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("storage error: {e}")})),
+        )
+            .into_response(),
+    }
+}

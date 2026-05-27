@@ -147,6 +147,10 @@ impl Storage {
             let _ = self.index_group_member(object);
             let _ = self.index_group_invite(object);
             let _ = self.index_group_join(object);
+            // Phase 2: per-epoch group keys + encrypted message log (relay never
+            // decrypts; group_msg is gated to active members).
+            let _ = self.index_group_epoch_key(object);
+            let _ = self.index_group_msg(object);
             // Auto-process disputes: lower the disputed issuer's trust score from
             // this observer's perspective. We use source_server as the observer key
             // (or "self" for locally-submitted disputes).
