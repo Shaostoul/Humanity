@@ -198,6 +198,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         draw_join_group_modal(ctx, theme, state);
     }
 
+    // ── P2P GROUP MODAL (roster + mint invite) ──
+    if state.show_p2p_group_modal {
+        draw_p2p_group_modal(ctx, theme, state);
+    }
+
     // ── HELP / COMMANDS MODAL ──
     if state.show_help_modal {
         draw_help_modal(ctx, theme, state);
@@ -873,9 +878,12 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
 
                 // P2P (signed-object) groups — rendered above legacy ones.
-                // Click is a stub for now (Phase-1 P2P groups have no chat
-                // until Phase 2); roster/invite-mint dialog is queued.
-                for p in &state.p2p_groups {
+                // Left-click opens the P2P-group dialog (roster + mint invite).
+                // Group chat itself is on the web client (Phase 2 web shipped;
+                // native chat-in-groups is the next step).
+                let p2p_clone = state.p2p_groups.clone();
+                let mut open_p2p_id: Option<String> = None;
+                for p in p2p_clone.iter() {
                     let hdr_height = 24.0;
                     let full_w = ui.available_width();
                     let (row_rect, row_resp) = ui.allocate_exact_size(
@@ -910,7 +918,19 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             theme.text_muted(),
                         );
                     }
+                    if row_resp.clicked() {
+                        open_p2p_id = Some(p.group_id.clone());
+                    }
+                    if row_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
                     ui.add_space(2.0);
+                }
+                if let Some(gid) = open_p2p_id {
+                    state.show_p2p_group_modal = true;
+                    state.p2p_group_open_id = gid;
+                    state.p2p_group_modal_ticket = None;
+                    state.p2p_group_modal_status.clear();
                 }
 
                 // Groups render like servers (expandable header + nested channels)
@@ -4216,6 +4236,148 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
         state.join_group_status.clear();
         state.join_group_result = None;
         state.join_group_invite_code.clear();
+    }
+}
+
+// ─────────────────────────────── P2P Group Modal ─────────────────────────
+// Phase 1 dialog for clicking a P2P group in the native left panel: shows
+// the roster + a "Mint invite" action that produces a fresh shareable ticket
+// (build group_invite_v1 + encode_invite_ticket — same path as the create-
+// modal initial invite). End-to-end group CHAT is web-only for now; this
+// dialog tells the user that so they can use the web client to message.
+
+fn draw_p2p_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let mut open = state.show_p2p_group_modal;
+    let group_id = state.p2p_group_open_id.clone();
+    let group = state.p2p_groups.iter().find(|g| g.group_id == group_id).cloned();
+    let (name, members) = match &group {
+        Some(g) => (g.name.clone(), g.members.clone()),
+        None => (String::new(), Vec::new()),
+    };
+    // Derive my own Dilithium hex once for "(you)" labeling. Falls back to
+    // empty if no seed yet (the dialog still works — just labels everyone
+    // by short hex).
+    let my_hex = state
+        .private_key_bytes
+        .as_ref()
+        .and_then(|s| crate::net::identity::derive_pq_identity(s).ok())
+        .map(|id| id.dilithium_hex)
+        .unwrap_or_default();
+    let title = if name.is_empty() { "Group".to_string() } else { name.clone() };
+    widgets::dialog(ctx, theme, "p2p_group_dialog", &title, &mut open, |ui| {
+        ui.set_min_width(380.0);
+        if !name.is_empty() {
+            ui.label(
+                RichText::new(format!(
+                    "{} member{} · end-to-end encrypted",
+                    members.len(),
+                    if members.len() == 1 { "" } else { "s" }
+                ))
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_md);
+        }
+
+        // Roster — short labels (or "You" for the current identity).
+        if !members.is_empty() {
+            for m in &members {
+                let is_me = !my_hex.is_empty() && m == &my_hex;
+                let label = if is_me {
+                    "You".to_string()
+                } else {
+                    let short = &m[..12.min(m.len())];
+                    format!("{}…", short)
+                };
+                ui.label(format!("👤 {}", label));
+            }
+            ui.add_space(theme.spacing_md);
+        }
+
+        // Mint-invite / Show-ticket flow. If a ticket is already minted in this
+        // session, show it with Copy + "Mint another"; otherwise the Mint button.
+        if let Some(ticket) = state.p2p_group_modal_ticket.clone() {
+            ui.label(
+                RichText::new("Share this ticket (valid 7 days). Anyone with it can join — even when you're offline.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_xs);
+            let mut display = ticket.clone();
+            ui.add(
+                egui::TextEdit::multiline(&mut display)
+                    .desired_width(360.0)
+                    .desired_rows(3)
+                    .interactive(false),
+            );
+            ui.add_space(theme.spacing_xs);
+            ui.horizontal(|ui| {
+                if widgets::Button::primary("📋 Copy").show(ui, theme) {
+                    ui.ctx().copy_text(ticket.clone());
+                    state.p2p_group_modal_status = "Ticket copied to clipboard.".to_string();
+                }
+                ui.add_space(theme.spacing_sm);
+                if widgets::Button::secondary("Mint another").show(ui, theme) {
+                    state.p2p_group_modal_ticket = None;
+                    state.p2p_group_modal_status.clear();
+                }
+            });
+        } else if widgets::Button::primary("🔗 Mint invite ticket").show(ui, theme) {
+            let server_url = state.server_url.clone();
+            let seed_opt = state.private_key_bytes.clone();
+            match seed_opt {
+                Some(seed) => {
+                    let mut secret = vec![0u8; 32];
+                    use rand::RngCore;
+                    rand::rng().fill_bytes(&mut secret);
+                    let secret_hash = blake3::hash(&secret).as_bytes().to_vec();
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
+                    let expires_at = now + 7 * 24 * 3600 * 1000;
+                    match crate::net::api_v2::submit_group_invite_v1(
+                        &server_url, &seed, &group_id, expires_at, &secret_hash,
+                    ) {
+                        Ok(invite_id) => {
+                            let ticket = crate::net::api_v2::encode_invite_ticket(
+                                &group_id, &name, &invite_id, &secret,
+                            );
+                            state.p2p_group_modal_ticket = Some(ticket);
+                            state.p2p_group_modal_status.clear();
+                        }
+                        Err(e) => {
+                            state.p2p_group_modal_status = format!("Mint failed: {e}");
+                        }
+                    }
+                }
+                None => {
+                    state.p2p_group_modal_status =
+                        "No identity loaded. Connect first.".to_string();
+                }
+            }
+        }
+
+        if !state.p2p_group_modal_status.is_empty() {
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new(&state.p2p_group_modal_status)
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        }
+
+        ui.add_space(theme.spacing_md);
+        ui.label(
+            RichText::new("Group chat is on the web client for now. Use it to send and read messages in this group; native chat-in-groups is the next step.")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+    });
+    if !open {
+        state.show_p2p_group_modal = false;
+        state.p2p_group_modal_ticket = None;
+        state.p2p_group_modal_status.clear();
     }
 }
 

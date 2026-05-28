@@ -1042,6 +1042,15 @@ pub struct GuiState {
     /// fetch on first render so the list is populated without a manual action.
     pub p2p_groups_last_fetch: Option<std::time::Instant>,
 
+    /// Opens the P2P-group dialog (roster + mint-invite). Click on a P2P row
+    /// in the left panel sets these.
+    pub show_p2p_group_modal: bool,
+    pub p2p_group_open_id: String,
+    /// Latest minted invite ticket (shown in the dialog for the user to copy).
+    pub p2p_group_modal_ticket: Option<String>,
+    /// Inline status/error for the P2P-group dialog.
+    pub p2p_group_modal_status: String,
+
     // ── Sidebar section settings popups (v0.195.0) ──
     // Rendered as floating Areas anchored below the section's cog
     // button. Using GuiState fields instead of egui's popup machinery
@@ -1701,6 +1710,10 @@ impl Default for GuiState {
             join_group_result: None,
             p2p_groups: Vec::new(),
             p2p_groups_last_fetch: None,
+            show_p2p_group_modal: false,
+            p2p_group_open_id: String::new(),
+            p2p_group_modal_ticket: None,
+            p2p_group_modal_status: String::new(),
             show_channel_edit_modal: false,
             edit_channel_id: String::new(),
             edit_channel_name: String::new(),
