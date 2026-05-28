@@ -232,8 +232,13 @@ function renderGroupList() {
   const activeP2p = window.activeP2pGroup;
   for (const g of p2pGroups) {
     const isActiveP2p = !!(activeP2p && activeP2p.id === g.group_id);
+    // Crown = a group I created (own), vs one I merely joined. Gold tint;
+    // sits just left of the name like a little ownership badge.
+    const crown = g.is_creator
+      ? `<span title="You created this group" style="margin-right:3px;display:inline-flex;vertical-align:middle;">${hosIcon('crown', 13, 'var(--warning)')}</span>`
+      : '';
     html += `<div class="channel-item${isActiveP2p ? ' active' : ''}" data-p2p-group-id="${esc(g.group_id)}" style="cursor:pointer;">
-      <span style="opacity:0.6">${hosIcon('users', 16)} </span>${esc(g.name)}
+      <span style="opacity:0.6">${hosIcon('users', 16)} </span>${crown}${esc(g.name)}
       <span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${(g.members || []).length}</span>
     </div>`;
   }

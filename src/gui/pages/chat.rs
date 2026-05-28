@@ -923,9 +923,30 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         } else { theme.group_bg() };
                         ui.painter().rect_filled(row_rect, 0.0, bg);
                         let cy = row_rect.center().y;
-                        // Name (lock glyph prefix to read as E2EE, like the header)
+                        // Crown (gold) marks a group I created/own, just left of
+                        // the name. Joined groups have no crown; their name keeps
+                        // the default indent. Painted shape — the egui font has
+                        // no crown glyph (emoji tofu).
+                        let name_x = if p.is_creator {
+                            let crown_rect = egui::Rect::from_center_size(
+                                egui::pos2(row_rect.left() + 12.0, cy),
+                                Vec2::splat(13.0),
+                            );
+                            // Gold via the theme's `warning` token (an
+                            // amber/gold) — keeps the crown themeable, no
+                            // hardcoded literal.
+                            crate::gui::widgets::icons::paint_crown(
+                                ui.painter(),
+                                crown_rect,
+                                theme.warning(),
+                            );
+                            row_rect.left() + 24.0
+                        } else {
+                            row_rect.left() + 12.0
+                        };
+                        // Group name
                         ui.painter().text(
-                            egui::pos2(row_rect.left() + 12.0, cy),
+                            egui::pos2(name_x, cy),
                             egui::Align2::LEFT_CENTER,
                             &p.name,
                             egui::FontId::proportional(theme.body_size),

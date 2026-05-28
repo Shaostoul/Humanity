@@ -393,6 +393,43 @@ pub fn paint_box(painter: &egui::Painter, rect: Rect, color: Color32) {
     );
 }
 
+/// Crown — marks a P2P group the current user created/owns (vs joined).
+/// Built from a filled band rect + three convex triangle spikes so the fill
+/// is correct (a single concave crown polygon wouldn't tessellate cleanly).
+pub fn paint_crown(painter: &egui::Painter, rect: Rect, color: Color32) {
+    use egui::epaint::PathShape;
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let s = w * 0.42;
+    let band_top = c.y + s * 0.10;
+    let base_y = c.y + s * 0.62;
+    // Jeweled band (bottom rectangle).
+    painter.rect_filled(
+        Rect::from_min_max(Pos2::new(c.x - s, band_top), Pos2::new(c.x + s, base_y)),
+        egui::Rounding::same(0),
+        color,
+    );
+    // Three spikes rising from the band (each a convex triangle).
+    let mut spike = |a: Pos2, b: Pos2, apex: Pos2| {
+        painter.add(PathShape::convex_polygon(vec![a, b, apex], color, Stroke::NONE));
+    };
+    spike(
+        Pos2::new(c.x - s, band_top),
+        Pos2::new(c.x - s * 0.34, band_top),
+        Pos2::new(c.x - s * 0.66, c.y - s * 0.62),
+    );
+    spike(
+        Pos2::new(c.x - s * 0.34, band_top),
+        Pos2::new(c.x + s * 0.34, band_top),
+        Pos2::new(c.x, c.y - s * 0.80),
+    );
+    spike(
+        Pos2::new(c.x + s * 0.34, band_top),
+        Pos2::new(c.x + s, band_top),
+        Pos2::new(c.x + s * 0.66, c.y - s * 0.62),
+    );
+}
+
 /// Map pin — Maps.
 pub fn paint_pin(painter: &egui::Painter, rect: Rect, color: Color32) {
     let c = rect.center();
