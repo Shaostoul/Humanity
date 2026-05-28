@@ -147,6 +147,9 @@ impl Storage {
             let _ = self.index_group_member(object);
             let _ = self.index_group_invite(object);
             let _ = self.index_group_join(object);
+            // Teardown: self-leave rides group_member_v1 (handled above); a
+            // creator-signed group_disband_v1 hides the group for everyone.
+            let _ = self.index_group_disband(object);
             // Phase 2: per-epoch group keys + encrypted message log (relay never
             // decrypts; group_msg is gated to active members).
             let _ = self.index_group_epoch_key(object);

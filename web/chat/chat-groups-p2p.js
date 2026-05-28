@@ -254,6 +254,42 @@
     await loadP2pGroups();
   }
 
+  // Leave a group I'm in: post a group_member_v1 {action:"remove", subject:me}.
+  // The relay authorizes self-removal for any member (you can always leave).
+  async function leaveP2pGroup(groupId) {
+    if (!pqReady()) return notReady();
+    const { obj, blake3 } = await mods();
+    const { submission } = await obj.buildGroupMemberV1({
+      groupId, action: 'remove', subjectPubkey: authorPub(),
+      authorPublicKey: authorPub(), sign: signer(), blake3,
+    });
+    await postObject(submission);
+    // If I'm currently viewing it, drop back to a normal channel.
+    if (window.activeP2pGroup && window.activeP2pGroup.id === groupId) {
+      if (typeof closeP2pGroup === 'function') closeP2pGroup();
+      if (typeof switchChannel === 'function') switchChannel('general');
+    }
+    if (typeof addSystemMessage === 'function') addSystemMessage('You left the group.');
+    await loadP2pGroups();
+  }
+
+  // Disband a group I created: post a creator-signed group_disband_v1. The
+  // relay hides it for EVERY member. Only honored if I'm the creator.
+  async function disbandP2pGroup(groupId) {
+    if (!pqReady()) return notReady();
+    const { obj, blake3 } = await mods();
+    const { submission } = await obj.buildGroupDisbandV1({
+      groupId, authorPublicKey: authorPub(), sign: signer(), blake3,
+    });
+    await postObject(submission);
+    if (window.activeP2pGroup && window.activeP2pGroup.id === groupId) {
+      if (typeof closeP2pGroup === 'function') closeP2pGroup();
+      if (typeof switchChannel === 'function') switchChannel('general');
+    }
+    if (typeof addSystemMessage === 'function') addSystemMessage('Group disbanded for everyone.');
+    await loadP2pGroups();
+  }
+
   // Fetch my P2P groups + rosters from the relay projection and re-render.
   // Sets `_p2pGroupsFetched` only once a real fetch is attempted (myKey ready)
   // — otherwise the lazy trigger in renderGroupList would burn the flag before
@@ -562,6 +598,8 @@
   window.createP2pGroup = createP2pGroup;
   window.createP2pInvite = createP2pInvite;
   window.joinP2pGroupByTicket = joinP2pGroupByTicket;
+  window.leaveP2pGroup = leaveP2pGroup;
+  window.disbandP2pGroup = disbandP2pGroup;
   window.loadP2pGroups = loadP2pGroups;
   window.openP2pGroup = openP2pGroup;
   window.closeP2pGroup = closeP2pGroup;

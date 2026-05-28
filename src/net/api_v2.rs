@@ -171,6 +171,39 @@ pub fn submit_group_join_v1(
     Ok(())
 }
 
+/// Build + submit a `group_member_v1` removing MYSELF from the group (a
+/// self-leave). The relay authorizes self-removal for any member, so the group
+/// drops off my list without the creator being involved.
+pub fn submit_group_leave(server_url: &str, seed: &[u8], group_id: &str) -> Result<(), String> {
+    let identity = derive_pq_identity(seed).map_err(|e| format!("derive identity: {e}"))?;
+    let my_pub = hex::decode(&identity.dilithium_hex).map_err(|e| format!("dilithium hex: {e}"))?;
+    let payload = cbor_map(vec![
+        ("action", cbor_text("remove")),
+        ("subject", cbor_bytes(&my_pub)),
+    ]);
+    let builder = ObjectBuilder::new("group_member_v1")
+        .reference(group_id)
+        .created_at(now_millis())
+        .payload_cbor(&payload)
+        .map_err(|e| format!("payload: {e}"))?;
+    submit_signed_object(server_url, seed, builder)?;
+    Ok(())
+}
+
+/// Build + submit a creator-signed `group_disband_v1` tearing the group down
+/// for everyone. The relay honors it only if the author is the group creator
+/// (empty payload — the group_id reference + signature carry the meaning).
+pub fn submit_group_disband(server_url: &str, seed: &[u8], group_id: &str) -> Result<(), String> {
+    let payload = cbor_map(vec![]);
+    let builder = ObjectBuilder::new("group_disband_v1")
+        .reference(group_id)
+        .created_at(now_millis())
+        .payload_cbor(&payload)
+        .map_err(|e| format!("payload: {e}"))?;
+    submit_signed_object(server_url, seed, builder)?;
+    Ok(())
+}
+
 /// One-shot: create a group AND mint a first 7-day invite for it, returning the
 /// shareable connection ticket. This is the create-modal happy path so the user
 /// gets something to copy/share immediately. Also issues an initial epoch_key
@@ -491,6 +524,9 @@ pub struct P2pGroupInfo {
     pub name: String,
     /// Active member Dilithium public keys, hex-encoded.
     pub members: Vec<String>,
+    /// Whether I'm this group's creator — gates the "Disband" action (anyone
+    /// can Leave; only the creator can Disband). Computed by the relay.
+    pub is_creator: bool,
 }
 
 /// Fetch the caller's P2P groups + each roster from the relay (read-only
@@ -525,7 +561,8 @@ pub fn fetch_p2p_groups(server_url: &str, dilithium_hex: &str) -> Result<Vec<P2p
             .and_then(|v| v.as_array())
             .map(|a| a.iter().filter_map(|m| m.as_str().map(|s| s.to_string())).collect())
             .unwrap_or_default();
-        out.push(P2pGroupInfo { group_id, name, members });
+        let is_creator = g.get("is_creator").and_then(|v| v.as_bool()).unwrap_or(false);
+        out.push(P2pGroupInfo { group_id, name, members, is_creator });
     }
     Ok(out)
 }

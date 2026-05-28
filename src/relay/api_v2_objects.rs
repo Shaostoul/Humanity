@@ -290,6 +290,10 @@ pub struct P2pGroupView {
     pub name: String,
     /// Active member public keys, hex-encoded.
     pub members: Vec<String>,
+    /// Whether the requesting `pubkey` is this group's creator — gates the
+    /// client's "Disband group" action (everyone can Leave; only the creator
+    /// can Disband). Computed server-side so the client needs no extra fetch.
+    pub is_creator: bool,
 }
 
 /// `GET /api/v2/groups?pubkey=<hex>` — the P2P groups the given member is in,
@@ -315,6 +319,7 @@ pub async fn my_p2p_groups(
         .step_by(2)
         .map(|i| u8::from_str_radix(&pubkey_hex[i..i + 2], 16).unwrap())
         .collect();
+    let my_fp = crate::relay::storage::author_fingerprint(&pubkey);
     let groups = state.db.p2p_groups_for_member(&pubkey).unwrap_or_default();
     let out: Vec<P2pGroupView> = groups
         .into_iter()
@@ -326,7 +331,14 @@ pub async fn my_p2p_groups(
                 .into_iter()
                 .map(|m| m.member_pubkey.iter().map(|b| format!("{b:02x}")).collect::<String>())
                 .collect();
-            P2pGroupView { group_id, name, members }
+            let is_creator = state
+                .db
+                .p2p_group_creator_fp(&group_id)
+                .ok()
+                .flatten()
+                .map(|c| c == my_fp)
+                .unwrap_or(false);
+            P2pGroupView { group_id, name, members, is_creator }
         })
         .collect();
     (StatusCode::OK, Json(serde_json::json!({"groups": out}))).into_response()

@@ -292,7 +292,26 @@ function renderGroupList() {
             if (typeof addNotice === 'function') addNotice('Invite failed: ' + err.message, 'red', 6);
           }
         }},
+        // Leave — available to anyone. Removes me from the roster (self-leave).
+        { label: '🚪 Leave group', action: () => {
+          if (!confirm('Leave group "' + g.name + '"? You can rejoin with a new invite ticket.')) return;
+          if (typeof window.leaveP2pGroup !== 'function') return;
+          window.leaveP2pGroup(gid).catch((err) => {
+            if (typeof addNotice === 'function') addNotice('Leave failed: ' + err.message, 'red', 6);
+          });
+        }},
       ];
+      // Disband — creator only (relay enforces; we hide it for non-creators to
+      // avoid a confusing silent no-op). is_creator comes from /api/v2/groups.
+      if (g.is_creator) {
+        items.push({ label: hosIcon('trash', 14) + ' Disband group (for everyone)', html: true, action: () => {
+          if (!confirm('Disband "' + g.name + '" for EVERYONE? This cannot be undone.')) return;
+          if (typeof window.disbandP2pGroup !== 'function') return;
+          window.disbandP2pGroup(gid).catch((err) => {
+            if (typeof addNotice === 'function') addNotice('Disband failed: ' + err.message, 'red', 6);
+          });
+        }});
+      }
       items.forEach(it => {
         const div = document.createElement('div');
         div.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:0.82rem;color:var(--text);';

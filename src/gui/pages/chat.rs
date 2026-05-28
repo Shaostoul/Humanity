@@ -1916,6 +1916,19 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     if widgets::Button::ghost("Copy invite").show(ui, theme) {
                         mint_and_copy_p2p_invite(ui.ctx(), state, &gid, &group_name);
                     }
+                    // Leave — available to anyone (self-remove from the roster).
+                    if widgets::Button::ghost("Leave").show(ui, theme) {
+                        leave_p2p_group(state, &gid);
+                    }
+                    // Disband — creator only (the relay enforces; we only show
+                    // the button to the creator so it's never a silent no-op).
+                    let is_creator = state.p2p_groups.iter()
+                        .find(|g| g.group_id == gid)
+                        .map(|g| g.is_creator)
+                        .unwrap_or(false);
+                    if is_creator && widgets::Button::ghost("Disband").show(ui, theme) {
+                        disband_p2p_group(state, &gid);
+                    }
                     if !state.p2p_group_invite_status.is_empty() {
                         ui.label(
                             RichText::new(format!("  {}", state.p2p_group_invite_status))
@@ -4539,6 +4552,62 @@ fn mint_and_copy_p2p_invite(
         }
         Err(e) => {
             state.p2p_group_invite_status = format!("Invite failed: {e}");
+        }
+    }
+}
+
+/// Leave a P2P group (self-remove from the roster). Submits a
+/// `group_member_v1` remove for my own key, then drops the view back to
+/// #general and refreshes the group list so the row disappears.
+fn leave_p2p_group(state: &mut GuiState, group_id: &str) {
+    let server_url = state.server_url.clone();
+    let seed = match state.private_key_bytes.clone() {
+        Some(s) if !s.is_empty() => s,
+        _ => {
+            state.p2p_group_invite_status = "Connect first — no identity loaded.".to_string();
+            return;
+        }
+    };
+    match crate::net::api_v2::submit_group_leave(&server_url, &seed, group_id) {
+        Ok(()) => {
+            // Drop any cached messages for this group + leave the view.
+            let channel = format!("p2pgroup:{}", group_id);
+            state.chat_messages.retain(|m| m.channel != channel);
+            state.chat_active_channel = "general".to_string();
+            state.p2p_group_active_id.clear();
+            state.p2p_group_chat_epoch_key = None;
+            state.p2p_group_invite_status.clear();
+            refresh_p2p_groups(state);
+        }
+        Err(e) => {
+            state.p2p_group_invite_status = format!("Leave failed: {e}");
+        }
+    }
+}
+
+/// Disband a P2P group I created (creator-only `group_disband_v1`). Removes it
+/// for everyone, drops the view back to #general, and refreshes the list.
+fn disband_p2p_group(state: &mut GuiState, group_id: &str) {
+    let server_url = state.server_url.clone();
+    let seed = match state.private_key_bytes.clone() {
+        Some(s) if !s.is_empty() => s,
+        _ => {
+            state.p2p_group_invite_status = "Connect first — no identity loaded.".to_string();
+            return;
+        }
+    };
+    match crate::net::api_v2::submit_group_disband(&server_url, &seed, group_id) {
+        Ok(()) => {
+            let channel = format!("p2pgroup:{}", group_id);
+            state.chat_messages.retain(|m| m.channel != channel);
+            state.chat_active_channel = "general".to_string();
+            state.p2p_group_active_id.clear();
+            state.p2p_group_chat_epoch_key = None;
+            state.p2p_group_invite_status.clear();
+            refresh_p2p_groups(state);
+        }
+        Err(e) => {
+            state.p2p_group_invite_status = format!("Disband failed: {e}");
         }
     }
 }

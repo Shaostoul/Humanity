@@ -1542,7 +1542,11 @@ impl Storage {
                 name            TEXT NOT NULL,
                 creator_fp      TEXT NOT NULL,
                 creator_pubkey  BLOB NOT NULL,
-                created_at      INTEGER
+                created_at      INTEGER,
+                -- 1 once the creator publishes a group_disband_v1 — the group
+                -- then disappears from every member's list (the disband object
+                -- is the durable, P2P-replicable tombstone).
+                disbanded       INTEGER NOT NULL DEFAULT 0
             );
 
             -- The fold of the append-only membership log: who is currently in.
@@ -1745,6 +1749,18 @@ impl Storage {
                 [],
             );
             info!("Migration: added origin_server column to messages");
+        }
+
+        // Migration (v0.301.0): add disbanded flag to p2p_groups so a creator
+        // can tear a group down (group_disband_v1). Existing live DBs created
+        // the table pre-v0.301 without the column; fresh DBs get it from the
+        // CREATE above. DEFAULT 0 = every existing group stays live.
+        if conn.prepare("SELECT disbanded FROM p2p_groups LIMIT 0").is_err() {
+            let _ = conn.execute(
+                "ALTER TABLE p2p_groups ADD COLUMN disbanded INTEGER NOT NULL DEFAULT 0",
+                [],
+            );
+            info!("Migration: added disbanded column to p2p_groups");
         }
 
         // Server members table (membership tiers: member, contributor, mod, admin).

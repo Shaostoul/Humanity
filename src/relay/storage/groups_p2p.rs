@@ -165,7 +165,10 @@ impl Storage {
             _ => return Ok(false),
         };
 
-        // Authorization: the author must be the group's creator (Phase 1).
+        // Authorization (Phase 1):
+        //   • the group CREATOR may admit or remove anyone, OR
+        //   • ANY member may remove THEMSELVES (a self-leave: action="remove"
+        //     with subject == author). You can always leave a group you're in.
         // If the group isn't projected yet (out-of-order arrival), skip — the
         // signed object is still persisted and a later re-index reconciles.
         let creator_pubkey: Option<Vec<u8>> = self.with_conn(|conn| {
@@ -180,7 +183,9 @@ impl Storage {
             Some(pk) => pk,
             None => return Ok(false), // unknown group yet
         };
-        if object.author_public_key != creator_pubkey {
+        let is_creator = object.author_public_key == creator_pubkey;
+        let is_self_leave = action == "remove" && subject == object.author_public_key;
+        if !is_creator && !is_self_leave {
             return Ok(false); // unauthorized admit/remove — ignore
         }
 
@@ -316,6 +321,42 @@ impl Storage {
         })
     }
 
+    /// Project a `group_disband_v1`: the creator tears the whole group down.
+    /// Authority = must be signed by the group creator. Sets `disbanded = 1`
+    /// so the group drops off every member's list. The signed object is the
+    /// durable tombstone (replicates P2P); re-indexing `group_v1` later won't
+    /// resurrect it because `index_group` uses INSERT OR IGNORE (it never
+    /// clears an existing row's disbanded flag). No-op for other object types.
+    pub fn index_group_disband(&self, object: &Object) -> Result<bool, rusqlite::Error> {
+        if object.object_type != "group_disband_v1" {
+            return Ok(false);
+        }
+        let group_id = match object.references.first() {
+            Some(g) => g.clone(),
+            None => return Ok(false),
+        };
+        // Only the group creator may disband.
+        let creator_pubkey: Option<Vec<u8>> = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT creator_pubkey FROM p2p_groups WHERE group_id = ?1",
+                params![group_id],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .optional()
+        })?;
+        match creator_pubkey {
+            Some(pk) if pk == object.author_public_key => {}
+            _ => return Ok(false), // unknown group, or not the creator
+        }
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE p2p_groups SET disbanded = 1 WHERE group_id = ?1",
+                params![group_id],
+            )?;
+            Ok(true)
+        })
+    }
+
     /// The active roster of a P2P group (the fold of its membership log).
     pub fn p2p_group_roster(&self, group_id: &str) -> Result<Vec<P2pGroupMember>, rusqlite::Error> {
         self.with_conn(|conn| {
@@ -343,13 +384,26 @@ impl Storage {
                 "SELECT g.group_id, g.name
                  FROM p2p_groups g
                  JOIN p2p_group_roster r ON r.group_id = g.group_id
-                 WHERE r.member_fp = ?1 AND r.active = 1
+                 WHERE r.member_fp = ?1 AND r.active = 1 AND g.disbanded = 0
                  ORDER BY g.name COLLATE NOCASE",
             )?;
             let rows = stmt.query_map(params![fp], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
             })?;
             rows.collect()
+        })
+    }
+
+    /// The creator fingerprint of a P2P group (for "am I the creator?" checks
+    /// that gate the disband action). None if the group isn't projected.
+    pub fn p2p_group_creator_fp(&self, group_id: &str) -> Result<Option<String>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT creator_fp FROM p2p_groups WHERE group_id = ?1",
+                params![group_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
         })
     }
 
@@ -722,6 +776,94 @@ mod tests {
         // Join referencing the bogus invite → no invite row → rejected.
         db.put_signed_object(&join_obj(&mallory, &gid, &invite_id, &secret), None).unwrap();
         assert!(!db.p2p_group_has_member(&gid, &mallory.public_key()).unwrap());
+    }
+
+    fn disband_obj(by: &DilithiumKeypair, group_id: &str) -> Object {
+        ObjectBuilder::new("group_disband_v1")
+            .reference(group_id)
+            .created_at(1004)
+            .payload_cbor(&Value::Map(vec![]))
+            .unwrap()
+            .sign(by)
+            .unwrap()
+    }
+
+    #[test]
+    fn member_can_self_leave() {
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let alice = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+
+        // Alice joins via invite, then leaves by removing HERSELF (subject ==
+        // author) — allowed even though she is NOT the creator.
+        let secret = [7u8; 16];
+        let inv = invite_obj(&creator, &gid, &secret, 9_999_999_999_999);
+        let invite_id = inv.object_id().unwrap().to_hex();
+        db.put_signed_object(&inv, None).unwrap();
+        db.put_signed_object(&join_obj(&alice, &gid, &invite_id, &secret), None).unwrap();
+        assert!(db.p2p_group_has_member(&gid, &alice.public_key()).unwrap());
+
+        db.put_signed_object(&member_obj(&alice, &gid, "remove", &alice.public_key()), None).unwrap();
+        assert!(!db.p2p_group_has_member(&gid, &alice.public_key()).unwrap(), "self-leave should drop Alice");
+        // The group still exists for the creator.
+        assert!(db.p2p_group_has_member(&gid, &creator.public_key()).unwrap());
+        let mine = db.p2p_groups_for_member(&alice.public_key()).unwrap();
+        assert!(mine.is_empty(), "left group must not appear in Alice's list");
+    }
+
+    #[test]
+    fn non_creator_cannot_remove_someone_else() {
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let alice = DilithiumKeypair::generate().unwrap();
+        let bob = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+        // Admit both Alice and Bob.
+        db.put_signed_object(&member_obj(&creator, &gid, "admit", &alice.public_key()), None).unwrap();
+        db.put_signed_object(&member_obj(&creator, &gid, "admit", &bob.public_key()), None).unwrap();
+        assert_eq!(db.p2p_group_roster(&gid).unwrap().len(), 3);
+
+        // Alice tries to remove BOB (not herself, and she's not the creator) → ignored.
+        db.put_signed_object(&member_obj(&alice, &gid, "remove", &bob.public_key()), None).unwrap();
+        assert!(db.p2p_group_has_member(&gid, &bob.public_key()).unwrap(), "Bob must remain — Alice can't evict him");
+    }
+
+    #[test]
+    fn creator_can_disband_group_for_everyone() {
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let alice = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+        db.put_signed_object(&member_obj(&creator, &gid, "admit", &alice.public_key()), None).unwrap();
+        assert_eq!(db.p2p_groups_for_member(&alice.public_key()).unwrap().len(), 1);
+        assert_eq!(db.p2p_groups_for_member(&creator.public_key()).unwrap().len(), 1);
+
+        // Creator disbands → the group disappears from BOTH lists.
+        db.put_signed_object(&disband_obj(&creator, &gid), None).unwrap();
+        assert!(db.p2p_groups_for_member(&alice.public_key()).unwrap().is_empty(), "disband hides it for members");
+        assert!(db.p2p_groups_for_member(&creator.public_key()).unwrap().is_empty(), "disband hides it for the creator");
+    }
+
+    #[test]
+    fn non_creator_disband_is_ignored() {
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let alice = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+        db.put_signed_object(&member_obj(&creator, &gid, "admit", &alice.public_key()), None).unwrap();
+
+        // Alice (a member, but not the creator) tries to disband → must NOT take effect.
+        db.put_signed_object(&disband_obj(&alice, &gid), None).unwrap();
+        assert_eq!(db.p2p_groups_for_member(&creator.public_key()).unwrap().len(), 1, "group must survive a non-creator disband");
     }
 
     #[test]

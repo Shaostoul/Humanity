@@ -138,6 +138,22 @@ export async function buildGroupMemberV1({ groupId, action, subjectPubkey, autho
   });
 }
 
+/**
+ * Build + sign a `group_disband_v1`: the creator tears the whole group down.
+ * References [groupId]. The relay honors it only if the author is the group
+ * creator — it then hides the group from every member's list. Empty payload
+ * (the group_id reference + creator signature carry all the meaning).
+ */
+export async function buildGroupDisbandV1({ groupId, authorPublicKey, sign, blake3, createdAt }) {
+  return buildSignedObject({
+    objectType: 'group_disband_v1',
+    payload: cborMap([]),
+    references: [groupId],
+    authorPublicKey, sign, blake3,
+    createdAt: createdAt ?? Date.now(),
+  });
+}
+
 /** `group_invite_v1` payload: `{ expires_at, secret_hash }` (creator-signed). */
 export function groupInviteV1Payload(secretHash, expiresAt) {
   return cborMap([
