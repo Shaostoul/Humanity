@@ -3912,42 +3912,111 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
     widgets::dialog(ctx, theme, "create_group_dialog", "Create Group", &mut open, |ui| {
         ui.set_min_width(300.0);
 
-        widgets::form_row(ui, theme, "Group name", |ui| {
-            ui.add(
-                egui::TextEdit::singleline(&mut state.new_group_name)
-                    .desired_width(220.0)
-                    .hint_text("e.g. My Team"),
+        // After a successful create, this modal flips to a "share the ticket"
+        // view so the user can copy/share it immediately (the most common
+        // next step after creating a group).
+        if let Some(ticket) = state.create_group_ticket.clone() {
+            ui.label(RichText::new("✅ Group created").strong());
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new("Share this invite ticket (valid 7 days). It's signed by you, so members can join even when you're offline. Anyone with this string can join — keep it private to the people you mean to invite.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
             );
-        });
-
-        ui.add_space(theme.spacing_md);
-
-        ui.horizontal(|ui| {
-            let name_valid = !state.new_group_name.trim().is_empty();
-            ui.add_enabled_ui(name_valid, |ui| {
-                if widgets::Button::primary("Create").show(ui, theme) {
-                    if let Some(ref client) = state.ws_client {
-                        if client.is_connected() {
-                            let msg = serde_json::json!({
-                                "type": "group_create",
-                                "name": state.new_group_name.trim(),
-                            });
-                            client.send(&msg.to_string());
-                            log::info!("Group create requested: {}", state.new_group_name.trim());
-                            crate::debug::push_debug(format!("Group create: {}", state.new_group_name.trim()));
-                        }
-                    }
+            ui.add_space(theme.spacing_sm);
+            let mut display = ticket.clone();
+            ui.add(
+                egui::TextEdit::multiline(&mut display)
+                    .desired_width(360.0)
+                    .desired_rows(3)
+                    .interactive(false),
+            );
+            ui.add_space(theme.spacing_sm);
+            ui.horizontal(|ui| {
+                if widgets::Button::primary("📋 Copy ticket").show(ui, theme) {
+                    ui.ctx().copy_text(ticket.clone());
+                    state.create_group_status = "Ticket copied to clipboard.".to_string();
+                }
+                ui.add_space(theme.spacing_sm);
+                if widgets::Button::secondary("Done").show(ui, theme) {
                     state.show_create_group_modal = false;
+                    state.create_group_ticket = None;
+                    state.create_group_status.clear();
+                    state.new_group_name.clear();
                 }
             });
-            ui.add_space(theme.spacing_sm);
-            if widgets::Button::secondary("Cancel").show(ui, theme) {
-                state.show_create_group_modal = false;
+            if !state.create_group_status.is_empty() {
+                ui.add_space(theme.spacing_xs);
+                ui.label(
+                    RichText::new(&state.create_group_status)
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
             }
-        });
+        } else {
+            // Initial state: name input + Create.
+            widgets::form_row(ui, theme, "Group name", |ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.new_group_name)
+                        .desired_width(240.0)
+                        .hint_text("e.g. My Team"),
+                );
+            });
+            if !state.create_group_status.is_empty() {
+                ui.add_space(theme.spacing_xs);
+                ui.label(
+                    RichText::new(&state.create_group_status)
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            }
+            ui.add_space(theme.spacing_md);
+            ui.horizontal(|ui| {
+                let name_valid = !state.new_group_name.trim().is_empty();
+                ui.add_enabled_ui(name_valid, |ui| {
+                    if widgets::Button::primary("Create").show(ui, theme) {
+                        // P2P signed-object create: build group_v1 + an initial
+                        // 7-day creator-signed invite_v1, all via POST
+                        // /api/v2/objects. Replaces the legacy WS group_create
+                        // path (which never produced a working invite URL).
+                        let server_url = state.server_url.clone();
+                        let name = state.new_group_name.trim().to_string();
+                        let seed_opt = state.private_key_bytes.clone();
+                        match seed_opt {
+                            Some(seed) => {
+                                match crate::net::api_v2::create_group_and_first_invite(&server_url, &seed, &name) {
+                                    Ok((group_id, ticket)) => {
+                                        state.create_group_ticket = Some(ticket);
+                                        state.create_group_status.clear();
+                                        log::info!("P2P group created ({}) — first invite minted", group_id);
+                                        crate::debug::push_debug(format!("P2P group create: {} ({})", name, group_id));
+                                    }
+                                    Err(e) => {
+                                        state.create_group_status = format!("Create failed: {e}");
+                                        log::error!("create P2P group failed: {e}");
+                                    }
+                                }
+                            }
+                            None => {
+                                state.create_group_status = "No identity loaded. Connect first.".to_string();
+                            }
+                        }
+                    }
+                });
+                ui.add_space(theme.spacing_sm);
+                if widgets::Button::secondary("Cancel").show(ui, theme) {
+                    state.show_create_group_modal = false;
+                    state.new_group_name.clear();
+                    state.create_group_status.clear();
+                }
+            });
+        }
     });
     if !open {
         state.show_create_group_modal = false;
+        state.create_group_ticket = None;
+        state.create_group_status.clear();
+        state.new_group_name.clear();
     }
 }
 
@@ -3958,13 +4027,29 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
     widgets::dialog(ctx, theme, "join_group_dialog", "Join Group", &mut open, |ui| {
         ui.set_min_width(300.0);
 
-        widgets::form_row(ui, theme, "Invite code", |ui| {
+        ui.label(
+            RichText::new("Paste an invite ticket — the long base64 string from a group creator. The creator's signature inside lets you join even when they're offline.")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        ui.add_space(theme.spacing_sm);
+        widgets::form_row(ui, theme, "Invite ticket", |ui| {
             ui.add(
-                egui::TextEdit::singleline(&mut state.join_group_invite_code)
-                    .desired_width(220.0)
-                    .hint_text("Paste invite code here"),
+                egui::TextEdit::multiline(&mut state.join_group_invite_code)
+                    .desired_width(360.0)
+                    .desired_rows(3)
+                    .hint_text("paste base64 ticket here"),
             );
         });
+
+        if !state.join_group_status.is_empty() {
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new(&state.join_group_status)
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        }
 
         ui.add_space(theme.spacing_md);
 
@@ -3972,28 +4057,45 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
             let code_valid = !state.join_group_invite_code.trim().is_empty();
             ui.add_enabled_ui(code_valid, |ui| {
                 if widgets::Button::primary("Join").show(ui, theme) {
-                    if let Some(ref client) = state.ws_client {
-                        if client.is_connected() {
-                            let msg = serde_json::json!({
-                                "type": "group_join",
-                                "invite_code": state.join_group_invite_code.trim(),
-                            });
-                            client.send(&msg.to_string());
-                            log::info!("Group join requested with invite code");
-                            crate::debug::push_debug("Group join requested".to_string());
+                    // P2P signed-object join: decode the ticket + POST a
+                    // group_join_v1 revealing the secret. The relay's roster
+                    // fold admits us iff BLAKE3(secret) matches the creator-
+                    // signed invite and it hasn't expired.
+                    let server_url = state.server_url.clone();
+                    let ticket = state.join_group_invite_code.trim().to_string();
+                    let seed_opt = state.private_key_bytes.clone();
+                    match seed_opt {
+                        Some(seed) => {
+                            match crate::net::api_v2::join_group_by_ticket(&server_url, &seed, &ticket) {
+                                Ok((group_id, name)) => {
+                                    log::info!("Joined P2P group: {} ({})", name, group_id);
+                                    crate::debug::push_debug(format!("Joined P2P group '{}'", name));
+                                    state.join_group_invite_code.clear();
+                                    state.join_group_status.clear();
+                                    state.show_join_group_modal = false;
+                                }
+                                Err(e) => {
+                                    state.join_group_status = format!("Join failed: {e}");
+                                    log::error!("join P2P group failed: {e}");
+                                }
+                            }
+                        }
+                        None => {
+                            state.join_group_status = "No identity loaded. Connect first.".to_string();
                         }
                     }
-                    state.show_join_group_modal = false;
                 }
             });
             ui.add_space(theme.spacing_sm);
             if widgets::Button::secondary("Cancel").show(ui, theme) {
                 state.show_join_group_modal = false;
+                state.join_group_status.clear();
             }
         });
     });
     if !open {
         state.show_join_group_modal = false;
+        state.join_group_status.clear();
     }
 }
 

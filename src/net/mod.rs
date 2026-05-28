@@ -21,3 +21,8 @@ pub mod bip39_wordlist;
 /// and native derive the same key (kills the cross-client DM bug).
 #[cfg(feature = "native")]
 pub mod dm_pq;
+
+/// Native client → relay v2 signed-object submission + invite ticket helpers
+/// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
+#[cfg(feature = "native")]
+pub mod api_v2;

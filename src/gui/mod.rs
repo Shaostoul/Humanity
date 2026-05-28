@@ -1014,13 +1014,20 @@ pub struct GuiState {
     pub server_settings_new_channel: ChannelDraft,
     pub new_channel_description: String,
 
-    // ── Create group modal ──
+    // ── Create group modal (P2P signed-object groups, v0.295+) ──
     pub show_create_group_modal: bool,
     pub new_group_name: String,
+    /// Set after a successful create — the shareable invite ticket to copy.
+    /// The modal flips into "share this ticket" mode while `Some`.
+    pub create_group_ticket: Option<String>,
+    /// Inline status/error for the create modal.
+    pub create_group_status: String,
 
     // ── Join group modal ──
     pub show_join_group_modal: bool,
     pub join_group_invite_code: String,
+    /// Inline status/error for the join modal.
+    pub join_group_status: String,
 
     // ── Sidebar section settings popups (v0.195.0) ──
     // Rendered as floating Areas anchored below the section's cog
@@ -1673,8 +1680,11 @@ impl Default for GuiState {
             cosmos_show_lagrange: false,
             cosmos_show_reference_orbits: false,
             new_group_name: String::new(),
+            create_group_ticket: None,
+            create_group_status: String::new(),
             show_join_group_modal: false,
             join_group_invite_code: String::new(),
+            join_group_status: String::new(),
             show_channel_edit_modal: false,
             edit_channel_id: String::new(),
             edit_channel_name: String::new(),
