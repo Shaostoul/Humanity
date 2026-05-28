@@ -484,6 +484,12 @@ function onIdentityConfirmed() {
   // Request user data sync from server.
   requestSyncLoad();
 
+  // Proactively load P2P groups now that identity (myKey) is ready, so they
+  // appear in the left rail on first load instead of only after the user
+  // interacts (create/join). loadP2pGroups self-guards on myKey + sets its
+  // own fetched flag; calling it here is the reliable trigger.
+  if (typeof window.loadP2pGroups === 'function') window.loadP2pGroups();
+
   // ── URL hash channel navigation ──
   // If URL has #channelname, switch to that channel (e.g. /chat#dev -> dev)
   if (location.hash && location.hash !== '#profile') {

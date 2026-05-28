@@ -214,10 +214,15 @@ function addFollowContextMenu() {
 function renderGroupList() {
   const container = document.getElementById('tab-groups');
   if (!container) return;
-  // Lazily fetch P2P (sovereign signed-object) groups once; create/join re-fetch
-  // via window.loadP2pGroups(). These render above the legacy relay-mediated ones.
-  if (!window._p2pGroupsFetched && typeof window.loadP2pGroups === 'function') {
-    window._p2pGroupsFetched = true;
+  // Lazily fetch P2P (sovereign signed-object) groups once identity is ready;
+  // create/join re-fetch via window.loadP2pGroups(). These render above the
+  // legacy relay-mediated ones. NOTE: gate on myKey — loadP2pGroups bails
+  // without it, and it sets _p2pGroupsFetched itself only on a real attempt,
+  // so we retry on the next render once identity loads (connect() also kicks
+  // a proactive load). Without the myKey gate here the flag burned before
+  // identity → "no groups until I interact" bug.
+  if (!window._p2pGroupsFetched && typeof window.loadP2pGroups === 'function'
+      && typeof myKey === 'string' && myKey) {
     window.loadP2pGroups();
   }
   const p2pGroups = window._p2pGroups || [];

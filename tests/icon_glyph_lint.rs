@@ -44,6 +44,8 @@ const BROKEN_GLYPHS: &[(char, &str)] = &[
     ('\u{2712}', "✒ U+2712 BLACK NIB — same block, assume broken"),
     // Geometric Shapes — mixed support:
     ('\u{25A4}', "▤ U+25A4 SQUARE WITH HORIZONTAL FILL — confirmed broken"),
+    // Misc Symbols & Pictographs (emoji) — egui default font has no coverage:
+    ('\u{1F512}', "🔒 U+1F512 LOCK — emoji, tofus in egui (use the word 'encrypted' or paint_lock instead)"),
 ];
 
 /// Files scanned. Only UI-rendering trees.

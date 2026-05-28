@@ -1042,25 +1042,30 @@ pub struct GuiState {
     /// fetch on first render so the list is populated without a manual action.
     pub p2p_groups_last_fetch: Option<std::time::Instant>,
 
-    /// Opens the P2P-group dialog (roster + mint-invite). Click on a P2P row
-    /// in the left panel sets these.
-    pub show_p2p_group_modal: bool,
-    pub p2p_group_open_id: String,
-    /// Latest minted invite ticket (shown in the dialog for the user to copy).
-    pub p2p_group_modal_ticket: Option<String>,
-    /// Inline status/error for the P2P-group dialog.
-    pub p2p_group_modal_status: String,
-
-    // ── P2P-group chat-in-dialog state (Phase 2) ──
-    /// Current epoch number for the open group (informational; used when sending).
+    // ── Active P2P-group conversation (inline, channel-style — v0.300.0) ──
+    // A P2P group is opened like a channel: clicking it sets
+    // `chat_active_channel = "p2pgroup:<id>"` and its decrypted messages render
+    // in the SAME center panel as channels/DMs (no modal). These fields cache
+    // the open group's epoch key + roster so the 4s poll only re-fetches the
+    // message log, not the whole key exchange.
+    /// Transient status line for the P2P-group invite action (e.g.
+    /// "Invite copied"). Shown briefly in the group header after minting.
+    pub p2p_group_invite_status: String,
+    /// The group id whose epoch key + roster maps are currently cached (matches
+    /// the active `p2pgroup:<id>` channel). Empty when no P2P group is open.
+    pub p2p_group_active_id: String,
+    /// Current epoch number for the open group (used when sending).
     pub p2p_group_chat_epoch: u64,
-    /// Decapsulated 32-byte AES key for the current epoch. None means we don't
-    /// have a copy yet (no epoch issued, or it isn't sealed to us).
+    /// Decapsulated 32-byte AES key for the current epoch. None = we don't have
+    /// a copy yet (no epoch issued, or it isn't sealed to us).
     pub p2p_group_chat_epoch_key: Option<Vec<u8>>,
-    /// Currently-decrypted messages, oldest-first.
-    pub p2p_group_chat_messages: Vec<crate::net::api_v2::GroupMessage>,
-    /// Compose-box content for the next message to send.
-    pub p2p_group_chat_compose: String,
+    /// When we last polled the open group's messages — drives the 4s refresh.
+    pub p2p_group_last_fetch: Option<std::time::Instant>,
+    /// Roster index for the open group: author fingerprint → full pubkey hex
+    /// (lets group messages reuse the standard identicon + name resolution).
+    pub p2p_group_fp_to_key: std::collections::HashMap<String, String>,
+    /// Roster index for the open group: author fingerprint → display name.
+    pub p2p_group_fp_to_name: std::collections::HashMap<String, String>,
 
     // ── Sidebar section settings popups (v0.195.0) ──
     // Rendered as floating Areas anchored below the section's cog
@@ -1721,14 +1726,13 @@ impl Default for GuiState {
             join_group_result: None,
             p2p_groups: Vec::new(),
             p2p_groups_last_fetch: None,
-            show_p2p_group_modal: false,
-            p2p_group_open_id: String::new(),
-            p2p_group_modal_ticket: None,
-            p2p_group_modal_status: String::new(),
+            p2p_group_invite_status: String::new(),
+            p2p_group_active_id: String::new(),
             p2p_group_chat_epoch: 0,
             p2p_group_chat_epoch_key: None,
-            p2p_group_chat_messages: Vec::new(),
-            p2p_group_chat_compose: String::new(),
+            p2p_group_last_fetch: None,
+            p2p_group_fp_to_key: std::collections::HashMap::new(),
+            p2p_group_fp_to_name: std::collections::HashMap::new(),
             show_channel_edit_modal: false,
             edit_channel_id: String::new(),
             edit_channel_name: String::new(),

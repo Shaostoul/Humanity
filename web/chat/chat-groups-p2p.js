@@ -255,8 +255,13 @@
   }
 
   // Fetch my P2P groups + rosters from the relay projection and re-render.
+  // Sets `_p2pGroupsFetched` only once a real fetch is attempted (myKey ready)
+  // — otherwise the lazy trigger in renderGroupList would burn the flag before
+  // identity loads and the groups would never appear until the user interacted
+  // (the "no groups on first load" bug).
   async function loadP2pGroups() {
     if (typeof myKey !== 'string' || !myKey) return;
+    window._p2pGroupsFetched = true;
     try {
       const res = await fetch('/api/v2/groups?pubkey=' + encodeURIComponent(myKey));
       const data = await res.json();
