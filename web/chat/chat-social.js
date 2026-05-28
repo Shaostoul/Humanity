@@ -222,9 +222,12 @@ function renderGroupList() {
   }
   const p2pGroups = window._p2pGroups || [];
   let html = '';
-  // P2P groups (the new model). Click → roster + invite dialog.
+  // P2P groups (the new model). Click → switch the main chat to this group
+  // (same surface as switching channels). Right-click → "Copy invite ticket".
+  const activeP2p = window.activeP2pGroup;
   for (const g of p2pGroups) {
-    html += `<div class="channel-item" data-p2p-group-id="${esc(g.group_id)}" style="cursor:pointer;">
+    const isActiveP2p = !!(activeP2p && activeP2p.id === g.group_id);
+    html += `<div class="channel-item${isActiveP2p ? ' active' : ''}" data-p2p-group-id="${esc(g.group_id)}" style="cursor:pointer;">
       <span style="opacity:0.6">${hosIcon('users', 16)} </span>${esc(g.name)}
       <span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${(g.members || []).length}</span>
     </div>`;
@@ -247,12 +250,56 @@ function renderGroupList() {
        + '<button class="vr-btn" onclick="promptJoinGroup()" style="flex:1;font-size:0.7rem;">+ Join Group</button>'
        + '</div>';
   container.innerHTML = html;
-  // P2P group rows → roster + invite dialog (messaging is Phase 2).
+  // P2P group rows → switch the main chat to this group (channel-style).
+  // Right-click → context menu with "Copy invite ticket" (no modal, no z-order
+  // bugs — the menu is a tiny absolutely-positioned div that dismisses on
+  // outside click, same pattern the legacy group menu uses below).
   container.querySelectorAll('[data-p2p-group-id]').forEach(el => {
     el.onclick = () => {
       const gid = el.dataset.p2pGroupId;
       const g = (window._p2pGroups || []).find(x => x.group_id === gid);
-      if (g && typeof window.openP2pGroupDialog === 'function') window.openP2pGroupDialog(gid, g.name, g.members);
+      if (g && typeof window.openP2pGroup === 'function') window.openP2pGroup(gid, g.name);
+    };
+    el.oncontextmenu = (e) => {
+      e.preventDefault();
+      document.querySelectorAll('.group-ctx-menu').forEach(m => m.remove());
+      const gid = el.dataset.p2pGroupId;
+      const g = (window._p2pGroups || []).find(x => x.group_id === gid);
+      if (!g) return;
+      const menu = document.createElement('div');
+      menu.className = 'group-ctx-menu';
+      menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 0;min-width:180px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+      menu.style.left = e.clientX + 'px';
+      menu.style.top = e.clientY + 'px';
+      const items = [
+        { label: hosIcon('copy', 14) + ' Copy invite ticket', html: true, action: async () => {
+          if (typeof window.createP2pInvite !== 'function') return;
+          try {
+            const ticket = await window.createP2pInvite(gid, g.name);
+            if (!ticket) return;
+            try {
+              await navigator.clipboard.writeText(ticket);
+              if (typeof addSystemMessage === 'function') addSystemMessage('Invite ticket copied. Share within 7 days.');
+            } catch {
+              window.prompt('Copy this invite ticket (Ctrl+C):', ticket);
+            }
+          } catch (err) {
+            if (typeof addNotice === 'function') addNotice('Invite failed: ' + err.message, 'red', 6);
+          }
+        }},
+      ];
+      items.forEach(it => {
+        const div = document.createElement('div');
+        div.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:0.82rem;color:var(--text);';
+        if (it.html) div.innerHTML = it.label; else div.textContent = it.label;
+        div.onmouseenter = () => { div.style.background = 'var(--bg-hover)'; };
+        div.onmouseleave = () => { div.style.background = ''; };
+        div.onclick = (ev) => { ev.stopPropagation(); menu.remove(); it.action(); };
+        menu.appendChild(div);
+      });
+      document.body.appendChild(menu);
+      const closeMenu = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', closeMenu); } };
+      setTimeout(() => document.addEventListener('click', closeMenu), 0);
     };
   });
   // Click handler for groups

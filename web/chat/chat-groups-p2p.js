@@ -267,158 +267,301 @@
     if (typeof renderGroupList === 'function') renderGroupList();
   }
 
-  // Group chat dialog: roster + LIVE E2EE message log + compose + invite-mint.
-  // Phase 2: messages are AES-GCM under the group's epoch key (fetched via
-  // /api/v2/groups/{id}/epoch and unsealed with our Kyber secret). Polls every
-  // 4s while open. Closing tears down the refresh interval.
-  function openP2pGroupDialog(groupId, name, members) {
-    members = members || [];
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
-    overlay.innerHTML =
-      '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);max-width:560px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-sizing:border-box;">' +
-        '<div style="padding:var(--space-md) var(--space-lg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">' +
-          '<div>' +
-            '<div style="font-weight:700;font-size:1rem;">🔒 ' + esc(name || groupId.slice(0, 8)) + '</div>' +
-            '<div id="p2pg-sub" style="font-size:0.7rem;color:var(--text-muted);">' + members.length + ' member' + (members.length === 1 ? '' : 's') + ' · end-to-end encrypted</div>' +
-          '</div>' +
-          '<button id="p2pg-close" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;">✕</button>' +
-        '</div>' +
-        '<div id="p2pg-msgs" style="flex:1;overflow-y:auto;padding:var(--space-md) var(--space-lg);font-size:0.85rem;color:var(--text);min-height:220px;max-height:50vh;">' +
-          '<div style="color:var(--text-muted);font-size:0.8rem;">Loading messages…</div>' +
-        '</div>' +
-        '<div style="padding:var(--space-md) var(--space-lg);border-top:1px solid var(--border);">' +
-          '<div style="display:flex;gap:var(--space-sm);align-items:center;">' +
-            '<input id="p2pg-compose" type="text" placeholder="Type a message…" style="flex:1;padding:var(--space-sm) var(--space-md);background:var(--bg-primary);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.9rem;outline:none;" />' +
-            '<button id="p2pg-send" class="vr-btn">Send</button>' +
-          '</div>' +
-          '<div style="display:flex;gap:var(--space-sm);margin-top:var(--space-sm);">' +
-            '<button id="p2pg-invite" class="vr-btn" style="flex:1;font-size:0.75rem;">🔗 Create invite</button>' +
-            '<button id="p2pg-refresh" class="vr-btn" style="font-size:0.75rem;" title="Refresh">↻</button>' +
-          '</div>' +
-          '<div id="p2pg-ticket" style="display:none;margin-top:var(--space-sm);"></div>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(overlay);
+  // ── Inline group conversation (NO modal) ─────────────────────────────────
+  // openP2pGroup loads the group INTO the existing chat center panel, the same
+  // way switchChannel loads a channel: header → group name; messages → decrypted
+  // E2EE history rendered via the standard addChatMessage; composer → sends to
+  // the group via the per-epoch AES-GCM key. No popup, no parallel UI; the
+  // chat reuses everything (renderer, styling, scroll, identicons, theme).
+  //
+  // The modal version (openP2pGroupDialog) is removed — it duplicated the chat
+  // UI inside a constrained window AND was hitting an egui-like z-order bug
+  // where the backdrop kept landing in front of the modal. Inline is the
+  // correct mental model: switching from "#general" to "My Group" is one
+  // context change, not a popup.
 
-    const state = { epoch: 0, epochKey: null, myFp: '', refreshTimer: null, busy: false };
-    const msgsBox = overlay.querySelector('#p2pg-msgs');
-    const composeInput = overlay.querySelector('#p2pg-compose');
-    const sendBtn = overlay.querySelector('#p2pg-send');
-    const ticketBox = overlay.querySelector('#p2pg-ticket');
+  // Active P2P-group conversation lives on `window` so the cross-file
+  // monkey-patches below can see it without import gymnastics.
+  window.activeP2pGroup = null;
 
-    function close() {
-      if (state.refreshTimer) { clearInterval(state.refreshTimer); state.refreshTimer = null; }
-      overlay.remove();
+  let _p2pPollTimer = null;
+  // Dedup key to skip re-rendering identical history (otherwise 4s polling
+  // flickers + breaks scroll position).
+  let _p2pRenderedKey = '';
+  let _p2pRefreshing = false;
+
+  function _stopP2pPoll() {
+    if (_p2pPollTimer) { clearInterval(_p2pPollTimer); _p2pPollTimer = null; }
+  }
+
+  function _renderP2pPlaceholder(text) {
+    if (!window.activeP2pGroup) return;
+    const msgsEl = document.getElementById('messages');
+    if (!msgsEl) return;
+    msgsEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:var(--space-xl);font-size:0.8rem;">' + esc(text) + '</div>';
+  }
+
+  function _renderP2pMessages(msgs) {
+    if (!window.activeP2pGroup) return;
+    const ag = window.activeP2pGroup;
+    const msgsEl = document.getElementById('messages');
+    if (!msgsEl) return;
+    msgsEl.innerHTML = '';
+    if (typeof resetMsgStripe === 'function') resetMsgStripe();
+    if (typeof seenTimestamps !== 'undefined' && seenTimestamps && typeof seenTimestamps.clear === 'function') seenTimestamps.clear();
+    if (typeof messageReactions !== 'undefined' && messageReactions) {
+      Object.keys(messageReactions).forEach((k) => delete messageReactions[k]);
     }
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-    overlay.querySelector('#p2pg-close').onclick = close;
+    if (msgs.length === 0) {
+      msgsEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:var(--space-xl);font-size:0.8rem;">No messages yet. Be the first to chat — your messages are end-to-end encrypted under the group epoch key.</div>';
+      return;
+    }
+    for (const m of msgs) {
+      const isMe = ag.myFp && m.author_fp === ag.myFp;
+      // For non-me messages, all we have on hand is the fingerprint. The author
+      // map (member key → display name) is loaded as part of refresh below.
+      const labelFromMap = !isMe && ag.fpToName ? ag.fpToName[m.author_fp] : null;
+      const authorName = isMe
+        ? (window.myName || 'You')
+        : (labelFromMap || (m.author_fp || '').slice(0, 12) + '…');
+      const fromKey = isMe ? myKey : (ag.fpToKey && ag.fpToKey[m.author_fp]) || m.author_fp;
+      addChatMessage(authorName, m.text, m.created_at, fromKey, true, false, null, null);
+    }
+  }
 
-    async function refresh() {
-      if (state.busy) return;
-      state.busy = true;
-      try {
-        if (!state.myFp) state.myFp = await myFingerprint();
-        if (!state.epochKey) {
-          // If I am the creator AND new members have joined since the last
-          // epoch was issued, rotate the key sealed to the full roster so they
-          // can decrypt. This is what unblocks cross-identity chat.
-          try {
-            const rekey = await rekeyIfCreatorNeeds(groupId);
-            if (rekey) {
-              state.epoch = rekey.epoch;
-              state.epochKey = rekey.epochKey;
-              if (typeof addSystemMessage === 'function') {
-                addSystemMessage('Rotated group key for ' + rekey.addedCount + ' new member' + (rekey.addedCount === 1 ? '' : 's') + '.');
-              }
+  // Populate ag.fpToName + ag.fpToKey by fetching the roster + matching each
+  // member's fingerprint. Best-effort: failures are silent (fall back to short fp).
+  async function _loadRosterIndex(ag) {
+    try {
+      const r = await fetch('/api/v2/groups/' + encodeURIComponent(ag.id) + '/members');
+      if (!r.ok) return;
+      const data = await r.json();
+      const { blake3 } = await mods();
+      ag.fpToName = {};
+      ag.fpToKey = {};
+      for (const m of (data.members || [])) {
+        if (!m.pubkey) continue;
+        const h = blake3(hexToBytes(m.pubkey));
+        let fp = '';
+        for (let i = 0; i < 16; i++) fp += h[i].toString(16).padStart(2, '0');
+        ag.fpToKey[fp] = m.pubkey;
+        // For now we don't have a name lookup here — peerData might have one
+        // if they've been seen on the relay. Fall back to short pubkey.
+        const peer = (typeof peerData !== 'undefined' && peerData) ? peerData[m.pubkey] : null;
+        ag.fpToName[fp] = (peer && peer.display_name) || (m.pubkey.slice(0, 8) + '…');
+      }
+    } catch (e) { /* best effort */ }
+  }
+
+  async function _p2pRefresh() {
+    const ag = window.activeP2pGroup;
+    if (!ag || _p2pRefreshing) return;
+    _p2pRefreshing = true;
+    try {
+      if (!ag.myFp) ag.myFp = await myFingerprint().catch(() => '');
+      if (!ag.fpToName) await _loadRosterIndex(ag);
+      if (!ag.epochKey) {
+        // (1) If I'm the creator AND new members joined, rotate the key.
+        try {
+          const rekey = await rekeyIfCreatorNeeds(ag.id);
+          if (rekey) {
+            ag.epoch = rekey.epoch;
+            ag.epochKey = rekey.epochKey;
+            // Roster changed if a rekey happened — reload the name map.
+            await _loadRosterIndex(ag);
+            if (typeof addSystemMessage === 'function') {
+              addSystemMessage('Rotated group key for ' + rekey.addedCount + ' new member' + (rekey.addedCount === 1 ? '' : 's') + '.');
             }
-          } catch (e) { console.warn('rekey check failed:', e); }
-          // If no rekey happened (or it failed), just fetch the latest key.
-          if (!state.epochKey) {
-            const ek = await fetchEpochKey(groupId);
-            if (ek) { state.epoch = ek.epoch; state.epochKey = ek.epochKey; }
           }
-          if (!state.epochKey) {
-            msgsBox.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">No epoch key available yet — wait for the group creator to issue one (it happens automatically the first time they open this dialog). Then ↻ refresh.</div>';
-            return;
+        } catch (e) { console.warn('rekey check:', e); }
+        // (2) No rekey or non-creator → fetch the latest key.
+        if (!ag.epochKey) {
+          const ek = await fetchEpochKey(ag.id);
+          if (ek) { ag.epoch = ek.epoch; ag.epochKey = ek.epochKey; }
+        }
+        if (!ag.epochKey) {
+          _renderP2pPlaceholder('No epoch key yet. The group creator must open this group once for the first key to be issued, then refresh.');
+          _p2pRenderedKey = ''; // so the next refresh repaints when the key shows up
+          return;
+        }
+      }
+      // (3) Fetch + decrypt + render (skip if nothing changed).
+      const msgs = await fetchGroupMessages(ag.id, ag.epochKey);
+      msgs.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+      const key = msgs.map((m) => (m.author_fp || '') + ':' + (m.created_at || 0)).join('|');
+      if (key === _p2pRenderedKey) return;
+      _p2pRenderedKey = key;
+      _renderP2pMessages(msgs);
+    } finally {
+      _p2pRefreshing = false;
+    }
+  }
+
+  /**
+   * Switch the main chat to the given P2P group as if it were a channel.
+   * Returns immediately (no awaits before view changes) — the data load
+   * runs in the background and populates the panel when it arrives.
+   */
+  function openP2pGroup(groupId, name) {
+    if (!pqReady()) { notReady(); return; }
+    // (a) Clear competing contexts (DM, legacy group). Leave `activeChannel`
+    //     untouched so switching back to a channel restores it.
+    if (typeof activeDmPartner !== 'undefined') { activeDmPartner = null; activeDmPartnerName = ''; }
+    if (typeof activeGroupId !== 'undefined') { activeGroupId = null; activeGroupName = ''; }
+    window.activeP2pGroup = { id: groupId, name: name || '', epoch: 0, epochKey: null, myFp: '', fpToName: null, fpToKey: null };
+
+    // (b) Sidebar: switch to Groups tab + redraw lists so highlights reflect state.
+    if (typeof switchSidebarTab === 'function') switchSidebarTab('groups', true);
+    if (typeof renderChannelList === 'function') renderChannelList();
+    if (typeof renderDmList === 'function') renderDmList();
+    if (typeof renderGroupList === 'function') renderGroupList();
+
+    // (c) Hide pin bar (groups don't have pins yet).
+    const pinBar = document.getElementById('pin-bar');
+    if (pinBar) pinBar.style.display = 'none';
+    const pinList = document.getElementById('pin-list');
+    if (pinList) pinList.classList.remove('open');
+
+    // (d) Header — name + invite link (no parallel modal, just a tiny inline link).
+    const header = document.getElementById('channel-header');
+    if (header) {
+      const displayName = name || groupId.slice(0, 8);
+      header.style.display = 'block';
+      header.innerHTML = '<span class="ch-name">🔒 ' + esc(displayName) + '</span>' +
+        '<span class="ch-desc">End-to-end encrypted group · ' +
+        '<a href="#" id="p2pg-header-invite" style="color:var(--accent);text-decoration:none;">Copy invite ticket</a></span>';
+      const inv = header.querySelector('#p2pg-header-invite');
+      if (inv) inv.onclick = async (e) => {
+        e.preventDefault();
+        inv.textContent = 'Minting…';
+        try {
+          const ticket = await createP2pInvite(groupId, displayName);
+          if (ticket) {
+            try {
+              await navigator.clipboard.writeText(ticket);
+              if (typeof addSystemMessage === 'function') addSystemMessage('Invite ticket copied to clipboard. Share it within 7 days.');
+            } catch {
+              window.prompt('Copy this invite ticket (Ctrl+C):', ticket);
+            }
           }
+        } catch (err) {
+          if (typeof addNotice === 'function') addNotice('Invite failed: ' + err.message, 'red', 6);
+        } finally {
+          inv.textContent = 'Copy invite ticket';
         }
-        const msgs = await fetchGroupMessages(groupId, state.epochKey);
-        if (msgs.length === 0) {
-          msgsBox.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">No messages yet. Be the first to chat — your messages are end-to-end encrypted under the group epoch key.</div>';
-        } else {
-          msgs.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
-          msgsBox.innerHTML = msgs.map(function(m) {
-            var isMe = m.author_fp === state.myFp;
-            var label = isMe ? 'You' : ((m.author_fp || '').slice(0, 12) + '…');
-            var time = m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
-            var nameColor = isMe ? 'var(--accent)' : 'var(--text)';
-            return '<div style="margin-bottom:var(--space-sm);">' +
-              '<span style="font-weight:600;color:' + nameColor + ';">' + esc(label) + '</span> ' +
-              '<span style="font-size:0.7rem;color:var(--text-muted);">' + time + '</span>' +
-              '<div style="margin-top:2px;white-space:pre-wrap;">' + esc(m.text) + '</div>' +
-              '</div>';
-          }).join('');
-          msgsBox.scrollTop = msgsBox.scrollHeight;
-        }
-      } finally { state.busy = false; }
+      };
     }
 
-    async function doSend() {
-      var text = composeInput.value.trim();
+    // (e) Clear messages, set group context (group tint), show Loading until
+    //     the first refresh paints (or the placeholder if no key yet).
+    const msgsEl = document.getElementById('messages');
+    if (msgsEl) {
+      msgsEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:var(--space-xl);font-size:0.8rem;">Loading…</div>';
+      msgsEl.dataset.ctx = 'group';
+    }
+    if (typeof resetMsgStripe === 'function') resetMsgStripe();
+
+    // (f) Composer.
+    const input = document.getElementById('msg-input');
+    const sendBtn = document.getElementById('send-btn');
+    if (input) {
+      input.disabled = false;
+      input.placeholder = 'Message ' + (name || 'group') + '…';
+      try { input.focus(); } catch {}
+    }
+    if (sendBtn) sendBtn.disabled = false;
+
+    // (g) Reset dedup so the first refresh paints.
+    _p2pRenderedKey = '';
+
+    // (h) Kick off the first refresh in the background + start polling.
+    _p2pRefresh();
+    _stopP2pPoll();
+    _p2pPollTimer = setInterval(_p2pRefresh, 4000);
+
+    if (typeof closeSidebars === 'function' && typeof isMobile === 'function' && isMobile()) closeSidebars();
+  }
+
+  /** Called when switching away from a P2P group (channel, DM, legacy group). */
+  function closeP2pGroup() {
+    _stopP2pPoll();
+    _p2pRenderedKey = '';
+    if (window.activeP2pGroup) window.activeP2pGroup = null;
+  }
+
+  // ── Cross-file hooks ────────────────────────────────────────────────────
+  // chat-groups-p2p.js loads AFTER chat-social.js (see index.html), so our
+  // wrappers run BEFORE chat-social's already-wrapped versions and close the
+  // P2P context before any channel/DM/legacy-group switch happens.
+  if (typeof switchChannel === 'function') {
+    const _origSwitchChannelP2p = switchChannel;
+    // eslint-disable-next-line no-global-assign
+    switchChannel = function (channelId) {
+      closeP2pGroup();
+      return _origSwitchChannelP2p(channelId);
+    };
+  }
+  if (typeof openDmConversation === 'function') {
+    const _origOpenDmP2p = openDmConversation;
+    // eslint-disable-next-line no-global-assign
+    openDmConversation = function () {
+      closeP2pGroup();
+      return _origOpenDmP2p.apply(this, arguments);
+    };
+  }
+  if (typeof openGroup === 'function') {
+    const _origOpenGroupP2p = openGroup;
+    // eslint-disable-next-line no-global-assign
+    openGroup = function () {
+      closeP2pGroup();
+      return _origOpenGroupP2p.apply(this, arguments);
+    };
+  }
+  // sendMessage routing: when a P2P group is active, the composer sends to it.
+  if (typeof sendMessage === 'function') {
+    const _origSendMsgP2p = sendMessage;
+    // eslint-disable-next-line no-global-assign
+    sendMessage = async function () {
+      const ag = window.activeP2pGroup;
+      if (!ag) return _origSendMsgP2p.apply(this, arguments);
+      const input = document.getElementById('msg-input');
+      const sendBtn = document.getElementById('send-btn');
+      if (!input) return;
+      const text = (input.value || '').trim();
       if (!text) return;
-      if (!state.epochKey) {
-        if (typeof addNotice === 'function') addNotice('Waiting for the group epoch key. Try ↻ refresh.', 'orange', 6);
+      if (!ag.epochKey) {
+        if (typeof addNotice === 'function') addNotice('Waiting for the group epoch key. The group creator must open the group once first.', 'orange', 6);
         return;
       }
-      composeInput.disabled = true; sendBtn.disabled = true;
+      input.disabled = true;
+      if (sendBtn) sendBtn.disabled = true;
       try {
-        await sendGroupMessage(groupId, state.epoch || 1, state.epochKey, text);
-        composeInput.value = '';
-        await refresh();
+        await sendGroupMessage(ag.id, ag.epoch || 1, ag.epochKey, text);
+        input.value = '';
+        input.style.height = 'auto';
+        // Optimistic local echo so the user sees their message land
+        // immediately — the next poll-refresh reconciles with what the relay
+        // stored (dedup by author_fp + created_at).
+        addChatMessage(window.myName || 'You', text, Date.now(), myKey, false, false, null, null);
+        _p2pRefresh();
       } catch (e) {
         if (typeof addNotice === 'function') addNotice('Send failed: ' + e.message, 'red', 6);
       } finally {
-        composeInput.disabled = false; sendBtn.disabled = false; composeInput.focus();
-      }
-    }
-    sendBtn.onclick = doSend;
-    composeInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); doSend(); } });
-
-    overlay.querySelector('#p2pg-refresh').onclick = function() { state.epochKey = null; refresh(); };
-
-    overlay.querySelector('#p2pg-invite').onclick = async function() {
-      var btn = overlay.querySelector('#p2pg-invite');
-      btn.disabled = true; btn.textContent = 'Minting…';
-      try {
-        var ticket = await createP2pInvite(groupId, name);
-        if (!ticket) { btn.disabled = false; btn.textContent = '🔗 Create invite'; return; }
-        ticketBox.style.display = 'block';
-        ticketBox.innerHTML =
-          '<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">Share this ticket (valid 7 days). Joiners can self-admit even when you are offline.</div>' +
-          '<textarea readonly style="width:100%;height:54px;font-size:0.7rem;font-family:monospace;background:var(--bg-primary);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);box-sizing:border-box;">' + esc(ticket) + '</textarea>' +
-          '<button id="p2pg-copy" class="vr-btn" style="width:100%;margin-top:4px;font-size:0.75rem;">📋 Copy ticket</button>';
-        ticketBox.querySelector('#p2pg-copy').onclick = function() {
-          navigator.clipboard.writeText(ticket).then(function() {
-            if (typeof addSystemMessage === 'function') addSystemMessage('Invite ticket copied.');
-          });
-        };
-        btn.disabled = false; btn.textContent = '🔗 Create invite';
-      } catch (e) {
-        btn.disabled = false; btn.textContent = '🔗 Create invite';
-        if (typeof addNotice === 'function') addNotice('Invite failed: ' + e.message, 'red', 6);
+        input.disabled = false;
+        if (sendBtn) sendBtn.disabled = false;
+        try { input.focus(); } catch {}
       }
     };
-
-    composeInput.focus();
-    refresh().then(function() {
-      state.refreshTimer = setInterval(refresh, 4000);
-    });
   }
 
   window.createP2pGroup = createP2pGroup;
   window.createP2pInvite = createP2pInvite;
   window.joinP2pGroupByTicket = joinP2pGroupByTicket;
   window.loadP2pGroups = loadP2pGroups;
-  window.openP2pGroupDialog = openP2pGroupDialog;
+  window.openP2pGroup = openP2pGroup;
+  window.closeP2pGroup = closeP2pGroup;
+  // Back-compat alias: anything still calling the old name gets routed into
+  // the inline flow (no modal). Members arg ignored — roster is fetched
+  // server-side now.
+  window.openP2pGroupDialog = function (groupId, name) { return openP2pGroup(groupId, name); };
 })();
