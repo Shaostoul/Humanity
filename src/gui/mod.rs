@@ -1028,6 +1028,19 @@ pub struct GuiState {
     pub join_group_invite_code: String,
     /// Inline status/error for the join modal.
     pub join_group_status: String,
+    /// Set to the joined group's name after a successful join — the modal flips
+    /// into a "✅ Joined …" confirmation view while `Some` so the user has
+    /// visible feedback that it worked (instead of the modal silently closing).
+    pub join_group_result: Option<String>,
+
+    /// P2P (signed-object) groups the user is a member of — read-only cache of
+    /// the relay's `/api/v2/groups` projection. Rendered in the left panel
+    /// alongside legacy `chat_groups` during the migration. Refreshed after
+    /// create/join and on explicit refresh.
+    pub p2p_groups: Vec<crate::net::api_v2::P2pGroupInfo>,
+    /// When the P2P-groups projection was last fetched — used to do a one-time
+    /// fetch on first render so the list is populated without a manual action.
+    pub p2p_groups_last_fetch: Option<std::time::Instant>,
 
     // ── Sidebar section settings popups (v0.195.0) ──
     // Rendered as floating Areas anchored below the section's cog
@@ -1685,6 +1698,9 @@ impl Default for GuiState {
             show_join_group_modal: false,
             join_group_invite_code: String::new(),
             join_group_status: String::new(),
+            join_group_result: None,
+            p2p_groups: Vec::new(),
+            p2p_groups_last_fetch: None,
             show_channel_edit_modal: false,
             edit_channel_id: String::new(),
             edit_channel_name: String::new(),

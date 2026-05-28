@@ -761,12 +761,48 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 // ── Groups Section ──
 
+/// Synchronous (ureq) refresh of `state.p2p_groups` from the relay's
+/// /api/v2/groups projection. Matches the existing `upload_image_png_blocking`
+/// pattern — fine for occasional refreshes (create/join/first-render); promote
+/// to a background tokio task if it ever feels janky.
+pub(crate) fn refresh_p2p_groups(state: &mut GuiState) {
+    let server_url = state.server_url.clone();
+    let seed = match state.private_key_bytes.as_ref() {
+        Some(s) if !s.is_empty() => s.clone(),
+        _ => return,
+    };
+    let dilithium_hex = match crate::net::identity::derive_pq_identity(&seed) {
+        Ok(id) => id.dilithium_hex,
+        Err(e) => {
+            log::warn!("refresh_p2p_groups: derive identity failed: {e}");
+            return;
+        }
+    };
+    match crate::net::api_v2::fetch_p2p_groups(&server_url, &dilithium_hex) {
+        Ok(list) => {
+            log::info!("refresh_p2p_groups: {} groups", list.len());
+            state.p2p_groups = list;
+        }
+        Err(e) => {
+            log::warn!("refresh_p2p_groups: fetch failed: {e}");
+        }
+    }
+    state.p2p_groups_last_fetch = Some(std::time::Instant::now());
+}
+
 fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    // One-time first-render fetch so the list is populated without a manual
+    // action. After that, explicit Create/Join successes refresh it.
+    if state.p2p_groups_last_fetch.is_none() {
+        refresh_p2p_groups(state);
+    }
+
     // Sort groups alphabetically by name (see draw_dm_section for rationale).
     state.chat_groups.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    state.p2p_groups.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
     let collapsed = state.chat_groups_collapsed;
-    let group_count = state.chat_groups.len();
+    let group_count = state.chat_groups.len() + state.p2p_groups.len();
 
     // Track button clicks from the header.
     // Note: the Groups-level "settings" cog was REMOVED in v0.223
@@ -824,7 +860,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.set_min_width(ui.available_width());
                 ui.spacing_mut().item_spacing.y = 0.0;
 
-                if state.chat_groups.is_empty() {
+                if state.chat_groups.is_empty() && state.p2p_groups.is_empty() {
                     ui.horizontal(|ui| {
                         ui.add_space(16.0);
                         ui.label(
@@ -834,6 +870,47 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         );
                     });
                     ui.add_space(4.0);
+                }
+
+                // P2P (signed-object) groups — rendered above legacy ones.
+                // Click is a stub for now (Phase-1 P2P groups have no chat
+                // until Phase 2); roster/invite-mint dialog is queued.
+                for p in &state.p2p_groups {
+                    let hdr_height = 24.0;
+                    let full_w = ui.available_width();
+                    let (row_rect, row_resp) = ui.allocate_exact_size(
+                        Vec2::new(full_w, hdr_height),
+                        egui::Sense::click(),
+                    );
+                    if ui.is_rect_visible(row_rect) {
+                        let bg = if row_resp.hovered() {
+                            Color32::from_rgba_premultiplied(
+                                theme.group_bg().r().saturating_add(28),
+                                theme.group_bg().g().saturating_add(28),
+                                theme.group_bg().b().saturating_add(28),
+                                theme.group_bg().a(),
+                            )
+                        } else { theme.group_bg() };
+                        ui.painter().rect_filled(row_rect, 0.0, bg);
+                        let cy = row_rect.center().y;
+                        // Name
+                        ui.painter().text(
+                            egui::pos2(row_rect.left() + 12.0, cy),
+                            egui::Align2::LEFT_CENTER,
+                            &p.name,
+                            egui::FontId::proportional(theme.body_size),
+                            theme.text_primary(),
+                        );
+                        // Member count, right-aligned
+                        ui.painter().text(
+                            egui::pos2(row_rect.right() - 12.0, cy),
+                            egui::Align2::RIGHT_CENTER,
+                            format!("{} member{}", p.members.len(), if p.members.len() == 1 {""} else {"s"}),
+                            egui::FontId::proportional(theme.font_size_small),
+                            theme.text_muted(),
+                        );
+                    }
+                    ui.add_space(2.0);
                 }
 
                 // Groups render like servers (expandable header + nested channels)
@@ -3971,36 +4048,16 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                 );
             }
             ui.add_space(theme.spacing_md);
+            let name_valid = !state.new_group_name.trim().is_empty();
+            // Pressing Enter on the name field also triggers Create — the
+            // expected keyboard shortcut for a single-field "name + Create"
+            // form (operator feedback 2026-05-28).
+            let enter_pressed = name_valid && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let mut do_create = false;
             ui.horizontal(|ui| {
-                let name_valid = !state.new_group_name.trim().is_empty();
                 ui.add_enabled_ui(name_valid, |ui| {
                     if widgets::Button::primary("Create").show(ui, theme) {
-                        // P2P signed-object create: build group_v1 + an initial
-                        // 7-day creator-signed invite_v1, all via POST
-                        // /api/v2/objects. Replaces the legacy WS group_create
-                        // path (which never produced a working invite URL).
-                        let server_url = state.server_url.clone();
-                        let name = state.new_group_name.trim().to_string();
-                        let seed_opt = state.private_key_bytes.clone();
-                        match seed_opt {
-                            Some(seed) => {
-                                match crate::net::api_v2::create_group_and_first_invite(&server_url, &seed, &name) {
-                                    Ok((group_id, ticket)) => {
-                                        state.create_group_ticket = Some(ticket);
-                                        state.create_group_status.clear();
-                                        log::info!("P2P group created ({}) — first invite minted", group_id);
-                                        crate::debug::push_debug(format!("P2P group create: {} ({})", name, group_id));
-                                    }
-                                    Err(e) => {
-                                        state.create_group_status = format!("Create failed: {e}");
-                                        log::error!("create P2P group failed: {e}");
-                                    }
-                                }
-                            }
-                            None => {
-                                state.create_group_status = "No identity loaded. Connect first.".to_string();
-                            }
-                        }
+                        do_create = true;
                     }
                 });
                 ui.add_space(theme.spacing_sm);
@@ -4010,6 +4067,37 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                     state.create_group_status.clear();
                 }
             });
+            if do_create || enter_pressed {
+                // P2P signed-object create: build group_v1 + an initial 7-day
+                // creator-signed invite_v1, all via POST /api/v2/objects.
+                // Replaces the legacy WS group_create path (which never
+                // produced a working invite URL).
+                let server_url = state.server_url.clone();
+                let name = state.new_group_name.trim().to_string();
+                let seed_opt = state.private_key_bytes.clone();
+                match seed_opt {
+                    Some(seed) => {
+                        match crate::net::api_v2::create_group_and_first_invite(&server_url, &seed, &name) {
+                            Ok((group_id, ticket)) => {
+                                state.create_group_ticket = Some(ticket);
+                                state.create_group_status.clear();
+                                log::info!("P2P group created ({}) — first invite minted", group_id);
+                                crate::debug::push_debug(format!("P2P group create: {} ({})", name, group_id));
+                                // Refresh the projection cache so the new group
+                                // appears in the left panel when the modal closes.
+                                refresh_p2p_groups(state);
+                            }
+                            Err(e) => {
+                                state.create_group_status = format!("Create failed: {e}");
+                                log::error!("create P2P group failed: {e}");
+                            }
+                        }
+                    }
+                    None => {
+                        state.create_group_status = "No identity loaded. Connect first.".to_string();
+                    }
+                }
+            }
         }
     });
     if !open {
@@ -4025,77 +4113,109 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
 fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut open = state.show_join_group_modal;
     widgets::dialog(ctx, theme, "join_group_dialog", "Join Group", &mut open, |ui| {
-        ui.set_min_width(300.0);
+        ui.set_min_width(360.0);
 
-        ui.label(
-            RichText::new("Paste an invite ticket — the long base64 string from a group creator. The creator's signature inside lets you join even when they're offline.")
-                .size(theme.font_size_small)
-                .color(theme.text_muted()),
-        );
-        ui.add_space(theme.spacing_sm);
-        widgets::form_row(ui, theme, "Invite ticket", |ui| {
-            ui.add(
-                egui::TextEdit::multiline(&mut state.join_group_invite_code)
-                    .desired_width(360.0)
-                    .desired_rows(3)
-                    .hint_text("paste base64 ticket here"),
-            );
-        });
-
-        if !state.join_group_status.is_empty() {
+        // After a successful join, the modal flips into a visible "✅ Joined"
+        // confirmation so the user gets clear feedback (instead of the modal
+        // closing silently — operator feedback 2026-05-28).
+        if let Some(joined_name) = state.join_group_result.clone() {
+            ui.label(RichText::new(format!("✅ Joined group \"{}\"", joined_name)).strong());
             ui.add_space(theme.spacing_xs);
             ui.label(
-                RichText::new(&state.join_group_status)
+                RichText::new("You're now an active member. The group will appear in your Groups list.")
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
-        }
-
-        ui.add_space(theme.spacing_md);
-
-        ui.horizontal(|ui| {
-            let code_valid = !state.join_group_invite_code.trim().is_empty();
-            ui.add_enabled_ui(code_valid, |ui| {
-                if widgets::Button::primary("Join").show(ui, theme) {
-                    // P2P signed-object join: decode the ticket + POST a
-                    // group_join_v1 revealing the secret. The relay's roster
-                    // fold admits us iff BLAKE3(secret) matches the creator-
-                    // signed invite and it hasn't expired.
-                    let server_url = state.server_url.clone();
-                    let ticket = state.join_group_invite_code.trim().to_string();
-                    let seed_opt = state.private_key_bytes.clone();
-                    match seed_opt {
-                        Some(seed) => {
-                            match crate::net::api_v2::join_group_by_ticket(&server_url, &seed, &ticket) {
-                                Ok((group_id, name)) => {
-                                    log::info!("Joined P2P group: {} ({})", name, group_id);
-                                    crate::debug::push_debug(format!("Joined P2P group '{}'", name));
-                                    state.join_group_invite_code.clear();
-                                    state.join_group_status.clear();
-                                    state.show_join_group_modal = false;
-                                }
-                                Err(e) => {
-                                    state.join_group_status = format!("Join failed: {e}");
-                                    log::error!("join P2P group failed: {e}");
-                                }
-                            }
-                        }
-                        None => {
-                            state.join_group_status = "No identity loaded. Connect first.".to_string();
-                        }
-                    }
-                }
-            });
-            ui.add_space(theme.spacing_sm);
-            if widgets::Button::secondary("Cancel").show(ui, theme) {
+            ui.add_space(theme.spacing_md);
+            if widgets::Button::primary("Done").show(ui, theme) {
                 state.show_join_group_modal = false;
+                state.join_group_result = None;
+                state.join_group_invite_code.clear();
                 state.join_group_status.clear();
             }
-        });
+        } else {
+            ui.label(
+                RichText::new("Paste an invite ticket — the long base64 string from a group creator. The creator's signature inside lets you join even when they're offline.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_sm);
+            widgets::form_row(ui, theme, "Invite ticket", |ui| {
+                ui.add(
+                    egui::TextEdit::multiline(&mut state.join_group_invite_code)
+                        .desired_width(360.0)
+                        .desired_rows(3)
+                        .hint_text("paste base64 ticket here"),
+                );
+            });
+
+            if !state.join_group_status.is_empty() {
+                ui.add_space(theme.spacing_xs);
+                ui.label(
+                    RichText::new(&state.join_group_status)
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            }
+
+            ui.add_space(theme.spacing_md);
+
+            let code_valid = !state.join_group_invite_code.trim().is_empty();
+            let mut do_join = false;
+            ui.horizontal(|ui| {
+                ui.add_enabled_ui(code_valid, |ui| {
+                    if widgets::Button::primary("Join").show(ui, theme) {
+                        do_join = true;
+                    }
+                });
+                ui.add_space(theme.spacing_sm);
+                if widgets::Button::secondary("Cancel").show(ui, theme) {
+                    state.show_join_group_modal = false;
+                    state.join_group_status.clear();
+                }
+            });
+            if do_join {
+                // P2P signed-object join: decode the ticket + POST a
+                // group_join_v1 revealing the secret. The relay's roster fold
+                // admits us iff BLAKE3(secret) matches the creator-signed
+                // invite and it hasn't expired.
+                let server_url = state.server_url.clone();
+                let ticket = state.join_group_invite_code.trim().to_string();
+                let seed_opt = state.private_key_bytes.clone();
+                match seed_opt {
+                    Some(seed) => {
+                        match crate::net::api_v2::join_group_by_ticket(&server_url, &seed, &ticket) {
+                            Ok((group_id, name)) => {
+                                log::info!("Joined P2P group: {} ({})", name, group_id);
+                                crate::debug::push_debug(format!("Joined P2P group '{}'", name));
+                                state.join_group_status.clear();
+                                state.join_group_result = Some(if name.is_empty() {
+                                    "(unnamed)".to_string()
+                                } else {
+                                    name
+                                });
+                                // Refresh so the joined group appears in the
+                                // left-panel list once the user clicks Done.
+                                refresh_p2p_groups(state);
+                            }
+                            Err(e) => {
+                                state.join_group_status = format!("Join failed: {e}");
+                                log::error!("join P2P group failed: {e}");
+                            }
+                        }
+                    }
+                    None => {
+                        state.join_group_status = "No identity loaded. Connect first.".to_string();
+                    }
+                }
+            }
+        }
     });
     if !open {
         state.show_join_group_modal = false;
         state.join_group_status.clear();
+        state.join_group_result = None;
+        state.join_group_invite_code.clear();
     }
 }
 

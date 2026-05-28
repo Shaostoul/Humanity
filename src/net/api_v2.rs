@@ -186,6 +186,66 @@ pub fn join_group_by_ticket(server_url: &str, seed: &[u8], ticket: &str) -> Resu
     Ok((group_id, group_name))
 }
 
+/// A P2P group as seen by the relay's read endpoint (roster projection).
+#[derive(Debug, Clone)]
+pub struct P2pGroupInfo {
+    pub group_id: String,
+    pub name: String,
+    /// Active member Dilithium public keys, hex-encoded.
+    pub members: Vec<String>,
+}
+
+/// Fetch the caller's P2P groups + each roster from the relay (read-only
+/// convenience view of the projection). Used to render P2P groups in the
+/// native left panel.
+pub fn fetch_p2p_groups(server_url: &str, dilithium_hex: &str) -> Result<Vec<P2pGroupInfo>, String> {
+    let url = format!(
+        "{}/api/v2/groups?pubkey={}",
+        server_url.trim_end_matches('/'),
+        urlencoded(dilithium_hex),
+    );
+    let resp = ureq::get(&url)
+        .call()
+        .map_err(|e| format!("GET {url}: {e}"))?;
+    if resp.status() != 200 {
+        return Err(format!("GET {url}: HTTP {}", resp.status()));
+    }
+    let body = resp.into_string().map_err(|e| format!("read response: {e}"))?;
+    let json: serde_json::Value = serde_json::from_str(&body).map_err(|e| format!("parse JSON: {e}"))?;
+    let arr = json
+        .get("groups")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut out = Vec::with_capacity(arr.len());
+    for g in arr {
+        let group_id = g.get("group_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        if group_id.is_empty() { continue; }
+        let name = g.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let members: Vec<String> = g
+            .get("members")
+            .and_then(|v| v.as_array())
+            .map(|a| a.iter().filter_map(|m| m.as_str().map(|s| s.to_string())).collect())
+            .unwrap_or_default();
+        out.push(P2pGroupInfo { group_id, name, members });
+    }
+    Ok(out)
+}
+
+/// Minimal URL component encoder — only the chars that actually need it in a
+/// query-string position (hex pubkeys are all `[0-9a-f]` so this is a no-op
+/// for the common case, but it keeps the function safe for unusual inputs).
+fn urlencoded(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

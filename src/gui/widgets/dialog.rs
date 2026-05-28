@@ -56,6 +56,23 @@ fn dialog_inner(
 ) -> bool {
     let mut shown = false;
     let mut local_open = *open;
+
+    // Semi-transparent backdrop — clearly indicates the rest of the UI is
+    // inactive while the modal is up, and eats stray clicks so they don't
+    // fall through to whatever is behind the dialog. Painted in the same
+    // Order::Middle layer as the window, created BEFORE it so the window
+    // sits on top in z-order.
+    if local_open {
+        egui::Area::new(egui::Id::new(format!("{id}-backdrop")))
+            .order(egui::Order::Middle)
+            .fixed_pos(egui::pos2(0.0, 0.0))
+            .show(ctx, |ui| {
+                let screen = ctx.screen_rect();
+                ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(140));
+                let _ = ui.allocate_rect(screen, egui::Sense::click());
+            });
+    }
+
     egui::Window::new(RichText::new(title).color(theme.text_primary()).strong())
         .id(egui::Id::new(id))
         .open(&mut local_open)
