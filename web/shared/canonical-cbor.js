@@ -140,4 +140,96 @@ export function encodeObjectCanonical(f) {
   return cborMap(pairs);
 }
 
+/* ── Decoder ───────────────────────────────────────────────────────────────
+ * Parse canonical-CBOR bytes (as produced by the encoder above, or by Rust's
+ * ciborium) back into a JS value:
+ *   - unsigned integers       → number (or BigInt for values > 2^53-1)
+ *   - byte strings (major 2)  → Uint8Array
+ *   - text strings (major 3)  → string
+ *   - arrays (major 4)        → Array
+ *   - maps (major 5)          → plain object (text-string keys only — which is
+ *                                what every Object payload + the group schemas
+ *                                use; reject other key types loudly)
+ * Indefinite-length, tags, negative ints, and floats are NOT supported (this
+ * matches the canonical encoder's "no floats/no tags/definite-length" rules).
+ * Used to read group_epoch_key_v1 / group_msg_v1 payloads off the relay's
+ * SignedObjectResponse JSON.
+ */
+
+const _dec = new TextDecoder();
+
+function _readHead(bytes, off) {
+  const initial = bytes[off];
+  const major = initial >> 5;
+  const minor = initial & 0x1f;
+  let arg, hLen;
+  if (minor < 24) { arg = minor; hLen = 1; }
+  else if (minor === 24) { arg = bytes[off + 1]; hLen = 2; }
+  else if (minor === 25) { arg = (bytes[off + 1] << 8) | bytes[off + 2]; hLen = 3; }
+  else if (minor === 26) {
+    // u32 — use multiplication for the top byte so >2^31 doesn't go negative.
+    arg = bytes[off + 1] * 0x1000000
+        + ((bytes[off + 2] << 16) | (bytes[off + 3] << 8) | bytes[off + 4]);
+    hLen = 5;
+  } else if (minor === 27) {
+    // u64 — use BigInt; collapse to Number if it fits losslessly.
+    let big = 0n;
+    for (let i = 0; i < 8; i++) big = (big << 8n) | BigInt(bytes[off + 1 + i]);
+    arg = big <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(big) : big;
+    hLen = 9;
+  } else {
+    throw new Error('canonical-cbor: indefinite-length not supported');
+  }
+  return [major, arg, hLen];
+}
+
+function _decodeAt(bytes, off) {
+  const [major, arg, hLen] = _readHead(bytes, off);
+  let pos = off + hLen;
+  switch (major) {
+    case 0: return [arg, pos];                              // unsigned int
+    case 2: {                                               // byte string
+      const len = Number(arg);
+      const val = bytes.subarray(pos, pos + len);
+      return [new Uint8Array(val), pos + len];
+    }
+    case 3: {                                               // text string
+      const len = Number(arg);
+      const val = _dec.decode(bytes.subarray(pos, pos + len));
+      return [val, pos + len];
+    }
+    case 4: {                                               // array
+      const out = [];
+      const len = Number(arg);
+      for (let i = 0; i < len; i++) {
+        const [item, np] = _decodeAt(bytes, pos);
+        out.push(item); pos = np;
+      }
+      return [out, pos];
+    }
+    case 5: {                                               // map (text keys)
+      const obj = {};
+      const len = Number(arg);
+      for (let i = 0; i < len; i++) {
+        const [k, p1] = _decodeAt(bytes, pos);
+        const [v, p2] = _decodeAt(bytes, p1);
+        if (typeof k !== 'string') {
+          throw new Error('canonical-cbor: non-text map key not supported');
+        }
+        obj[k] = v; pos = p2;
+      }
+      return [obj, pos];
+    }
+    default:
+      throw new Error(`canonical-cbor: unsupported major type ${major}`);
+  }
+}
+
+/** Decode canonical CBOR bytes into a JS value. */
+export function decodeCanonicalCbor(bytes) {
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const [val] = _decodeAt(u8, 0);
+  return val;
+}
+
 export const _internal = { _head, _headBig, _concat };

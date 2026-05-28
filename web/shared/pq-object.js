@@ -16,7 +16,7 @@
 // and doesn't hard-bind to a CDN vs vendored bundle. The chat client wires the
 // real Dilithium sign (window.pqSignMessage / HumOS.pq.pqSign) + blake3.
 
-import { encodeObjectCanonical, cborText, cborBytes, cborMap, cborUint } from './canonical-cbor.js';
+import { encodeObjectCanonical, cborText, cborBytes, cborMap, cborUint, cborArray, decodeCanonicalCbor } from './canonical-cbor.js';
 
 const DILITHIUM_SIG_LEN = 3309;
 const PAYLOAD_ENCODING_PLAINTEXT = 'cbor_canonical_v1';
@@ -25,6 +25,12 @@ function _b64(u8) {
   let s = '';
   for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
   return btoa(s);
+}
+function _b64d(s) {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 function _hex(u8) {
   return [...u8].map((x) => x.toString(16).padStart(2, '0')).join('');
@@ -180,6 +186,151 @@ export async function buildGroupJoinV1({ groupId, inviteId, secret, authorPublic
     authorPublicKey, sign, blake3,
     createdAt: createdAt ?? Date.now(),
   });
+}
+
+/* ── Phase 2: E2EE group messages ──────────────────────────────────────────
+ * docs/design/p2p-groups.md Phase 2. The relay stores opaque ciphertext and
+ * never holds the group key. One 32-byte epoch key per epoch, sealed once to
+ * each member's Kyber pub (same ML-KEM-768 → BLAKE3-KDF → AES-256-GCM as the
+ * DM envelope in dm_pq.rs, so a member opens their copy with pqDmOpen). On
+ * membership change a new epoch is minted; removed members are cut off from
+ * future messages (forward secrecy across churn). Messages are AES-GCM under
+ * the current epoch key. */
+
+/** Fresh random 32-byte epoch (AES-256) key for a group. */
+export function randomEpochKey() {
+  return crypto.getRandomValues(new Uint8Array(32));
+}
+
+/**
+ * Build + sign a `group_epoch_key_v1` — the same 32-byte epoch key sealed
+ * (ML-KEM-768 envelope, matching dm_pq.rs / pq.js pqDmSeal) to each member's
+ * Kyber pub. Each member finds their `fp` entry and opens it.
+ *
+ * opts.members: [{ fp: hex, kyber_public: base64 }, ...]
+ * opts.epochKey: Uint8Array(32) (use `randomEpochKey()`).
+ * opts.seal: async (kyberPubB64, plaintext) => { ek_ct_b64, nonce_b64, ct_b64 }
+ *            — pass `window.pqDmSeal` (same scheme as DMs).
+ */
+export async function buildGroupEpochKeyV1({ groupId, epoch, epochKey, members, seal, authorPublicKey, sign, blake3, createdAt }) {
+  // Seal the epoch key (as base64, since pqDmSeal takes a string) to every
+  // member who has a Kyber pub registered. Members without one are skipped
+  // — they simply can't decrypt this epoch (they'd need to register).
+  const epochKeyB64 = _b64(epochKey);
+  const recipients = [];
+  for (const m of (members || [])) {
+    if (!m || !m.kyber_public) continue;
+    const env = await seal(m.kyber_public, epochKeyB64);
+    if (!env) continue;
+    recipients.push(cborMap([
+      [cborText('fp'), cborText(m.fp || '')],
+      [cborText('ek_ct'), cborBytes(_b64d(env.ek_ct_b64))],
+      [cborText('nonce'), cborBytes(_b64d(env.nonce_b64))],
+      [cborText('ct'), cborBytes(_b64d(env.ct_b64))],
+    ]));
+  }
+  const payload = cborMap([
+    [cborText('epoch'), cborUint(epoch)],
+    [cborText('recipients'), cborArray(recipients)],
+  ]);
+  return buildSignedObject({
+    objectType: 'group_epoch_key_v1',
+    payload,
+    references: [groupId],
+    authorPublicKey, sign, blake3,
+    createdAt: createdAt ?? Date.now(),
+  });
+}
+
+/**
+ * Open MY copy of an epoch-key object's payload — find the recipient entry
+ * whose `fp` matches my Kyber/Dilithium fingerprint and decapsulate it.
+ *
+ * payloadBytes: the raw `payload` bytes from a SignedObjectResponse (b64-decoded).
+ * myFp: my author fingerprint (= first 16 bytes of BLAKE3(my Dilithium pubkey), hex).
+ * open: async (myKyberSecret, ek_ct_b64, nonce_b64, ct_b64) => plaintextStr
+ *       — pass `window.pqDmOpen`.
+ * myKyberSecret: my Kyber768 secret key (the same `myKyberSecret` the DM
+ *                opener uses, from crypto.js).
+ * Returns `{ epoch, epochKey }` or null if our entry is missing or the open fails.
+ */
+export async function openGroupEpochKey(payloadBytes, myFp, open, myKyberSecret) {
+  let payload;
+  try { payload = decodeCanonicalCbor(payloadBytes); }
+  catch (e) { return null; }
+  if (!payload || typeof payload !== 'object') return null;
+  const epoch = payload.epoch;
+  const recipients = Array.isArray(payload.recipients) ? payload.recipients : [];
+  for (const r of recipients) {
+    if (!r || r.fp !== myFp) continue;
+    const ek_ct_b64 = _b64(r.ek_ct);
+    const nonce_b64 = _b64(r.nonce);
+    const ct_b64 = _b64(r.ct);
+    const plain = await open(myKyberSecret, ek_ct_b64, nonce_b64, ct_b64);
+    if (!plain) return null;
+    let epochKey;
+    try { epochKey = _b64d(plain); } catch (e) { return null; }
+    if (epochKey.length !== 32) return null;
+    return { epoch, epochKey };
+  }
+  return null;
+}
+
+async function _aesKey(rawKey32) {
+  return crypto.subtle.importKey('raw', rawKey32, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+/** AES-256-GCM encrypt a UTF-8 string under the epoch key. Returns `{nonce, ct}`. */
+export async function aesGcmEncrypt(epochKey, plaintext) {
+  const key = await _aesKey(epochKey);
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: nonce }, key, new TextEncoder().encode(plaintext),
+  ));
+  return { nonce, ct };
+}
+
+/** AES-256-GCM decrypt → UTF-8 string, or null on failure (wrong key / tampered). */
+export async function aesGcmDecrypt(epochKey, nonce, ct) {
+  try {
+    const key = await _aesKey(epochKey);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, key, ct);
+    return new TextDecoder().decode(plain);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Build + sign a `group_msg_v1` — AES-GCM ciphertext under the epoch key.
+ * Payload = canonical CBOR `{epoch, nonce, ct}`. The relay can't read it.
+ */
+export async function buildGroupMsgV1({ groupId, epoch, epochKey, plaintext, authorPublicKey, sign, blake3, createdAt }) {
+  const { nonce, ct } = await aesGcmEncrypt(epochKey, plaintext);
+  const payload = cborMap([
+    [cborText('epoch'), cborUint(epoch)],
+    [cborText('nonce'), cborBytes(nonce)],
+    [cborText('ct'), cborBytes(ct)],
+  ]);
+  return buildSignedObject({
+    objectType: 'group_msg_v1',
+    payload,
+    references: [groupId],
+    authorPublicKey, sign, blake3,
+    createdAt: createdAt ?? Date.now(),
+  });
+}
+
+/**
+ * Parse a `group_msg_v1` payload back to `{epoch, nonce, ct}` (Uint8Arrays).
+ * Pair with `aesGcmDecrypt(epochKey, nonce, ct)` to get the plaintext.
+ */
+export function parseGroupMsgPayload(payloadBytes) {
+  let p;
+  try { p = decodeCanonicalCbor(payloadBytes); }
+  catch (e) { return null; }
+  if (!p || typeof p !== 'object') return null;
+  return { epoch: p.epoch, nonce: p.nonce, ct: p.ct };
 }
 
 /* ── Connection ticket (shared out-of-band: copy/paste or QR) ──
