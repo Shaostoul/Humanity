@@ -110,6 +110,94 @@
     await postObject(built.submission);
   }
 
+  /**
+   * If I am the creator AND new members have joined since the last epoch key
+   * was issued, mint a fresh epoch key sealed to the FULL current roster +
+   * post it. Returns `{epoch, epochKey, addedCount}` on rekey, null otherwise.
+   *
+   * This is what unblocks cross-identity chat: the create-time epoch is sealed
+   * only to the creator; without this, new joiners can never decrypt anything.
+   * Runs once when the dialog first opens, and again on manual refresh.
+   */
+  async function rekeyIfCreatorNeeds(groupId) {
+    if (!pqReady()) return null;
+    if (typeof window.pqDmSeal !== 'function') return null;
+    if (typeof myKyberPublicBase64 === 'undefined' || !myKyberPublicBase64) return null;
+
+    // (1) Am I the creator? Fetch group_v1 and compare author_public_key_b64.
+    let groupObj;
+    try {
+      const r = await fetch('/api/v2/objects/' + encodeURIComponent(groupId));
+      if (!r.ok) return null;
+      groupObj = await r.json();
+    } catch (e) { return null; }
+    // btoa of the raw bytes of myKey (hex pubkey) — same encoding the relay used.
+    const myPubB64 = (function() {
+      const bytes = hexToBytes(myKey);
+      let s = ''; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+      return btoa(s);
+    })();
+    if (groupObj.author_public_key_b64 !== myPubB64) return null;
+
+    const { obj, blake3 } = await mods();
+
+    // (2) Current epoch + already-covered recipient fingerprints.
+    let currentEpoch = 0;
+    const coveredFps = new Set();
+    try {
+      const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/epoch');
+      if (r.ok) {
+        const epochObj = await r.json();
+        const parsed = obj.parseGroupEpochKeyPayload(b64ToBytes(epochObj.payload_b64));
+        if (parsed) {
+          currentEpoch = parsed.epoch || 0;
+          for (const rcp of parsed.recipients) {
+            if (rcp && rcp.fp) coveredFps.add(rcp.fp);
+          }
+        }
+      }
+    } catch (e) { /* no epoch yet — treat as currentEpoch=0, empty set */ }
+
+    // (3) Current roster with each member's Kyber public key.
+    let allMembers = [];
+    try {
+      const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/members');
+      if (!r.ok) return null;
+      const data = await r.json();
+      allMembers = data.members || [];
+    } catch (e) { return null; }
+
+    // (4) Compute each member's fingerprint; identify gaps. Members without a
+    // registered Kyber pubkey are silently skipped (they cannot be sealed to
+    // until they register).
+    const sealable = [];
+    let hasGap = false;
+    for (const m of allMembers) {
+      if (!m.kyber_public || !m.pubkey) continue;
+      const pubBytes = hexToBytes(m.pubkey);
+      const h = blake3(pubBytes);
+      let fp = '';
+      for (let i = 0; i < 16; i++) fp += h[i].toString(16).padStart(2, '0');
+      sealable.push({ fp, kyber_public: m.kyber_public });
+      if (!coveredFps.has(fp)) hasGap = true;
+    }
+
+    if (!hasGap) return null; // all current members already covered
+
+    // (5) Mint a new epoch sealed to the full sealable roster.
+    const newEpoch = currentEpoch + 1;
+    const newEpochKey = obj.randomEpochKey();
+    const ek = await obj.buildGroupEpochKeyV1({
+      groupId, epoch: newEpoch, epochKey: newEpochKey,
+      members: sealable,
+      seal: window.pqDmSeal,
+      authorPublicKey: authorPub(), sign: signer(), blake3,
+    });
+    await postObject(ek.submission);
+    const addedCount = sealable.length - coveredFps.size;
+    return { epoch: newEpoch, epochKey: newEpochKey, addedCount };
+  }
+
   async function createP2pGroup(name) {
     if (!pqReady()) return notReady();
     name = (name || '').trim();
@@ -232,10 +320,26 @@
       try {
         if (!state.myFp) state.myFp = await myFingerprint();
         if (!state.epochKey) {
-          const ek = await fetchEpochKey(groupId);
-          if (ek) { state.epoch = ek.epoch; state.epochKey = ek.epochKey; }
-          else {
-            msgsBox.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">No epoch key available — only the creator can issue one. (If you just created the group, give it a moment then ↻ refresh.)</div>';
+          // If I am the creator AND new members have joined since the last
+          // epoch was issued, rotate the key sealed to the full roster so they
+          // can decrypt. This is what unblocks cross-identity chat.
+          try {
+            const rekey = await rekeyIfCreatorNeeds(groupId);
+            if (rekey) {
+              state.epoch = rekey.epoch;
+              state.epochKey = rekey.epochKey;
+              if (typeof addSystemMessage === 'function') {
+                addSystemMessage('Rotated group key for ' + rekey.addedCount + ' new member' + (rekey.addedCount === 1 ? '' : 's') + '.');
+              }
+            }
+          } catch (e) { console.warn('rekey check failed:', e); }
+          // If no rekey happened (or it failed), just fetch the latest key.
+          if (!state.epochKey) {
+            const ek = await fetchEpochKey(groupId);
+            if (ek) { state.epoch = ek.epoch; state.epochKey = ek.epochKey; }
+          }
+          if (!state.epochKey) {
+            msgsBox.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">No epoch key available yet — wait for the group creator to issue one (it happens automatically the first time they open this dialog). Then ↻ refresh.</div>';
             return;
           }
         }

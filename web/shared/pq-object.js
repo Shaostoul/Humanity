@@ -333,6 +333,20 @@ export function parseGroupMsgPayload(payloadBytes) {
   return { epoch: p.epoch, nonce: p.nonce, ct: p.ct };
 }
 
+/**
+ * Parse a `group_epoch_key_v1` payload back to `{epoch, recipients}` where
+ * each recipient is `{fp, ek_ct, nonce, ct}` (binary fields as Uint8Array).
+ * Used by the creator's rekey-on-join logic to inspect who's already covered.
+ */
+export function parseGroupEpochKeyPayload(payloadBytes) {
+  let p;
+  try { p = decodeCanonicalCbor(payloadBytes); }
+  catch (e) { return null; }
+  if (!p || typeof p !== 'object') return null;
+  const recipients = Array.isArray(p.recipients) ? p.recipients : [];
+  return { epoch: p.epoch, recipients };
+}
+
 /* ── Connection ticket (shared out-of-band: copy/paste or QR) ──
  * Phase 1 carries what a joiner needs to self-admit through any relay:
  * group id + name, the invite id, and the secret. (Phase 4 adds bootstrap

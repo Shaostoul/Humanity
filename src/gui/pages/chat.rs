@@ -928,9 +928,18 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
                 if let Some(gid) = open_p2p_id {
                     state.show_p2p_group_modal = true;
-                    state.p2p_group_open_id = gid;
+                    state.p2p_group_open_id = gid.clone();
                     state.p2p_group_modal_ticket = None;
                     state.p2p_group_modal_status.clear();
+                    // Reset Phase-2 chat state for the newly-opened group and
+                    // do a synchronous first refresh (rekey-if-creator, fetch
+                    // epoch key, decrypt history). Blocking-ureq pattern; the
+                    // dialog feels instant on a healthy relay.
+                    state.p2p_group_chat_epoch = 0;
+                    state.p2p_group_chat_epoch_key = None;
+                    state.p2p_group_chat_messages.clear();
+                    state.p2p_group_chat_compose.clear();
+                    refresh_p2p_group_chat(state, &gid);
                 }
 
                 // Groups render like servers (expandable header + nested channels)
@@ -4240,11 +4249,61 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 }
 
 // ─────────────────────────────── P2P Group Modal ─────────────────────────
-// Phase 1 dialog for clicking a P2P group in the native left panel: shows
-// the roster + a "Mint invite" action that produces a fresh shareable ticket
-// (build group_invite_v1 + encode_invite_ticket — same path as the create-
-// modal initial invite). End-to-end group CHAT is web-only for now; this
-// dialog tells the user that so they can use the web client to message.
+// Phase 2 dialog for clicking a P2P group in the native left panel: shows
+// the roster + an end-to-end-encrypted chat view (send/receive messages
+// under the per-epoch group key) + a "Mint invite" action that produces a
+// fresh shareable ticket. The chat reuses the same epoch key + AES-GCM
+// scheme the web client uses (see src/net/group_e2ee.rs); the relay only
+// ever sees opaque ciphertext.
+
+/// Sync refresh of the P2P-group dialog's chat state: rotate the epoch key if
+/// I'm the creator and new members joined, fetch + unseal my copy of the
+/// current epoch, then fetch + decrypt the message log. Blocking ureq, matches
+/// the existing upload pattern. Called on dialog open, after every send, and
+/// when the user clicks the refresh button.
+pub(crate) fn refresh_p2p_group_chat(state: &mut GuiState, group_id: &str) {
+    let server_url = state.server_url.clone();
+    let seed = match state.private_key_bytes.clone() {
+        Some(s) if !s.is_empty() => s,
+        _ => return,
+    };
+
+    // Try rekey-on-join first (creator only — returns None for non-creators
+    // or when no gap exists). If it rotates, use the new key right away.
+    match crate::net::api_v2::rekey_if_creator_needs(&server_url, &seed, group_id) {
+        Ok(Some((epoch, key, added))) => {
+            state.p2p_group_chat_epoch = epoch;
+            state.p2p_group_chat_epoch_key = Some(key);
+            log::info!("Rotated group epoch key for {added} new member(s) (epoch {epoch})");
+        }
+        Ok(None) => {
+            // No rekey — fetch + unseal whatever the latest epoch is.
+            match crate::net::api_v2::fetch_my_epoch_key(&server_url, &seed, group_id) {
+                Ok(Some((epoch, key))) => {
+                    state.p2p_group_chat_epoch = epoch;
+                    state.p2p_group_chat_epoch_key = Some(key);
+                }
+                Ok(None) => { /* no epoch issued yet, or no recipient for us */ }
+                Err(e) => log::warn!("fetch_my_epoch_key: {e}"),
+            }
+        }
+        Err(e) => log::warn!("rekey_if_creator_needs: {e}"),
+    }
+
+    // Decrypt messages with the current key (if any).
+    if let Some(key) = state.p2p_group_chat_epoch_key.clone() {
+        match crate::net::api_v2::fetch_and_decrypt_group_messages(&server_url, group_id, &key) {
+            Ok(mut msgs) => {
+                msgs.sort_by_key(|m| m.created_at);
+                state.p2p_group_chat_messages = msgs;
+            }
+            Err(e) => log::warn!("fetch_and_decrypt_group_messages: {e}"),
+        }
+    } else {
+        state.p2p_group_chat_messages.clear();
+    }
+}
+
 
 fn draw_p2p_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut open = state.show_p2p_group_modal;
@@ -4368,11 +4427,146 @@ fn draw_p2p_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
         }
 
         ui.add_space(theme.spacing_md);
-        ui.label(
-            RichText::new("Group chat is on the web client for now. Use it to send and read messages in this group; native chat-in-groups is the next step.")
-                .size(theme.font_size_small)
-                .color(theme.text_muted()),
-        );
+        ui.separator();
+        ui.add_space(theme.spacing_xs);
+
+        // ── Chat view (Phase 2) ─────────────────────────────────────────
+        // Compute my author fingerprint (first 16 bytes of BLAKE3(dilithium
+        // pubkey), hex) so we can label our own messages as "You" — same
+        // identifier the web client uses, derived identically.
+        let my_fp = if my_hex.is_empty() {
+            String::new()
+        } else {
+            hex::decode(&my_hex)
+                .ok()
+                .map(|b| crate::net::api_v2::author_fingerprint_hex(&b))
+                .unwrap_or_default()
+        };
+
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("Messages")
+                    .strong()
+                    .color(theme.text_primary()),
+            );
+            if state.p2p_group_chat_epoch > 0 {
+                ui.label(
+                    RichText::new(format!("epoch {}", state.p2p_group_chat_epoch))
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            }
+        });
+        ui.add_space(theme.spacing_xs);
+
+        egui::ScrollArea::vertical()
+            .max_height(240.0)
+            .auto_shrink([false, false])
+            .stick_to_bottom(true)
+            .id_salt("p2p_group_chat_scroll")
+            .show(ui, |ui| {
+                if state.p2p_group_chat_messages.is_empty() {
+                    let hint = if state.p2p_group_chat_epoch_key.is_none() {
+                        "No epoch key yet. The group creator must open this group once to issue the first key. After that, everyone with an invite can read and write."
+                    } else {
+                        "No messages yet. Be the first to write something."
+                    };
+                    ui.label(
+                        RichText::new(hint)
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                } else {
+                    for m in state.p2p_group_chat_messages.clone() {
+                        let is_me = !my_fp.is_empty() && m.author_fp == my_fp;
+                        let who = if is_me {
+                            "You".to_string()
+                        } else {
+                            let short = m.author_fp.get(..12.min(m.author_fp.len())).unwrap_or("");
+                            format!("{}…", short)
+                        };
+                        let when = if m.created_at > 0 {
+                            let secs = m.created_at / 1000;
+                            let hh = (secs / 3600) % 24;
+                            let mm = (secs / 60) % 60;
+                            format!("{:02}:{:02} UTC", hh, mm)
+                        } else {
+                            String::new()
+                        };
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(who)
+                                    .strong()
+                                    .color(if is_me { theme.accent() } else { theme.text_primary() }),
+                            );
+                            if !when.is_empty() {
+                                ui.label(
+                                    RichText::new(when)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_muted()),
+                                );
+                            }
+                        });
+                        ui.label(RichText::new(&m.text).color(theme.text_primary()));
+                        ui.add_space(theme.spacing_xs);
+                    }
+                }
+            });
+
+        ui.add_space(theme.spacing_xs);
+
+        // Compose row.
+        let mut do_send = false;
+        let mut do_refresh = false;
+        ui.horizontal(|ui| {
+            let resp = ui.add(
+                egui::TextEdit::singleline(&mut state.p2p_group_chat_compose)
+                    .desired_width(260.0)
+                    .hint_text("Message…"),
+            );
+            let enter_pressed = resp.lost_focus()
+                && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if widgets::Button::primary("Send").show(ui, theme) || enter_pressed {
+                do_send = true;
+            }
+            ui.add_space(theme.spacing_xs);
+            if widgets::Button::secondary("↻ Refresh").show(ui, theme) {
+                do_refresh = true;
+            }
+        });
+
+        if do_send {
+            let text = state.p2p_group_chat_compose.trim().to_string();
+            if text.is_empty() {
+                // ignore
+            } else if state.p2p_group_chat_epoch_key.is_none() {
+                state.p2p_group_modal_status =
+                    "No epoch key yet — wait for the creator to issue one.".to_string();
+            } else if state.private_key_bytes.is_none() {
+                state.p2p_group_modal_status =
+                    "No identity loaded. Connect first.".to_string();
+            } else {
+                let server_url = state.server_url.clone();
+                let seed = state.private_key_bytes.clone().unwrap();
+                let key = state.p2p_group_chat_epoch_key.clone().unwrap();
+                let epoch = state.p2p_group_chat_epoch.max(1);
+                match crate::net::api_v2::submit_group_msg_v1(
+                    &server_url, &seed, &group_id, epoch, &key, &text,
+                ) {
+                    Ok(_) => {
+                        state.p2p_group_chat_compose.clear();
+                        state.p2p_group_modal_status.clear();
+                        refresh_p2p_group_chat(state, &group_id);
+                    }
+                    Err(e) => {
+                        state.p2p_group_modal_status = format!("Send failed: {e}");
+                    }
+                }
+            }
+        }
+        if do_refresh {
+            refresh_p2p_group_chat(state, &group_id);
+        }
     });
     if !open {
         state.show_p2p_group_modal = false;

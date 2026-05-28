@@ -16,8 +16,21 @@
 use base64::Engine;
 use base64::engine::general_purpose::{STANDARD as B64, URL_SAFE_NO_PAD as B64URL};
 
+use crate::net::dm_pq::DmPqKeypair;
+use crate::net::group_e2ee::{
+    self, build_group_epoch_key_v1, build_group_msg_v1, open_epoch_key, open_group_msg,
+    parse_group_epoch_key_payload, random_epoch_key, GroupMemberKey,
+};
+use crate::net::identity::derive_pq_identity;
 use crate::relay::core::object::ObjectBuilder;
 use crate::relay::core::pq_crypto::{DilithiumKeypair, derive_dilithium_seed};
+
+/// Author fingerprint: first 16 bytes of BLAKE3(dilithium pubkey), hex.
+/// Matches `crate::relay::storage::signed_objects::author_fingerprint`.
+pub fn author_fingerprint_hex(pubkey: &[u8]) -> String {
+    let h = blake3::hash(pubkey);
+    h.as_bytes()[..16].iter().map(|b| format!("{b:02x}")).collect()
+}
 
 /// Sign a built object and POST it to `{server_url}/api/v2/objects`. Returns
 /// the object_id on success. The relay verifies the signature before storing.
@@ -160,13 +173,29 @@ pub fn submit_group_join_v1(
 
 /// One-shot: create a group AND mint a first 7-day invite for it, returning the
 /// shareable connection ticket. This is the create-modal happy path so the user
-/// gets something to copy/share immediately.
+/// gets something to copy/share immediately. Also issues an initial epoch_key
+/// sealed to the creator so chat works immediately for them (matches the
+/// web `createP2pGroup` flow).
 pub fn create_group_and_first_invite(
     server_url: &str,
     seed: &[u8],
     name: &str,
 ) -> Result<(String /* group_id */, String /* ticket */), String> {
     let group_id = submit_group_v1(server_url, seed, name)?;
+
+    // Initial epoch key sealed to the creator — without this, the group is
+    // identity+membership only and the creator cannot send anything.
+    let identity = derive_pq_identity(seed).map_err(|e| format!("derive identity: {e}"))?;
+    let dil_pub_bytes =
+        hex::decode(&identity.dilithium_hex).map_err(|e| format!("dilithium hex: {e}"))?;
+    let my_fp = author_fingerprint_hex(&dil_pub_bytes);
+    let initial_epoch_key = random_epoch_key();
+    let initial_members = vec![GroupMemberKey {
+        fp: my_fp,
+        kyber_pub_b64: identity.kyber_public_b64.clone(),
+    }];
+    submit_group_epoch_key_v1(server_url, seed, &group_id, 1, &initial_epoch_key, &initial_members)?;
+
     let mut secret = vec![0u8; 32];
     use rand::RngCore;
     rand::rng().fill_bytes(&mut secret);
@@ -175,6 +204,275 @@ pub fn create_group_and_first_invite(
     let invite_id = submit_group_invite_v1(server_url, seed, &group_id, expires_at, &secret_hash)?;
     let ticket = encode_invite_ticket(&group_id, name, &invite_id, &secret);
     Ok((group_id, ticket))
+}
+
+/// Submit a `group_epoch_key_v1` (creator-only, gated by the relay's
+/// `index_group_epoch_key`). Returns the epoch-key object's id on success.
+pub fn submit_group_epoch_key_v1(
+    server_url: &str,
+    seed: &[u8],
+    group_id: &str,
+    epoch: u64,
+    epoch_key: &[u8],
+    members: &[GroupMemberKey],
+) -> Result<String, String> {
+    let builder = build_group_epoch_key_v1(group_id, epoch, epoch_key, members)?;
+    submit_signed_object(server_url, seed, builder)
+}
+
+/// Submit a `group_msg_v1` (AES-GCM ciphertext under the epoch key).
+pub fn submit_group_msg_v1(
+    server_url: &str,
+    seed: &[u8],
+    group_id: &str,
+    epoch: u64,
+    epoch_key: &[u8],
+    plaintext: &str,
+) -> Result<String, String> {
+    let builder = build_group_msg_v1(group_id, epoch, epoch_key, plaintext)?;
+    submit_signed_object(server_url, seed, builder)
+}
+
+/// GET /api/v2/objects/{id}. Returns None on 404, the raw JSON otherwise.
+pub fn fetch_signed_object(
+    server_url: &str,
+    object_id: &str,
+) -> Result<Option<serde_json::Value>, String> {
+    let url = format!(
+        "{}/api/v2/objects/{}",
+        server_url.trim_end_matches('/'),
+        urlencoded(object_id),
+    );
+    match ureq::get(&url).call() {
+        Ok(resp) => {
+            if resp.status() != 200 {
+                return Err(format!("GET {url}: HTTP {}", resp.status()));
+            }
+            let body = resp.into_string().map_err(|e| format!("read: {e}"))?;
+            let v: serde_json::Value =
+                serde_json::from_str(&body).map_err(|e| format!("json: {e}"))?;
+            Ok(Some(v))
+        }
+        Err(ureq::Error::Status(404, _)) => Ok(None),
+        Err(e) => Err(format!("GET {url}: {e}")),
+    }
+}
+
+/// GET /api/v2/groups/{id}/epoch. Returns the latest epoch-key object's
+/// payload bytes (b64-decoded), or None if no epoch has been issued yet.
+pub fn fetch_group_epoch_payload(
+    server_url: &str,
+    group_id: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    let url = format!(
+        "{}/api/v2/groups/{}/epoch",
+        server_url.trim_end_matches('/'),
+        urlencoded(group_id),
+    );
+    let resp = match ureq::get(&url).call() {
+        Ok(r) => r,
+        Err(ureq::Error::Status(404, _)) => return Ok(None),
+        Err(e) => return Err(format!("GET {url}: {e}")),
+    };
+    if resp.status() != 200 {
+        return Err(format!("GET {url}: HTTP {}", resp.status()));
+    }
+    let body = resp.into_string().map_err(|e| format!("read: {e}"))?;
+    let v: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| format!("json: {e}"))?;
+    let payload_b64 = v
+        .get("payload_b64")
+        .and_then(|x| x.as_str())
+        .ok_or_else(|| "missing payload_b64".to_string())?;
+    let payload = B64
+        .decode(payload_b64)
+        .map_err(|e| format!("payload b64: {e}"))?;
+    Ok(Some(payload))
+}
+
+/// A decrypted group message (for the chat view).
+#[derive(Debug, Clone)]
+pub struct GroupMessage {
+    pub object_id: String,
+    pub author_fp: String,
+    pub created_at: i64,
+    pub text: String,
+}
+
+/// GET /api/v2/groups/{id}/messages → fetch ciphertexts, decrypt with `epoch_key`.
+/// Messages from a different epoch (whose ciphertext doesn't authenticate
+/// under this key) are silently skipped — for Phase 2 the chat shows only the
+/// current epoch's history.
+pub fn fetch_and_decrypt_group_messages(
+    server_url: &str,
+    group_id: &str,
+    epoch_key: &[u8],
+) -> Result<Vec<GroupMessage>, String> {
+    let url = format!(
+        "{}/api/v2/groups/{}/messages",
+        server_url.trim_end_matches('/'),
+        urlencoded(group_id),
+    );
+    let resp = ureq::get(&url)
+        .call()
+        .map_err(|e| format!("GET {url}: {e}"))?;
+    if resp.status() != 200 {
+        return Err(format!("GET {url}: HTTP {}", resp.status()));
+    }
+    let body = resp.into_string().map_err(|e| format!("read: {e}"))?;
+    let v: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| format!("json: {e}"))?;
+    let msgs = v
+        .get("messages")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut out = Vec::with_capacity(msgs.len());
+    for m in msgs {
+        let object_id = m.get("object_id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let author_fp = m.get("author_fp").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let created_at = m.get("created_at").and_then(|x| x.as_i64()).unwrap_or(0);
+        let payload_b64 = match m.get("payload_b64").and_then(|x| x.as_str()) {
+            Some(s) => s,
+            None => continue,
+        };
+        let payload = match B64.decode(payload_b64) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        if let Ok(text) = open_group_msg(&payload, epoch_key) {
+            out.push(GroupMessage { object_id, author_fp, created_at, text });
+        }
+    }
+    Ok(out)
+}
+
+/// GET /api/v2/groups/{id}/members → roster with each member's Kyber pub.
+/// Returns `Vec<(dilithium_hex, Option<kyber_pub_b64>)>`.
+pub fn fetch_group_members(
+    server_url: &str,
+    group_id: &str,
+) -> Result<Vec<(String, Option<String>)>, String> {
+    let url = format!(
+        "{}/api/v2/groups/{}/members",
+        server_url.trim_end_matches('/'),
+        urlencoded(group_id),
+    );
+    let resp = ureq::get(&url).call().map_err(|e| format!("GET {url}: {e}"))?;
+    if resp.status() != 200 {
+        return Err(format!("GET {url}: HTTP {}", resp.status()));
+    }
+    let body = resp.into_string().map_err(|e| format!("read: {e}"))?;
+    let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| format!("json: {e}"))?;
+    let members = v
+        .get("members")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut out = Vec::with_capacity(members.len());
+    for m in members {
+        let pubkey = m.get("pubkey").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let kyber = m.get("kyber_public").and_then(|x| x.as_str()).map(|s| s.to_string());
+        if !pubkey.is_empty() {
+            out.push((pubkey, kyber));
+        }
+    }
+    Ok(out)
+}
+
+/// If I am the creator AND new members have joined since the last epoch key,
+/// mint a fresh epoch sealed to the full roster + submit. Returns
+/// `Some((new_epoch, new_epoch_key, added_count))` on rekey, `None` otherwise.
+/// Mirrors the web's `rekeyIfCreatorNeeds` in `chat-groups-p2p.js`.
+pub fn rekey_if_creator_needs(
+    server_url: &str,
+    seed: &[u8],
+    group_id: &str,
+) -> Result<Option<(u64, Vec<u8>, usize)>, String> {
+    let identity = derive_pq_identity(seed).map_err(|e| format!("derive: {e}"))?;
+    let my_dil_bytes =
+        hex::decode(&identity.dilithium_hex).map_err(|e| format!("dilithium hex: {e}"))?;
+    let my_pub_b64 = B64.encode(&my_dil_bytes);
+
+    // 1. Am I the creator?
+    let group_obj = match fetch_signed_object(server_url, group_id)? {
+        Some(v) => v,
+        None => return Ok(None),
+    };
+    let creator_b64 = group_obj
+        .get("author_public_key_b64")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    if creator_b64 != my_pub_b64 {
+        return Ok(None);
+    }
+
+    // 2. Current epoch + already-covered recipient fingerprints.
+    let mut current_epoch: u64 = 0;
+    let mut covered = std::collections::HashSet::new();
+    if let Some(payload_bytes) = fetch_group_epoch_payload(server_url, group_id)? {
+        if let Ok(parsed) = parse_group_epoch_key_payload(&payload_bytes) {
+            current_epoch = parsed.epoch;
+            for r in &parsed.recipients {
+                covered.insert(r.fp.clone());
+            }
+        }
+    }
+
+    // 3. Current roster with each member's Kyber pub.
+    let roster = fetch_group_members(server_url, group_id)?;
+    let mut sealable: Vec<GroupMemberKey> = Vec::new();
+    let mut has_gap = false;
+    for (pubkey_hex, kyber_opt) in roster {
+        let kyber = match kyber_opt {
+            Some(k) => k,
+            None => continue,
+        };
+        let pub_bytes = match hex::decode(&pubkey_hex) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let fp = author_fingerprint_hex(&pub_bytes);
+        if !covered.contains(&fp) {
+            has_gap = true;
+        }
+        sealable.push(GroupMemberKey { fp, kyber_pub_b64: kyber });
+    }
+    if !has_gap {
+        return Ok(None);
+    }
+
+    // 4. Mint new epoch sealed to the full sealable roster.
+    let new_epoch = current_epoch + 1;
+    let new_key = random_epoch_key();
+    submit_group_epoch_key_v1(server_url, seed, group_id, new_epoch, &new_key, &sealable)?;
+    let added = sealable.iter().filter(|m| !covered.contains(&m.fp)).count();
+    Ok(Some((new_epoch, new_key, added)))
+}
+
+/// Fetch + unseal MY copy of the group's latest epoch key. Returns
+/// `Some((epoch, epoch_key))` if I have a recipient entry, `None` otherwise.
+pub fn fetch_my_epoch_key(
+    server_url: &str,
+    seed: &[u8],
+    group_id: &str,
+) -> Result<Option<(u64, Vec<u8>)>, String> {
+    let identity = derive_pq_identity(seed).map_err(|e| format!("derive: {e}"))?;
+    let dil_pub_bytes =
+        hex::decode(&identity.dilithium_hex).map_err(|e| format!("dilithium hex: {e}"))?;
+    let my_fp = author_fingerprint_hex(&dil_pub_bytes);
+    let me = DmPqKeypair::from_bip39_seed(seed).map_err(|e| format!("dm keypair: {e}"))?;
+
+    let payload_bytes = match fetch_group_epoch_payload(server_url, group_id)? {
+        Some(p) => p,
+        None => return Ok(None),
+    };
+    let parsed = parse_group_epoch_key_payload(&payload_bytes)?;
+    match open_epoch_key(&parsed, &my_fp, &me) {
+        Ok(pair) => Ok(Some(pair)),
+        Err(_) => Ok(None), // no entry for us / wrong key — handled by rekey
+    }
 }
 
 /// Join a P2P group by parsing a ticket and submitting a `group_join_v1`.

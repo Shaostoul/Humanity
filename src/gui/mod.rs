@@ -1051,6 +1051,17 @@ pub struct GuiState {
     /// Inline status/error for the P2P-group dialog.
     pub p2p_group_modal_status: String,
 
+    // ── P2P-group chat-in-dialog state (Phase 2) ──
+    /// Current epoch number for the open group (informational; used when sending).
+    pub p2p_group_chat_epoch: u64,
+    /// Decapsulated 32-byte AES key for the current epoch. None means we don't
+    /// have a copy yet (no epoch issued, or it isn't sealed to us).
+    pub p2p_group_chat_epoch_key: Option<Vec<u8>>,
+    /// Currently-decrypted messages, oldest-first.
+    pub p2p_group_chat_messages: Vec<crate::net::api_v2::GroupMessage>,
+    /// Compose-box content for the next message to send.
+    pub p2p_group_chat_compose: String,
+
     // ── Sidebar section settings popups (v0.195.0) ──
     // Rendered as floating Areas anchored below the section's cog
     // button. Using GuiState fields instead of egui's popup machinery
@@ -1714,6 +1725,10 @@ impl Default for GuiState {
             p2p_group_open_id: String::new(),
             p2p_group_modal_ticket: None,
             p2p_group_modal_status: String::new(),
+            p2p_group_chat_epoch: 0,
+            p2p_group_chat_epoch_key: None,
+            p2p_group_chat_messages: Vec::new(),
+            p2p_group_chat_compose: String::new(),
             show_channel_edit_modal: false,
             edit_channel_id: String::new(),
             edit_channel_name: String::new(),

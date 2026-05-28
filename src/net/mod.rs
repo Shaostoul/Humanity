@@ -26,3 +26,10 @@ pub mod dm_pq;
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
 #[cfg(feature = "native")]
 pub mod api_v2;
+
+/// P2P group end-to-end encrypted messaging (Phase 2). Epoch-key sealing via
+/// the same ML-KEM-768 → BLAKE3-KDF → AES-256-GCM scheme as `dm_pq`, and
+/// AES-256-GCM message ciphertext under that epoch key. Byte-compatible with
+/// the web client's `pq-object.js` Phase-2 helpers.
+#[cfg(feature = "native")]
+pub mod group_e2ee;
