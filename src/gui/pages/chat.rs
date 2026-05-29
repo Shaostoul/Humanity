@@ -250,11 +250,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 spawn_group_load(state, &gid, true);
             }
         } else {
-            // Periodic background reload of the open group (~4s) — picks up new
-            // messages, rekeys, and roster changes without blocking.
+            // Periodic background reload of the open group (~2s) — picks up new
+            // messages, rekeys, and roster changes without blocking. (Native has
+            // no P2P push yet, so incoming arrives at this cadence; 2s keeps it
+            // from feeling chunky. My own sends echo instantly + are preserved
+            // across reloads, so a tighter poll can't blink them out.)
             let due = state
                 .p2p_group_last_fetch
-                .map(|t| t.elapsed().as_secs() >= 4)
+                .map(|t| t.elapsed().as_millis() >= 2000)
                 .unwrap_or(true);
             if due && state.p2p_group_loader.is_none() {
                 spawn_group_load(state, &gid, false);
@@ -4565,23 +4568,15 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 // (identicons, sender grouping, theme — all reused, zero parallel UI).
 
 /// Format an epoch-ms timestamp as HH:MM:SS (UTC) for the message row.
-fn fmt_group_hhmmss(ms: i64) -> String {
-    if ms <= 0 { return String::new(); }
-    let secs = ms / 1000;
-    let h = (secs / 3600) % 24;
-    let m = (secs / 60) % 60;
-    let s = secs % 60;
-    format!("{:02}:{:02}:{:02}", h, m, s)
-}
-
-/// Replace all cached messages for `channel` with the freshly-decrypted set.
-/// Dedup-free: we always repaint from the relay's authoritative log.
+/// Replace cached messages for `channel` with the freshly-decrypted set, while
+/// preserving any of my just-sent local echoes the reload hasn't indexed yet.
+/// Repaints from the relay's authoritative log (the source of truth) so edits/
+/// removals elsewhere converge.
 fn replace_p2p_messages(
     state: &mut GuiState,
     channel: &str,
     msgs: Vec<crate::net::api_v2::GroupMessage>,
 ) {
-    state.chat_messages.retain(|m| m.channel != channel);
     let my_key = state.profile_public_key.clone();
     // My author fingerprint = BLAKE3(my Dilithium pubkey)[..16]. profile_public_key
     // IS the Dilithium pubkey hex (set in mod.rs from the PQ identity), so we
@@ -4592,6 +4587,29 @@ fn replace_p2p_messages(
         .ok()
         .map(|b| crate::net::api_v2::author_fingerprint_hex(&b))
         .unwrap_or_default();
+
+    // Preserve my very-recent local echoes the reload hasn't indexed yet — so a
+    // poll that races the relay POST doesn't blink a just-sent message out (the
+    // "briefly disappeared then reappeared" the operator saw). An echo is kept
+    // only until the reload includes it (matched by author+content) and at most
+    // ~20s (a failed send then falls off instead of lingering forever).
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let pending: Vec<ChatMessage> = state
+        .chat_messages
+        .iter()
+        .filter(|m| {
+            m.channel == channel
+                && m.sender_key == my_key
+                && now_ms.saturating_sub(m.timestamp_ms) < 20_000
+                && !msgs.iter().any(|lm| lm.author_fp == my_fp && lm.text == m.content)
+        })
+        .cloned()
+        .collect();
+
+    state.chat_messages.retain(|m| m.channel != channel);
     for m in msgs {
         let is_me = !my_fp.is_empty() && m.author_fp == my_fp;
         let sender_key = if is_me {
@@ -4612,7 +4630,10 @@ fn replace_p2p_messages(
                 .cloned()
                 .unwrap_or_else(|| format!("{}…", &m.author_fp[..12.min(m.author_fp.len())]))
         };
-        let ts_str = fmt_group_hhmmss(m.created_at);
+        // Use the app-standard "HH:MM UTC" formatter (same as chrono_now_str,
+        // which the local send-echo uses) so a message keeps ONE timestamp
+        // format — fixes the echo's HH:MM flipping to HH:MM:SS on reconcile.
+        let ts_str = format_timestamp(m.created_at as u64);
         state.chat_messages.push(ChatMessage {
             sender_name,
             sender_key,
@@ -4622,6 +4643,10 @@ fn replace_p2p_messages(
             channel: channel.to_string(),
             ..Default::default()
         });
+    }
+    // Re-add my preserved local echoes (just-sent, not yet in the reload).
+    for p in pending {
+        state.chat_messages.push(p);
     }
     // Global sort by ms keeps each channel's relative order correct (the
     // renderer filters by channel + iterates in vec order). Cross-channel
