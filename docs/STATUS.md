@@ -1,15 +1,50 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-04-30 | **Version:** v0.132.0 (AI Perception API + bug fix)
+> **Last updated:** 2026-05-28 | **Version:** v0.304.x (P2P groups complete both clients + concurrency audit)
 >
-> This is the **single source of truth** for what is built, partial, or planned.
+> This is a **feature inventory** — what is built, partial, or planned.
 > Update this file every time features are added or status changes.
+>
+> **⚠️ This file is NOT the backlog.** The authoritative, strict-ranked "what gets
+> worked on next" lives in **`docs/PRIORITIES.md`** (TIER 0 → TIER 4). If STATUS.md
+> and PRIORITIES.md ever disagree, **PRIORITIES.md wins** — it is kept current every
+> session; this file is a slower-moving inventory. See the "What's NOT done" section
+> at the bottom for the gap list, which is a summary of PRIORITIES, not a replacement.
 
 **Legend:** ✅ Built/working | ⚠️ Partial/needs work | ❌ Not yet built | 🔜 Next priority
 
 > **Truthfulness rule:** A feature is ✅ only when its behaviour runs end-to-end.
-> "Module exists and ticks" without behaviour is ⚠️, not ✅. Lying to STATUS.md
-> means future agents skip work that wasn't done.
+> "Module exists and ticks" without behaviour is ⚠️, not ✅. A ✅ that is not actually
+> verified end-to-end should be downgraded to ⚠️ (partial / unverified) rather than
+> left as a false "done" — lying to STATUS.md means future agents skip work that
+> wasn't done. **Many ✅ rows below predate v0.132 and have not been re-verified
+> against the current binary; treat older ✅ rows as "claimed built," not "audited."**
+
+---
+
+## Architecture & crypto reality check (read before trusting old rows)
+
+Several rows further down were written before major migrations and are now
+**factually wrong about HOW a feature works** (the feature exists, but the
+described mechanism is stale). The current ground truth:
+
+- **Single crate, not a workspace.** Everything compiles from `src/` at the repo
+  root into one `HumanityOS.exe`. The server/relay is `src/relay/`. Feature flags
+  (`native`, `relay`, `wasm`) select what's built. The pre-v0.90 `server/`,
+  `native/`, and `crates/` directories **no longer exist**. (See `CLAUDE.md`.)
+- **Chat identity is Dilithium3 / ML-DSA-65, not Ed25519.** Since the post-quantum
+  cutover (v0.262.x–v0.264.x), the chat identity = a Dilithium3 keypair derived
+  from the BIP39 seed. Ed25519's **only** remaining roles are the seed source and
+  the Solana wallet address. Old "Ed25519 identity" rows describe the pre-PQ world.
+- **DM E2EE is pure Kyber768 / ML-KEM-768 → BLAKE3-KDF → AES-256-GCM, not ECDH.**
+  The ECDH P-256 DM path was **deleted** (web v0.263.4, native v0.264.0). Any row
+  or note below mentioning "ECDH P-256" for DMs is stale.
+- **Native vault PBKDF2 is 600,000 iterations** (v0.277.0), matching web — not the
+  100k "pending upgrade" some notes still claim.
+- **Full crypto inventory:** `CLAUDE.md` → "Cryptography (canonical)" table is the
+  authority. Read it before quoting any algorithm. Activation note: the PQ stack is
+  shipped AND the attended Inc6 wipe ran (confirmed 2026-05-20), so PQ chat/DM is
+  live, not merely "awaiting activation."
 
 ---
 
@@ -49,7 +84,7 @@ purely additive (existing chat untouched). See
 - ⚠️ Phase 6b STARK selective disclosure: scaffold + Merkle disclosure verifier wired (v0.111.0–v0.112.0); full STARK verifier circuit deferred
 - ⚠️ Phase 7a Litestream replication: ops doc shipped (v0.110.0), VPS deployment is operator action
 - ⚠️ Phase 7b LoRa mesh: serial driver landed (v0.112.0), real radio integration deferred
-- ⚠️ PQ-native chat client rewrite: noble-PQ JS bridge in place (v0.111.0–v0.112.0, v0.117.0); chat client rewrite still pending
+- ✅ PQ-native chat: **SHIPPED** in the v0.262.x–v0.264.x cutover (this "still pending" note is obsolete). Chat identity = Dilithium3, DM = pure Kyber768, ECDH removed, KAT-locked web↔native↔relay. See the crypto reality-check at the top + `CLAUDE.md`.
 
 ---
 
@@ -86,7 +121,7 @@ the user-facing theme.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Unified binary | ✅ | `server/` and `crates/` merged into `src/relay/`. One binary: `HumanityOS.exe` |
+| Unified binary | ✅ | Single crate at `src/`; former `server/`/`native/`/`crates/` folded in (v0.90.0). Server relay = `src/relay/`. One binary: `HumanityOS.exe` |
 | Headless mode | ✅ | `HumanityOS --headless` for server-only (VPS, Raspberry Pi) |
 | Default build | ✅ | Includes relay + renderer + game. Feature flags: `native`, `relay`, `wasm` |
 | Zero sub-crates | ✅ | 17 unused crates deleted, zero workspace complexity |
@@ -107,9 +142,9 @@ Everything in this section is **built and working**.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| WebSocket relay | ✅ | relay.rs ~5800 LOC, message routing, Fibonacci rate limiting, Ed25519 auth |
+| WebSocket relay | ✅ | relay.rs ~5800 LOC, message routing, Fibonacci rate limiting, Dilithium3 identify (proof-of-possession nonce challenge, v0.274.0) |
 | Channels | ✅ | Create, switch, ordering, read-only, invite codes, auto-lockdown |
-| Direct messages | ✅ | E2E encrypted (ECDH P-256 + AES-256-GCM), @mentions, notifications |
+| Direct messages | ✅ | E2E encrypted — **pure Kyber768/ML-KEM-768 → BLAKE3-KDF → AES-256-GCM** dual-seal (web v0.263.0, native v0.264.0; ECDH P-256 deleted), @mentions, notifications. KAT-locked web↔native |
 | Threaded replies | ✅ | Thread view panel, reply indicators, reply count tracking |
 | Message editing | ✅ | Server-side edit history, client UI |
 | Pins | ✅ | Server-side + client UI, per-channel |
@@ -129,10 +164,12 @@ Everything in this section is **built and working**.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Ed25519 identity | ✅ | Key generation, sign/verify on all messages |
-| Key rotation | ✅ | Dual-signed certificates (old key + new key) |
-| BIP39 seed phrase | ✅ | 24-word backup & restore |
-| Encrypted backup | ✅ | AES-256-GCM + PBKDF2-SHA256 (600k iterations) |
+| Dilithium3 chat identity | ✅ | ML-DSA-65 keypair derived from BIP39 seed = the chat identity (PQ cutover v0.262.x–v0.264.x). Sign/verify on chat messages + relay-auth endpoints. Ed25519 retained only as seed source + Solana wallet |
+| Key rotation | ⚠️ | Dual-signed-certificate design existed for Ed25519; the relay `key_rotation` route/handler was **removed** in the PQ trim (v0.265.0). Re-verify before claiming an end-to-end rotation flow |
+| BIP39 seed phrase | ✅ | 24-word backup & restore (single seed derives Ed25519 + Dilithium3 + Kyber768) |
+| Encrypted backup (web) | ✅ | AES-256-GCM + PBKDF2-SHA256, 600k iterations |
+| Encrypted vault (native) | ✅ | AES-256-GCM + PBKDF2-SHA256, **600k iterations** (v0.277.0, was 100k); legacy vaults auto-re-encrypt on next unlock |
+| Auto-unlock (native) | ✅ | 3 modes: AlwaysPrompt / OS-keychain / KeychainPin (v0.278.0) |
 | Device management | ✅ | List, label, revoke devices; QR code linking |
 | Vault sync | ✅ | Encrypted cross-device sync, auto-lock, timestamp freshness |
 | Seed phrase recovery | ✅ | "Recover from Seed Phrase" button on login screen (v0.25.0) |
@@ -330,8 +367,8 @@ Everything in this section is **built and working**.
 | DMs/Groups cog menus | ✅ | Settings cog menus on DMs/Groups headers (v0.90.1) |
 | Server header cog | ✅ | Cog replaces X disconnect button (v0.90.1) |
 | All 27 pages refactored | ✅ | Every page uses theme + universal widgets consistently (v0.90.1) |
-| ECDH P-256 DM encryption | ✅ | Native ECDH keypair generation, storage, encrypt/decrypt DMs matching web crypto.js (v0.90.4) |
-| ECDH web key import | ✅ | Settings > Account imports ECDH keypair from web client (v0.90.5) |
+| ~~ECDH P-256 DM encryption~~ | ❌ | **Removed (v0.264.0).** Native DM now uses pure Kyber768/ML-KEM-768 (`src/net/dm_pq.rs`), byte-identical to web. The ECDH path and its Settings import UI were deleted in the PQ cutover |
+| PQ DM (native) | ✅ | Kyber768 dual-seal `{v:1,r,s}` envelope via `src/net/dm_pq.rs`; recipient key deterministic from seed; KAT-locked with web (v0.264.0) |
 
 > **Note:** Source code lives in `src/` at the repo root (unified binary). `native/` and `server/` directories no longer exist. Binary output is `target/release/HumanityOS.exe`.
 
@@ -399,34 +436,74 @@ Everything in this section is **built and working**.
 
 ---
 
-## What to Build Next (Priority Order)
+## What to Build Next
 
-| # | Feature | Category | Why |
-|---|---------|----------|-----|
-| 1 | 🔜 Bloom render integration | Rendering | bloom.rs + bloom.wgsl built, needs render loop hookup |
-| 2 | 🔜 Map rework | Web | Replace 2D canvas solar system with 3D engine orbit mode |
-| 3 | 🔜 Advanced trading | Marketplace | Order books, automated matching, trade history |
-| 4 | 🔜 Biome-specific gameplay | Engine | Weather/terrain/ecology integration per biome |
-| 5 | 🔜 Multiplayer world sync | Engine | Full ECS state replication for shared worlds |
+**This section is a pointer, not a plan.** The authoritative ranked backlog is
+**`docs/PRIORITIES.md`** — read it for the current top item and full ordering.
+The summary below reflects PRIORITIES as of 2026-05-28; if it has drifted from
+PRIORITIES.md, trust PRIORITIES.md.
+
+- **Currently active (Track W):** clean rebuild of the web chat *view* to mirror
+  native 1:1, keeping the proven JS engine (WS/crypto/WebRTC). Spec:
+  `docs/design/chat-layout.md`.
+- **TIER 0 — pre-public-launch blockers:** the only open item is fixing nginx
+  `/health` routing (public `https://united-humanity.us/health` returns 404 while
+  internal returns 200). Everything else in TIER 0 is DONE (off-site backup,
+  release-mirror retention, Inc6 wipe, orphan-admin cleanup, TLS auto-renew, etc.).
+- **TIER 1 — hardening:** effectively closed (fail2ban, watchdog+alerting,
+  SQLite corruption recovery all shipped; off-box monitor skipped by operator).
+- **TIER 2 — big-feature gaps (weeks each):** web↔native parity (Track W),
+  Studio+streaming, in-app ops console, **native voice (no WebRTC stack at all
+  today)**, federation *activation* (designed, dormant=safe, not turned on),
+  native trade UI completion (events not dispatched), Litestream continuous
+  backup, mobile clients (Android/iOS), device mesh, federated Library, and
+  **P2P groups phases 3–5** (P2P transport / relay-independence / mDNS-DHT —
+  phases 1–2 are done: create/invite/join/E2EE-chat/leave/disband work on both
+  clients as of v0.301–v0.304).
+- **TIER 3 — ELI5 accessibility mandate:** tooltip pass, first-5-minutes
+  onboarding flow, localization expansion (5→11+ languages), full WCAG 2.1 AA
+  audit, native glossary widget. Largely NOT done.
+- **TIER 4 — long horizon:** LoRa hardware, STARK selective disclosure, deep
+  game-world simulation, AI-agent governance enforcement, distribution beyond
+  GitHub/Forgejo.
 
 ---
 
-## Summary
+## What's NOT done (corrective summary)
 
-| Category | ✅ Built | ⚠️ Partial | ❌ Missing |
-|----------|---------|-----------|-----------|
-| Architecture | 12 | 0 | 0 |
-| Communication | 15 | 0 | 0 |
-| Identity & Security | 8 | 0 | 0 |
-| Push Notifications | 7 | 0 | 0 |
-| Task Board | 6 | 0 | 0 |
-| Marketplace | 12 | 0 | 0 |
-| Wallet & Funding | 10 | 0 | 0 |
-| Game Engine | 51 | 2 | 0 |
-| Server & Infrastructure | 17 | 0 | 0 |
-| Navigation & UX | 11 | 0 | 0 |
-| Native Desktop Client | 20 | 0 | 0 |
-| Web Tools & Utilities | 9 | 0 | 0 |
-| Local-First Storage | 6 | 0 | 0 |
-| Game Data | 26 | 0 | 0 |
-| **Total** | **210** | **2** | **0** |
+> **The previous version of this file claimed "0 missing" across every category.
+> That was wrong and dangerously misleading** — it contradicted the live backlog.
+> HumanityOS has a large amount of built infrastructure AND a large amount of
+> remaining work. The honest high-level picture:
+
+**Known partial / unverified (not "done"):**
+- Native client is **chat-first and missing real-time media**: no native WebRTC
+  stack → native voice, video, screen-share, and streaming are stubs/observer-only
+  (web has them). (PRIORITIES TIER 2 #2, #4, #6.)
+- Native **trade UI** page exists but trade events aren't dispatched (TIER 2 #7).
+- **Federation** code is fail-closed and dormant — designed, not activated; no
+  admin UI to add/trust peers yet (TIER 2 #5).
+- **Bloom post-process** scaffolding built, render-loop integration unverified.
+- **16+ scaffolded game systems** (aging, astronomy, fire, genetics, geology,
+  hvac, manufacturing, medical, plumbing, transportation, waste, etc.) tick but
+  have no real behaviour; **electrical** and **psychology** are partial. (These
+  were flipped ✅→⚠️ in the v0.122 truthfulness pass; the "Game Engine" rows below
+  still over-count them as built.)
+- **Most ops/config is CLI/SSH-only** (alerts, backups, fail2ban, relay control,
+  secrets) — violates the GUI-first mandate; tracked as debt in
+  `docs/design/in-app-ops.md` (TIER 2 #3).
+- Many ✅ rows below predate v0.132 and have **not been re-verified** against the
+  current binary.
+
+**Known missing / not built:**
+- Mobile clients (Android, iOS) — TIER 2 #5.
+- Device mesh (system-info reporting, designate-backup, restore, LAN sync) — TIER 2 #6.
+- Federated Library (files/software/web catalog) — TIER 2 #7.
+- P2P groups phases 3–5 (true P2P transport + relay-independence + serverless
+  discovery) — TIER 2 #8.
+- The entire TIER 3 accessibility layer (tooltips, onboarding flow polish,
+  expanded localization, WCAG audit, native glossary) — mission-critical, mostly
+  not started.
+
+**Do not treat the per-category counts in old revisions of this file as a
+completeness score.** Use `docs/PRIORITIES.md` for what remains.

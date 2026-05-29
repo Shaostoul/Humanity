@@ -2,6 +2,15 @@
 
 This board tracks conversion from module specs into runnable Rust modules.
 
+> **⚠️ Layout note (v0.90.0+):** Every `Crate path: crates/...` entry below refers to an
+> **experimental multi-crate modular layout that was NOT adopted.** HumanityOS is a single
+> Rust crate at `src/` (no Cargo workspace, no `crates/` directory). Where a feature on this
+> board actually shipped, it lives as a module under `src/` (e.g. game systems under
+> `src/systems/`, persistence in `src/persistence.rs` + `src/relay/storage/`), not as a
+> separate crate. Read the `crates/...` paths and `cargo ... -p <crate>` commands here as
+> historical planning, not the real build. Cross-check status against `docs/STATUS.md` and
+> `docs/PRIORITIES.md`.
+
 Status key: `planned` | `in_progress` | `blocked` | `done`
 
 ---

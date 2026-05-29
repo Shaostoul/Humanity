@@ -26,8 +26,10 @@ The reference implementation is normative for:
 ## Location
 The reference implementation must live in the Humanity repository as source code, not as a build artifact.
 
-Recommended path:
-- `crates/humanity_network_reference/`
+Recommended path (single-crate layout, post-v0.90 — there is no `crates/` dir):
+- a module under `src/relay/core/` (alongside the existing `encoding.rs` / `object.rs`
+  canonical-bytes + signing code), exposed via a small `--reference` CLI subcommand,
+  or a dedicated example under `examples/`.
 
 The reference implementation must expose a command-line interface that:
 - reads a canonical JSON description of an object

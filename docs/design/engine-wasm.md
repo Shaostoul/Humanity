@@ -191,8 +191,7 @@ Desktop and browser builds are feature-matched. Same game, same experience, same
 
 ## Related Files
 
-- `src/` — shared engine code (renderer, ECS, physics, systems)
-- `crates/` — 19 engine sub-crates
+- `src/` — the single Rust crate: all shared engine code (renderer, ECS, physics, systems) plus relay/GUI behind feature flags. (The 19 engine sub-crates this doc once referenced under `crates/` were folded into `src/` by the v0.90.0 unified-binary restructure; `crates/` no longer exists.)
 - `assets/shaders/` — 30 WGSL shaders (already WebGPU-compatible)
 - `docs/design/engine-architecture.md` — master engine reference
 - `docs/design/camera-system.md` — camera system (Phase 2)

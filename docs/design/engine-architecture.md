@@ -6,9 +6,12 @@
 **Supersedes:** Project Universe approach
 **Depends on:** [game-engine.md](game-engine.md) (engine decision), [graphics-pipeline.md](graphics-pipeline.md) (renderer design), [audio-engine.md](audio-engine.md) (audio stack), [educational-gameplay.md](educational-gameplay.md) (skill system philosophy)
 
-> **Implementation vs Design:** This document describes the v1.0 target architecture. As of v0.34.0,
-> the actual implementation lives in `src/` (not the sub-crates in `crates/` which are
-> mostly scaffolds). Key differences from this design:
+> **Implementation vs Design:** This document describes the v1.0 target architecture, including
+> a multi-crate layout (`crates/`) that was **explored but not adopted**. As of the v0.90.0
+> unified-binary restructure, the actual implementation is a **single Rust crate at `src/`**
+> (no Cargo workspace, no `crates/` sub-crates — they were folded into `src/`; the relay is
+> `src/relay/`). Treat every `crates/...` path in the design sections below as the *aspirational*
+> module map, not files that exist. Key differences from this design as actually built:
 > - **GUI**: egui immediate-mode UI (theme.ron, widgets, 5 pages) replaces Tauri WebView (v0.36.0)
 > - **ECS**: Uses `hecs` crate, not a custom archetypal ECS
 > - **System runner**: Simple `System` trait with `tick(world, dt, data)`, no parallel scheduling yet

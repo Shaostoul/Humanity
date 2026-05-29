@@ -5,14 +5,14 @@ Use this checklist for every feature/fix release to prevent drift across GitHub,
 ## 0) Scope and intent
 - [ ] Feature/fix is defined in 1-2 sentences.
 - [ ] Impacted surfaces are listed:
-  - [ ] Relay/backend (`server/`)
+  - [ ] Relay/backend (`src/relay/`)
   - [ ] Web chat (`/var/www/humanity/chat` runtime mirror)
   - [ ] Desktop app (if affected)
   - [ ] Website/landing/docs
 
 ## 1) Local implementation (repo)
 - [ ] Code changes completed.
-- [ ] Local validation run (`cargo check -p humanity-relay` or relevant tests).
+- [ ] Local validation run (`cargo check --features relay --no-default-features` for the server build, or `cargo check` / relevant tests for native).
 - [ ] Sensitive files check passed (no keys/tokens/secrets in tracked files).
 
 ## 2) Git hygiene

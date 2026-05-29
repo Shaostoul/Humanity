@@ -81,7 +81,7 @@ Each domain owns specific directories. Agents MUST NOT modify files outside thei
 | **Data** | `data/` | All CSV/TOML/RON/JSON | Content expansion (items, recipes, quests) |
 | **Shaders** | `assets/shaders/` | All .wgsl files | Wire unused shaders, new materials |
 | **Web** | `web/` | All HTML/JS/CSS | Chat, pages, shared components |
-| **Server** | `server/` | relay.rs, api.rs, storage/ | Federation, new endpoints |
+| **Server** | `src/relay/` | relay.rs, api.rs, storage/ | Federation, new endpoints |
 | **Core** | `src/lib.rs`, `ecs/`, `assets/` | lib.rs, components.rs, AssetManager | ECS optimization, new components |
 
 ---

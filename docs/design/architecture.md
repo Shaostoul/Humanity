@@ -28,7 +28,7 @@ Highest to lowest authority:
 3. `data/`  
    Canonical structured definitions of entities, resources, and world state.
 
-4. `src/` and `crates/`
+4. `src/` (the single Rust crate)
    Deterministic execution of design over data across time.
 
 5. `web/` and `tools/`
@@ -105,7 +105,7 @@ Data must be:
 
 ---
 
-### Engine Layer (`src/`, `crates/`)
+### Engine Layer (`src/`)
 The engine executes:
 - discrete time progression
 - system updates as pure transformations of state
