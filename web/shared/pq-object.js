@@ -96,6 +96,62 @@ export async function buildSignedObject(opts) {
   return { objectId, submission };
 }
 
+/**
+ * Verify a signed-object SUBMISSION (the POST /api/v2/objects shape) LOCALLY —
+ * the exact ML-DSA-65 check the relay runs in `put_signed_object`, so a peer
+ * can trust an object received over a P2P DataChannel with ZERO relay
+ * involvement (P2P-groups Phase 3). Recomputes `signable_bytes` (canonical CBOR
+ * with a zero-filled signature, exactly as `buildSignedObject` does) and the
+ * `object_id` (BLAKE3 of the canonical bytes with the real signature).
+ *
+ * Returns `{ ok, objectId, payload, authorPubHex, createdAt, references }` on a
+ * valid signature, or `{ ok: false }` on anything malformed/forged. Never throws.
+ *
+ * @param submission the JSON object as produced by buildSignedObject / returned by the relay
+ * @param deps `{ blake3: (Uint8Array)=>Uint8Array, pqVerify: async (pubBytes, msgBytes, sigBytes)=>bool }`
+ */
+export async function verifyObjectSubmission(submission, { blake3, pqVerify }) {
+  try {
+    if (!submission || !submission.author_public_key_b64 || !submission.payload_b64 || !submission.signature_b64) {
+      return { ok: false };
+    }
+    const authorPub = _b64d(submission.author_public_key_b64);
+    const payload = _b64d(submission.payload_b64);
+    const signature = _b64d(submission.signature_b64);
+    if (signature.length !== DILITHIUM_SIG_LEN) return { ok: false };
+
+    const base = {
+      protocol_version: submission.protocol_version ?? 1,
+      object_type: submission.object_type,
+      space_id: submission.space_id ?? null,
+      channel_id: submission.channel_id ?? null,
+      author_public_key: authorPub,
+      created_at: submission.created_at ?? null,
+      references: submission.references || [],
+      payload_schema_version: submission.payload_schema_version ?? 1,
+      payload_encoding: submission.payload_encoding || PAYLOAD_ENCODING_PLAINTEXT,
+      payload,
+      // Zero-filled signature for the signable preimage — must match Rust.
+      signature: new Uint8Array(DILITHIUM_SIG_LEN),
+    };
+    const signableBytes = encodeObjectCanonical(base);
+    const ok = await pqVerify(authorPub, signableBytes, signature);
+    if (!ok) return { ok: false };
+
+    const objectId = _hex(blake3(encodeObjectCanonical({ ...base, signature })));
+    return {
+      ok: true,
+      objectId,
+      payload,
+      authorPubHex: _hex(authorPub),
+      createdAt: submission.created_at ?? null,
+      references: base.references,
+    };
+  } catch (_e) {
+    return { ok: false };
+  }
+}
+
 /* ── P2P group payloads (docs/design/p2p-groups.md object-format spec) ── */
 
 /** `group_v1` payload: `{ name }`. The group_id = the resulting object's id. */

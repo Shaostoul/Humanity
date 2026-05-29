@@ -61,6 +61,7 @@ pq-kat:
 # for a fixed group_v1 input. Run before shipping any signed-object change.
 group-kat:
     node scripts/group-object-kat.mjs
+    node scripts/object-verify-kat.mjs
 
 # Rebuild the vendored same-origin post-quantum bundle (pins versions,
 # bundles with esbuild, verifies the KAT). Needs network for npm.

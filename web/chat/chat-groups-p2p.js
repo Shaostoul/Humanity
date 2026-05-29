@@ -100,14 +100,126 @@
     } catch (e) { console.warn('fetchGroupMessages:', e); }
     return out;
   }
-  /** Encrypt + post a message into a P2P group. */
+  /** Encrypt + post a message into a P2P group.
+   *
+   * Phase 3: ALSO push the signed object directly to connected group peers over
+   * their WebRTC DataChannels (low-latency P2P delivery). The relay POST stays
+   * as the durable cache + the backfill for offline members ("relay = optional
+   * accelerator"). A `group_msg_v1` is self-validating, so the peer-pushed copy
+   * and the relay-polled copy dedup by object_id — pushing it is safe. */
   async function sendGroupMessage(groupId, epoch, epochKey, plaintext) {
     const { obj, blake3 } = await mods();
     const built = await obj.buildGroupMsgV1({
       groupId, epoch, epochKey, plaintext,
       authorPublicKey: authorPub(), sign: signer(), blake3,
     });
+    // Push P2P first (instant for connected members); then the relay POST
+    // (cache + offline backfill). Mark our own object as seen so the echo loop
+    // / next poll doesn't double-handle it.
+    if (built.objectId) _p2pGroupSeenObjIds.add(built.objectId);
+    broadcastGroupObj(groupId, built.submission);
     await postObject(built.submission);
+  }
+
+  // ── Phase 3: P2P group-object replication over WebRTC DataChannels ──
+  // Reuses chat-p2p.js's per-peer DataChannel transport (initDataChannel +
+  // the global p2pDataChannels map, multiplexed by msg.type) and the relay's
+  // existing webrtc_signal routing. No new relay handler: the relay is
+  // signaling-only for this. group_msg_v1 is a self-validating signed object,
+  // so a peer-pushed copy is verified locally + deduped by object_id against
+  // the relay-polled copy — pushing it carries zero trust risk.
+
+  // object_ids already handled (sent or received over P2P) so a push + the 4s
+  // relay poll don't double-render the same message. Reset on group switch.
+  const _p2pGroupSeenObjIds = new Set();
+
+  /** fp = first 16 bytes of BLAKE3(pubkey), hex — matches author_fingerprint. */
+  function fpFromPubHex(pubHex, blake3) {
+    try {
+      const h = blake3(hexToBytes(pubHex));
+      let s = '';
+      for (let i = 0; i < 16; i++) s += h[i].toString(16).padStart(2, '0');
+      return s;
+    } catch (_e) { return ''; }
+  }
+
+  /** Open/maintain DataChannels to the active group's roster members.
+   * Glare-free: only the LARGER-pubkey side calls initDataChannel (offers); the
+   * smaller side waits and chat-p2p.js's handleDCOffer answers. Offline members
+   * simply never connect (their offer goes nowhere) — the relay poll covers
+   * them. Reuses any channel already open for DMs (multiplexed by msg.type). */
+  function ensureGroupMesh(ag) {
+    if (!ag || !ag.fpToKey) return;
+    if (typeof initDataChannel !== 'function' || typeof p2pDataChannels === 'undefined') return;
+    const myk = (typeof myKey === 'string') ? myKey : '';
+    if (!myk) return;
+    for (const peerKey of Object.values(ag.fpToKey)) {
+      if (!peerKey || peerKey === myk) continue;
+      const dc = p2pDataChannels[peerKey];
+      if (dc && (dc.readyState === 'open' || dc.readyState === 'connecting')) continue;
+      if (myk > peerKey) {           // deterministic offerer
+        try { initDataChannel(peerKey); } catch (_e) {}
+      }
+    }
+  }
+
+  /** Push a signed group object to every connected roster member. */
+  function broadcastGroupObj(groupId, submission) {
+    if (typeof p2pDataChannels === 'undefined') return;
+    const ag = window.activeP2pGroup;
+    if (!ag || ag.id !== groupId || !ag.fpToKey) return; // only the active group (we have its roster)
+    const frame = JSON.stringify({ type: 'p2p_group_obj', submission });
+    for (const peerKey of Object.values(ag.fpToKey)) {
+      const dc = p2pDataChannels[peerKey];
+      if (dc && dc.readyState === 'open') {
+        try { dc.send(frame); } catch (_e) {}
+      }
+    }
+  }
+
+  /** Handle a `p2p_group_obj` frame arriving on a DataChannel (called from
+   * chat-p2p.js's onDCMessage dispatch). Verifies the signed object locally
+   * (the same ML-DSA check the relay runs), dedups by object_id, gates on
+   * roster membership, decrypts under the current epoch key, and renders it
+   * immediately. The 4s relay poll later reconciles the full history. */
+  async function handleP2pGroupObj(msg, _peerKey) {
+    try {
+      const ag = window.activeP2pGroup;
+      if (!ag || !msg || !msg.submission) return;
+      const submission = msg.submission;
+      // Only the active group; only messages (epoch keys still ride the poll).
+      if (submission.object_type !== 'group_msg_v1') return;
+      if (!Array.isArray(submission.references) || submission.references[0] !== ag.id) return;
+
+      const { obj, blake3 } = await mods();
+      const res = await obj.verifyObjectSubmission(submission, { blake3, pqVerify: window.pqVerifyMessage });
+      if (!res.ok) return;                                // forged/malformed → drop
+      if (_p2pGroupSeenObjIds.has(res.objectId)) return;  // already handled (push or poll)
+
+      // Membership gate (mirror the relay's index_group_msg): author must be an
+      // active roster member. fpToKey's values are the roster pubkey hexes.
+      const rosterPubkeys = new Set(Object.values(ag.fpToKey || {}));
+      if (!rosterPubkeys.has(res.authorPubHex)) return;
+
+      // Decrypt under the current epoch key. Missing/wrong key → drop; the relay
+      // poll backfills once openGroupEpochKey provides it.
+      if (!ag.epochKey) return;
+      const parsed = obj.parseGroupMsgPayload(res.payload);
+      if (!parsed) return;
+      const text = await obj.aesGcmDecrypt(ag.epochKey, parsed.nonce, parsed.ct);
+      if (text === null || text === undefined) return;
+
+      _p2pGroupSeenObjIds.add(res.objectId);
+
+      const authorFp = fpFromPubHex(res.authorPubHex, blake3);
+      const isMe = authorFp && ag.myFp && authorFp === ag.myFp;
+      const name = isMe ? (window.myName || 'You')
+        : ((ag.fpToName && ag.fpToName[authorFp]) || (res.authorPubHex || '').slice(0, 12) + '…');
+      const fromKey = (ag.fpToKey && ag.fpToKey[authorFp]) || res.authorPubHex;
+      if (typeof addChatMessage === 'function') {
+        addChatMessage(name, text, res.createdAt || Date.now(), fromKey, true, false, null, null);
+      }
+    } catch (_e) { /* never let a bad frame break the channel */ }
   }
 
   /**
@@ -430,6 +542,9 @@
           return;
         }
       }
+      // Phase 3: open/maintain DataChannels to roster members so messages
+      // arrive P2P (low-latency) — the fetch below stays as offline backfill.
+      ensureGroupMesh(ag);
       // (3) Fetch + decrypt + render (skip if nothing changed).
       const msgs = await fetchGroupMessages(ag.id, ag.epochKey);
       msgs.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
@@ -454,6 +569,7 @@
     if (typeof activeDmPartner !== 'undefined') { activeDmPartner = null; activeDmPartnerName = ''; }
     if (typeof activeGroupId !== 'undefined') { activeGroupId = null; activeGroupName = ''; }
     window.activeP2pGroup = { id: groupId, name: name || '', epoch: 0, epochKey: null, myFp: '', fpToName: null, fpToKey: null };
+    _p2pGroupSeenObjIds.clear(); // fresh dedup set per opened group
 
     // (b) Sidebar: switch to Groups tab + redraw lists so highlights reflect state.
     if (typeof switchSidebarTab === 'function') switchSidebarTab('groups', true);
@@ -607,6 +723,8 @@
   window.loadP2pGroups = loadP2pGroups;
   window.openP2pGroup = openP2pGroup;
   window.closeP2pGroup = closeP2pGroup;
+  // Phase 3: chat-p2p.js's onDCMessage dispatches `p2p_group_obj` frames here.
+  window.handleP2pGroupObj = handleP2pGroupObj;
   // Back-compat alias: anything still calling the old name gets routed into
   // the inline flow (no modal). Members arg ignored — roster is fetched
   // server-side now.

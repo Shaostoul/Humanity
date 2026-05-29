@@ -695,6 +695,12 @@ const _onDCMessageOrig = onDCMessage;
 onDCMessage = async function(event, peerKey) {
   let msg;
   try { msg = JSON.parse(event.data); } catch { return; }
+  // Phase 3: P2P group messages — a signed group_msg_v1 object pushed by a
+  // group peer. chat-groups-p2p.js verifies + decrypts + renders it.
+  if (msg.type === 'p2p_group_obj') {
+    if (typeof window.handleP2pGroupObj === 'function') await window.handleP2pGroupObj(msg, peerKey);
+    return;
+  }
   if (msg.type && msg.type.startsWith('sync_')) {
     await handleSyncFrame(msg, peerKey);
     return;
