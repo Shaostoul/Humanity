@@ -336,11 +336,21 @@ pub struct GroupMessage {
 /// Messages from a different epoch (whose ciphertext doesn't authenticate
 /// under this key) are silently skipped — for Phase 2 the chat shows only the
 /// current epoch's history.
-pub fn fetch_and_decrypt_group_messages(
-    server_url: &str,
-    group_id: &str,
-    epoch_key: &[u8],
-) -> Result<Vec<GroupMessage>, String> {
+/// One still-encrypted group message from the relay (payload decoded from
+/// base64 but NOT yet opened). Internal to the load pipeline — lets the network
+/// fetch run on a background thread CONCURRENTLY with the roster + epoch-key
+/// fetches; decryption happens locally once the epoch key is in hand.
+struct RawGroupMsg {
+    object_id: String,
+    author_fp: String,
+    created_at: i64,
+    payload: Vec<u8>,
+}
+
+/// GET the group's raw (still-encrypted) message log — NO decryption. Kept apart
+/// from decryption so it can run concurrently with the roster + epoch-key
+/// fetches (see `load_group_blocking`).
+fn fetch_group_messages_raw(server_url: &str, group_id: &str) -> Result<Vec<RawGroupMsg>, String> {
     let url = format!(
         "{}/api/v2/groups/{}/messages",
         server_url.trim_end_matches('/'),
@@ -362,9 +372,6 @@ pub fn fetch_and_decrypt_group_messages(
         .unwrap_or_default();
     let mut out = Vec::with_capacity(msgs.len());
     for m in msgs {
-        let object_id = m.get("object_id").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let author_fp = m.get("author_fp").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let created_at = m.get("created_at").and_then(|x| x.as_i64()).unwrap_or(0);
         let payload_b64 = match m.get("payload_b64").and_then(|x| x.as_str()) {
             Some(s) => s,
             None => continue,
@@ -373,11 +380,41 @@ pub fn fetch_and_decrypt_group_messages(
             Ok(p) => p,
             Err(_) => continue,
         };
-        if let Ok(text) = open_group_msg(&payload, epoch_key) {
-            out.push(GroupMessage { object_id, author_fp, created_at, text });
-        }
+        out.push(RawGroupMsg {
+            object_id: m.get("object_id").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            author_fp: m.get("author_fp").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            created_at: m.get("created_at").and_then(|x| x.as_i64()).unwrap_or(0),
+            payload,
+        });
     }
     Ok(out)
+}
+
+/// Decrypt a raw message log (from `fetch_group_messages_raw`) under an epoch
+/// key. Messages that fail to open (wrong epoch / corrupt) are silently dropped.
+fn decrypt_group_messages_raw(raw: Vec<RawGroupMsg>, epoch_key: &[u8]) -> Vec<GroupMessage> {
+    raw.into_iter()
+        .filter_map(|m| {
+            open_group_msg(&m.payload, epoch_key).ok().map(|text| GroupMessage {
+                object_id: m.object_id,
+                author_fp: m.author_fp,
+                created_at: m.created_at,
+                text,
+            })
+        })
+        .collect()
+}
+
+/// Fetch + decrypt the group's encrypted message log (convenience wrapper).
+pub fn fetch_and_decrypt_group_messages(
+    server_url: &str,
+    group_id: &str,
+    epoch_key: &[u8],
+) -> Result<Vec<GroupMessage>, String> {
+    Ok(decrypt_group_messages_raw(
+        fetch_group_messages_raw(server_url, group_id)?,
+        epoch_key,
+    ))
 }
 
 /// Everything the chat view needs to render an open P2P group, gathered in one
@@ -400,12 +437,46 @@ pub struct GroupLoad {
 /// partial failure rather than erroring) so a transient hiccup never blanks the
 /// view. Pure network/crypto, no shared state — safe to run off the UI thread.
 pub fn load_group_blocking(server_url: &str, seed: &[u8], group_id: &str) -> GroupLoad {
-    let mut epoch: u64 = 0;
-    let mut epoch_key: Option<Vec<u8>> = None;
+    // Fetch the independent pieces CONCURRENTLY on scoped threads. This was up to
+    // SIX sequential relay round-trips — rekey's group_v1 + epoch + members, then
+    // a redundant fetch_my_epoch_key (epoch again), then a redundant
+    // fetch_group_members (members again), then the message log — which is the
+    // 1-3s "Loading…" stall the operator saw on open. None of these depends on
+    // another at the FETCH layer; only message *decryption* needs the epoch key,
+    // and that's a local step done after. ureq's blocking calls don't hold any
+    // lock, so scoped threads give real wall-clock parallelism (and these boxes
+    // have cores to spare). First-open now ≈ the slowest single fetch chain.
+    let (epoch_res, members_res, raw_res, rekey_res) = std::thread::scope(|s| {
+        let e = s.spawn(|| fetch_my_epoch_key(server_url, seed, group_id));
+        let m = s.spawn(|| fetch_group_members(server_url, group_id));
+        let r = s.spawn(|| fetch_group_messages_raw(server_url, group_id));
+        // Creator-only re-key (seals the epoch to members who joined since the
+        // last rotation). For a non-creator it's a single GET that bails; for a
+        // creator it may rotate + POST. Running it ALONGSIDE the reads means a
+        // creator's open is bounded by the rekey chain alone, not rekey-then-
+        // everything-else in series. Racing fetch_my_epoch_key's epoch read is
+        // benign: if rekey rotates we prefer its fresh key below; if it doesn't,
+        // fetch_my_epoch_key's current key wins.
+        let k = s.spawn(|| rekey_if_creator_needs(server_url, seed, group_id));
+        (
+            e.join().unwrap_or_else(|_| Ok(None)),
+            m.join().unwrap_or_else(|_| Ok(Vec::new())),
+            r.join().unwrap_or_else(|_| Ok(Vec::new())),
+            k.join().unwrap_or_else(|_| Ok(None)),
+        )
+    });
 
-    // (1) Rotate the epoch key if I'm the creator and members joined; else fetch
-    //     my sealed copy of the current epoch.
-    match rekey_if_creator_needs(server_url, seed, group_id) {
+    // (1) Resolve the epoch key: prefer a fresh creator rotation (which seals the
+    //     epoch to newly-joined members) over my previously-sealed copy.
+    let (mut epoch, mut epoch_key) = match epoch_res {
+        Ok(Some((e, k))) => (e, Some(k)),
+        Ok(None) => (0, None),
+        Err(e) => {
+            log::warn!("load_group: fetch_my_epoch_key: {e}");
+            (0, None)
+        }
+    };
+    match rekey_res {
         Ok(Some((e, k, added))) => {
             epoch = e;
             epoch_key = Some(k);
@@ -413,34 +484,34 @@ pub fn load_group_blocking(server_url: &str, seed: &[u8], group_id: &str) -> Gro
                 log::info!("load_group: rotated epoch key for {added} new member(s) (epoch {e})");
             }
         }
-        Ok(None) => match fetch_my_epoch_key(server_url, seed, group_id) {
-            Ok(Some((e, k))) => {
-                epoch = e;
-                epoch_key = Some(k);
-            }
-            Ok(None) => {}
-            Err(e) => log::warn!("load_group: fetch_my_epoch_key: {e}"),
-        },
+        Ok(None) => {}
         Err(e) => log::warn!("load_group: rekey_if_creator_needs: {e}"),
     }
 
     // (2) Roster → (fp, pubkey_hex).
-    let mut members = Vec::new();
-    match fetch_group_members(server_url, group_id) {
-        Ok(roster) => {
-            for (pubkey_hex, _kyber) in roster {
-                if let Ok(bytes) = hex::decode(&pubkey_hex) {
-                    members.push((author_fingerprint_hex(&bytes), pubkey_hex));
-                }
-            }
+    let members = match members_res {
+        Ok(roster) => roster
+            .into_iter()
+            .filter_map(|(pubkey_hex, _kyber)| {
+                hex::decode(&pubkey_hex)
+                    .ok()
+                    .map(|bytes| (author_fingerprint_hex(&bytes), pubkey_hex))
+            })
+            .collect(),
+        Err(e) => {
+            log::warn!("load_group: fetch_group_members: {e}");
+            Vec::new()
         }
-        Err(e) => log::warn!("load_group: fetch_group_members: {e}"),
-    }
+    };
 
-    // (3) Decrypt the message log under the current key (if we have one).
-    let messages = match &epoch_key {
-        Some(k) => fetch_and_decrypt_group_messages(server_url, group_id, k).unwrap_or_default(),
-        None => Vec::new(),
+    // (3) Decrypt the (concurrently-fetched) message log under the resolved key.
+    let messages = match (&epoch_key, raw_res) {
+        (Some(k), Ok(raw)) => decrypt_group_messages_raw(raw, k),
+        (Some(_), Err(e)) => {
+            log::warn!("load_group: fetch_group_messages_raw: {e}");
+            Vec::new()
+        }
+        _ => Vec::new(),
     };
 
     GroupLoad { group_id: group_id.to_string(), epoch, epoch_key, messages, members }
