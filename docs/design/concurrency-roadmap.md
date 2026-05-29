@@ -25,7 +25,7 @@
 
 | # | Item | file:line | Cost if on UI thread | Status |
 |---|------|-----------|----------------------|--------|
-| C1 | **Vault unlock PBKDF2** (600k iters, ×2 on legacy-vault migration) | `gui/widgets/passphrase_modal.rs:168/185/259` + PIN flows | ~200ms–1s freeze on the **most common** interactive path | 🔜 **worst freeze — do next.** Security-critical login path → its own careful, tested pass (spawn the decrypt + migration re-encrypt + `apply_pq_identity` on a worker, show a spinner, apply on result). |
+| C1 | **Vault unlock PBKDF2** (600k iters, ×2 on legacy-vault migration) | `gui/widgets/passphrase_modal.rs` `draw_unlock` | ~200ms–1s freeze on the **most common** interactive path | ✅ v0.306.0 (`draw_unlock`: PBKDF2 decrypt + legacy re-encrypt on a worker thread + "Unlocking…" spinner; post-steps on main thread). ⏸ FOLLOW-UP: the rarer `draw_change` / `draw_pin_unlock` / `draw_pin_change` flows still do inline PBKDF2. |
 | C2 | P2P group OPEN + periodic 4s reload + 6s list refresh | `chat.rs spawn_group_load / spawn_groups_list_refresh / drain_p2p_loaders` | — | ✅ v0.303.0 (background thread) |
 | C3 | P2P group **message SEND** | `chat.rs send_p2p_group_message` | tens–hundreds ms **every message** | ✅ v0.304.0 (background POST + optimistic echo) |
 | C4 | Per-poll Dilithium+Kyber **keygen** in message-apply | `chat.rs replace_p2p_messages` | ~1–3ms every ~4s (waste) | ✅ v0.304.0 (cheap hex+BLAKE3 from `profile_public_key`) |
@@ -41,8 +41,8 @@ Already off-thread (reference patterns): `widgets/image_cache.rs` (image fetch+d
 
 | # | Item | file:line | Impact | Status |
 |---|------|-----------|--------|--------|
-| R1 | `verify_dilithium` (ML-DSA-65) runs **inline in async handlers** — chat verify on **every message**, object ingest, gossip, identify | `core/pq_crypto.rs:109` reached from `relay.rs:4792` (chat), `api_v2_objects.rs:145`, `signed_objects.rs:72`, `federation.rs:77`, +13 `api.rs` auth sites | CPU-bound verifies starve the tokio worker pool under load | 🔜 wrap in `spawn_blocking` or a rayon pool + `.await` a oneshot (pattern already at `relay.rs:5250`) |
-| R2 | **Duplicate** Dilithium verify on object ingest | `api_v2_objects.rs:145` (post_object) **and** `signed_objects.rs:72` (put_signed_object) | full ML-DSA verify twice per `POST /api/v2/objects` | 🔜 drop post_object's pre-verify (keep the storage-layer gate); ⚠ confirm put_signed_object rejects + post_object still returns 401 |
+| R1 | `verify_dilithium` (ML-DSA-65) runs **inline in async handlers** | chat verify (`relay.rs:4790`), object ingest, + lower-volume sites | CPU-bound verifies starve the tokio worker pool under load | ✅ v0.306.0 for the TWO HOTTEST paths (chat-message verify + object ingest → `spawn_blocking`, fail-closed). ⏸ FOLLOW-UP (lower volume): identify-challenge (`relay.rs:2512`), federation gossip (`federation.rs`), gossip-ingest `put_signed_object`, the 13 `api.rs` REST-auth sites. |
+| R2 | **Duplicate** Dilithium verify on object ingest | `api_v2_objects.rs` (post_object) **and** `signed_objects.rs:72` (put_signed_object) | full ML-DSA verify twice per `POST /api/v2/objects` | ✅ v0.306.0 (dropped post_object's pre-verify; the single authoritative verify lives in put_signed_object; an IngestError enum preserves the 401/400/500 statuses). |
 | R3 | SQLite **single `Mutex<Connection>`** — all queries (incl. reads) serialize | `storage/mod.rs:205` (`with_conn`) — WAL **is** on (`:397`) | one-lane DB; negates WAL's concurrent readers | 🔜 add a WAL read-connection pool (r2d2) + dedicated writer; run `with_conn` off the executor |
 | R4 | Blocking `std::fs` in async `upload_file` (+ re-scans `data/uploads` every upload) | `api.rs:246/449/454/465` | concurrent uploads starve workers | 🔜 `tokio::fs` / `spawn_blocking`; cache the dir-size total |
 
@@ -73,8 +73,9 @@ The audit's key honest finding: the heavy parallel targets **aren't on the live 
 ---
 
 ## Recommended sequence
-1. **C1 vault-unlock off-thread** (worst freeze, own careful pass).
-2. **R1+R2 relay verify offload + de-dup** (hottest server path; own tested pass).
-3. **R3 SQLite read pool** (throughput ceiling; careful, test under load).
-4. **C7/C8** (connect-history + clipboard-upload backgrounding — cheap).
-5. **Engine Tier-2** only when the terrain/sim subsystems are wired live + a profiler confirms the hitch.
+1. ✅ **C1 vault-unlock off-thread** (v0.306.0 — unlock path; PIN/change flows still pending).
+2. ✅ **R1+R2 relay verify offload + de-dup** (v0.306.0 — 2 hottest paths; lower-volume sites pending).
+3. 🔜 **R3 SQLite read pool** (throughput ceiling; careful, test under load).
+4. 🔜 **C7/C8** (connect-history + clipboard-upload backgrounding — cheap).
+5. 🔜 **R1/C1 tails** — the lower-volume relay verify sites + the PIN/change unlock flows.
+6. **Engine Tier-2** only when the terrain/sim subsystems are wired live + a profiler confirms the hitch.
