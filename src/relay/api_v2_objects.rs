@@ -123,10 +123,38 @@ pub struct ObjectAcceptResponse {
     pub message: String,
 }
 
+/// Outcome of the off-executor ingest closure (see [`post_object`]).
+///
+/// `put_signed_object` runs the (CPU-bound) ML-DSA-65 verify AND the SQLite
+/// write, both inside `spawn_blocking`, then returns a `rusqlite::Error` on
+/// any failure. We classify that error here so the async handler can map it
+/// back to the SAME HTTP status a client saw before this offload existed:
+/// a bad signature was a 401, a malformed key a 400, anything else a 500.
+enum IngestError {
+    /// Signature verification failed inside `put_signed_object` → HTTP 401
+    /// (unchanged from the old inline pre-verify behavior).
+    BadSignature(String),
+    /// `author_pubkey` was the wrong length → HTTP 400 (client input fault).
+    BadPublicKey(String),
+    /// object_id computation or a genuine storage fault → HTTP 500.
+    Storage(String),
+}
+
 /// `POST /api/v2/objects`
 ///
 /// Validates signature, computes object_id, stores. Returns the canonical object_id.
 /// Idempotent: re-submitting the same object returns `stored: false`.
+///
+/// Concurrency: the ML-DSA-65 signature verify is CPU-bound and used to run
+/// inline on the tokio worker pool (it ran TWICE — once here as a pre-check
+/// and again inside `put_signed_object`). We now drop the redundant pre-check
+/// and run the single authoritative verify + the DB write together inside
+/// `tokio::task::spawn_blocking`, so a burst of object submissions can't starve
+/// the async executor. `put_signed_object` itself rejects a bad signature
+/// (returns `Err`) before ANY row is written — see
+/// `storage/signed_objects.rs` `put_signed_object` and its
+/// `put_rejects_tampered_object` test — so removing the pre-check does not
+/// weaken the guarantee that an unverifiable object is never stored.
 pub async fn post_object(
     State(state): State<Arc<RelayState>>,
     Json(payload): Json<SignedObjectSubmission>,
@@ -141,59 +169,97 @@ pub async fn post_object(
         }
     };
 
-    // Verify signature *before* storage so we can return a precise error.
-    if let Err(e) = object.verify_signature() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({
-            "error": format!("signature verification failed: {e}")
-        })))
-            .into_response();
-    }
+    // Run the CPU-bound verify + the DB write off the async executor. The
+    // closure must be `'static + Send`, so we clone the `Arc<RelayState>` and
+    // move the owned `object` in; the object is handed back out so the
+    // (rare) gossip path below can reuse it without an extra clone.
+    let state_blocking = state.clone();
+    let join = tokio::task::spawn_blocking(move || {
+        // Compute the canonical id first (cheap relative to the verify, but
+        // also CPU-bound CBOR encoding — keep it off the executor too).
+        let object_id = object
+            .object_id()
+            .map_err(|e| IngestError::Storage(format!("object_id computation failed: {e}")))?
+            .to_hex();
+        // Single authoritative verify happens INSIDE put_signed_object; a bad
+        // signature returns Err here and nothing is written.
+        match state_blocking.db.put_signed_object(&object, None) {
+            Ok(stored) => Ok((object, object_id, stored)),
+            Err(e) => {
+                // `put_signed_object` wraps a verify failure as a
+                // `ToSqlConversionFailure` whose message begins with
+                // "signature verification failed:" (see signed_objects.rs),
+                // and a wrong-length key as "author_pubkey must be ... bytes".
+                // Classify on those stable, same-crate markers so the client
+                // keeps seeing 401 / 400 (not a blanket 500) — the exact
+                // status codes the old inline pre-verify produced.
+                let msg = e.to_string();
+                if msg.contains("signature verification failed") {
+                    Err(IngestError::BadSignature(msg))
+                } else if msg.contains("author_pubkey must be") {
+                    Err(IngestError::BadPublicKey(msg))
+                } else {
+                    Err(IngestError::Storage(format!("storage error: {e}")))
+                }
+            }
+        }
+    });
 
-    let object_id = match object.object_id() {
-        Ok(h) => h.to_hex(),
-        Err(e) => {
+    let (object, object_id, stored) = match join.await {
+        Ok(Ok(triple)) => triple,
+        Ok(Err(IngestError::BadSignature(msg))) => {
+            return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({
+                "error": format!("signature verification failed: {msg}")
+            })))
+                .into_response();
+        }
+        Ok(Err(IngestError::BadPublicKey(msg))) => {
+            return (StatusCode::BAD_REQUEST, Json(serde_json::json!({
+                "error": msg
+            })))
+                .into_response();
+        }
+        Ok(Err(IngestError::Storage(msg))) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-                "error": format!("object_id computation failed: {e}")
+                "error": msg
+            })))
+                .into_response();
+        }
+        // The blocking task panicked or was cancelled — surface as 500.
+        Err(join_err) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                "error": format!("ingest task failed: {join_err}")
             })))
                 .into_response();
         }
     };
 
-    match state.db.put_signed_object(&object, None) {
-        Ok(stored) => {
-            // Phase 3 PR 1: gossip newly-stored locally-submitted objects to peers.
-            // Already-known objects (stored == false) are not re-gossiped.
-            if stored {
-                let state_clone = state.clone();
-                let object_clone = object.clone();
-                tokio::spawn(async move {
-                    crate::relay::handlers::federation::gossip_signed_object(
-                        &state_clone,
-                        &object_clone,
-                        None, // locally submitted — no peer to exclude
-                    )
-                    .await;
-                });
-            }
-            (
-                StatusCode::OK,
-                Json(serde_json::to_value(ObjectAcceptResponse {
-                    object_id,
-                    stored,
-                    message: if stored {
-                        "object stored".into()
-                    } else {
-                        "object already known (no-op)".into()
-                    },
-                }).unwrap_or_default()),
+    // Phase 3 PR 1: gossip newly-stored locally-submitted objects to peers.
+    // Already-known objects (stored == false) are not re-gossiped.
+    if stored {
+        let state_clone = state.clone();
+        tokio::spawn(async move {
+            crate::relay::handlers::federation::gossip_signed_object(
+                &state_clone,
+                &object,
+                None, // locally submitted — no peer to exclude
             )
-                .into_response()
-        }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-            "error": format!("storage error: {e}")
-        })))
-            .into_response(),
+            .await;
+        });
     }
+    (
+        StatusCode::OK,
+        Json(serde_json::to_value(ObjectAcceptResponse {
+            object_id,
+            stored,
+            message: if stored {
+                "object stored".into()
+            } else {
+                "object already known (no-op)".into()
+            },
+        }).unwrap_or_default()),
+    )
+        .into_response()
 }
 
 /// `GET /api/v2/objects/{object_id}`

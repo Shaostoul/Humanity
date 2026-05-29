@@ -4789,9 +4789,24 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     let kp = &my_key_for_recv[..8.min(my_key_for_recv.len())];
                                     match pq_sig_opt.as_ref() {
                                         Some(pq_sig) => {
-                                            let ok = crate::relay::handlers::broadcast::verify_dilithium_signature(
-                                                &my_key_for_recv, &content, timestamp, pq_sig,
-                                            );
+                                            // ML-DSA-65 verify is CPU-bound; run it OFF the
+                                            // async worker pool so a chat flood can't starve
+                                            // tokio. spawn_blocking closures must be 'static +
+                                            // Send, so clone the owned inputs in. The decision
+                                            // (allow/reject) is UNCHANGED — only where the
+                                            // verify runs moves. A panicked/cancelled verify
+                                            // task fails closed (treated as `ok == false` →
+                                            // reject), never as an allow.
+                                            let vk = my_key_for_recv.clone();
+                                            let vcontent = content.clone();
+                                            let vsig = pq_sig.clone();
+                                            let ok = tokio::task::spawn_blocking(move || {
+                                                crate::relay::handlers::broadcast::verify_dilithium_signature(
+                                                    &vk, &vcontent, timestamp, &vsig,
+                                                )
+                                            })
+                                            .await
+                                            .unwrap_or(false);
                                             if !ok {
                                                 tracing::warn!(target: "pq_verify",
                                                     "PQ-REJECT key={kp} invalid pq_signature");
