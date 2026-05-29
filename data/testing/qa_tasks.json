@@ -11,6 +11,14 @@
       "category": "p2p-groups"
     },
     {
+      "id": "v0318-native-web-p2p-interop",
+      "version": "0.318.0",
+      "feature": "Native ↔ web P2P group interop (same machine / LAN)",
+      "what_to_test": "Have a NATIVE instance and a WEB browser identity both join the same P2P group (same machine or LAN). Open the group in both. Send a message from native.",
+      "expected": "It appears in the browser near-instantly (the native str0m DataChannel ↔ the browser's WebRTC — the SDP is byte-compatible, so they should connect with host candidates). And web→native arrives instantly too. If it only updates on the poll cadence, the native↔browser ICE/DataChannel didn't connect — report the F12 / debug-console output.",
+      "category": "p2p-groups"
+    },
+    {
       "id": "v0316-native-p2p-datachannel",
       "version": "0.316.0",
       "feature": "Native P2P push — WebRTC DataChannel transport (increment 1)",
