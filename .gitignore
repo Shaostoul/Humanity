@@ -3,6 +3,9 @@
 /HumanityOS.exe
 /v*_HumanityOS.exe
 *.old.exe
+# Updater handoff: the running app writes the target exe path here before
+# restarting into a new build (src/updater.rs). Machine-local + transient.
+/restart_target.txt
 
 # ── Runtime data (local only, never committed) ──
 # Project Universe (shaostoul.com) archive staging — texts get curated into
