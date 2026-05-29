@@ -1042,30 +1042,47 @@ pub struct GuiState {
     /// fetch on first render so the list is populated without a manual action.
     pub p2p_groups_last_fetch: Option<std::time::Instant>,
 
-    // ── Active P2P-group conversation (inline, channel-style — v0.300.0) ──
-    // A P2P group is opened like a channel: clicking it sets
+    // ── Active P2P-group conversation (inline, channel-style) ──
+    // A P2P group opens like a channel: clicking it sets
     // `chat_active_channel = "p2pgroup:<id>"` and its decrypted messages render
-    // in the SAME center panel as channels/DMs (no modal). These fields cache
-    // the open group's epoch key + roster so the 4s poll only re-fetches the
-    // message log, not the whole key exchange.
+    // in the SAME center panel as channels/DMs (no modal). All network/crypto
+    // for a group runs on a BACKGROUND THREAD (v0.303.0) so switching is
+    // instant and the periodic refresh never freezes the UI — the worker sends
+    // a `GroupLoad` back over a channel and the GUI applies it on the main
+    // thread. These fields cache the applied result.
     /// Transient status line for the P2P-group invite action (e.g.
-    /// "Invite copied"). Shown briefly in the group header after minting.
+    /// "Invite copied"). Shown briefly in the group header / popup.
     pub p2p_group_invite_status: String,
-    /// The group id whose epoch key + roster maps are currently cached (matches
-    /// the active `p2pgroup:<id>` channel). Empty when no P2P group is open.
+    /// The group id currently open (matches the active `p2pgroup:<id>` channel).
+    /// Empty when no P2P group is open.
     pub p2p_group_active_id: String,
     /// Current epoch number for the open group (used when sending).
     pub p2p_group_chat_epoch: u64,
     /// Decapsulated 32-byte AES key for the current epoch. None = we don't have
     /// a copy yet (no epoch issued, or it isn't sealed to us).
     pub p2p_group_chat_epoch_key: Option<Vec<u8>>,
-    /// When we last polled the open group's messages — drives the 4s refresh.
+    /// When we last KICKED OFF a background refresh of the open group — drives
+    /// the periodic reload cadence.
     pub p2p_group_last_fetch: Option<std::time::Instant>,
     /// Roster index for the open group: author fingerprint → full pubkey hex
     /// (lets group messages reuse the standard identicon + name resolution).
     pub p2p_group_fp_to_key: std::collections::HashMap<String, String>,
     /// Roster index for the open group: author fingerprint → display name.
     pub p2p_group_fp_to_name: std::collections::HashMap<String, String>,
+    /// In-flight background load for the open group: `(group_id, receiver)`.
+    /// Drained each frame; applied if it still matches the active group.
+    #[cfg(feature = "native")]
+    pub p2p_group_loader:
+        Option<(String, std::sync::mpsc::Receiver<crate::net::api_v2::GroupLoad>)>,
+    /// In-flight background refresh of the whole P2P-group list (keeps the left
+    /// rail + member counts fresh when membership changes on another client,
+    /// and detects when the open group was disbanded/left elsewhere).
+    #[cfg(feature = "native")]
+    pub p2p_groups_list_loader:
+        Option<std::sync::mpsc::Receiver<Vec<crate::net::api_v2::P2pGroupInfo>>>,
+    /// True while a freshly-opened group is still loading (shows "Loading…"
+    /// instead of the no-key/no-message hint for that brief window).
+    pub p2p_group_loading: bool,
 
     // ── Sidebar section settings popups (v0.195.0) ──
     // Rendered as floating Areas anchored below the section's cog
@@ -1733,6 +1750,11 @@ impl Default for GuiState {
             p2p_group_last_fetch: None,
             p2p_group_fp_to_key: std::collections::HashMap::new(),
             p2p_group_fp_to_name: std::collections::HashMap::new(),
+            #[cfg(feature = "native")]
+            p2p_group_loader: None,
+            #[cfg(feature = "native")]
+            p2p_groups_list_loader: None,
+            p2p_group_loading: false,
             show_channel_edit_modal: false,
             edit_channel_id: String::new(),
             edit_channel_name: String::new(),

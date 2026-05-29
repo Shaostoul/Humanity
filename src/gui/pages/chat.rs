@@ -198,26 +198,51 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         draw_join_group_modal(ctx, theme, state);
     }
 
-    // ── P2P GROUP polling ──
-    // When a P2P group is the active channel, keep its decrypted message log
-    // fresh on a 4s cadence (blocking ureq — same pattern as the rest of the
-    // P2P group path). If the cached group id drifts from the active channel
-    // (e.g. the user clicked a different group), do a full re-enter to rebuild
-    // the epoch key + roster maps. A repaint is requested so the poll keeps
-    // firing even when the window is otherwise idle.
+    // ── P2P GROUP background refresh (v0.303.0 — all off the UI thread) ──
+    // First apply anything finished workers sent back, then schedule more.
+    // Nothing here blocks: switching groups is instant and the periodic
+    // refresh never freezes the UI (the prior synchronous ureq calls caused
+    // the ~1s hang the operator hit).
+    drain_p2p_loaders(state);
+    {
+        // Keep the left-rail group list fresh every ~6s while the chat page is
+        // open, so membership changes on another client (incl. disband/leave)
+        // propagate and the open group exits if it vanished.
+        let list_due = state
+            .p2p_groups_last_fetch
+            .map(|t| t.elapsed().as_secs() >= 6)
+            .unwrap_or(true);
+        if list_due && state.p2p_groups_list_loader.is_none() {
+            state.p2p_groups_last_fetch = Some(std::time::Instant::now());
+            spawn_groups_list_refresh(state);
+        }
+    }
     if let Some(gid) = state.chat_active_channel.strip_prefix("p2pgroup:").map(|s| s.to_string()) {
         if state.p2p_group_active_id != gid {
-            enter_p2p_group(state, &gid);
+            // Freshly switched to a group (e.g. via the URL/restore path) —
+            // kick off a loading fetch. The click handler already does this,
+            // but this covers any other way the active channel becomes a group.
+            if state.p2p_group_loader.is_none() {
+                spawn_group_load(state, &gid, true);
+            }
         } else {
+            // Periodic background reload of the open group (~4s) — picks up new
+            // messages, rekeys, and roster changes without blocking.
             let due = state
                 .p2p_group_last_fetch
                 .map(|t| t.elapsed().as_secs() >= 4)
                 .unwrap_or(true);
-            if due {
-                poll_p2p_group(state, &gid);
+            if due && state.p2p_group_loader.is_none() {
+                spawn_group_load(state, &gid, false);
             }
         }
-        ctx.request_repaint_after(std::time::Duration::from_millis(1000));
+        // Repaint so try_recv keeps draining even when the window is idle.
+        ctx.request_repaint_after(std::time::Duration::from_millis(400));
+    }
+    // Even when no P2P group is open, a pending background loader (e.g. the
+    // periodic list refresh) needs a near-future frame to be drained + applied.
+    if state.p2p_group_loader.is_some() || state.p2p_groups_list_loader.is_some() {
+        ctx.request_repaint_after(std::time::Duration::from_millis(400));
     }
 
     // ── HELP / COMMANDS MODAL ──
@@ -902,6 +927,12 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // the full enter (rekey-if-creator + epoch fetch + decrypt).
                 let p2p_clone = state.p2p_groups.clone();
                 let mut open_p2p_id: Option<String> = None;
+                // Deferred popup actions (applied after the loop to avoid
+                // borrowing `state` while iterating the cloned list).
+                let mut p2p_copy_invite: Option<(String, String)> = None; // (gid, name)
+                let mut p2p_leave_gid: Option<String> = None;
+                let mut p2p_disband_gid: Option<String> = None;
+                let p2p_ctx_time = ui.ctx().input(|i| i.time);
                 for p in p2p_clone.iter() {
                     let is_active =
                         state.chat_active_channel == format!("p2pgroup:{}", p.group_id);
@@ -910,6 +941,13 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let (row_rect, row_resp) = ui.allocate_exact_size(
                         Vec2::new(full_w, hdr_height),
                         egui::Sense::click(),
+                    );
+                    // Cog (settings) sits at the right edge — opens the group
+                    // menu (Copy invite / Leave / Disband). Computed here so both
+                    // the paint pass and the interact below share the rect.
+                    let cog_rect = egui::Rect::from_center_size(
+                        egui::pos2(row_rect.right() - 14.0, row_rect.center().y),
+                        Vec2::splat(16.0),
                     );
                     if ui.is_rect_visible(row_rect) {
                         let bump: u8 = if is_active { 40 } else if row_resp.hovered() { 28 } else { 0 };
@@ -952,31 +990,106 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             egui::FontId::proportional(theme.body_size),
                             if is_active { theme.accent() } else { theme.text_primary() },
                         );
-                        // Member count, right-aligned
+                        // Member count, right-aligned (left of the cog).
                         ui.painter().text(
-                            egui::pos2(row_rect.right() - 12.0, cy),
+                            egui::pos2(row_rect.right() - 28.0, cy),
                             egui::Align2::RIGHT_CENTER,
-                            format!("{} member{}", p.members.len(), if p.members.len() == 1 {""} else {"s"}),
+                            format!("{}", p.members.len()),
                             egui::FontId::proportional(theme.font_size_small),
                             theme.text_muted(),
                         );
+                        // Cog icon (accent on hover, matching the legacy groups).
+                        let on_cog = cog_rect.contains(
+                            ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default()),
+                        );
+                        let cog_color = if on_cog { theme.accent() } else { Color32::from_rgb(140, 140, 150) };
+                        crate::gui::widgets::icons::paint_cog(
+                            ui.painter(),
+                            egui::Rect::from_center_size(cog_rect.center(), Vec2::splat(11.0)),
+                            cog_color,
+                        );
+                        if on_cog {
+                            let rgb = crate::gui::widgets::row::rgb_from_time(p2p_ctx_time);
+                            ui.painter().rect_stroke(
+                                cog_rect.shrink(1.0),
+                                Rounding::same(3),
+                                Stroke::new(1.0, rgb),
+                                egui::StrokeKind::Outside,
+                            );
+                            ui.ctx().request_repaint();
+                        }
                     }
+                    // Cog interact (after row_resp so it wins its sub-rect:
+                    // egui's last-interact-wins keeps a cog click from also
+                    // opening the group).
+                    let cog_resp = ui.interact(
+                        cog_rect,
+                        ui.id().with("p2pcog").with(&p.group_id),
+                        egui::Sense::click(),
+                    );
+                    if cog_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    let menu_id = ui.id().with("p2pmenu").with(&p.group_id);
+                    if cog_resp.clicked() || row_resp.secondary_clicked() {
+                        ui.memory_mut(|m| m.toggle_popup(menu_id));
+                    }
+                    egui::popup_below_widget(
+                        ui,
+                        menu_id,
+                        &cog_resp,
+                        egui::PopupCloseBehavior::CloseOnClick,
+                        |ui| {
+                            ui.set_min_width(180.0);
+                            ui.label(
+                                RichText::new(&p.name)
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary())
+                                    .strong(),
+                            );
+                            ui.separator();
+                            if ui.button("Copy invite ticket").clicked() {
+                                p2p_copy_invite = Some((p.group_id.clone(), p.name.clone()));
+                            }
+                            if ui.button("Leave group").clicked() {
+                                p2p_leave_gid = Some(p.group_id.clone());
+                            }
+                            // Disband: creator only.
+                            if p.is_creator && ui.button("Disband group (for everyone)").clicked() {
+                                p2p_disband_gid = Some(p.group_id.clone());
+                            }
+                        },
+                    );
                     if row_resp.clicked() {
                         open_p2p_id = Some(p.group_id.clone());
                     }
-                    if row_resp.hovered() {
+                    if row_resp.hovered() && !cog_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
                     ui.add_space(2.0);
                 }
                 if let Some(gid) = open_p2p_id {
-                    // Switch the active channel to the group + run the full
-                    // enter (sets up epoch key, roster maps, decrypts history).
-                    // The 4s poll at the top of draw() keeps it fresh after.
+                    // Switch the active channel INSTANTLY (the header + "Loading…"
+                    // render this frame), then load the group on a background
+                    // thread — no UI freeze. apply_group_load fills in the
+                    // messages when the worker returns.
                     state.chat_active_channel = format!("p2pgroup:{}", gid);
                     state.p2p_group_invite_status.clear();
                     state.chat_reply_to = None;
-                    enter_p2p_group(state, &gid);
+                    // Drop the previous group's rows immediately so we don't
+                    // briefly show stale history under the new header.
+                    state.chat_messages.retain(|m| !m.channel.starts_with("p2pgroup:"));
+                    spawn_group_load(state, &gid, true);
+                }
+                // Apply deferred popup actions.
+                if let Some((gid, name)) = p2p_copy_invite {
+                    mint_and_copy_p2p_invite(ui.ctx(), state, &gid, &name);
+                }
+                if let Some(gid) = p2p_leave_gid {
+                    leave_p2p_group(state, &gid);
+                }
+                if let Some(gid) = p2p_disband_gid {
+                    disband_p2p_group(state, &gid);
                 }
 
                 // Groups render like servers (expandable header + nested channels)
@@ -1910,9 +2023,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .strong(),
                     );
                 } else if let Some(gid) = ac.strip_prefix("p2pgroup:") {
-                    // P2P group header: back button + name + Copy-invite action.
-                    // No modal — minting copies the ticket straight to the
-                    // clipboard and shows a transient status line here.
+                    // P2P group header: back button + name + a Copy-invite
+                    // action. Leave / Disband live in the left-rail cog/
+                    // right-click menu (kept out of this row so it can't
+                    // overflow + clip on a narrow panel — that's why the
+                    // operator couldn't reach them before).
                     if widgets::Button::ghost("\u{2190} Back").show(ui, theme) {
                         state.chat_active_channel = "general".to_string();
                     }
@@ -1936,19 +2051,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     );
                     if widgets::Button::ghost("Copy invite").show(ui, theme) {
                         mint_and_copy_p2p_invite(ui.ctx(), state, &gid, &group_name);
-                    }
-                    // Leave — available to anyone (self-remove from the roster).
-                    if widgets::Button::ghost("Leave").show(ui, theme) {
-                        leave_p2p_group(state, &gid);
-                    }
-                    // Disband — creator only (the relay enforces; we only show
-                    // the button to the creator so it's never a silent no-op).
-                    let is_creator = state.p2p_groups.iter()
-                        .find(|g| g.group_id == gid)
-                        .map(|g| g.is_creator)
-                        .unwrap_or(false);
-                    if is_creator && widgets::Button::ghost("Disband").show(ui, theme) {
-                        disband_p2p_group(state, &gid);
                     }
                     if !state.p2p_group_invite_status.is_empty() {
                         ui.label(
@@ -2043,7 +2145,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     .color(theme.text_primary()),
                             );
                             ui.add_space(8.0);
-                            let hint = if state.p2p_group_chat_epoch_key.is_none() {
+                            let hint = if state.p2p_group_loading {
+                                "Loading…"
+                            } else if state.p2p_group_chat_epoch_key.is_none() {
                                 "No epoch key yet. The group creator must open this group once to issue the first key — after that, everyone with an invite can read and write."
                             } else {
                                 "No messages yet. Your messages here are end-to-end encrypted under the group key."
@@ -4245,6 +4349,14 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                                 // Refresh the projection cache so the new group
                                 // appears in the left panel when the modal closes.
                                 refresh_p2p_groups(state);
+                                // Auto-switch into the new group so the creator
+                                // lands in it immediately and its epoch key is
+                                // live right away (the keygen happens on create;
+                                // entering also runs the rekey path). The ticket
+                                // modal stays open over it for copying.
+                                state.chat_active_channel = format!("p2pgroup:{}", group_id);
+                                state.chat_messages.retain(|m| !m.channel.starts_with("p2pgroup:"));
+                                spawn_group_load(state, &group_id, true);
                             }
                             Err(e) => {
                                 state.create_group_status = format!("Create failed: {e}");
@@ -4456,9 +4568,12 @@ fn replace_p2p_messages(
     while state.chat_messages.len() > 400 { state.chat_messages.remove(0); }
 }
 
-/// Full sync when switching INTO a P2P group (called on click).
-pub(crate) fn enter_p2p_group(state: &mut GuiState, group_id: &str) {
-    let channel = format!("p2pgroup:{}", group_id);
+/// Spawn a BACKGROUND load of `group_id` (rekey/epoch/roster/messages) and
+/// stash the receiver. The UI never blocks: `drain_p2p_loaders` applies the
+/// result when the worker returns. `fresh` = true for a click (resets cached
+/// state + shows "Loading…"); false for a periodic refresh (keeps the current
+/// view until new data arrives, so polling doesn't flicker).
+pub(crate) fn spawn_group_load(state: &mut GuiState, group_id: &str, fresh: bool) {
     let server_url = state.server_url.clone();
     let seed = match state.private_key_bytes.clone() {
         Some(s) if !s.is_empty() => s,
@@ -4467,76 +4582,124 @@ pub(crate) fn enter_p2p_group(state: &mut GuiState, group_id: &str) {
             return;
         }
     };
-    // Reset cached state for the newly-opened group.
     state.p2p_group_active_id = group_id.to_string();
-    state.p2p_group_chat_epoch = 0;
-    state.p2p_group_chat_epoch_key = None;
-    state.p2p_group_fp_to_key.clear();
-    state.p2p_group_fp_to_name.clear();
     state.p2p_group_last_fetch = Some(std::time::Instant::now());
-
-    // (1) Rekey-on-join (creator only). If it rotates, use the new key.
-    match crate::net::api_v2::rekey_if_creator_needs(&server_url, &seed, group_id) {
-        Ok(Some((epoch, key, added))) => {
-            state.p2p_group_chat_epoch = epoch;
-            state.p2p_group_chat_epoch_key = Some(key);
-            log::info!("Rotated group epoch key for {added} new member(s) (epoch {epoch})");
-        }
-        Ok(None) => match crate::net::api_v2::fetch_my_epoch_key(&server_url, &seed, group_id) {
-            Ok(Some((epoch, key))) => {
-                state.p2p_group_chat_epoch = epoch;
-                state.p2p_group_chat_epoch_key = Some(key);
-            }
-            Ok(None) => {}
-            Err(e) => log::warn!("fetch_my_epoch_key: {e}"),
-        },
-        Err(e) => log::warn!("rekey_if_creator_needs: {e}"),
+    if fresh {
+        // Clear cached state so a stale prior group's key/maps can't leak into
+        // the loading view; show the spinner hint until the worker returns.
+        state.p2p_group_chat_epoch = 0;
+        state.p2p_group_chat_epoch_key = None;
+        state.p2p_group_fp_to_key.clear();
+        state.p2p_group_fp_to_name.clear();
+        state.p2p_group_loading = true;
     }
-
-    // (2) Roster index: fp → pubkey hex + display name.
-    if let Ok(members) = crate::net::api_v2::fetch_group_members(&server_url, group_id) {
-        for (pubkey_hex, _kyber) in members {
-            if let Ok(bytes) = hex::decode(&pubkey_hex) {
-                let fp = crate::net::api_v2::author_fingerprint_hex(&bytes);
-                let name = state
-                    .chat_users
-                    .iter()
-                    .find(|u| u.public_key == pubkey_hex)
-                    .map(|u| u.name.clone())
-                    .unwrap_or_else(|| format!("{}…", &pubkey_hex[..8.min(pubkey_hex.len())]));
-                state.p2p_group_fp_to_name.insert(fp.clone(), name);
-                state.p2p_group_fp_to_key.insert(fp, pubkey_hex);
-            }
-        }
-    }
-
-    // (3) Decrypt + render the message log.
-    if let Some(key) = state.p2p_group_chat_epoch_key.clone() {
-        match crate::net::api_v2::fetch_and_decrypt_group_messages(&server_url, group_id, &key) {
-            Ok(msgs) => replace_p2p_messages(state, &channel, msgs),
-            Err(e) => log::warn!("fetch_and_decrypt_group_messages: {e}"),
-        }
-    } else {
-        replace_p2p_messages(state, &channel, Vec::new());
-    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    let gid = group_id.to_string();
+    std::thread::spawn(move || {
+        let load = crate::net::api_v2::load_group_blocking(&server_url, &seed, &gid);
+        let _ = tx.send(load); // receiver may be gone if the user switched away
+    });
+    state.p2p_group_loader = Some((group_id.to_string(), rx));
 }
 
-/// Light 4s poll for the open P2P group: re-decrypt the log with the cached
-/// epoch key. If we have no key yet, retry the full enter path to pick one up.
-pub(crate) fn poll_p2p_group(state: &mut GuiState, group_id: &str) {
-    state.p2p_group_last_fetch = Some(std::time::Instant::now());
+/// Apply a finished background `GroupLoad` to state (main thread): cache the
+/// epoch key + roster maps and repaint the message log. Ignored if the user
+/// has since switched to a different group.
+fn apply_group_load(state: &mut GuiState, load: crate::net::api_v2::GroupLoad) {
+    if state.p2p_group_active_id != load.group_id {
+        return; // stale — user switched away before this returned
+    }
+    let channel = format!("p2pgroup:{}", load.group_id);
+    state.p2p_group_chat_epoch = load.epoch;
+    state.p2p_group_chat_epoch_key = load.epoch_key;
+    // Rebuild the fp → pubkey / name maps (name resolved here on the main
+    // thread, where chat_users is available).
+    state.p2p_group_fp_to_key.clear();
+    state.p2p_group_fp_to_name.clear();
+    for (fp, pubkey_hex) in &load.members {
+        let name = state
+            .chat_users
+            .iter()
+            .find(|u| u.public_key == *pubkey_hex)
+            .map(|u| u.name.clone())
+            .unwrap_or_else(|| format!("{}…", &pubkey_hex[..8.min(pubkey_hex.len())]));
+        state.p2p_group_fp_to_name.insert(fp.clone(), name);
+        state.p2p_group_fp_to_key.insert(fp.clone(), pubkey_hex.clone());
+    }
+    replace_p2p_messages(state, &channel, load.messages);
+    state.p2p_group_loading = false;
+}
+
+/// Spawn a BACKGROUND refresh of the whole P2P-group list (left rail + member
+/// counts). Keeps the list fresh when membership changes on another client and
+/// lets us detect when the open group was disbanded/left elsewhere.
+pub(crate) fn spawn_groups_list_refresh(state: &mut GuiState) {
+    if state.p2p_groups_list_loader.is_some() {
+        return; // one in flight already
+    }
     let server_url = state.server_url.clone();
-    let channel = format!("p2pgroup:{}", group_id);
-    let key = match state.p2p_group_chat_epoch_key.clone() {
-        Some(k) => k,
-        None => {
-            enter_p2p_group(state, group_id);
-            return;
-        }
+    let seed = match state.private_key_bytes.clone() {
+        Some(s) if !s.is_empty() => s,
+        _ => return,
     };
-    match crate::net::api_v2::fetch_and_decrypt_group_messages(&server_url, group_id, &key) {
-        Ok(msgs) => replace_p2p_messages(state, &channel, msgs),
-        Err(e) => log::warn!("poll fetch_and_decrypt_group_messages: {e}"),
+    let dilithium_hex = match crate::net::identity::derive_pq_identity(&seed) {
+        Ok(id) => id.dilithium_hex,
+        Err(_) => return,
+    };
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        if let Ok(list) = crate::net::api_v2::fetch_p2p_groups(&server_url, &dilithium_hex) {
+            let _ = tx.send(list);
+        }
+    });
+    state.p2p_groups_list_loader = Some(rx);
+}
+
+/// Drain any finished background loaders (called once at the top of draw).
+/// Applies the active-group load + the group-list refresh, and exits a group
+/// that vanished from the list (disbanded or left on another device).
+pub(crate) fn drain_p2p_loaders(state: &mut GuiState) {
+    // (1) Active-group load.
+    if let Some((_gid, rx)) = &state.p2p_group_loader {
+        match rx.try_recv() {
+            Ok(load) => {
+                state.p2p_group_loader = None;
+                apply_group_load(state, load);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                state.p2p_group_loader = None; // worker died without sending
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+        }
+    }
+    // (2) Group-list refresh.
+    if let Some(rx) = &state.p2p_groups_list_loader {
+        match rx.try_recv() {
+            Ok(list) => {
+                state.p2p_groups_list_loader = None;
+                state.p2p_groups = list;
+                // If the open group is gone (disbanded or we left it elsewhere),
+                // exit to #general and drop its decrypted history.
+                if let Some(agid) = state
+                    .chat_active_channel
+                    .strip_prefix("p2pgroup:")
+                    .map(|s| s.to_string())
+                {
+                    if !state.p2p_groups.iter().any(|g| g.group_id == agid) {
+                        let channel = format!("p2pgroup:{}", agid);
+                        state.chat_messages.retain(|m| m.channel != channel);
+                        state.chat_active_channel = "general".to_string();
+                        state.p2p_group_active_id.clear();
+                        state.p2p_group_chat_epoch_key = None;
+                        state.p2p_group_loading = false;
+                    }
+                }
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                state.p2p_groups_list_loader = None;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+        }
     }
 }
 
@@ -4597,6 +4760,8 @@ fn leave_p2p_group(state: &mut GuiState, group_id: &str) {
             state.chat_active_channel = "general".to_string();
             state.p2p_group_active_id.clear();
             state.p2p_group_chat_epoch_key = None;
+            state.p2p_group_loader = None; // cancel any in-flight load for the left group
+            state.p2p_group_loading = false;
             state.p2p_group_invite_status.clear();
             refresh_p2p_groups(state);
         }
@@ -4624,6 +4789,8 @@ fn disband_p2p_group(state: &mut GuiState, group_id: &str) {
             state.chat_active_channel = "general".to_string();
             state.p2p_group_active_id.clear();
             state.p2p_group_chat_epoch_key = None;
+            state.p2p_group_loader = None; // cancel any in-flight load for the disbanded group
+            state.p2p_group_loading = false;
             state.p2p_group_invite_status.clear();
             refresh_p2p_groups(state);
         }

@@ -227,6 +227,10 @@
     }
     if (typeof addSystemMessage === 'function') addSystemMessage('✅ Created group "' + name + '".');
     await loadP2pGroups();
+    // Auto-switch into the new group so the creator lands in it right away and
+    // the epoch key is live immediately (forces the keygen path now, so a
+    // joiner won't hit "no epoch key yet" while the creator sits elsewhere).
+    if (typeof openP2pGroup === 'function') openP2pGroup(groupId, name);
   }
 
   // Mint a creator-signed invite for `groupId`, returning a shareable ticket string.

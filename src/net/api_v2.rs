@@ -380,6 +380,72 @@ pub fn fetch_and_decrypt_group_messages(
     Ok(out)
 }
 
+/// Everything the chat view needs to render an open P2P group, gathered in one
+/// blocking call so it can run on a BACKGROUND THREAD (the UI never freezes).
+/// The GUI applies this on the main thread when the worker returns.
+#[derive(Debug, Clone, Default)]
+pub struct GroupLoad {
+    pub group_id: String,
+    pub epoch: u64,
+    pub epoch_key: Option<Vec<u8>>,
+    pub messages: Vec<GroupMessage>,
+    /// (author_fp, dilithium_pubkey_hex) for each active member — lets the GUI
+    /// map a message's fingerprint to a pubkey (identicon) + name on the main
+    /// thread (where it can consult the peer/user list).
+    pub members: Vec<(String, String)>,
+}
+
+/// Full blocking load for a P2P group: rekey-if-creator → fetch+unseal my epoch
+/// key → roster → decrypt the message log. Best-effort (logs + degrades on
+/// partial failure rather than erroring) so a transient hiccup never blanks the
+/// view. Pure network/crypto, no shared state — safe to run off the UI thread.
+pub fn load_group_blocking(server_url: &str, seed: &[u8], group_id: &str) -> GroupLoad {
+    let mut epoch: u64 = 0;
+    let mut epoch_key: Option<Vec<u8>> = None;
+
+    // (1) Rotate the epoch key if I'm the creator and members joined; else fetch
+    //     my sealed copy of the current epoch.
+    match rekey_if_creator_needs(server_url, seed, group_id) {
+        Ok(Some((e, k, added))) => {
+            epoch = e;
+            epoch_key = Some(k);
+            if added > 0 {
+                log::info!("load_group: rotated epoch key for {added} new member(s) (epoch {e})");
+            }
+        }
+        Ok(None) => match fetch_my_epoch_key(server_url, seed, group_id) {
+            Ok(Some((e, k))) => {
+                epoch = e;
+                epoch_key = Some(k);
+            }
+            Ok(None) => {}
+            Err(e) => log::warn!("load_group: fetch_my_epoch_key: {e}"),
+        },
+        Err(e) => log::warn!("load_group: rekey_if_creator_needs: {e}"),
+    }
+
+    // (2) Roster → (fp, pubkey_hex).
+    let mut members = Vec::new();
+    match fetch_group_members(server_url, group_id) {
+        Ok(roster) => {
+            for (pubkey_hex, _kyber) in roster {
+                if let Ok(bytes) = hex::decode(&pubkey_hex) {
+                    members.push((author_fingerprint_hex(&bytes), pubkey_hex));
+                }
+            }
+        }
+        Err(e) => log::warn!("load_group: fetch_group_members: {e}"),
+    }
+
+    // (3) Decrypt the message log under the current key (if we have one).
+    let messages = match &epoch_key {
+        Some(k) => fetch_and_decrypt_group_messages(server_url, group_id, k).unwrap_or_default(),
+        None => Vec::new(),
+    };
+
+    GroupLoad { group_id: group_id.to_string(), epoch, epoch_key, messages, members }
+}
+
 /// GET /api/v2/groups/{id}/members → roster with each member's Kyber pub.
 /// Returns `Vec<(dilithium_hex, Option<kyber_pub_b64>)>`.
 pub fn fetch_group_members(
