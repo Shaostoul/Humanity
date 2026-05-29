@@ -33,3 +33,11 @@ pub mod api_v2;
 /// the web client's `pq-object.js` Phase-2 helpers.
 #[cfg(feature = "native")]
 pub mod group_e2ee;
+
+/// Native WebRTC DataChannel P2P transport (increment 1). Sans-IO via the
+/// `str0m` crate, driven from a blocking-UDP `std::thread` — the same
+/// thread+mpsc model as `ws_client`, no async runtime. Opens an ordered data
+/// channel to a peer via the relay's `webrtc_signal` and round-trips frames
+/// off-server. Group mesh = inc-2, STUN/TURN = inc-3.
+#[cfg(feature = "native")]
+pub mod webrtc;

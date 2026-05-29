@@ -709,6 +709,17 @@ pub struct GuiState {
     pub chat_friends: Vec<ChatUser>,
     pub ws_client: Option<crate::net::ws_client::WsClient>,
     pub ws_status: String,
+    /// Native WebRTC DataChannel P2P manager handle (increment 1). Lazily
+    /// started after the WS connect/identify so we have our pubkey hex. `None`
+    /// until then. Native-only — relay/wasm builds don't open peer channels.
+    #[cfg(feature = "native")]
+    pub webrtc: Option<crate::net::webrtc::WebrtcHandle>,
+    /// DEV: the peer pubkey hex the chat page armed a P2P self-test for. When
+    /// the channel to this peer opens, `lib.rs` auto-sends "native p2p test".
+    /// Cleared is fine to leave; it just gates the one-shot test send. inc-1
+    /// transport proof only — not user-facing UI.
+    #[cfg(feature = "native")]
+    pub webrtc_test_peer: Option<String>,
     /// Whether the user manually disconnected (suppresses auto-reconnect).
     pub ws_manually_disconnected: bool,
     /// Countdown to next reconnect attempt (seconds).
@@ -1519,6 +1530,10 @@ impl Default for GuiState {
             chat_friends: Vec::new(),
             ws_client: None,
             ws_status: "Not connected".to_string(),
+            #[cfg(feature = "native")]
+            webrtc: None,
+            #[cfg(feature = "native")]
+            webrtc_test_peer: None,
             ws_manually_disconnected: false,
             ws_reconnect_timer: 0.0,
             ws_reconnect_delay: 5.0,

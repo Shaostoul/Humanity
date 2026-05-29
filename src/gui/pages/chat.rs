@@ -2007,6 +2007,69 @@ fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         for user in &users {
             draw_user_row(ui, theme, &user.name, &user.public_key, &user.role, &user.status, state, ctx_time);
         }
+
+        // ── DEV: native WebRTC P2P transport self-test (increment 1) ──
+        // Minimal proof button: pick a target peer (the user whose profile
+        // modal is open, else the first online user that isn't us) and open a
+        // DataChannel to them. On open, lib.rs auto-sends "native p2p test";
+        // received frames + open/close show in the in-app Debug console. This
+        // is a transport proof, not polished UI — it lives only in native
+        // builds and only when a WebRTC manager is up.
+        #[cfg(feature = "native")]
+        {
+            // Resolve a target: prefer the modal-open user, else first online
+            // non-self user from the sorted list.
+            let me = state.profile_public_key.clone();
+            let target: Option<(String, String)> = {
+                let modal_key = if state.chat_user_modal_open {
+                    Some(state.chat_user_modal_key.clone())
+                } else {
+                    None
+                };
+                modal_key
+                    .filter(|k| !k.is_empty() && *k != me)
+                    .and_then(|k| {
+                        users.iter().find(|u| u.public_key == k)
+                            .map(|u| (u.public_key.clone(), u.name.clone()))
+                    })
+                    .or_else(|| {
+                        users.iter()
+                            .find(|u| u.status != "offline" && u.public_key != me && !u.public_key.is_empty())
+                            .map(|u| (u.public_key.clone(), u.name.clone()))
+                    })
+            };
+
+            ui.add_space(6.0);
+            if let Some((peer_key, peer_name)) = target {
+                let label = format!("P2P test \u{2192} {}", peer_name);
+                if widgets::Button::secondary(&label).full_width().show(ui, theme) {
+                    if let Some(ref webrtc) = state.webrtc {
+                        // Arm the one-shot test send for when the channel opens.
+                        state.webrtc_test_peer = Some(peer_key.clone());
+                        // Offer (honors the offerer rule internally: only the
+                        // larger pubkey actually offers; the smaller side waits
+                        // for the peer's offer — both presses on both machines
+                        // are harmless).
+                        webrtc.offer_to(peer_key.clone());
+                        crate::debug::push_debug(format!(
+                            "WebRTC: P2P test initiated to {}",
+                            if peer_key.len() > 12 { &peer_key[..12] } else { &peer_key }
+                        ));
+                    } else {
+                        crate::debug::push_debug("WebRTC: manager not ready (connect to a server first)");
+                    }
+                }
+            } else {
+                ui.horizontal(|ui| {
+                    ui.add_space(12.0);
+                    ui.label(
+                        RichText::new("P2P test: no online peer")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                });
+            }
+        }
     }
 }
 

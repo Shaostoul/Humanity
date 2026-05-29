@@ -2272,10 +2272,27 @@ mod native_app {
                                     // Implementing real voice means adding webrtc-rs + audio
                                     // capture/playback + mute/deafen UI — weeks of work,
                                     // tracked separately, not a propagation bug.
-                                    Some("voice_room_signal") | Some("webrtc_signal") | Some("voice_call") | Some("voice_room") | Some("voice_room_update") => {
+                                    Some("voice_room_signal") | Some("voice_call") | Some("voice_room") | Some("voice_room_update") => {
                                         // Intentional no-op. Web users in voice rooms still
                                         // talk to each other; native users just don't hear/
-                                        // see voice activity yet.
+                                        // see voice activity yet. (webrtc_signal is now
+                                        // handled below — DataChannel P2P, increment 1.)
+                                    }
+                                    #[cfg(feature = "native")]
+                                    Some("webrtc_signal") => {
+                                        // P2P DataChannel signaling (offer/answer/ICE) from a
+                                        // peer, relayed to us. Route it into the WebRTC
+                                        // manager (lazily started after WS connect, just
+                                        // below). The relay set `from` to the authenticated
+                                        // sender key; `data` is a JSON string per contract.
+                                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let signal_type = val.get("signal_type").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let data = val.get("data").cloned().unwrap_or(serde_json::Value::Null);
+                                        if !from.is_empty() && !signal_type.is_empty() {
+                                            if let Some(ref webrtc) = state.gui_state.webrtc {
+                                                webrtc.submit_signal(from, signal_type, data);
+                                            }
+                                        }
                                     }
                                     Some("federated_chat") => {
                                         // v0.282.0: chat from a federated peer server. Display
@@ -2585,6 +2602,14 @@ mod native_app {
                     // ── Drop dead WebSocket client and start reconnect timer ──
                     if ws_dropped {
                         state.gui_state.ws_client = None;
+                        // Tear down the WebRTC manager too: its signaling rides
+                        // the WS, so without a live WS it can't negotiate. The
+                        // thread stops when its handle (and thus the command
+                        // sender) drops. It re-starts lazily on reconnect.
+                        #[cfg(feature = "native")]
+                        {
+                            state.gui_state.webrtc = None;
+                        }
                         // Force the Banned-users panel to re-request after a
                         // reconnect (the relay only sends it on demand). The
                         // cached list itself is harmless to keep until then.
@@ -2641,6 +2666,80 @@ mod native_app {
                         state.gui_state.ws_reconnect_delay = 5.0;
                         state.gui_state.ws_reconnect_attempts = 0;
                         state.gui_state.ws_reconnect_timer = 0.0;
+                    }
+
+                    // ── Native WebRTC DataChannel P2P (increment 1) ──
+                    // Lazily start the manager once the WS is connected AND we
+                    // have our pubkey hex (it's the identity peers know us by
+                    // and the value the offerer rule compares). Then, each
+                    // frame, relay its outbound signaling to the WS and surface
+                    // its events (channel open / inbound frames) as debug lines.
+                    #[cfg(feature = "native")]
+                    {
+                        let ws_connected = state
+                            .gui_state
+                            .ws_client
+                            .as_ref()
+                            .map_or(false, |c| c.is_connected());
+                        let have_key = !state.gui_state.profile_public_key.is_empty();
+
+                        // Lazy start.
+                        if ws_connected && have_key && state.gui_state.webrtc.is_none() {
+                            let my_key = state.gui_state.profile_public_key.clone();
+                            let handle = crate::net::webrtc::WebrtcManager::start(my_key);
+                            state.gui_state.webrtc = Some(handle);
+                            crate::debug::push_debug("WebRTC P2P manager started");
+                        }
+
+                        // Per-frame pump: relay outbound webrtc_signal JSON to
+                        // the WS, and drain events into the debug console. We
+                        // collect first (immutable borrow of webrtc), then act
+                        // (the WS send + debug push) to avoid overlapping
+                        // borrows of gui_state.
+                        if state.gui_state.webrtc.is_some() {
+                            // Short, log-friendly form of a long pubkey hex.
+                            fn short(k: &str) -> String {
+                                if k.len() > 12 { format!("{}…", &k[..12]) } else { k.to_string() }
+                            }
+                            let (outbound, events) = {
+                                let w = state.gui_state.webrtc.as_ref().unwrap();
+                                (w.poll_outbound(), w.poll_events())
+                            };
+                            for json in outbound {
+                                if let Some(ref ws) = state.gui_state.ws_client {
+                                    ws.send(&json);
+                                }
+                            }
+                            for ev in events {
+                                match ev {
+                                    crate::net::webrtc::WebrtcEvent::ChannelOpen { peer } => {
+                                        crate::debug::push_debug(format!(
+                                            "WebRTC: channel OPEN with {}", short(&peer)
+                                        ));
+                                        // On open, fire the dev test frame if the
+                                        // chat page armed one for this peer.
+                                        if state.gui_state.webrtc_test_peer.as_deref() == Some(peer.as_str()) {
+                                            if let Some(ref w) = state.gui_state.webrtc {
+                                                w.send_text(peer.clone(), "native p2p test".to_string());
+                                            }
+                                            crate::debug::push_debug(format!(
+                                                "WebRTC: sent test frame to {}", short(&peer)
+                                            ));
+                                        }
+                                    }
+                                    crate::net::webrtc::WebrtcEvent::Frame { peer, text } => {
+                                        crate::debug::push_debug(format!(
+                                            "WebRTC: frame from {}: {}", short(&peer), text
+                                        ));
+                                    }
+                                    crate::net::webrtc::WebrtcEvent::Closed { peer } => {
+                                        crate::debug::push_debug(format!(
+                                            "WebRTC: channel CLOSED with {}", short(&peer)
+                                        ));
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // ── Fetch channel history via HTTP after connecting ──
