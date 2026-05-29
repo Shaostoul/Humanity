@@ -82,23 +82,34 @@
       return await obj.openGroupEpochKey(b64ToBytes(epochObj.payload_b64), fp, window.pqDmOpen, myKyberSecret);
     } catch (e) { console.warn('fetchEpochKey:', e); return null; }
   }
-  /** Fetch + decrypt the group's encrypted message log. */
-  async function fetchGroupMessages(groupId, epochKey) {
-    const out = [];
+  /** GET the group's raw (still-encrypted) message log — NO decryption. Kept
+   *  separate from decryption so the network fetch can run CONCURRENTLY with the
+   *  roster + epoch-key fetches on open (decryption only needs the epoch key,
+   *  which is resolved locally afterward). Returns the raw `messages` array. */
+  async function _fetchGroupMessagesRaw(groupId) {
     try {
       const res = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/messages');
-      if (!res.ok) return out;
+      if (!res.ok) return [];
       const data = await res.json();
-      const { obj } = await mods();
-      for (const m of (data.messages || [])) {
-        const parsed = obj.parseGroupMsgPayload(b64ToBytes(m.payload_b64));
-        if (!parsed) continue;
-        const text = await obj.aesGcmDecrypt(epochKey, parsed.nonce, parsed.ct);
-        if (text === null) continue;
-        out.push({ author_fp: m.author_fp, created_at: m.created_at, text });
-      }
-    } catch (e) { console.warn('fetchGroupMessages:', e); }
+      return data.messages || [];
+    } catch (e) { console.warn('fetchGroupMessagesRaw:', e); return []; }
+  }
+  /** Decrypt a raw message array (from `_fetchGroupMessagesRaw`) under an epoch key. */
+  async function _decryptGroupMessages(rawMessages, epochKey) {
+    const out = [];
+    const { obj } = await mods();
+    for (const m of (rawMessages || [])) {
+      const parsed = obj.parseGroupMsgPayload(b64ToBytes(m.payload_b64));
+      if (!parsed) continue;
+      const text = await obj.aesGcmDecrypt(epochKey, parsed.nonce, parsed.ct);
+      if (text === null) continue;
+      out.push({ author_fp: m.author_fp, created_at: m.created_at, text });
+    }
     return out;
+  }
+  /** Fetch + decrypt the group's encrypted message log (convenience wrapper). */
+  async function fetchGroupMessages(groupId, epochKey) {
+    return _decryptGroupMessages(await _fetchGroupMessagesRaw(groupId), epochKey);
   }
   /** Encrypt + post a message into a P2P group.
    *
@@ -515,38 +526,56 @@
     if (!ag || _p2pRefreshing) return;
     _p2pRefreshing = true;
     try {
-      if (!ag.myFp) ag.myFp = await myFingerprint().catch(() => '');
-      if (!ag.fpToName) await _loadRosterIndex(ag);
-      if (!ag.epochKey) {
-        // (1) If I'm the creator AND new members joined, rotate the key.
-        try {
-          const rekey = await rekeyIfCreatorNeeds(ag.id);
-          if (rekey) {
-            ag.epoch = rekey.epoch;
-            ag.epochKey = rekey.epochKey;
-            // Roster changed if a rekey happened — reload the name map.
-            await _loadRosterIndex(ag);
-            if (typeof addSystemMessage === 'function') {
-              addSystemMessage('Rotated group key for ' + rekey.addedCount + ' new member' + (rekey.addedCount === 1 ? '' : 's') + '.');
-            }
+      // === Fire every independent load CONCURRENTLY ===
+      // Previously this ran as 3–4 sequential relay round-trips (roster → key →
+      // messages, + a creator's group_v1 + rekey check) — that serial chain is
+      // the 1–3s "Loading…" stall on first open. They have NO fetch-layer
+      // dependency; only *decryption* needs the epoch key, and that's local.
+      if (!ag.myFp) ag.myFp = (await myFingerprint().catch(() => '')) || '';
+
+      const rosterP = ag.fpToName ? Promise.resolve() : _loadRosterIndex(ag);
+      const rawP = _fetchGroupMessagesRaw(ag.id);            // GET messages (no decrypt yet)
+      const keyP = ag.epochKey
+        ? Promise.resolve()
+        : fetchEpochKey(ag.id).then((ek) => {
+            if (ek && ek.epochKey) { ag.epoch = ek.epoch; ag.epochKey = ek.epochKey; }
+          });
+
+      await rosterP;
+      await keyP;
+
+      // Creator-only re-key (seals the epoch to members who joined since the last
+      // rotation). Rare churn event + only the creator acts, so run it as a
+      // NON-BLOCKING follow-up — it must never delay the first paint. The
+      // creator's OWN key always exists from group creation, so deferring this
+      // can't blank the creator's own view; it only (re)issues the key so new
+      // joiners can read. Self-gates via ag.rekeyChecked (once per open).
+      if (!ag.rekeyChecked) {
+        ag.rekeyChecked = true;
+        rekeyIfCreatorNeeds(ag.id).then((rekey) => {
+          if (!rekey || !window.activeP2pGroup || window.activeP2pGroup.id !== ag.id) return;
+          ag.epoch = rekey.epoch;
+          ag.epochKey = rekey.epochKey;
+          ag.fpToName = null;     // roster changed → reload the name map next tick
+          _p2pRenderedKey = '';   // repaint under the new key
+          if (typeof addSystemMessage === 'function') {
+            addSystemMessage('Rotated group key for ' + rekey.addedCount + ' new member' + (rekey.addedCount === 1 ? '' : 's') + '.');
           }
-        } catch (e) { console.warn('rekey check:', e); }
-        // (2) No rekey or non-creator → fetch the latest key.
-        if (!ag.epochKey) {
-          const ek = await fetchEpochKey(ag.id);
-          if (ek) { ag.epoch = ek.epoch; ag.epochKey = ek.epochKey; }
-        }
-        if (!ag.epochKey) {
-          _renderP2pPlaceholder('No epoch key yet. The group creator must open this group once for the first key to be issued, then refresh.');
-          _p2pRenderedKey = ''; // so the next refresh repaints when the key shows up
-          return;
-        }
+        }).catch((e) => console.warn('rekey check:', e));
+      }
+
+      if (!ag.epochKey) {
+        try { await rawP; } catch {}   // drain the in-flight messages fetch
+        _renderP2pPlaceholder('No epoch key yet. The group creator must open this group once for the first key to be issued, then refresh.');
+        _p2pRenderedKey = ''; // so the next refresh repaints when the key shows up
+        return;
       }
       // Phase 3: open/maintain DataChannels to roster members so messages
       // arrive P2P (low-latency) — the fetch below stays as offline backfill.
       ensureGroupMesh(ag);
-      // (3) Fetch + decrypt + render (skip if nothing changed).
-      const msgs = await fetchGroupMessages(ag.id, ag.epochKey);
+      // (3) Decrypt + render (the log was fetched concurrently above; skip the
+      //     repaint if nothing changed).
+      const msgs = await _decryptGroupMessages(await rawP, ag.epochKey);
       msgs.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
       const key = msgs.map((m) => (m.author_fp || '') + ':' + (m.created_at || 0)).join('|');
       if (key === _p2pRenderedKey) return;
