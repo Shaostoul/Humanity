@@ -1839,7 +1839,8 @@ mod native_app {
                                                     content: msg.to_string(),
                                                     timestamp: crate::gui::pages::chat::format_timestamp(now_ms),
                                                     timestamp_ms: now_ms,
-                                                    channel: state.gui_state.chat_active_channel.clone(),
+                                                    // Don't leak into an open P2P group / DM (it'd vanish on reload).
+                                                    channel: crate::gui::pages::chat::notice_channel(&state.gui_state.chat_active_channel),
                                                     ..Default::default()
                                                 },
                                             );
@@ -2563,7 +2564,8 @@ mod native_app {
                                                         content: msg.to_string(),
                                                         timestamp: crate::gui::pages::chat::format_timestamp(now_ms),
                                                         timestamp_ms: now_ms,
-                                                        channel: state.gui_state.chat_active_channel.clone(),
+                                                        // Don't leak into an open P2P group / DM (it'd vanish on reload).
+                                                        channel: crate::gui::pages::chat::notice_channel(&state.gui_state.chat_active_channel),
                                                         ..Default::default()
                                                     },
                                                 );

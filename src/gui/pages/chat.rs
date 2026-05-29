@@ -5412,6 +5412,23 @@ pub fn format_full_timestamp(ts_ms: u64) -> String {
     )
 }
 
+/// Where to file a server-level system / private-server notice (relay messages,
+/// deploy-bot announcements, command responses). These were tagged with the
+/// *active* channel — but when the user is viewing a private P2P context (a
+/// `p2pgroup:` group or a `dm:` conversation), that leaks the notice INTO the
+/// private view, where it then vanishes on the next group reload (which rebuilds
+/// strictly from the group's signed message log). So when the active channel is
+/// private, file the notice under "general" (a server channel) instead — it's
+/// preserved without polluting the private conversation. (Bug: a deploy-bot
+/// #announcements notice appeared inside an open P2P group, then disappeared.)
+pub fn notice_channel(active_channel: &str) -> String {
+    if active_channel.starts_with("p2pgroup:") || active_channel.starts_with("dm:") {
+        "general".to_string()
+    } else {
+        active_channel.to_string()
+    }
+}
+
 /// Try to read an image from the OS clipboard and encode it as PNG bytes.
 /// Returns `None` when the clipboard has no image (e.g. just text), or when
 /// the clipboard / encoder errors. The native arboard crate handles
