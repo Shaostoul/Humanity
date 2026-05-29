@@ -41,10 +41,10 @@ Already off-thread (reference patterns): `widgets/image_cache.rs` (image fetch+d
 
 | # | Item | file:line | Impact | Status |
 |---|------|-----------|--------|--------|
-| R1 | `verify_dilithium` (ML-DSA-65) runs **inline in async handlers** | chat verify (`relay.rs:4790`), object ingest, + lower-volume sites | CPU-bound verifies starve the tokio worker pool under load | ✅ v0.306.0 for the TWO HOTTEST paths (chat-message verify + object ingest → `spawn_blocking`, fail-closed). ⏸ FOLLOW-UP (lower volume): identify-challenge (`relay.rs:2512`), federation gossip (`federation.rs`), gossip-ingest `put_signed_object`, the 13 `api.rs` REST-auth sites. |
+| R1 | `verify_dilithium` (ML-DSA-65) runs **inline in async handlers** | chat verify, object ingest, + lower-volume sites | CPU-bound verifies starve the tokio worker pool under load | ✅ v0.306.0 (hot paths: chat-message verify + object ingest → `spawn_blocking`, fail-closed) + ✅ v0.309.0 (R1-tails: identify-challenge, federation gossip, 13 `api.rs` REST-auth sites — all fail-closed `unwrap_or(false)`). Ed25519 federation trust path deliberately untouched. |
 | R2 | **Duplicate** Dilithium verify on object ingest | `api_v2_objects.rs` (post_object) **and** `signed_objects.rs:72` (put_signed_object) | full ML-DSA verify twice per `POST /api/v2/objects` | ✅ v0.306.0 (dropped post_object's pre-verify; the single authoritative verify lives in put_signed_object; an IngestError enum preserves the 401/400/500 statuses). |
 | R3 | SQLite **single `Mutex<Connection>`** — all queries (incl. reads) serialize | `storage/mod.rs` (`with_conn`) — WAL **is** on | one-lane DB; negates WAL's concurrent readers | ✅ v0.307.0 (read pool foundation: `with_read_conn` + 8 read-only conns, `pool.rs`) + ✅ v0.308.0 (57 hot read paths migrated to the pool). Writer stays single (WAL = 1 writer). Lower-traffic domain modules (governance/trust/civilization/credentials) still on the writer — audit later only if profiling shows contention. |
-| R4 | Blocking `std::fs` in async `upload_file` (+ re-scans `data/uploads` every upload) | `api.rs:246/449/454/465` | concurrent uploads starve workers | 🔜 `tokio::fs` / `spawn_blocking`; cache the dir-size total |
+| R4 | Blocking `std::fs` in async `upload_file` (+ re-scans `data/uploads` every upload) | `api.rs` `upload_file` | concurrent uploads starve workers | ✅ v0.309.0 (the fs+db section — create_dir_all, dir scan, body write, record_upload, FIFO cleanup — runs in `spawn_blocking`; 507/500 statuses + FIFO retention preserved; JoinError → 500 fail-closed). |
 
 Already correct: WAL on; `systemctl` uses spawn_blocking; federation outbound fully async; rate-limiter guards dropped before `.await`; `put_signed_object` does NOT hold the DB lock during verify.
 
@@ -72,10 +72,16 @@ The audit's key honest finding: the heavy parallel targets **aren't on the live 
 
 ---
 
-## Recommended sequence
-1. ✅ **C1 vault-unlock off-thread** (v0.306.0 — unlock path; PIN/change flows still pending).
-2. ✅ **R1+R2 relay verify offload + de-dup** (v0.306.0 — 2 hottest paths; lower-volume sites pending).
-3. 🔜 **R3 SQLite read pool** (throughput ceiling; careful, test under load).
-4. 🔜 **C7/C8** (connect-history + clipboard-upload backgrounding — cheap).
-5. 🔜 **R1/C1 tails** — the lower-volume relay verify sites + the PIN/change unlock flows.
-6. **Engine Tier-2** only when the terrain/sim subsystems are wired live + a profiler confirms the hitch.
+## Status — concurrency arc COMPLETE (v0.296 → v0.309)
+1. ✅ **C1 vault-unlock off-thread** (v0.306.0) + ✅ **PIN unlock** (v0.307.0).
+2. ✅ **R1+R2 relay verify offload + de-dup** — hot paths (v0.306.0) + tails (v0.309.0).
+3. ✅ **R3 SQLite read pool** — foundation (v0.307.0) + 57-path migration (v0.308.0).
+4. ✅ **C8 clipboard upload** off-thread (v0.307.0). (C7 history: left — startup-masked + fragile dedup path.)
+5. ✅ **R4 upload-handler fs** off the executor (v0.309.0).
+
+**Remaining (low-value / deliberate / conditional, NOT blocking):**
+- change-passphrase / change-PIN unlock flows (rare deliberate clicks — expected pause; left).
+- C6 group create/join/leave/disband one-shots (deliberate clicks; `refresh_p2p_groups` still sync — tolerable).
+- C9 `try_encrypt_dm` per-DM Kyber keygen cache (~1-3ms; minor).
+- Lower-traffic relay read paths (governance/trust/civilization/credentials) → `with_read_conn` only if profiling shows contention.
+- **Engine Tier-2** (terrain/asteroid/particle/mesh/AI parallelism via rayon) — LATENT: those subsystems aren't on the live hot path yet; do only when wired live + a profiler confirms the hitch.
