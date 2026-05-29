@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.306.1"
+version = "0.307.0"
 edition = "2021"
 
 [[bin]]
@@ -10,7 +10,7 @@ path = "src/main.rs"
 [features]
 default = ["native"]
 native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring"]
-relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2"]
+relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
     "dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures",
@@ -97,6 +97,23 @@ console_log = { version = "0.2", optional = true }
 axum = { version = "0.8", optional = true, features = ["ws", "multipart"] }
 tower-http = { version = "0.6", optional = true, features = ["cors", "fs"] }
 rusqlite = { version = "0.34", optional = true, features = ["bundled"] }
+# Connection pool for the relay's SQLite store (R3 concurrency work). r2d2 is a
+# generic pool; r2d2_sqlite adapts rusqlite into it. Gives the relay a pool of
+# concurrent READ connections (WAL allows many readers) alongside the single
+# dedicated writer.
+#
+# VERSION PIN — IMPORTANT: r2d2_sqlite's version number does NOT track
+# rusqlite's. We use rusqlite 0.34 (→ libsqlite3-sys 0.32, the `links =
+# "sqlite3"` native lib). Only ONE crate in the graph may link `sqlite3`, so
+# r2d2_sqlite MUST depend on the SAME rusqlite 0.34 / libsqlite3-sys 0.32 —
+# otherwise the build fails with a native-library conflict. r2d2_sqlite 0.27.0
+# is the version whose dependency is `rusqlite = "^0.34"`; newer r2d2_sqlite
+# (0.33/0.34) pull rusqlite 0.39 / libsqlite3-sys 0.37 and WILL NOT BUILD here.
+# When you bump rusqlite, re-check the matching r2d2_sqlite (its rusqlite req
+# must satisfy the new rusqlite minor). `bundled` forwards to rusqlite/bundled
+# so both share the one bundled SQLite build.
+r2d2 = { version = "0.8", optional = true }
+r2d2_sqlite = { version = "=0.27.0", optional = true, features = ["bundled"] }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", optional = true, features = ["env-filter"] }
 reqwest = { version = "0.12", optional = true, default-features = false, features = ["json", "rustls-tls"] }

@@ -201,8 +201,33 @@ pub struct PushSubscriptionRecord {
 }
 
 /// Persistent storage backed by SQLite.
+///
+/// ## Connection model (R3 concurrency work)
+///
+/// SQLite in WAL mode allows **one writer + many concurrent readers**. To get
+/// that benefit we split the connections by role:
+///
+/// * `conn` — the SINGLE dedicated **writer**, behind a `Mutex`. Every write
+///   (INSERT/UPDATE/DELETE/CREATE, transactions, `last_insert_rowid()`) goes
+///   here, serialized, exactly as WAL requires. Reached via
+///   [`Storage::with_conn`] and [`Storage::with_conn_mut`] — signatures
+///   unchanged so the 30 storage modules' ~300 call sites compile untouched.
+///
+///   IMPORTANT: `with_conn` is used pervasively for WRITES today (e.g.
+///   `dms::store_dm_e2ee` does `INSERT … ; last_insert_rowid()`), so it MUST
+///   stay on the writer. Do not "optimize" it onto the read pool.
+///
+/// * `read_pool` — a small pool of **read-only** connections (see
+///   [`pool`]). Reached via [`Storage::with_read_conn`]. A path may use this
+///   ONLY if its closure is CERTAIN to be read-only; the pooled connections are
+///   physically read-only, so a stray write fails loudly instead of corrupting.
+///   This is the opt-in surface that lets independent reads run in parallel
+///   instead of serializing on the writer mutex.
 pub struct Storage {
     pub(crate) conn: Mutex<Connection>,
+    /// Pool of read-only connections for concurrent reads. See [`pool`] and
+    /// [`Storage::with_read_conn`].
+    pub(crate) read_pool: pool::ReadPool,
 }
 
 /// Shared timestamp helper used by multiple submodules.
@@ -214,8 +239,19 @@ pub(crate) fn now_millis() -> u64 {
 }
 
 impl Storage {
-    /// Execute a closure with a locked database connection.
-    /// Panics if the mutex is poisoned (same as current unwrap behavior).
+    /// Execute a closure with the **writer** connection (locked).
+    ///
+    /// This is the write path AND the default catch-all read path. It is used
+    /// pervasively for writes today (INSERT/UPDATE/DELETE, and crucially
+    /// `last_insert_rowid()` immediately after an INSERT — e.g.
+    /// `dms::store_dm_e2ee`), so it MUST run on the single writer connection.
+    /// Do NOT reroute this onto the read pool: a write through a read-only
+    /// connection would fail, and `last_insert_rowid()` must be read on the
+    /// same connection that did the INSERT.
+    ///
+    /// Reads that are provably read-only can opt into [`with_read_conn`] for
+    /// concurrency; everything else stays here. Panics if the mutex is poisoned
+    /// (same as the original unwrap behavior).
     pub(crate) fn with_conn<F, T>(&self, f: F) -> T
     where
         F: FnOnce(&Connection) -> T,
@@ -224,13 +260,52 @@ impl Storage {
         f(&conn)
     }
 
-    /// Like `with_conn` but provides a mutable reference (needed for transactions).
+    /// Like `with_conn` but provides a mutable reference (needed for
+    /// transactions). Also the writer connection.
     pub(crate) fn with_conn_mut<F, T>(&self, f: F) -> T
     where
         F: FnOnce(&mut Connection) -> T,
     {
         let mut conn = self.conn.lock().unwrap();
         f(&mut conn)
+    }
+
+    /// Execute a **read-only** closure on a pooled connection, enabling
+    /// concurrent reads (WAL allows many simultaneous readers).
+    ///
+    /// Use this ONLY when the closure is CERTAIN to be read-only (`SELECT` /
+    /// `PRAGMA` reads / `query_row` / `query_map`). The pooled connections are
+    /// opened `SQLITE_OPEN_READ_ONLY`, so any write attempted through here fails
+    /// at the SQLite layer ("attempt to write a readonly database") rather than
+    /// corrupting data — a mis-route is caught, not silent. When in doubt, use
+    /// [`with_conn`] (the writer); erring toward the writer is always correct,
+    /// just less parallel.
+    ///
+    /// On pool exhaustion (all connections checked out longer than the pool's
+    /// checkout timeout) this returns a `SQLITE_BUSY` error rather than
+    /// panicking, so a caller can degrade gracefully or fall back to
+    /// [`with_conn`]. The closure therefore receives `Result<&Connection, _>`
+    /// only indirectly: the pool-acquisition error is surfaced as the closure's
+    /// `T` is wrapped — see the signature. To keep call sites simple, callers
+    /// get the connection directly and any pool error is mapped into a
+    /// `rusqlite::Error`; closures that already return `Result<_, rusqlite::Error>`
+    /// compose cleanly via `?`.
+    #[allow(dead_code)] // Opt-in accessor: read-heavy paths adopt it incrementally.
+    pub(crate) fn with_read_conn<F, T>(&self, f: F) -> Result<T, rusqlite::Error>
+    where
+        F: FnOnce(&Connection) -> Result<T, rusqlite::Error>,
+    {
+        // Acquire a read connection from the pool. A checkout failure (pool
+        // exhausted past the timeout, or a connection failed validation) is
+        // folded into the rusqlite error channel as SQLITE_BUSY so callers can
+        // treat it like any other transient DB error / fall back to the writer.
+        let conn = self.read_pool.get().map_err(|e| {
+            rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_BUSY),
+                Some(format!("read pool checkout failed: {e}")),
+            )
+        })?;
+        f(&conn)
     }
 
     /// Open the DB with corruption detection + backup-restore recovery.
@@ -1927,10 +2002,23 @@ impl Storage {
             );"
         )?;
 
+        // Build the read-only connection pool NOW — after every CREATE
+        // TABLE / migration above has run on the writer `conn`, so a pooled
+        // reader never observes a schema-less database. The pool opens the
+        // SAME file read-only with matching WAL/foreign_keys/busy_timeout
+        // pragmas (see `pool::build_read_pool`). All current call sites still
+        // use the writer via `with_conn`; read-heavy paths can adopt
+        // `with_read_conn` incrementally for concurrency.
+        let read_pool = pool::build_read_pool(path)?;
+
         info!("Database opened: {}", path.display());
-        Ok(Self { conn: Mutex::new(conn) })
+        Ok(Self { conn: Mutex::new(conn), read_pool })
     }
 }
+
+// Connection-pool plumbing for concurrent reads (R3). Not a domain module —
+// it provides the read-only `r2d2` pool that backs `Storage::with_read_conn`.
+mod pool;
 
 // Domain method modules — each has its own impl Storage block.
 // Rust supports splitting impl blocks across files via the module system.
