@@ -317,6 +317,20 @@ pub fn pubkey_hex_to_solana_address(hex_str: &str) -> Result<String, String> {
 
 impl AppConfig {
     pub fn config_path() -> std::path::PathBuf {
+        // Explicit override: HUMANITY_DATA_DIR=<dir> puts config.json (which
+        // holds the encrypted identity) in that dir instead of the OS default.
+        // Lets you run a SECOND native instance with its own identity on the
+        // same machine — e.g. for local native↔native P2P testing:
+        //   HUMANITY_DATA_DIR=%TEMP%\hum2 v0.317.x_HumanityOS.exe
+        // (also handy for portable / multi-profile setups).
+        if let Ok(dir) = std::env::var("HUMANITY_DATA_DIR") {
+            let dir = dir.trim();
+            if !dir.is_empty() {
+                let dir = std::path::PathBuf::from(dir);
+                let _ = std::fs::create_dir_all(&dir);
+                return dir.join("config.json");
+            }
+        }
         // Use %APPDATA%/HumanityOS/config.json for a stable location
         // that doesn't change when the exe moves between versioned binaries.
         #[cfg(target_os = "windows")]
