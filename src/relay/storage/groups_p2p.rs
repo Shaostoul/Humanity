@@ -710,6 +710,47 @@ mod tests {
         assert_eq!(object_id, GOLDEN_OBJECT_ID, "canonical object_id drifted (web↔native)");
     }
 
+    // Shared-history variant: group_v1 with `share_history: 1`. Locks the 2-key
+    // canonical sort + CBOR uint encoding web↔native — a mismatch would make
+    // shared-history group ids diverge (objects unverifiable). Goldens computed
+    // from the web encoder and duplicated in scripts/group-object-kat.mjs.
+    const GOLDEN_SHARED_PAYLOAD_HEX: &str =
+        "a2646e616d65696b61742d67726f75706d73686172655f686973746f727901";
+    const GOLDEN_SHARED_OBJECT_ID: &str =
+        "fd801a96703a5b9c9f39ca75ff87dfd6fc10e0616e666a3f839d4e6a9143d0ef";
+
+    #[test]
+    fn group_v1_shared_history_canonical_kat() {
+        use crate::relay::core::object::Object;
+        use crate::relay::core::encoding::{cbor_int, cbor_map, cbor_text, to_canonical_bytes};
+        use crate::relay::core::pq_crypto::{DILITHIUM_PK_LEN, DILITHIUM_SIG_LEN};
+
+        let payload = to_canonical_bytes(&cbor_map(vec![
+            ("name", cbor_text("kat-group")),
+            ("share_history", cbor_int(1u64)),
+        ]))
+        .unwrap();
+        let payload_hex: String = payload.iter().map(|b| format!("{b:02x}")).collect();
+
+        let obj = Object {
+            protocol_version: 1,
+            object_type: "group_v1".to_string(),
+            space_id: None,
+            channel_id: None,
+            author_public_key: (0..DILITHIUM_PK_LEN).map(|i| (i % 256) as u8).collect(),
+            created_at: Some(1000),
+            references: vec![],
+            payload_schema_version: 1,
+            payload_encoding: "cbor_canonical_v1".to_string(),
+            payload,
+            signature: (0..DILITHIUM_SIG_LEN).map(|i| (i % 256) as u8).collect(),
+        };
+        let object_id = obj.object_id().unwrap().to_hex();
+
+        assert_eq!(payload_hex, GOLDEN_SHARED_PAYLOAD_HEX, "shared-history payload encoding drifted");
+        assert_eq!(object_id, GOLDEN_SHARED_OBJECT_ID, "shared-history object_id drifted (web↔native)");
+    }
+
     #[test]
     fn non_creator_admit_is_ignored() {
         let db = make_test_storage();

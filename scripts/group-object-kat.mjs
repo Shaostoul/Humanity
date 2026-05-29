@@ -68,7 +68,7 @@ try {
   // Exercise the higher-level builder end-to-end (groupV1Payload + assembly +
   // object_id) with a stub signer returning the same fixed signature, so the
   // whole pq-object.js path is proven to yield the golden id too.
-  const { buildGroupV1 } = await import(pathToFileURL(OBJ).href);
+  const { buildGroupV1, groupV1Payload } = await import(pathToFileURL(OBJ).href);
   const built = await buildGroupV1({
     name: 'kat-group',
     authorPublicKey: author_public_key,
@@ -80,7 +80,33 @@ try {
     fail(`buildGroupV1 object_id mismatch\n  got      ${built.objectId}\n  expected ${GOLDEN_OBJECT_ID}`);
   }
 
-  console.log('group-object-kat: PASS — web canonical CBOR == Rust (payload, object_id, buildGroupV1)');
+  // Shared-history variant: group_v1 WITH share_history:1. Must equal the Rust
+  // GOLDEN_SHARED_* in groups_p2p.rs::group_v1_shared_history_canonical_kat —
+  // locks the 2-key sort + CBOR uint web↔native. (A private/default group omits
+  // the field, so the goldens above are unchanged by the history toggle.)
+  const GOLDEN_SHARED_PAYLOAD_HEX = 'a2646e616d65696b61742d67726f75706d73686172655f686973746f727901';
+  const GOLDEN_SHARED_OBJECT_ID = 'fd801a96703a5b9c9f39ca75ff87dfd6fc10e0616e666a3f839d4e6a9143d0ef';
+  const sharedPayloadHex = hx(groupV1Payload('kat-group', true));
+  if (sharedPayloadHex !== GOLDEN_SHARED_PAYLOAD_HEX) {
+    fail(`shared-history payload mismatch\n  got      ${sharedPayloadHex}\n  expected ${GOLDEN_SHARED_PAYLOAD_HEX}`);
+  }
+  const builtShared = await buildGroupV1({
+    name: 'kat-group',
+    shareHistory: true,
+    authorPublicKey: author_public_key,
+    sign: async () => signature,
+    blake3,
+    createdAt: 1000,
+  });
+  if (builtShared.objectId !== GOLDEN_SHARED_OBJECT_ID) {
+    fail(`buildGroupV1(shareHistory) object_id mismatch\n  got      ${builtShared.objectId}\n  expected ${GOLDEN_SHARED_OBJECT_ID}`);
+  }
+  // Private (default) must still equal the original golden — the field is omitted.
+  if (hx(groupV1Payload('kat-group')) !== GOLDEN_PAYLOAD_HEX) {
+    fail('private group_v1 payload changed — share_history must be omitted when false');
+  }
+
+  console.log('group-object-kat: PASS — web canonical CBOR == Rust (payload, object_id, buildGroupV1, +share_history)');
   process.exit(0);
 } catch (e) {
   fail(e && e.stack ? e.stack : String(e));

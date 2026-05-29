@@ -19,7 +19,8 @@ use base64::engine::general_purpose::{STANDARD as B64, URL_SAFE_NO_PAD as B64URL
 use crate::net::dm_pq::DmPqKeypair;
 use crate::net::group_e2ee::{
     self, build_group_epoch_key_v1, build_group_msg_v1, open_epoch_key, open_group_msg,
-    parse_group_epoch_key_payload, parse_group_msg_epoch, random_epoch_key, GroupMemberKey,
+    parse_group_epoch_key_payload, parse_group_msg_epoch, payload_shares_history,
+    random_epoch_key, GroupMemberKey,
 };
 use crate::net::identity::derive_pq_identity;
 use crate::relay::core::object::ObjectBuilder;
@@ -122,8 +123,16 @@ fn now_millis() -> u64 {
 }
 
 /// Build + submit a `group_v1`. Returns the new `group_id` (= the object's id).
-pub fn submit_group_v1(server_url: &str, seed: &[u8], name: &str) -> Result<String, String> {
-    let payload = cbor_map(vec![("name", cbor_text(name))]);
+/// `share_history` is included in the SIGNED payload ONLY when true — omitting it
+/// for private (default) groups keeps the byte-for-byte encoding of pre-toggle
+/// groups (so old ids + the canonical KAT are unaffected). When true, members
+/// who join later get the full history (see `rekey_if_creator_needs`).
+pub fn submit_group_v1(server_url: &str, seed: &[u8], name: &str, share_history: bool) -> Result<String, String> {
+    let mut pairs = vec![("name", cbor_text(name))];
+    if share_history {
+        pairs.push(("share_history", cbor_int(1u64)));
+    }
+    let payload = cbor_map(pairs); // cbor_map sorts keys canonically
     let builder = ObjectBuilder::new("group_v1")
         .created_at(now_millis())
         .payload_cbor(&payload)
@@ -213,8 +222,9 @@ pub fn create_group_and_first_invite(
     server_url: &str,
     seed: &[u8],
     name: &str,
+    share_history: bool,
 ) -> Result<(String /* group_id */, String /* ticket */), String> {
-    let group_id = submit_group_v1(server_url, seed, name)?;
+    let group_id = submit_group_v1(server_url, seed, name, share_history)?;
 
     // Initial epoch key sealed to the creator — without this, the group is
     // identity+membership only and the creator cannot send anything.
@@ -602,9 +612,20 @@ pub fn rekey_if_creator_needs(
         return Ok(None);
     }
 
-    // 2. Current epoch + already-covered recipient fingerprints.
+    // 1b. Does this group share its history with members who join later?
+    //     (signed flag in group_v1; absent → false = private default.)
+    let share_history = group_obj
+        .get("payload_b64")
+        .and_then(|x| x.as_str())
+        .and_then(|s| B64.decode(s).ok())
+        .map(|bytes| payload_shares_history(&bytes))
+        .unwrap_or(false);
+
+    // 2. Current epoch + already-covered recipient fingerprints. Keep the raw
+    //    payload bytes so a SHARED-history re-seal can unseal the current key.
     let mut current_epoch: u64 = 0;
     let mut covered = std::collections::HashSet::new();
+    let mut current_epoch_payload_bytes: Option<Vec<u8>> = None;
     if let Some(payload_bytes) = fetch_group_epoch_payload(server_url, group_id)? {
         if let Ok(parsed) = parse_group_epoch_key_payload(&payload_bytes) {
             current_epoch = parsed.epoch;
@@ -612,6 +633,7 @@ pub fn rekey_if_creator_needs(
                 covered.insert(r.fp.clone());
             }
         }
+        current_epoch_payload_bytes = Some(payload_bytes);
     }
 
     // 3. Current roster with each member's Kyber pub.
@@ -636,12 +658,39 @@ pub fn rekey_if_creator_needs(
     if !has_gap {
         return Ok(None);
     }
+    let added = sealable.iter().filter(|m| !covered.contains(&m.fp)).count();
 
-    // 4. Mint new epoch sealed to the full sealable roster.
+    // 4. Cover the new member(s).
+    if share_history {
+        // SHARED: do NOT rotate — re-seal the SAME (current) epoch key to the
+        // expanded roster so the new member can decrypt the existing history
+        // (which is all under this one epoch). The creator unseals their own
+        // copy of the current key to re-seal it. Trade-off (a listed con):
+        // weaker forward secrecy, since the group never rotates on join.
+        if current_epoch >= 1 {
+            if let Some(bytes) = &current_epoch_payload_bytes {
+                if let Ok(parsed) = parse_group_epoch_key_payload(bytes) {
+                    let my_fp = author_fingerprint_hex(&my_dil_bytes);
+                    let me = DmPqKeypair::from_bip39_seed(seed)
+                        .map_err(|e| format!("dm keypair: {e}"))?;
+                    if let Ok((epoch, key)) = open_epoch_key(&parsed, &my_fp, &me) {
+                        submit_group_epoch_key_v1(server_url, seed, group_id, epoch, &key, &sealable)?;
+                        return Ok(Some((epoch, key, added)));
+                    }
+                }
+            }
+        }
+        // Fallback (no current epoch / couldn't unseal): seed epoch 1 fresh.
+        let key = random_epoch_key();
+        submit_group_epoch_key_v1(server_url, seed, group_id, 1, &key, &sealable)?;
+        return Ok(Some((1, key, added)));
+    }
+
+    // PRIVATE (default): mint a NEW epoch sealed to the full roster — members who
+    // joined since the last epoch read from here forward only (forward secrecy).
     let new_epoch = current_epoch + 1;
     let new_key = random_epoch_key();
     submit_group_epoch_key_v1(server_url, seed, group_id, new_epoch, &new_key, &sealable)?;
-    let added = sealable.iter().filter(|m| !covered.contains(&m.fp)).count();
     Ok(Some((new_epoch, new_key, added)))
 }
 

@@ -280,6 +280,33 @@ pub fn parse_group_msg_epoch(payload_bytes: &[u8]) -> Result<u64, String> {
     Err("no epoch field".into())
 }
 
+/// Read the `share_history` flag from a `group_v1` payload (canonical CBOR).
+/// True only if present and non-zero; absent → false (the private default, which
+/// is also how every pre-history-toggle group encodes). Drives whether the
+/// creator re-seals history to later joiners (see `api_v2::rekey_if_creator_needs`).
+pub fn payload_shares_history(payload_bytes: &[u8]) -> bool {
+    let v = match from_canonical_bytes(payload_bytes) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    let map = match v {
+        Value::Map(m) => m,
+        _ => return false,
+    };
+    for (k, val) in map {
+        if let Value::Text(s) = k {
+            if s == "share_history" {
+                if let Value::Integer(i) = val {
+                    let raw: i128 = i.into();
+                    return raw != 0;
+                }
+                return false;
+            }
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -379,6 +406,28 @@ mod tests {
         assert!(late.get(&parse_group_msg_epoch(&p1).unwrap()).is_none());
         let k2 = late.get(&parse_group_msg_epoch(&p2).unwrap()).unwrap();
         assert_eq!(open_group_msg(&p2, k2).unwrap(), "from epoch two");
+    }
+
+    /// The `share_history` flag round-trips out of a group_v1 payload: absent or
+    /// 0 → private (false), 1 → shared (true). Drives the creator's re-seal
+    /// behavior in `api_v2::rekey_if_creator_needs`.
+    #[test]
+    fn share_history_flag_round_trips() {
+        use crate::relay::core::encoding::{cbor_int, cbor_map, cbor_text, to_canonical_bytes};
+        let private = to_canonical_bytes(&cbor_map(vec![("name", cbor_text("g"))])).unwrap();
+        assert!(!payload_shares_history(&private), "absent field → private");
+        let shared = to_canonical_bytes(&cbor_map(vec![
+            ("name", cbor_text("g")),
+            ("share_history", cbor_int(1u64)),
+        ]))
+        .unwrap();
+        assert!(payload_shares_history(&shared), "share_history:1 → shared");
+        let zero = to_canonical_bytes(&cbor_map(vec![
+            ("name", cbor_text("g")),
+            ("share_history", cbor_int(0u64)),
+        ]))
+        .unwrap();
+        assert!(!payload_shares_history(&zero), "share_history:0 → private");
     }
 
     #[test]

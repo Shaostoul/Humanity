@@ -300,14 +300,22 @@
 
     const { obj, blake3 } = await mods();
 
-    // (2) Current epoch + already-covered recipient fingerprints.
+    // (1b) Does this group share history with members who join later?
+    // (signed flag in group_v1; absent → false = private default.)
+    let shareHistory = false;
+    try { shareHistory = obj.groupSharesHistory(b64ToBytes(groupObj.payload_b64)); } catch (_e) {}
+
+    // (2) Current epoch + already-covered recipient fingerprints. Keep the raw
+    //     payload bytes so a SHARED-history re-seal can unseal the current key.
     let currentEpoch = 0;
     const coveredFps = new Set();
+    let currentEpochPayloadBytes = null;
     try {
       const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/epoch');
       if (r.ok) {
         const epochObj = await r.json();
-        const parsed = obj.parseGroupEpochKeyPayload(b64ToBytes(epochObj.payload_b64));
+        currentEpochPayloadBytes = b64ToBytes(epochObj.payload_b64);
+        const parsed = obj.parseGroupEpochKeyPayload(currentEpochPayloadBytes);
         if (parsed) {
           currentEpoch = parsed.epoch || 0;
           for (const rcp of parsed.recipients) {
@@ -342,8 +350,30 @@
     }
 
     if (!hasGap) return null; // all current members already covered
+    const addedCount = sealable.length - coveredFps.size;
 
-    // (5) Mint a new epoch sealed to the full sealable roster.
+    // (5) Cover the new member(s).
+    if (shareHistory && currentEpoch >= 1 && currentEpochPayloadBytes) {
+      // SHARED: do NOT rotate — re-seal the SAME (current) epoch key to the
+      // expanded roster so the new member decrypts the existing single-epoch
+      // history. Unseal our own copy of the current key to re-seal it.
+      try {
+        const myFp = await myFingerprint();
+        const opened = await obj.openGroupEpochKey(currentEpochPayloadBytes, myFp, window.pqDmOpen, myKyberSecret);
+        if (opened && opened.epochKey) {
+          const ek = await obj.buildGroupEpochKeyV1({
+            groupId, epoch: opened.epoch, epochKey: opened.epochKey,
+            members: sealable, seal: window.pqDmSeal,
+            authorPublicKey: authorPub(), sign: signer(), blake3,
+          });
+          await postObject(ek.submission);
+          return { epoch: opened.epoch, epochKey: opened.epochKey, addedCount };
+        }
+      } catch (e) { console.warn('share-history re-seal:', e); /* fall through to mint */ }
+    }
+
+    // PRIVATE (default): mint a NEW epoch sealed to the full roster — members who
+    // joined since the last epoch read from here forward only (forward secrecy).
     const newEpoch = currentEpoch + 1;
     const newEpochKey = obj.randomEpochKey();
     const ek = await obj.buildGroupEpochKeyV1({
@@ -353,16 +383,15 @@
       authorPublicKey: authorPub(), sign: signer(), blake3,
     });
     await postObject(ek.submission);
-    const addedCount = sealable.length - coveredFps.size;
     return { epoch: newEpoch, epochKey: newEpochKey, addedCount };
   }
 
-  async function createP2pGroup(name) {
+  async function createP2pGroup(name, shareHistory) {
     if (!pqReady()) return notReady();
     name = (name || '').trim();
     if (!name) return;
     const { obj, blake3 } = await mods();
-    const { objectId: groupId, submission } = await obj.buildGroupV1({ name, authorPublicKey: authorPub(), sign: signer(), blake3 });
+    const { objectId: groupId, submission } = await obj.buildGroupV1({ name, shareHistory: !!shareHistory, authorPublicKey: authorPub(), sign: signer(), blake3 });
     await postObject(submission);
     // Auto-issue an initial epoch key sealed to the creator so chat works
     // immediately — without this the group is identity+membership only and

@@ -372,12 +372,75 @@ function renderGroupList() {
 // ticket (works even when the creator is offline). The old relay-mediated
 // group_create/group_join WS path is retired here (legacy groups still render
 // until migrated — Phase 1 step e).
+// One radio option (with pros/cons) for the create-group history choice.
+function _p2pgHistoryOption(value, checked, title, desc, pros, cons) {
+  const list = (items, sym, color) => items.map((t) =>
+    '<li style="margin:2px 0;"><span style="color:' + color + ';font-weight:700;">' + sym + '</span> ' + esc(t) + '</li>').join('');
+  return '<label style="display:block;border:1px solid var(--border,#333);border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">' +
+    '<div style="display:flex;align-items:center;gap:8px;">' +
+      '<input type="radio" name="p2pg-history" value="' + value + '"' + (checked ? ' checked' : '') + '>' +
+      '<span style="font-weight:600;">' + esc(title) + '</span>' +
+    '</div>' +
+    '<div style="margin:4px 0 6px 24px;color:var(--text-muted,#aaa);font-size:0.8rem;">' + esc(desc) + '</div>' +
+    '<ul style="margin:0 0 0 24px;padding-left:14px;font-size:0.76rem;list-style:none;color:var(--text-muted,#aaa);">' +
+      list(pros, '✓', 'var(--success,#4caf50)') + list(cons, '✕', 'var(--danger,#e57373)') +
+    '</ul>' +
+  '</label>';
+}
+
+// Create-group modal: name + history policy (with pros/cons). A plain prompt()
+// can't show the choice, and the operator asked for it on the create window.
 function promptCreateGroup() {
-  const name = prompt('Group name:');
-  if (!name || !name.trim()) return;
   if (typeof window.createP2pGroup !== 'function') return;
-  window.createP2pGroup(name.trim()).catch((e) => {
-    if (typeof addNotice === 'function') addNotice('Create failed: ' + e.message, 'red', 6);
+  const old = document.getElementById('p2pg-create-modal');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'p2pg-create-modal';
+  // The card is a CHILD of the backdrop, so it always renders above it.
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--bg-elevated,#1b1b1b);color:var(--text-primary,#eee);border:1px solid var(--border,#333);border-radius:10px;max-width:460px;width:92%;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,0.5);';
+  card.innerHTML =
+    '<h3 style="margin:0 0 12px;font-size:1.05rem;">Create group</h3>' +
+    '<input id="p2pg-name" type="text" placeholder="Group name" autocomplete="off" ' +
+      'style="width:100%;box-sizing:border-box;padding:9px 11px;border-radius:7px;border:1px solid var(--border,#333);background:var(--bg,#111);color:var(--text-primary,#eee);font-size:0.95rem;margin-bottom:16px;">' +
+    '<div style="font-weight:600;margin-bottom:8px;font-size:0.85rem;">Message history for people who join later</div>' +
+    _p2pgHistoryOption('private', true, 'Private (default)',
+      'New members only see messages sent after they join.',
+      ['Past conversations stay between who was there', 'Stronger forward secrecy — the group re-keys on each join'],
+      ['Newcomers start with no context']) +
+    _p2pgHistoryOption('shared', false, 'Shared history',
+      'New members can read the full history from before they joined.',
+      ['Newcomers get full context — good for onboarding'],
+      ['Anyone invited later can read everything said earlier', 'Weaker forward secrecy — the key is not rotated on join']) +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">' +
+      '<button id="p2pg-cancel" class="vr-btn" style="font-size:0.85rem;">Cancel</button>' +
+      '<button id="p2pg-create" class="vr-btn" style="font-size:0.85rem;background:var(--accent,#4a9);color:#fff;">Create group</button>' +
+    '</div>';
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+
+  const nameInput = card.querySelector('#p2pg-name');
+  try { nameInput.focus(); } catch (_e) {}
+  const close = () => overlay.remove();
+  const submit = () => {
+    const name = (nameInput.value || '').trim();
+    if (!name) { try { nameInput.focus(); } catch (_e) {} return; }
+    const sharedEl = card.querySelector('input[name="p2pg-history"][value="shared"]');
+    const shared = !!(sharedEl && sharedEl.checked);
+    close();
+    window.createP2pGroup(name, shared).catch((e) => {
+      if (typeof addNotice === 'function') addNotice('Create failed: ' + e.message, 'red', 6);
+    });
+  };
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  card.querySelector('#p2pg-cancel').onclick = close;
+  card.querySelector('#p2pg-create').onclick = submit;
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); close(); }
   });
 }
 

@@ -918,6 +918,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if create_clicked {
         state.show_create_group_modal = true;
         state.new_group_name.clear();
+        state.new_group_share_history = false; // default to private each open
     }
     if join_clicked {
         state.show_join_group_modal = true;
@@ -4327,6 +4328,39 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                         .hint_text("e.g. My Team"),
                 );
             });
+
+            // History policy for members who join later (operator-requested).
+            // Plain-ASCII +/- markers keep the glyph lint happy.
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new("Message history for people who join later")
+                    .strong()
+                    .size(theme.font_size_small),
+            );
+            ui.add_space(theme.spacing_xs);
+            ui.radio_value(&mut state.new_group_share_history, false, "Private (default)");
+            ui.label(
+                RichText::new(
+                    "New members only see messages sent after they join.\n\
+                     + Past conversations stay between who was there\n\
+                     + Stronger forward secrecy — re-keys on each join\n\
+                     - Newcomers start with no context",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_xs);
+            ui.radio_value(&mut state.new_group_share_history, true, "Shared history");
+            ui.label(
+                RichText::new(
+                    "New members can read the full history from before they joined.\n\
+                     + Newcomers get full context — good for onboarding\n\
+                     - Anyone invited later can read earlier messages\n\
+                     - Weaker forward secrecy — the key is not rotated on join",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
             if !state.create_group_status.is_empty() {
                 ui.add_space(theme.spacing_xs);
                 ui.label(
@@ -4352,6 +4386,7 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                 if widgets::Button::secondary("Cancel").show(ui, theme) {
                     state.show_create_group_modal = false;
                     state.new_group_name.clear();
+                    state.new_group_share_history = false;
                     state.create_group_status.clear();
                 }
             });
@@ -4365,7 +4400,7 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                 let seed_opt = state.private_key_bytes.clone();
                 match seed_opt {
                     Some(seed) => {
-                        match crate::net::api_v2::create_group_and_first_invite(&server_url, &seed, &name) {
+                        match crate::net::api_v2::create_group_and_first_invite(&server_url, &seed, &name, state.new_group_share_history) {
                             Ok((group_id, ticket)) => {
                                 state.create_group_ticket = Some(ticket);
                                 state.create_group_status.clear();

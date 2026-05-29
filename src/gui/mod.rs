@@ -1045,6 +1045,9 @@ pub struct GuiState {
     // ── Create group modal (P2P signed-object groups, v0.295+) ──
     pub show_create_group_modal: bool,
     pub new_group_name: String,
+    /// Create-group choice: share full message history with members who join
+    /// later (signed into group_v1). false = private (default, forward secrecy).
+    pub new_group_share_history: bool,
     /// Set after a successful create — the shareable invite ticket to copy.
     /// The modal flips into "share this ticket" mode while `Some`.
     pub create_group_ticket: Option<String>,
@@ -1771,6 +1774,7 @@ impl Default for GuiState {
             cosmos_show_lagrange: false,
             cosmos_show_reference_orbits: false,
             new_group_name: String::new(),
+            new_group_share_history: false,
             create_group_ticket: None,
             create_group_status: String::new(),
             show_join_group_modal: false,

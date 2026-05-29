@@ -154,9 +154,17 @@ export async function verifyObjectSubmission(submission, { blake3, pqVerify }) {
 
 /* ── P2P group payloads (docs/design/p2p-groups.md object-format spec) ── */
 
-/** `group_v1` payload: `{ name }`. The group_id = the resulting object's id. */
-export function groupV1Payload(name) {
-  return cborMap([[cborText('name'), cborText(name)]]);
+/** `group_v1` payload: `{ name }`, plus `share_history: 1` ONLY when the group
+ *  shares its message history with members who join later. Omitting the field
+ *  (the private default) keeps the byte-for-byte encoding of pre-history-toggle
+ *  groups, so old group_ids + the canonical KAT are unaffected. `share_history`
+ *  is part of the SIGNED object so the policy is tamper-proof + travels with the
+ *  group (multi-device / future multi-admin all see the same choice).
+ *  The group_id = the resulting object's id. */
+export function groupV1Payload(name, shareHistory) {
+  const pairs = [[cborText('name'), cborText(name)]];
+  if (shareHistory) pairs.push([cborText('share_history'), cborUint(1)]);
+  return cborMap(pairs); // cborMap sorts keys canonically — insertion order is irrelevant
 }
 
 /** `group_member_v1` payload: `{ action: "admit"|"remove", subject: <pubkey> }`. */
@@ -171,13 +179,23 @@ export function groupMemberV1Payload(action, subjectPubkey) {
  * Convenience: build + sign a `group_v1` object.
  * Returns `{ objectId (= the group id), submission }`.
  */
-export async function buildGroupV1({ name, authorPublicKey, sign, blake3, createdAt }) {
+export async function buildGroupV1({ name, shareHistory, authorPublicKey, sign, blake3, createdAt }) {
   return buildSignedObject({
     objectType: 'group_v1',
-    payload: groupV1Payload(name),
+    payload: groupV1Payload(name, shareHistory),
     authorPublicKey, sign, blake3,
     createdAt: createdAt ?? Date.now(),
   });
+}
+
+/** Read `share_history` from a fetched group_v1 object (via GET /api/v2/objects/{id},
+ *  whose `payload_b64` is the canonical CBOR payload). Returns true only if the
+ *  group explicitly opted into sharing history; absent/0 → false (private). */
+export function groupSharesHistory(payloadBytes) {
+  try {
+    const p = decodeCanonicalCbor(payloadBytes);
+    return !!(p && p.share_history);
+  } catch (_e) { return false; }
 }
 
 /**
