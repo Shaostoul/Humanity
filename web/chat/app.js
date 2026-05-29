@@ -1044,7 +1044,16 @@ async function handleMessage(msg) {
         break;
       }
       const handledAdminFeedback = handleChannelAdminFeedback(msg.message);
-      if (!handledAdminFeedback) addSystemMessage(msg.message);
+      // Don't leak a server system notice into an open P2P group / DM view: it
+      // would render there and then vanish on the next group refresh (which
+      // rebuilds strictly from the group's signed log) — the confusing
+      // "deploy-bot post appeared in the group then disappeared" the operator
+      // hit on native. These notices are server-context, not for a private
+      // conversation; the deploy bot also posts to #announcements as a normal
+      // chat message, which is preserved + shown there.
+      const inPrivateView = !!window.activeP2pGroup
+        || (typeof activeDmPartner !== 'undefined' && !!activeDmPartner);
+      if (!handledAdminFeedback && !inPrivateView) addSystemMessage(msg.message);
       break;
     case 'thread_response': {
       // Server sent back the messages in a thread. Pass to chat-messages.js renderer.
