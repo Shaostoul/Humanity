@@ -567,42 +567,75 @@ fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     let enter_pressed = response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
-    ui.horizontal(|ui| {
-        if widgets::primary_button(ui, theme, "Unlock") || enter_pressed {
-            let device_key = match load_device_key(state) {
-                Some(k) => k,
-                None => {
-                    state.pin_status = "PIN setup gone (keychain cleared). Use passphrase to re-unlock.".to_string();
-                    return;
-                }
-            };
-            match crate::auto_unlock::decrypt_seed_with_pin(
-                &state.pin_encrypted_seed,
-                &state.pin_salt,
-                &state.pin_input,
-                &device_key,
-            ) {
-                Ok(seed) => {
-                    state.private_key_bytes = Some(seed.to_vec());
-                    state.passphrase_needed = false;
-                    state.pin_input.clear();
-                    state.pin_status.clear();
-                    state.apply_pq_identity();
-                    log::info!("Unlocked via PIN");
-                }
-                Err(_) => {
-                    // Deliberately generic — see decrypt_seed_with_pin
-                    // docstring on why we don't distinguish bad-PIN from
-                    // corrupted-blob.
-                    state.pin_status = "Wrong PIN.".to_string();
-                }
+    // Drain a finished background PIN unlock (the PBKDF2 in decrypt_seed_with_pin
+    // ran off the UI thread, same as the passphrase path).
+    if state.pin_unlocking {
+        let drained = state.pin_unlock_rx.as_ref().map(|rx| rx.try_recv());
+        match drained {
+            Some(Ok(Ok(seed))) => {
+                state.pin_unlock_rx = None;
+                state.pin_unlocking = false;
+                state.private_key_bytes = Some(seed);
+                state.passphrase_needed = false;
+                state.pin_input.clear();
+                state.pin_status.clear();
+                state.apply_pq_identity();
+                log::info!("Unlocked via PIN");
+            }
+            Some(Ok(Err(_))) => {
+                state.pin_unlock_rx = None;
+                state.pin_unlocking = false;
+                // Deliberately generic — see decrypt_seed_with_pin docstring on
+                // why we don't distinguish bad-PIN from corrupted-blob.
+                state.pin_status = "Wrong PIN.".to_string();
+            }
+            Some(Err(std::sync::mpsc::TryRecvError::Disconnected)) => {
+                state.pin_unlock_rx = None;
+                state.pin_unlocking = false;
+                state.pin_status = "Unlock failed (worker stopped). Try again.".to_string();
+            }
+            _ => {
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(80));
             }
         }
+    }
 
-        if widgets::secondary_button(ui, theme, "Use passphrase instead") {
-            state.passphrase_mode = PassphraseMode::Unlock;
-            state.pin_input.clear();
-            state.pin_status.clear();
+    ui.horizontal(|ui| {
+        if state.pin_unlocking {
+            ui.add(egui::Spinner::new());
+            ui.label(RichText::new("Unlocking…")
+                .color(theme.text_secondary())
+                .size(theme.font_size_small));
+        } else {
+            if widgets::primary_button(ui, theme, "Unlock") || enter_pressed {
+                let device_key = match load_device_key(state) {
+                    Some(k) => k,
+                    None => {
+                        state.pin_status = "PIN setup gone (keychain cleared). Use passphrase to re-unlock.".to_string();
+                        return;
+                    }
+                };
+                // Run the PBKDF2 (decrypt_seed_with_pin) on a worker thread.
+                let enc = state.pin_encrypted_seed.clone();
+                let salt = state.pin_salt.clone();
+                let pin = state.pin_input.clone();
+                let (tx, rx) = std::sync::mpsc::channel();
+                std::thread::spawn(move || {
+                    let result = crate::auto_unlock::decrypt_seed_with_pin(&enc, &salt, &pin, &device_key)
+                        .map(|seed| seed.to_vec())
+                        .map_err(|e| e.to_string());
+                    let _ = tx.send(result);
+                });
+                state.pin_unlock_rx = Some(rx);
+                state.pin_unlocking = true;
+                state.pin_status.clear();
+            }
+
+            if widgets::secondary_button(ui, theme, "Use passphrase instead") {
+                state.passphrase_mode = PassphraseMode::Unlock;
+                state.pin_input.clear();
+                state.pin_status.clear();
+            }
         }
     });
 }

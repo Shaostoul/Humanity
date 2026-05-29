@@ -960,6 +960,20 @@ pub struct GuiState {
     pub passphrase_unlock_rx: Option<
         std::sync::mpsc::Receiver<Result<(Vec<u8>, Option<(String, String, u32)>), String>>,
     >,
+    /// True while the PIN-unlock worker runs `decrypt_seed_with_pin` (PBKDF2)
+    /// off the UI thread (v0.307.0). Mirrors `passphrase_unlocking` for the PIN
+    /// path (per-launch for KeychainPin users — the same freeze class).
+    pub pin_unlocking: bool,
+    /// Background PIN-unlock result: `Ok(seed_bytes)` or `Err(message)`.
+    #[cfg(feature = "native")]
+    pub pin_unlock_rx: Option<std::sync::mpsc::Receiver<Result<Vec<u8>, String>>>,
+    /// In-flight clipboard-image upload (v0.307.0): `(target_channel, rx)` where
+    /// rx yields the uploaded image URL or an error. The network POST runs on a
+    /// worker thread so a big paste doesn't freeze the UI; the drain sends the
+    /// chat message with the returned URL on the main thread (needs ws_client +
+    /// the signing key).
+    #[cfg(feature = "native")]
+    pub clipboard_upload: Option<(String, std::sync::mpsc::Receiver<Result<String, String>>)>,
     /// PIN entry buffer (active digit-only field on the PinSetup /
     /// PinUnlock / PinChange modal forms).
     pub pin_input: String,
@@ -1678,6 +1692,11 @@ impl Default for GuiState {
             passphrase_unlocking: false,
             #[cfg(feature = "native")]
             passphrase_unlock_rx: None,
+            pin_unlocking: false,
+            #[cfg(feature = "native")]
+            pin_unlock_rx: None,
+            #[cfg(feature = "native")]
+            clipboard_upload: None,
             pin_input: String::new(),
             pin_confirm: String::new(),
             pin_old_input: String::new(),

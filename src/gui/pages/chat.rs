@@ -37,46 +37,70 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let ctrl_v_pressed = std::mem::take(&mut state.pending_clipboard_paste);
     if ctrl_v_pressed {
         if let Some(png_bytes) = try_grab_clipboard_image_as_png() {
+            // Grab the PNG on the main thread (clipboard access), but run the
+            // (potentially seconds-long) network upload on a WORKER thread so a
+            // big paste doesn't freeze the UI. The drain block below sends the
+            // chat message with the returned URL once the upload finishes.
             let server = state.server_url.clone();
             let pk = state.profile_public_key.clone();
             let channel = state.chat_active_channel.clone();
-            let sender_name = state.user_name.clone();
-            match upload_image_png_blocking(&server, &pk, png_bytes) {
-                Ok(url) => {
-                    if let Some(ref client) = state.ws_client {
-                        if client.is_connected() {
-                            let ts = std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_millis() as u64;
-                            let mut m = serde_json::json!({
-                                "type": "chat",
-                                "from": pk,
-                                "from_name": sender_name,
-                                "content": url,
-                                "timestamp": ts,
-                                "channel": channel,
-                            });
-                            // Inc2.MED-1: sign with Dilithium3 over
-                            // `content\ntimestamp` (relay now requires
-                            // pq_signature for non-bot chat).
-                            if let Some(seed) = state.private_key_bytes.as_ref() {
-                                m["pq_signature"] = serde_json::Value::String(
-                                    crate::net::identity::pq_sign_chat(seed, &url, ts)
-                                );
-                            }
-                            client.send(&m.to_string());
-                            log::info!("Clipboard image uploaded and sent to {}", channel);
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::warn!("Clipboard image upload failed: {e}");
-                }
-            }
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let result = upload_image_png_blocking(&server, &pk, png_bytes)
+                    .map_err(|e| e.to_string());
+                let _ = tx.send(result);
+            });
+            state.clipboard_upload = Some((channel, rx));
         }
         // If no image on clipboard, fall through — egui's TextEdit
         // sees the Ctrl+V key event normally and handles text paste.
+    }
+
+    // Drain a finished clipboard-image upload: on success, send the chat
+    // message carrying the image URL (ws + Dilithium sign on the main thread).
+    if let Some((channel, rx)) = state.clipboard_upload.as_ref() {
+        match rx.try_recv() {
+            Ok(Ok(url)) => {
+                let channel = channel.clone();
+                state.clipboard_upload = None;
+                if let Some(ref client) = state.ws_client {
+                    if client.is_connected() {
+                        let ts = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis() as u64;
+                        let mut m = serde_json::json!({
+                            "type": "chat",
+                            "from": state.profile_public_key,
+                            "from_name": state.user_name,
+                            "content": url,
+                            "timestamp": ts,
+                            "channel": channel,
+                        });
+                        // Inc2.MED-1: sign with Dilithium3 over `content\ntimestamp`
+                        // (relay requires pq_signature for non-bot chat).
+                        if let Some(seed) = state.private_key_bytes.as_ref() {
+                            m["pq_signature"] = serde_json::Value::String(
+                                crate::net::identity::pq_sign_chat(seed, &url, ts),
+                            );
+                        }
+                        client.send(&m.to_string());
+                        log::info!("Clipboard image uploaded and sent to {}", channel);
+                    }
+                }
+            }
+            Ok(Err(e)) => {
+                state.clipboard_upload = None;
+                log::warn!("Clipboard image upload failed: {e}");
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                state.clipboard_upload = None;
+                log::warn!("Clipboard image upload worker stopped unexpectedly");
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                ctx.request_repaint_after(std::time::Duration::from_millis(120));
+            }
+        }
     }
 
     // ── LEFT PANEL ──
