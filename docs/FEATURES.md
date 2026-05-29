@@ -81,9 +81,13 @@ Real-time text chat with channels, threads, and message history.
 - Server: `src/relay/relay.rs` (WebSocket routing), `src/relay/storage/messages.rs`
 
 ### Direct Messages (E2E Encrypted)
-Private 1-on-1 conversations encrypted with ECDH + AES-256-GCM.
-- Web: `web/chat/chat-dms.js`
-- Server: `src/relay/storage/dms.rs`
+Private 1-on-1 conversations encrypted with pure Kyber768 / ML-KEM-768 →
+BLAKE3-KDF → AES-256-GCM (dual-seal envelope; the relay stores opaque
+ciphertext only). The old ECDH P-256 path was deleted (web v0.263.4, native
+v0.264.0) — see the canonical crypto table in `CLAUDE.md`.
+- Web: `web/chat/chat-dms.js`, `web/chat/pq.js` (`pqDmSeal`/`pqDmOpen`)
+- Native: `src/net/dm_pq.rs`
+- Server: `src/relay/storage/dms.rs` (zero-knowledge — never decrypts)
 
 ### Voice Channels
 Group voice chat rooms with join/leave sounds.
