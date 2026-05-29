@@ -96,6 +96,26 @@ Group message logs reconcile peer-to-peer on connect (DataChannel sync/merge, ne
 - **Phase 4 — Relay-independence (the payoff).** Multi-relay signaling failover + peer-assisted signaling + TURN/peer-relay fallback + peer store-and-forward. *Exit:* kill the home relay; a group with ≥1 other reachable member still creates/joins/messages. **This is where "united-humanity.us down → groups still work" is true.**
 - **Phase 5 — Serverless discovery (later).** mDNS (LAN) + optional DHT for fully relay-free bootstrap.
 
+## History-sharing toggle (SHIPPED v0.312.0)
+
+Group creation lets the creator choose whether members who join LATER can read
+the group's prior history, recorded in the SIGNED `group_v1` payload as
+`share_history` (a CBOR uint included ONLY when true, so a private/default group
+is byte-identical to pre-toggle groups — old ids + the canonical KAT unchanged;
+absent → private). Tamper-proof + travels with the group (multi-device / future
+multi-admin see the same policy). KAT-locked web↔native (`group_v1_shared_history_canonical_kat` + the web `group-object-kat` shared case).
+- **Private (default):** rekey mints a NEW epoch on join → joiners read from there
+  on (forward secrecy).
+- **Shared:** rekey does NOT rotate on join — it re-seals the SAME (current) epoch
+  key to the expanded roster (creator unseals its own copy), so everyone holds
+  the one key and reads all history. Trade-off: weaker forward secrecy (no
+  rotation on join) — surfaced as a "con" in the create UI.
+UI: web create-group modal (name + 2 options + pros/cons; card is a child of its
+own backdrop) replacing the bare `prompt()`; native dialog gains the two radios +
+plain-ASCII pros/cons. Future opt-in (not built): re-seal ALL prior epochs to new
+members for groups that rotate per-join — only needed if private groups later
+want selective history grants.
+
 ## Decisions (settled 2026-05-27, operator)
 
 1. **TURN fallback — DECIDED: (a)+(b).** Operator-run TURN server when available, **plus** peer-as-TURN (elect a well-connected member to relay) as fallback. Rationale: the mission is *everyone*, including users behind symmetric/carrier-grade NAT who can't hole-punch; skipping TURN silently locks them out. Not a single point of failure — TURN down only costs the hardest-NAT pairs their fallback, never the whole group. Lands in Phase 4.
