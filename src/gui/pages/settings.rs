@@ -734,6 +734,33 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         if widgets::labeled_slider(ui, theme, "Font Size", &mut state.settings.font_size, 10.0..=24.0) {
             state.settings_dirty = true;
         }
+
+        ui.add_space(theme.spacing_sm);
+
+        // Chat timestamp display format (operator request). Applies app-wide and
+        // instantly — re-formats already-shown messages too. All UTC.
+        widgets::form_row(ui, theme, "Timestamp format", |ui| {
+            let mut current = crate::gui::pages::chat::timestamp_format();
+            let before = current;
+            egui::ComboBox::from_id_salt("timestamp_format_combo")
+                .selected_text(current.label())
+                .width(320.0)
+                .show_ui(ui, |ui| {
+                    for fmt in crate::gui::pages::chat::TimestampFormat::ALL {
+                        ui.selectable_value(&mut current, fmt, fmt.label());
+                    }
+                });
+            if current != before {
+                crate::gui::pages::chat::set_timestamp_format(current);
+                crate::config::AppConfig::from_gui_state(state).save();
+                // Re-format already-rendered messages so the change is instant.
+                for m in state.chat_messages.iter_mut() {
+                    if m.timestamp_ms > 0 {
+                        m.timestamp = crate::gui::pages::chat::format_timestamp(m.timestamp_ms);
+                    }
+                }
+            }
+        });
     });
 
     ui.add_space(theme.spacing_md);

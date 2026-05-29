@@ -62,6 +62,12 @@ pub struct AppConfig {
     #[serde(default = "default_true")]
     pub vsync: bool,
 
+    /// Chat timestamp display format (operator-configurable). One of
+    /// TimestampFormat::as_str() — "hour_min" (default) … "full". Empty/unknown
+    /// → hour_min. Applied app-wide via chat::set_timestamp_format on load.
+    #[serde(default)]
+    pub timestamp_format: String,
+
     /// Legacy plaintext private key (kept only for migration, removed after encryption).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub private_key_hex: String,
@@ -391,6 +397,7 @@ impl AppConfig {
             sfx_volume: state.settings.sfx_volume,
             fullscreen: state.settings.fullscreen,
             vsync: state.settings.vsync,
+            timestamp_format: crate::gui::pages::chat::timestamp_format().as_str().to_string(),
             // Never write plaintext key back; use encrypted fields from state
             private_key_hex: String::new(),
             encrypted_private_key: state.encrypted_private_key.clone(),
@@ -449,6 +456,10 @@ impl AppConfig {
         state.settings.sfx_volume = self.sfx_volume;
         state.settings.fullscreen = self.fullscreen;
         state.settings.vsync = self.vsync;
+        // Timestamp display format → the app-wide formatter (process global).
+        crate::gui::pages::chat::set_timestamp_format(
+            crate::gui::pages::chat::TimestampFormat::from_config_str(&self.timestamp_format),
+        );
         // Chat panel state
         state.chat_connection_collapsed = self.chat_connection_collapsed;
         state.chat_dm_collapsed = self.chat_dm_collapsed;
