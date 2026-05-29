@@ -514,6 +514,22 @@ impl Storage {
         })
     }
 
+    /// ALL `group_epoch_key_v1` object_ids for a group, oldest→newest. A member
+    /// fetches every epoch they were sealed into so the FULL history decrypts:
+    /// each message is encrypted under the epoch key current WHEN IT WAS SENT, so
+    /// after a re-key the latest key alone cannot open pre-re-key messages — the
+    /// client needs the whole set and decrypts each message under its own epoch.
+    pub fn p2p_group_all_epoch_objects(&self, group_id: &str) -> Result<Vec<String>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT object_id FROM p2p_group_epochs
+                 WHERE group_id = ?1 ORDER BY epoch ASC",
+            )?;
+            let rows = stmt.query_map(params![group_id], |row| row.get::<_, String>(0))?;
+            rows.collect()
+        })
+    }
+
     /// object_ids of a group's messages, oldest→newest (capped). The caller
     /// fetches each object and decrypts client-side.
     pub fn p2p_group_message_ids(&self, group_id: &str, limit: usize) -> Result<Vec<String>, rusqlite::Error> {
@@ -884,6 +900,37 @@ mod tests {
         let ek_id = ek.object_id().unwrap().to_hex();
         db.put_signed_object(&ek, None).unwrap();
         assert_eq!(db.p2p_group_latest_epoch_object(&gid).unwrap(), Some(ek_id));
+    }
+
+    #[test]
+    fn all_epoch_objects_oldest_to_newest() {
+        // The client fetches EVERY epoch object (oldest→newest) to decrypt the
+        // full multi-epoch message history — verify the query orders correctly
+        // regardless of insertion order.
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+
+        let e1 = epoch_obj(&creator, &gid, 1);
+        let e2 = epoch_obj(&creator, &gid, 2);
+        let e3 = epoch_obj(&creator, &gid, 3);
+        let (id1, id2, id3) = (
+            e1.object_id().unwrap().to_hex(),
+            e2.object_id().unwrap().to_hex(),
+            e3.object_id().unwrap().to_hex(),
+        );
+        // Insert OUT OF ORDER (2, then 1, then 3).
+        db.put_signed_object(&e2, None).unwrap();
+        db.put_signed_object(&e1, None).unwrap();
+        db.put_signed_object(&e3, None).unwrap();
+
+        assert_eq!(
+            db.p2p_group_all_epoch_objects(&gid).unwrap(),
+            vec![id1, id2, id3],
+            "epochs must come back oldest→newest regardless of insert order",
+        );
     }
 
     #[test]

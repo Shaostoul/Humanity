@@ -82,6 +82,33 @@
       return await obj.openGroupEpochKey(b64ToBytes(epochObj.payload_b64), fp, window.pqDmOpen, myKyberSecret);
     } catch (e) { console.warn('fetchEpochKey:', e); return null; }
   }
+  /** Fetch + open EVERY epoch key the caller was sealed into. Returns
+   *  `{ map: Map<epoch,key>, latestEpoch, latestKey }` or null. The message log
+   *  spans multiple epochs after a re-key (each message is encrypted under the
+   *  epoch current WHEN SENT), so the latest key alone can't open older history.
+   *  An existing member is sealed into every epoch (full history); a member who
+   *  joined later is only sealed from their join epoch on (forward secrecy — they
+   *  simply can't open pre-join epochs, which is the intended default). */
+  async function fetchAllEpochKeys(groupId) {
+    if (!pqReady() || typeof window.pqDmOpen !== 'function' || !myKyberSecret) return null;
+    try {
+      const res = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/epochs');
+      if (!res.ok) return null;
+      const data = await res.json();
+      const { obj } = await mods();
+      const fp = await myFingerprint();
+      const map = new Map();
+      let latestEpoch = -1, latestKey = null;
+      for (const epochObj of (data.epochs || [])) {
+        const opened = await obj.openGroupEpochKey(b64ToBytes(epochObj.payload_b64), fp, window.pqDmOpen, myKyberSecret);
+        if (!opened) continue;                 // not sealed to me (e.g., an epoch before I joined)
+        map.set(opened.epoch, opened.epochKey);
+        if (opened.epoch > latestEpoch) { latestEpoch = opened.epoch; latestKey = opened.epochKey; }
+      }
+      if (!map.size) return null;
+      return { map, latestEpoch, latestKey };
+    } catch (e) { console.warn('fetchAllEpochKeys:', e); return null; }
+  }
   /** GET the group's raw (still-encrypted) message log — NO decryption. Kept
    *  separate from decryption so the network fetch can run CONCURRENTLY with the
    *  roster + epoch-key fetches on open (decryption only needs the epoch key,
@@ -94,22 +121,28 @@
       return data.messages || [];
     } catch (e) { console.warn('fetchGroupMessagesRaw:', e); return []; }
   }
-  /** Decrypt a raw message array (from `_fetchGroupMessagesRaw`) under an epoch key. */
-  async function _decryptGroupMessages(rawMessages, epochKey) {
+  /** Decrypt a raw message array (from `_fetchGroupMessagesRaw`). `keyForEpoch`
+   *  is `(epoch) => Uint8Array|null` — each message is opened under the key for
+   *  ITS OWN epoch, because the log spans multiple epochs after a re-key (a
+   *  message is encrypted under the epoch key current when it was sent). */
+  async function _decryptGroupMessages(rawMessages, keyForEpoch) {
     const out = [];
     const { obj } = await mods();
     for (const m of (rawMessages || [])) {
       const parsed = obj.parseGroupMsgPayload(b64ToBytes(m.payload_b64));
       if (!parsed) continue;
-      const text = await obj.aesGcmDecrypt(epochKey, parsed.nonce, parsed.ct);
+      const key = keyForEpoch(parsed.epoch);
+      if (!key) continue;                       // no key for this epoch (e.g. an epoch before we joined)
+      const text = await obj.aesGcmDecrypt(key, parsed.nonce, parsed.ct);
       if (text === null) continue;
       out.push({ author_fp: m.author_fp, created_at: m.created_at, text });
     }
     return out;
   }
-  /** Fetch + decrypt the group's encrypted message log (convenience wrapper). */
+  /** Fetch + decrypt the group's message log under a SINGLE epoch key
+   *  (convenience wrapper for callers that only hold the latest key). */
   async function fetchGroupMessages(groupId, epochKey) {
-    return _decryptGroupMessages(await _fetchGroupMessagesRaw(groupId), epochKey);
+    return _decryptGroupMessages(await _fetchGroupMessagesRaw(groupId), () => epochKey);
   }
   /** Encrypt + post a message into a P2P group.
    *
@@ -217,7 +250,10 @@
       if (!ag.epochKey) return;
       const parsed = obj.parseGroupMsgPayload(res.payload);
       if (!parsed) return;
-      const text = await obj.aesGcmDecrypt(ag.epochKey, parsed.nonce, parsed.ct);
+      // Pushed messages are normally current-epoch, but open under the key for
+      // the message's OWN epoch to stay correct across a re-key.
+      const msgKey = (ag.epochKeys && ag.epochKeys.get(parsed.epoch)) || ag.epochKey;
+      const text = await obj.aesGcmDecrypt(msgKey, parsed.nonce, parsed.ct);
       if (text === null || text === undefined) return;
 
       _p2pGroupSeenObjIds.add(res.objectId);
@@ -537,8 +573,12 @@
       const rawP = _fetchGroupMessagesRaw(ag.id);            // GET messages (no decrypt yet)
       const keyP = ag.epochKey
         ? Promise.resolve()
-        : fetchEpochKey(ag.id).then((ek) => {
-            if (ek && ek.epochKey) { ag.epoch = ek.epoch; ag.epochKey = ek.epochKey; }
+        : fetchAllEpochKeys(ag.id).then((all) => {
+            if (all) {
+              ag.epochKeys = all.map;        // epoch → key, for decrypting the full multi-epoch history
+              ag.epoch = all.latestEpoch;    // latest epoch + key, for sending new messages
+              ag.epochKey = all.latestKey;
+            }
           });
 
       await rosterP;
@@ -556,6 +596,8 @@
           if (!rekey || !window.activeP2pGroup || window.activeP2pGroup.id !== ag.id) return;
           ag.epoch = rekey.epoch;
           ag.epochKey = rekey.epochKey;
+          if (!ag.epochKeys) ag.epochKeys = new Map();
+          ag.epochKeys.set(rekey.epoch, rekey.epochKey);  // new epoch joins the decrypt map
           ag.fpToName = null;     // roster changed → reload the name map next tick
           _p2pRenderedKey = '';   // repaint under the new key
           if (typeof addSystemMessage === 'function') {
@@ -574,8 +616,10 @@
       // arrive P2P (low-latency) — the fetch below stays as offline backfill.
       ensureGroupMesh(ag);
       // (3) Decrypt + render (the log was fetched concurrently above; skip the
-      //     repaint if nothing changed).
-      const msgs = await _decryptGroupMessages(await rawP, ag.epochKey);
+      //     repaint if nothing changed). Each message opens under the key for its
+      //     OWN epoch (history spans epochs after a re-key); fall back to the
+      //     latest key for any epoch not in the map.
+      const msgs = await _decryptGroupMessages(await rawP, (epoch) => (ag.epochKeys && ag.epochKeys.get(epoch)) || ag.epochKey);
       msgs.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
       const key = msgs.map((m) => (m.author_fp || '') + ':' + (m.created_at || 0)).join('|');
       if (key === _p2pRenderedKey) return;
@@ -597,7 +641,7 @@
     //     untouched so switching back to a channel restores it.
     if (typeof activeDmPartner !== 'undefined') { activeDmPartner = null; activeDmPartnerName = ''; }
     if (typeof activeGroupId !== 'undefined') { activeGroupId = null; activeGroupName = ''; }
-    window.activeP2pGroup = { id: groupId, name: name || '', epoch: 0, epochKey: null, myFp: '', fpToName: null, fpToKey: null };
+    window.activeP2pGroup = { id: groupId, name: name || '', epoch: 0, epochKey: null, epochKeys: null, myFp: '', fpToName: null, fpToKey: null };
     _p2pGroupSeenObjIds.clear(); // fresh dedup set per opened group
 
     // (b) Sidebar: switch to Groups tab + redraw lists so highlights reflect state.

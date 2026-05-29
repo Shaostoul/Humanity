@@ -254,6 +254,32 @@ pub fn open_group_msg(payload_bytes: &[u8], epoch_key: &[u8]) -> Result<String, 
     aes_gcm_decrypt(epoch_key, &nonce, &ct)
 }
 
+/// Parse just the `epoch` field of a `group_msg_v1` payload WITHOUT decrypting,
+/// so the caller can select the matching key from a multi-epoch set — the
+/// message log spans epochs after a re-key (each message is encrypted under the
+/// epoch key current when it was sent), so the latest key alone can't open it.
+pub fn parse_group_msg_epoch(payload_bytes: &[u8]) -> Result<u64, String> {
+    let v = from_canonical_bytes(payload_bytes).map_err(|e| format!("cbor: {e}"))?;
+    let map = match v {
+        Value::Map(m) => m,
+        _ => return Err("payload not a map".into()),
+    };
+    for (k, val) in map {
+        if let Value::Text(s) = k {
+            if s == "epoch" {
+                if let Value::Integer(i) = val {
+                    let raw: i128 = i.into();
+                    if (0..=u64::MAX as i128).contains(&raw) {
+                        return Ok(raw as u64);
+                    }
+                }
+                return Err("epoch not a valid u64".into());
+            }
+        }
+    }
+    Err("no epoch field".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -306,6 +332,53 @@ mod tests {
         };
         let plain = open_group_msg(&msg_payload, &epoch_key).unwrap();
         assert_eq!(plain, msg);
+    }
+
+    /// Multi-epoch history: a message is encrypted under the epoch key current
+    /// WHEN IT WAS SENT, so after a re-key the log spans epochs. Each message
+    /// must open under the key for its OWN epoch — the latest key alone can't
+    /// decrypt older history (the bug fixed by the multi-epoch fetch + decrypt).
+    /// Mirrors the per-epoch key selection in `api_v2::decrypt_group_messages_raw`.
+    #[test]
+    fn multi_epoch_history_decrypts_per_epoch() {
+        use crate::relay::core::pq_crypto::DilithiumKeypair;
+        use std::collections::HashMap;
+        let kp = DilithiumKeypair::generate().unwrap();
+
+        // Two epochs, two distinct keys; one message sent in each epoch.
+        let key1 = random_epoch_key();
+        let key2 = random_epoch_key();
+        assert_ne!(key1, key2);
+        let p1 = build_group_msg_v1("grp", 1, &key1, "from epoch one")
+            .unwrap().sign(&kp).unwrap().payload;
+        let p2 = build_group_msg_v1("grp", 2, &key2, "from epoch two")
+            .unwrap().sign(&kp).unwrap().payload;
+
+        // The epoch is readable WITHOUT the key, so the caller can pick the key.
+        assert_eq!(parse_group_msg_epoch(&p1).unwrap(), 1);
+        assert_eq!(parse_group_msg_epoch(&p2).unwrap(), 2);
+
+        // Full key set → both messages decrypt under their own epoch's key.
+        let mut keys: HashMap<u64, Vec<u8>> = HashMap::new();
+        keys.insert(1, key1.clone());
+        keys.insert(2, key2.clone());
+        for (payload, expect) in [(&p1, "from epoch one"), (&p2, "from epoch two")] {
+            let epoch = parse_group_msg_epoch(payload).unwrap();
+            let k = keys.get(&epoch).expect("have key for this epoch");
+            assert_eq!(open_group_msg(payload, k).unwrap(), expect);
+        }
+
+        // The LATEST key alone cannot open an older-epoch message — this is the
+        // exact failure the multi-epoch fetch fixes (history would vanish).
+        assert!(open_group_msg(&p1, &key2).is_err());
+
+        // A member holding only epoch 2 (joined late) opens M2 but not M1
+        // (forward secrecy for pre-join epochs — the intended default).
+        let mut late: HashMap<u64, Vec<u8>> = HashMap::new();
+        late.insert(2, key2.clone());
+        assert!(late.get(&parse_group_msg_epoch(&p1).unwrap()).is_none());
+        let k2 = late.get(&parse_group_msg_epoch(&p2).unwrap()).unwrap();
+        assert_eq!(open_group_msg(&p2, k2).unwrap(), "from epoch two");
     }
 
     #[test]

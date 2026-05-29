@@ -585,6 +585,7 @@ pub async fn run_relay() {
         .route("/api/v2/groups/{group_id}/members", get(api_v2_objects::group_member_keys))
         .route("/api/v2/groups/{group_id}/messages", get(api_v2_objects::group_messages))
         .route("/api/v2/groups/{group_id}/epoch", get(api_v2_objects::group_epoch_key))
+        .route("/api/v2/groups/{group_id}/epochs", get(api_v2_objects::group_epoch_keys))
         // === API v2: DID resolver (Phase 1 PR 1) ===
         .route("/api/v2/did/{did}", get(api_v2_did::resolve_did))
         // === API v2: Verifiable Credentials (Phase 1 PR 2) ===

@@ -471,3 +471,23 @@ pub async fn group_epoch_key(
             .into_response(),
     }
 }
+
+/// `GET /api/v2/groups/{group_id}/epochs` — ALL `group_epoch_key_v1` objects
+/// (oldest→newest), so a member can unseal every epoch key they were sealed
+/// into and decrypt the FULL message history. After a re-key, messages from an
+/// earlier epoch can only be opened with that epoch's key — the latest key alone
+/// (the `/epoch` endpoint) is insufficient, so this returns the whole set. The
+/// relay still cannot decrypt anything (these are sealed, signed objects).
+pub async fn group_epoch_keys(
+    State(state): State<Arc<RelayState>>,
+    Path(group_id): Path<String>,
+) -> impl IntoResponse {
+    let ids = state.db.p2p_group_all_epoch_objects(&group_id).unwrap_or_default();
+    let mut out: Vec<SignedObjectResponse> = Vec::with_capacity(ids.len());
+    for id in ids {
+        if let Ok(Some(rec)) = state.db.get_signed_object(&id) {
+            out.push(SignedObjectResponse::from(rec));
+        }
+    }
+    (StatusCode::OK, Json(serde_json::json!({ "epochs": out }))).into_response()
+}
