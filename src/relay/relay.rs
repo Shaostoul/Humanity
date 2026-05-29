@@ -2509,11 +2509,24 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         continue;
                     };
                     let preimage = format!("hum/identify/v1\n{}\n{}", pending.nonce, pending.public_key);
-                    if !crate::relay::handlers::broadcast::verify_dilithium_b64(
-                        &pending.public_key,
-                        preimage.as_bytes(),
-                        &sig_b64,
-                    ) {
+                    // The Dilithium3 proof-of-possession verify is CPU-bound; run it OFF
+                    // the async worker pool (once per socket connect) so a connect flood
+                    // can't starve tokio. spawn_blocking closures must be 'static + Send,
+                    // so move the owned preimage + cloned key/sig in. The reject DECISION
+                    // is UNCHANGED — only where the verify runs moves. A panicked/cancelled
+                    // verify task fails closed (`false` → reject), never as a pass.
+                    let pk_for_verify = pending.public_key.clone();
+                    let sig_for_verify = sig_b64.clone();
+                    let ok = tokio::task::spawn_blocking(move || {
+                        crate::relay::handlers::broadcast::verify_dilithium_b64(
+                            &pk_for_verify,
+                            preimage.as_bytes(),
+                            &sig_for_verify,
+                        )
+                    })
+                    .await
+                    .unwrap_or(false);
+                    if !ok {
                         let err = RelayMessage::System {
                             message: "Identify challenge verification failed. Reconnect and re-identify.".to_string(),
                         };

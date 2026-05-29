@@ -444,49 +444,74 @@ pub async fn upload_file(
             .collect();
         let unique_name = format!("{}_{}.{}", ts, if safe_name.is_empty() { "file" } else { &safe_name }, ext);
 
-        // Store in data/uploads/.
-        let upload_dir = std::path::Path::new("data/uploads");
-        std::fs::create_dir_all(upload_dir).map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}"))
-        })?;
+        // R4 (concurrency): all of the filesystem work below — create the
+        // uploads dir, scan its total size, write the (up to tens-of-MB) body,
+        // and run the FIFO `keep N` cleanup — is BLOCKING. Running it inline on
+        // the tokio worker stalls the async executor (the dir-size scan does a
+        // synchronous read_dir + per-file metadata() over the WHOLE uploads dir
+        // on EVERY upload). Move it OFF the executor via spawn_blocking. The
+        // closure must be 'static + Send, so we clone the Arc<RelayState> and
+        // move the owned body + names in. Behavior is BYTE-FOR-BYTE preserved:
+        // same per-role size cap was already enforced above; same storage-full
+        // ceiling check, same FIFO retention/cleanup, same error → HTTP status
+        // mapping (create-dir/write → 500, storage full → 507), same returned
+        // URL. record_upload (DB) + remove_file (cleanup) keep their
+        // log-on-error-but-don't-fail-the-request semantics. A panicked task
+        // fails closed as a 500 (it never silently "succeeds").
+        let data_len = data.len();
+        let state_fs = state.clone();
+        let public_key_fs = public_key.clone();
+        let unique_name_fs = unique_name.clone();
+        let fs_result = tokio::task::spawn_blocking(move || -> Result<(), (StatusCode, String)> {
+            // Store in data/uploads/.
+            let upload_dir = std::path::Path::new("data/uploads");
+            std::fs::create_dir_all(upload_dir).map_err(|e| {
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}"))
+            })?;
 
-        // Check global disk usage before writing.
-        let total_size = dir_total_size(upload_dir);
-        if total_size + data.len() as u64 > max_total_upload_bytes {
-            return Err((
-                StatusCode::INSUFFICIENT_STORAGE,
-                format!("Upload storage full ({:.1} MB / {:.0} MB). Please try again later.",
-                    total_size as f64 / (1024.0 * 1024.0),
-                    max_total_upload_bytes as f64 / (1024.0 * 1024.0)),
-            ));
-        }
+            // Check global disk usage before writing.
+            let total_size = dir_total_size(upload_dir);
+            if total_size + data.len() as u64 > max_total_upload_bytes {
+                return Err((
+                    StatusCode::INSUFFICIENT_STORAGE,
+                    format!("Upload storage full ({:.1} MB / {:.0} MB). Please try again later.",
+                        total_size as f64 / (1024.0 * 1024.0),
+                        max_total_upload_bytes as f64 / (1024.0 * 1024.0)),
+                ));
+            }
 
-        let file_path = upload_dir.join(&unique_name);
-        std::fs::write(&file_path, &data).map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}"))
-        })?;
+            let file_path = upload_dir.join(&unique_name_fs);
+            std::fs::write(&file_path, &data).map_err(|e| {
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}"))
+            })?;
 
-        // Track upload per user (FIFO — retention count from server
-        // settings, was a hardcoded 4 before v0.237).
-        match state.db.record_upload(&public_key, &unique_name, max_uploads_per_user) {
-            Ok(old_files) => {
-                // Delete old files from disk.
-                for old_file in &old_files {
-                    let old_path = upload_dir.join(old_file);
-                    if let Err(e) = std::fs::remove_file(&old_path) {
-                        tracing::warn!("Failed to delete old upload {}: {e}", old_file);
-                    } else {
-                        tracing::info!("FIFO cleanup: deleted old upload {}", old_file);
+            // Track upload per user (FIFO — retention count from server
+            // settings, was a hardcoded 4 before v0.237).
+            match state_fs.db.record_upload(&public_key_fs, &unique_name_fs, max_uploads_per_user) {
+                Ok(old_files) => {
+                    // Delete old files from disk.
+                    for old_file in &old_files {
+                        let old_path = upload_dir.join(old_file);
+                        if let Err(e) = std::fs::remove_file(&old_path) {
+                            tracing::warn!("Failed to delete old upload {}: {e}", old_file);
+                        } else {
+                            tracing::info!("FIFO cleanup: deleted old upload {}", old_file);
+                        }
                     }
                 }
+                Err(e) => {
+                    tracing::error!("Failed to record upload: {e}");
+                }
             }
-            Err(e) => {
-                tracing::error!("Failed to record upload: {e}");
-            }
-        }
+            Ok(())
+        })
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))?;
+        // Propagate the fs section's own error → HTTP status (unchanged mapping).
+        fs_result?;
 
         let url = format!("/uploads/{}", unique_name);
-        return Ok(Json(serde_json::json!({ "url": url, "filename": unique_name, "size": data.len(), "type": file_type })));
+        return Ok(Json(serde_json::json!({ "url": url, "filename": unique_name, "size": data_len, "type": file_type })));
     }
 
     Err((StatusCode::BAD_REQUEST, "No file provided.".to_string()))
@@ -1728,8 +1753,16 @@ pub async fn create_listing_review(
     }
 
     // Verify signature over "review\n" + listing_id + "\n" + timestamp.
+    // ML-DSA-65 verify is CPU-bound — run it off the async executor (clone owned
+    // inputs in; fail-closed on panic → reject). Decision + 401 status unchanged.
     let sig_content = format!("review\n{}", listing_id);
-    if !verify_dilithium_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
+    let vk = body.public_key.clone();
+    let vsig = body.signature.clone();
+    let vts = body.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, &sig_content, vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -1766,8 +1799,15 @@ pub async fn delete_listing_review(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
 
+    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
     let sig_content = format!("review_delete\n{}", review_id);
-    if !verify_dilithium_signature(&q.key, &sig_content, q.timestamp, &q.sig) {
+    let vk = q.key.clone();
+    let vsig = q.sig.clone();
+    let vts = q.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, &sig_content, vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -1856,8 +1896,15 @@ pub async fn create_trade_order(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
     }
 
+    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
     let sig_content = format!("trade_order\n{}\n{}\n{}", body.item_type, body.quantity, body.price_per_unit);
-    if !verify_dilithium_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
+    let vk = body.public_key.clone();
+    let vsig = body.signature.clone();
+    let vts = body.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, &sig_content, vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -1906,8 +1953,15 @@ pub async fn cancel_trade_order(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
 
+    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
     let sig_content = format!("cancel_order\n{}", order_id);
-    if !verify_dilithium_signature(&q.key, &sig_content, q.timestamp, &q.sig) {
+    let vk = q.key.clone();
+    let vsig = q.sig.clone();
+    let vts = q.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, &sig_content, vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -1942,8 +1996,15 @@ pub async fn fill_trade_order(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
     }
 
+    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
     let sig_content = format!("fill_order\n{}\n{}", order_id, body.quantity);
-    if !verify_dilithium_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
+    let vk = body.public_key.clone();
+    let vsig = body.signature.clone();
+    let vts = body.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, &sig_content, vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2270,7 +2331,14 @@ pub async fn vault_sync_put(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
     }
 
-    if !verify_dilithium_signature(&body.key, "vault_sync", body.timestamp, &body.sig) {
+    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
+    let vk = body.key.clone();
+    let vsig = body.sig.clone();
+    let vts = body.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, "vault_sync", vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2307,7 +2375,14 @@ pub async fn vault_sync_get(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
 
-    if !verify_dilithium_signature(&q.key, "vault_sync", q.timestamp, &q.sig) {
+    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
+    let vk = q.key.clone();
+    let vsig = q.sig.clone();
+    let vts = q.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, "vault_sync", vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2331,7 +2406,14 @@ pub async fn vault_sync_delete(
     if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
-    if !verify_dilithium_signature(&body.key, "vault_sync", body.timestamp, &body.sig) {
+    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
+    let vk = body.key.clone();
+    let vsig = body.sig.clone();
+    let vts = body.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, "vault_sync", vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
     state.db.delete_vault_blob(&body.key)
@@ -2378,7 +2460,14 @@ pub async fn system_profile_put(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
     }
 
-    if !verify_dilithium_signature(&body.key, "system_profile", body.timestamp, &body.sig) {
+    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
+    let vk = body.key.clone();
+    let vsig = body.sig.clone();
+    let vts = body.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, "system_profile", vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2407,7 +2496,14 @@ pub async fn system_profile_get(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
 
-    if !verify_dilithium_signature(&q.key, "system_profile", q.timestamp, &q.sig) {
+    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
+    let vk = q.key.clone();
+    let vsig = q.sig.clone();
+    let vts = q.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, "system_profile", vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2431,7 +2527,14 @@ pub async fn system_profile_delete(
     if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
-    if !verify_dilithium_signature(&body.key, "system_profile", body.timestamp, &body.sig) {
+    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
+    let vk = body.key.clone();
+    let vsig = body.sig.clone();
+    let vts = body.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, "system_profile", vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
     state.db.delete_system_profile(&body.key)
@@ -2501,7 +2604,14 @@ pub async fn push_subscribe(
     if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
-    if !verify_dilithium_signature(&body.public_key, "push_subscribe", body.timestamp, &body.sig) {
+    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
+    let vk = body.public_key.clone();
+    let vsig = body.sig.clone();
+    let vts = body.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, "push_subscribe", vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
@@ -2954,8 +3064,15 @@ pub async fn get_admin_stats(
         return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
     }
 
-    // Verify Ed25519 signature.
-    if !verify_dilithium_signature(&q.key, "admin_stats", q.timestamp, &q.sig) {
+    // Verify Dilithium3 signature. CPU-bound — run off the async executor
+    // (fail-closed on panic → reject). Decision + 401 status unchanged.
+    let vk = q.key.clone();
+    let vsig = q.sig.clone();
+    let vts = q.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, "admin_stats", vts, &vsig)
+    }).await.unwrap_or(false);
+    if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 

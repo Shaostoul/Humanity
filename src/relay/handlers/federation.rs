@@ -304,11 +304,36 @@ pub async fn federation_connect_loop(
                                     }
                                     // Profile gossip from federated server — cache if newer.
                                     RelayMessage::ProfileGossip { public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature } => {
-                                        if !should_accept_profile_gossip(
-                                            &public_key, &name, &bio, &avatar_url, &banner_url,
-                                            &socials, &pronouns, &location, &website,
-                                            timestamp, &signature,
-                                        ) {
+                                        // The Dilithium3 profile-signature verify inside
+                                        // should_accept_profile_gossip is CPU-bound; run it OFF the
+                                        // async worker pool so a gossip burst can't starve tokio.
+                                        // spawn_blocking closures must be 'static + Send, so clone
+                                        // the owned inputs in (they're reused below for storage).
+                                        // The accept/reject DECISION is UNCHANGED — only where the
+                                        // verify runs moves. A panicked/cancelled verify task fails
+                                        // closed (treated as `false` → reject), never as accept.
+                                        let accept = {
+                                            let pk = public_key.clone();
+                                            let nm = name.clone();
+                                            let bo = bio.clone();
+                                            let av = avatar_url.clone();
+                                            let bn = banner_url.clone();
+                                            let so = socials.clone();
+                                            let pr = pronouns.clone();
+                                            let lo = location.clone();
+                                            let we = website.clone();
+                                            let sg = signature.clone();
+                                            tokio::task::spawn_blocking(move || {
+                                                should_accept_profile_gossip(
+                                                    &pk, &nm, &bo, &av, &bn,
+                                                    &so, &pr, &lo, &we,
+                                                    timestamp, &sg,
+                                                )
+                                            })
+                                            .await
+                                            .unwrap_or(false)
+                                        };
+                                        if !accept {
                                             tracing::warn!("Federation: rejecting profile gossip for {} — signature did not verify", &name);
                                             continue;
                                         }
