@@ -1006,4 +1006,169 @@ mod ban_mute_tests {
         assert!(!db.is_banned("k").unwrap());
         assert!(db.is_muted("k").unwrap());
     }
+
+    /// DOCUMENTED CONTRACT (channels.rs `is_muted`): the table-based mute
+    /// predicate does NOT cover the legacy `user_roles.role = 'muted'` case.
+    /// The relay's Chat handler deliberately checks BOTH (table mute AND the
+    /// legacy role) so pre-v0.246 mutes keep working — this test pins down
+    /// that `is_muted` alone is table-only, so nobody "simplifies" the relay
+    /// to a single `is_muted` check and silently un-mutes every legacy mute.
+    #[test]
+    fn is_muted_is_table_only_not_legacy_role() {
+        let db = fresh_db();
+        db.set_role("legacy", "muted").unwrap();
+        assert!(
+            !db.is_muted("legacy").unwrap(),
+            "is_muted must report ONLY the muted_members table; the legacy \
+             role='muted' is intentionally NOT covered here (the relay's \
+             Chat handler checks the role separately)"
+        );
+        // A real table mute IS seen.
+        db.mute_user("tabled", "Noisy").unwrap();
+        assert!(db.is_muted("tabled").unwrap());
+    }
+}
+
+// ── Channel message store / fetch tests (the chat persistence path that
+//    backs handle_dm_open's sibling `handle_chat` history + the per-channel
+//    `load_channel_messages` the client paints on channel switch). No prior
+//    coverage existed for storing a RelayMessage::Chat and reading it back. ──
+#[cfg(test)]
+mod channel_message_tests {
+    use super::*;
+    use crate::relay::relay::RelayMessage;
+
+    fn fresh_db() -> Storage {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_chanmsg_{pid}_{nanos}.db"));
+        Storage::open(&path).expect("open test db")
+    }
+
+    /// Build a minimal valid Chat message for a channel.
+    fn chat(from: &str, content: &str, timestamp: u64, channel: &str) -> RelayMessage {
+        RelayMessage::Chat {
+            from: from.to_string(),
+            from_name: Some(from.to_string()),
+            content: content.to_string(),
+            timestamp,
+            signature: None,
+            channel: channel.to_string(),
+            reply_to: None,
+            thread_count: None,
+            message_id: None,
+        }
+    }
+
+    /// Helper: pull (content, message_id) out of a Chat message for assertions.
+    fn content_and_id(m: &RelayMessage) -> (String, Option<i64>) {
+        match m {
+            RelayMessage::Chat { content, message_id, .. } => (content.clone(), *message_id),
+            _ => panic!("expected a Chat message, got {m:?}"),
+        }
+    }
+
+    /// Store a chat message in a channel and read it back, ordered oldest→newest.
+    /// `load_channel_messages` must also inject the DB row id as `message_id`
+    /// (clients rely on it to correlate `message_deleted` events).
+    #[test]
+    fn store_and_load_channel_messages_roundtrip() {
+        let db = fresh_db();
+        let id1 = db.store_message_in_channel(&chat("alice", "first", 100, "general"), "general").unwrap();
+        let id2 = db.store_message_in_channel(&chat("bob", "second", 200, "general"), "general").unwrap();
+        assert!(id1 > 0 && id2 > id1, "row ids increase");
+
+        let msgs = db.load_channel_messages("general", 50).unwrap();
+        assert_eq!(msgs.len(), 2);
+        let (c0, mid0) = content_and_id(&msgs[0]);
+        let (c1, mid1) = content_and_id(&msgs[1]);
+        // Oldest first.
+        assert_eq!(c0, "first");
+        assert_eq!(c1, "second");
+        // message_id injected from the DB row id.
+        assert_eq!(mid0, Some(id1), "row id injected as message_id");
+        assert_eq!(mid1, Some(id2));
+    }
+
+    /// Messages are scoped to their channel — loading one channel never returns
+    /// another channel's messages (per-channel isolation).
+    #[test]
+    fn channel_messages_are_isolated_per_channel() {
+        let db = fresh_db();
+        db.store_message_in_channel(&chat("alice", "in general", 100, "general"), "general").unwrap();
+        db.store_message_in_channel(&chat("alice", "in random",  200, "random"),  "random").unwrap();
+
+        let general = db.load_channel_messages("general", 50).unwrap();
+        assert_eq!(general.len(), 1);
+        assert_eq!(content_and_id(&general[0]).0, "in general");
+
+        let random = db.load_channel_messages("random", 50).unwrap();
+        assert_eq!(random.len(), 1);
+        assert_eq!(content_and_id(&random[0]).0, "in random");
+
+        // A channel with no messages returns empty (not an error, not cross-talk).
+        assert!(db.load_channel_messages("empty", 50).unwrap().is_empty());
+    }
+
+    /// `load_channel_messages_after` with after_id == 0 returns the most-recent
+    /// N oldest-first (initial load); with a cursor it returns only newer rows.
+    #[test]
+    fn load_after_initial_vs_cursor() {
+        let db = fresh_db();
+        let mut ids = Vec::new();
+        for i in 0..5 {
+            ids.push(db.store_message_in_channel(&chat("u", &format!("m{i}"), 100 + i as u64, "general"), "general").unwrap());
+        }
+        // Initial load (after_id 0): most-recent 3, oldest-first.
+        let (initial, max_initial) = db.load_channel_messages_after("general", 0, 3).unwrap();
+        assert_eq!(initial.len(), 3);
+        assert_eq!(content_and_id(&initial[0]).0, "m2");
+        assert_eq!(content_and_id(&initial[2]).0, "m4");
+        assert_eq!(max_initial, *ids.last().unwrap(), "max id advances to newest");
+
+        // Cursor poll: only rows strictly after ids[2] → m3, m4.
+        let (after, max_after) = db.load_channel_messages_after("general", ids[2], 50).unwrap();
+        assert_eq!(after.len(), 2);
+        assert_eq!(content_and_id(&after[0]).0, "m3");
+        assert_eq!(content_and_id(&after[1]).0, "m4");
+        assert_eq!(max_after, ids[4]);
+    }
+
+    /// Threaded replies: a reply stores its parent reference, and the parent's
+    /// reply count + the thread fetch reflect it. Drives the thread UI.
+    #[test]
+    fn thread_replies_are_counted_and_fetchable() {
+        let db = fresh_db();
+        // Parent message.
+        db.store_message_in_channel(&chat("alice", "parent", 100, "general"), "general").unwrap();
+        // Two replies referencing (alice, 100).
+        db.store_message_in_channel_with_reply(&chat("bob",   "reply 1", 200, "general"), "general", "alice", 100).unwrap();
+        db.store_message_in_channel_with_reply(&chat("carol", "reply 2", 300, "general"), "general", "alice", 100).unwrap();
+        // An unrelated message that is NOT a reply.
+        db.store_message_in_channel(&chat("dave", "noise", 400, "general"), "general").unwrap();
+
+        assert_eq!(db.get_thread_count("alice", 100).unwrap(), 2, "two replies counted");
+        assert_eq!(db.get_thread_count("alice", 999).unwrap(), 0, "no replies to a non-parent");
+
+        let thread = db.get_thread("alice", 100, 50).unwrap();
+        assert_eq!(thread.len(), 2);
+        // (from_key, from_name, content, timestamp, channel_id), oldest first.
+        assert_eq!(thread[0].2, "reply 1");
+        assert_eq!(thread[1].2, "reply 2");
+        assert_eq!(thread[0].4, "general", "thread rows carry their channel");
+    }
+
+    /// Non-Chat variants are not persisted by the channel store (it returns 0
+    /// and inserts nothing) — only Chat rows belong in the message log.
+    #[test]
+    fn non_chat_message_is_not_persisted() {
+        let db = fresh_db();
+        let sys = RelayMessage::System { message: "server notice".to_string() };
+        let id = db.store_message_in_channel(&sys, "general").unwrap();
+        assert_eq!(id, 0, "System message is not stored via the channel path");
+        assert!(db.load_channel_messages("general", 50).unwrap().is_empty());
+    }
 }

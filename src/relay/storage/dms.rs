@@ -202,8 +202,13 @@ impl Storage {
                      WHERE from_key IN ({}) AND to_key IN ({}) AND read = 0",
                     p_ph.join(","), my_ph.join(",")
                 );
-                // For this query, partner keys come first, then my keys.
-                let unread_params: Vec<String> = partner_keys.iter().chain(my_keys.iter()).cloned().collect();
+                // The numbered placeholders are ?1..?M = my_ph (bound to to_key)
+                // and ?M+1.. = p_ph (bound to from_key), so bind MY keys first,
+                // then the partner's — matching the last_msg query above. Binding
+                // partner-first (the prior bug) inverted from_key/to_key and counted
+                // MY OUTBOUND messages as unread instead of the partner's inbound.
+                // (Fixed v0.305.0; regression-locked by the dm_conversation_list test.)
+                let unread_params: Vec<String> = my_keys.iter().chain(partner_keys.iter()).cloned().collect();
                 let unread_count: i64 = conn.prepare(&unread_q)?
                     .query_row(rusqlite::params_from_iter(&unread_params), |row| row.get(0))
                     .unwrap_or(0);
@@ -446,5 +451,85 @@ mod tests {
         assert_eq!(convo[0].content, "msg7");
         assert_eq!(convo[1].content, "msg8");
         assert_eq!(convo[2].content, "msg9");
+    }
+
+    /// `load_dm_conversation_by_name` is the path `handle_dm_open` takes when
+    /// BOTH parties have a registered name: it resolves every key under each
+    /// name and unions all cross-key message pairs. This is the multi-device
+    /// case — Alice DMs from device-key `a1`, Bob replies from device-key `b1`,
+    /// then Alice continues from a SECOND device `a2`. A by-key load keyed on a
+    /// single device would miss the other device's half; the by-name load must
+    /// stitch the whole thread together. Verifies the zero-knowledge envelope
+    /// (encrypted flag + opaque ciphertext + nonce) is preserved verbatim
+    /// through the name-resolution path too, not just the by-key path.
+    #[test]
+    fn load_by_name_unions_all_device_keys() {
+        let db = fresh_db();
+        // Alice has two device keys, Bob one — all under their display names.
+        db.register_name("Alice", "a1").unwrap();
+        db.register_name("Alice", "a2").unwrap();
+        db.register_name("Bob", "b1").unwrap();
+
+        // Thread spans both of Alice's devices and Bob's reply. The 2nd message
+        // is a sealed E2EE envelope — must come back untouched.
+        db.store_dm("a1", "Alice", "b1", "from device 1", 100).unwrap();
+        db.store_dm_e2ee("b1", "Bob", "a1", "SEALED_CT_b64", 200, true, Some("nonce_b64")).unwrap();
+        db.store_dm("a2", "Alice", "b1", "from device 2", 300).unwrap();
+
+        let convo = db.load_dm_conversation_by_name("Alice", "Bob", 50).unwrap();
+        assert_eq!(convo.len(), 3, "by-name load must union both of Alice's device keys");
+        // Ascending by timestamp.
+        assert_eq!(convo[0].content, "from device 1");
+        assert_eq!(convo[1].content, "SEALED_CT_b64");
+        assert_eq!(convo[2].content, "from device 2");
+        // The relay must NOT decrypt or rewrite the sealed middle message.
+        assert!(convo[1].encrypted, "E2EE flag preserved through name path");
+        assert_eq!(convo[1].nonce.as_deref(), Some("nonce_b64"));
+        // Name matching is case-insensitive (registered_names COLLATE NOCASE).
+        let lower = db.load_dm_conversation_by_name("alice", "bob", 50).unwrap();
+        assert_eq!(lower.len(), 3, "name resolution is case-insensitive");
+    }
+
+    /// `get_dm_conversations` drives `send_dm_list_update` (the chat sidebar).
+    /// This pins down the parts of the contract that are CORRECT today: one
+    /// row per partner (deduped by name), each previewing that partner's
+    /// most-recent message, with conversations kept isolated from each other.
+    ///
+    /// Also asserts `unread_count` counts the PARTNER's inbound unread messages
+    /// (not my outbound) — this test surfaced a latent bind-order bug in the
+    /// unread query (it counted outbound as unread); the assertions below
+    /// regression-lock the v0.305.0 fix.
+    #[test]
+    fn dm_conversation_list_dedupes_partners_and_previews_last() {
+        let db = fresh_db();
+        db.register_name("Me", "me").unwrap();
+        db.register_name("Bob", "bob").unwrap();
+        db.register_name("Carol", "carol").unwrap();
+
+        // Conversation with Bob: several messages, both directions.
+        db.store_dm("me",  "Me",  "bob", "hi bob",  100).unwrap();
+        db.store_dm("bob", "Bob", "me",  "hey",     200).unwrap();
+        db.store_dm("bob", "Bob", "me",  "you up?", 300).unwrap();
+        // Separate conversation with Carol.
+        db.store_dm("carol", "Carol", "me", "yo",   400).unwrap();
+
+        let convos = db.get_dm_conversations("me").unwrap();
+        assert_eq!(convos.len(), 2, "one row per distinct partner");
+
+        let bob = convos.iter().find(|c| c.partner_name == "Bob").expect("Bob convo present");
+        assert_eq!(bob.last_message, "you up?", "preview is the most-recent message in the thread");
+        assert_eq!(bob.last_timestamp, 300);
+        // Bob sent me two messages ("hey", "you up?"), both unread (read defaults
+        // to 0); my outbound "hi bob" must NOT be counted. (Regression lock for
+        // the bind-order fix — pre-fix this returned 1, counting my outbound.)
+        assert_eq!(bob.unread_count, 2, "counts the partner's inbound unread, not my outbound");
+
+        let carol = convos.iter().find(|c| c.partner_name == "Carol").expect("Carol convo present");
+        assert_eq!(carol.last_message, "yo");
+        assert_eq!(carol.unread_count, 1, "Carol's single inbound message is unread");
+
+        // A user with no DMs gets an empty list (not an error).
+        db.register_name("Loner", "loner").unwrap();
+        assert!(db.get_dm_conversations("loner").unwrap().is_empty());
     }
 }
