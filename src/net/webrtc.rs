@@ -72,13 +72,39 @@
 //! - inc-1 (this file): one ordered DataChannel per peer, text round-trip, host
 //!   ICE candidates only (same-LAN / same-host testing).
 //! - inc-2 (later): group mesh (open channels to every roster member).
-//! - inc-3 (later): STUN/TURN for cross-NAT — see the `// TODO inc-3` markers.
+//! - inc-3a (THIS increment): STUN server-reflexive (srflx) candidate gathering
+//!   so two peers behind *different* NATs can connect (the host candidate alone
+//!   only works same-LAN). We hand-roll a tiny RFC 5389 STUN Binding client over
+//!   the manager's existing shared `UdpSocket`, learn our public `ip:port`
+//!   (server-reflexive address) from the Binding Response's XOR-MAPPED-ADDRESS,
+//!   add it as a local candidate to every peer's `Rtc`, and *trickle* it to the
+//!   far side as a `dc_ice` signal. See the `// STUN srflx` / `// inc-3a`
+//!   markers and the `mod stun` block at the bottom of the file.
+//! - inc-3b (later): TURN relay (RFC 5766) for the symmetric-NAT fallback —
+//!   still the only remaining `// TODO inc-3b` path. NOT in this file yet.
+//!
+//! # Why str0m does NOT trickle our srflx for us (the inc-3a footgun)
+//!
+//! str0m is sans-IO and has *no* built-in candidate discovery: its own docs say
+//! "This library has no built-in discovery of local network addresses on the
+//! host or NATed addresses via a STUN server ... The user of the library is
+//! expected to add new local candidates as they are discovered." Its
+//! `IceAgentEvent` enum has variants for ICE restart / connection-state /
+//! discovered-remote / nominated-send — but **none for "here is a new local
+//! candidate to send."** So calling `rtc.add_local_candidate(srflx)` only makes
+//! str0m USE the candidate internally for pair formation; it will never hand it
+//! back to be trickled. Therefore WE serialize the candidate ourselves with
+//! `Candidate::to_sdp_string()` and emit the `dc_ice` signal. (The host
+//! candidate avoids this only because it's added *before* `sdp_api().apply()`,
+//! so it rides inside the SDP offer/answer. The srflx is discovered *after* a
+//! network round-trip to the STUN server, so it is always trickled-after — which
+//! is exactly the WebRTC "trickle ICE" model str0m says it's permanently in.)
 
 #![cfg(feature = "native")]
 
 use std::collections::HashMap;
 use std::io::ErrorKind;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -88,6 +114,27 @@ use str0m::change::{SdpAnswer, SdpOffer, SdpPendingOffer};
 use str0m::channel::ChannelId;
 use str0m::net::{Protocol, Receive};
 use str0m::{Candidate, Event, Input, Output, Rtc};
+
+/// STUN servers we query to learn our server-reflexive (public) address, for
+/// inc-3a cross-NAT connectivity. These mirror the web client's ICE config
+/// (`web/chat/chat-voice-rooms.js`'s `rtcConfig.iceServers`), so a native peer
+/// and a browser peer derive their srflx from the same public reflectors.
+///
+/// Stored as bare `host:port` (NOT `stun:` URLs) because we resolve them with
+/// `ToSocketAddrs` directly — there's no URL parsing here, just DNS + UDP.
+/// (TURN — the `turn:`/`turns:` entries in the web config — is inc-3b and is
+/// deliberately NOT listed here; this increment is STUN-only.)
+const STUN_SERVERS: &[&str] = &[
+    "stun.l.google.com:19302",
+    "stun1.l.google.com:19302",
+];
+
+/// How often to (re)send STUN Binding Requests until we have learned a srflx
+/// address. A request or its response can be lost, so we retry on a slow cadence
+/// rather than fire-once. Once `srflx` is known we stop (a fixed public mapping
+/// is fine for our short-lived data channels; we don't keepalive-refresh the
+/// mapping in inc-3a — that's a TURN/long-session concern).
+const STUN_RETRY_INTERVAL: Duration = Duration::from_secs(2);
 
 /// How long the UDP read may block per loop iteration, at most. We clamp
 /// str0m's requested timeout to this so the in-process signaling / send queues
@@ -233,6 +280,23 @@ pub struct WebrtcManager {
     tx_event: Sender<WebrtcEvent>,
     /// Ready-to-send `webrtc_signal` JSON up to the GUI (it relays to the WS).
     tx_outbound: Sender<String>,
+
+    // ── inc-3a STUN / server-reflexive state ──────────────────────────────
+    /// Outstanding STUN Binding queries: transaction-id → the server address we
+    /// sent it to. We match an inbound Binding *Response* against this map (by
+    /// txid AND source) before routing the datagram to any peer, so a STUN
+    /// reply is never mistaken for WebRTC traffic. Cleared once we have a srflx.
+    stun_pending: HashMap<[u8; 12], SocketAddr>,
+    /// Resolved STUN server addresses (DNS results for `STUN_SERVERS`). Resolved
+    /// lazily on first gather so a DNS hiccup at startup doesn't kill the thread;
+    /// re-resolved each retry if empty.
+    stun_servers: Vec<SocketAddr>,
+    /// Our learned server-reflexive (public) address, once a Binding Response
+    /// arrives. `None` until then. Cached so peers created later also get it.
+    srflx: Option<SocketAddr>,
+    /// When we last sent a batch of STUN Binding Requests, for the retry cadence.
+    /// `None` means "never sent" → send immediately on first loop turn.
+    last_stun_send: Option<Instant>,
 }
 
 /// Per-peer connection state.
@@ -302,6 +366,11 @@ impl WebrtcManager {
                 rx_cmd,
                 tx_event,
                 tx_outbound,
+                // inc-3a: STUN starts empty; the run-loop kicks off gathering.
+                stun_pending: HashMap::new(),
+                stun_servers: Vec::new(),
+                srflx: None,
+                last_stun_send: None,
             };
             mgr.run();
         });
@@ -353,12 +422,25 @@ impl WebrtcManager {
                 }
             }
 
+            // ── A2. inc-3a STUN gather: until we know our server-reflexive
+            //    (public) address, (re)send Binding Requests to the STUN servers
+            //    on a slow cadence. This does NOT mutate any Rtc — it only sends
+            //    plain STUN datagrams on the shared socket — so it's free of the
+            //    str0m single-mutation invariant and can sit anywhere in the loop.
+            self.maybe_send_stun();
+
             // ── B. Drain poll_output for EVERY peer until each returns Timeout.
             //    Collect the soonest deadline across all peers; that's how long
             //    we're allowed to block on the UDP read. Dead peers (ICE failed
             //    / SCTP closed) are reaped here.
             let now = Instant::now();
             let mut soonest = now + MAX_POLL_INTERVAL;
+            // If we're still STUN-gathering, make sure we wake in time to retry.
+            if self.srflx.is_none() {
+                if let Some(last) = self.last_stun_send {
+                    soonest = soonest.min(last + STUN_RETRY_INTERVAL);
+                }
+            }
             let mut dead: Vec<String> = Vec::new();
 
             // We iterate over a snapshot of keys so we can mutate self.peers
@@ -398,12 +480,31 @@ impl WebrtcManager {
             buf.resize(2000, 0);
             match self.udp.recv_from(&mut buf) {
                 Ok((n, source)) => {
+                    let slice = &buf[..n];
+
+                    // ── D0. inc-3a: STUN-response demux, BEFORE the per-peer
+                    //    demux. If this datagram came from a STUN server we
+                    //    queried AND parses as a Binding Response (type 0x0101)
+                    //    carrying a transaction id we sent, it's OUR srflx
+                    //    answer — consume it here and DO NOT route it to a peer.
+                    //    A real WebRTC datagram (peer's ICE binding / DTLS /
+                    //    SRTP) does not come from a STUN-server address and/or
+                    //    won't carry one of our pending txids, so it falls
+                    //    through to the existing demux below. (str0m's own ICE
+                    //    connectivity-check STUN — between the two peers — is
+                    //    sourced from the *peer*, not the STUN server, so it is
+                    //    never swallowed here.)
+                    if self.try_handle_stun_response(source, slice) {
+                        // It was our STUN reply (or junk from a STUN server);
+                        // handled. Skip the peer demux for this datagram.
+                        continue;
+                    }
+
                     // Route the datagram to the peer whose Rtc accepts it.
                     // str0m's `accepts` inspects the parsed datagram (STUN
                     // ufrag, DTLS/SRTP association) to decide ownership; it's
                     // the canonical demux. We build the borrowed Input inside
                     // this scope so the &buf borrow ends before the next loop.
-                    let slice = &buf[..n];
                     let contents = match slice.try_into() {
                         Ok(c) => c,
                         Err(_) => {
@@ -618,8 +719,10 @@ impl WebrtcManager {
         // resulting Transmits — we don't need to drain inline here.
         let mut rtc = Rtc::builder().build(Instant::now());
 
-        // Our host ICE candidate is the shared UDP socket's address.
-        // TODO inc-3: also add STUN/TURN-derived candidates for cross-NAT.
+        // Our host ICE candidate is the shared UDP socket's address. This still
+        // rides inside the SDP offer (added before apply()) and is all that's
+        // needed on a LAN.
+        // inc-3b TODO: also add a TURN-relayed candidate for symmetric NAT.
         match Candidate::host(self.local_addr, "udp") {
             Ok(cand) => {
                 rtc.add_local_candidate(cand);
@@ -627,6 +730,19 @@ impl WebrtcManager {
             Err(e) => {
                 log::error!("WebRTC: bad host candidate {}: {e}", self.local_addr);
                 return;
+            }
+        }
+
+        // inc-3a: if we ALREADY know our server-reflexive address (a previous
+        // peer's gathering learned it), add it before apply() so it rides in
+        // THIS offer's SDP too — no extra trickle round-trip needed for it.
+        // (If srflx is learned later, apply_srflx_to_all_peers trickles it.)
+        if let Some(srflx) = self.srflx {
+            match Candidate::server_reflexive(srflx, self.local_addr, Protocol::Udp) {
+                Ok(cand) => {
+                    rtc.add_local_candidate(cand);
+                }
+                Err(e) => log::warn!("WebRTC: bad srflx candidate {srflx} for offer: {e}"),
             }
         }
 
@@ -748,6 +864,18 @@ impl WebrtcManager {
             }
         }
 
+        // inc-3a: as on the offerer side, if our srflx is already known, add it
+        // before accept_offer() so it rides in the SDP answer. Otherwise it's
+        // trickled later by apply_srflx_to_all_peers once STUN resolves.
+        if let Some(srflx) = self.srflx {
+            match Candidate::server_reflexive(srflx, self.local_addr, Protocol::Udp) {
+                Ok(cand) => {
+                    rtc.add_local_candidate(cand);
+                }
+                Err(e) => log::warn!("WebRTC: bad srflx candidate {srflx} for answer: {e}"),
+            }
+        }
+
         // accept_offer consumes the sdp_api and yields the answer to send back.
         let answer = match rtc.sdp_api().accept_offer(offer) {
             Ok(a) => a,
@@ -819,8 +947,10 @@ impl WebrtcManager {
     fn on_ice(&mut self, from: String, candidate_json: &str) {
         // The browser sends an RTCIceCandidate object: {candidate, sdpMid,
         // sdpMLineIndex, ...}. We need the `candidate` field (the SDP line).
-        // str0m peers send the same shape (we serialize Candidate -> ? ) — to
-        // be robust, accept either a bare SDP string or that object.
+        // Native peers now send the SAME object shape too (see
+        // `emit_ice_candidate`, used by the inc-3a srflx trickle) — but we still
+        // accept BOTH a bare SDP string and that object here, for robustness and
+        // backward-compat with any plain-line sender.
         let sdp_line: String = match serde_json::from_str::<Value>(candidate_json) {
             Ok(Value::Object(map)) => match map.get("candidate").and_then(|c| c.as_str()) {
                 Some(s) if !s.is_empty() => s.to_string(),
@@ -873,6 +1003,222 @@ impl WebrtcManager {
         });
         let _ = self.tx_outbound.send(msg.to_string());
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  inc-3a — STUN server-reflexive gathering
+    // ════════════════════════════════════════════════════════════════════
+
+    /// If we don't yet know our server-reflexive (public) address, (re)send a
+    /// STUN Binding Request to each configured STUN server, at most once per
+    /// `STUN_RETRY_INTERVAL`. No-op once `srflx` is known.
+    ///
+    /// This only sends opaque UDP datagrams on the shared socket — it touches no
+    /// `Rtc` — so it is exempt from str0m's single-mutation drain invariant.
+    fn maybe_send_stun(&mut self) {
+        if self.srflx.is_some() {
+            return; // already learned our public address — nothing to do.
+        }
+        // Rate-limit: only send if we've never sent, or the retry interval has
+        // elapsed since the last batch.
+        let now = Instant::now();
+        if let Some(last) = self.last_stun_send {
+            if now.duration_since(last) < STUN_RETRY_INTERVAL {
+                return;
+            }
+        }
+
+        // Resolve STUN server hostnames to addresses if we haven't yet (or a
+        // prior resolution produced nothing). DNS can transiently fail; we just
+        // retry next interval rather than treating it as fatal.
+        if self.stun_servers.is_empty() {
+            for host in STUN_SERVERS {
+                match host.to_socket_addrs() {
+                    Ok(addrs) => {
+                        // Prefer IPv4 so the srflx base (our local host addr,
+                        // which is IPv4 from `0.0.0.0:0`) matches the family —
+                        // `Candidate::server_reflexive` rejects a mismatch.
+                        for a in addrs {
+                            if a.is_ipv4() {
+                                self.stun_servers.push(a);
+                                break;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::debug!("WebRTC: STUN DNS resolve '{host}' failed: {e}");
+                    }
+                }
+            }
+            if self.stun_servers.is_empty() {
+                // Couldn't resolve any server this turn; arm the timer so we
+                // retry on the next interval instead of hot-looping on DNS.
+                self.last_stun_send = Some(now);
+                return;
+            }
+        }
+
+        // Send a Binding Request to each server with a fresh random txid, and
+        // remember the txid → server mapping so we can match the response.
+        let servers = self.stun_servers.clone();
+        for server in servers {
+            let txid = stun::random_transaction_id();
+            let req = stun::build_binding_request(&txid);
+            match self.udp.send_to(&req, server) {
+                Ok(_) => {
+                    self.stun_pending.insert(txid, server);
+                    log::trace!("WebRTC: sent STUN Binding Request to {server}");
+                }
+                Err(e) => log::debug!("WebRTC: STUN send to {server} failed: {e}"),
+            }
+        }
+        self.last_stun_send = Some(now);
+        crate::debug::push_debug("WebRTC: STUN gathering (sent Binding Requests)");
+    }
+
+    /// Try to interpret an inbound datagram as a STUN Binding Response to one of
+    /// our pending requests. Returns `true` if the datagram was consumed as a
+    /// STUN reply (and therefore must NOT be routed to a peer), `false` if it's
+    /// not ours and should fall through to the per-peer WebRTC demux.
+    ///
+    /// We only treat it as STUN if BOTH (a) the source is a STUN server we
+    /// queried — checked via the pending map's values — and (b) it parses as a
+    /// Binding Response whose transaction id is in our pending map. That double
+    /// guard means a peer's ICE connectivity-check STUN (sourced from the peer,
+    /// not the server) is never swallowed here.
+    fn try_handle_stun_response(&mut self, source: SocketAddr, datagram: &[u8]) -> bool {
+        // Cheap pre-filter: was this source one of the servers we queried? If
+        // not, it can't be our STUN reply — fall through immediately.
+        let from_known_server = self.stun_pending.values().any(|&s| s == source)
+            || self.stun_servers.iter().any(|&s| s == source);
+        if !from_known_server {
+            return false;
+        }
+
+        // Parse as a STUN Binding Response. Returns the txid + the
+        // XOR-MAPPED-ADDRESS (our srflx) on success.
+        let (txid, mapped) = match stun::parse_binding_response(datagram) {
+            Some(parsed) => parsed,
+            None => {
+                // From a STUN server but not a parseable Binding Response with a
+                // mapped address — swallow it (it's STUN-server traffic, not a
+                // peer datagram), but learn nothing.
+                return true;
+            }
+        };
+
+        // Only accept it if we actually sent this transaction id.
+        if !self.stun_pending.contains_key(&txid) {
+            log::trace!("WebRTC: STUN response from {source} with unknown txid — ignoring");
+            return true; // still STUN-server traffic, don't route to a peer.
+        }
+        // Consume the pending entry; we have our answer.
+        self.stun_pending.remove(&txid);
+
+        log::info!("WebRTC: learned server-reflexive address {mapped} (via STUN {source})");
+        crate::debug::push_debug(format!("WebRTC srflx = {mapped}"));
+
+        // First response wins. (Multiple STUN servers may reply; behind a
+        // well-behaved NAT they should agree. We don't try to detect symmetric
+        // NAT here — that's the TURN/inc-3b fallback's job.)
+        if self.srflx.is_none() {
+            self.srflx = Some(mapped);
+            // We're done gathering — drop any other outstanding requests so a
+            // late duplicate reply is just ignored.
+            self.stun_pending.clear();
+            // Add the srflx to every live peer and trickle it to each.
+            self.apply_srflx_to_all_peers(mapped);
+        }
+        true
+    }
+
+    /// Add the srflx candidate to every currently-live peer's `Rtc` and trickle
+    /// it to each as a `dc_ice` signal. Used when srflx is learned after peers
+    /// already exist.
+    fn apply_srflx_to_all_peers(&mut self, srflx: SocketAddr) {
+        // Snapshot keys so we can mutate self.peers / emit signals in the loop.
+        let keys: Vec<String> = self.peers.keys().cloned().collect();
+        for key in keys {
+            self.add_and_trickle_srflx(&key, srflx);
+        }
+    }
+
+    /// Add the srflx candidate to ONE peer's `Rtc` (if alive) and trickle the
+    /// candidate line to that peer. Safe to call more than once for the same
+    /// peer — str0m's `add_local_candidate` dedupes redundant candidates, and a
+    /// duplicate trickle is harmless (the far side's `addIceCandidate` /
+    /// `add_remote_candidate` also dedupes).
+    fn add_and_trickle_srflx(&mut self, peer_key: &str, srflx: SocketAddr) {
+        // Build the server-reflexive candidate: `addr` = our public srflx
+        // address from STUN, `base` = our local host socket address (the real
+        // socket the srflx is a NAT translation of). Both must be the same IP
+        // family — we resolved an IPv4 STUN server above so this holds.
+        let cand = match Candidate::server_reflexive(srflx, self.local_addr, Protocol::Udp) {
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!("WebRTC: bad srflx candidate {srflx} (base {}): {e}", self.local_addr);
+                return;
+            }
+        };
+
+        // Serialize to the SDP `candidate:...` line BEFORE moving it into
+        // add_local_candidate. str0m never emits added local candidates back to
+        // us (see the module docs), so we must trickle it ourselves.
+        let sdp_line = cand.to_sdp_string();
+
+        match self.peers.get_mut(peer_key) {
+            Some(p) if p.rtc.is_alive() => {
+                // add_local_candidate is a mutation, but the surrounding run
+                // loop always drains poll_output to Timeout afterward (step B),
+                // satisfying str0m's single-mutation invariant.
+                p.rtc.add_local_candidate(cand);
+            }
+            _ => {
+                // Peer gone or dead — don't trickle a candidate nobody's using.
+                return;
+            }
+        }
+
+        // Trickle the srflx to the far side as a dc_ice signal. We emit the
+        // browser-compatible OBJECT shape `{candidate, sdpMid, sdpMLineIndex}`
+        // (see emit_ice_candidate) so a browser peer's `addIceCandidate` accepts
+        // it; a native peer's `on_ice` accepts both the object and a bare line.
+        self.emit_ice_candidate(peer_key, &sdp_line);
+        log::debug!("WebRTC: trickled srflx candidate to {}", short(peer_key));
+    }
+
+    /// Emit a `dc_ice` signal carrying ONE local ICE candidate, in the
+    /// browser-compatible RTCIceCandidate object shape.
+    ///
+    /// # Why the object shape (not a bare SDP line)
+    ///
+    /// The browser side (`web/chat/chat-p2p.js::handleDCIce`) does
+    /// `pc.addIceCandidate(new RTCIceCandidate(JSON.parse(signal.data)))`. The
+    /// `RTCIceCandidate` constructor REQUIRES an object with a `candidate`
+    /// field, and the candidate must be tied to an m-line — passing a bare
+    /// string throws `TypeError`. So `data` must stringify to
+    /// `{"candidate":"candidate:...","sdpMid":"0","sdpMLineIndex":0}`.
+    ///
+    /// The **load-bearing** field is `sdpMLineIndex: 0`, NOT `sdpMid`. We have
+    /// exactly ONE m-line (the single data channel), so index 0 always resolves
+    /// to it on the receiving browser. str0m assigns the data-channel m-line a
+    /// random mid via `new_mid()` (not literally "0"), so a future reader must
+    /// NOT try to "fix" `sdpMid` to chase str0m's mid — the browser matches a
+    /// remote candidate by `sdpMLineIndex` when `sdpMid` doesn't match, and with
+    /// a single m-line index 0 is unambiguous. `sdpMid:"0"` is just a benign
+    /// placeholder. Native↔native is unaffected either way: our own `on_ice`
+    /// reads only the `.candidate` line and ignores both mid fields.
+    fn emit_ice_candidate(&self, to: &str, sdp_line: &str) {
+        // The candidate object the far side will JSON.parse. `data` itself is a
+        // JSON STRING per the signaling envelope contract (matching the web
+        // client's `JSON.stringify(candidate)`).
+        let cand_obj = serde_json::json!({
+            "candidate": sdp_line,
+            "sdpMid": "0",
+            "sdpMLineIndex": 0,
+        });
+        let data = cand_obj.to_string();
+        self.emit_signal(to, "dc_ice", data);
+    }
 }
 
 /// Result of draining one peer's poll_output.
@@ -889,5 +1235,302 @@ fn short(key: &str) -> String {
         format!("{}…", &key[..12])
     } else {
         key.to_string()
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  inc-3a — Minimal STUN (RFC 5389) Binding client
+// ════════════════════════════════════════════════════════════════════════
+//
+// We hand-roll JUST the Binding request/response we need to learn our
+// server-reflexive (public) address — no external STUN crate, no auth, no
+// other message types. This is deliberately tiny (~a request builder + a
+// response parser for ONE attribute). The protocol surface:
+//
+//   STUN message header (20 bytes, RFC 5389 §6):
+//     0                   1                   2                   3
+//     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |0 0|     STUN Message Type      |         Message Length        |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |                         Magic Cookie  (0x2112A442)            |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |                     Transaction ID (96 bits / 12 bytes)       |
+//    |                                                               |
+//    |                                                               |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//
+//   Binding Request message type = 0x0001; Binding Success Response = 0x0101.
+//   Magic cookie = 0x2112A442 (fixed). Our request carries NO attributes, so
+//   Message Length = 0 — a STUN server replies with our mapped address anyway.
+//
+//   XOR-MAPPED-ADDRESS attribute (type 0x0020, RFC 5389 §15.2), IPv4 form:
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |  attr type 0x0020 (2 bytes)   |   attr length 0x0008 (2 bytes)|
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |  0x00 (reserved)  |  family   |        X-Port (XOR'd)         |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |              X-Address (XOR'd, 4 bytes for IPv4)              |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   family = 0x01 (IPv4) / 0x02 (IPv6).
+//   X-Port    = real port    XOR  high 16 bits of the magic cookie (0x2112).
+//   X-Address = real address XOR  the magic cookie (0x2112A442), big-endian.
+//   (We only parse IPv4 here; our local socket binds 0.0.0.0 → IPv4 base.)
+mod stun {
+    use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+
+    /// The fixed STUN magic cookie (RFC 5389 §6), big-endian.
+    pub const MAGIC_COOKIE: u32 = 0x2112_A442;
+    /// STUN message type: Binding Request.
+    const TYPE_BINDING_REQUEST: u16 = 0x0001;
+    /// STUN message type: Binding Success Response.
+    const TYPE_BINDING_RESPONSE: u16 = 0x0101;
+    /// Attribute type: XOR-MAPPED-ADDRESS.
+    const ATTR_XOR_MAPPED_ADDRESS: u16 = 0x0020;
+    /// Attribute type: MAPPED-ADDRESS (legacy, non-XOR; some servers also send).
+    const ATTR_MAPPED_ADDRESS: u16 = 0x0001;
+
+    /// Generate a random 96-bit (12-byte) STUN transaction id.
+    ///
+    /// Uses the crate's existing `rand` 0.9 dependency (the same
+    /// `rand::rng().fill_bytes(..)` idiom as `group_e2ee.rs` / `api_v2.rs`),
+    /// rather than a new RNG crate. The transaction id only needs to be
+    /// unguessable enough that a response is matched to its request — it's not
+    /// cryptographically load-bearing.
+    pub fn random_transaction_id() -> [u8; 12] {
+        use rand::RngCore;
+        let mut id = [0u8; 12];
+        rand::rng().fill_bytes(&mut id);
+        id
+    }
+
+    /// Build a 20-byte STUN Binding Request with the given transaction id and
+    /// NO attributes (message length 0).
+    ///
+    /// Layout: type(2) | length(2) | magic(4) | txid(12).
+    pub fn build_binding_request(txid: &[u8; 12]) -> [u8; 20] {
+        let mut msg = [0u8; 20];
+        // Message type (Binding Request), big-endian.
+        msg[0..2].copy_from_slice(&TYPE_BINDING_REQUEST.to_be_bytes());
+        // Message length = 0 (no attributes), big-endian.
+        msg[2..4].copy_from_slice(&0u16.to_be_bytes());
+        // Magic cookie, big-endian.
+        msg[4..8].copy_from_slice(&MAGIC_COOKIE.to_be_bytes());
+        // Transaction id (12 bytes).
+        msg[8..20].copy_from_slice(txid);
+        msg
+    }
+
+    /// Parse a datagram as a STUN Binding Success Response and extract the
+    /// transaction id + the mapped (server-reflexive) address.
+    ///
+    /// Returns `Some((txid, addr))` if the datagram is a well-formed Binding
+    /// Response carrying an (XOR-)MAPPED-ADDRESS, else `None`. We accept
+    /// XOR-MAPPED-ADDRESS (modern, mandatory) and fall back to legacy
+    /// MAPPED-ADDRESS if that's all a server sends.
+    pub fn parse_binding_response(buf: &[u8]) -> Option<([u8; 12], SocketAddr)> {
+        // Need at least the 20-byte header.
+        if buf.len() < 20 {
+            return None;
+        }
+        let msg_type = u16::from_be_bytes([buf[0], buf[1]]);
+        if msg_type != TYPE_BINDING_RESPONSE {
+            return None;
+        }
+        // Validate the magic cookie — guards against random UDP junk.
+        let cookie = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]);
+        if cookie != MAGIC_COOKIE {
+            return None;
+        }
+        let msg_len = u16::from_be_bytes([buf[2], buf[3]]) as usize;
+        // The attributes region is `msg_len` bytes after the 20-byte header.
+        if buf.len() < 20 + msg_len {
+            return None;
+        }
+        let mut txid = [0u8; 12];
+        txid.copy_from_slice(&buf[8..20]);
+
+        // Walk the TLV attributes. Each attribute is: type(2) | length(2) |
+        // value(length) | padding to a 4-byte boundary.
+        let attrs = &buf[20..20 + msg_len];
+        let mut off = 0usize;
+        while off + 4 <= attrs.len() {
+            let atype = u16::from_be_bytes([attrs[off], attrs[off + 1]]);
+            let alen = u16::from_be_bytes([attrs[off + 2], attrs[off + 3]]) as usize;
+            let vstart = off + 4;
+            if vstart + alen > attrs.len() {
+                break; // truncated/malformed attribute — stop.
+            }
+            let value = &attrs[vstart..vstart + alen];
+
+            match atype {
+                ATTR_XOR_MAPPED_ADDRESS => {
+                    if let Some(addr) = parse_xor_mapped_address(value) {
+                        return Some((txid, addr));
+                    }
+                }
+                ATTR_MAPPED_ADDRESS => {
+                    if let Some(addr) = parse_mapped_address(value) {
+                        return Some((txid, addr));
+                    }
+                }
+                _ => { /* ignore other attributes (SOFTWARE, etc.) */ }
+            }
+
+            // Advance past value + 4-byte-boundary padding.
+            let padded = (alen + 3) & !3;
+            off = vstart + padded;
+        }
+        None
+    }
+
+    /// Decode an XOR-MAPPED-ADDRESS attribute value (IPv4 only).
+    ///
+    /// Value layout: reserved(1) | family(1) | x_port(2) | x_address(4).
+    /// x_port    = port XOR (high 16 bits of magic cookie) = port XOR 0x2112.
+    /// x_address = address XOR magic cookie (big-endian).
+    fn parse_xor_mapped_address(value: &[u8]) -> Option<SocketAddr> {
+        // 1 reserved + 1 family + 2 port + 4 addr = 8 bytes for IPv4.
+        if value.len() < 8 {
+            return None;
+        }
+        let family = value[1];
+        if family != 0x01 {
+            // 0x02 = IPv6; we only handle IPv4 srflx in inc-3a (our socket base
+            // is IPv4). An IPv6 mapped address is ignored.
+            return None;
+        }
+        // X-Port XOR with the top 16 bits of the magic cookie.
+        let x_port = u16::from_be_bytes([value[2], value[3]]);
+        let port = x_port ^ ((MAGIC_COOKIE >> 16) as u16);
+        // X-Address XOR with the full 32-bit magic cookie (big-endian).
+        let x_addr = u32::from_be_bytes([value[4], value[5], value[6], value[7]]);
+        let addr = x_addr ^ MAGIC_COOKIE;
+        let ip = Ipv4Addr::from(addr);
+        Some(SocketAddr::V4(SocketAddrV4::new(ip, port)))
+    }
+
+    /// Decode a legacy (non-XOR) MAPPED-ADDRESS attribute value (IPv4 only).
+    /// Value layout: reserved(1) | family(1) | port(2) | address(4), no XOR.
+    fn parse_mapped_address(value: &[u8]) -> Option<SocketAddr> {
+        if value.len() < 8 {
+            return None;
+        }
+        if value[1] != 0x01 {
+            return None; // IPv4 only
+        }
+        let port = u16::from_be_bytes([value[2], value[3]]);
+        let addr = u32::from_be_bytes([value[4], value[5], value[6], value[7]]);
+        let ip = Ipv4Addr::from(addr);
+        Some(SocketAddr::V4(SocketAddrV4::new(ip, port)))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use std::net::SocketAddr;
+
+        /// RFC 5769 §2.1 "Sample Request" transaction id.
+        const RFC5769_TXID: [u8; 12] = [
+            0xb7, 0xe7, 0xa7, 0x01, 0xbc, 0x34, 0xd6, 0x86, 0xfa, 0x87, 0xdf, 0xae,
+        ];
+
+        /// Known-answer test: our Binding Request builder must emit the exact
+        /// header bytes of the RFC 5769 §2.1 sample request (type, length=0,
+        /// magic cookie, transaction id). The RFC's full sample additionally
+        /// carries SOFTWARE/USERNAME/etc. attributes; we send an attribute-less
+        /// request (length 0), so we assert the 20-byte header is byte-correct.
+        #[test]
+        fn binding_request_header_is_rfc5769_correct() {
+            let req = build_binding_request(&RFC5769_TXID);
+            assert_eq!(req.len(), 20, "header is exactly 20 bytes");
+            // Type = Binding Request = 0x0001.
+            assert_eq!(&req[0..2], &[0x00, 0x01], "message type = Binding Request");
+            // Length = 0 (no attributes).
+            assert_eq!(&req[2..4], &[0x00, 0x00], "message length = 0");
+            // Magic cookie = 0x2112A442.
+            assert_eq!(&req[4..8], &[0x21, 0x12, 0xa4, 0x42], "magic cookie");
+            // Transaction id matches the RFC sample.
+            assert_eq!(&req[8..20], &RFC5769_TXID, "transaction id");
+        }
+
+        /// Known-answer test: parse the RFC 5769 §2.2 "Sample IPv4 Response"
+        /// XOR-MAPPED-ADDRESS attribute and confirm it decodes to 192.0.2.1:32853.
+        ///
+        /// We construct a minimal valid Binding Response: the 20-byte header
+        /// (type 0x0101, msg-len = 12 = one 8-byte XOR-MAPPED-ADDRESS value +
+        /// its 4-byte TLV header, magic cookie, the RFC txid) followed by the
+        /// exact attribute bytes from RFC 5769 §2.2:
+        ///   00 20 00 08 00 01 a1 47 e1 12 a6 43
+        /// where 0x0020 = XOR-MAPPED-ADDRESS, 0x0008 = value length, 0x00 =
+        /// reserved, 0x01 = IPv4, 0xa147 = X-Port, 0xe112a643 = X-Address.
+        ///   X-Port    0xa147 ^ 0x2112      = 0x8055 = 32853
+        ///   X-Address 0xe112a643 ^ 0x2112a442 = 0xc0000201 = 192.0.2.1
+        #[test]
+        fn parse_rfc5769_xor_mapped_address() {
+            let mut msg = Vec::new();
+            // Header.
+            msg.extend_from_slice(&TYPE_BINDING_RESPONSE.to_be_bytes()); // 0x0101
+            msg.extend_from_slice(&12u16.to_be_bytes()); // msg length = 12
+            msg.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
+            msg.extend_from_slice(&RFC5769_TXID);
+            // XOR-MAPPED-ADDRESS attribute (RFC 5769 §2.2 exact bytes).
+            msg.extend_from_slice(&[
+                0x00, 0x20, // attr type = XOR-MAPPED-ADDRESS
+                0x00, 0x08, // attr length = 8
+                0x00, // reserved
+                0x01, // family = IPv4
+                0xa1, 0x47, // X-Port
+                0xe1, 0x12, 0xa6, 0x43, // X-Address
+            ]);
+
+            let (txid, addr) = parse_binding_response(&msg)
+                .expect("RFC 5769 §2.2 response must parse");
+            assert_eq!(txid, RFC5769_TXID, "transaction id round-trips");
+            let expected: SocketAddr = "192.0.2.1:32853".parse().unwrap();
+            assert_eq!(addr, expected, "XOR-MAPPED-ADDRESS decodes to 192.0.2.1:32853");
+        }
+
+        /// A full build→parse round-trip with an arbitrary address proves the
+        /// XOR encode/decode is self-consistent (encode here, decode via the
+        /// production parser).
+        #[test]
+        fn build_then_parse_roundtrip() {
+            let txid = random_transaction_id();
+            // Craft a response carrying a XOR-MAPPED-ADDRESS for 203.0.113.7:54321.
+            let real_ip: u32 = u32::from(std::net::Ipv4Addr::new(203, 0, 113, 7));
+            let real_port: u16 = 54321;
+            let x_addr = real_ip ^ MAGIC_COOKIE;
+            let x_port = real_port ^ ((MAGIC_COOKIE >> 16) as u16);
+
+            let mut msg = Vec::new();
+            msg.extend_from_slice(&TYPE_BINDING_RESPONSE.to_be_bytes());
+            msg.extend_from_slice(&12u16.to_be_bytes());
+            msg.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
+            msg.extend_from_slice(&txid);
+            msg.extend_from_slice(&[0x00, 0x20, 0x00, 0x08, 0x00, 0x01]);
+            msg.extend_from_slice(&x_port.to_be_bytes());
+            msg.extend_from_slice(&x_addr.to_be_bytes());
+
+            let (got_txid, addr) = parse_binding_response(&msg).expect("must parse");
+            assert_eq!(got_txid, txid);
+            assert_eq!(addr, "203.0.113.7:54321".parse::<SocketAddr>().unwrap());
+        }
+
+        /// Non-STUN junk and wrong message types must be rejected (return None),
+        /// so we never mistake a peer datagram for a STUN reply.
+        #[test]
+        fn rejects_non_stun_and_wrong_type() {
+            // Too short.
+            assert!(parse_binding_response(&[0u8; 4]).is_none());
+            // Right length, wrong magic cookie.
+            let mut bad = [0u8; 20];
+            bad[0..2].copy_from_slice(&TYPE_BINDING_RESPONSE.to_be_bytes());
+            bad[4..8].copy_from_slice(&0xDEAD_BEEFu32.to_be_bytes());
+            assert!(parse_binding_response(&bad).is_none(), "bad magic cookie rejected");
+            // A Binding *Request* (0x0001), not a response — must be ignored.
+            let req = build_binding_request(&RFC5769_TXID);
+            assert!(parse_binding_response(&req).is_none(), "request is not a response");
+        }
     }
 }

@@ -11,6 +11,14 @@
       "category": "p2p-groups"
     },
     {
+      "id": "v0319-native-p2p-cross-nat",
+      "version": "0.319.0",
+      "feature": "Native P2P across different networks (STUN srflx, increment 3a)",
+      "what_to_test": "Run two native instances on TWO DIFFERENT networks (e.g. one on home wifi, one on a phone hotspot / a different ISP — NOT the same LAN). Both join the same P2P group, both open it. Send a message.",
+      "expected": "The message still arrives near-instantly (P2P), now that each side discovers its public address via STUN and trickles it. If it only updates on the poll cadence, the cross-NAT hole-punch failed — that's the symmetric-NAT case TURN (increment 3b) will cover; report the F12 / debug-console srflx lines either way.",
+      "category": "p2p-groups"
+    },
+    {
       "id": "v0318-native-web-p2p-interop",
       "version": "0.318.0",
       "feature": "Native ↔ web P2P group interop (same machine / LAN)",
