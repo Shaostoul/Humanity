@@ -205,7 +205,8 @@ impl Storage {
 
     /// Fetch a signed object by its hex `object_id`.
     pub fn get_signed_object(&self, object_id: &str) -> Result<Option<SignedObjectRecord>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only single-row lookup. Read pool.
+        self.with_read_conn(|conn| {
             conn.query_row(
                 "SELECT object_id, protocol_version, object_type, space_id, channel_id,
                         author_fp, author_pubkey, created_at, payload_schema_version,
@@ -265,7 +266,9 @@ impl Storage {
         sql.push_str(" ORDER BY received_at DESC LIMIT ?");
         params.push(Box::new(limit as i64));
 
-        self.with_conn(|conn| {
+        // Read-only: dynamic SELECT with bound filters, query_map + collect.
+        // Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(&sql)?;
             let param_refs: Vec<&dyn rusqlite::ToSql> =
                 params.iter().map(|b| b.as_ref()).collect();
@@ -278,7 +281,8 @@ impl Storage {
 
     /// Count signed objects of a given type (or all if `object_type` is None).
     pub fn count_signed_objects(&self, object_type: Option<&str>) -> Result<u64, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only COUNT. Read pool.
+        self.with_read_conn(|conn| {
             let count: i64 = if let Some(t) = object_type {
                 conn.query_row(
                     "SELECT COUNT(*) FROM signed_objects WHERE object_type = ?1",

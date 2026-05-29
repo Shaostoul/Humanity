@@ -47,7 +47,9 @@ impl Storage {
         key2: &str,
         limit: usize,
     ) -> Result<Vec<DmRecord>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: pure SELECT/query_map. Routed to the read pool so
+        // concurrent DM history loads don't serialize on the writer mutex.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT from_key, from_name, to_key, content, timestamp, COALESCE(encrypted, 0), nonce FROM (
                     SELECT from_key, from_name, to_key, content, timestamp, encrypted, nonce FROM direct_messages
@@ -78,7 +80,9 @@ impl Storage {
         name2: &str,
         limit: usize,
     ) -> Result<Vec<DmRecord>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: pure SELECT/query_map across direct_messages + a
+        // registered_names subquery. Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT from_key, from_name, to_key, content, timestamp, COALESCE(encrypted, 0), nonce FROM (
                     SELECT from_key, from_name, to_key, content, timestamp, encrypted, nonce FROM direct_messages
@@ -108,7 +112,11 @@ impl Storage {
     /// List all DM conversations for a user, with last message preview and unread count.
     /// Resolves by name: finds ALL keys for the user's name and aggregates conversations by partner name.
     pub fn get_dm_conversations(&self, my_key: &str) -> Result<Vec<DmConversation>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: a chain of SELECT/query_row/query_map calls that build the
+        // conversation summary in memory (no INSERT/UPDATE/DELETE anywhere in
+        // the closure). This is one of the hottest reads — a client opening chat
+        // pulls its whole DM sidebar here — so it benefits most from the pool.
+        self.with_read_conn(|conn| {
             // Look up my name from my key.
             let my_name: Option<String> = conn.query_row(
                 "SELECT name FROM registered_names WHERE public_key = ?1 LIMIT 1",
@@ -255,7 +263,8 @@ impl Storage {
 
     /// Look up the name for a public key.
     pub fn name_for_key(&self, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only single-row lookup. Read pool.
+        self.with_read_conn(|conn| {
             match conn.query_row(
                 "SELECT name FROM registered_names WHERE public_key = ?1 LIMIT 1",
                 params![public_key],
@@ -290,7 +299,8 @@ impl Storage {
 
     /// Get the Kyber768 public key (base64) for a Dilithium identity.
     pub fn get_kyber_public(&self, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only single-row lookup (DM key fetch before sealing). Read pool.
+        self.with_read_conn(|conn| {
             match conn.query_row(
                 "SELECT kyber_public FROM registered_names WHERE public_key = ?1 AND kyber_public IS NOT NULL LIMIT 1",
                 params![public_key],

@@ -40,7 +40,8 @@ impl Storage {
 
     /// Load recent messages (most recent `limit`, ordered oldest first).
     pub fn load_recent_messages(&self, limit: usize) -> Result<Vec<RelayMessage>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map. Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT raw_json FROM (
                     SELECT raw_json, id FROM messages
@@ -64,7 +65,8 @@ impl Storage {
 
     /// Load messages after a given row ID (for API polling).
     pub fn load_messages_after(&self, after_id: i64, limit: usize) -> Result<(Vec<RelayMessage>, i64), rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map (API polling cursor). Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, raw_json FROM messages
                  WHERE id > ?1 AND msg_type = 'chat'
@@ -98,7 +100,8 @@ impl Storage {
 
     /// Get the current max message ID (for cursor).
     pub fn max_message_id(&self) -> Result<i64, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only MAX (cursor). Read pool.
+        self.with_read_conn(|conn| {
             conn.query_row(
                 "SELECT COALESCE(MAX(id), 0) FROM messages",
                 [],
@@ -125,7 +128,8 @@ impl Storage {
     /// Returns: Ok(None) if name is free, Ok(Some(true)) if key is authorized,
     /// Ok(Some(false)) if name is taken by other keys.
     pub fn check_name(&self, name: &str, public_key: &str) -> Result<Option<bool>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: two COUNT lookups (name availability check). Read pool.
+        self.with_read_conn(|conn| {
             let count: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM registered_names WHERE name = ?1 COLLATE NOCASE",
                 params![name],
@@ -170,7 +174,8 @@ impl Storage {
     /// EARLIEST registration is the right "first seen as a participant"
     /// signal.
     pub fn first_registered_at_for_key(&self, public_key: &str) -> Result<Option<i64>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only MIN aggregate (anti-spam time-gate). Read pool.
+        self.with_read_conn(|conn| {
             // MIN(...) returns NULL when there are no rows, which we
             // surface as Ok(None) — query_row would otherwise complain
             // about NoRows for an empty SELECT. Wrapping the value in
@@ -189,7 +194,8 @@ impl Storage {
     /// needs the boolean. v0.280.0: anti-spam gate for new-identity-per-IP
     /// uses this to decide whether to count this identify as "novel".
     pub fn pubkey_is_registered(&self, public_key: &str) -> Result<bool, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only COUNT (anti-spam novelty check). Read pool.
+        self.with_read_conn(|conn| {
             let count: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM registered_names WHERE public_key = ?1",
                 params![public_key],

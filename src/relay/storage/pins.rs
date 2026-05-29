@@ -54,7 +54,8 @@ impl Storage {
 
     /// Get all pinned messages for a channel, ordered by pinned_at ASC.
     pub fn get_pinned_messages(&self, channel: &str) -> Result<Vec<PinnedMessageRecord>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map. Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT channel, from_key, from_name, content, original_timestamp, pinned_by, pinned_at
                  FROM pinned_messages
@@ -78,7 +79,8 @@ impl Storage {
 
     /// Search messages by content, optionally filtered by channel.
     pub fn search_messages(&self, query: &str, channel: Option<&str>, limit: usize) -> Result<Vec<(i64, String, crate::relay::relay::RelayMessage)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map (both branches). Read pool.
+        self.with_read_conn(|conn| {
             let limit = limit.min(50);
             if let Some(ch) = channel {
                 let mut stmt = conn.prepare(
@@ -116,7 +118,9 @@ impl Storage {
     /// Supports native FTS5 syntax (boolean AND/OR/NOT, "phrases", prefix*).
     /// Also searches DMs if channel is None.
     pub fn search_messages_full(&self, query: &str, channel: Option<&str>, from_name: Option<&str>, limit: usize, requester_key: &str) -> Result<Vec<(i64, String, crate::relay::relay::RelayMessage)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: FTS5 MATCH (with LIKE fallback) + a DM SELECT, then an
+        // in-memory merge/sort. No writes anywhere in the closure. Read pool.
+        self.with_read_conn(|conn| {
             let limit = limit.min(100);
 
             // Build FTS5 query: support native syntax (boolean AND/OR/NOT, "phrases",
@@ -319,7 +323,10 @@ impl Storage {
 
     /// Load user status. Returns (status, status_text) or None.
     pub fn load_user_status(&self, name: &str) -> Result<Option<(String, String)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only single-row lookup. The user_status table is created in
+        // Storage::open migrations, so the read-only pooled connection sees it;
+        // the closure also folds any error to Ok(None) by existing design. Read pool.
+        self.with_read_conn(|conn| {
             // Table might not exist yet.
             match conn.query_row(
                 "SELECT status, status_text FROM user_status WHERE name = ?1 COLLATE NOCASE",
@@ -345,7 +352,8 @@ impl Storage {
 
     /// Get the count of pinned messages in a channel.
     pub fn get_pinned_count(&self, channel: &str) -> Result<i64, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only COUNT. Read pool.
+        self.with_read_conn(|conn| {
             conn.query_row(
                 "SELECT COUNT(*) FROM pinned_messages WHERE channel = ?1",
                 params![channel],
@@ -356,7 +364,8 @@ impl Storage {
 
     /// Get the last chat message in a channel (for /pin command).
     pub fn get_last_message_in_channel(&self, channel: &str) -> Result<Option<(String, String, String, u64)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only single-row lookup (/pin command). Read pool.
+        self.with_read_conn(|conn| {
             match conn.query_row(
                 "SELECT from_key, from_name, content, timestamp FROM messages
                  WHERE channel_id = ?1 AND msg_type = 'chat'
@@ -378,7 +387,8 @@ impl Storage {
 
     /// Get the timestamp of a user's last message in a specific channel.
     pub fn get_last_user_message_timestamp(&self, from_key: &str, channel_id: &str) -> Result<Option<u64>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only single-row lookup (per-user rate/slow-mode check). Read pool.
+        self.with_read_conn(|conn| {
             match conn.query_row(
                 "SELECT timestamp FROM messages WHERE from_key = ?1 AND channel_id = ?2 AND msg_type = 'chat' ORDER BY id DESC LIMIT 1",
                 params![from_key, channel_id],
@@ -394,7 +404,9 @@ impl Storage {
     /// List all registered users with their first public key.
     /// Returns Vec<(name, first_key, role, key_count)> sorted alphabetically.
     pub fn list_all_users_with_keys(&self) -> Result<Vec<(String, String, String, usize)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + in-memory grouping (drives broadcast_full_user_list,
+        // the sidebar). No writes. Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT rn.name, rn.public_key, COALESCE(ur.role, '') as role
                  FROM registered_names rn

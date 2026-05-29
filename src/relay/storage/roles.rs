@@ -106,7 +106,8 @@ impl Storage {
 
     /// All roles, ordered by sort_order then trust_level.
     pub fn list_roles(&self) -> Result<Vec<RoleDef>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map (role list broadcast). Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept
                  FROM roles ORDER BY sort_order ASC, trust_level ASC",

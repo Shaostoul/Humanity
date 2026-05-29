@@ -102,7 +102,8 @@ impl Storage {
 
     /// List all channels (id, name, description, read_only, category_id).
     pub fn list_channels(&self) -> Result<Vec<(String, String, Option<String>, bool)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map. Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare("SELECT id, name, description, COALESCE(read_only, 0) FROM channels ORDER BY COALESCE(position, 100) ASC, created_at ASC")?;
             let channels = stmt.query_map([], |row| {
                 let ro: i32 = row.get(3)?;
@@ -114,7 +115,8 @@ impl Storage {
 
     /// List all channels with category info.
     pub fn list_channels_with_categories(&self) -> Result<Vec<(String, String, Option<String>, bool, Option<i64>)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map. Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare("SELECT id, name, description, COALESCE(read_only, 0), category_id FROM channels ORDER BY COALESCE(position, 100) ASC, created_at ASC")?;
             let channels = stmt.query_map([], |row| {
                 let ro: i32 = row.get(3)?;
@@ -129,7 +131,8 @@ impl Storage {
     /// the persisted voice toggle. Tuple shape is
     /// `(id, name, description, read_only, category_id, voice_enabled)`.
     pub fn list_channels_with_categories_and_voice(&self) -> Result<Vec<(String, String, Option<String>, bool, Option<i64>, bool)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map (drives build_channel_list). Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, name, description, COALESCE(read_only, 0), category_id, COALESCE(voice_enabled, 1)
                  FROM channels
@@ -182,7 +185,8 @@ impl Storage {
 
     /// Check if a channel exists.
     pub fn channel_exists(&self, id: &str) -> Result<bool, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only existence check. Read pool.
+        self.with_read_conn(|conn| {
             match conn.query_row(
                 "SELECT 1 FROM channels WHERE id = ?1",
                 params![id],
@@ -196,7 +200,8 @@ impl Storage {
     }
 
     pub fn is_channel_read_only(&self, id: &str) -> Result<bool, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only flag lookup (checked on every chat send). Read pool.
+        self.with_read_conn(|conn| {
             match conn.query_row(
                 "SELECT COALESCE(read_only, 0) FROM channels WHERE id = ?1",
                 params![id],
@@ -267,7 +272,8 @@ impl Storage {
     /// Get all replies to a specific message (identified by from_key + timestamp).
     /// Returns Vec<(from_key, from_name, content, timestamp, channel_id)>.
     pub fn get_thread(&self, from_key: &str, timestamp: u64, limit: usize) -> Result<Vec<(String, String, String, u64, String)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map. Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT from_key, COALESCE(from_name, ''), content, timestamp, COALESCE(channel_id, 'general')
                  FROM messages
@@ -290,7 +296,8 @@ impl Storage {
 
     /// Count replies to a specific message.
     pub fn get_thread_count(&self, from_key: &str, timestamp: u64) -> Result<u32, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only COUNT. Read pool.
+        self.with_read_conn(|conn| {
             let count: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM messages WHERE reply_to_from = ?1 AND reply_to_timestamp = ?2 AND msg_type = 'chat'",
                 params![from_key, timestamp as i64],
@@ -302,7 +309,9 @@ impl Storage {
 
     /// Load messages for a specific channel.
     pub fn load_channel_messages(&self, channel_id: &str, limit: usize) -> Result<Vec<crate::relay::relay::RelayMessage>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map (channel history, painted on channel
+        // switch). Hot read; use the pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id, raw_json FROM (
                     SELECT raw_json, id FROM messages
@@ -329,7 +338,8 @@ impl Storage {
     /// When after_id == 0 (initial load), returns the most recent `limit` messages
     /// ordered oldest-first so the client can display them chronologically.
     pub fn load_channel_messages_after(&self, channel_id: &str, after_id: i64, limit: usize) -> Result<(Vec<crate::relay::relay::RelayMessage>, i64), rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map (API polling cursor). Read pool.
+        self.with_read_conn(|conn| {
             // Initial load: get the most recent N, then reverse to oldest-first for display.
             // Polling (after_id > 0): get everything after the cursor, oldest-first.
             let sql = if after_id == 0 {
@@ -398,7 +408,8 @@ impl Storage {
 
     /// Get all public keys registered to a name.
     pub fn keys_for_name(&self, name: &str) -> Result<Vec<String>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map. Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT public_key FROM registered_names WHERE name = ?1 COLLATE NOCASE"
             )?;
@@ -411,7 +422,8 @@ impl Storage {
 
     /// Get all keys for a name with their labels and registration dates.
     pub fn keys_for_name_detailed(&self, name: &str) -> Result<Vec<(String, Option<String>, i64)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map. Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT public_key, label, registered_at FROM registered_names WHERE name = ?1 COLLATE NOCASE ORDER BY registered_at"
             )?;
@@ -437,7 +449,8 @@ impl Storage {
     /// List all registered names with their highest role.
     /// Returns Vec<(name, role, key_count)> sorted alphabetically.
     pub fn list_all_users(&self) -> Result<Vec<(String, String, usize)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + in-memory grouping (no writes). Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT rn.name, rn.public_key, COALESCE(ur.role, '') as role
                  FROM registered_names rn
@@ -478,7 +491,9 @@ impl Storage {
 
     /// Get the role for a public key (returns "" if no role set).
     pub fn get_role(&self, public_key: &str) -> Result<String, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only single-row lookup (checked frequently for capability
+        // gating). Read pool.
+        self.with_read_conn(|conn| {
             match conn.query_row(
                 "SELECT role FROM user_roles WHERE public_key = ?1",
                 params![public_key],
@@ -505,7 +520,8 @@ impl Storage {
 
     /// Check if a public key is banned.
     pub fn is_banned(&self, public_key: &str) -> Result<bool, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only COUNT (checked on identify/chat). Read pool.
+        self.with_read_conn(|conn| {
             let count: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM banned_keys WHERE public_key = ?1",
                 params![public_key],
@@ -555,7 +571,8 @@ impl Storage {
     /// Every currently-banned user, newest ban first. Drives the
     /// server-settings "Banned users" admin panel.
     pub fn list_banned(&self) -> Result<Vec<BannedUser>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map (admin panel). Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT public_key, name, banned_at FROM banned_keys
                  ORDER BY banned_at DESC",
@@ -592,7 +609,8 @@ impl Storage {
     /// cover the legacy role='muted' case — the relay's Chat handler
     /// checks both so old-style mutes keep working until unmuted.
     pub fn is_muted(&self, public_key: &str) -> Result<bool, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only COUNT (checked on chat send). Read pool.
+        self.with_read_conn(|conn| {
             let count: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM muted_members WHERE public_key = ?1",
                 params![public_key],
@@ -651,7 +669,8 @@ impl Storage {
     /// Every currently-muted user (table-based), newest first. Drives
     /// the server-settings "Muted users" panel.
     pub fn list_muted(&self) -> Result<Vec<MutedUser>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map (mod panel). Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT public_key, name, muted_at FROM muted_members
                  ORDER BY muted_at DESC",
@@ -783,7 +802,8 @@ impl Storage {
 
     /// Get total message count.
     pub fn message_count(&self) -> Result<i64, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only COUNT (stats). Read pool.
+        self.with_read_conn(|conn| {
             conn.query_row(
                 "SELECT COUNT(*) FROM messages WHERE msg_type = 'chat'",
                 [],
@@ -794,7 +814,8 @@ impl Storage {
 
     /// Get message count within the last N hours.
     pub fn message_count_since_hours(&self, hours: u64) -> Result<i64, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only COUNT (stats). Read pool.
+        self.with_read_conn(|conn| {
             let cutoff_ms = super::now_millis().saturating_sub(hours * 3600 * 1000) as i64;
             conn.query_row(
                 "SELECT COUNT(*) FROM messages WHERE msg_type = 'chat' AND timestamp > ?1",
@@ -806,7 +827,8 @@ impl Storage {
 
     /// Get top N channels by message count.
     pub fn top_channels_by_messages(&self, limit: usize) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: GROUP BY aggregate (stats). Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT channel, COUNT(*) as cnt FROM messages
                  WHERE msg_type = 'chat' AND channel IS NOT NULL
@@ -823,7 +845,8 @@ impl Storage {
 
     /// Get message counts per hour for the last 24 hours.
     pub fn messages_per_hour_24h(&self) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: GROUP BY aggregate (stats). Read pool.
+        self.with_read_conn(|conn| {
             let now_ms = super::now_millis() as i64;
             let cutoff_ms = now_ms - 24 * 3600 * 1000;
             let mut stmt = conn.prepare(

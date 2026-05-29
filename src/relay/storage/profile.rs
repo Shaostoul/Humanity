@@ -28,7 +28,8 @@ impl Storage {
 
     /// Get a user's profile. Returns (bio, socials) or None.
     pub fn get_profile(&self, name: &str) -> Result<Option<(String, String)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only single-row lookup. Read pool.
+        self.with_read_conn(|conn| {
             match conn.query_row(
                 "SELECT bio, socials FROM profiles WHERE name = ?1 COLLATE NOCASE",
                 params![name],
@@ -43,7 +44,8 @@ impl Storage {
 
     /// Bulk fetch profiles for a list of names.
     pub fn get_profiles_batch(&self, names: &[String]) -> Result<HashMap<String, (String, String)>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: prepared SELECT looped per name (no writes). Read pool.
+        self.with_read_conn(|conn| {
             let mut result = HashMap::new();
             // SQLite doesn't support array params, so we query one at a time.
             // For typical user counts (<1000) this is fine.
@@ -106,7 +108,8 @@ impl Storage {
         name: &str,
     ) -> Result<Option<(String, String, String, String, String, String, String, String)>, rusqlite::Error> {
         // Returns (bio, socials, avatar_url, banner_url, pronouns, location, website, privacy).
-        self.with_conn(|conn| {
+        // Read-only single-row lookup. Read pool.
+        self.with_read_conn(|conn| {
             match conn.query_row(
                 "SELECT bio, socials, avatar_url, banner_url, pronouns, location, website, privacy
                  FROM profiles WHERE name = ?1 COLLATE NOCASE",

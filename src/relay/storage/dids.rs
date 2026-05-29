@@ -35,7 +35,9 @@ impl Storage {
     pub fn resolve_did_fp(&self, fp: &Fingerprint) -> Result<Option<DidResolution>, rusqlite::Error> {
         let fp_hex = crate::relay::core::did::fingerprint_to_hex(fp);
 
-        self.with_conn(|conn| {
+        // Read-only: single aggregate query_row over signed_objects (DID →
+        // current pubkey resolution, a signature-verification hot path). Read pool.
+        self.with_read_conn(|conn| {
             // Pull pubkey + first/last seen + count in a single pass.
             let row = conn
                 .query_row(

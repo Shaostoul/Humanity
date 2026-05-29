@@ -78,7 +78,8 @@ impl Storage {
 
     /// Get a signed profile by public key.
     pub fn get_signed_profile(&self, public_key: &str) -> Result<Option<SignedProfileRecord>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only single-row lookup. Read pool.
+        self.with_read_conn(|conn| {
             conn.query_row(
                 "SELECT public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature
                  FROM signed_profiles WHERE public_key = ?1",
@@ -106,7 +107,8 @@ impl Storage {
     /// Get all signed profiles updated since a given timestamp.
     /// Used for bulk gossip to newly connected federated servers.
     pub fn get_profiles_since(&self, since_timestamp: u64) -> Result<Vec<SignedProfileRecord>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map (bulk gossip to federated peers). Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature
                  FROM signed_profiles WHERE timestamp > ?1 ORDER BY timestamp ASC LIMIT 1000",
@@ -132,7 +134,8 @@ impl Storage {
 
     /// Count total signed profiles cached on this server.
     pub fn count_signed_profiles(&self) -> Result<i64, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only COUNT. Read pool.
+        self.with_read_conn(|conn| {
             conn.query_row("SELECT COUNT(*) FROM signed_profiles", [], |row| row.get(0))
         })
     }

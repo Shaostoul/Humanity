@@ -45,7 +45,8 @@ impl Storage {
 
     /// Load reactions for a given channel (most recent N by created_at).
     pub fn load_channel_reactions(&self, channel_id: &str, limit: usize) -> Result<Vec<ReactionRecord>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map (loaded alongside channel history). Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT target_from, target_timestamp, emoji, reactor_key, reactor_name
                  FROM reactions

@@ -105,7 +105,9 @@ impl Storage {
         offset: usize,
         search: Option<&str>,
     ) -> Result<Vec<MemberRecord>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: paginated SELECT (both search/no-search branches end in
+        // query_map + collect). Member listing is a hot read; use the pool.
+        self.with_read_conn(|conn| {
             if let Some(q) = search {
                 let pattern = format!("%{}%", q);
                 let mut stmt = conn.prepare(
@@ -148,7 +150,8 @@ impl Storage {
 
     /// Get a single member by public key.
     pub fn get_member(&self, public_key: &str) -> Result<Option<MemberRecord>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only single-row lookup. Read pool.
+        self.with_read_conn(|conn| {
             conn.query_row(
                 "SELECT public_key, name, role, joined_at, last_seen
                  FROM server_members WHERE public_key = ?1",
@@ -177,7 +180,8 @@ impl Storage {
 
     /// Get total member count, optionally filtered by search.
     pub fn get_member_count(&self, search: Option<&str>) -> Result<i64, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only COUNT. Read pool.
+        self.with_read_conn(|conn| {
             if let Some(q) = search {
                 let pattern = format!("%{}%", q);
                 conn.query_row(
@@ -219,7 +223,8 @@ impl Storage {
 
     /// Get listing count for a specific seller (for seller profiles).
     pub fn get_seller_listing_count(&self, seller_key: &str) -> Result<i64, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only COUNT (seller profile view). Read pool.
+        self.with_read_conn(|conn| {
             conn.query_row(
                 "SELECT COUNT(*) FROM marketplace_listings WHERE seller_key = ?1 AND status = 'active'",
                 params![seller_key],
@@ -230,7 +235,8 @@ impl Storage {
 
     /// Get the N most recently joined members (for admin dashboard).
     pub fn recent_joins(&self, limit: usize) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
-        self.with_conn(|conn| {
+        // Read-only: SELECT + query_map + collect (admin dashboard). Read pool.
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT public_key, name, role, joined_at
                  FROM server_members
