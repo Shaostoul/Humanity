@@ -3,6 +3,54 @@
   "_workflow": "Operator opens Testing page → reads task → does the test in-app → clicks Mark Passed or Report Issue (with optional note) → result is sent as a chat message tagged [QA] which Claude reads next session.",
   "tasks": [
     {
+      "id": "v0318-native-p2p-group-mesh",
+      "version": "0.318.0",
+      "feature": "Native P2P push — group messages over the WebRTC mesh (increment 2)",
+      "what_to_test": "Run TWO native instances with separate identities: launch the 2nd from a cmd window after `set HUMANITY_DATA_DIR=%TEMP%\\hum2`. On A: create a P2P group, copy the invite ticket. On B: join with the ticket. Open the group on A (this issues/rotates the epoch key), then open it on B. Send a message from A.",
+      "expected": "The message appears on B near-INSTANTLY — visibly faster than the ~2s poll. Send one back from B → instant on A. (Increment 2 uses host ICE candidates only, so both instances must be on the same machine / LAN.)",
+      "category": "p2p-groups"
+    },
+    {
+      "id": "v0316-native-p2p-datachannel",
+      "version": "0.316.0",
+      "feature": "Native P2P push — WebRTC DataChannel transport (increment 1)",
+      "what_to_test": "Two native instances (separate identities via HUMANITY_DATA_DIR), both connected. On A, click B's name in the members list, then the 'P2P test → B' button (bottom of the members panel). Press F12 (Debug Console) on both.",
+      "expected": "Both consoles show 'WebRTC: channel OPEN with …'; the receiver shows 'WebRTC: frame from …: native p2p test'. (Operator reported this working 2026-05-29 — re-confirm after any WebRTC change.)",
+      "category": "p2p-groups"
+    },
+    {
+      "id": "v0314-web-p2p-signaling",
+      "version": "0.314.0",
+      "feature": "Web P2P group delivery (relay signaling fix)",
+      "what_to_test": "Hard-refresh the web chat (Ctrl+Shift+R). Open the same P2P group in two browser tabs/identities. Send a message in one; open the browser console (F12) on the other.",
+      "expected": "The message arrives noticeably faster than the ~4s poll, and the console logs 'P2P channel open with …'. (Before v0.314.0 the relay silently dropped the WebRTC signaling — `target` vs `to` — so the web mesh never actually connected and everything fell back to the poll.)",
+      "category": "p2p-groups"
+    },
+    {
+      "id": "v0314-timestamp-format",
+      "version": "0.314.0",
+      "feature": "Configurable chat timestamp format (native)",
+      "what_to_test": "Native: Settings → Appearance → Timestamp format. Pick each option in turn (Time 17:42; +seconds; Date+time; Date+time+seconds; Full +milliseconds).",
+      "expected": "Every chat message's timestamp pill updates INSTANTLY to the chosen format (already-shown messages too), all UTC. The choice persists across an app restart.",
+      "category": "settings"
+    },
+    {
+      "id": "v0315-notice-leak-fix",
+      "version": "0.315.0",
+      "feature": "System/deploy notices no longer leak into a P2P group / DM",
+      "what_to_test": "Open a P2P group (native or web). Trigger or await a server/deploy notice (a deploy-bot announcement, a rate-limit message, or any [System] line).",
+      "expected": "The notice does NOT appear inside the group/DM view (previously it showed there and then vanished on the next refresh — the 'deploy bot post in the group that disappeared' bug). On native it's filed under #general instead.",
+      "category": "p2p-groups"
+    },
+    {
+      "id": "v0311-multi-epoch-history",
+      "version": "0.311.0",
+      "feature": "Group history survives a re-key (multi-epoch decrypt)",
+      "what_to_test": "In a P2P group, send a few messages. Then invite a NEW member and have them join (this triggers an epoch key rotation). As an EXISTING member, look back at the message history.",
+      "expected": "Your earlier (pre-rotation) messages stay visible — they don't vanish after the join. A brand-new member sees only messages from after they joined, UNLESS the group was created with the Shared-history toggle.",
+      "category": "p2p-groups"
+    },
+    {
       "id": "v0148-reactions-pills",
       "version": "0.148.0",
       "feature": "Chat reactions — pill display",
