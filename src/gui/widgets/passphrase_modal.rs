@@ -163,117 +163,146 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     let enter_pressed = response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
-    ui.horizontal(|ui| {
-        if widgets::primary_button(ui, theme, "Unlock") || enter_pressed {
-            match crate::config::decrypt_private_key(
-                &state.encrypted_private_key,
-                &state.key_salt,
-                &state.passphrase_input,
-                state.key_iterations,
-            ) {
-                Ok(key_bytes) => {
-                    // Silent migration: if the vault was written with the
-                    // legacy 100_000-iter count, re-encrypt at the new
-                    // 600_000 count using the same passphrase the user
-                    // just proved they know. Persist immediately so the
-                    // next unlock pays the new (higher) cost — exactly
-                    // once per vault. Failures here are non-fatal: the
-                    // unlock itself already succeeded, the user is in;
-                    // we log and move on. Worst case: we retry the
-                    // migration on the next unlock.
-                    if state.key_iterations < crate::config::PBKDF2_ITERATIONS_NEW {
-                        match crate::config::encrypt_private_key(
-                            &key_bytes,
-                            &state.passphrase_input,
-                        ) {
-                            Ok((new_encrypted, new_salt, new_iters)) => {
-                                let old_iters = state.key_iterations;
-                                state.encrypted_private_key = new_encrypted;
-                                state.key_salt = new_salt;
-                                state.key_iterations = new_iters;
-                                crate::config::AppConfig::from_gui_state(state).save();
-                                log::info!(
-                                    "Vault PBKDF2 silently upgraded: {} -> {} iters",
-                                    old_iters, new_iters,
-                                );
-                            }
-                            Err(e) => {
-                                log::warn!(
-                                    "Vault PBKDF2 upgrade failed (re-encrypt): {}. \
-                                     Continuing on legacy iter count; will retry next unlock.",
-                                    e
-                                );
-                            }
-                        }
-                    }
-
-                    // v0.278.0: if the user ticked "Remember on this device",
-                    // stash the freshly-unlocked seed in the OS keychain BEFORE
-                    // we move it into state. Best-effort: a keychain failure
-                    // just logs and falls back to AlwaysPrompt — the unlock
-                    // itself already succeeded, the user is in. Worst case:
-                    // they'll be re-prompted next launch and can re-tick the
-                    // checkbox.
-                    if state.remember_on_device {
-                        if key_bytes.len() != 32 {
-                            log::warn!("Auto-unlock stash skipped: seed is {} bytes, expected 32", key_bytes.len());
-                        } else {
-                            let mut seed_arr = [0u8; 32];
-                            seed_arr.copy_from_slice(&key_bytes);
-                            // Identity = the Dilithium hex once apply_pq_identity
-                            // has run — but that hasn't happened yet here, so
-                            // use the Ed25519 public key hex (`profile_public_key`)
-                            // as the keychain account. The startup load path
-                            // uses the SAME field (`public_key_hex` in config),
-                            // so the lookup matches.
-                            let identity = state.profile_public_key.clone();
-                            if !identity.is_empty() {
-                                match crate::auto_unlock::keychain_stash(
-                                    crate::auto_unlock::KeychainSlot::Seed,
-                                    &identity,
-                                    &seed_arr,
-                                ) {
-                                    Ok(()) => {
-                                        state.auto_unlock_mode = crate::auto_unlock::AutoUnlockMode::Keychain;
-                                        log::info!("Auto-unlock: seed stashed in OS keychain; mode -> Keychain");
-                                    }
-                                    Err(e) => {
-                                        log::warn!("Auto-unlock stash FAILED ({}). Mode stays AlwaysPrompt.", e);
-                                    }
-                                }
-                            } else {
-                                log::warn!("Auto-unlock stash skipped: no profile_public_key in state");
-                            }
-                        }
-                        state.remember_on_device = false; // one-shot per modal
-                    }
-
-                    state.private_key_bytes = Some(key_bytes);
-                    state.passphrase_needed = false;
-                    state.passphrase_input.clear();
-                    state.passphrase_status.clear();
-                    log::info!("Private key unlocked successfully");
-                    // Full-PQ: derive Dilithium+Kyber from the now-unlocked
-                    // seed and reconnect so we advertise kyber_public —
-                    // otherwise DMs are impossible (no_own_key / no peer key).
-                    state.apply_pq_identity();
-                    // Persist (auto_unlock_mode + any silent re-encrypt above)
-                    crate::config::AppConfig::from_gui_state(state).save();
-                }
-                Err(e) => {
-                    state.passphrase_status = format!("Wrong passphrase: {}", e);
-                }
+    // Drain a finished background unlock. The slow part (600k-iter PBKDF2 decrypt
+    // + an optional legacy re-encrypt) runs on a worker thread so the UI never
+    // freezes on the click; the cheap post-steps run here on the main thread.
+    if state.passphrase_unlocking {
+        let drained = state.passphrase_unlock_rx.as_ref().map(|rx| rx.try_recv());
+        match drained {
+            Some(Ok(outcome)) => {
+                state.passphrase_unlock_rx = None;
+                state.passphrase_unlocking = false;
+                apply_unlock_outcome(state, outcome);
+            }
+            Some(Err(std::sync::mpsc::TryRecvError::Disconnected)) => {
+                state.passphrase_unlock_rx = None;
+                state.passphrase_unlocking = false;
+                state.passphrase_status =
+                    "Unlock failed (worker stopped unexpectedly). Please try again.".to_string();
+            }
+            _ => {
+                // Still running — keep repainting so we keep draining the rx.
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(80));
             }
         }
+    }
 
-        if widgets::secondary_button(ui, theme, "Skip (limited mode)") {
-            // User skips: no private key available, chat-only mode
+    ui.horizontal(|ui| {
+        if state.passphrase_unlocking {
+            // Mid-unlock: spinner instead of the button, so the click can't
+            // re-fire and the user sees the work is happening.
+            ui.add(egui::Spinner::new());
+            ui.label(RichText::new("Unlocking…")
+                .color(theme.text_secondary())
+                .size(theme.font_size_small));
+        } else {
+            if widgets::primary_button(ui, theme, "Unlock") || enter_pressed {
+                // Kick the slow PBKDF2 (decrypt + the legacy 100k→600k
+                // re-encrypt, which is ALSO a 600k PBKDF2) onto a worker thread.
+                // The result is drained next frame by the block above.
+                let encrypted = state.encrypted_private_key.clone();
+                let salt = state.key_salt.clone();
+                let pass = state.passphrase_input.clone();
+                let iters = state.key_iterations;
+                let (tx, rx) = std::sync::mpsc::channel();
+                std::thread::spawn(move || {
+                    let result = crate::config::decrypt_private_key(&encrypted, &salt, &pass, iters)
+                        .map(|key_bytes| {
+                            let reenc = if iters < crate::config::PBKDF2_ITERATIONS_NEW {
+                                // Re-encrypt off-thread too (it's the second heavy
+                                // PBKDF2). None on failure → keep the legacy blob,
+                                // retry on next unlock (matches the old behavior).
+                                crate::config::encrypt_private_key(&key_bytes, &pass).ok()
+                            } else {
+                                None
+                            };
+                            (key_bytes, reenc)
+                        });
+                    let _ = tx.send(result);
+                });
+                state.passphrase_unlock_rx = Some(rx);
+                state.passphrase_unlocking = true;
+                state.passphrase_status.clear();
+            }
+
+            if widgets::secondary_button(ui, theme, "Skip (limited mode)") {
+                // User skips: no private key available, chat-only mode
+                state.passphrase_needed = false;
+                state.passphrase_input.clear();
+                state.passphrase_status.clear();
+                log::info!("User skipped passphrase; private key unavailable");
+            }
+        }
+    });
+}
+
+/// Apply a finished background unlock to state (main thread). The slow PBKDF2
+/// already ran in the worker; this does the cheap post-steps: persist a legacy-
+/// vault re-encrypt, optionally stash the seed in the OS keychain, set the
+/// unlocked seed, derive the PQ identity, and save. Mirrors the old inline
+/// post-decrypt logic exactly — only WHERE the PBKDF2 runs changed.
+fn apply_unlock_outcome(
+    state: &mut GuiState,
+    outcome: Result<(Vec<u8>, Option<(String, String, u32)>), String>,
+) {
+    match outcome {
+        Ok((key_bytes, reenc)) => {
+            // Silent PBKDF2 upgrade (computed in the worker): persist the new
+            // blob/salt/iters so the next unlock pays the higher count once.
+            if let Some((new_encrypted, new_salt, new_iters)) = reenc {
+                let old_iters = state.key_iterations;
+                state.encrypted_private_key = new_encrypted;
+                state.key_salt = new_salt;
+                state.key_iterations = new_iters;
+                log::info!("Vault PBKDF2 silently upgraded: {} -> {} iters", old_iters, new_iters);
+            }
+
+            // "Remember on this device": stash the freshly-unlocked seed in the
+            // OS keychain BEFORE moving it into state. Best-effort — a failure
+            // just logs and falls back to AlwaysPrompt (the unlock succeeded).
+            if state.remember_on_device {
+                if key_bytes.len() != 32 {
+                    log::warn!("Auto-unlock stash skipped: seed is {} bytes, expected 32", key_bytes.len());
+                } else {
+                    let mut seed_arr = [0u8; 32];
+                    seed_arr.copy_from_slice(&key_bytes);
+                    let identity = state.profile_public_key.clone();
+                    if !identity.is_empty() {
+                        match crate::auto_unlock::keychain_stash(
+                            crate::auto_unlock::KeychainSlot::Seed,
+                            &identity,
+                            &seed_arr,
+                        ) {
+                            Ok(()) => {
+                                state.auto_unlock_mode = crate::auto_unlock::AutoUnlockMode::Keychain;
+                                log::info!("Auto-unlock: seed stashed in OS keychain; mode -> Keychain");
+                            }
+                            Err(e) => {
+                                log::warn!("Auto-unlock stash FAILED ({}). Mode stays AlwaysPrompt.", e);
+                            }
+                        }
+                    } else {
+                        log::warn!("Auto-unlock stash skipped: no profile_public_key in state");
+                    }
+                }
+                state.remember_on_device = false; // one-shot per modal
+            }
+
+            state.private_key_bytes = Some(key_bytes);
             state.passphrase_needed = false;
             state.passphrase_input.clear();
             state.passphrase_status.clear();
-            log::info!("User skipped passphrase; private key unavailable");
+            log::info!("Private key unlocked successfully");
+            // Full-PQ: derive Dilithium+Kyber from the now-unlocked seed +
+            // reconnect so we advertise kyber_public (else DMs are impossible).
+            state.apply_pq_identity();
+            // Persist (auto_unlock_mode + any silent re-encrypt above).
+            crate::config::AppConfig::from_gui_state(state).save();
         }
-    });
+        Err(e) => {
+            state.passphrase_status = format!("Wrong passphrase: {}", e);
+        }
+    }
 }
 
 fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {

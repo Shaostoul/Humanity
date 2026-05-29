@@ -946,6 +946,20 @@ pub struct GuiState {
     /// stashed in the OS keychain and `auto_unlock_mode` flips to
     /// `Keychain`. Resets to false after each modal close.
     pub remember_on_device: bool,
+    /// True while the passphrase-unlock worker runs the 600k-iter PBKDF2 OFF
+    /// the UI thread (v0.306.0). Drives the "Unlocking…" spinner + disables the
+    /// button so the click can't re-fire. Previously the PBKDF2 ran inline on
+    /// the click → ~200ms–1s UI freeze on every unlock.
+    pub passphrase_unlocking: bool,
+    /// Receiver for the background unlock result: `Ok((seed_bytes, optional
+    /// (encrypted, salt, iters) when a legacy 100k vault was re-encrypted to
+    /// 600k in the worker))`, or `Err(message)` for a wrong passphrase. Drained
+    /// each frame by `draw_unlock`; the cheap post-steps (keychain stash,
+    /// apply_pq_identity, save) then run on the main thread.
+    #[cfg(feature = "native")]
+    pub passphrase_unlock_rx: Option<
+        std::sync::mpsc::Receiver<Result<(Vec<u8>, Option<(String, String, u32)>), String>>,
+    >,
     /// PIN entry buffer (active digit-only field on the PinSetup /
     /// PinUnlock / PinChange modal forms).
     pub pin_input: String,
@@ -1661,6 +1675,9 @@ impl Default for GuiState {
             pin_encrypted_seed: String::new(),
             pin_salt: String::new(),
             remember_on_device: false,
+            passphrase_unlocking: false,
+            #[cfg(feature = "native")]
+            passphrase_unlock_rx: None,
             pin_input: String::new(),
             pin_confirm: String::new(),
             pin_old_input: String::new(),
