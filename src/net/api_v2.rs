@@ -276,6 +276,188 @@ pub fn submit_group_msg_v1(
     submit_signed_object(server_url, seed, builder)
 }
 
+/// Serialize a SIGNED `Object` to the exact JSON body the relay's
+/// `/api/v2/objects` POST handler expects (the `SignedObjectSubmission` shape).
+/// This is the canonical-on-the-wire encoding, shared by the relay POST and the
+/// WebRTC mesh push so a peer receives byte-identical bytes to what the relay
+/// stores. Kept separate from `submit_signed_object` so callers that want the
+/// JSON without POSTing (the mesh broadcast) can reuse it.
+fn object_to_submission_json(obj: &crate::relay::core::object::Object) -> String {
+    let mut submission = serde_json::json!({
+        "protocol_version": obj.protocol_version,
+        "object_type": obj.object_type,
+        "author_public_key_b64": B64.encode(&obj.author_public_key),
+        "references": obj.references,
+        "payload_schema_version": obj.payload_schema_version,
+        "payload_encoding": obj.payload_encoding,
+        "payload_b64": B64.encode(&obj.payload),
+        "signature_b64": B64.encode(&obj.signature),
+    });
+    if let Some(s) = &obj.space_id { submission["space_id"] = serde_json::Value::String(s.clone()); }
+    if let Some(c) = &obj.channel_id { submission["channel_id"] = serde_json::Value::String(c.clone()); }
+    if let Some(t) = obj.created_at { submission["created_at"] = serde_json::Value::from(t); }
+    submission.to_string()
+}
+
+/// Build + sign a `group_msg_v1` and return BOTH its object_id (hex) and the
+/// submission JSON string (the body POSTed to `/api/v2/objects`).
+///
+/// This is the reusable build the send path needs (mirrors web `sendGroupMessage`
+/// → `buildGroupMsgV1`): build the object ONCE, then both POST it to the relay
+/// (durable cache + offline backfill) AND hand the same JSON to the mesh
+/// broadcast. The two copies dedup by object_id, so building once keeps the
+/// pushed and polled copies bit-identical.
+pub fn build_group_msg_submission(
+    seed: &[u8],
+    group_id: &str,
+    epoch: u64,
+    epoch_key: &[u8],
+    plaintext: &str,
+) -> Result<(String /* object_id hex */, String /* submission JSON */), String> {
+    let builder = build_group_msg_v1(group_id, epoch, epoch_key, plaintext)?;
+    // Sign with the Dilithium key derived from the seed (same path as
+    // submit_signed_object), so the object_id + signature match exactly.
+    let dil_seed = derive_dilithium_seed(seed);
+    let kp = DilithiumKeypair::from_seed(&dil_seed);
+    let obj = builder.sign(&kp).map_err(|e| format!("sign: {e}"))?;
+    let object_id = obj.object_id().map_err(|e| format!("object_id: {e}"))?.to_hex();
+    let submission_json = object_to_submission_json(&obj);
+    Ok((object_id, submission_json))
+}
+
+/// POST an already-built submission JSON string to `{server_url}/api/v2/objects`.
+/// Used by the send path after `build_group_msg_submission` so the relay gets
+/// the identical bytes that were pushed over the mesh. The relay re-verifies the
+/// signature before storing.
+pub fn post_submission_json(server_url: &str, submission_json: &str) -> Result<(), String> {
+    let url = format!("{}/api/v2/objects", server_url.trim_end_matches('/'));
+    let resp = ureq::post(&url)
+        .set("Content-Type", "application/json")
+        .send_string(submission_json)
+        .map_err(|e| format!("POST {url}: {e}"))?;
+    if resp.status() != 200 {
+        let body = resp.into_string().unwrap_or_default();
+        return Err(format!("POST {url}: HTTP non-200 — {body}"));
+    }
+    Ok(())
+}
+
+// ── P2P-pushed submission verification (THE security gate) ───────────────────
+// A submission JSON arriving over a WebRTC DataChannel from a peer is UNTRUSTED
+// until its ML-DSA signature verifies. This mirrors web `pq-object.js`'s
+// `verifyObjectSubmission`: parse the wire JSON back into an `Object`, run the
+// SAME `Object::verify_signature()` the relay runs, recompute the object_id from
+// the canonical bytes (never trust an attacker-supplied id), and only then hand
+// back the verified fields. Any malformed/forged input returns `None` → drop.
+
+/// A peer-pushed submission that PASSED signature verification. Every field here
+/// is derived from the verified `Object` — the `object_id` is recomputed locally
+/// (BLAKE3 of the canonical bytes), never taken from the wire.
+#[derive(Debug, Clone)]
+pub struct VerifiedSubmission {
+    /// Locally-recomputed object id (hex) — the dedup key.
+    pub object_id: String,
+    /// The object's declared type (e.g. "group_msg_v1").
+    pub object_type: String,
+    /// Author's Dilithium public key, hex — for the roster membership gate.
+    pub author_pubkey_hex: String,
+    /// Author fingerprint (BLAKE3(pubkey)[..16] hex) — matches the roster map keys.
+    pub author_fp: String,
+    /// The object's references (references[0] is the group_id for group_msg_v1).
+    pub references: Vec<String>,
+    /// Decoded payload bytes (canonical CBOR) — feed to `open_group_msg`.
+    pub payload: Vec<u8>,
+    /// Informational created_at (ms), 0 if absent.
+    pub created_at: i64,
+}
+
+/// Verify a peer-pushed submission JSON string. Returns `Some(VerifiedSubmission)`
+/// ONLY if the JSON parses into a well-formed `Object` whose ML-DSA signature
+/// verifies against its own `author_public_key`. Returns `None` on ANY failure
+/// (bad JSON, bad base64, wrong key/sig length, signature mismatch) — the caller
+/// MUST drop on `None`.
+///
+/// Security note: this is the trust boundary for P2P-pushed group objects.
+/// `Object::verify_signature()` recomputes the canonical signable bytes (the
+/// object with an all-zero signature field) and checks the Dilithium3 signature
+/// over them — identical to what the relay does on ingest — so a forged or
+/// tampered object cannot pass. The object_id is recomputed here, not trusted
+/// from the sender.
+pub fn verify_submission_json(submission_json: &str) -> Option<VerifiedSubmission> {
+    use crate::relay::core::object::{Object, PAYLOAD_ENCODING_PLAINTEXT, PROTOCOL_VERSION};
+
+    let v: serde_json::Value = serde_json::from_str(submission_json).ok()?;
+
+    // Decode the wire fields. Anything missing/misformatted → reject.
+    let object_type = v.get("object_type")?.as_str()?.to_string();
+    let author_public_key = B64
+        .decode(v.get("author_public_key_b64")?.as_str()?)
+        .ok()?;
+    let payload = B64.decode(v.get("payload_b64")?.as_str()?).ok()?;
+    let signature = B64.decode(v.get("signature_b64")?.as_str()?).ok()?;
+
+    // Optional fields with sane defaults (must match how the object was built so
+    // the canonical bytes — and therefore the signature check — line up).
+    let protocol_version = v
+        .get("protocol_version")
+        .and_then(|x| x.as_u64())
+        .unwrap_or(PROTOCOL_VERSION);
+    let payload_schema_version = v
+        .get("payload_schema_version")
+        .and_then(|x| x.as_u64())
+        .unwrap_or(1);
+    let payload_encoding = v
+        .get("payload_encoding")
+        .and_then(|x| x.as_str())
+        .unwrap_or(PAYLOAD_ENCODING_PLAINTEXT)
+        .to_string();
+    let space_id = v.get("space_id").and_then(|x| x.as_str()).map(|s| s.to_string());
+    let channel_id = v.get("channel_id").and_then(|x| x.as_str()).map(|s| s.to_string());
+    let created_at_u64 = v.get("created_at").and_then(|x| x.as_u64());
+    let references: Vec<String> = v
+        .get("references")
+        .and_then(|x| x.as_array())
+        .map(|a| a.iter().filter_map(|r| r.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default();
+
+    // Reconstruct the Object faithfully so verify_signature() recomputes the
+    // exact canonical bytes the author signed.
+    let obj = Object {
+        protocol_version,
+        object_type: object_type.clone(),
+        space_id,
+        channel_id,
+        author_public_key: author_public_key.clone(),
+        created_at: created_at_u64,
+        references: references.clone(),
+        payload_schema_version,
+        payload_encoding,
+        payload: payload.clone(),
+        signature,
+    };
+
+    // THE gate: reject unless the Dilithium3 signature verifies. (Err on a
+    // wrong-length key/sig too — verify_dilithium length-checks before verifying.)
+    if obj.verify_signature().is_err() {
+        return None;
+    }
+
+    // Recompute the id locally — NEVER trust a sender-supplied object_id.
+    let object_id = obj.object_id().ok()?.to_hex();
+    let author_pubkey_hex = hex::encode(&author_public_key);
+    let author_fp = author_fingerprint_hex(&author_public_key);
+
+    Some(VerifiedSubmission {
+        object_id,
+        object_type,
+        author_pubkey_hex,
+        author_fp,
+        references,
+        payload,
+        created_at: created_at_u64.map(|t| t as i64).unwrap_or(0),
+    })
+}
+
 /// GET /api/v2/objects/{id}. Returns None on 404, the raw JSON otherwise.
 pub fn fetch_signed_object(
     server_url: &str,
@@ -871,5 +1053,61 @@ mod tests {
         // Valid base64 but not the right JSON shape:
         let bad = B64URL.encode(b"{\"hello\":\"world\"}");
         assert!(decode_invite_ticket(&bad).is_err());
+    }
+
+    /// The inc-2 P2P push round-trip: build+sign a group_msg_v1 → serialize to
+    /// the submission JSON the relay accepts → verify it as a peer would on the
+    /// receive side. The verified object_id MUST equal the build-side id, the
+    /// author fields resolve, and the payload decrypts under the same epoch key.
+    /// This locks the build helper and the security gate against drift.
+    #[test]
+    fn build_then_verify_group_msg_roundtrip() {
+        let seed = [42u8; 32];
+        let epoch_key = crate::net::group_e2ee::random_epoch_key();
+        let (build_id, submission_json) =
+            build_group_msg_submission(&seed, "grp_abc", 3, &epoch_key, "hello mesh")
+                .expect("build submission");
+
+        let verified = verify_submission_json(&submission_json).expect("verifies");
+        assert_eq!(verified.object_id, build_id, "recomputed id == build id");
+        assert_eq!(verified.object_type, "group_msg_v1");
+        assert_eq!(verified.references.first().map(|s| s.as_str()), Some("grp_abc"));
+
+        // Author fields resolve from the seed's Dilithium identity.
+        let identity = derive_pq_identity(&seed).unwrap();
+        assert_eq!(verified.author_pubkey_hex, identity.dilithium_hex);
+        let my_pub = hex::decode(&identity.dilithium_hex).unwrap();
+        assert_eq!(verified.author_fp, author_fingerprint_hex(&my_pub));
+
+        // The verified payload decrypts under the epoch key.
+        let text = crate::net::group_e2ee::open_group_msg(&verified.payload, &epoch_key)
+            .expect("decrypts");
+        assert_eq!(text, "hello mesh");
+    }
+
+    /// A tampered submission must be REJECTED by the gate. Flipping a payload
+    /// byte breaks the canonical bytes the signature covers, so verify fails.
+    #[test]
+    fn verify_rejects_tampered_submission() {
+        let seed = [7u8; 32];
+        let epoch_key = crate::net::group_e2ee::random_epoch_key();
+        let (_id, submission_json) =
+            build_group_msg_submission(&seed, "grp_x", 1, &epoch_key, "secret")
+                .expect("build");
+
+        // Tamper: re-encode the payload_b64 with a different ciphertext (a
+        // fresh encryption of other text). The signature no longer covers it.
+        let mut v: serde_json::Value = serde_json::from_str(&submission_json).unwrap();
+        let (_id2, other_json) =
+            build_group_msg_submission(&seed, "grp_x", 1, &epoch_key, "DIFFERENT")
+                .expect("build2");
+        let other: serde_json::Value = serde_json::from_str(&other_json).unwrap();
+        v["payload_b64"] = other["payload_b64"].clone(); // swap payload, keep old sig
+        let tampered = v.to_string();
+
+        assert!(verify_submission_json(&tampered).is_none(), "tampered → rejected");
+        // Garbage in → None, never a panic.
+        assert!(verify_submission_json("not json").is_none());
+        assert!(verify_submission_json("{}").is_none());
     }
 }

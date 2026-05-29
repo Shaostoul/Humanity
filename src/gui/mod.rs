@@ -1125,6 +1125,12 @@ pub struct GuiState {
     /// True while a freshly-opened group is still loading (shows "Loading…"
     /// instead of the no-key/no-message hint for that brief window).
     pub p2p_group_loading: bool,
+    /// inc-2: object_ids of group messages already handled over the WebRTC mesh
+    /// (sent or received P2P), so a push + the 2s relay poll don't double-render
+    /// the same message. Mirrors the web's `_p2pGroupSeenObjIds`. Cleared on
+    /// group switch (in `spawn_group_load(fresh=true)`).
+    #[cfg(feature = "native")]
+    pub p2p_group_seen_obj_ids: std::collections::HashSet<String>,
 
     // ── Sidebar section settings popups (v0.195.0) ──
     // Rendered as floating Areas anchored below the section's cog
@@ -1810,6 +1816,8 @@ impl Default for GuiState {
             #[cfg(feature = "native")]
             p2p_groups_list_loader: None,
             p2p_group_loading: false,
+            #[cfg(feature = "native")]
+            p2p_group_seen_obj_ids: std::collections::HashSet::new(),
             show_channel_edit_modal: false,
             edit_channel_id: String::new(),
             edit_channel_name: String::new(),

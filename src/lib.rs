@@ -2728,9 +2728,22 @@ mod native_app {
                                         }
                                     }
                                     crate::net::webrtc::WebrtcEvent::Frame { peer, text } => {
-                                        crate::debug::push_debug(format!(
-                                            "WebRTC: frame from {}: {}", short(&peer), text
-                                        ));
+                                        // inc-2: a frame may be a P2P group-object
+                                        // push ({type:"p2p_group_obj", submission}).
+                                        // handle_p2p_group_obj verifies + dedups +
+                                        // gates + decrypts + renders it, and returns
+                                        // true if it consumed the frame (even when it
+                                        // legitimately dropped it). Only fall back to
+                                        // the inc-1 debug line if it was NOT a group
+                                        // obj frame (e.g. the "native p2p test" text).
+                                        let consumed = crate::gui::pages::chat::handle_p2p_group_obj(
+                                            &mut state.gui_state, &peer, &text,
+                                        );
+                                        if !consumed {
+                                            crate::debug::push_debug(format!(
+                                                "WebRTC: frame from {}: {}", short(&peer), text
+                                            ));
+                                        }
                                     }
                                     crate::net::webrtc::WebrtcEvent::Closed { peer } => {
                                         crate::debug::push_debug(format!(
