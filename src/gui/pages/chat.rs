@@ -838,11 +838,12 @@ pub(crate) fn refresh_p2p_groups(state: &mut GuiState) {
 }
 
 fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    // One-time first-render fetch so the list is populated without a manual
-    // action. After that, explicit Create/Join successes refresh it.
-    if state.p2p_groups_last_fetch.is_none() {
-        refresh_p2p_groups(state);
-    }
+    // NOTE: first-render population is handled by the BACKGROUND list refresh at
+    // the top of draw() (spawn_groups_list_refresh, which fires when
+    // p2p_groups_last_fetch is None). We deliberately do NOT do a synchronous
+    // fetch here — that blocked the UI thread on the first open of the Groups
+    // section. The background path runs before this panel each frame, so the
+    // list is requested without ever freezing the render loop.
 
     // Sort groups alphabetically by name (see draw_dm_section for rationale).
     state.chat_groups.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
@@ -4523,11 +4524,13 @@ fn replace_p2p_messages(
 ) {
     state.chat_messages.retain(|m| m.channel != channel);
     let my_key = state.profile_public_key.clone();
-    let my_fp = state
-        .private_key_bytes
-        .as_ref()
-        .and_then(|s| crate::net::identity::derive_pq_identity(s).ok())
-        .and_then(|id| hex::decode(&id.dilithium_hex).ok())
+    // My author fingerprint = BLAKE3(my Dilithium pubkey)[..16]. profile_public_key
+    // IS the Dilithium pubkey hex (set in mod.rs from the PQ identity), so we
+    // compute it with a cheap hex-decode + hash instead of derive_pq_identity —
+    // which ran a full Dilithium + Kyber KEYGEN on every poll-apply (~ every 4s)
+    // purely to recover a value we already have. Same result, no keygen churn.
+    let my_fp = hex::decode(&my_key)
+        .ok()
         .map(|b| crate::net::api_v2::author_fingerprint_hex(&b))
         .unwrap_or_default();
     for m in msgs {
@@ -4800,9 +4803,17 @@ fn disband_p2p_group(state: &mut GuiState, group_id: &str) {
     }
 }
 
-/// Encrypt + POST a message into the active P2P group (`channel` =
-/// "p2pgroup:<id>"). Returns true on success. On no-key / failure it sets the
-/// header status line and returns false so the caller skips the local echo.
+/// Dispatch a P2P group message: do the synchronous pre-checks (we have a
+/// group id, a seed, and an epoch key), then encrypt + POST on a BACKGROUND
+/// thread so the UI never blocks on the network round-trip. Returns true if the
+/// send was *dispatched* (caller then shows the optimistic echo + clears the
+/// input); false only if a pre-check failed (no key/seed — caller aborts the
+/// echo and the status line explains why).
+///
+/// Failure of the background POST is rare (network) and self-reconciles: the
+/// optimistic echo is dropped on the next ~4s poll because the relay won't
+/// serve back a message it never stored. (Previously this blocked the UI
+/// thread on EVERY group message send — tens-to-hundreds of ms per message.)
 fn send_p2p_group_message(state: &mut GuiState, channel: &str, content: &str) -> bool {
     let gid = match channel.strip_prefix("p2pgroup:") {
         Some(g) => g.to_string(),
@@ -4825,16 +4836,14 @@ fn send_p2p_group_message(state: &mut GuiState, channel: &str, content: &str) ->
         }
     };
     let epoch = state.p2p_group_chat_epoch.max(1);
-    match crate::net::api_v2::submit_group_msg_v1(&server_url, &seed, &gid, epoch, &key, content) {
-        Ok(_) => {
-            state.p2p_group_invite_status.clear();
-            true
+    state.p2p_group_invite_status.clear();
+    let content = content.to_string();
+    std::thread::spawn(move || {
+        if let Err(e) = crate::net::api_v2::submit_group_msg_v1(&server_url, &seed, &gid, epoch, &key, &content) {
+            log::warn!("group message send failed (echo will drop on next poll): {e}");
         }
-        Err(e) => {
-            state.p2p_group_invite_status = format!("Send failed: {e}");
-            false
-        }
-    }
+    });
+    true
 }
 
 // ─────────────────────────────── UI Helpers ──────────────────────────────
