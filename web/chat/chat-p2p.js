@@ -350,7 +350,7 @@ async function initDataChannel(peerPubKey) {
     if (candidate && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'webrtc_signal',
-        target: peerPubKey,
+        to: peerPubKey,
         signal_type: 'dc_ice',
         data: JSON.stringify(candidate),
       }));
@@ -363,7 +363,7 @@ async function initDataChannel(peerPubKey) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: 'webrtc_signal',
-      target: peerPubKey,
+      to: peerPubKey,
       signal_type: 'dc_offer',
       data: JSON.stringify(offer),
     }));
@@ -391,7 +391,7 @@ async function handleDCOffer(signal) {
     if (candidate && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'webrtc_signal',
-        target: peerKey,
+        to: peerKey,
         signal_type: 'dc_ice',
         data: JSON.stringify(candidate),
       }));
@@ -405,7 +405,7 @@ async function handleDCOffer(signal) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: 'webrtc_signal',
-      target: peerKey,
+      to: peerKey,
       signal_type: 'dc_answer',
       data: JSON.stringify(answer),
     }));

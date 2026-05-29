@@ -984,11 +984,22 @@ pub enum RelayMessage {
     },
 
     /// WebRTC signaling (offer/answer/ICE) — forwarded peer-to-peer.
+    ///
+    /// `from` is OPTIONAL on the wire (defaulted) because the relay overwrites it
+    /// with the authenticated sender key in `handle_webrtc_signal` — a client's
+    /// claimed `from` is never trusted. `to` accepts the legacy alias `target`:
+    /// the web DataChannel signaling (`chat-p2p.js`) shipped sending `target`,
+    /// which this enum (requiring `to`) silently rejected, so every web P2P
+    /// offer/answer/ICE was dropped and group/DM P2P fell back to the relay poll.
+    /// The alias makes already-deployed web clients route correctly; new clients
+    /// (native + updated web) send the canonical `to`.
     #[serde(rename = "webrtc_signal")]
     WebrtcSignal {
+        #[serde(default)]
         from: String,
+        #[serde(alias = "target")]
         to: String,
-        signal_type: String, // "offer" | "answer" | "ice"
+        signal_type: String, // "offer" | "answer" | "ice" (DataChannel: "dc_offer"|"dc_answer"|"dc_ice")
         data: serde_json::Value,
     },
 
