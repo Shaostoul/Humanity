@@ -75,6 +75,76 @@ impl PlantRegistry {
     pub fn get(&self, id: &str) -> Option<&PlantDef> {
         self.plants.get(id)
     }
+
+    /// Build the plant registry from raw `plants.csv` bytes.
+    ///
+    /// Uses the shared CSV loader (skips `#` comments, header-mapped, row-resilient).
+    /// `growth_stages` and `seasons` are colon-separated lists. This is the
+    /// constructor the runtime calls to populate `DataStore["plant_registry"]` —
+    /// before v0.323 the CSV was loaded then discarded, so FarmingSystem ran on
+    /// default growth stages with no species data.
+    pub fn from_csv(data: &[u8]) -> Result<Self, String> {
+        let rows: Vec<PlantRow> = crate::assets::loader::parse_csv(data)?;
+        let mut plants = HashMap::new();
+        for row in rows {
+            plants.insert(
+                row.id.clone(),
+                PlantDef {
+                    id: row.id,
+                    name: row.name,
+                    growth_days: row.growth_days,
+                    water_per_day: row.water_liters_per_day,
+                    seasons: split_colon_list(&row.seasons),
+                    growth_stages: split_colon_list(&row.growth_stages),
+                },
+            );
+        }
+        Ok(Self { plants })
+    }
+}
+
+/// One row of `plants.csv` — only the columns `PlantRegistry` consumes (the
+/// nutrient/ph/temp/humidity/yield/value columns are ignored for now).
+#[derive(Debug, Deserialize)]
+struct PlantRow {
+    id: String,
+    name: String,
+    #[serde(default)]
+    growth_days: f32,
+    #[serde(default)]
+    water_liters_per_day: f32,
+    #[serde(default)]
+    growth_stages: String,
+    #[serde(default)]
+    seasons: String,
+}
+
+/// Split a colon-separated list field into trimmed, non-empty entries.
+fn split_colon_list(s: &str) -> Vec<String> {
+    s.split(':')
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .collect()
+}
+
+#[cfg(test)]
+mod plant_registry_csv_tests {
+    use super::*;
+
+    #[test]
+    fn from_csv_parses_plants_and_colon_lists() {
+        let csv = b"id,name,type,growth_days,water_liters_per_day,growth_stages,seasons\n\
+                    tomato,Tomato,fruit,80,0.5,seed:sprout:vegetative:mature,spring:summer\n";
+        let reg = PlantRegistry::from_csv(csv).expect("parse");
+        assert_eq!(reg.plants.len(), 1);
+        let t = reg.get("tomato").expect("tomato present");
+        assert!((t.growth_days - 80.0).abs() < 1e-6);
+        assert!((t.water_per_day - 0.5).abs() < 1e-6);
+        assert_eq!(t.growth_stages, vec!["seed", "sprout", "vegetative", "mature"]);
+        assert_eq!(t.seasons, vec!["spring", "summer"]);
+        assert_eq!(t.first_stage(), "seed");
+        assert_eq!(t.last_stage(), "mature");
+    }
 }
 
 /// Rate at which water_level decreases per second (base dehydration).

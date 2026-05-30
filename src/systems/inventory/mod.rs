@@ -236,6 +236,74 @@ impl ItemRegistry {
             .map(|def| def.mass_kg)
             .unwrap_or(0.0)
     }
+
+    /// Build the item registry from raw `items.csv` bytes.
+    ///
+    /// Uses the shared CSV loader (skips `#` comments, header-mapped, row-resilient
+    /// so one malformed row never blanks the catalog). Only the columns the
+    /// registry needs are deserialized; the rest of items.csv (category,
+    /// subcategory, base_material, durability, description, content_class) is
+    /// ignored. This is the constructor the runtime calls to populate
+    /// `DataStore["item_registry"]` — before v0.323 the CSV was loaded then
+    /// discarded, so item-name/stack/mass lookups silently fell back to defaults.
+    pub fn from_csv(data: &[u8]) -> Result<Self, String> {
+        let rows: Vec<ItemRow> = crate::assets::loader::parse_csv(data)?;
+        let mut items = HashMap::new();
+        for row in rows {
+            let max_stack = row.stack_size.max(1);
+            items.insert(
+                row.id.clone(),
+                ItemDef {
+                    id: row.id,
+                    name: row.name,
+                    mass_kg: row.weight_kg,
+                    stackable: max_stack > 1,
+                    max_stack,
+                },
+            );
+        }
+        Ok(Self { items })
+    }
+}
+
+/// One row of `items.csv` — only the columns `ItemRegistry` consumes. Extra
+/// columns are ignored by the header-mapped CSV deserializer.
+#[derive(Debug, Deserialize)]
+struct ItemRow {
+    id: String,
+    name: String,
+    #[serde(default)]
+    weight_kg: f32,
+    #[serde(default = "default_item_stack")]
+    stack_size: u32,
+}
+
+fn default_item_stack() -> u32 {
+    DEFAULT_MAX_STACK
+}
+
+#[cfg(test)]
+mod item_registry_csv_tests {
+    use super::*;
+
+    #[test]
+    fn from_csv_parses_items_stack_and_mass() {
+        // Header order differs from the real file + carries extra columns: the
+        // loader maps by header name and ignores the unknown ones.
+        let csv = b"id,name,category,weight_kg,stack_size,content_class\n\
+                    iron_ore_0,Iron Ore,material,2.5,50,ore\n\
+                    sword_0,Iron Sword,tool,3.0,1,none\n";
+        let reg = ItemRegistry::from_csv(csv).expect("parse");
+        assert_eq!(reg.items.len(), 2);
+        let ore = reg.items.get("iron_ore_0").expect("ore present");
+        assert_eq!(ore.name, "Iron Ore");
+        assert_eq!(ore.max_stack, 50);
+        assert!(ore.stackable);
+        assert!((reg.mass_for("iron_ore_0") - 2.5).abs() < 1e-6);
+        let sword = reg.items.get("sword_0").expect("sword present");
+        assert_eq!(sword.max_stack, 1);
+        assert!(!sword.stackable, "stack_size 1 is not stackable");
+    }
 }
 
 /// Manages inventory components and processes queued operations.

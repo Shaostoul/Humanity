@@ -574,20 +574,60 @@ mod native_app {
         }
         log::info!("Map-sync: cached {} FPS orbit paths (thin lines)", state.solar_orbit_paths.len());
 
-        // ── Load CSV game data ──
-        #[derive(Debug, serde::Deserialize)]
-        #[allow(dead_code)]
-        struct ItemRow { id: String, name: String }
-        #[derive(Debug, serde::Deserialize)]
-        #[allow(dead_code)]
-        struct PlantRow { id: String, name: String }
-        #[derive(Debug, serde::Deserialize)]
-        #[allow(dead_code)]
-        struct RecipeRow { id: String, name: String }
-
-        let _ = state.asset_manager.load_csv::<ItemRow>("items.csv");
-        let _ = state.asset_manager.load_csv::<PlantRow>("plants.csv");
-        let _ = state.asset_manager.load_csv::<RecipeRow>("recipes.csv");
+        // ── Load CSV game-data registries into the runtime DataStore ──
+        // Each registry is built from its data file and inserted under the key its
+        // owning system reads (item_registry / recipe_registry / plant_registry).
+        // Graceful per-registry: a missing or malformed file logs a warning and
+        // skips (the system then runs on safe defaults), never panics. Reads from
+        // the on-disk data dir so edits/mods to the CSV take effect. Mirrors the
+        // container_registry wiring below.
+        //
+        // BEFORE v0.323 these three were loaded then DISCARDED (`let _ =
+        // load_csv(...)` into throwaway {id,name} structs), so the runtime
+        // DataStore stayed empty and CraftingSystem (no recipes), item
+        // name/stack/mass lookups, and FarmingSystem species data all silently
+        // no-op'd — the central finding of the 2026-05-29 game-code audit.
+        fn load_csv_registry<T: Send + Sync + 'static>(
+            store: &mut DataStore,
+            path: std::path::PathBuf,
+            key: &str,
+            build: impl Fn(&[u8]) -> Result<T, String>,
+        ) {
+            match std::fs::read(&path) {
+                Ok(bytes) => match build(&bytes) {
+                    Ok(reg) => {
+                        store.insert(key, reg);
+                        log::info!("Loaded {key} from {}", path.display());
+                    }
+                    Err(e) => log::warn!("Failed to build {key} from {}: {e}", path.display()),
+                },
+                Err(e) => log::warn!(
+                    "Data file {} not found ({e}); {key} unavailable (system on defaults)",
+                    path.display()
+                ),
+            }
+        }
+        {
+            let dir = state.asset_manager.data_dir();
+            load_csv_registry(
+                &mut state.data_store,
+                dir.join("items.csv"),
+                "item_registry",
+                crate::systems::inventory::ItemRegistry::from_csv,
+            );
+            load_csv_registry(
+                &mut state.data_store,
+                dir.join("recipes.csv"),
+                "recipe_registry",
+                crate::systems::crafting::RecipeRegistry::from_csv,
+            );
+            load_csv_registry(
+                &mut state.data_store,
+                dir.join("plants.csv"),
+                "plant_registry",
+                crate::systems::farming::PlantRegistry::from_csv,
+            );
+        }
 
         // ── Container types + content-class compatibility rules ──
         // Build the ContainerRegistry from data/containers/{types.csv,

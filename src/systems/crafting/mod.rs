@@ -83,6 +83,146 @@ impl RecipeRegistry {
             .filter(|r| r.required_station.is_none())
             .collect()
     }
+
+    /// Build the recipe registry from raw `recipes.csv` bytes.
+    ///
+    /// Uses the shared CSV loader (skips `#` comments, header-mapped, row-resilient).
+    /// Inputs/outputs use the pipe-separated `item_id:qty` format handled by
+    /// [`Recipe::parse_ingredients`]; an empty `station_required` becomes
+    /// `None` (hand-craftable). This is the constructor the runtime calls to
+    /// populate `DataStore["recipe_registry"]` — before v0.323 the CSV was loaded
+    /// then discarded, so CraftingSystem found no recipes and could craft nothing.
+    pub fn from_csv(data: &[u8]) -> Result<Self, String> {
+        let rows: Vec<RecipeRow> = crate::assets::loader::parse_csv(data)?;
+        let mut recipes = HashMap::new();
+        for row in rows {
+            let station = row.station_required.trim();
+            recipes.insert(
+                row.id.clone(),
+                Recipe {
+                    id: row.id,
+                    name: row.name,
+                    inputs: Recipe::parse_ingredients(&row.inputs),
+                    outputs: Recipe::parse_ingredients(&row.outputs),
+                    craft_time: row.craft_time_sec,
+                    required_station: if station.is_empty() {
+                        None
+                    } else {
+                        Some(station.to_string())
+                    },
+                },
+            );
+        }
+        Ok(Self { recipes })
+    }
+}
+
+/// One row of `recipes.csv` — only the columns `RecipeRegistry` consumes (the
+/// skill_required/skill_level/category/description columns are ignored for now).
+#[derive(Debug, Deserialize)]
+struct RecipeRow {
+    id: String,
+    name: String,
+    #[serde(default)]
+    inputs: String,
+    #[serde(default)]
+    outputs: String,
+    #[serde(default)]
+    craft_time_sec: f32,
+    #[serde(default)]
+    station_required: String,
+}
+
+#[cfg(test)]
+mod recipe_registry_csv_tests {
+    use super::*;
+
+    #[test]
+    fn from_csv_parses_recipes_ingredients_and_station() {
+        let csv = b"id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required\n\
+                    smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1,10,smelter_0,smithing\n\
+                    carve_stick,Carve Stick,hand,,stick_0:1,1,,\n";
+        let reg = RecipeRegistry::from_csv(csv).expect("parse");
+        assert_eq!(reg.recipes.len(), 2);
+
+        let smelt = reg.recipes.get("smelt_iron").expect("smelt present");
+        assert_eq!(
+            smelt.inputs,
+            vec![("iron_ore_0".to_string(), 2), ("coal_0".to_string(), 1)]
+        );
+        assert_eq!(smelt.outputs, vec![("iron_ingot_0".to_string(), 1)]);
+        assert!((smelt.craft_time - 10.0).abs() < 1e-6);
+        assert_eq!(smelt.required_station.as_deref(), Some("smelter_0"));
+
+        let carve = reg.recipes.get("carve_stick").expect("carve present");
+        assert!(carve.inputs.is_empty());
+        assert_eq!(carve.required_station, None, "empty station -> hand-craftable");
+    }
+}
+
+#[cfg(test)]
+mod crafting_end_to_end_tests {
+    use super::*;
+    use crate::ecs::systems::System;
+    use crate::hot_reload::data_store::DataStore;
+    use crate::systems::inventory::{Inventory, ItemRegistry};
+
+    #[test]
+    fn real_recipes_load_and_a_timed_craft_produces_output() {
+        // Loads the SHIPPED data files (compile-time embedded -> hermetic + CI-safe)
+        // and drives the full crafting loop end to end: request -> consume inputs
+        // -> timed completion -> output lands in inventory. This is the exact path
+        // that silently no-op'd before the registries were wired into the runtime
+        // DataStore (v0.323) — recipe_registry was always None, so nothing crafted.
+        let items = ItemRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/items.csv"
+        )))
+        .expect("items.csv parses");
+        let recipes = RecipeRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/recipes.csv"
+        )))
+        .expect("recipes.csv parses");
+        assert!(!items.items.is_empty(), "items registry empty");
+        assert!(recipes.recipes.len() > 50, "too few recipes parsed from real data");
+
+        // smelt_iron: iron_ore_0:2 + coal_0:1 -> iron_ingot_0:1 (timed 10s).
+        let recipe = recipes.recipes.get("smelt_iron").expect("smelt_iron present");
+        assert_eq!(
+            recipe.inputs,
+            vec![("iron_ore_0".to_string(), 2), ("coal_0".to_string(), 1)]
+        );
+        assert_eq!(recipe.outputs, vec![("iron_ingot_0".to_string(), 1)]);
+        assert!(recipe.craft_time > 0.0, "smelt_iron should be a timed craft");
+
+        let mut data = DataStore::new();
+        data.insert("item_registry", items);
+        data.insert("recipe_registry", recipes);
+
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 2, 99);
+        inv.add_item("coal_0", 1, 99);
+        let entity = world.spawn((inv,));
+
+        let mut sys = CraftingSystem::new();
+        sys.request_craft("smelt_iron".to_string(), entity);
+
+        // Tick past the 10s craft_time (dt=1s): the first tick consumes inputs and
+        // queues the timed craft; later ticks drain the timer to completion.
+        for _ in 0..20 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+
+        let inv = world.get::<&Inventory>(entity).expect("entity has Inventory");
+        assert!(
+            inv.has_item("iron_ingot_0", 1),
+            "timed craft did not produce iron_ingot_0 — crafting loop is broken"
+        );
+        assert_eq!(inv.count_item("iron_ore_0"), 0, "iron_ore inputs not consumed");
+        assert_eq!(inv.count_item("coal_0"), 0, "coal input not consumed");
+    }
 }
 
 /// A craft in progress, tracked per-entity.

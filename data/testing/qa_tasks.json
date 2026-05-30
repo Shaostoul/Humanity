@@ -3,6 +3,46 @@
   "_workflow": "Operator opens Testing page → reads task → does the test in-app → clicks Mark Passed or Report Issue (with optional note) → result is sent as a chat message tagged [QA] which Claude reads next session.",
   "tasks": [
     {
+      "id": "v0323-crafting-works",
+      "version": "0.323.0",
+      "feature": "Crafting actually crafts (engine-wiring: registries -> DataStore)",
+      "what_to_test": "Open the Crafting page. Before v0.323 it showed an empty recipe list and nothing could be crafted (the recipe registry was loaded then discarded, never reaching the runtime). Look for recipes; craft something you have the inputs for (e.g. smelt iron: iron ore + coal -> iron ingot).",
+      "expected": "Recipes are listed (not empty). Crafting consumes the inputs and the output item appears in your inventory after the craft time. (An automated end-to-end test already proves smelt_iron works against the real data; this confirms the in-app path.)",
+      "category": "crafting"
+    },
+    {
+      "id": "v0323-inventory-item-names",
+      "version": "0.323.0",
+      "feature": "Inventory shows real item names / stacks / weight (item registry wired)",
+      "what_to_test": "Open the Inventory page and look at any items you hold.",
+      "expected": "Items show their proper display name and correct max-stack / weight (from items.csv), not raw ids or a default 99 stack. (Before v0.323 the item registry was never inserted into the runtime DataStore, so name/stack/mass lookups fell back to ids/defaults.)",
+      "category": "inventory"
+    },
+    {
+      "id": "v0322-mmo-persistence",
+      "version": "0.322.0",
+      "feature": "Server game-world + player progress survive a relay restart",
+      "what_to_test": "Make some game progress (advance a quest / move around the shared ship) and note your quest/XP. Then restart the relay (or wait for a deploy, which restarts it). Reconnect and rejoin the game world.",
+      "expected": "The shared world state and your quest progress / XP / reputation are restored, not reset to the beginning. (Before v0.322 the GameWorld was in-memory only, so a restart wiped everything.)",
+      "category": "multiplayer"
+    },
+    {
+      "id": "v0321-containers",
+      "version": "0.321.0",
+      "feature": "Typed containers + content-class compatibility (engine/data level)",
+      "what_to_test": "NOTE: this currently has NO in-app container UI yet, so it is not directly clickable — it's proven by automated tests (cement breaks a dairy/liquid tank; liquid N2 needs the cryo tank; a pressure tank accepts liquid N2 OR liquid CO2). Listed here for visibility; an in-app container interaction is a later increment.",
+      "expected": "When container interaction is wired into the UI: compatible content is accepted; incompatible content damages and eventually breaks the container with a spill.",
+      "category": "crafting"
+    },
+    {
+      "id": "v0320-native-turn",
+      "version": "0.320.0",
+      "feature": "Native P2P over TURN relay (symmetric-NAT fallback, increment 3b)",
+      "what_to_test": "Run two native instances on networks where direct + STUN hole-punching fails (symmetric NAT — e.g. some mobile carriers / strict corporate NATs). Both join the same P2P group, open it, send a message. Press F12 for the debug console.",
+      "expected": "The message still arrives near-instantly even when direct P2P can't connect — it's relayed through turn:united-humanity.us:3478. The debug console shows 'TURN relayed = ...' lines. (Last NAT-traversal fallback; if even TURN fails it drops to the relay poll.)",
+      "category": "p2p-groups"
+    },
+    {
       "id": "v0318-native-p2p-group-mesh",
       "version": "0.318.0",
       "feature": "Native P2P push — group messages over the WebRTC mesh (increment 2)",
