@@ -880,7 +880,7 @@ mod native_app {
             let (sevs, cats) = crate::gui::load_bug_taxonomy(&data_dir);
             gui_state.bug_severities = sevs;
             gui_state.bug_categories = cats;
-            gui_state.crafting_categories = crate::gui::load_crafting_categories(&data_dir);
+            gui_state.crafting_category_groups = crate::gui::load_crafting_category_groups(&data_dir);
             // Populate the Crafting page's recipe browser from data/recipes.csv.
             // (The runtime RecipeRegistry is loaded separately into the DataStore for
             // CraftingSystem; this is the GUI-facing projection so the page lists

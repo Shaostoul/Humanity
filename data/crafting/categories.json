@@ -1,17 +1,10 @@
 {
-  "_comment": "Crafting category filters for the crafting page. The first entry should be the catch-all (e.g., 'All'). Categories are matched case-insensitively against recipe.category.",
-  "categories": [
-    "All",
-    "Smelting",
-    "Refining",
-    "Tools",
-    "Weapons",
-    "Furniture",
-    "Cooking",
-    "Textile",
-    "Electronics",
-    "Machines",
-    "Vehicles",
-    "Medical"
+  "_comment": "Hierarchical crafting category tree for the Crafting page sidebar. Each top-level entry is a collapsible GROUP; its `categories` are leaf filters matched case-insensitively against recipe.category. 'All' is rendered first by the page (not listed here). The sidebar is built entirely from this file (infinite-of-X) -- add groups + categories freely; for very large categories, split a recipe's category into finer values and group them here.",
+  "groups": [
+    { "name": "Production", "categories": ["Smelting", "Refining"] },
+    { "name": "Equipment", "categories": ["Tools", "Weapons"] },
+    { "name": "Construction", "categories": ["Furniture", "Machines"] },
+    { "name": "Sustenance", "categories": ["Cooking", "Textile"] },
+    { "name": "Technology", "categories": ["Electronics", "Vehicles", "Medical"] }
   ]
 }

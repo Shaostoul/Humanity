@@ -880,7 +880,7 @@ pub struct GuiState {
     // ── Crafting state ──
     pub craft_recipes: Vec<GuiRecipe>,
     pub craft_selected: Option<usize>,
-    pub craft_category: usize,
+    pub craft_selected_category: Option<String>,
     pub craft_status: String,
 
     // ── Guilds state ──
@@ -1306,7 +1306,7 @@ pub struct GuiState {
     /// Bug-report category labels (`data/bugs/taxonomy.json`).
     pub bug_categories: Vec<String>,
     /// Crafting category filters (`data/crafting/categories.json`).
-    pub crafting_categories: Vec<String>,
+    pub crafting_category_groups: Vec<CraftCategoryGroup>,
     /// Marketplace category filters (`data/market/categories.json`).
     pub market_categories: Vec<String>,
     /// Curated resources by category (`data/resources/catalog.json`).
@@ -1670,7 +1670,7 @@ impl Default for GuiState {
             // Crafting defaults
             craft_recipes: Vec::new(),
             craft_selected: None,
-            craft_category: 0,
+            craft_selected_category: None,
             craft_status: String::new(),
 
             // Guilds defaults
@@ -1835,7 +1835,7 @@ impl Default for GuiState {
             equipment_slots: Vec::new(),
             bug_severities: Vec::new(),
             bug_categories: Vec::new(),
-            crafting_categories: Vec::new(),
+            crafting_category_groups: Vec::new(),
             market_categories: Vec::new(),
             resource_categories: Vec::new(),
             studio_scene_presets: Vec::new(),
@@ -2257,15 +2257,27 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
         .collect()
 }
 
-/// Load crafting category filters from `data/crafting/categories.json` for the
-/// Crafting page sidebar.
+/// Load the hierarchical crafting category tree from `data/crafting/categories.json`
+/// (top-level groups -> leaf categories). The Crafting page renders these as
+/// collapsible groups; leaf categories are matched case-insensitively against
+/// `recipe.category`. Fully data-driven (infinite-of-X) — add groups/categories
+/// freely; for very large categories, split a recipe's category into finer values
+/// and group them here.
 #[cfg(feature = "native")]
-pub fn load_crafting_categories(data_dir: &std::path::Path) -> Vec<String> {
+pub fn load_crafting_category_groups(data_dir: &std::path::Path) -> Vec<CraftCategoryGroup> {
     #[derive(serde::Deserialize)]
-    struct File { categories: Vec<String> }
+    struct File { groups: Vec<CraftCategoryGroup> }
     read_data_json::<File>(data_dir, "crafting/categories.json")
-        .map(|f| f.categories)
+        .map(|f| f.groups)
         .unwrap_or_default()
+}
+
+/// One group in the hierarchical crafting-category tree: a collapsible group name
+/// plus its leaf categories.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CraftCategoryGroup {
+    pub name: String,
+    pub categories: Vec<String>,
 }
 
 #[cfg(all(test, feature = "native"))]

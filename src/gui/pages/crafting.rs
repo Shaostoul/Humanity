@@ -77,21 +77,64 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_sm);
 
             ScrollArea::vertical().show(ui, |ui| {
-                let cat_strs: Vec<&str> = state.crafting_categories.iter().map(String::as_str).collect();
-                if let Some(new_idx) = widgets::sidebar_nav(ui, theme, &cat_strs, state.craft_category) {
-                    state.craft_category = new_idx;
+                // Data-driven collapsible group -> category tree (from
+                // data/crafting/categories.json). Snapshot the current selection into
+                // a local + defer the new selection, so no `state` borrow straddles
+                // the nested collapsing-header closures.
+                let current = state.craft_selected_category.clone();
+                let groups = state.crafting_category_groups.clone();
+                let mut newly_selected: Option<Option<String>> = None;
+
+                if ui
+                    .selectable_label(
+                        current.is_none(),
+                        RichText::new("All")
+                            .size(theme.font_size_body)
+                            .color(theme.text_primary()),
+                    )
+                    .clicked()
+                {
+                    newly_selected = Some(None);
+                }
+                ui.add_space(theme.spacing_xs);
+
+                for group in &groups {
+                    egui::CollapsingHeader::new(
+                        RichText::new(&group.name)
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    )
+                    .id_salt(&group.name)
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        for cat in &group.categories {
+                            let selected = current.as_deref() == Some(cat.as_str());
+                            if ui
+                                .selectable_label(
+                                    selected,
+                                    RichText::new(cat)
+                                        .size(theme.font_size_body)
+                                        .color(theme.text_primary()),
+                                )
+                                .clicked()
+                            {
+                                newly_selected = Some(Some(cat.clone()));
+                            }
+                        }
+                    });
+                }
+
+                if let Some(sel) = newly_selected {
+                    state.craft_selected_category = sel;
                     state.craft_selected = None;
                 }
             });
         });
 
     // Owned filter/search captured before the panels so the immutable borrows of
-    // `state` don't straddle the mutable closures below.
-    let filter_cat: Option<String> = if state.craft_category == 0 {
-        None
-    } else {
-        state.crafting_categories.get(state.craft_category).cloned()
-    };
+    // `state` don't straddle the mutable closures below. `craft_selected_category`
+    // = None means "All" (no category filter).
+    let filter_cat: Option<String> = state.craft_selected_category.clone();
     let search_term = with_local(|local| local.search.to_lowercase());
 
     // ── Right panel: selected recipe detail (full height, resizable) ──
