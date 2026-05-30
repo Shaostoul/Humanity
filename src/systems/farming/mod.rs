@@ -204,7 +204,8 @@ impl System for FarmingSystem {
 
         // Get current elapsed time from TimeSystem's GameTime if available
         let elapsed_seconds = data
-            .get::<crate::systems::time::GameTime>("game_time")
+            .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+            .and_then(|m| m.lock().ok())
             .map(|gt| gt.elapsed_seconds)
             .unwrap_or(0.0);
 

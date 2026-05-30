@@ -811,6 +811,14 @@ mod native_app {
             data_store.insert("camera_position", Vec3::new(0.0, 2.0, 5.0));
             data_store.insert("camera_forward", Vec3::NEG_Z);
             data_store.insert("camera_yaw", 0.0_f32);
+            // GameTime lives behind a Mutex in the DataStore so TimeSystem (which
+            // only gets &DataStore in tick) can write the advanced time each frame
+            // and farming/ecology/weather/hydrology + the HUD can read it. Same
+            // interior-mutability pattern as interaction_prompt below.
+            data_store.insert(
+                "game_time",
+                std::sync::Mutex::new(crate::systems::time::GameTime::default()),
+            );
             system_runner.register(TimeSystem::new());
             system_runner.register(PlayerControllerSystem);
             data_store.insert("interaction_prompt", std::sync::Mutex::new(String::new()));
@@ -1475,7 +1483,11 @@ mod native_app {
                     }
 
                     // Bridge game time from DataStore (if TimeSystem writes it)
-                    if let Some(gt) = state.data_store.get::<GameTime>("game_time") {
+                    if let Some(gt) = state
+                        .data_store
+                        .get::<std::sync::Mutex<GameTime>>("game_time")
+                        .and_then(|m| m.lock().ok())
+                    {
                         state.gui_state.game_time = Some(GuiGameTime {
                             hour: gt.hour,
                             day_count: gt.day_count,

@@ -313,7 +313,8 @@ impl System for HydrologySystem {
         self.elapsed = 0.0;
 
         let season = data
-            .get::<GameTime>("game_time")
+            .get::<std::sync::Mutex<GameTime>>("game_time")
+            .and_then(|m| m.lock().ok())
             .map(|gt| gt.season)
             .unwrap_or(Season::Spring);
 

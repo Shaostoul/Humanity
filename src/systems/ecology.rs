@@ -106,7 +106,8 @@ impl System for EcologySystem {
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         // Read current season from GameTime in DataStore
         let season = data
-            .get::<GameTime>("game_time")
+            .get::<std::sync::Mutex<GameTime>>("game_time")
+            .and_then(|m| m.lock().ok())
             .map(|gt| gt.season)
             .unwrap_or(Season::Spring);
 

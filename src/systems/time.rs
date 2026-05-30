@@ -132,7 +132,7 @@ impl System for TimeSystem {
         "TimeSystem"
     }
 
-    fn tick(&mut self, _world: &mut hecs::World, dt: f32, _data: &DataStore) {
+    fn tick(&mut self, _world: &mut hecs::World, dt: f32, data: &DataStore) {
         let scaled_dt = dt as f64 * self.game_time.time_scale as f64;
         self.game_time.elapsed_seconds += scaled_dt;
 
@@ -147,6 +147,22 @@ impl System for TimeSystem {
         self.game_time.season = Season::from_day(self.game_time.day_count);
 
         self.initialized = true;
+
+        // Export the freshly-advanced time to the DataStore so downstream
+        // time-dependent systems (farming / ecology / weather / hydrology) and the
+        // GUI HUD read the CURRENT value. TimeSystem is registered first, so this
+        // write lands before those systems tick in the same frame. Uses a Mutex
+        // (the interaction_prompt pattern) because System::tick only gets
+        // &DataStore — interior mutability is how a system writes back. The slot is
+        // pre-seeded at world init; if it's somehow absent we skip and readers fall
+        // back to their defaults. BEFORE v0.324 this export never happened (despite
+        // the module doc claiming it), so every time-dependent system ran on
+        // Spring / elapsed=0 — the audit's "crops freeze" finding.
+        if let Some(slot) = data.get::<std::sync::Mutex<GameTime>>("game_time") {
+            if let Ok(mut g) = slot.lock() {
+                *g = self.game_time.clone();
+            }
+        }
     }
 }
 
@@ -182,5 +198,49 @@ impl TimeSystem {
     /// Check if it's currently daytime (between 6:00 and 18:00).
     pub fn is_daytime(&self) -> bool {
         self.game_time.hour >= 6.0 && self.game_time.hour <= 18.0
+    }
+}
+
+#[cfg(test)]
+mod game_time_export_tests {
+    use super::*;
+    use crate::ecs::systems::System;
+    use crate::hot_reload::data_store::DataStore;
+
+    #[test]
+    fn time_system_exports_advanced_game_time_to_datastore() {
+        // Pre-seed the slot exactly as world init does, tick the system, and confirm
+        // the advanced time is visible in the DataStore — the export that never
+        // happened before v0.324 (so farming/HUD/seasons all saw Spring / t=0).
+        let mut data = DataStore::new();
+        data.insert("game_time", std::sync::Mutex::new(GameTime::default()));
+        let mut world = hecs::World::new();
+        let mut sys = TimeSystem::new();
+        for _ in 0..10 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let exported = data
+            .get::<std::sync::Mutex<GameTime>>("game_time")
+            .expect("game_time slot present")
+            .lock()
+            .unwrap()
+            .clone();
+        assert!(
+            exported.elapsed_seconds > 0.0,
+            "TimeSystem did not export advanced time to the DataStore"
+        );
+        // Exported value must equal the system's internal state.
+        assert!((exported.elapsed_seconds - sys.game_time().elapsed_seconds).abs() < 1e-9);
+    }
+
+    #[test]
+    fn absent_game_time_slot_is_a_safe_noop() {
+        // If the slot was never seeded, the export silently skips (no panic) and the
+        // system still advances its own clock.
+        let data = DataStore::new();
+        let mut world = hecs::World::new();
+        let mut sys = TimeSystem::new();
+        sys.tick(&mut world, 1.0, &data);
+        assert!(sys.game_time().elapsed_seconds > 0.0);
     }
 }

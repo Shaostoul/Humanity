@@ -269,12 +269,12 @@ impl System for WeatherSystem {
         "WeatherSystem"
     }
 
-    fn tick(&mut self, _world: &mut hecs::World, dt: f32, _data: &DataStore) {
-        // Determine current season from game time (read from DataStore if available,
-        // otherwise default to Spring). WeatherSystem reads GameTime but TimeSystem
-        // stores it internally, so we fall back gracefully.
-        let season = _data
-            .get::<GameTime>("game_time")
+    fn tick(&mut self, _world: &mut hecs::World, dt: f32, data: &DataStore) {
+        // Determine current season from the GameTime that TimeSystem exports into
+        // the DataStore (behind a Mutex); fall back to Spring if absent.
+        let season = data
+            .get::<std::sync::Mutex<GameTime>>("game_time")
+            .and_then(|m| m.lock().ok())
             .map(|gt| gt.season)
             .unwrap_or(Season::Spring);
 
