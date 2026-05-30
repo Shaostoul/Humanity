@@ -618,7 +618,7 @@ Unified celestial body management for renderer, terrain, and maps.
 - Native: `src/terrain/planet.rs`
 
 ### Construction Placement (v0.90.8, partial)
-Scaffolded placement system for building in the game world. Needs full integration.
+Scaffolded placement system for building in the game world. Needs full integration. **⚠️ `PlacementSystem` NOT registered — never ticks (see the lint).**
 - Native: `src/systems/construction/mod.rs`
 
 ### GLTF Model Loading
@@ -707,6 +707,8 @@ Scaffolded system modules for expanded gameplay.
 
 ## Game Systems
 
+> **⚠️ Registration status (2026-05-29 game-code audit):** only **7** of the systems below are actually registered + tick in the runtime — Player Controller, Interaction, Day/Night, Farming, Inventory, Crafting (+ ContainerCompatibility, not separately listed here). Every other system in this section is **implemented but NOT registered**, so it never ticks. `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` is the authoritative list (the build fails if a system is neither registered nor deferred-with-reason); `docs/STATUS.md` has the per-system status.
+
 ### Player Controller
 WASD movement, gravity, jump, ground detection via raycast.
 - Native: `src/systems/player.rs`
@@ -720,19 +722,19 @@ GameTime with seasons, sun direction/color computation. 20 real minutes = 1 game
 - Native: `src/systems/time.rs`
 
 ### Weather System
-7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions.
+7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions. **⚠️ NOT registered — never ticks (see the lint).**
 - Native: `src/systems/weather.rs`
 
 ### Hydrological System
-Rain cycle, rivers, aquifers, contamination tracking, water table simulation.
+Rain cycle, rivers, aquifers, contamination tracking, water table simulation. **⚠️ NOT registered — never ticks (see the lint).**
 - Native: `src/systems/hydrology.rs`
 
 ### Atmospheric System
-Gas tracking, explosions, suffocation, pressure simulation.
+Gas tracking, explosions, suffocation, pressure simulation. **⚠️ NOT registered — never ticks (see the lint).**
 - Native: `src/systems/atmosphere.rs`
 
 ### Disaster System
-21 disaster types with chain reactions, severity scaling, black holes.
+21 disaster types with chain reactions, severity scaling, black holes. **⚠️ NOT registered — never ticks (see the lint).**
 - Native: `src/systems/disasters.rs`
 
 ### Farming
@@ -749,46 +751,46 @@ Recipe matching from CSV, input validation, timed crafting.
 - Data: `data/recipes.csv`
 
 ### Construction
-Blueprint placement, snap-to-grid, timed building, material consumption.
+Blueprint placement, snap-to-grid, timed building, material consumption. **⚠️ NOT registered — never ticks (see the lint).**
 - Native: `src/systems/construction/mod.rs`
 - Data: `data/blueprints/basic.ron`
 
 ### Skills/Progression
-20 skills across 5 categories, XP curves, level-up notifications.
+20 skills across 5 categories, XP curves, level-up notifications. **⚠️ NOT registered — never ticks (see the lint).**
 - Native: `src/systems/skills/mod.rs`
 - Data: `data/skills/skills.csv`
 
 ### AI Behaviors
-5 behavior types (passive, aggressive, herd, predator, guard) with state machines.
+5 behavior types (passive, aggressive, herd, predator, guard) with state machines. **⚠️ Native `AISystem` NOT registered — never ticks (the relay drives ambient NPCs separately, server-side). See the lint.**
 - Native: `src/systems/ai/mod.rs`
 
 ### Vehicles/Mechs
-Enter/exit vehicles, torso twist, jump jets, heat management.
+Enter/exit vehicles, torso twist, jump jets, heat management. **⚠️ NOT registered — never ticks (see the lint).**
 - Native: `src/systems/vehicles/mod.rs`
 
 ### Ecology/Disease
-Disease spread by proximity, seasonal effects, population tracking.
+Disease spread by proximity, seasonal effects, population tracking. **⚠️ NOT registered — never ticks (see the lint).**
 - Native: `src/systems/ecology.rs`
 
 ### Quests
-Data-driven quest progression from RON files. 6 objective types.
+Data-driven quest progression from RON files. 6 objective types. **⚠️ Native `QuestSystem` NOT registered — never ticks. (The relay runs the authoritative quest chain, so quests work in multiplayer; the native single-player system does not.) See the lint.**
 - Native: `src/systems/quests/mod.rs`
 - Data: `data/quests/*.ron`
 
 ### Combat
-Damage calculation, status effects.
+Damage calculation, status effects. **⚠️ `CombatSystem` NOT registered — never ticks (see the lint).**
 - Native: `src/systems/combat/`
 
 ### Economy
-Fleet resource management.
+Fleet resource management. **⚠️ `EconomySystem` NOT registered — never ticks (see the lint).**
 - Native: `src/systems/economy/`
 
 ### Navigation
-Multi-scale navigation (galaxy, system, orbital, surface).
+Multi-scale navigation (galaxy, system, orbital, surface). **⚠️ Support module — not wired into the runtime.**
 - Native: `src/systems/navigation/`
 
 ### Logistics
-Cargo transport and shipping routes.
+Cargo transport and shipping routes. **⚠️ Support module — not wired into the runtime.**
 - Native: `src/systems/logistics/`
 
 ---
@@ -880,15 +882,15 @@ Autonomous agent presets for off-screen NPC simulation (patrol, trade, farm, bui
 - Data: `data/offline_behaviors.ron`
 
 ### Simulation Systems (v0.90.0)
-Data-driven simulation modules for engineering and infrastructure.
+Data-driven simulation modules for engineering and infrastructure. **⚠️ The consuming systems are 47–52 LOC scaffolds, NOT registered — they never tick (see `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`); the data files exist but nothing consumes them at runtime.**
 - Data: `data/electrical.ron`, `data/plumbing.ron`, `data/hvac.ron`, `data/transportation.ron`, `data/fire_system.ron`, `data/docking.ron`
 
 ### Real-World Systems (v0.90.0)
-Data definitions for social and biological simulation.
+Data definitions for social and biological simulation. **⚠️ The consuming systems are scaffolds, NOT registered — they never tick (see the lint); data exists but isn't consumed at runtime.**
 - Data: `data/governance.ron`, `data/psychology.ron`, `data/medical.ron`, `data/food_system.ron`, `data/economy.ron`, `data/creative_arts.ron`, `data/aging_fitness.ron`
 
 ### Science Systems (v0.90.0)
-Data definitions for natural science simulation.
+Data definitions for natural science simulation. **⚠️ The consuming systems are scaffolds, NOT registered — they never tick (see the lint); data exists but isn't consumed at runtime.**
 - Data: `data/geology.ron`, `data/oceanography.ron`, `data/astronomy_tools.ron`, `data/genetics.ron`, `data/manufacturing.ron`, `data/waste_management.ron`
 
 ### Data Schemas (v0.90.0)

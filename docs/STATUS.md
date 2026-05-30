@@ -256,7 +256,7 @@ Everything in this section is **built and working**.
 | Icosphere planet terrain | ✅ | Icosahedron subdivision, PlanetDef (RON), LOD levels, PlanetRenderer (v0.30.0) |
 | Voxel asteroid system | ✅ | Sparse octree, greedy meshing, ore veins (C/S/M-type), mining (v0.31.0) |
 | Rapier3d physics | ✅ | Rigid bodies, colliders, raycasting, step simulation (v0.31.0) |
-| Player controller | ✅ | WASD movement, gravity, jump, ground detection (v0.31.0) |
+| Player controller | ✅ | Registered + ticks; WASD look/move works (camera-driven). NOTE: the ECS physics path (gravity/jump/ground via a `PhysicsBody`) is inert — `physics_world` is never inserted into the DataStore and the player entity has no `PhysicsBody`. |
 | Interaction system | ✅ | Raycast from camera, find interactables within range (v0.31.0) |
 | Day/night cycle | ✅ | GameTime with seasons, sun direction/color (v0.31.0) |
 | Inventory system | ✅ | ItemStack slots, add/remove/transfer (v0.31.0) |
@@ -264,42 +264,42 @@ Everything in this section is **built and working**.
 | Farming system | ✅ | Growth timer, stage transitions, water/health simulation (v0.31.0) |
 | InputState | ✅ | Cross-system input sharing (v0.31.0) |
 | Ship interior system | ✅ | ShipDef/DeckDef/RoomDef from RON, room mesh generation, BFS pathfinding (v0.33.0) |
-| AI behavior system | ✅ | Passive/aggressive/herd/predator/guard state machines (v0.34.0) |
-| Vehicle/mech system | ✅ | Enter/exit, Controllable transfer, torso twist, jump jets, heat (v0.34.0) |
-| Ecology simulation | ✅ | Disease spread/recovery, population tracking, seasonal effects (v0.34.0) |
-| Quest system | ✅ | Data-driven RON quests, step objectives, rewards (v0.34.0) |
+| AI behavior system | ⚠️ | Native `AISystem` (state machines) implemented but **NOT registered** — never ticks in the native runtime. (The relay drives ambient NPC wander separately, server-side.) See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Vehicle/mech system | ⚠️ | `VehicleSystem` implemented but **NOT registered** — never ticks. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Ecology simulation | ⚠️ | `EcologySystem` implemented but **NOT registered** — never ticks. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Quest system | ⚠️ | Native `QuestSystem` implemented but **NOT registered** — never ticks. (The relay runs the authoritative quest chain in `game_state.rs`, so quests work in multiplayer; the native single-player system does not.) See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
 | GLTF model loading | ✅ | Load .glb models via gltf crate, mesh caching in AssetManager (v0.34.0) |
 | Instanced rendering | ✅ | InstanceBatch, pre-allocated uniform buffer, no per-frame GPU alloc (v0.34.0) |
 | Global error boundary | ✅ | window.onerror + unhandledrejection, toast UI instead of white screen (v0.35.0) |
 | Env var validation | ✅ | Fail-fast startup, clear messages for missing/invalid config (v0.35.0) |
 | Automated DB backup | ✅ | SQLite backup every 6 hours, keep last 5, tokio background task (v0.35.0) |
-| Weather system | ✅ | 7 weather conditions, seasonal variation, affects gameplay (v0.40.0) |
+| Weather system | ⚠️ | `WeatherSystem` implemented (7 conditions, seasonal) but **NOT registered** — never ticks, and its output isn't exported to the DataStore for consumers. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
 | Day/night sky renderer | ✅ | Procedural sky with stars, sun, moon, atmospheric scattering (v0.40.0) |
 | Audio system | ✅ | kira crate, spatial 3D audio, music, SFX (v0.39.0) |
 | Multiplayer networking | ✅ | WebSocket client, ECS state sync, server authority (v0.39.0) |
-| Construction system | ✅ | Blueprints, snap grid, placement preview (v0.39.0) |
-| Skills progression | ✅ | 20 skills, XP curves, level-up rewards (v0.39.0) |
+| Construction system | ⚠️ | `ConstructionSystem` + `PlacementSystem` implemented but **NOT registered** — never tick; need build-mode UI + placement-event wiring. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Skills progression | ⚠️ | `SkillSystem` implemented but **NOT registered** — never ticks; needs a skill_registry loaded + XP sources. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
 | Mod support framework | ✅ | Mod manifest, load order, data override system (v0.40.0) |
 | Heightmap terrain | ✅ | Procedural terrain generation with 16 biome types (v0.42.0) |
-| Hydrological system | ✅ | Rain cycle, rivers, aquifers, contamination tracking (v0.42.0) |
-| Atmospheric system | ✅ | Gas tracking, explosions, suffocation, pressure (v0.42.0) |
-| Disaster system | ✅ | 21 disaster types, chain reactions, severity scaling (v0.42.0) |
+| Hydrological system | ⚠️ | `HydrologySystem` implemented but **NOT registered** — never ticks; operates on WaterBody entities not yet spawned. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Atmospheric system | ⚠️ | `AtmosphereSystem` implemented but **NOT registered** — never ticks; operates on EnclosedSpace entities not yet spawned. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Disaster system | ⚠️ | `DisasterSystem` implemented but **NOT registered** — never ticks; spawn is manual + operates on Disaster entities not yet spawned. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
 | World persistence | ✅ | Save/load game world state, entities, terrain (v0.42.0) |
 | Data-driven tools | ✅ | tools.rs loads from data/tools/catalog.json, not hardcoded (v0.90.7) |
 | Data-driven sounds | ✅ | sounds.rs loads from data/sounds.toml, not hardcoded (v0.90.7) |
 | Chat tint colors in theme | ✅ | Moved from hardcoded to theme.ron (v0.90.7) |
 | Server config externalized | ✅ | Constants moved to data/server-config.json (v0.90.7) |
 | 16 scaffolded system modules | ⚠️ | `aging`, `astronomy`, `creative_arts`, `docking`, `fire`, `genetics`, `geology`, `governance` (system, not the trust-layer governance), `hvac`, `manufacturing`, `medical`, `oceanography`, `offline`, `plumbing`, `transportation`, `waste` — implemented but **NOT registered, so they never tick** (corrected 2026-05-29 game-code audit; the earlier "registered and ticking" was wrong — only 7 systems are actually registered in the runtime). Deferred with reasons in `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
-| ⚠️ SYSTEMS-TABLE ACCURACY (2026-05-29 audit) | ⚠️ | Many ✅ rows above mean "implemented in code," NOT "registered + running." Only 7 systems actually tick: Time, PlayerController, Interaction, Farming, Inventory, ContainerCompatibility, Crafting. The rest (weather, ecology, hydrology, atmosphere, disasters, AI, vehicles, construction, skills, quests + the 16 scaffolds) compile but are unregistered — they never run. **`tests/engine_wiring_lint.rs` is the authoritative registered-vs-deferred list** (build fails if a system is neither). A row-by-row downgrade of the overstated ✅s is tracked separately. |
-| Electrical system | ⚠️ | `src/systems/electrical.rs` (~120 LOC) — partial; needs `PowerGenerator` / `PowerConsumer` ECS components (currently falls back to scanning `Interactable`). |
-| Psychology system | ⚠️ | `src/systems/psychology.rs` (~144 LOC) — partial; `Needs` lives as side state instead of a proper ECS component. |
+| ⚠️ SYSTEMS-TABLE ACCURACY (2026-05-29 audit) | ⚠️ | Many ✅ rows above mean "implemented in code," NOT "registered + running." Only 7 systems actually tick: Time, PlayerController, Interaction, Farming, Inventory, ContainerCompatibility, Crafting. The rest (weather, ecology, hydrology, atmosphere, disasters, AI, vehicles, construction, skills, quests + the 16 scaffolds) compile but are unregistered — they never run. **`tests/engine_wiring_lint.rs` is the authoritative registered-vs-deferred list** (build fails if a system is neither). The individual system rows above/below are now downgraded to ⚠️ accordingly (done 2026-05-29). |
+| Electrical system | ⚠️ | `src/systems/electrical.rs` (~120 LOC) — partial AND **NOT registered** (never ticks); needs `PowerGenerator` / `PowerConsumer` ECS components. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Psychology system | ⚠️ | `src/systems/psychology.rs` (~144 LOC) — partial AND **NOT registered** (never ticks); `Needs` lives as side state instead of a proper ECS component. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
 | Emissive materials | ✅ | PBR shader emissive support (params.w = emissive_strength) (v0.90.0) |
 | 12 procedural materials | ✅ | Glass, ice, water, leather, crystal, rust, moss, lava + original brick, metal, wood, concrete (v0.90.0) |
 | Particle system | ✅ | particles.rs + particle.wgsl, 12 data-driven emitter types from particles.ron (v0.90.0) |
 | Bloom post-process | ⚠️ | bloom.rs + bloom.wgsl scaffolding built, needs render loop integration (v0.90.0) |
 | Sun direction uniform | ✅ | Data-driven sun direction as shader uniform, not hardcoded (v0.90.8) |
 | Planet registry | ✅ | Unified celestial body management for renderer and terrain (v0.90.8) |
-| Construction placement | ⚠️ | Placement system scaffolded, needs full integration (v0.90.8) |
+| Construction placement | ⚠️ | `PlacementSystem` scaffolded AND **NOT registered** (never ticks); needs full integration. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
 
 ---
 
