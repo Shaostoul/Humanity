@@ -87,6 +87,7 @@ mod native_app {
     use crate::systems::farming::FarmingSystem;
     use crate::systems::interaction::InteractionSystem;
     use crate::systems::inventory::{Inventory, InventorySystem, ItemRegistry};
+    use crate::systems::inventory::containers::ContainerCompatibilitySystem;
     use crate::systems::player::PlayerControllerSystem;
     use crate::systems::time::{GameTime, TimeSystem};
     use crate::systems::weather::Weather;
@@ -588,6 +589,40 @@ mod native_app {
         let _ = state.asset_manager.load_csv::<PlantRow>("plants.csv");
         let _ = state.asset_manager.load_csv::<RecipeRow>("recipes.csv");
 
+        // ── Container types + content-class compatibility rules ──
+        // Build the ContainerRegistry from data/containers/{types.csv,
+        // content_classes.ron} and stash it in the DataStore under
+        // "container_registry" so ContainerCompatibilitySystem can enforce the
+        // "wrong material breaks the container" rule. Graceful: on missing or
+        // malformed files we log a warning and skip (the system then no-ops),
+        // never panicking — same degradation policy as the rest of the loaders.
+        {
+            use crate::systems::inventory::containers::ContainerRegistry;
+            let dir = state.asset_manager.data_dir();
+            let types_path = dir.join("containers").join("types.csv");
+            let classes_path = dir.join("containers").join("content_classes.ron");
+            match (std::fs::read(&types_path), std::fs::read(&classes_path)) {
+                (Ok(types_bytes), Ok(classes_bytes)) => {
+                    match ContainerRegistry::from_bytes(&types_bytes, &classes_bytes) {
+                        Ok(reg) => {
+                            log::info!(
+                                "Loaded ContainerRegistry: {} container types, {} content classes",
+                                reg.types.len(),
+                                reg.content_classes.len()
+                            );
+                            state.data_store.insert("container_registry", reg);
+                        }
+                        Err(e) => log::warn!("ContainerRegistry parse failed: {e}"),
+                    }
+                }
+                _ => log::warn!(
+                    "Container data not found ({} / {}); container compatibility disabled",
+                    types_path.display(),
+                    classes_path.display()
+                ),
+            }
+        }
+
         state.world_loaded = true;
         log::info!("3D world loaded in {:.0}ms", load_start.elapsed().as_millis());
     }
@@ -742,6 +777,10 @@ mod native_app {
             system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
+            // Enforces typed-container / content-class compatibility (wrong
+            // material damages then breaks the vessel). Reads the
+            // "container_registry" loaded into the DataStore above.
+            system_runner.register(ContainerCompatibilitySystem::new());
             system_runner.register(CraftingSystem::new());
             game_world.world.spawn((
                 Transform::default(),

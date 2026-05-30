@@ -1,0 +1,45 @@
+# HumanityOS Container Types Database
+# ---------------------------------------------------------------------------
+# Container ARCHETYPES with typed content + material compatibility.
+#
+# A container is dedicated to certain contents. Putting the WRONG class of
+# material into a container can DAMAGE or BREAK it (e.g. pouring cement into a
+# dairy/liquid tank). The `accepted_content_classes` column is the whitelist of
+# content classes this container can safely hold; anything else is incompatible
+# and damages the vessel on each store attempt until it breaks.
+#
+# This is the infinite-of-X data file for container archetypes. To add a new
+# container type, append a row here — NEVER hardcode container lists in Rust.
+# Loaded by ContainerRegistry (see src/systems/inventory/containers.rs).
+# Hot-reloadable.
+#
+# Column definitions:
+#   id                        - Unique container-type id (snake_case). Matches an item id
+#                               in items.csv where category='container' when this archetype
+#                               is also a placeable/craftable item.
+#   name                      - Human-readable display name.
+#   base_material             - Primary material the container is made of (material id).
+#   capacity_liters           - Maximum volume the container can hold, in liters.
+#   pressure_rating_atm       - Max internal pressure in atmospheres. 1.0 = ambient only
+#                               (no pressurization). Higher = can hold compressed gas /
+#                               cryogenic liquids that boil off and build pressure.
+#   max_temp_c                - Highest content temperature the container tolerates (deg C).
+#   min_temp_c                - Lowest content temperature the container tolerates (deg C).
+#                               Cryogenic tanks go very low (e.g. -200) and are insulated.
+#   accepted_content_classes  - Pipe-separated whitelist of content classes this container
+#                               can safely hold (e.g. "liquid|water"). Matches ids in
+#                               content_classes.ron. Anything NOT in this list is
+#                               incompatible and damages the container.
+#   description               - One-line description.
+#
+id,name,base_material,capacity_liters,pressure_rating_atm,max_temp_c,min_temp_c,accepted_content_classes,description
+dry_goods_crate,Dry Goods Crate,pine,200.0,1.0,60.0,-20.0,solid|dry_goods,Slatted wooden crate for dry bulk solids and packaged goods
+canvas_sack,Canvas Sack,canvas,50.0,1.0,60.0,-20.0,solid|dry_goods,Flexible woven sack for grain seed and loose dry goods
+wooden_barrel,Wooden Barrel,oak,200.0,1.2,50.0,-5.0,liquid|food,Curved-stave barrel for water wine and non-corrosive liquids
+steel_fuel_drum,Steel Fuel Drum,steel,200.0,2.0,80.0,-30.0,liquid|flammable,Sealed steel drum for fuel oil and flammable liquids
+hdpe_water_tank,HDPE Water Tank,hdpe,1000.0,1.0,50.0,-5.0,liquid|water,Food-safe polyethylene cistern for potable water
+glass_food_jar,Glass Food Jar,glass,2.0,1.0,100.0,-20.0,liquid|solid|food,Sealable glass jar for preserved food liquids and dry goods
+steel_gas_cylinder,Steel Gas Cylinder,steel,50.0,200.0,60.0,-40.0,gas|compressed,High-pressure steel cylinder for compressed gases
+cryo_pressure_tank,Cryogenic Pressure Tank,steel,500.0,25.0,40.0,-200.0,liquid_cryogenic,Vacuum-insulated pressure tank for cryogenic liquids like liquid nitrogen or liquid CO2
+hazmat_box,Hazmat Containment Box,hdpe,100.0,1.5,80.0,-30.0,solid|hazmat|toxic|corrosive,Sealed chemical-resistant box for hazardous solids and toxic or corrosive materials
+dairy_food_tank,Dairy Food Tank,steel,2000.0,1.0,40.0,0.0,liquid|food,Food-grade stainless tank for milk and potable food liquids

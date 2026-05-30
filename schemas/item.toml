@@ -127,6 +127,36 @@ If omitted or 0, the game estimates volume from weight and base_material density
 constraints = "Must be >= 0"
 examples = [0.5, 2.0, 50.0, 200.0]
 
+[fields.content_class]
+type = "string"
+required = false
+default = "solid"
+description = """
+What this item IS, physically, for container compatibility. A container is
+typed (data/containers/types.csv) and only safely holds certain content
+classes; storing the wrong class DAMAGES and eventually BREAKS the container
+(e.g. pouring cement — a dry_goods solid — into a dairy/liquid tank). Most
+items are dry solids and default to 'solid'. Tag genuine liquids, gases,
+cryogenics, foods, fuels, and hazardous materials with their real class so the
+compatibility check (ContainerRegistry::check) routes them to the right vessel.
+Must match a class id in data/containers/content_classes.ron."""
+constraints = "One of: solid, dry_goods, liquid, water, liquid_cryogenic, gas, compressed, food, flammable, corrosive, hazmat, toxic"
+valid_values = [
+    "solid",            # generic dry solid — packaged goods, hardware, blocks
+    "dry_goods",        # loose dry bulk — grain, powder, sand, dry cement
+    "liquid",           # generic non-cryogenic liquid at ambient pressure
+    "water",            # potable water (food-safe sealed liquid container)
+    "liquid_cryogenic", # liquid N2 / liquid CO2 (insulated pressure tank)
+    "gas",              # gas requiring a sealed pressure cylinder
+    "compressed",       # compressed gas (alias used by gas cylinders)
+    "food",             # food / consumable liquid (food-safe container)
+    "flammable",        # fuel, oil, solvent (sealed non-reactive vessel)
+    "corrosive",        # strong acid/base (chemical-resistant containment)
+    "hazmat",           # hazardous material (sealed hazmat containment)
+    "toxic",            # toxic material (sealed hazmat containment)
+]
+examples = ["solid", "water", "food", "flammable", "liquid_cryogenic"]
+
 [fields.description]
 type = "string"
 required = true
@@ -190,7 +220,7 @@ csv_formatting = """
 # ---------------------------------------------------------------------------
 
 [example]
-csv_row = "claw_hammer_0,Claw Hammer,tool,hand_tool,steel,0.7,1,300,Curved claw hammer for nails and light demolition"
+csv_row = "claw_hammer_0,Claw Hammer,tool,hand_tool,steel,0.7,1,300,Curved claw hammer for nails and light demolition,solid"
 breakdown = """
   id             = claw_hammer_0     (unique id, default variant)
   name           = Claw Hammer       (display name)
@@ -200,4 +230,5 @@ breakdown = """
   weight_kg      = 0.7              (700 grams)
   stack_size     = 1                (one per inventory slot)
   durability     = 300              (breaks after 300 uses)
-  description    = Curved claw hammer for nails and light demolition"""
+  description    = Curved claw hammer for nails and light demolition
+  content_class  = solid             (a dry solid — stores in any solid-class container)"""

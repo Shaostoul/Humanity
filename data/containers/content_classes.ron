@@ -1,0 +1,204 @@
+// HumanityOS Content Classes — container compatibility rule table.
+// ---------------------------------------------------------------------------
+// Each entry defines a CLASS OF CONTENT (what an item *is*, physically) and the
+// requirements a container must satisfy to hold it safely. This is the rule
+// table the compatibility check reads.
+//
+// HOW COMPATIBILITY WORKS (read this before editing):
+//   Every item in items.csv has a `content_class` (e.g. "liquid", "cement is
+//   solid", "milk is food"). Every container type in types.csv lists the
+//   content classes it ACCEPTS (its `accepted_content_classes` whitelist).
+//
+//   A store is ACCEPTED when the item's content_class appears in BOTH:
+//     1. the container's accepted_content_classes whitelist, AND
+//     2. (implicitly) this class's `accepted_by` list contains the container's
+//        own content-class tags — they are two views of the same relation, so
+//        the loader cross-checks them and the runtime uses the container
+//        whitelist as the authoritative gate.
+//
+//   The `accepted_by` field here documents, per content class, which container
+//   content-class tags are valid homes for it. It is the human-readable mirror
+//   of the per-container whitelist and is used by the registry's self-check and
+//   by tooling. The runtime damage decision keys off the container whitelist.
+//
+// FIELDS:
+//   id              - Class id (snake_case). Items reference this in items.csv
+//                     `content_class`; containers list it in accepted_content_classes.
+//   name            - Human-readable label.
+//   needs_pressure  - true if the content must be held under pressure (compressed
+//                     gas, cryogenic liquid). A container with pressure_rating_atm
+//                     <= 1.0 cannot safely hold it.
+//   needs_insulation- true if the content must be thermally insulated (cryogenics).
+//   needs_sealed    - true if the container must be sealed/airtight (liquids, gases,
+//                     toxics) vs. an open crate/sack.
+//   food_safe       - true if the content is for human consumption; the container
+//                     base material must be food-safe (glass, hdpe, food-grade steel)
+//                     and must not have previously held a non-food-safe class.
+//   min_temp_c      - Coldest this content gets (deg C). Container min_temp_c must be
+//                     at or below this. Cryogenics are extremely cold.
+//   max_temp_c      - Hottest this content gets (deg C). Container max_temp_c must be
+//                     at or above this.
+//   accepted_by     - The container content-class tags that may hold this content
+//                     (mirror of the container whitelists; see note above).
+//   description     - One-line note.
+//
+// To add a new content class, append an entry here AND add the tag to the
+// relevant container rows in types.csv. NEVER hardcode this list in Rust.
+[
+    // Generic dry solid — packaged goods, tools, blocks, anything not loose powder.
+    (
+        id: "solid",
+        name: "Solid",
+        needs_pressure: false,
+        needs_insulation: false,
+        needs_sealed: false,
+        food_safe: false,
+        min_temp_c: -50.0,
+        max_temp_c: 60.0,
+        accepted_by: ["solid", "dry_goods"],
+        description: "Generic dry solid item — packaged goods, blocks, hardware",
+    ),
+    // Loose dry bulk — grain, powder, sand, cement (when stored dry as a powder).
+    (
+        id: "dry_goods",
+        name: "Dry Goods",
+        needs_pressure: false,
+        needs_insulation: false,
+        needs_sealed: false,
+        food_safe: false,
+        min_temp_c: -50.0,
+        max_temp_c: 60.0,
+        accepted_by: ["solid", "dry_goods"],
+        description: "Loose dry bulk material — grain, powder, sand, dry cement",
+    ),
+    // Generic non-cryogenic liquid — water, oil, chemicals at ambient pressure.
+    (
+        id: "liquid",
+        name: "Liquid",
+        needs_pressure: false,
+        needs_insulation: false,
+        needs_sealed: true,
+        food_safe: false,
+        min_temp_c: -10.0,
+        max_temp_c: 90.0,
+        accepted_by: ["liquid", "water", "food", "flammable"],
+        description: "Generic non-cryogenic liquid at ambient pressure",
+    ),
+    // Potable water specifically — needs a food-safe, sealed, liquid container.
+    (
+        id: "water",
+        name: "Water",
+        needs_pressure: false,
+        needs_insulation: false,
+        needs_sealed: true,
+        food_safe: true,
+        min_temp_c: 0.0,
+        max_temp_c: 90.0,
+        accepted_by: ["liquid", "water", "food"],
+        description: "Potable water — requires a food-safe sealed liquid container",
+    ),
+    // Cryogenic liquid — liquid nitrogen, liquid CO2. Needs pressure + insulation.
+    (
+        id: "liquid_cryogenic",
+        name: "Cryogenic Liquid",
+        needs_pressure: true,
+        needs_insulation: true,
+        needs_sealed: true,
+        food_safe: false,
+        min_temp_c: -200.0,
+        max_temp_c: 20.0,
+        accepted_by: ["liquid_cryogenic"],
+        description: "Cryogenic liquid (liquid N2, liquid CO2) — needs an insulated pressure tank",
+    ),
+    // Compressed / ambient gas — oxygen, propane, CO2 gas. Needs a pressure vessel.
+    (
+        id: "gas",
+        name: "Gas",
+        needs_pressure: true,
+        needs_insulation: false,
+        needs_sealed: true,
+        food_safe: false,
+        min_temp_c: -50.0,
+        max_temp_c: 60.0,
+        accepted_by: ["gas", "compressed"],
+        description: "Gas — requires a sealed pressure cylinder",
+    ),
+    // Compressed gas tag — alias used by gas cylinders; same physical needs as gas.
+    (
+        id: "compressed",
+        name: "Compressed Gas",
+        needs_pressure: true,
+        needs_insulation: false,
+        needs_sealed: true,
+        food_safe: false,
+        min_temp_c: -50.0,
+        max_temp_c: 60.0,
+        accepted_by: ["gas", "compressed"],
+        description: "Compressed gas — high-pressure cylinder only",
+    ),
+    // Food / consumable — milk, juice, preserved food. Must be food-safe + sealed.
+    (
+        id: "food",
+        name: "Food",
+        needs_pressure: false,
+        needs_insulation: false,
+        needs_sealed: true,
+        food_safe: true,
+        min_temp_c: -20.0,
+        max_temp_c: 80.0,
+        accepted_by: ["food", "liquid", "water"],
+        description: "Food or consumable liquid — requires a food-safe container",
+    ),
+    // Flammable liquid — fuel, oil, solvents. Needs a sealed non-reactive vessel.
+    (
+        id: "flammable",
+        name: "Flammable",
+        needs_pressure: false,
+        needs_insulation: false,
+        needs_sealed: true,
+        food_safe: false,
+        min_temp_c: -30.0,
+        max_temp_c: 80.0,
+        accepted_by: ["flammable", "liquid"],
+        description: "Flammable liquid — fuel, oil, solvent; sealed non-reactive vessel",
+    ),
+    // Corrosive — strong acids/bases. Needs a chemical-resistant sealed container.
+    (
+        id: "corrosive",
+        name: "Corrosive",
+        needs_pressure: false,
+        needs_insulation: false,
+        needs_sealed: true,
+        food_safe: false,
+        min_temp_c: -30.0,
+        max_temp_c: 80.0,
+        accepted_by: ["corrosive", "hazmat"],
+        description: "Corrosive acid or base — chemical-resistant sealed containment only",
+    ),
+    // Hazmat — toxic or hazardous solids/liquids requiring containment.
+    (
+        id: "hazmat",
+        name: "Hazardous Material",
+        needs_pressure: false,
+        needs_insulation: false,
+        needs_sealed: true,
+        food_safe: false,
+        min_temp_c: -30.0,
+        max_temp_c: 80.0,
+        accepted_by: ["hazmat", "toxic", "corrosive"],
+        description: "Hazardous material — requires sealed hazmat containment",
+    ),
+    // Toxic — poisonous content; subset of hazmat handling.
+    (
+        id: "toxic",
+        name: "Toxic",
+        needs_pressure: false,
+        needs_insulation: false,
+        needs_sealed: true,
+        food_safe: false,
+        min_temp_c: -30.0,
+        max_temp_c: 80.0,
+        accepted_by: ["hazmat", "toxic"],
+        description: "Toxic material — sealed hazmat containment only",
+    ),
+]

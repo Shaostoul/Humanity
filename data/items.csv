@@ -13,493 +13,493 @@
 #   description       - Short description of the item
 #
 # === CLOTHING ===
-id,name,category,subcategory,base_material,weight_kg,stack_size,durability,description
-t_shirt_0,T-Shirt,clothing,top,cotton,0.2,5,60,Basic short-sleeve cotton shirt
-long_sleeve_0,Long Sleeve Shirt,clothing,top,cotton,0.3,5,70,Full-length sleeve cotton shirt
-hoodie_0,Hoodie,clothing,top,cotton,0.6,3,80,Pullover hooded sweatshirt
-jacket_light_0,Light Jacket,clothing,outerwear,nylon,0.8,1,100,Water-resistant windbreaker
-jacket_heavy_0,Heavy Jacket,clothing,outerwear,canvas,1.5,1,150,Insulated winter jacket
-coat_winter_0,Winter Coat,clothing,outerwear,wool,2.2,1,180,Thick cold-weather overcoat
-vest_0,Vest,clothing,top,cotton,0.3,3,60,Sleeveless torso garment
-pants_0,Pants,clothing,bottom,cotton,0.5,5,80,Standard full-length trousers
-shorts_0,Shorts,clothing,bottom,cotton,0.3,5,60,Knee-length leg garment
-skirt_0,Skirt,clothing,bottom,cotton,0.3,5,60,Hip-to-knee draped garment
-dress_0,Dress,clothing,full_body,cotton,0.4,3,70,One-piece body garment
-overalls_0,Overalls,clothing,full_body,denim,0.9,1,120,Bib-and-brace work garment
-jumpsuit_0,Jumpsuit,clothing,full_body,nylon,0.7,1,100,One-piece utility suit
-underwear_0,Underwear,clothing,undergarment,cotton,0.1,10,40,Basic undergarment
-socks_0,Socks,clothing,feet,cotton,0.08,20,30,Ankle-height foot covering
-boots_work_0,Work Boots,clothing,footwear,leather,1.5,1,200,Steel-toe protective footwear
-boots_hiking_0,Hiking Boots,clothing,footwear,leather,1.2,1,180,Ankle-support trail boots
-shoes_casual_0,Casual Shoes,clothing,footwear,synthetic_leather,0.6,1,120,Everyday walking shoes
-sandals_0,Sandals,clothing,footwear,rubber,0.3,1,80,Open-toe warm-weather footwear
-gloves_work_0,Work Gloves,clothing,hands,leather,0.3,3,100,Reinforced hand protection
-gloves_winter_0,Winter Gloves,clothing,hands,wool,0.2,3,80,Insulated cold-weather gloves
-hat_baseball_0,Baseball Cap,clothing,headwear,cotton,0.15,5,50,Brimmed casual cap
-hat_beanie_0,Beanie,clothing,headwear,wool,0.1,5,50,Knit cold-weather hat
-helmet_hard_0,Hard Hat,clothing,headwear,hdpe,0.4,1,200,Impact-resistant safety helmet
-helmet_combat_0,Combat Helmet,clothing,headwear,kevlar,1.4,1,300,Ballistic protection headgear
-goggles_safety_0,Safety Goggles,clothing,eyewear,polycarbonate,0.15,1,150,Splash and impact eye guards
-sunglasses_0,Sunglasses,clothing,eyewear,polycarbonate,0.05,1,80,UV-blocking eye shades
-backpack_small_0,Small Backpack,clothing,carry,nylon,0.8,1,120,Day-trip rucksack 20L
-backpack_large_0,Large Backpack,clothing,carry,nylon,1.5,1,180,Expedition rucksack 60L
-belt_0,Belt,clothing,accessory,leather,0.3,1,100,Waist strap with buckle
-scarf_0,Scarf,clothing,accessory,wool,0.15,5,50,Neck and face wrap
-apron_0,Apron,clothing,work,canvas,0.4,1,100,Front-body work protector
-raincoat_0,Raincoat,clothing,outerwear,tarp_material,0.6,1,120,Waterproof full-length coat
-wetsuit_0,Wetsuit,clothing,full_body,neoprene,2.0,1,200,Thermal diving suit
-hazmat_suit_0,Hazmat Suit,clothing,full_body,hdpe,3.0,1,250,Chemical and biological barrier suit
-spacesuit_0,Spacesuit,clothing,full_body,kevlar,12.0,1,500,Pressurized extravehicular suit
-lab_coat_0,Lab Coat,clothing,work,polyester,0.4,1,80,Laboratory protective garment
-coveralls_0,Coveralls,clothing,work,cotton,0.8,1,100,Full-body mechanic suit
-poncho_0,Poncho,clothing,outerwear,tarp_material,0.4,3,80,Sleeveless rain cover
-thermal_underwear_0,Thermal Underwear,clothing,undergarment,fleece,0.3,5,60,Base-layer insulating garment
+id,name,category,subcategory,base_material,weight_kg,stack_size,durability,description,content_class
+t_shirt_0,T-Shirt,clothing,top,cotton,0.2,5,60,Basic short-sleeve cotton shirt,solid
+long_sleeve_0,Long Sleeve Shirt,clothing,top,cotton,0.3,5,70,Full-length sleeve cotton shirt,solid
+hoodie_0,Hoodie,clothing,top,cotton,0.6,3,80,Pullover hooded sweatshirt,solid
+jacket_light_0,Light Jacket,clothing,outerwear,nylon,0.8,1,100,Water-resistant windbreaker,solid
+jacket_heavy_0,Heavy Jacket,clothing,outerwear,canvas,1.5,1,150,Insulated winter jacket,solid
+coat_winter_0,Winter Coat,clothing,outerwear,wool,2.2,1,180,Thick cold-weather overcoat,solid
+vest_0,Vest,clothing,top,cotton,0.3,3,60,Sleeveless torso garment,solid
+pants_0,Pants,clothing,bottom,cotton,0.5,5,80,Standard full-length trousers,solid
+shorts_0,Shorts,clothing,bottom,cotton,0.3,5,60,Knee-length leg garment,solid
+skirt_0,Skirt,clothing,bottom,cotton,0.3,5,60,Hip-to-knee draped garment,solid
+dress_0,Dress,clothing,full_body,cotton,0.4,3,70,One-piece body garment,solid
+overalls_0,Overalls,clothing,full_body,denim,0.9,1,120,Bib-and-brace work garment,solid
+jumpsuit_0,Jumpsuit,clothing,full_body,nylon,0.7,1,100,One-piece utility suit,solid
+underwear_0,Underwear,clothing,undergarment,cotton,0.1,10,40,Basic undergarment,solid
+socks_0,Socks,clothing,feet,cotton,0.08,20,30,Ankle-height foot covering,solid
+boots_work_0,Work Boots,clothing,footwear,leather,1.5,1,200,Steel-toe protective footwear,solid
+boots_hiking_0,Hiking Boots,clothing,footwear,leather,1.2,1,180,Ankle-support trail boots,solid
+shoes_casual_0,Casual Shoes,clothing,footwear,synthetic_leather,0.6,1,120,Everyday walking shoes,solid
+sandals_0,Sandals,clothing,footwear,rubber,0.3,1,80,Open-toe warm-weather footwear,solid
+gloves_work_0,Work Gloves,clothing,hands,leather,0.3,3,100,Reinforced hand protection,solid
+gloves_winter_0,Winter Gloves,clothing,hands,wool,0.2,3,80,Insulated cold-weather gloves,solid
+hat_baseball_0,Baseball Cap,clothing,headwear,cotton,0.15,5,50,Brimmed casual cap,solid
+hat_beanie_0,Beanie,clothing,headwear,wool,0.1,5,50,Knit cold-weather hat,solid
+helmet_hard_0,Hard Hat,clothing,headwear,hdpe,0.4,1,200,Impact-resistant safety helmet,solid
+helmet_combat_0,Combat Helmet,clothing,headwear,kevlar,1.4,1,300,Ballistic protection headgear,solid
+goggles_safety_0,Safety Goggles,clothing,eyewear,polycarbonate,0.15,1,150,Splash and impact eye guards,solid
+sunglasses_0,Sunglasses,clothing,eyewear,polycarbonate,0.05,1,80,UV-blocking eye shades,solid
+backpack_small_0,Small Backpack,clothing,carry,nylon,0.8,1,120,Day-trip rucksack 20L,solid
+backpack_large_0,Large Backpack,clothing,carry,nylon,1.5,1,180,Expedition rucksack 60L,solid
+belt_0,Belt,clothing,accessory,leather,0.3,1,100,Waist strap with buckle,solid
+scarf_0,Scarf,clothing,accessory,wool,0.15,5,50,Neck and face wrap,solid
+apron_0,Apron,clothing,work,canvas,0.4,1,100,Front-body work protector,solid
+raincoat_0,Raincoat,clothing,outerwear,tarp_material,0.6,1,120,Waterproof full-length coat,solid
+wetsuit_0,Wetsuit,clothing,full_body,neoprene,2.0,1,200,Thermal diving suit,solid
+hazmat_suit_0,Hazmat Suit,clothing,full_body,hdpe,3.0,1,250,Chemical and biological barrier suit,solid
+spacesuit_0,Spacesuit,clothing,full_body,kevlar,12.0,1,500,Pressurized extravehicular suit,solid
+lab_coat_0,Lab Coat,clothing,work,polyester,0.4,1,80,Laboratory protective garment,solid
+coveralls_0,Coveralls,clothing,work,cotton,0.8,1,100,Full-body mechanic suit,solid
+poncho_0,Poncho,clothing,outerwear,tarp_material,0.4,3,80,Sleeveless rain cover,solid
+thermal_underwear_0,Thermal Underwear,clothing,undergarment,fleece,0.3,5,60,Base-layer insulating garment,solid
 #
 # === TOOLS ===
-hammer_0,Hammer,tool,striking,steel,0.8,1,200,Claw hammer for nails and light demolition
-screwdriver_flat_0,Flat Screwdriver,tool,fastening,steel,0.2,1,150,Slotted-head screwdriver
-screwdriver_phillips_0,Phillips Screwdriver,tool,fastening,steel,0.2,1,150,Cross-head screwdriver
-wrench_adjustable_0,Adjustable Wrench,tool,fastening,steel,0.5,1,200,Variable-jaw bolt wrench
-wrench_socket_set_0,Socket Wrench Set,tool,fastening,steel,2.0,1,250,Ratchet and socket collection
-pliers_0,Pliers,tool,gripping,steel,0.3,1,180,Pivot-jaw gripping tool
-saw_hand_0,Hand Saw,tool,cutting,steel,0.6,1,150,Manual crosscut saw
-saw_circular_0,Circular Saw,tool,cutting,steel,4.0,1,200,Powered rotary cutting saw
-drill_electric_0,Electric Drill,tool,boring,steel,2.0,1,200,Corded rotary drill
-drill_manual_0,Hand Drill,tool,boring,steel,0.8,1,150,Manual brace-and-bit drill
-axe_0,Axe,tool,cutting,steel,1.8,1,200,Full-size felling axe
-hatchet_0,Hatchet,tool,cutting,steel,0.8,1,180,Compact one-hand chopping axe
-pickaxe_0,Pickaxe,tool,mining,steel,2.5,1,200,Rock-breaking pointed pick
-shovel_0,Shovel,tool,digging,steel,2.0,1,180,Flat-blade earth mover
-rake_0,Rake,tool,gardening,steel,1.0,1,120,Tine-head ground smoother
-hoe_0,Hoe,tool,gardening,steel,1.2,1,150,Flat-blade soil cultivator
-scythe_0,Scythe,tool,gardening,steel,2.0,1,120,Curved-blade crop harvester
-chisel_0,Chisel,tool,carving,steel,0.3,1,150,Flat-edge shaping blade
-file_metal_0,Metal File,tool,finishing,steel,0.4,1,120,Abrasive surface smoother
-sandpaper_0,Sandpaper,tool,finishing,sand,0.05,50,20,Grit-coated abrasive sheet
-tape_measure_0,Tape Measure,tool,measuring,steel,0.3,1,100,Retractable distance gauge
-level_0,Level,tool,measuring,aluminum,0.5,1,150,Spirit bubble alignment gauge
-square_0,Carpenter Square,tool,measuring,steel,0.4,1,200,Right-angle reference edge
-clamp_0,Clamp,tool,gripping,steel,0.6,1,200,Adjustable workpiece holder
-vise_0,Vise,tool,gripping,steel,5.0,1,300,Bench-mounted clamping jaw
-anvil_0,Anvil,tool,smithing,steel,30.0,1,500,Forging impact surface
-forge_hammer_0,Forge Hammer,tool,smithing,steel,3.0,1,250,Heavy blacksmithing hammer
-welding_torch_0,Welding Torch,tool,joining,steel,2.5,1,150,Oxy-fuel cutting and joining tool
-soldering_iron_0,Soldering Iron,tool,joining,copper,0.3,1,100,Electric solder-melting tip
-multimeter_0,Multimeter,tool,electrical,abs_plastic,0.5,1,100,Voltage/current/resistance meter
-wire_stripper_0,Wire Stripper,tool,electrical,steel,0.2,1,120,Insulation removal pliers
-crimping_tool_0,Crimping Tool,tool,electrical,steel,0.4,1,150,Terminal compression pliers
-crowbar_0,Crowbar,tool,prying,steel,2.0,1,300,Leverage prying bar
-bolt_cutter_0,Bolt Cutter,tool,cutting,steel,3.0,1,250,Heavy shear jaw cutter
-pipe_wrench_0,Pipe Wrench,tool,fastening,steel,1.5,1,200,Serrated-jaw pipe grip wrench
-trowel_0,Trowel,tool,masonry,steel,0.5,1,120,Flat-blade mortar spreader
-spirit_level_0,Spirit Level,tool,measuring,aluminum,0.6,1,150,Precision horizontal gauge
-pruning_shears_0,Pruning Shears,tool,gardening,steel,0.3,1,120,Spring-loaded branch cutter
-wheelbarrow_0,Wheelbarrow,tool,transport,steel,15.0,1,200,Single-wheel hand cart
-ladder_0,Ladder,tool,access,aluminum,8.0,1,250,Folding step ladder
+hammer_0,Hammer,tool,striking,steel,0.8,1,200,Claw hammer for nails and light demolition,solid
+screwdriver_flat_0,Flat Screwdriver,tool,fastening,steel,0.2,1,150,Slotted-head screwdriver,solid
+screwdriver_phillips_0,Phillips Screwdriver,tool,fastening,steel,0.2,1,150,Cross-head screwdriver,solid
+wrench_adjustable_0,Adjustable Wrench,tool,fastening,steel,0.5,1,200,Variable-jaw bolt wrench,solid
+wrench_socket_set_0,Socket Wrench Set,tool,fastening,steel,2.0,1,250,Ratchet and socket collection,solid
+pliers_0,Pliers,tool,gripping,steel,0.3,1,180,Pivot-jaw gripping tool,solid
+saw_hand_0,Hand Saw,tool,cutting,steel,0.6,1,150,Manual crosscut saw,solid
+saw_circular_0,Circular Saw,tool,cutting,steel,4.0,1,200,Powered rotary cutting saw,solid
+drill_electric_0,Electric Drill,tool,boring,steel,2.0,1,200,Corded rotary drill,solid
+drill_manual_0,Hand Drill,tool,boring,steel,0.8,1,150,Manual brace-and-bit drill,solid
+axe_0,Axe,tool,cutting,steel,1.8,1,200,Full-size felling axe,solid
+hatchet_0,Hatchet,tool,cutting,steel,0.8,1,180,Compact one-hand chopping axe,solid
+pickaxe_0,Pickaxe,tool,mining,steel,2.5,1,200,Rock-breaking pointed pick,solid
+shovel_0,Shovel,tool,digging,steel,2.0,1,180,Flat-blade earth mover,solid
+rake_0,Rake,tool,gardening,steel,1.0,1,120,Tine-head ground smoother,solid
+hoe_0,Hoe,tool,gardening,steel,1.2,1,150,Flat-blade soil cultivator,solid
+scythe_0,Scythe,tool,gardening,steel,2.0,1,120,Curved-blade crop harvester,solid
+chisel_0,Chisel,tool,carving,steel,0.3,1,150,Flat-edge shaping blade,solid
+file_metal_0,Metal File,tool,finishing,steel,0.4,1,120,Abrasive surface smoother,solid
+sandpaper_0,Sandpaper,tool,finishing,sand,0.05,50,20,Grit-coated abrasive sheet,solid
+tape_measure_0,Tape Measure,tool,measuring,steel,0.3,1,100,Retractable distance gauge,solid
+level_0,Level,tool,measuring,aluminum,0.5,1,150,Spirit bubble alignment gauge,solid
+square_0,Carpenter Square,tool,measuring,steel,0.4,1,200,Right-angle reference edge,solid
+clamp_0,Clamp,tool,gripping,steel,0.6,1,200,Adjustable workpiece holder,solid
+vise_0,Vise,tool,gripping,steel,5.0,1,300,Bench-mounted clamping jaw,solid
+anvil_0,Anvil,tool,smithing,steel,30.0,1,500,Forging impact surface,solid
+forge_hammer_0,Forge Hammer,tool,smithing,steel,3.0,1,250,Heavy blacksmithing hammer,solid
+welding_torch_0,Welding Torch,tool,joining,steel,2.5,1,150,Oxy-fuel cutting and joining tool,solid
+soldering_iron_0,Soldering Iron,tool,joining,copper,0.3,1,100,Electric solder-melting tip,solid
+multimeter_0,Multimeter,tool,electrical,abs_plastic,0.5,1,100,Voltage/current/resistance meter,solid
+wire_stripper_0,Wire Stripper,tool,electrical,steel,0.2,1,120,Insulation removal pliers,solid
+crimping_tool_0,Crimping Tool,tool,electrical,steel,0.4,1,150,Terminal compression pliers,solid
+crowbar_0,Crowbar,tool,prying,steel,2.0,1,300,Leverage prying bar,solid
+bolt_cutter_0,Bolt Cutter,tool,cutting,steel,3.0,1,250,Heavy shear jaw cutter,solid
+pipe_wrench_0,Pipe Wrench,tool,fastening,steel,1.5,1,200,Serrated-jaw pipe grip wrench,solid
+trowel_0,Trowel,tool,masonry,steel,0.5,1,120,Flat-blade mortar spreader,solid
+spirit_level_0,Spirit Level,tool,measuring,aluminum,0.6,1,150,Precision horizontal gauge,solid
+pruning_shears_0,Pruning Shears,tool,gardening,steel,0.3,1,120,Spring-loaded branch cutter,solid
+wheelbarrow_0,Wheelbarrow,tool,transport,steel,15.0,1,200,Single-wheel hand cart,solid
+ladder_0,Ladder,tool,access,aluminum,8.0,1,250,Folding step ladder,solid
 #
 # === WEAPONS ===
-knife_utility_0,Utility Knife,weapon,blade,steel,0.2,1,120,Folding everyday carry knife
-knife_combat_0,Combat Knife,weapon,blade,steel,0.4,1,200,Fixed-blade fighting knife
-sword_0,Sword,weapon,blade,steel,1.5,1,250,Single-edge long blade
-spear_0,Spear,weapon,polearm,steel,2.0,1,200,Pointed thrusting polearm
-bow_recurve_0,Recurve Bow,weapon,ranged,bamboo,1.0,1,150,Curved laminate bow
-bow_compound_0,Compound Bow,weapon,ranged,aluminum,2.0,1,250,Cam-levered precision bow
-crossbow_0,Crossbow,weapon,ranged,steel,3.5,1,200,Trigger-release bolt launcher
-sling_0,Sling,weapon,ranged,leather,0.1,1,80,Centrifugal projectile launcher
-staff_0,Staff,weapon,blunt,oak,1.5,1,150,Full-length wooden striking pole
-mace_0,Mace,weapon,blunt,steel,2.5,1,250,Flanged head impact weapon
-shield_round_0,Round Shield,weapon,defense,steel,3.0,1,300,Circular arm-strapped guard
-shield_tower_0,Tower Shield,weapon,defense,steel,8.0,1,400,Full-body standing shield
-pistol_0,Pistol,weapon,firearm,steel,1.0,1,300,Semi-automatic handgun
-rifle_0,Rifle,weapon,firearm,steel,3.5,1,350,Shoulder-fired long arm
-shotgun_0,Shotgun,weapon,firearm,steel,3.0,1,300,Smoothbore scatter gun
-sniper_0,Sniper Rifle,weapon,firearm,steel,5.0,1,350,Precision long-range rifle
-gun_holster_0,Gun Holster,weapon,accessory,leather,0.3,1,120,Belt-mounted firearm carrier
-quiver_0,Quiver,weapon,accessory,leather,0.4,1,100,Back-mounted arrow holder
-ammo_pouch_0,Ammo Pouch,weapon,accessory,canvas,0.2,1,80,Belt-mounted cartridge carrier
-arrow_0,Arrow,weapon,ammo,bamboo,0.05,50,0,Pointed shaft projectile
-bolt_crossbow_0,Crossbow Bolt,weapon,ammo,steel,0.08,50,0,Short heavy crossbow projectile
-bullet_pistol_0,Pistol Ammo,weapon,ammo,brass,0.01,200,0,Handgun cartridge
-bullet_rifle_0,Rifle Ammo,weapon,ammo,brass,0.02,100,0,Long-arm cartridge
+knife_utility_0,Utility Knife,weapon,blade,steel,0.2,1,120,Folding everyday carry knife,solid
+knife_combat_0,Combat Knife,weapon,blade,steel,0.4,1,200,Fixed-blade fighting knife,solid
+sword_0,Sword,weapon,blade,steel,1.5,1,250,Single-edge long blade,solid
+spear_0,Spear,weapon,polearm,steel,2.0,1,200,Pointed thrusting polearm,solid
+bow_recurve_0,Recurve Bow,weapon,ranged,bamboo,1.0,1,150,Curved laminate bow,solid
+bow_compound_0,Compound Bow,weapon,ranged,aluminum,2.0,1,250,Cam-levered precision bow,solid
+crossbow_0,Crossbow,weapon,ranged,steel,3.5,1,200,Trigger-release bolt launcher,solid
+sling_0,Sling,weapon,ranged,leather,0.1,1,80,Centrifugal projectile launcher,solid
+staff_0,Staff,weapon,blunt,oak,1.5,1,150,Full-length wooden striking pole,solid
+mace_0,Mace,weapon,blunt,steel,2.5,1,250,Flanged head impact weapon,solid
+shield_round_0,Round Shield,weapon,defense,steel,3.0,1,300,Circular arm-strapped guard,solid
+shield_tower_0,Tower Shield,weapon,defense,steel,8.0,1,400,Full-body standing shield,solid
+pistol_0,Pistol,weapon,firearm,steel,1.0,1,300,Semi-automatic handgun,solid
+rifle_0,Rifle,weapon,firearm,steel,3.5,1,350,Shoulder-fired long arm,solid
+shotgun_0,Shotgun,weapon,firearm,steel,3.0,1,300,Smoothbore scatter gun,solid
+sniper_0,Sniper Rifle,weapon,firearm,steel,5.0,1,350,Precision long-range rifle,solid
+gun_holster_0,Gun Holster,weapon,accessory,leather,0.3,1,120,Belt-mounted firearm carrier,solid
+quiver_0,Quiver,weapon,accessory,leather,0.4,1,100,Back-mounted arrow holder,solid
+ammo_pouch_0,Ammo Pouch,weapon,accessory,canvas,0.2,1,80,Belt-mounted cartridge carrier,solid
+arrow_0,Arrow,weapon,ammo,bamboo,0.05,50,0,Pointed shaft projectile,solid
+bolt_crossbow_0,Crossbow Bolt,weapon,ammo,steel,0.08,50,0,Short heavy crossbow projectile,solid
+bullet_pistol_0,Pistol Ammo,weapon,ammo,brass,0.01,200,0,Handgun cartridge,solid
+bullet_rifle_0,Rifle Ammo,weapon,ammo,brass,0.02,100,0,Long-arm cartridge,solid
 #
 # === FURNITURE ===
-chair_0,Chair,furniture,seating,oak,5.0,1,200,Four-leg wooden chair
-table_dining_0,Dining Table,furniture,table,oak,20.0,1,250,Six-seat family table
-table_work_0,Work Table,furniture,table,pine,15.0,1,200,Reinforced utility table
-desk_0,Desk,furniture,table,oak,18.0,1,220,Writing and computer desk
-bed_single_0,Single Bed,furniture,sleeping,pine,25.0,1,300,One-person sleeping frame
-bed_double_0,Double Bed,furniture,sleeping,pine,40.0,1,350,Two-person sleeping frame
-bunk_bed_0,Bunk Bed,furniture,sleeping,pine,35.0,1,300,Stacked two-tier bed frame
-shelf_0,Shelf,furniture,storage,pine,3.0,1,150,Wall-mounted single shelf
-bookcase_0,Bookcase,furniture,storage,oak,15.0,1,200,Multi-shelf book storage
-cabinet_0,Cabinet,furniture,storage,oak,20.0,1,220,Enclosed shelf with doors
-wardrobe_0,Wardrobe,furniture,storage,oak,30.0,1,250,Full-height clothing closet
-dresser_0,Dresser,furniture,storage,oak,25.0,1,220,Multi-drawer clothing chest
-nightstand_0,Nightstand,furniture,storage,pine,8.0,1,150,Bedside table with drawer
-couch_0,Couch,furniture,seating,oak,35.0,1,250,Three-seat upholstered sofa
-bench_0,Bench,furniture,seating,pine,10.0,1,200,Backless long seat
-stool_0,Stool,furniture,seating,oak,3.0,1,150,Backless single seat
-hammock_0,Hammock,furniture,sleeping,cotton,2.0,1,100,Suspended fabric sleeping sling
-rug_0,Rug,furniture,decor,wool,3.0,1,120,Floor covering textile
-curtain_0,Curtain,furniture,decor,cotton,1.0,3,80,Window covering drape
-mirror_0,Mirror,furniture,decor,glass,2.0,1,80,Reflective wall panel
-lamp_floor_0,Floor Lamp,furniture,lighting,steel,4.0,1,120,Standing room light
-lamp_desk_0,Desk Lamp,furniture,lighting,aluminum,1.5,1,100,Adjustable task light
-chandelier_0,Chandelier,furniture,lighting,brass,8.0,1,150,Suspended multi-light fixture
-clock_wall_0,Wall Clock,furniture,decor,oak,1.0,1,100,Analog time display
-picture_frame_0,Picture Frame,furniture,decor,pine,0.5,5,60,Photo and art display frame
-door_wood_0,Wood Door,furniture,structure,oak,15.0,1,250,Hinged room divider
-window_frame_0,Window Frame,furniture,structure,pine,8.0,1,200,Glazed wall opening
+chair_0,Chair,furniture,seating,oak,5.0,1,200,Four-leg wooden chair,solid
+table_dining_0,Dining Table,furniture,table,oak,20.0,1,250,Six-seat family table,solid
+table_work_0,Work Table,furniture,table,pine,15.0,1,200,Reinforced utility table,solid
+desk_0,Desk,furniture,table,oak,18.0,1,220,Writing and computer desk,solid
+bed_single_0,Single Bed,furniture,sleeping,pine,25.0,1,300,One-person sleeping frame,solid
+bed_double_0,Double Bed,furniture,sleeping,pine,40.0,1,350,Two-person sleeping frame,solid
+bunk_bed_0,Bunk Bed,furniture,sleeping,pine,35.0,1,300,Stacked two-tier bed frame,solid
+shelf_0,Shelf,furniture,storage,pine,3.0,1,150,Wall-mounted single shelf,solid
+bookcase_0,Bookcase,furniture,storage,oak,15.0,1,200,Multi-shelf book storage,solid
+cabinet_0,Cabinet,furniture,storage,oak,20.0,1,220,Enclosed shelf with doors,solid
+wardrobe_0,Wardrobe,furniture,storage,oak,30.0,1,250,Full-height clothing closet,solid
+dresser_0,Dresser,furniture,storage,oak,25.0,1,220,Multi-drawer clothing chest,solid
+nightstand_0,Nightstand,furniture,storage,pine,8.0,1,150,Bedside table with drawer,solid
+couch_0,Couch,furniture,seating,oak,35.0,1,250,Three-seat upholstered sofa,solid
+bench_0,Bench,furniture,seating,pine,10.0,1,200,Backless long seat,solid
+stool_0,Stool,furniture,seating,oak,3.0,1,150,Backless single seat,solid
+hammock_0,Hammock,furniture,sleeping,cotton,2.0,1,100,Suspended fabric sleeping sling,solid
+rug_0,Rug,furniture,decor,wool,3.0,1,120,Floor covering textile,solid
+curtain_0,Curtain,furniture,decor,cotton,1.0,3,80,Window covering drape,solid
+mirror_0,Mirror,furniture,decor,glass,2.0,1,80,Reflective wall panel,solid
+lamp_floor_0,Floor Lamp,furniture,lighting,steel,4.0,1,120,Standing room light,solid
+lamp_desk_0,Desk Lamp,furniture,lighting,aluminum,1.5,1,100,Adjustable task light,solid
+chandelier_0,Chandelier,furniture,lighting,brass,8.0,1,150,Suspended multi-light fixture,solid
+clock_wall_0,Wall Clock,furniture,decor,oak,1.0,1,100,Analog time display,solid
+picture_frame_0,Picture Frame,furniture,decor,pine,0.5,5,60,Photo and art display frame,solid
+door_wood_0,Wood Door,furniture,structure,oak,15.0,1,250,Hinged room divider,solid
+window_frame_0,Window Frame,furniture,structure,pine,8.0,1,200,Glazed wall opening,solid
 #
 # === FOOD / CONSUMABLES ===
-water_bottle_0,Water Bottle,food,drink,hdpe,0.5,10,0,Purified drinking water 500ml
-ration_basic_0,Basic Ration,food,meal,cotton,0.4,20,0,Vacuum-packed survival meal
-bread_0,Bread,food,baked,cotton,0.3,10,0,Baked wheat loaf
-jerky_0,Jerky,food,preserved,cotton,0.1,30,0,Dried seasoned meat strip
-fruit_apple_0,Apple,food,fruit,plant_fiber,0.2,20,0,Fresh red apple
-fruit_banana_0,Banana,food,fruit,plant_fiber,0.15,20,0,Fresh yellow banana
-fruit_orange_0,Orange,food,fruit,plant_fiber,0.2,20,0,Fresh citrus orange
-fruit_berries_0,Berries,food,fruit,plant_fiber,0.1,30,0,Mixed fresh berry bundle
-vegetable_carrot_0,Carrot,food,vegetable,plant_fiber,0.15,20,0,Fresh orange root vegetable
-vegetable_potato_0,Potato,food,vegetable,plant_fiber,0.3,20,0,Starchy tuber vegetable
-vegetable_onion_0,Onion,food,vegetable,plant_fiber,0.15,20,0,Pungent bulb vegetable
-vegetable_tomato_0,Tomato,food,vegetable,plant_fiber,0.2,20,0,Red vine-ripened fruit vegetable
-vegetable_corn_0,Corn,food,vegetable,plant_fiber,0.25,20,0,Sweet corn ear
-vegetable_lettuce_0,Lettuce,food,vegetable,plant_fiber,0.3,20,0,Leafy green head
-vegetable_cabbage_0,Cabbage,food,vegetable,plant_fiber,0.8,10,0,Dense leafy head
-rice_0,Rice,food,grain,plant_fiber,0.5,20,0,Dry white rice 500g bag
-flour_0,Flour,food,grain,plant_fiber,0.5,20,0,Ground wheat flour 500g bag
-sugar_0,Sugar,food,seasoning,plant_fiber,0.5,20,0,Granulated cane sugar 500g
-salt_food_0,Salt,food,seasoning,salt,0.5,20,0,Table salt 500g container
-cooking_oil_0,Cooking Oil,food,oil,plant_fiber,0.5,10,0,Vegetable cooking oil 500ml
-butter_0,Butter,food,dairy,plant_fiber,0.25,10,0,Salted butter 250g block
-cheese_0,Cheese,food,dairy,plant_fiber,0.3,10,0,Aged cheddar wheel portion
-egg_0,Egg,food,protein,shell,0.06,30,0,Fresh chicken egg
-milk_0,Milk,food,dairy,plant_fiber,1.0,5,0,Fresh whole milk 1L
-coffee_0,Coffee,food,drink,plant_fiber,0.25,20,0,Roasted coffee beans 250g
-tea_0,Tea,food,drink,plant_fiber,0.1,30,0,Dried tea leaves 100g box
-juice_0,Juice,food,drink,plant_fiber,0.5,10,0,Fruit juice bottle 500ml
-canned_food_0,Canned Food,food,preserved,steel,0.4,20,0,Sealed tinned meal
-mre_0,MRE,food,preserved,tarp_material,0.5,10,0,Meal ready to eat field ration
-protein_bar_0,Protein Bar,food,snack,plant_fiber,0.08,30,0,High-protein nutrition bar
-energy_drink_0,Energy Drink,food,drink,aluminum,0.35,20,0,Caffeinated performance beverage
-dried_fruit_0,Dried Fruit,food,preserved,plant_fiber,0.15,30,0,Dehydrated mixed fruit
-dried_meat_0,Dried Meat,food,preserved,plant_fiber,0.1,30,0,Salt-cured preserved meat
-honey_0,Honey,food,preserved,glass,0.5,10,0,Natural bee honey jar
-spice_mix_0,Spice Mix,food,seasoning,plant_fiber,0.05,30,0,Assorted cooking spices
+water_bottle_0,Water Bottle,food,drink,hdpe,0.5,10,0,Purified drinking water 500ml,water
+ration_basic_0,Basic Ration,food,meal,cotton,0.4,20,0,Vacuum-packed survival meal,solid
+bread_0,Bread,food,baked,cotton,0.3,10,0,Baked wheat loaf,solid
+jerky_0,Jerky,food,preserved,cotton,0.1,30,0,Dried seasoned meat strip,solid
+fruit_apple_0,Apple,food,fruit,plant_fiber,0.2,20,0,Fresh red apple,solid
+fruit_banana_0,Banana,food,fruit,plant_fiber,0.15,20,0,Fresh yellow banana,solid
+fruit_orange_0,Orange,food,fruit,plant_fiber,0.2,20,0,Fresh citrus orange,solid
+fruit_berries_0,Berries,food,fruit,plant_fiber,0.1,30,0,Mixed fresh berry bundle,solid
+vegetable_carrot_0,Carrot,food,vegetable,plant_fiber,0.15,20,0,Fresh orange root vegetable,solid
+vegetable_potato_0,Potato,food,vegetable,plant_fiber,0.3,20,0,Starchy tuber vegetable,solid
+vegetable_onion_0,Onion,food,vegetable,plant_fiber,0.15,20,0,Pungent bulb vegetable,solid
+vegetable_tomato_0,Tomato,food,vegetable,plant_fiber,0.2,20,0,Red vine-ripened fruit vegetable,solid
+vegetable_corn_0,Corn,food,vegetable,plant_fiber,0.25,20,0,Sweet corn ear,solid
+vegetable_lettuce_0,Lettuce,food,vegetable,plant_fiber,0.3,20,0,Leafy green head,solid
+vegetable_cabbage_0,Cabbage,food,vegetable,plant_fiber,0.8,10,0,Dense leafy head,solid
+rice_0,Rice,food,grain,plant_fiber,0.5,20,0,Dry white rice 500g bag,dry_goods
+flour_0,Flour,food,grain,plant_fiber,0.5,20,0,Ground wheat flour 500g bag,dry_goods
+sugar_0,Sugar,food,seasoning,plant_fiber,0.5,20,0,Granulated cane sugar 500g,dry_goods
+salt_food_0,Salt,food,seasoning,salt,0.5,20,0,Table salt 500g container,dry_goods
+cooking_oil_0,Cooking Oil,food,oil,plant_fiber,0.5,10,0,Vegetable cooking oil 500ml,food
+butter_0,Butter,food,dairy,plant_fiber,0.25,10,0,Salted butter 250g block,food
+cheese_0,Cheese,food,dairy,plant_fiber,0.3,10,0,Aged cheddar wheel portion,food
+egg_0,Egg,food,protein,shell,0.06,30,0,Fresh chicken egg,solid
+milk_0,Milk,food,dairy,plant_fiber,1.0,5,0,Fresh whole milk 1L,food
+coffee_0,Coffee,food,drink,plant_fiber,0.25,20,0,Roasted coffee beans 250g,food
+tea_0,Tea,food,drink,plant_fiber,0.1,30,0,Dried tea leaves 100g box,food
+juice_0,Juice,food,drink,plant_fiber,0.5,10,0,Fruit juice bottle 500ml,food
+canned_food_0,Canned Food,food,preserved,steel,0.4,20,0,Sealed tinned meal,solid
+mre_0,MRE,food,preserved,tarp_material,0.5,10,0,Meal ready to eat field ration,solid
+protein_bar_0,Protein Bar,food,snack,plant_fiber,0.08,30,0,High-protein nutrition bar,solid
+energy_drink_0,Energy Drink,food,drink,aluminum,0.35,20,0,Caffeinated performance beverage,food
+dried_fruit_0,Dried Fruit,food,preserved,plant_fiber,0.15,30,0,Dehydrated mixed fruit,solid
+dried_meat_0,Dried Meat,food,preserved,plant_fiber,0.1,30,0,Salt-cured preserved meat,solid
+honey_0,Honey,food,preserved,glass,0.5,10,0,Natural bee honey jar,food
+spice_mix_0,Spice Mix,food,seasoning,plant_fiber,0.05,30,0,Assorted cooking spices,solid
 #
 # === MEDICAL ===
-bandage_0,Bandage,food,medical,cotton,0.05,30,0,Sterile wound dressing strip
-medkit_0,Medkit,food,medical,abs_plastic,1.0,5,0,Complete first-aid supply box
-painkiller_0,Painkiller,food,medical,abs_plastic,0.02,50,0,Over-the-counter analgesic tablet
-antibiotic_0,Antibiotic,food,medical,abs_plastic,0.02,50,0,Broad-spectrum antibiotic dose
-antidote_0,Antidote,food,medical,glass,0.1,20,0,General anti-toxin vial
-stimulant_0,Stimulant,food,medical,abs_plastic,0.02,30,0,Adrenaline boost injection
-vitamins_0,Vitamins,food,medical,abs_plastic,0.05,30,0,Daily multivitamin bottle
-splint_0,Splint,food,medical,aluminum,0.2,10,0,Bone fracture immobilizer
-antiseptic_0,Antiseptic,food,medical,hdpe,0.1,20,0,Wound disinfectant solution
-surgical_kit_0,Surgical Kit,food,medical,steel,2.0,1,0,Field surgery instrument set
-blood_pack_0,Blood Pack,food,medical,pvc,0.5,5,0,Stored blood transfusion unit
+bandage_0,Bandage,food,medical,cotton,0.05,30,0,Sterile wound dressing strip,solid
+medkit_0,Medkit,food,medical,abs_plastic,1.0,5,0,Complete first-aid supply box,solid
+painkiller_0,Painkiller,food,medical,abs_plastic,0.02,50,0,Over-the-counter analgesic tablet,solid
+antibiotic_0,Antibiotic,food,medical,abs_plastic,0.02,50,0,Broad-spectrum antibiotic dose,solid
+antidote_0,Antidote,food,medical,glass,0.1,20,0,General anti-toxin vial,solid
+stimulant_0,Stimulant,food,medical,abs_plastic,0.02,30,0,Adrenaline boost injection,solid
+vitamins_0,Vitamins,food,medical,abs_plastic,0.05,30,0,Daily multivitamin bottle,solid
+splint_0,Splint,food,medical,aluminum,0.2,10,0,Bone fracture immobilizer,solid
+antiseptic_0,Antiseptic,food,medical,hdpe,0.1,20,0,Wound disinfectant solution,liquid
+surgical_kit_0,Surgical Kit,food,medical,steel,2.0,1,0,Field surgery instrument set,solid
+blood_pack_0,Blood Pack,food,medical,pvc,0.5,5,0,Stored blood transfusion unit,solid
 #
 # === MATERIALS / RESOURCES ===
-wood_log_0,Wood Log,material,raw_wood,pine,8.0,10,0,Unprocessed timber round
-wood_plank_0,Wood Plank,material,processed_wood,pine,2.5,20,0,Sawn flat lumber board
-stone_raw_0,Raw Stone,material,raw_stone,granite,5.0,10,0,Uncut natural rock chunk
-stone_brick_0,Stone Brick,material,processed_stone,granite,3.0,20,0,Cut rectangular building block
-iron_ore_0,Iron Ore,material,ore,iron,4.5,20,0,Unrefined ferrous mineral
-iron_ingot_0,Iron Ingot,material,ingot,iron,3.0,20,0,Smelted iron bar
-steel_ingot_0,Steel Ingot,material,ingot,steel,3.5,20,0,Forged steel bar
-copper_ore_0,Copper Ore,material,ore,copper,4.2,20,0,Unrefined cupric mineral
-copper_ingot_0,Copper Ingot,material,ingot,copper,2.8,20,0,Smelted copper bar
-aluminum_ingot_0,Aluminum Ingot,material,ingot,aluminum,1.0,20,0,Smelted aluminum bar
-titanium_ingot_0,Titanium Ingot,material,ingot,titanium,2.0,10,0,Smelted titanium bar
-gold_ingot_0,Gold Ingot,material,ingot,gold,5.0,10,0,Refined gold bar
-silver_ingot_0,Silver Ingot,material,ingot,silver,3.0,10,0,Refined silver bar
-coal_0,Coal,material,fuel,charcoal,1.3,30,0,Combustible carbon lump
-oil_crude_0,Crude Oil,material,fuel,tar,0.9,10,0,Unrefined petroleum barrel
-fuel_refined_0,Refined Fuel,material,fuel,tar,0.8,10,0,Processed combustible liquid
-clay_raw_0,Raw Clay,material,raw_stone,clay,1.8,20,0,Moldable wet mineral earth
-sand_0,Sand,material,aggregate,sand,1.6,20,0,Loose silica granules
-gravel_0,Gravel,material,aggregate,gravel,1.8,20,0,Coarse crushed rock
-cement_0,Cement,material,processed_stone,concrete,2.4,10,0,Portland cement powder bag
-concrete_block_0,Concrete Block,material,processed_stone,concrete,12.0,5,0,Cured modular building block
-glass_pane_0,Glass Pane,material,processed,glass,2.5,10,0,Flat transparent glass sheet
-rope_0,Rope,material,cordage,hemp,0.5,20,0,Braided hemp line 10m
-wire_0,Wire,material,electrical,copper,0.3,30,0,Insulated copper wire spool
-nail_box_0,Nail Box,material,fastener,steel,0.5,20,0,Box of 100 steel nails
-screw_box_0,Screw Box,material,fastener,steel,0.5,20,0,Box of 100 steel screws
-bolt_box_0,Bolt Box,material,fastener,steel,0.8,20,0,Box of 50 steel bolts
-glue_0,Glue,material,adhesive,epoxy,0.3,20,0,All-purpose adhesive tube
-tape_duct_0,Duct Tape,material,adhesive,tarp_material,0.2,20,0,Reinforced adhesive tape roll
-paint_0,Paint,material,finish,acrylic,1.0,10,0,Acrylic paint can 1L
-fertilizer_0,Fertilizer,material,agricultural,plant_fiber,2.0,10,0,Nutrient-rich plant food bag
-seed_wheat_0,Wheat Seeds,material,seed,plant_fiber,0.1,50,0,Planting grain seeds packet
-seed_corn_0,Corn Seeds,material,seed,plant_fiber,0.1,50,0,Planting maize seeds packet
-seed_potato_0,Potato Seeds,material,seed,plant_fiber,0.2,30,0,Seed potato tuber set
-seed_tomato_0,Tomato Seeds,material,seed,plant_fiber,0.05,50,0,Planting tomato seeds packet
-seed_carrot_0,Carrot Seeds,material,seed,plant_fiber,0.05,50,0,Planting carrot seeds packet
-seed_lettuce_0,Lettuce Seeds,material,seed,plant_fiber,0.05,50,0,Planting lettuce seeds packet
-seed_rice_0,Rice Seeds,material,seed,plant_fiber,0.1,50,0,Planting paddy rice seeds
-seed_bean_0,Bean Seeds,material,seed,plant_fiber,0.1,50,0,Planting bean seeds packet
-seed_tree_0,Tree Sapling,material,seed,plant_fiber,0.5,10,0,Young tree for planting
-soil_bag_0,Soil Bag,material,agricultural,clay,5.0,5,0,Nutrient-enriched potting soil
-water_purified_0,Purified Water,material,liquid,ice,1.0,10,0,Filtered clean water jug
-ice_block_0,Ice Block,material,frozen,ice,10.0,5,0,Solid frozen water block
-fiber_bundle_0,Fiber Bundle,material,raw,plant_fiber,0.5,20,0,Raw plant fiber bundle
-rubber_sheet_0,Rubber Sheet,material,processed,rubber,1.0,10,0,Flat vulcanized rubber panel
-plastic_sheet_0,Plastic Sheet,material,processed,hdpe,0.5,20,0,Flat polyethylene panel
-carbon_fiber_sheet_0,Carbon Fiber Sheet,material,processed,carbon_fiber_mat,0.3,10,0,Woven carbon composite panel
-leather_hide_0,Leather Hide,material,raw,leather,2.0,5,0,Tanned animal skin piece
-cloth_bolt_0,Cloth Bolt,material,processed,cotton,1.0,10,0,Rolled cotton fabric length
+wood_log_0,Wood Log,material,raw_wood,pine,8.0,10,0,Unprocessed timber round,solid
+wood_plank_0,Wood Plank,material,processed_wood,pine,2.5,20,0,Sawn flat lumber board,solid
+stone_raw_0,Raw Stone,material,raw_stone,granite,5.0,10,0,Uncut natural rock chunk,solid
+stone_brick_0,Stone Brick,material,processed_stone,granite,3.0,20,0,Cut rectangular building block,solid
+iron_ore_0,Iron Ore,material,ore,iron,4.5,20,0,Unrefined ferrous mineral,solid
+iron_ingot_0,Iron Ingot,material,ingot,iron,3.0,20,0,Smelted iron bar,solid
+steel_ingot_0,Steel Ingot,material,ingot,steel,3.5,20,0,Forged steel bar,solid
+copper_ore_0,Copper Ore,material,ore,copper,4.2,20,0,Unrefined cupric mineral,solid
+copper_ingot_0,Copper Ingot,material,ingot,copper,2.8,20,0,Smelted copper bar,solid
+aluminum_ingot_0,Aluminum Ingot,material,ingot,aluminum,1.0,20,0,Smelted aluminum bar,solid
+titanium_ingot_0,Titanium Ingot,material,ingot,titanium,2.0,10,0,Smelted titanium bar,solid
+gold_ingot_0,Gold Ingot,material,ingot,gold,5.0,10,0,Refined gold bar,solid
+silver_ingot_0,Silver Ingot,material,ingot,silver,3.0,10,0,Refined silver bar,solid
+coal_0,Coal,material,fuel,charcoal,1.3,30,0,Combustible carbon lump,dry_goods
+oil_crude_0,Crude Oil,material,fuel,tar,0.9,10,0,Unrefined petroleum barrel,flammable
+fuel_refined_0,Refined Fuel,material,fuel,tar,0.8,10,0,Processed combustible liquid,flammable
+clay_raw_0,Raw Clay,material,raw_stone,clay,1.8,20,0,Moldable wet mineral earth,dry_goods
+sand_0,Sand,material,aggregate,sand,1.6,20,0,Loose silica granules,dry_goods
+gravel_0,Gravel,material,aggregate,gravel,1.8,20,0,Coarse crushed rock,dry_goods
+cement_0,Cement,material,processed_stone,concrete,2.4,10,0,Portland cement powder bag,dry_goods
+concrete_block_0,Concrete Block,material,processed_stone,concrete,12.0,5,0,Cured modular building block,solid
+glass_pane_0,Glass Pane,material,processed,glass,2.5,10,0,Flat transparent glass sheet,solid
+rope_0,Rope,material,cordage,hemp,0.5,20,0,Braided hemp line 10m,solid
+wire_0,Wire,material,electrical,copper,0.3,30,0,Insulated copper wire spool,solid
+nail_box_0,Nail Box,material,fastener,steel,0.5,20,0,Box of 100 steel nails,solid
+screw_box_0,Screw Box,material,fastener,steel,0.5,20,0,Box of 100 steel screws,solid
+bolt_box_0,Bolt Box,material,fastener,steel,0.8,20,0,Box of 50 steel bolts,solid
+glue_0,Glue,material,adhesive,epoxy,0.3,20,0,All-purpose adhesive tube,flammable
+tape_duct_0,Duct Tape,material,adhesive,tarp_material,0.2,20,0,Reinforced adhesive tape roll,solid
+paint_0,Paint,material,finish,acrylic,1.0,10,0,Acrylic paint can 1L,flammable
+fertilizer_0,Fertilizer,material,agricultural,plant_fiber,2.0,10,0,Nutrient-rich plant food bag,dry_goods
+seed_wheat_0,Wheat Seeds,material,seed,plant_fiber,0.1,50,0,Planting grain seeds packet,dry_goods
+seed_corn_0,Corn Seeds,material,seed,plant_fiber,0.1,50,0,Planting maize seeds packet,dry_goods
+seed_potato_0,Potato Seeds,material,seed,plant_fiber,0.2,30,0,Seed potato tuber set,dry_goods
+seed_tomato_0,Tomato Seeds,material,seed,plant_fiber,0.05,50,0,Planting tomato seeds packet,dry_goods
+seed_carrot_0,Carrot Seeds,material,seed,plant_fiber,0.05,50,0,Planting carrot seeds packet,dry_goods
+seed_lettuce_0,Lettuce Seeds,material,seed,plant_fiber,0.05,50,0,Planting lettuce seeds packet,dry_goods
+seed_rice_0,Rice Seeds,material,seed,plant_fiber,0.1,50,0,Planting paddy rice seeds,dry_goods
+seed_bean_0,Bean Seeds,material,seed,plant_fiber,0.1,50,0,Planting bean seeds packet,dry_goods
+seed_tree_0,Tree Sapling,material,seed,plant_fiber,0.5,10,0,Young tree for planting,solid
+soil_bag_0,Soil Bag,material,agricultural,clay,5.0,5,0,Nutrient-enriched potting soil,dry_goods
+water_purified_0,Purified Water,material,liquid,ice,1.0,10,0,Filtered clean water jug,water
+ice_block_0,Ice Block,material,frozen,ice,10.0,5,0,Solid frozen water block,solid
+fiber_bundle_0,Fiber Bundle,material,raw,plant_fiber,0.5,20,0,Raw plant fiber bundle,solid
+rubber_sheet_0,Rubber Sheet,material,processed,rubber,1.0,10,0,Flat vulcanized rubber panel,solid
+plastic_sheet_0,Plastic Sheet,material,processed,hdpe,0.5,20,0,Flat polyethylene panel,solid
+carbon_fiber_sheet_0,Carbon Fiber Sheet,material,processed,carbon_fiber_mat,0.3,10,0,Woven carbon composite panel,solid
+leather_hide_0,Leather Hide,material,raw,leather,2.0,5,0,Tanned animal skin piece,solid
+cloth_bolt_0,Cloth Bolt,material,processed,cotton,1.0,10,0,Rolled cotton fabric length,solid
 #
 # === MACHINES / APPLIANCES ===
-generator_portable_0,Portable Generator,machine,power,steel,25.0,1,300,Gasoline electric generator 2kW
-solar_panel_0,Solar Panel,machine,power,glass,12.0,1,250,Photovoltaic electricity panel
-wind_turbine_small_0,Small Wind Turbine,machine,power,aluminum,20.0,1,300,Rooftop wind generator 1kW
-water_pump_0,Water Pump,machine,fluid,steel,8.0,1,200,Electric water extraction pump
-air_filter_unit_0,Air Filter Unit,machine,climate,steel,5.0,1,150,Powered air purification system
-heater_0,Heater,machine,climate,steel,10.0,1,200,Electric space heater
-cooler_0,Cooler,machine,climate,aluminum,8.0,1,200,Evaporative air cooler unit
-stove_0,Stove,machine,cooking,steel,20.0,1,300,Four-burner cooking range
-oven_0,Oven,machine,cooking,steel,30.0,1,350,Enclosed baking and roasting chamber
-fridge_0,Fridge,machine,storage,steel,40.0,1,300,Refrigerated food storage unit
-washing_machine_0,Washing Machine,machine,textile,steel,35.0,1,250,Automatic clothing laundry
-sewing_machine_0,Sewing Machine,machine,textile,steel,8.0,1,200,Electric fabric stitching machine
-loom_0,Loom,machine,textile,oak,25.0,1,250,Frame-based fabric weaving device
-kiln_0,Kiln,machine,processing,brick,50.0,1,400,High-temperature ceramic firing oven
-forge_0,Forge,machine,processing,brick,60.0,1,400,Metal-heating blacksmith furnace
-workbench_0,Workbench,machine,crafting,oak,20.0,1,300,General-purpose crafting station
-anvil_station_0,Anvil Station,machine,crafting,steel,40.0,1,500,Mounted metalworking anvil
-electronics_bench_0,Electronics Bench,machine,crafting,pine,15.0,1,200,Circuit assembly workstation
-chemistry_set_0,Chemistry Set,machine,crafting,glass,5.0,1,150,Laboratory reaction apparatus
-microscope_0,Microscope,machine,science,steel,3.0,1,150,Optical magnification instrument
-telescope_0,Telescope,machine,science,aluminum,5.0,1,150,Celestial observation instrument
-radio_0,Radio,machine,communication,abs_plastic,1.5,1,120,Two-way voice transceiver
-computer_terminal_0,Computer Terminal,machine,computing,aluminum,8.0,1,200,Networked computing workstation
-printer_3d_0,3D Printer,machine,fabrication,steel,15.0,1,200,Additive manufacturing device
-sawmill_0,Sawmill,machine,processing,steel,80.0,1,400,Powered lumber cutting station
-smelter_0,Smelter,machine,processing,brick,70.0,1,400,Ore-to-ingot melting furnace
-grain_mill_0,Grain Mill,machine,processing,granite,30.0,1,300,Seed-to-flour grinding mill
-water_purifier_0,Water Purifier,machine,fluid,steel,10.0,1,200,Filtration water treatment unit
-fuel_refinery_0,Fuel Refinery,machine,processing,steel,100.0,1,500,Crude oil distillation unit
-battery_bank_0,Battery Bank,machine,power,steel,50.0,1,300,Large-scale energy storage array
-composter_0,Composter,machine,agricultural,oak,10.0,1,150,Organic waste decomposition bin
-greenhouse_0,Greenhouse,machine,agricultural,glass,30.0,1,300,Climate-controlled growing enclosure
-irrigation_system_0,Irrigation System,machine,agricultural,pvc,15.0,1,200,Automated crop watering network
+generator_portable_0,Portable Generator,machine,power,steel,25.0,1,300,Gasoline electric generator 2kW,solid
+solar_panel_0,Solar Panel,machine,power,glass,12.0,1,250,Photovoltaic electricity panel,solid
+wind_turbine_small_0,Small Wind Turbine,machine,power,aluminum,20.0,1,300,Rooftop wind generator 1kW,solid
+water_pump_0,Water Pump,machine,fluid,steel,8.0,1,200,Electric water extraction pump,solid
+air_filter_unit_0,Air Filter Unit,machine,climate,steel,5.0,1,150,Powered air purification system,solid
+heater_0,Heater,machine,climate,steel,10.0,1,200,Electric space heater,solid
+cooler_0,Cooler,machine,climate,aluminum,8.0,1,200,Evaporative air cooler unit,solid
+stove_0,Stove,machine,cooking,steel,20.0,1,300,Four-burner cooking range,solid
+oven_0,Oven,machine,cooking,steel,30.0,1,350,Enclosed baking and roasting chamber,solid
+fridge_0,Fridge,machine,storage,steel,40.0,1,300,Refrigerated food storage unit,solid
+washing_machine_0,Washing Machine,machine,textile,steel,35.0,1,250,Automatic clothing laundry,solid
+sewing_machine_0,Sewing Machine,machine,textile,steel,8.0,1,200,Electric fabric stitching machine,solid
+loom_0,Loom,machine,textile,oak,25.0,1,250,Frame-based fabric weaving device,solid
+kiln_0,Kiln,machine,processing,brick,50.0,1,400,High-temperature ceramic firing oven,solid
+forge_0,Forge,machine,processing,brick,60.0,1,400,Metal-heating blacksmith furnace,solid
+workbench_0,Workbench,machine,crafting,oak,20.0,1,300,General-purpose crafting station,solid
+anvil_station_0,Anvil Station,machine,crafting,steel,40.0,1,500,Mounted metalworking anvil,solid
+electronics_bench_0,Electronics Bench,machine,crafting,pine,15.0,1,200,Circuit assembly workstation,solid
+chemistry_set_0,Chemistry Set,machine,crafting,glass,5.0,1,150,Laboratory reaction apparatus,solid
+microscope_0,Microscope,machine,science,steel,3.0,1,150,Optical magnification instrument,solid
+telescope_0,Telescope,machine,science,aluminum,5.0,1,150,Celestial observation instrument,solid
+radio_0,Radio,machine,communication,abs_plastic,1.5,1,120,Two-way voice transceiver,solid
+computer_terminal_0,Computer Terminal,machine,computing,aluminum,8.0,1,200,Networked computing workstation,solid
+printer_3d_0,3D Printer,machine,fabrication,steel,15.0,1,200,Additive manufacturing device,solid
+sawmill_0,Sawmill,machine,processing,steel,80.0,1,400,Powered lumber cutting station,solid
+smelter_0,Smelter,machine,processing,brick,70.0,1,400,Ore-to-ingot melting furnace,solid
+grain_mill_0,Grain Mill,machine,processing,granite,30.0,1,300,Seed-to-flour grinding mill,solid
+water_purifier_0,Water Purifier,machine,fluid,steel,10.0,1,200,Filtration water treatment unit,solid
+fuel_refinery_0,Fuel Refinery,machine,processing,steel,100.0,1,500,Crude oil distillation unit,solid
+battery_bank_0,Battery Bank,machine,power,steel,50.0,1,300,Large-scale energy storage array,solid
+composter_0,Composter,machine,agricultural,oak,10.0,1,150,Organic waste decomposition bin,solid
+greenhouse_0,Greenhouse,machine,agricultural,glass,30.0,1,300,Climate-controlled growing enclosure,solid
+irrigation_system_0,Irrigation System,machine,agricultural,pvc,15.0,1,200,Automated crop watering network,solid
 #
 # === VEHICLES / TRANSPORT ===
-bicycle_0,Bicycle,vehicle,human_powered,steel,12.0,1,250,Two-wheel pedal vehicle
-cart_hand_0,Hand Cart,vehicle,human_powered,steel,15.0,1,200,Two-wheel push cargo carrier
-cart_horse_0,Horse Cart,vehicle,animal_powered,oak,80.0,1,300,Four-wheel draft animal wagon
-motorcycle_0,Motorcycle,vehicle,motorized,steel,180.0,1,400,Two-wheel combustion engine cycle
-car_sedan_0,Sedan,vehicle,motorized,steel,1400.0,1,500,Four-door passenger automobile
-truck_pickup_0,Pickup Truck,vehicle,motorized,steel,2000.0,1,500,Open-bed utility truck
-truck_cargo_0,Cargo Truck,vehicle,motorized,steel,5000.0,1,600,Enclosed freight hauler
-bus_0,Bus,vehicle,motorized,steel,8000.0,1,600,Multi-passenger transit vehicle
-tractor_0,Tractor,vehicle,motorized,steel,3000.0,1,500,Agricultural power vehicle
-excavator_0,Excavator,vehicle,motorized,steel,6000.0,1,600,Hydraulic earth-moving machine
-boat_rowboat_0,Rowboat,vehicle,watercraft,pine,40.0,1,250,Oar-driven small boat
-boat_sailboat_0,Sailboat,vehicle,watercraft,pine,200.0,1,350,Wind-powered sailing vessel
-boat_motorboat_0,Motorboat,vehicle,watercraft,fiberglass,400.0,1,400,Engine-driven speedboat
-submarine_0,Submarine,vehicle,watercraft,steel,5000.0,1,600,Underwater submersible vessel
-helicopter_0,Helicopter,vehicle,aircraft,aluminum,1500.0,1,500,Rotary-wing vertical-flight craft
-airplane_small_0,Small Airplane,vehicle,aircraft,aluminum,800.0,1,500,Single-engine fixed-wing plane
-rover_0,Rover,vehicle,motorized,aluminum,500.0,1,400,All-terrain exploration vehicle
-spacecraft_pod_0,Spacecraft Pod,vehicle,spacecraft,titanium,2000.0,1,600,Single-seat orbital vehicle
-hovercraft_0,Hovercraft,vehicle,motorized,fiberglass,600.0,1,400,Air-cushion surface vehicle
-sled_0,Sled,vehicle,human_powered,pine,5.0,1,150,Snow-surface sliding vehicle
-raft_0,Raft,vehicle,watercraft,bamboo,20.0,1,100,Simple floating platform
-canoe_0,Canoe,vehicle,watercraft,cedar,25.0,1,200,Narrow paddle-driven boat
+bicycle_0,Bicycle,vehicle,human_powered,steel,12.0,1,250,Two-wheel pedal vehicle,solid
+cart_hand_0,Hand Cart,vehicle,human_powered,steel,15.0,1,200,Two-wheel push cargo carrier,solid
+cart_horse_0,Horse Cart,vehicle,animal_powered,oak,80.0,1,300,Four-wheel draft animal wagon,solid
+motorcycle_0,Motorcycle,vehicle,motorized,steel,180.0,1,400,Two-wheel combustion engine cycle,solid
+car_sedan_0,Sedan,vehicle,motorized,steel,1400.0,1,500,Four-door passenger automobile,solid
+truck_pickup_0,Pickup Truck,vehicle,motorized,steel,2000.0,1,500,Open-bed utility truck,solid
+truck_cargo_0,Cargo Truck,vehicle,motorized,steel,5000.0,1,600,Enclosed freight hauler,solid
+bus_0,Bus,vehicle,motorized,steel,8000.0,1,600,Multi-passenger transit vehicle,solid
+tractor_0,Tractor,vehicle,motorized,steel,3000.0,1,500,Agricultural power vehicle,solid
+excavator_0,Excavator,vehicle,motorized,steel,6000.0,1,600,Hydraulic earth-moving machine,solid
+boat_rowboat_0,Rowboat,vehicle,watercraft,pine,40.0,1,250,Oar-driven small boat,solid
+boat_sailboat_0,Sailboat,vehicle,watercraft,pine,200.0,1,350,Wind-powered sailing vessel,solid
+boat_motorboat_0,Motorboat,vehicle,watercraft,fiberglass,400.0,1,400,Engine-driven speedboat,solid
+submarine_0,Submarine,vehicle,watercraft,steel,5000.0,1,600,Underwater submersible vessel,solid
+helicopter_0,Helicopter,vehicle,aircraft,aluminum,1500.0,1,500,Rotary-wing vertical-flight craft,solid
+airplane_small_0,Small Airplane,vehicle,aircraft,aluminum,800.0,1,500,Single-engine fixed-wing plane,solid
+rover_0,Rover,vehicle,motorized,aluminum,500.0,1,400,All-terrain exploration vehicle,solid
+spacecraft_pod_0,Spacecraft Pod,vehicle,spacecraft,titanium,2000.0,1,600,Single-seat orbital vehicle,solid
+hovercraft_0,Hovercraft,vehicle,motorized,fiberglass,600.0,1,400,Air-cushion surface vehicle,solid
+sled_0,Sled,vehicle,human_powered,pine,5.0,1,150,Snow-surface sliding vehicle,solid
+raft_0,Raft,vehicle,watercraft,bamboo,20.0,1,100,Simple floating platform,solid
+canoe_0,Canoe,vehicle,watercraft,cedar,25.0,1,200,Narrow paddle-driven boat,solid
 #
 # === CONTAINERS / STORAGE ===
-chest_wood_0,Wood Chest,furniture,container,oak,10.0,1,200,Lidded wooden storage box
-crate_0,Crate,furniture,container,pine,5.0,1,150,Slatted shipping container
-barrel_0,Barrel,furniture,container,oak,8.0,1,180,Curved-stave liquid container
-locker_0,Locker,furniture,container,steel,15.0,1,250,Vertical locking cabinet
-safe_0,Safe,furniture,container,steel,50.0,1,500,Armored valuables vault
-toolbox_0,Toolbox,furniture,container,steel,3.0,1,200,Portable compartmented tool case
-ammo_crate_0,Ammo Crate,furniture,container,pine,4.0,1,180,Sealed ammunition shipping box
-fuel_drum_0,Fuel Drum,furniture,container,steel,10.0,1,200,200L liquid fuel barrel
-water_tank_0,Water Tank,furniture,container,hdpe,5.0,1,200,Potable water storage cistern
-grain_silo_0,Grain Silo,furniture,container,steel,60.0,1,400,Bulk crop storage cylinder
+chest_wood_0,Wood Chest,furniture,container,oak,10.0,1,200,Lidded wooden storage box,solid
+crate_0,Crate,furniture,container,pine,5.0,1,150,Slatted shipping container,solid
+barrel_0,Barrel,furniture,container,oak,8.0,1,180,Curved-stave liquid container,solid
+locker_0,Locker,furniture,container,steel,15.0,1,250,Vertical locking cabinet,solid
+safe_0,Safe,furniture,container,steel,50.0,1,500,Armored valuables vault,solid
+toolbox_0,Toolbox,furniture,container,steel,3.0,1,200,Portable compartmented tool case,solid
+ammo_crate_0,Ammo Crate,furniture,container,pine,4.0,1,180,Sealed ammunition shipping box,solid
+fuel_drum_0,Fuel Drum,furniture,container,steel,10.0,1,200,200L liquid fuel barrel,solid
+water_tank_0,Water Tank,furniture,container,hdpe,5.0,1,200,Potable water storage cistern,solid
+grain_silo_0,Grain Silo,furniture,container,steel,60.0,1,400,Bulk crop storage cylinder,solid
 #
 # === ELECTRONICS / GADGETS ===
-flashlight_0,Flashlight,tool,lighting,aluminum,0.3,1,100,Handheld LED torch
-lantern_0,Lantern,tool,lighting,steel,0.8,1,120,Portable area light
-flare_0,Flare,tool,signal,abs_plastic,0.2,10,0,Emergency signal flare stick
-compass_0,Compass,tool,navigation,brass,0.1,1,100,Magnetic direction finder
-binoculars_0,Binoculars,tool,optics,aluminum,0.6,1,120,Magnifying distance viewer
-walkie_talkie_0,Walkie Talkie,tool,communication,abs_plastic,0.3,1,120,Short-range voice radio
-gps_device_0,GPS Device,tool,navigation,abs_plastic,0.2,1,100,Satellite positioning unit
-camera_0,Camera,tool,recording,aluminum,0.4,1,120,Digital photography device
-solar_charger_0,Solar Charger,tool,power,polycarbonate,0.5,1,150,Portable PV charging panel
-battery_pack_0,Battery Pack,tool,power,abs_plastic,0.3,5,0,Rechargeable lithium power cell
-fire_extinguisher_0,Fire Extinguisher,tool,safety,steel,5.0,1,100,Pressurized fire suppression unit
-smoke_detector_0,Smoke Detector,tool,safety,abs_plastic,0.2,1,100,Airborne particle fire alarm
-motion_light_0,Motion Light,tool,lighting,abs_plastic,0.4,1,120,PIR-activated area light
-water_tester_0,Water Tester,tool,science,abs_plastic,0.1,1,80,Water quality analysis probe
-geiger_counter_0,Geiger Counter,tool,science,aluminum,0.5,1,120,Ionizing radiation detector
+flashlight_0,Flashlight,tool,lighting,aluminum,0.3,1,100,Handheld LED torch,solid
+lantern_0,Lantern,tool,lighting,steel,0.8,1,120,Portable area light,solid
+flare_0,Flare,tool,signal,abs_plastic,0.2,10,0,Emergency signal flare stick,solid
+compass_0,Compass,tool,navigation,brass,0.1,1,100,Magnetic direction finder,solid
+binoculars_0,Binoculars,tool,optics,aluminum,0.6,1,120,Magnifying distance viewer,solid
+walkie_talkie_0,Walkie Talkie,tool,communication,abs_plastic,0.3,1,120,Short-range voice radio,solid
+gps_device_0,GPS Device,tool,navigation,abs_plastic,0.2,1,100,Satellite positioning unit,solid
+camera_0,Camera,tool,recording,aluminum,0.4,1,120,Digital photography device,solid
+solar_charger_0,Solar Charger,tool,power,polycarbonate,0.5,1,150,Portable PV charging panel,solid
+battery_pack_0,Battery Pack,tool,power,abs_plastic,0.3,5,0,Rechargeable lithium power cell,solid
+fire_extinguisher_0,Fire Extinguisher,tool,safety,steel,5.0,1,100,Pressurized fire suppression unit,solid
+smoke_detector_0,Smoke Detector,tool,safety,abs_plastic,0.2,1,100,Airborne particle fire alarm,solid
+motion_light_0,Motion Light,tool,lighting,abs_plastic,0.4,1,120,PIR-activated area light,solid
+water_tester_0,Water Tester,tool,science,abs_plastic,0.1,1,80,Water quality analysis probe,solid
+geiger_counter_0,Geiger Counter,tool,science,aluminum,0.5,1,120,Ionizing radiation detector,solid
 #
 # === SPACECRAFT (expanded) ===
-spacecraft_fighter_0,Fighter Ship,vehicle,spacecraft,titanium,5000.0,1,800,Light combat vessel with dual thrusters
-spacecraft_freighter_0,Freighter,vehicle,spacecraft,steel,50000.0,1,1000,Large cargo hauler with modular bays
-spacecraft_shuttle_0,Shuttle,vehicle,spacecraft,aluminum,8000.0,1,600,Personnel transport between stations
-spacecraft_corvette_0,Corvette,vehicle,spacecraft,titanium,15000.0,1,900,Fast multi-role warship
-spacecraft_cruiser_0,Cruiser,vehicle,spacecraft,titanium,80000.0,1,1200,Heavy combat vessel with weapons platforms
-spacecraft_station_module_0,Station Module,vehicle,spacecraft,steel,20000.0,1,2000,Habitable orbital station segment
-spacecraft_mining_vessel_0,Mining Vessel,vehicle,spacecraft,steel,25000.0,1,800,Asteroid ore extraction ship
-spacecraft_explorer_0,Explorer,vehicle,spacecraft,titanium,12000.0,1,700,Long-range survey vessel with sensors
+spacecraft_fighter_0,Fighter Ship,vehicle,spacecraft,titanium,5000.0,1,800,Light combat vessel with dual thrusters,solid
+spacecraft_freighter_0,Freighter,vehicle,spacecraft,steel,50000.0,1,1000,Large cargo hauler with modular bays,solid
+spacecraft_shuttle_0,Shuttle,vehicle,spacecraft,aluminum,8000.0,1,600,Personnel transport between stations,solid
+spacecraft_corvette_0,Corvette,vehicle,spacecraft,titanium,15000.0,1,900,Fast multi-role warship,solid
+spacecraft_cruiser_0,Cruiser,vehicle,spacecraft,titanium,80000.0,1,1200,Heavy combat vessel with weapons platforms,solid
+spacecraft_station_module_0,Station Module,vehicle,spacecraft,steel,20000.0,1,2000,Habitable orbital station segment,solid
+spacecraft_mining_vessel_0,Mining Vessel,vehicle,spacecraft,steel,25000.0,1,800,Asteroid ore extraction ship,solid
+spacecraft_explorer_0,Explorer,vehicle,spacecraft,titanium,12000.0,1,700,Long-range survey vessel with sensors,solid
 #
 # === MECHS ===
-mech_light_0,Light Mech,vehicle,mech,titanium,3000.0,1,600,Bipedal exosuit for rough terrain
-mech_heavy_0,Heavy Mech,vehicle,mech,titanium,8000.0,1,1000,Armored combat walker
-mech_construction_0,Construction Mech,vehicle,mech,steel,6000.0,1,800,Industrial lifter with crane arms
-mech_mining_0,Mining Mech,vehicle,mech,steel,7000.0,1,900,Drill-equipped tunnel borer
-mech_scout_0,Scout Mech,vehicle,mech,aluminum,2000.0,1,500,Fast recon walker with sensors
+mech_light_0,Light Mech,vehicle,mech,titanium,3000.0,1,600,Bipedal exosuit for rough terrain,solid
+mech_heavy_0,Heavy Mech,vehicle,mech,titanium,8000.0,1,1000,Armored combat walker,solid
+mech_construction_0,Construction Mech,vehicle,mech,steel,6000.0,1,800,Industrial lifter with crane arms,solid
+mech_mining_0,Mining Mech,vehicle,mech,steel,7000.0,1,900,Drill-equipped tunnel borer,solid
+mech_scout_0,Scout Mech,vehicle,mech,aluminum,2000.0,1,500,Fast recon walker with sensors,solid
 #
 # === ELECTRIC VEHICLES ===
-car_electric_0,Electric Car,vehicle,electric,aluminum,1800.0,1,500,Battery-powered sedan
-truck_electric_0,Electric Truck,vehicle,electric,steel,3500.0,1,600,Battery-powered cargo hauler
-scooter_electric_0,Electric Scooter,vehicle,electric,aluminum,15.0,1,200,Personal mobility scooter
-bike_electric_0,Electric Bike,vehicle,electric,aluminum,22.0,1,250,Pedal-assist bicycle
-bus_electric_0,Electric Bus,vehicle,electric,steel,9000.0,1,600,Battery transit vehicle
+car_electric_0,Electric Car,vehicle,electric,aluminum,1800.0,1,500,Battery-powered sedan,solid
+truck_electric_0,Electric Truck,vehicle,electric,steel,3500.0,1,600,Battery-powered cargo hauler,solid
+scooter_electric_0,Electric Scooter,vehicle,electric,aluminum,15.0,1,200,Personal mobility scooter,solid
+bike_electric_0,Electric Bike,vehicle,electric,aluminum,22.0,1,250,Pedal-assist bicycle,solid
+bus_electric_0,Electric Bus,vehicle,electric,steel,9000.0,1,600,Battery transit vehicle,solid
 #
 # === TRAINS ===
-locomotive_0,Locomotive,vehicle,rail,steel,80000.0,1,1000,Rail engine for freight and passenger cars
-railcar_passenger_0,Passenger Car,vehicle,rail,steel,30000.0,1,800,Seating car for 60 passengers
-railcar_freight_0,Freight Car,vehicle,rail,steel,20000.0,1,800,Open-top cargo rail car
-railcar_tanker_0,Tanker Car,vehicle,rail,steel,25000.0,1,900,Liquid transport rail car
-rail_segment_0,Rail Segment,vehicle,rail,steel,50.0,10,2000,10m track section
+locomotive_0,Locomotive,vehicle,rail,steel,80000.0,1,1000,Rail engine for freight and passenger cars,solid
+railcar_passenger_0,Passenger Car,vehicle,rail,steel,30000.0,1,800,Seating car for 60 passengers,solid
+railcar_freight_0,Freight Car,vehicle,rail,steel,20000.0,1,800,Open-top cargo rail car,solid
+railcar_tanker_0,Tanker Car,vehicle,rail,steel,25000.0,1,900,Liquid transport rail car,solid
+rail_segment_0,Rail Segment,vehicle,rail,steel,50.0,10,2000,10m track section,solid
 #
 # === MEDICAL (expanded) ===
-defibrillator_0,Defibrillator,medical,equipment,plastic,3.5,1,200,Cardiac rhythm restoration device
-painkillers_0,Painkillers,medical,medicine,plastic,0.02,50,1,Oral pain relief tablets
-antibiotics_0,Antibiotics,medical,medicine,plastic,0.02,30,1,Bacterial infection treatment
-antivenom_0,Antivenom,medical,medicine,glass,0.05,10,1,Venom neutralization serum
-blood_bag_0,Blood Bag,medical,supplies,plastic,0.5,10,1,Stored transfusion blood
-stim_pack_0,Stim Pack,medical,combat_med,plastic,0.1,20,1,Fast-acting combat stimulant
+defibrillator_0,Defibrillator,medical,equipment,plastic,3.5,1,200,Cardiac rhythm restoration device,solid
+painkillers_0,Painkillers,medical,medicine,plastic,0.02,50,1,Oral pain relief tablets,solid
+antibiotics_0,Antibiotics,medical,medicine,plastic,0.02,30,1,Bacterial infection treatment,solid
+antivenom_0,Antivenom,medical,medicine,glass,0.05,10,1,Venom neutralization serum,solid
+blood_bag_0,Blood Bag,medical,supplies,plastic,0.5,10,1,Stored transfusion blood,solid
+stim_pack_0,Stim Pack,medical,combat_med,plastic,0.1,20,1,Fast-acting combat stimulant,solid
 #
 # === ELECTRONICS ===
-circuit_board_0,Circuit Board,electronics,computing,silicon,0.1,20,50,Printed circuit assembly
-battery_small_0,Small Battery,electronics,power,lithium,0.3,10,100,Rechargeable power cell
-battery_large_0,Large Battery,electronics,power,lithium,5.0,1,200,High-capacity energy storage
-solar_cell_0,Solar Cell,electronics,power,silicon,1.0,5,150,Photovoltaic energy converter
-antenna_0,Antenna,electronics,communication,aluminum,0.5,5,100,Radio signal transceiver
-sensor_module_0,Sensor Module,electronics,detection,silicon,0.2,10,80,Multi-spectrum detector
-cpu_0,CPU,electronics,computing,silicon,0.05,20,100,Central processing unit
-servo_motor_0,Servo Motor,electronics,actuator,steel,0.8,5,150,Precision rotary actuator
-led_panel_0,LED Panel,electronics,display,plastic,0.3,10,200,Programmable light display
+circuit_board_0,Circuit Board,electronics,computing,silicon,0.1,20,50,Printed circuit assembly,solid
+battery_small_0,Small Battery,electronics,power,lithium,0.3,10,100,Rechargeable power cell,solid
+battery_large_0,Large Battery,electronics,power,lithium,5.0,1,200,High-capacity energy storage,solid
+solar_cell_0,Solar Cell,electronics,power,silicon,1.0,5,150,Photovoltaic energy converter,solid
+antenna_0,Antenna,electronics,communication,aluminum,0.5,5,100,Radio signal transceiver,solid
+sensor_module_0,Sensor Module,electronics,detection,silicon,0.2,10,80,Multi-spectrum detector,solid
+cpu_0,CPU,electronics,computing,silicon,0.05,20,100,Central processing unit,solid
+servo_motor_0,Servo Motor,electronics,actuator,steel,0.8,5,150,Precision rotary actuator,solid
+led_panel_0,LED Panel,electronics,display,plastic,0.3,10,200,Programmable light display,solid
 #
 # === CONTAINERS (expanded) ===
-chest_metal_0,Metal Chest,container,storage,steel,15.0,1,400,Reinforced lockable container
-backpack_small_0,Small Backpack,container,personal,nylon,0.5,1,80,20-liter carry pack
-backpack_large_0,Large Backpack,container,personal,canvas,1.2,1,120,65-liter expedition pack
+chest_metal_0,Metal Chest,container,storage,steel,15.0,1,400,Reinforced lockable container,solid
+backpack_small_0,Small Backpack,container,personal,nylon,0.5,1,80,20-liter carry pack,solid
+backpack_large_0,Large Backpack,container,personal,canvas,1.2,1,120,65-liter expedition pack,solid
 #
 # === DECORATIONS ===
-painting_0,Painting,decoration,wall_art,canvas,1.0,1,50,Framed canvas artwork
-statue_small_0,Small Statue,decoration,sculpture,stone,10.0,1,500,Carved decorative figure
-statue_large_0,Large Statue,decoration,sculpture,marble,200.0,1,1000,Monumental carved figure
-flag_0,Flag,decoration,banner,cotton,0.3,5,30,Cloth standard on a pole
-fountain_0,Fountain,decoration,water_feature,stone,150.0,1,500,Ornamental water display
-planter_0,Planter,decoration,garden,ceramic,5.0,1,100,Ornamental plant container
-trophy_0,Trophy,decoration,display,gold,0.5,1,100,Achievement award display
+painting_0,Painting,decoration,wall_art,canvas,1.0,1,50,Framed canvas artwork,solid
+statue_small_0,Small Statue,decoration,sculpture,stone,10.0,1,500,Carved decorative figure,solid
+statue_large_0,Large Statue,decoration,sculpture,marble,200.0,1,1000,Monumental carved figure,solid
+flag_0,Flag,decoration,banner,cotton,0.3,5,30,Cloth standard on a pole,solid
+fountain_0,Fountain,decoration,water_feature,stone,150.0,1,500,Ornamental water display,solid
+planter_0,Planter,decoration,garden,ceramic,5.0,1,100,Ornamental plant container,solid
+trophy_0,Trophy,decoration,display,gold,0.5,1,100,Achievement award display,solid
 #
 # === JEWELRY ===
-ring_gold_0,Gold Ring,decoration,jewelry,gold,0.02,5,100,Polished gold finger band
-ring_silver_0,Silver Ring,decoration,jewelry,silver,0.02,5,80,Polished silver finger band
-necklace_gold_0,Gold Necklace,decoration,jewelry,gold,0.05,3,100,Linked gold neck chain
-pendant_gem_0,Gemstone Pendant,decoration,jewelry,silver,0.04,5,90,Set gemstone hanging ornament
-bracelet_silver_0,Silver Bracelet,decoration,jewelry,silver,0.03,5,80,Linked silver wrist band
-earrings_pearl_0,Pearl Earrings,decoration,jewelry,silver,0.02,5,60,Pair of mounted pearl studs
-brooch_0,Brooch,decoration,jewelry,silver,0.04,5,90,Pinned decorative chest ornament
-crown_simple_0,Simple Crown,decoration,jewelry,gold,0.6,1,200,Banded ceremonial headpiece
-amulet_protective_0,Protective Amulet,decoration,jewelry,silver,0.05,5,100,Engraved warding charm
+ring_gold_0,Gold Ring,decoration,jewelry,gold,0.02,5,100,Polished gold finger band,solid
+ring_silver_0,Silver Ring,decoration,jewelry,silver,0.02,5,80,Polished silver finger band,solid
+necklace_gold_0,Gold Necklace,decoration,jewelry,gold,0.05,3,100,Linked gold neck chain,solid
+pendant_gem_0,Gemstone Pendant,decoration,jewelry,silver,0.04,5,90,Set gemstone hanging ornament,solid
+bracelet_silver_0,Silver Bracelet,decoration,jewelry,silver,0.03,5,80,Linked silver wrist band,solid
+earrings_pearl_0,Pearl Earrings,decoration,jewelry,silver,0.02,5,60,Pair of mounted pearl studs,solid
+brooch_0,Brooch,decoration,jewelry,silver,0.04,5,90,Pinned decorative chest ornament,solid
+crown_simple_0,Simple Crown,decoration,jewelry,gold,0.6,1,200,Banded ceremonial headpiece,solid
+amulet_protective_0,Protective Amulet,decoration,jewelry,silver,0.05,5,100,Engraved warding charm,solid
 #
 # === BOOKS / SCROLLS ===
-book_blank_0,Blank Book,tool,writing,plant_fiber,0.4,5,40,Empty notebook for handwritten records
-book_journal_0,Personal Journal,tool,writing,plant_fiber,0.4,5,40,Bound diary with lined pages
-book_field_guide_0,Field Guide,tool,reference,plant_fiber,0.5,5,50,Illustrated species and terrain handbook
-book_recipes_0,Recipe Book,tool,reference,plant_fiber,0.5,5,50,Cooking and preservation manual
-book_medical_0,Medical Manual,tool,reference,plant_fiber,0.6,5,60,First aid and treatment reference
-book_engineering_0,Engineering Manual,tool,reference,plant_fiber,0.7,5,60,Mechanical and structural reference
-scroll_blank_0,Blank Scroll,tool,writing,plant_fiber,0.1,20,20,Rolled blank parchment sheet
-map_paper_0,Paper Map,tool,navigation,plant_fiber,0.1,10,30,Folded geographic chart
-pen_quill_0,Quill Pen,tool,writing,plant_fiber,0.02,10,40,Feather and reservoir writing instrument
-ink_bottle_0,Ink Bottle,tool,writing,glass,0.2,10,50,Glass-stoppered writing fluid
-pencil_0,Pencil,tool,writing,pine,0.01,50,30,Graphite-core wooden writing stick
-notebook_0,Notebook,tool,writing,plant_fiber,0.3,5,40,Spiral-bound lined paper book
+book_blank_0,Blank Book,tool,writing,plant_fiber,0.4,5,40,Empty notebook for handwritten records,solid
+book_journal_0,Personal Journal,tool,writing,plant_fiber,0.4,5,40,Bound diary with lined pages,solid
+book_field_guide_0,Field Guide,tool,reference,plant_fiber,0.5,5,50,Illustrated species and terrain handbook,solid
+book_recipes_0,Recipe Book,tool,reference,plant_fiber,0.5,5,50,Cooking and preservation manual,solid
+book_medical_0,Medical Manual,tool,reference,plant_fiber,0.6,5,60,First aid and treatment reference,solid
+book_engineering_0,Engineering Manual,tool,reference,plant_fiber,0.7,5,60,Mechanical and structural reference,solid
+scroll_blank_0,Blank Scroll,tool,writing,plant_fiber,0.1,20,20,Rolled blank parchment sheet,solid
+map_paper_0,Paper Map,tool,navigation,plant_fiber,0.1,10,30,Folded geographic chart,solid
+pen_quill_0,Quill Pen,tool,writing,plant_fiber,0.02,10,40,Feather and reservoir writing instrument,solid
+ink_bottle_0,Ink Bottle,tool,writing,glass,0.2,10,50,Glass-stoppered writing fluid,solid
+pencil_0,Pencil,tool,writing,pine,0.01,50,30,Graphite-core wooden writing stick,solid
+notebook_0,Notebook,tool,writing,plant_fiber,0.3,5,40,Spiral-bound lined paper book,solid
 #
 # === MUSICAL INSTRUMENTS ===
-guitar_acoustic_0,Acoustic Guitar,decoration,instrument,oak,2.0,1,150,Six-string fretted wooden guitar
-guitar_electric_0,Electric Guitar,decoration,instrument,oak,3.5,1,180,Magnetic pickup six-string guitar
-violin_0,Violin,decoration,instrument,oak,0.5,1,120,Four-string bowed wooden instrument
-flute_wood_0,Wooden Flute,decoration,instrument,oak,0.3,1,100,Hollow keyed wind instrument
-drum_hand_0,Hand Drum,decoration,instrument,leather,1.5,1,150,Stretched skin percussion drum
-drum_kit_0,Drum Kit,decoration,instrument,oak,40.0,1,200,Multi-piece percussion ensemble
-piano_upright_0,Upright Piano,decoration,instrument,oak,180.0,1,400,Vertical-string keyed instrument
-keyboard_electronic_0,Electronic Keyboard,decoration,instrument,abs_plastic,8.0,1,150,Powered synthesizer keyboard
-harmonica_0,Harmonica,decoration,instrument,brass,0.1,5,80,Free-reed mouth-blown instrument
+guitar_acoustic_0,Acoustic Guitar,decoration,instrument,oak,2.0,1,150,Six-string fretted wooden guitar,solid
+guitar_electric_0,Electric Guitar,decoration,instrument,oak,3.5,1,180,Magnetic pickup six-string guitar,solid
+violin_0,Violin,decoration,instrument,oak,0.5,1,120,Four-string bowed wooden instrument,solid
+flute_wood_0,Wooden Flute,decoration,instrument,oak,0.3,1,100,Hollow keyed wind instrument,solid
+drum_hand_0,Hand Drum,decoration,instrument,leather,1.5,1,150,Stretched skin percussion drum,solid
+drum_kit_0,Drum Kit,decoration,instrument,oak,40.0,1,200,Multi-piece percussion ensemble,solid
+piano_upright_0,Upright Piano,decoration,instrument,oak,180.0,1,400,Vertical-string keyed instrument,solid
+keyboard_electronic_0,Electronic Keyboard,decoration,instrument,abs_plastic,8.0,1,150,Powered synthesizer keyboard,solid
+harmonica_0,Harmonica,decoration,instrument,brass,0.1,5,80,Free-reed mouth-blown instrument,solid
 #
 # === ART SUPPLIES ===
-paintbrush_set_0,Paintbrush Set,tool,art,plant_fiber,0.3,5,80,Assorted bristle painting brushes
-canvas_blank_0,Blank Canvas,tool,art,canvas,0.6,10,50,Stretched primed painting surface
-easel_0,Easel,tool,art,pine,5.0,1,150,Tripod canvas-holding stand
-palette_painters_0,Painter's Palette,tool,art,oak,0.4,5,80,Thumbhole color-mixing board
-charcoal_stick_0,Charcoal Stick,tool,art,charcoal,0.05,30,20,Compressed drawing carbon stick
-clay_sculpting_0,Sculpting Clay,tool,art,clay,1.5,5,40,Workable modeling earth block
-pottery_wheel_0,Pottery Wheel,machine,crafting,oak,40.0,1,300,Foot-pedal clay-throwing turntable
-chisel_set_carving_0,Carving Chisel Set,tool,art,steel,1.2,1,200,Assorted woodcarving blades
-sketchbook_0,Sketchbook,tool,art,plant_fiber,0.4,5,40,Bound drawing paper book
+paintbrush_set_0,Paintbrush Set,tool,art,plant_fiber,0.3,5,80,Assorted bristle painting brushes,solid
+canvas_blank_0,Blank Canvas,tool,art,canvas,0.6,10,50,Stretched primed painting surface,solid
+easel_0,Easel,tool,art,pine,5.0,1,150,Tripod canvas-holding stand,solid
+palette_painters_0,Painter's Palette,tool,art,oak,0.4,5,80,Thumbhole color-mixing board,solid
+charcoal_stick_0,Charcoal Stick,tool,art,charcoal,0.05,30,20,Compressed drawing carbon stick,solid
+clay_sculpting_0,Sculpting Clay,tool,art,clay,1.5,5,40,Workable modeling earth block,solid
+pottery_wheel_0,Pottery Wheel,machine,crafting,oak,40.0,1,300,Foot-pedal clay-throwing turntable,solid
+chisel_set_carving_0,Carving Chisel Set,tool,art,steel,1.2,1,200,Assorted woodcarving blades,solid
+sketchbook_0,Sketchbook,tool,art,plant_fiber,0.4,5,40,Bound drawing paper book,solid
 #
 # === LIGHTING ===
-candle_0,Candle,decoration,lighting,wax,0.1,20,30,Wax taper with cotton wick
-candle_holder_0,Candle Holder,decoration,lighting,brass,0.5,5,100,Stable taper-supporting base
-torch_handheld_0,Handheld Torch,decoration,lighting,oak,0.6,5,40,Pitch-soaked stick light
-lantern_oil_0,Oil Lantern,decoration,lighting,brass,1.0,5,150,Wick-fed glass-shielded oil lamp
-lantern_battery_0,Battery Lantern,electronics,lighting,abs_plastic,0.8,5,150,Portable LED light box
-flashlight_0,Flashlight,electronics,lighting,aluminum,0.3,5,100,Handheld battery torch
-headlamp_0,Headlamp,electronics,lighting,abs_plastic,0.2,5,100,Strap-mounted hands-free light
-streetlight_0,Streetlight,furniture,lighting,steel,80.0,1,400,Tall pole-mounted public light
+candle_0,Candle,decoration,lighting,wax,0.1,20,30,Wax taper with cotton wick,solid
+candle_holder_0,Candle Holder,decoration,lighting,brass,0.5,5,100,Stable taper-supporting base,solid
+torch_handheld_0,Handheld Torch,decoration,lighting,oak,0.6,5,40,Pitch-soaked stick light,solid
+lantern_oil_0,Oil Lantern,decoration,lighting,brass,1.0,5,150,Wick-fed glass-shielded oil lamp,solid
+lantern_battery_0,Battery Lantern,electronics,lighting,abs_plastic,0.8,5,150,Portable LED light box,solid
+flashlight_0,Flashlight,electronics,lighting,aluminum,0.3,5,100,Handheld battery torch,solid
+headlamp_0,Headlamp,electronics,lighting,abs_plastic,0.2,5,100,Strap-mounted hands-free light,solid
+streetlight_0,Streetlight,furniture,lighting,steel,80.0,1,400,Tall pole-mounted public light,solid
 #
 # === COOKED FOODS ===
-soup_vegetable_0,Vegetable Soup,food,cooked,plant_fiber,0.6,10,0,Hot mixed vegetable broth bowl
-stew_meat_0,Meat Stew,food,cooked,plant_fiber,0.7,10,0,Slow-simmered meat and vegetable pot
-sandwich_0,Sandwich,food,cooked,plant_fiber,0.3,10,0,Filled bread two-slice meal
-pasta_cooked_0,Cooked Pasta,food,cooked,plant_fiber,0.4,10,0,Boiled noodles with sauce bowl
-pizza_slice_0,Pizza Slice,food,cooked,plant_fiber,0.25,10,0,Baked cheese and topping wedge
-roast_chicken_0,Roast Chicken,food,cooked,plant_fiber,1.5,5,0,Whole oven-roasted poultry
-fish_grilled_0,Grilled Fish,food,cooked,plant_fiber,0.4,10,0,Open-flame cooked fish fillet
-omelette_0,Omelette,food,cooked,plant_fiber,0.3,10,0,Folded egg and filling pan dish
-porridge_0,Porridge,food,cooked,plant_fiber,0.4,10,0,Hot oat or grain breakfast bowl
-salad_0,Salad,food,cooked,plant_fiber,0.4,10,0,Mixed raw vegetable bowl
-cake_0,Cake,food,baked,plant_fiber,1.0,5,0,Sweet layered baked dessert
-pie_0,Pie,food,baked,plant_fiber,0.8,5,0,Filled pastry-crust baked dish
-cookies_batch_0,Cookies,food,baked,plant_fiber,0.3,10,0,Sweet baked dough discs batch
+soup_vegetable_0,Vegetable Soup,food,cooked,plant_fiber,0.6,10,0,Hot mixed vegetable broth bowl,solid
+stew_meat_0,Meat Stew,food,cooked,plant_fiber,0.7,10,0,Slow-simmered meat and vegetable pot,solid
+sandwich_0,Sandwich,food,cooked,plant_fiber,0.3,10,0,Filled bread two-slice meal,solid
+pasta_cooked_0,Cooked Pasta,food,cooked,plant_fiber,0.4,10,0,Boiled noodles with sauce bowl,solid
+pizza_slice_0,Pizza Slice,food,cooked,plant_fiber,0.25,10,0,Baked cheese and topping wedge,solid
+roast_chicken_0,Roast Chicken,food,cooked,plant_fiber,1.5,5,0,Whole oven-roasted poultry,solid
+fish_grilled_0,Grilled Fish,food,cooked,plant_fiber,0.4,10,0,Open-flame cooked fish fillet,solid
+omelette_0,Omelette,food,cooked,plant_fiber,0.3,10,0,Folded egg and filling pan dish,solid
+porridge_0,Porridge,food,cooked,plant_fiber,0.4,10,0,Hot oat or grain breakfast bowl,solid
+salad_0,Salad,food,cooked,plant_fiber,0.4,10,0,Mixed raw vegetable bowl,solid
+cake_0,Cake,food,baked,plant_fiber,1.0,5,0,Sweet layered baked dessert,solid
+pie_0,Pie,food,baked,plant_fiber,0.8,5,0,Filled pastry-crust baked dish,solid
+cookies_batch_0,Cookies,food,baked,plant_fiber,0.3,10,0,Sweet baked dough discs batch,solid
 #
 # === FISHING / OUTDOOR ===
-fishing_rod_0,Fishing Rod,tool,fishing,bamboo,0.6,1,150,Reel-and-line fish capture pole
-fishing_net_0,Fishing Net,tool,fishing,nylon,2.0,1,180,Weighted mesh fish trap
-tackle_box_0,Tackle Box,tool,fishing,abs_plastic,1.5,1,150,Compartmented lure storage
-tent_2person_0,Two-Person Tent,furniture,shelter,nylon,3.0,1,200,Compact backpack camping shelter
-sleeping_bag_0,Sleeping Bag,furniture,sleeping,nylon,2.0,1,150,Insulated portable bedroll
-campfire_kit_0,Campfire Kit,tool,outdoor,steel,0.8,1,120,Tinder flint and starter bundle
-binoculars_0,Binoculars,tool,observation,abs_plastic,0.7,1,150,Twin-tube long-range optic
-compass_0,Compass,tool,navigation,brass,0.1,5,200,Magnetic direction indicator
+fishing_rod_0,Fishing Rod,tool,fishing,bamboo,0.6,1,150,Reel-and-line fish capture pole,solid
+fishing_net_0,Fishing Net,tool,fishing,nylon,2.0,1,180,Weighted mesh fish trap,solid
+tackle_box_0,Tackle Box,tool,fishing,abs_plastic,1.5,1,150,Compartmented lure storage,solid
+tent_2person_0,Two-Person Tent,furniture,shelter,nylon,3.0,1,200,Compact backpack camping shelter,solid
+sleeping_bag_0,Sleeping Bag,furniture,sleeping,nylon,2.0,1,150,Insulated portable bedroll,solid
+campfire_kit_0,Campfire Kit,tool,outdoor,steel,0.8,1,120,Tinder flint and starter bundle,solid
+binoculars_0,Binoculars,tool,observation,abs_plastic,0.7,1,150,Twin-tube long-range optic,solid
+compass_0,Compass,tool,navigation,brass,0.1,5,200,Magnetic direction indicator,solid
 #
 # === PLUMBING / SANITATION ===
-pipe_metal_0,Metal Pipe,material,plumbing,steel,3.0,20,0,Threaded steel pipe segment
-pipe_pvc_0,PVC Pipe,material,plumbing,pvc,0.8,20,0,Plastic water pipe segment
-faucet_0,Faucet,furniture,plumbing,brass,0.6,5,150,Threaded water tap with handles
-toilet_0,Toilet,furniture,plumbing,ceramic,40.0,1,400,Porcelain waste fixture with tank
-sink_0,Sink,furniture,plumbing,ceramic,18.0,1,300,Wall or counter-mounted basin
-shower_head_0,Shower Head,furniture,plumbing,brass,0.4,5,200,Wall-mounted spray nozzle
-soap_bar_0,Soap Bar,tool,hygiene,plant_fiber,0.1,20,30,Pressed cleaning lather bar
-shampoo_bottle_0,Shampoo,tool,hygiene,hdpe,0.4,10,30,Liquid hair cleaning bottle
-toothbrush_0,Toothbrush,tool,hygiene,abs_plastic,0.02,10,40,Bristled dental cleaning stick
-towel_0,Towel,tool,hygiene,cotton,0.4,5,80,Absorbent body-drying cloth
+pipe_metal_0,Metal Pipe,material,plumbing,steel,3.0,20,0,Threaded steel pipe segment,solid
+pipe_pvc_0,PVC Pipe,material,plumbing,pvc,0.8,20,0,Plastic water pipe segment,solid
+faucet_0,Faucet,furniture,plumbing,brass,0.6,5,150,Threaded water tap with handles,solid
+toilet_0,Toilet,furniture,plumbing,ceramic,40.0,1,400,Porcelain waste fixture with tank,solid
+sink_0,Sink,furniture,plumbing,ceramic,18.0,1,300,Wall or counter-mounted basin,solid
+shower_head_0,Shower Head,furniture,plumbing,brass,0.4,5,200,Wall-mounted spray nozzle,solid
+soap_bar_0,Soap Bar,tool,hygiene,plant_fiber,0.1,20,30,Pressed cleaning lather bar,solid
+shampoo_bottle_0,Shampoo,tool,hygiene,hdpe,0.4,10,30,Liquid hair cleaning bottle,liquid
+toothbrush_0,Toothbrush,tool,hygiene,abs_plastic,0.02,10,40,Bristled dental cleaning stick,solid
+towel_0,Towel,tool,hygiene,cotton,0.4,5,80,Absorbent body-drying cloth,solid
 #
 # === SPECIALTY MATERIALS ===
-beeswax_0,Beeswax,material,raw,plant_fiber,0.3,20,0,Natural hive wax block
-animal_fat_0,Animal Fat,material,raw,plant_fiber,0.5,20,0,Rendered tallow chunk
-charcoal_lump_0,Charcoal Lump,material,fuel,charcoal,0.6,30,0,Pyrolyzed wood fuel
-salt_block_0,Salt Block,material,mineral,salt,2.0,10,0,Compressed mineral salt slab
+beeswax_0,Beeswax,material,raw,plant_fiber,0.3,20,0,Natural hive wax block,solid
+animal_fat_0,Animal Fat,material,raw,plant_fiber,0.5,20,0,Rendered tallow chunk,solid
+charcoal_lump_0,Charcoal Lump,material,fuel,charcoal,0.6,30,0,Pyrolyzed wood fuel,dry_goods
+salt_block_0,Salt Block,material,mineral,salt,2.0,10,0,Compressed mineral salt slab,solid

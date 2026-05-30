@@ -22,6 +22,7 @@ use crate::systems::crafting::CraftingSystem;
 use crate::systems::farming::FarmingSystem;
 use crate::systems::interaction::InteractionSystem;
 use crate::systems::inventory::InventorySystem;
+use crate::systems::inventory::containers::ContainerCompatibilitySystem;
 use crate::systems::player::PlayerControllerSystem;
 use crate::systems::time::TimeSystem;
 
@@ -104,6 +105,7 @@ pub async fn main() {
     system_runner.register(InteractionSystem::new());
     system_runner.register(FarmingSystem::new());
     system_runner.register(InventorySystem::new());
+    system_runner.register(ContainerCompatibilitySystem::new());
     system_runner.register(CraftingSystem::new());
 
     // Spawn a player entity

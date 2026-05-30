@@ -18,8 +18,56 @@
 #             data/recipes.csv (materials_required for crafting),
 #             data/materials.csv (via base item)
 
+# ===========================================================================
+# CONTAINER TYPES (data/containers/types.csv) — typed contents + compatibility
+# ===========================================================================
+# In addition to the per-container storage fields documented further below,
+# HumanityOS defines a compact CONTAINER-TYPE ARCHETYPE table in
+# `data/containers/types.csv`. Each row is a typed vessel with a material
+# compatibility whitelist. A container is dedicated to certain contents;
+# putting the WRONG content class into it DAMAGES the vessel and eventually
+# BREAKS it (e.g. cement — a dry_goods solid — poured into a dairy/liquid tank).
+#
+# These archetypes are loaded by `ContainerRegistry` (src/systems/inventory/
+# containers.rs) alongside the content-class rule table in
+# `data/containers/content_classes.ron`. Items carry a `content_class` (see
+# schemas/item.toml); the registry's compatibility check matches an item's
+# content_class against the container's accepted_content_classes whitelist.
+#
+# types.csv columns (in order):
+#   id                        string  Unique container-type id (snake_case).
+#   name                      string  Human-readable display name.
+#   base_material             string  Primary material id (materials.csv).
+#   capacity_liters           float   Max volume in liters (> 0).
+#   pressure_rating_atm       float   Max internal pressure, atm. 1.0 = ambient
+#                                     only; higher = pressure vessel (gas, cryo).
+#   max_temp_c                float   Highest content temperature tolerated (C).
+#   min_temp_c                float   Lowest content temperature tolerated (C).
+#                                     Cryo tanks go very low (e.g. -200).
+#   accepted_content_classes  string  Pipe-separated whitelist of content classes
+#                                     this vessel safely holds (e.g. "liquid|water").
+#                                     Anything else is incompatible → damage.
+#   description               string  One-line description.
+#
+# Example rows:
+#   hdpe_water_tank,HDPE Water Tank,hdpe,1000.0,1.0,50.0,-5.0,liquid|water,Food-safe polyethylene cistern for potable water
+#   cryo_pressure_tank,Cryogenic Pressure Tank,steel,500.0,25.0,40.0,-200.0,liquid_cryogenic,Vacuum-insulated tank for liquid N2 / CO2
+#   dairy_food_tank,Dairy Food Tank,steel,2000.0,1.0,40.0,0.0,liquid|food,Food-grade tank — BREAKS if you pour in cement (a solid)
+#
+# Compatibility rule (authoritative gate = the container whitelist):
+#   ACCEPTED      item.content_class is in container.accepted_content_classes
+#   INCOMPATIBLE  otherwise -> reduce container damage_ratio; at 0.0 it BREAKS
+#                 and its contents are cleared (spill).
+# Cryogenic liquids require a container whose whitelist includes
+# `liquid_cryogenic` (needs pressure + insulation). A solid (cement) into a
+# liquid-only tank is INCOMPATIBLE.
+#
+# To add a container archetype, append a row to types.csv. To add a content
+# class, append an entry to content_classes.ron AND add its tag to the relevant
+# container rows. NEVER hardcode container or content-class lists in Rust.
+
 # ---------------------------------------------------------------------------
-# FIELD DEFINITIONS
+# FIELD DEFINITIONS (per-container storage schema — chests, fridges, tanks)
 # ---------------------------------------------------------------------------
 
 [fields.id]
