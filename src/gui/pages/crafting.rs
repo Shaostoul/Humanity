@@ -228,21 +228,34 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                         let frame = egui::Frame::none()
                             .fill(fill)
-                            .rounding(Rounding::same(4))
+                            .rounding(Rounding::same(3))
                             .stroke(stroke)
-                            .inner_margin(theme.panel_margin);
+                            .inner_margin(4.0);
 
-                        // Whole-row clickable: the frame fills the full list width and
-                        // its response covers the entire row (fixes the old "only some
-                        // spots are clickable" — the click target used to be just the
-                        // inner text's bounding box, not the padded frame).
+                        // Compact two-line row (name + craft-time on line 1, ingredient
+                        // have/need on line 2; the redundant category line is dropped —
+                        // it's the sidebar selection). Whole frame is clickable + full
+                        // width. Roughly half the old three-line height so far more
+                        // recipes are visible at once.
                         let inner = frame.show(ui, |ui| {
                             ui.set_width(ui.available_width());
-                            ui.label(
-                                RichText::new(&recipe.name)
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_primary()),
-                            );
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(&recipe.name)
+                                        .size(theme.font_size_body)
+                                        .color(theme.text_primary()),
+                                );
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        ui.label(
+                                            RichText::new(format!("{}s", recipe.craft_time_sec))
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_muted()),
+                                        );
+                                    },
+                                );
+                            });
                             let inputs_str: String = recipe
                                 .inputs
                                 .iter()
@@ -252,28 +265,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 })
                                 .collect::<Vec<_>>()
                                 .join(", ");
-                            ui.label(
-                                RichText::new(inputs_str)
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_muted()),
-                            );
-                            ui.horizontal(|ui| {
+                            if !inputs_str.is_empty() {
                                 ui.label(
-                                    RichText::new(&recipe.category)
+                                    RichText::new(inputs_str)
                                         .size(theme.font_size_small)
                                         .color(theme.text_muted()),
                                 );
-                                ui.label(
-                                    RichText::new(format!("{}s", recipe.craft_time_sec))
-                                        .size(theme.font_size_small)
-                                        .color(theme.text_muted()),
-                                );
-                            });
+                            }
                         });
                         if inner.response.interact(egui::Sense::click()).clicked() {
                             state.craft_selected = Some(*idx);
                         }
-                        ui.add_space(theme.row_gap);
+                        ui.add_space(1.0);
                     }
                 });
         });
