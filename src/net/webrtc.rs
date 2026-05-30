@@ -72,16 +72,61 @@
 //! - inc-1 (this file): one ordered DataChannel per peer, text round-trip, host
 //!   ICE candidates only (same-LAN / same-host testing).
 //! - inc-2 (later): group mesh (open channels to every roster member).
-//! - inc-3a (THIS increment): STUN server-reflexive (srflx) candidate gathering
+//! - inc-3a: STUN server-reflexive (srflx) candidate gathering
 //!   so two peers behind *different* NATs can connect (the host candidate alone
 //!   only works same-LAN). We hand-roll a tiny RFC 5389 STUN Binding client over
 //!   the manager's existing shared `UdpSocket`, learn our public `ip:port`
 //!   (server-reflexive address) from the Binding Response's XOR-MAPPED-ADDRESS,
 //!   add it as a local candidate to every peer's `Rtc`, and *trickle* it to the
 //!   far side as a `dc_ice` signal. See the `// STUN srflx` / `// inc-3a`
-//!   markers and the `mod stun` block at the bottom of the file.
-//! - inc-3b (later): TURN relay (RFC 5766) for the symmetric-NAT fallback —
-//!   still the only remaining `// TODO inc-3b` path. NOT in this file yet.
+//!   markers and the `mod stun` block.
+//! - inc-3b (THIS increment): TURN relay (RFC 5766) for the symmetric-NAT
+//!   fallback. When BOTH peers are behind symmetric NATs, srflx hole-punching
+//!   fails (each NAT maps the same internal socket to a *different* external
+//!   port per destination, so the srflx the peer learned is useless for the
+//!   peer-to-peer 5-tuple). The fix is a relay: both peers send to / receive
+//!   from a shared TURN server, which forwards between them. We hand-roll an
+//!   RFC 5766 TURN client (long-term-credential auth) over the SAME shared
+//!   `UdpSocket`: Allocate (→ a relayed transport address), CreatePermission +
+//!   ChannelBind per peer, then relay peer traffic as TURN ChannelData. The
+//!   relayed transport address is added to each peer's `Rtc` as a
+//!   `Candidate::relayed` and trickled like the srflx. See the `// inc-3b` /
+//!   `// TURN` markers and the `mod turn` block at the bottom of the file.
+//!
+//! # How TURN rides the EXISTING data path without disturbing host/srflx (inc-3b)
+//!
+//! str0m is **completely TURN-agnostic** — it has no idea a candidate is
+//! relayed beyond using a lower priority for it. When str0m decides to send to
+//! a peer over the relayed pair, it hands us a normal
+//! `Output::Transmit { source, destination, contents }` where (verified in the
+//! `is` ICE crate, `agent.rs`): `source = local_candidate.base()` and
+//! `destination = remote_candidate.addr()`. For a `Candidate::relayed`, `base()`
+//! is the TURN-allocated *relayed address* (the `relayed()` ctor sets
+//! `base = Some(addr)` with `addr` = the relayed address). So **every** datagram
+//! str0m emits for a relayed pair — ICE connectivity checks AND DTLS/SCTP data
+//! alike (the `NominatedSend` event also carries `source: local.base()`) — is
+//! stamped with `source == our_relayed_addr`. That single fact is our guard:
+//!
+//!   * **Transmit-wrap (outbound):** in the `Output::Transmit` handler, IF
+//!     `t.source == our_relayed_addr` we wrap `t.contents` as TURN ChannelData
+//!     to the TURN *server* (the inner datagram is addressed to the peer via the
+//!     bound channel). ELSE we `udp.send_to(t.destination)` raw — the UNCHANGED
+//!     inc-1/2/3a path. Host/srflx transmits never have `source ==
+//!     our_relayed_addr`, so they are byte-for-byte unaffected.
+//!   * **Recv-unwrap (inbound):** in the recv path, AFTER the inc-3a STUN demux
+//!     and BEFORE the per-peer WebRTC demux, IF the datagram's `source ==
+//!     turn_server_addr` we treat it as TURN (ChannelData / Data indication /
+//!     Allocate/Refresh/CreatePermission/ChannelBind reply). ChannelData /
+//!     Data is unwrapped to `(peer_addr, inner)` and fed to str0m as
+//!     `Input::Receive { source: peer_addr, destination: our_relayed_addr, .. }`
+//!     so str0m's ICE demux (which matches a relayed local candidate by
+//!     `addr() == destination`) accepts it. Any datagram NOT from the TURN
+//!     server falls straight through to the existing demux untouched.
+//!
+//! TURN is strictly **best-effort**: if the allocation fails (auth rejected,
+//! server down) we log and keep running with host+srflx only. The relayed
+//! candidate is just one more ICE candidate; its absence only costs us the
+//! symmetric-NAT fallback, never the working same-LAN/STUN path.
 //!
 //! # Why str0m does NOT trickle our srflx for us (the inc-3a footgun)
 //!
@@ -141,6 +186,33 @@ const STUN_RETRY_INTERVAL: Duration = Duration::from_secs(2);
 /// stay responsive (otherwise, if str0m's next deadline were seconds away, a
 /// freshly-enqueued offer or outbound frame would sit unprocessed that long).
 const MAX_POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+// ── inc-3b TURN relay configuration ──────────────────────────────────────
+//
+// The operator's TURN server + long-term credentials. These mirror the web
+// client's `rtcConfig.iceServers` TURN entry (`web/chat/chat-voice-rooms.js`
+// ~line 22), so a native peer and a browser peer relay through the SAME server.
+// The credentials are already hardcoded/public in that client JS, so reusing
+// them as consts here exposes nothing new.
+
+/// TURN server address (the UDP `turn:` listener). Resolved with `ToSocketAddrs`
+/// like the STUN servers — bare `host:port`, no `turn:` URL scheme.
+const TURN_SERVER: &str = "united-humanity.us:3478";
+/// TURN long-term-credential username.
+const TURN_USERNAME: &str = "humanity";
+/// TURN long-term-credential password (a.k.a. the credential / shared secret).
+const TURN_PASSWORD: &str = "turnRelay2026!secure";
+
+/// How often to (re)try the initial Allocate until we either succeed or give up
+/// for this session. Mirrors `STUN_RETRY_INTERVAL` — a request or its 401/reply
+/// can be lost, so we re-send on a slow cadence rather than fire-once.
+const TURN_ALLOC_RETRY_INTERVAL: Duration = Duration::from_secs(2);
+
+/// We refresh the TURN allocation this long *before* its LIFETIME expires, so a
+/// slightly late timer never drops the allocation mid-session. RFC 5766 §6
+/// suggests refreshing well ahead of expiry; 60s of slack is generous for the
+/// default 600s lifetime and harmless for shorter ones (clamped below).
+const TURN_REFRESH_SLACK: Duration = Duration::from_secs(60);
 
 /// The label for our single data channel. Matches nothing load-bearing on the
 /// web side (the browser names its channel `'dm'`); str0m uses the label only
@@ -297,6 +369,12 @@ pub struct WebrtcManager {
     /// When we last sent a batch of STUN Binding Requests, for the retry cadence.
     /// `None` means "never sent" → send immediately on first loop turn.
     last_stun_send: Option<Instant>,
+
+    // ── inc-3b TURN relay client state ────────────────────────────────────
+    /// The whole TURN client. `None` until/unless we successfully resolve the
+    /// TURN server address and begin an allocation. Best-effort: if it never
+    /// reaches `Allocated`, host+srflx still work — TURN just adds nothing.
+    turn: Option<turn::TurnClient>,
 }
 
 /// Per-peer connection state.
@@ -371,6 +449,9 @@ impl WebrtcManager {
                 stun_servers: Vec::new(),
                 srflx: None,
                 last_stun_send: None,
+                // inc-3b: TURN starts uninitialized; the run-loop kicks off the
+                // allocation lazily (so a startup DNS hiccup isn't fatal).
+                turn: None,
             };
             mgr.run();
         });
@@ -429,6 +510,16 @@ impl WebrtcManager {
             //    str0m single-mutation invariant and can sit anywhere in the loop.
             self.maybe_send_stun();
 
+            // ── A3. inc-3b TURN: drive the TURN client state machine — kick off
+            //    the Allocate if not started, retry it on a cadence, and refresh
+            //    the allocation before it expires. Like STUN, this ONLY sends
+            //    plain TURN datagrams on the shared socket and (on a fresh
+            //    allocation) trickles a relayed candidate to peers; the trickle
+            //    is the only Rtc mutation and it goes through `add_and_trickle_*`
+            //    which the step-B drain below honors. Best-effort throughout —
+            //    failures here never touch the host/srflx path.
+            self.maybe_drive_turn();
+
             // ── B. Drain poll_output for EVERY peer until each returns Timeout.
             //    Collect the soonest deadline across all peers; that's how long
             //    we're allowed to block on the UDP read. Dead peers (ICE failed
@@ -439,6 +530,14 @@ impl WebrtcManager {
             if self.srflx.is_none() {
                 if let Some(last) = self.last_stun_send {
                     soonest = soonest.min(last + STUN_RETRY_INTERVAL);
+                }
+            }
+            // inc-3b: wake in time for the next TURN action (allocate retry or
+            // allocation refresh), so a far-future str0m deadline never delays
+            // a refresh past the allocation's LIFETIME.
+            if let Some(turn) = &self.turn {
+                if let Some(deadline) = turn.next_deadline() {
+                    soonest = soonest.min(deadline);
                 }
             }
             let mut dead: Vec<String> = Vec::new();
@@ -500,12 +599,63 @@ impl WebrtcManager {
                         continue;
                     }
 
+                    // ── D0.5. inc-3b: TURN demux, AFTER the STUN demux and
+                    //    BEFORE the per-peer WebRTC demux. ONLY datagrams whose
+                    //    `source == turn_server_addr` are considered here — that
+                    //    address guard is what keeps host/srflx traffic on the
+                    //    untouched path below. The handler:
+                    //      * consumes TURN control replies (Allocate 401/success,
+                    //        Refresh, CreatePermission, ChannelBind, Data
+                    //        indications we don't channel-bind) and returns
+                    //        `Handled` → we `continue`;
+                    //      * for relayed peer data (ChannelData / Data
+                    //        indication), returns `Relayed { peer, range }` — the
+                    //        peer's address plus the byte range of the *inner*
+                    //        datagram inside `buf`, which we then feed to str0m
+                    //        as a normal Receive with `source = peer` and
+                    //        `destination = our_relayed_addr` (so str0m's ICE
+                    //        demux, which matches a relayed local candidate by
+                    //        `addr() == destination`, accepts it);
+                    //      * returns `NotTurn` only if the source isn't the TURN
+                    //        server, so the datagram falls through unchanged.
+                    let turn_recv = self.try_handle_turn(source, slice);
+                    let (recv_source, recv_dest, recv_range) = match turn_recv {
+                        TurnRecv::Handled => {
+                            // A TURN control message — fully handled, not peer data.
+                            continue;
+                        }
+                        TurnRecv::Relayed { peer, start, len } => {
+                            // Relayed peer data: rewrite source→peer, dest→relayed
+                            // addr, and narrow the slice to the inner datagram.
+                            // `our_relayed_addr` must exist if we unwrapped TURN
+                            // data; fall back defensively to local_addr if not.
+                            let dest = self
+                                .turn
+                                .as_ref()
+                                .and_then(|t| t.relayed_addr())
+                                .unwrap_or(self.local_addr);
+                            (peer, dest, Some((start, len)))
+                        }
+                        TurnRecv::NotTurn => {
+                            // Not from the TURN server — the EXISTING inc-1/2/3a
+                            // path. Source/destination/slice all unchanged.
+                            (source, self.local_addr, None)
+                        }
+                    };
+
+                    // The datagram bytes to hand str0m: either the whole packet
+                    // (non-TURN) or the unwrapped inner datagram (relayed).
+                    let payload: &[u8] = match recv_range {
+                        Some((start, len)) => &buf[start..start + len],
+                        None => slice,
+                    };
+
                     // Route the datagram to the peer whose Rtc accepts it.
                     // str0m's `accepts` inspects the parsed datagram (STUN
                     // ufrag, DTLS/SRTP association) to decide ownership; it's
                     // the canonical demux. We build the borrowed Input inside
                     // this scope so the &buf borrow ends before the next loop.
-                    let contents = match slice.try_into() {
+                    let contents = match payload.try_into() {
                         Ok(c) => c,
                         Err(_) => {
                             // Unparseable datagram (not STUN/DTLS/RTP) — ignore.
@@ -516,19 +666,29 @@ impl WebrtcManager {
                         Instant::now(),
                         Receive {
                             proto: Protocol::Udp,
-                            source,
-                            destination: self.local_addr,
+                            // For non-TURN this is the wire source (unchanged);
+                            // for relayed traffic it's the PEER address, so str0m
+                            // associates it with the relayed candidate pair.
+                            source: recv_source,
+                            destination: recv_dest,
                             contents,
                         },
                     );
 
                     // Find the owning peer. We look first at remote_addr (fast
                     // path once learned), then fall back to `accepts`.
+                    //
+                    // NOTE: we match on `recv_source`, NOT the wire `source`. For
+                    // the existing non-TURN path they are identical. For relayed
+                    // traffic `recv_source` is the PEER's address (the wire
+                    // source was the TURN server), which is what str0m associates
+                    // with the connection — matching on the TURN server address
+                    // would never find the peer.
                     let owner: Option<String> = {
                         let mut found = None;
                         // Fast path: a peer whose learned remote_addr matches.
                         for (k, p) in self.peers.iter() {
-                            if p.remote_addr == Some(source) {
+                            if p.remote_addr == Some(recv_source) {
                                 found = Some(k.clone());
                                 break;
                             }
@@ -547,8 +707,10 @@ impl WebrtcManager {
 
                     if let Some(key) = owner {
                         if let Some(p) = self.peers.get_mut(&key) {
-                            // Learn / refresh the remote address for the fast path.
-                            p.remote_addr = Some(source);
+                            // Learn / refresh the remote address for the fast
+                            // path. For relayed traffic this records the PEER
+                            // address (recv_source), not the TURN server.
+                            p.remote_addr = Some(recv_source);
                             if let Err(e) = p.rtc.handle_input(input) {
                                 log::warn!("WebRTC: handle_input(Receive) error for {}: {e}", short(&key));
                                 p.rtc.disconnect();
@@ -557,8 +719,10 @@ impl WebrtcManager {
                     } else {
                         // Common during connection setup: a STUN binding may
                         // arrive before we've created the answering Rtc, or
-                        // from an unrelated source. Drop quietly.
-                        log::trace!("WebRTC: no peer accepts datagram from {source}");
+                        // from an unrelated source. Drop quietly. (recv_source is
+                        // the peer addr for relayed traffic, the wire source
+                        // otherwise.)
+                        log::trace!("WebRTC: no peer accepts datagram from {recv_source}");
                     }
                 }
                 Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
@@ -623,11 +787,41 @@ impl WebrtcManager {
             match output {
                 Output::Timeout(t) => return PollResult::Timeout(t),
                 Output::Transmit(t) => {
-                    // Send the datagram. str0m tells us the destination (ICE may
-                    // change it over the session). A failed send isn't fatal —
-                    // log and keep draining.
-                    if let Err(e) = self.udp.send_to(&t.contents, t.destination) {
-                        log::trace!("WebRTC: udp send_to {} failed: {e}", t.destination);
+                    // ── inc-3b TURN wrap guard. ────────────────────────────
+                    // str0m stamps EVERY datagram for a relayed pair with
+                    // `source == our_relayed_addr` (the relayed candidate's
+                    // base; see the module docs + the `is` agent.rs). If this
+                    // datagram's source is our relayed address, it must be
+                    // RELAYED: wrap `t.contents` as TURN ChannelData to the TURN
+                    // server (addressed to `t.destination` = the peer via its
+                    // bound channel). Otherwise — the overwhelming common case,
+                    // host/srflx — fall through to the UNCHANGED raw send. The
+                    // guard is a single SocketAddr equality, so host/srflx
+                    // traffic is provably never wrapped.
+                    let relayed = self
+                        .turn
+                        .as_ref()
+                        .and_then(|tn| tn.relayed_addr())
+                        .map(|relayed_addr| t.source == relayed_addr)
+                        .unwrap_or(false);
+
+                    if relayed {
+                        // Hand the inner datagram + its peer destination to the
+                        // TURN client, which frames it as ChannelData (or a Send
+                        // indication until a channel is bound) and sends it to
+                        // the TURN server over the shared socket. Best-effort:
+                        // a wrap/send failure is logged, not fatal.
+                        if let Some(turn) = self.turn.as_mut() {
+                            turn.send_relayed(&self.udp, t.destination, &t.contents);
+                        }
+                    } else {
+                        // EXISTING inc-1/2/3a path — byte-for-byte unchanged.
+                        // str0m tells us the destination (ICE may change it over
+                        // the session). A failed send isn't fatal — log and keep
+                        // draining.
+                        if let Err(e) = self.udp.send_to(&t.contents, t.destination) {
+                            log::trace!("WebRTC: udp send_to {} failed: {e}", t.destination);
+                        }
                     }
                 }
                 Output::Event(ev) => self.handle_event(key, ev),
@@ -743,6 +937,18 @@ impl WebrtcManager {
                     rtc.add_local_candidate(cand);
                 }
                 Err(e) => log::warn!("WebRTC: bad srflx candidate {srflx} for offer: {e}"),
+            }
+        }
+
+        // inc-3b: same for the TURN-relayed address — if the allocation already
+        // completed, ride it inside this offer's SDP. (If allocated later,
+        // apply_relayed_to_all_peers trickles it.)
+        if let Some(relayed) = self.turn.as_ref().and_then(|t| t.relayed_addr()) {
+            match Candidate::relayed(relayed, self.local_addr, Protocol::Udp) {
+                Ok(cand) => {
+                    rtc.add_local_candidate(cand);
+                }
+                Err(e) => log::warn!("WebRTC: bad relayed candidate {relayed} for offer: {e}"),
             }
         }
 
@@ -876,6 +1082,18 @@ impl WebrtcManager {
             }
         }
 
+        // inc-3b: likewise add the TURN-relayed candidate if allocated, so it
+        // rides in the SDP answer. Otherwise apply_relayed_to_all_peers trickles
+        // it once the allocation completes.
+        if let Some(relayed) = self.turn.as_ref().and_then(|t| t.relayed_addr()) {
+            match Candidate::relayed(relayed, self.local_addr, Protocol::Udp) {
+                Ok(cand) => {
+                    rtc.add_local_candidate(cand);
+                }
+                Err(e) => log::warn!("WebRTC: bad relayed candidate {relayed} for answer: {e}"),
+            }
+        }
+
         // accept_offer consumes the sdp_api and yields the answer to send back.
         let answer = match rtc.sdp_api().accept_offer(offer) {
             Ok(a) => a,
@@ -972,6 +1190,20 @@ impl WebrtcManager {
                 return;
             }
         };
+
+        // inc-3b: proactively install a TURN permission + channel for this
+        // remote candidate's address, so that IF str0m later picks the relayed
+        // pair to reach this peer, ChannelData is already usable (no first-packet
+        // drop while a permission/channel is created). No-op unless TURN is
+        // allocated. This does NOT touch any Rtc — pure TURN signaling — so it's
+        // exempt from str0m's mutation invariant.
+        let cand_addr = cand.addr();
+        if let Some(turn) = self.turn.as_mut() {
+            if turn.relayed_addr().is_some() {
+                turn.ensure_peer(&self.udp, cand_addr);
+            }
+        }
+
         match self.peers.get_mut(&from) {
             Some(p) => {
                 p.rtc.add_remote_candidate(cand);
@@ -1219,6 +1451,160 @@ impl WebrtcManager {
         let data = cand_obj.to_string();
         self.emit_signal(to, "dc_ice", data);
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  inc-3b — TURN relay client (RFC 5766)
+    // ════════════════════════════════════════════════════════════════════
+
+    /// Drive the TURN client state machine once per loop turn. Lazily resolves
+    /// the TURN server + starts the Allocate, retries a failed/lost Allocate on
+    /// a cadence, and refreshes a live allocation before LIFETIME expiry.
+    ///
+    /// The ONLY `Rtc` mutation that can happen here is trickling a freshly-learnt
+    /// relayed candidate to existing peers (when the allocation first completes),
+    /// which routes through `apply_relayed_to_all_peers` → `add_and_trickle_*`
+    /// and is honored by the step-B drain. Everything else is plain TURN
+    /// datagrams on the shared socket, exempt from str0m's mutation invariant.
+    ///
+    /// Best-effort: any failure (DNS, auth, server down) is logged and leaves
+    /// host+srflx fully functional.
+    fn maybe_drive_turn(&mut self) {
+        // Lazily construct + resolve the TURN client. Like STUN, a transient DNS
+        // failure at startup just means we try again next turn — never fatal.
+        if self.turn.is_none() {
+            match turn::TurnClient::resolve(TURN_SERVER) {
+                Some(client) => {
+                    log::info!("WebRTC: TURN server resolved to {}", client.server_addr());
+                    crate::debug::push_debug(format!(
+                        "WebRTC TURN server {}",
+                        client.server_addr()
+                    ));
+                    self.turn = Some(client);
+                }
+                None => return, // couldn't resolve yet — retry next loop turn.
+            }
+        }
+
+        // Pull the socket out by reference; TURN sends on the same shared socket.
+        // `drive` advances the allocate/refresh state machine and may emit a
+        // freshly-learnt relayed address.
+        let newly_allocated = {
+            let turn = self.turn.as_mut().expect("turn is Some after init above");
+            turn.drive(&self.udp)
+        };
+
+        // If we JUST learned the relayed address, install a relayed candidate on
+        // every existing peer and trickle it (peers created later pick it up in
+        // their SDP / via cmd_offer_to + on_offer).
+        if let Some(relayed) = newly_allocated {
+            log::info!("WebRTC: TURN allocation succeeded, relayed addr {relayed}");
+            crate::debug::push_debug(format!("WebRTC TURN relayed = {relayed}"));
+            self.apply_relayed_to_all_peers(relayed);
+            // Ensure a permission + channel for every peer address we already
+            // know about, so relayed sends to them can use ChannelData promptly.
+            let known: Vec<SocketAddr> =
+                self.peers.values().filter_map(|p| p.remote_addr).collect();
+            if let Some(turn) = self.turn.as_mut() {
+                for addr in known {
+                    turn.ensure_peer(&self.udp, addr);
+                }
+            }
+        }
+    }
+
+    /// Try to interpret an inbound datagram as TURN traffic from the TURN server.
+    ///
+    /// The address guard (`source == turn_server_addr`) is the ENTIRE basis for
+    /// isolation: only datagrams literally from the TURN server are considered
+    /// here, so a peer's host/srflx datagram (sourced from the peer) can never be
+    /// mistaken for TURN and always falls through to the existing demux.
+    ///
+    /// Returns:
+    /// * `TurnRecv::NotTurn` — not from the TURN server; caller falls through.
+    /// * `TurnRecv::Handled` — a TURN control message (Allocate/Refresh/
+    ///   CreatePermission/ChannelBind reply, or an indication we can't map to a
+    ///   peer); fully consumed, caller `continue`s.
+    /// * `TurnRecv::Relayed { peer, start, len }` — relayed peer data; the inner
+    ///   datagram lives at `buf[start..start+len]` and must be fed to str0m with
+    ///   `source = peer`, `destination = our_relayed_addr`.
+    fn try_handle_turn(&mut self, source: SocketAddr, datagram: &[u8]) -> TurnRecv {
+        // We need a base offset to translate the inner-datagram slice (which the
+        // TURN client returns as a sub-slice of `datagram`) back into an index
+        // range within the caller's `buf`. Since `datagram` IS `&buf[..n]`, the
+        // inner slice's offset within `buf` equals its offset within `datagram`.
+        let turn = match self.turn.as_mut() {
+            Some(t) => t,
+            None => return TurnRecv::NotTurn,
+        };
+        if source != turn.server_addr() {
+            return TurnRecv::NotTurn;
+        }
+        match turn.handle_from_server(&self.udp, datagram) {
+            turn::TurnInbound::Control => TurnRecv::Handled,
+            turn::TurnInbound::Data { peer, inner_offset, inner_len } => {
+                TurnRecv::Relayed { peer, start: inner_offset, len: inner_len }
+            }
+        }
+    }
+
+    /// Add the relayed candidate to every currently-live peer's `Rtc` and trickle
+    /// it. Used when the TURN allocation completes after peers already exist.
+    /// Mirrors `apply_srflx_to_all_peers`.
+    fn apply_relayed_to_all_peers(&mut self, relayed: SocketAddr) {
+        let keys: Vec<String> = self.peers.keys().cloned().collect();
+        for key in keys {
+            self.add_and_trickle_relayed(&key, relayed);
+        }
+    }
+
+    /// Add the relayed candidate to ONE peer's `Rtc` (if alive) and trickle the
+    /// candidate line to that peer. Mirrors `add_and_trickle_srflx`.
+    ///
+    /// `Candidate::relayed(addr, local, proto)`: `addr` = the TURN-allocated
+    /// relayed transport address (what the peer sends to / what str0m stamps as
+    /// the Transmit source for this pair), `local` = our local socket address
+    /// (the interface we use to reach the TURN server). Per the `is` crate the
+    /// relayed ctor sets BOTH `addr` and `base` to `addr`, which is exactly why
+    /// the Transmit-wrap guard keys on `t.source == relayed_addr`.
+    fn add_and_trickle_relayed(&mut self, peer_key: &str, relayed: SocketAddr) {
+        let cand = match Candidate::relayed(relayed, self.local_addr, Protocol::Udp) {
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!(
+                    "WebRTC: bad relayed candidate {relayed} (local {}): {e}",
+                    self.local_addr
+                );
+                return;
+            }
+        };
+        // Serialize the SDP line BEFORE moving the candidate (str0m never emits
+        // added local candidates back, so we trickle it ourselves — same as the
+        // srflx).
+        let sdp_line = cand.to_sdp_string();
+        match self.peers.get_mut(peer_key) {
+            Some(p) if p.rtc.is_alive() => {
+                p.rtc.add_local_candidate(cand);
+            }
+            _ => return, // peer gone/dead — don't trickle a candidate nobody uses.
+        }
+        self.emit_ice_candidate(peer_key, &sdp_line);
+        log::debug!("WebRTC: trickled relayed candidate to {}", short(peer_key));
+    }
+}
+
+/// Result of the inc-3b TURN recv demux (`try_handle_turn`).
+enum TurnRecv {
+    /// Not from the TURN server — fall through to the existing per-peer demux.
+    NotTurn,
+    /// A TURN control message, fully handled. Caller skips this datagram.
+    Handled,
+    /// Relayed peer data: the inner datagram is `buf[start..start+len]` and must
+    /// be fed to str0m with `source = peer`, `destination = our_relayed_addr`.
+    Relayed {
+        peer: SocketAddr,
+        start: usize,
+        len: usize,
+    },
 }
 
 /// Result of draining one peer's poll_output.
@@ -1531,6 +1917,1066 @@ mod stun {
             // A Binding *Request* (0x0001), not a response — must be ignored.
             let req = build_binding_request(&RFC5769_TXID);
             assert!(parse_binding_response(&req).is_none(), "request is not a response");
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  inc-3b — TURN client (RFC 5766), long-term-credential auth
+// ════════════════════════════════════════════════════════════════════════
+//
+// A minimal, hand-rolled TURN client — JUST enough to allocate a relay, keep it
+// alive, install peer permissions/channels, and relay datagrams. No external
+// TURN crate. It reuses the STUN message framing (TURN messages ARE STUN
+// messages with TURN method codes) but is otherwise self-contained.
+//
+// # STUN message-type bit layout (RFC 5389 §6) — needed for TURN methods
+//
+// The 14-bit "message type" interleaves the 12-bit METHOD and the 2-bit CLASS:
+//
+//     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5   (bit, MSB first; top 2 are always 0)
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |0 0|M M M M M|C|M M M|C|M M M M|
+//    |   |1 1 1 1 1|1|6 5 4|0|3 2 1 0|
+//    |   |1 0 9 8 7| |     | |       |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//
+// So CLASS bit C1 lands at bit position 8 (value 0x0100) and C0 at position 4
+// (value 0x0010); the method bits fill the rest. Classes: Request=0b00,
+// Indication=0b01, Success=0b10, Error=0b11. `message_type(method, class)`
+// below computes this; e.g. Allocate(0x003)+Request = 0x0003, Allocate+Success
+// = 0x0103, Allocate+Error = 0x0113.
+//
+// # ChannelData framing (RFC 5766 §11.4)
+//
+//     0                   1                   2                   3
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |         Channel Number        |            Length             |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |                                                               |
+//    /                       Application Data                        /
+//    /                                                               /
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//
+// Channel numbers are 0x4000..=0x7FFF. Because a STUN message's first two bits
+// are 0 (types ≤ 0x3FFF → first byte 0x00..0x3F), a ChannelData frame (first
+// byte 0x40..0x7F) is trivially distinguishable from a STUN message on the wire.
+//
+// # Long-term credential auth (RFC 5389 §10.2, RFC 5766 §4)
+//
+// First Allocate (no auth) → server replies 401 Unauthorized with REALM + NONCE.
+// We retry Allocate adding USERNAME, REALM, NONCE, and MESSAGE-INTEGRITY.
+//   key   = MD5( username ":" realm ":" password )                  (16 bytes)
+//   M-I   = HMAC-SHA1( key, message[0 .. start-of-MESSAGE-INTEGRITY] )
+// where the message-length field (bytes 2..4) is FIRST set to the value it will
+// have *including* the 24-byte MESSAGE-INTEGRITY attribute, but the bytes hashed
+// STOP right before the MESSAGE-INTEGRITY attribute's own TLV. See
+// `append_message_integrity` for the exact byte ranges.
+mod turn {
+    use super::stun::MAGIC_COOKIE;
+    use std::collections::HashMap;
+    use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs, UdpSocket};
+    use std::time::{Duration, Instant};
+
+    // ── TURN method codes (RFC 5766 §13) ──
+    const METHOD_ALLOCATE: u16 = 0x003;
+    const METHOD_REFRESH: u16 = 0x004;
+    const METHOD_SEND: u16 = 0x006;
+    const METHOD_DATA: u16 = 0x007;
+    const METHOD_CREATE_PERMISSION: u16 = 0x008;
+    const METHOD_CHANNEL_BIND: u16 = 0x009;
+
+    // ── STUN message classes (the 2-bit CLASS field) ──
+    const CLASS_REQUEST: u16 = 0b00;
+    const CLASS_INDICATION: u16 = 0b01;
+    const CLASS_SUCCESS: u16 = 0b10;
+    const CLASS_ERROR: u16 = 0b11;
+
+    // ── Attribute types (RFC 5389 §18.2 + RFC 5766 §14) ──
+    const ATTR_USERNAME: u16 = 0x0006;
+    const ATTR_MESSAGE_INTEGRITY: u16 = 0x0008;
+    const ATTR_ERROR_CODE: u16 = 0x0009;
+    const ATTR_CHANNEL_NUMBER: u16 = 0x000C;
+    const ATTR_LIFETIME: u16 = 0x000D;
+    const ATTR_XOR_PEER_ADDRESS: u16 = 0x0012;
+    const ATTR_DATA: u16 = 0x0013;
+    const ATTR_REALM: u16 = 0x0014;
+    const ATTR_NONCE: u16 = 0x0015;
+    const ATTR_XOR_RELAYED_ADDRESS: u16 = 0x0016;
+    const ATTR_REQUESTED_TRANSPORT: u16 = 0x0019;
+
+    // ── Misc constants ──
+    /// REQUESTED-TRANSPORT value for UDP (protocol 17 = 0x11) in the top byte.
+    const REQUESTED_TRANSPORT_UDP: u32 = 0x1100_0000;
+    /// Default allocation lifetime we request (seconds). The server may shorten
+    /// it; we honor the value it returns.
+    const DEFAULT_LIFETIME_SECS: u32 = 600;
+    /// First channel number to hand out (RFC 5766 §11: 0x4000..=0x7FFF).
+    const FIRST_CHANNEL: u16 = 0x4000;
+
+    /// Compute the 14-bit STUN message type from a method + class. See the
+    /// module header for the bit interleaving.
+    fn message_type(method: u16, class: u16) -> u16 {
+        // Method bits split at the class-bit positions (8 and 4).
+        let m_low = method & 0x000F; // M3..M0  → bits 3..0
+        let m_mid = (method >> 4) & 0x0007; // M6..M4 → bits 6..4 (shifted up by 1 for C0)
+        let m_high = (method >> 7) & 0x001F; // M11..M7 → bits 13..9 (shifted up by 1 for C1)
+        let c0 = class & 0b01; // → bit 4
+        let c1 = (class >> 1) & 0b01; // → bit 8
+        (m_high << 9) | (c1 << 8) | (m_mid << 5) | (c0 << 4) | m_low
+    }
+
+    /// Generate a random 96-bit TURN/STUN transaction id (reuses the same RNG
+    /// idiom as `mod stun`).
+    fn random_txid() -> [u8; 12] {
+        use rand::RngCore;
+        let mut id = [0u8; 12];
+        rand::rng().fill_bytes(&mut id);
+        id
+    }
+
+    /// Per-peer relay state: the channel number we bound (once confirmed) and
+    /// whether a permission/channel request is in flight.
+    struct PeerChannel {
+        /// The channel number assigned to this peer (0x4000..=0x7FFF).
+        channel: u16,
+        /// True once the ChannelBind success response arrived — only then may we
+        /// send compact ChannelData; before that we use Send indications.
+        bound: bool,
+        /// When we last (re)sent the ChannelBind, to refresh it before its 600s
+        /// lifetime and to retry if the success response was lost.
+        last_bind: Option<Instant>,
+    }
+
+    /// The TURN allocation lifecycle.
+    #[derive(PartialEq)]
+    enum Phase {
+        /// No allocation yet; (re)send an unauthenticated Allocate to learn the
+        /// REALM/NONCE (or, if we already have them, an authenticated Allocate).
+        Allocating,
+        /// We hold a live allocation (relayed address + lifetime).
+        Allocated,
+        /// A permanent failure (e.g. auth rejected with a non-recoverable code).
+        /// We stop trying for this session; host+srflx still work.
+        Failed,
+    }
+
+    /// A minimal RFC 5766 TURN client driven from the WebRTC run-loop. Sends on
+    /// the manager's shared `UdpSocket`; never owns the socket.
+    pub struct TurnClient {
+        /// Resolved TURN server UDP address.
+        server: SocketAddr,
+        phase: Phase,
+        /// REALM from the 401 challenge (needed for the auth key + the attribute).
+        realm: Option<String>,
+        /// NONCE from the 401 challenge (echoed in every authed request).
+        nonce: Option<String>,
+        /// The relayed transport address (XOR-RELAYED-ADDRESS) once allocated.
+        relayed: Option<SocketAddr>,
+        /// Allocation lifetime the server granted, and when we allocated, so we
+        /// know when to Refresh.
+        lifetime: Duration,
+        allocated_at: Option<Instant>,
+        /// When we last sent an Allocate (retry cadence while Allocating).
+        last_allocate: Option<Instant>,
+        /// When we last sent a Refresh (rate-limit so we don't spam refreshes
+        /// while waiting for the success response to reset `allocated_at`).
+        last_refresh: Option<Instant>,
+        /// Per-peer channel/permission state, keyed by the peer's socket address.
+        peers: HashMap<SocketAddr, PeerChannel>,
+        /// Next channel number to assign.
+        next_channel: u16,
+    }
+
+    /// What an inbound datagram from the TURN server turned out to be.
+    pub enum TurnInbound {
+        /// A TURN control message (Allocate/Refresh/CreatePermission/ChannelBind
+        /// response, or an indication we can't map). Fully handled.
+        Control,
+        /// Relayed peer data. The inner application datagram is at
+        /// `buf[inner_offset .. inner_offset + inner_len]` (a sub-slice of the
+        /// datagram passed to `handle_from_server`), from peer `peer`.
+        Data {
+            peer: SocketAddr,
+            inner_offset: usize,
+            inner_len: usize,
+        },
+    }
+
+    impl TurnClient {
+        /// Resolve the TURN server hostname to a UDP `SocketAddr`. Returns `None`
+        /// (caller retries) on DNS failure or no IPv4 result. We prefer IPv4 so
+        /// the relayed candidate's `local` base (our IPv4 socket) matches family.
+        pub fn resolve(host: &str) -> Option<TurnClient> {
+            let addr = host
+                .to_socket_addrs()
+                .ok()?
+                .find(|a| a.is_ipv4())?;
+            Some(TurnClient {
+                server: addr,
+                phase: Phase::Allocating,
+                realm: None,
+                nonce: None,
+                relayed: None,
+                lifetime: Duration::from_secs(DEFAULT_LIFETIME_SECS as u64),
+                allocated_at: None,
+                last_allocate: None,
+                last_refresh: None,
+                peers: HashMap::new(),
+                next_channel: FIRST_CHANNEL,
+            })
+        }
+
+        /// The TURN server's address (for the recv-path source guard).
+        pub fn server_addr(&self) -> SocketAddr {
+            self.server
+        }
+
+        /// The relayed transport address, once allocated. `None` otherwise. This
+        /// is the value the Transmit-wrap guard compares `t.source` against.
+        pub fn relayed_addr(&self) -> Option<SocketAddr> {
+            self.relayed
+        }
+
+        /// The next instant the run-loop should wake us to do TURN work (retry an
+        /// Allocate, or Refresh the allocation). `None` if there's nothing
+        /// pending (e.g. Failed).
+        pub fn next_deadline(&self) -> Option<Instant> {
+            match self.phase {
+                Phase::Allocating => {
+                    // Wake to retry the Allocate.
+                    Some(
+                        self.last_allocate
+                            .map(|t| t + super::TURN_ALLOC_RETRY_INTERVAL)
+                            .unwrap_or_else(Instant::now),
+                    )
+                }
+                Phase::Allocated => {
+                    // Wake to refresh before the lifetime elapses.
+                    let at = self.allocated_at?;
+                    let refresh_in = self
+                        .lifetime
+                        .saturating_sub(super::TURN_REFRESH_SLACK)
+                        // Never schedule a refresh more often than every 30s, and
+                        // never less than 10s out, to avoid pathological churn if
+                        // the server hands back a tiny lifetime.
+                        .max(Duration::from_secs(30));
+                    Some(at + refresh_in)
+                }
+                Phase::Failed => None,
+            }
+        }
+
+        /// Advance the allocate/refresh state machine. Returns `Some(relayed)`
+        /// the FIRST loop turn the allocation becomes live, so the manager can
+        /// trickle the relayed candidate. Best-effort; never panics on the wire.
+        pub fn drive(&mut self, udp: &UdpSocket) -> Option<SocketAddr> {
+            match self.phase {
+                Phase::Failed => None,
+                Phase::Allocating => {
+                    // Rate-limit Allocate retries.
+                    let now = Instant::now();
+                    if let Some(last) = self.last_allocate {
+                        if now.duration_since(last) < super::TURN_ALLOC_RETRY_INTERVAL {
+                            return None;
+                        }
+                    }
+                    self.send_allocate(udp);
+                    None
+                }
+                Phase::Allocated => {
+                    // Refresh if we're inside the slack window before expiry. In
+                    // `Allocated` phase `allocated_at` is always Some. We
+                    // rate-limit with `last_refresh` so we send AT MOST one
+                    // Refresh per retry interval — otherwise, between sending the
+                    // Refresh and its success response landing (which resets
+                    // `allocated_at`), every ~50ms loop turn would re-fire it.
+                    if let Some(at) = self.allocated_at {
+                        let refresh_at =
+                            self.lifetime.saturating_sub(super::TURN_REFRESH_SLACK);
+                        let due = at.elapsed() >= refresh_at;
+                        let throttled = self
+                            .last_refresh
+                            .map(|t| t.elapsed() < super::TURN_ALLOC_RETRY_INTERVAL)
+                            .unwrap_or(false);
+                        if due && !throttled {
+                            self.send_refresh(udp);
+                            self.last_refresh = Some(Instant::now());
+                        }
+                    }
+                    // Also (re)bind any channels whose bind is stale / unconfirmed.
+                    self.refresh_channels(udp);
+                    None
+                }
+            }
+        }
+
+        /// Ensure we have a permission (and a channel) for `peer`. Installs a
+        /// CreatePermission + ChannelBind if this peer is new or unconfirmed.
+        /// No-op if we have no live allocation. Idempotent.
+        pub fn ensure_peer(&mut self, udp: &UdpSocket, peer: SocketAddr) {
+            if self.phase != Phase::Allocated {
+                return;
+            }
+            // TURN only relays IPv4↔IPv4 here (our allocation is IPv4). Skip
+            // non-IPv4 peer candidates — they can't ride this relay anyway.
+            if !peer.is_ipv4() {
+                return;
+            }
+            if !self.peers.contains_key(&peer) {
+                let channel = self.next_channel;
+                // Advance, wrapping within the valid 0x4000..=0x7FFF window.
+                self.next_channel = if self.next_channel >= 0x7FFE {
+                    FIRST_CHANNEL
+                } else {
+                    self.next_channel + 1
+                };
+                self.peers.insert(
+                    peer,
+                    PeerChannel {
+                        channel,
+                        bound: false,
+                        last_bind: None,
+                    },
+                );
+                // Install the permission first, then bind the channel. (A channel
+                // bind also installs a permission per RFC 5766 §11.1, but sending
+                // CreatePermission explicitly is harmless and matches common
+                // client behavior.)
+                self.send_create_permission(udp, peer);
+                self.send_channel_bind(udp, peer);
+            }
+        }
+
+        /// Send `data` to `peer` through the relay. Uses compact ChannelData once
+        /// the channel is confirmed bound; otherwise falls back to a Send
+        /// indication (which works immediately, before the bind round-trip
+        /// completes). Best-effort — a failure is logged, never fatal.
+        pub fn send_relayed(&mut self, udp: &UdpSocket, peer: SocketAddr, data: &[u8]) {
+            if self.phase != Phase::Allocated {
+                // No allocation — we should never be asked to relay, but guard.
+                return;
+            }
+            // Make sure a permission/channel exists (covers the case where str0m
+            // chose the relayed pair for a peer we hadn't pre-registered).
+            self.ensure_peer(udp, peer);
+
+            let bound_channel = self.peers.get(&peer).filter(|p| p.bound).map(|p| p.channel);
+
+            if let Some(channel) = bound_channel {
+                // ── ChannelData: 4-byte header + raw data, sent to the server. ──
+                let mut frame = Vec::with_capacity(4 + data.len());
+                frame.extend_from_slice(&channel.to_be_bytes());
+                frame.extend_from_slice(&(data.len() as u16).to_be_bytes());
+                frame.extend_from_slice(data);
+                if let Err(e) = udp.send_to(&frame, self.server) {
+                    log::trace!("WebRTC TURN: ChannelData send to {} failed: {e}", self.server);
+                }
+            } else {
+                // ── Send indication (bootstrap path before the channel binds). ──
+                let msg = self.build_send_indication(peer, data);
+                if let Err(e) = udp.send_to(&msg, self.server) {
+                    log::trace!("WebRTC TURN: Send indication to {} failed: {e}", self.server);
+                }
+            }
+        }
+
+        /// Handle a datagram that arrived FROM the TURN server. Classifies it as
+        /// relayed data (ChannelData / Data indication) or a control response.
+        pub fn handle_from_server(&mut self, udp: &UdpSocket, datagram: &[u8]) -> TurnInbound {
+            // ChannelData? First byte 0x40..0x7F ⇒ channel number 0x4000..0x7FFF.
+            if !datagram.is_empty() && (0x40..=0x7F).contains(&datagram[0]) {
+                return self.handle_channel_data(datagram);
+            }
+            // Otherwise it's a STUN-framed TURN message. Parse the header.
+            if datagram.len() < 20 {
+                return TurnInbound::Control;
+            }
+            let msg_type = u16::from_be_bytes([datagram[0], datagram[1]]);
+            let cookie = u32::from_be_bytes([datagram[4], datagram[5], datagram[6], datagram[7]]);
+            if cookie != MAGIC_COOKIE {
+                return TurnInbound::Control; // not a STUN/TURN message we recognize
+            }
+
+            // Match well-known response/indication types.
+            if msg_type == message_type(METHOD_DATA, CLASS_INDICATION) {
+                return self.handle_data_indication(datagram);
+            }
+            if msg_type == message_type(METHOD_ALLOCATE, CLASS_SUCCESS) {
+                self.handle_allocate_success(datagram);
+            } else if msg_type == message_type(METHOD_ALLOCATE, CLASS_ERROR) {
+                self.handle_allocate_error(udp, datagram);
+            } else if msg_type == message_type(METHOD_REFRESH, CLASS_SUCCESS) {
+                self.handle_refresh_success(datagram);
+            } else if msg_type == message_type(METHOD_REFRESH, CLASS_ERROR) {
+                // A 438 (stale nonce) on refresh: re-read nonce and let the next
+                // drive() retry. Any other error: drop the allocation back to
+                // Allocating so we re-establish.
+                self.handle_stale_nonce_or_reset(datagram);
+            } else if msg_type == message_type(METHOD_CHANNEL_BIND, CLASS_SUCCESS) {
+                self.handle_channel_bind_success(datagram);
+            } else if msg_type == message_type(METHOD_CREATE_PERMISSION, CLASS_SUCCESS) {
+                self.handle_create_permission_success(datagram);
+            } else {
+                // CreatePermission/ChannelBind errors, or anything else — log at
+                // trace and ignore; the periodic refresh_channels retries binds.
+                log::trace!("WebRTC TURN: unhandled server msg type 0x{msg_type:04x}");
+            }
+            TurnInbound::Control
+        }
+
+        // ── Outbound message builders / senders ──────────────────────────────
+
+        /// Send an Allocate Request. Unauthenticated if we don't yet hold a
+        /// REALM/NONCE; authenticated (USERNAME/REALM/NONCE/MESSAGE-INTEGRITY)
+        /// once we do.
+        fn send_allocate(&mut self, udp: &UdpSocket) {
+            let txid = random_txid();
+            let mut msg = begin_message(message_type(METHOD_ALLOCATE, CLASS_REQUEST), &txid);
+            // REQUESTED-TRANSPORT = UDP (mandatory for Allocate).
+            append_attr(&mut msg, ATTR_REQUESTED_TRANSPORT, &REQUESTED_TRANSPORT_UDP.to_be_bytes());
+            // LIFETIME (optional hint).
+            append_attr(&mut msg, ATTR_LIFETIME, &DEFAULT_LIFETIME_SECS.to_be_bytes());
+
+            if self.have_credentials() {
+                self.append_auth(&mut msg);
+            }
+            finalize_length(&mut msg);
+            if let Err(e) = udp.send_to(&msg, self.server) {
+                log::debug!("WebRTC TURN: Allocate send failed: {e}");
+            } else {
+                log::trace!("WebRTC TURN: sent Allocate ({}auth)", if self.have_credentials() { "" } else { "no-" });
+            }
+            self.last_allocate = Some(Instant::now());
+        }
+
+        /// Send a Refresh Request with the requested lifetime (authenticated).
+        fn send_refresh(&mut self, udp: &UdpSocket) {
+            let txid = random_txid();
+            let mut msg = begin_message(message_type(METHOD_REFRESH, CLASS_REQUEST), &txid);
+            append_attr(&mut msg, ATTR_LIFETIME, &DEFAULT_LIFETIME_SECS.to_be_bytes());
+            self.append_auth(&mut msg);
+            finalize_length(&mut msg);
+            if let Err(e) = udp.send_to(&msg, self.server) {
+                log::debug!("WebRTC TURN: Refresh send failed: {e}");
+            }
+        }
+
+        /// Send a CreatePermission Request for `peer`'s IP (authenticated).
+        fn send_create_permission(&mut self, udp: &UdpSocket, peer: SocketAddr) {
+            let txid = random_txid();
+            let mut msg =
+                begin_message(message_type(METHOD_CREATE_PERMISSION, CLASS_REQUEST), &txid);
+            append_xor_peer_address(&mut msg, peer, &txid);
+            self.append_auth(&mut msg);
+            finalize_length(&mut msg);
+            let _ = udp.send_to(&msg, self.server);
+        }
+
+        /// Send a ChannelBind Request binding `peer` to its channel number
+        /// (authenticated).
+        fn send_channel_bind(&mut self, udp: &UdpSocket, peer: SocketAddr) {
+            let channel = match self.peers.get(&peer) {
+                Some(p) => p.channel,
+                None => return,
+            };
+            let txid = random_txid();
+            let mut msg = begin_message(message_type(METHOD_CHANNEL_BIND, CLASS_REQUEST), &txid);
+            // CHANNEL-NUMBER: 2-byte channel + 2 reserved bytes (RFC 5766 §14.1).
+            let mut chan_val = [0u8; 4];
+            chan_val[0..2].copy_from_slice(&channel.to_be_bytes());
+            append_attr(&mut msg, ATTR_CHANNEL_NUMBER, &chan_val);
+            append_xor_peer_address(&mut msg, peer, &txid);
+            self.append_auth(&mut msg);
+            finalize_length(&mut msg);
+            let _ = udp.send_to(&msg, self.server);
+            if let Some(p) = self.peers.get_mut(&peer) {
+                p.last_bind = Some(Instant::now());
+            }
+        }
+
+        /// Build a Send indication wrapping `data` destined for `peer`. Send
+        /// indications are NOT authenticated (RFC 5766 §10) — they carry only
+        /// XOR-PEER-ADDRESS + DATA.
+        fn build_send_indication(&self, peer: SocketAddr, data: &[u8]) -> Vec<u8> {
+            let txid = random_txid();
+            let mut msg = begin_message(message_type(METHOD_SEND, CLASS_INDICATION), &txid);
+            append_xor_peer_address(&mut msg, peer, &txid);
+            append_attr(&mut msg, ATTR_DATA, data);
+            finalize_length(&mut msg);
+            msg
+        }
+
+        /// (Re)send ChannelBind for any peer whose bind is unconfirmed or stale
+        /// (channel binds expire after 600s; we refresh well before that).
+        fn refresh_channels(&mut self, udp: &UdpSocket) {
+            let now = Instant::now();
+            let stale: Vec<SocketAddr> = self
+                .peers
+                .iter()
+                .filter(|(_, p)| match p.last_bind {
+                    None => true,
+                    Some(t) => {
+                        // Unconfirmed → retry every few seconds; confirmed →
+                        // refresh ~60s before the 600s channel lifetime.
+                        let interval = if p.bound {
+                            Duration::from_secs(600).saturating_sub(super::TURN_REFRESH_SLACK)
+                        } else {
+                            super::TURN_ALLOC_RETRY_INTERVAL
+                        };
+                        now.duration_since(t) >= interval
+                    }
+                })
+                .map(|(addr, _)| *addr)
+                .collect();
+            for addr in stale {
+                self.send_channel_bind(udp, addr);
+            }
+        }
+
+        // ── Inbound response handlers ────────────────────────────────────────
+
+        fn handle_allocate_success(&mut self, datagram: &[u8]) {
+            // Pull XOR-RELAYED-ADDRESS + LIFETIME from the attributes.
+            let mut relayed = None;
+            let mut lifetime = None;
+            for (atype, val) in iter_attrs(datagram) {
+                match atype {
+                    ATTR_XOR_RELAYED_ADDRESS => {
+                        relayed = parse_xor_address(val, datagram);
+                    }
+                    ATTR_LIFETIME if val.len() >= 4 => {
+                        lifetime = Some(u32::from_be_bytes([val[0], val[1], val[2], val[3]]));
+                    }
+                    _ => {}
+                }
+            }
+            if let Some(addr) = relayed {
+                self.relayed = Some(addr);
+                self.phase = Phase::Allocated;
+                self.allocated_at = Some(Instant::now());
+                if let Some(lt) = lifetime {
+                    self.lifetime = Duration::from_secs(lt as u64);
+                }
+                log::info!("WebRTC TURN: allocated relay {addr}, lifetime {:?}", self.lifetime);
+            } else {
+                log::debug!("WebRTC TURN: Allocate success lacked XOR-RELAYED-ADDRESS");
+            }
+        }
+
+        fn handle_allocate_error(&mut self, _udp: &UdpSocket, datagram: &[u8]) {
+            let (code, realm, nonce) = parse_error_challenge(datagram);
+            match code {
+                Some(401) => {
+                    // Unauthorized — capture REALM/NONCE so the next drive()
+                    // retries the Allocate WITH credentials.
+                    if realm.is_some() {
+                        self.realm = realm;
+                    }
+                    if nonce.is_some() {
+                        self.nonce = nonce;
+                    }
+                    // Force an immediate retry on the next drive() turn.
+                    self.last_allocate = None;
+                    log::trace!("WebRTC TURN: Allocate 401, captured realm/nonce, will retry authed");
+                }
+                Some(438) => {
+                    // Stale nonce — refresh nonce and retry.
+                    if nonce.is_some() {
+                        self.nonce = nonce;
+                    }
+                    self.last_allocate = None;
+                }
+                other => {
+                    // Any other Allocate error (e.g. 400/441/486/508 or a 401
+                    // we've already retried) — treat as non-recoverable for this
+                    // session. host+srflx remain fully functional.
+                    log::warn!(
+                        "WebRTC TURN: Allocate failed (error {:?}); continuing without relay",
+                        other
+                    );
+                    self.phase = Phase::Failed;
+                }
+            }
+        }
+
+        fn handle_refresh_success(&mut self, datagram: &[u8]) {
+            for (atype, val) in iter_attrs(datagram) {
+                if atype == ATTR_LIFETIME && val.len() >= 4 {
+                    let lt = u32::from_be_bytes([val[0], val[1], val[2], val[3]]);
+                    self.lifetime = Duration::from_secs(lt as u64);
+                }
+            }
+            self.allocated_at = Some(Instant::now());
+            log::trace!("WebRTC TURN: allocation refreshed, lifetime {:?}", self.lifetime);
+        }
+
+        fn handle_stale_nonce_or_reset(&mut self, datagram: &[u8]) {
+            let (code, _realm, nonce) = parse_error_challenge(datagram);
+            if code == Some(438) {
+                if nonce.is_some() {
+                    self.nonce = nonce;
+                }
+                log::trace!("WebRTC TURN: refresh stale-nonce (438), nonce refreshed");
+            } else {
+                // The allocation may be gone — drop back to Allocating to rebuild.
+                log::debug!("WebRTC TURN: refresh error {:?}, re-allocating", code);
+                self.phase = Phase::Allocating;
+                self.relayed = None;
+                self.allocated_at = None;
+                self.last_allocate = None;
+                self.last_refresh = None;
+                self.peers.clear();
+            }
+        }
+
+        fn handle_channel_bind_success(&mut self, _datagram: &[u8]) {
+            // The success response doesn't echo the channel number; mark the most
+            // recently-bound unconfirmed peer as bound. Since binds are issued one
+            // at a time per peer and quickly confirmed, marking all in-flight
+            // (unbound, recently-sent) peers as bound is safe and converges.
+            let now = Instant::now();
+            for p in self.peers.values_mut() {
+                if !p.bound {
+                    if let Some(t) = p.last_bind {
+                        // Confirm any bind we sent in the last few seconds.
+                        if now.duration_since(t) < super::TURN_ALLOC_RETRY_INTERVAL {
+                            p.bound = true; // a channel bind also implies a permission
+                        }
+                    }
+                }
+            }
+            log::trace!("WebRTC TURN: ChannelBind success");
+        }
+
+        fn handle_create_permission_success(&mut self, _datagram: &[u8]) {
+            // Informational: the permission is installed server-side. We gate
+            // ChannelData readiness on the ChannelBind success (which also
+            // implies a permission), so there's no per-peer flag to flip here.
+            log::trace!("WebRTC TURN: CreatePermission success");
+        }
+
+        fn handle_data_indication(&mut self, datagram: &[u8]) -> TurnInbound {
+            // A Data indication carries XOR-PEER-ADDRESS + DATA. We surface the
+            // DATA sub-slice (by offset within `datagram`) and the peer address.
+            let mut peer = None;
+            let mut data_range = None;
+            for (atype, off, len) in iter_attrs_with_offsets(datagram) {
+                match atype {
+                    ATTR_XOR_PEER_ADDRESS => {
+                        peer = parse_xor_address(&datagram[off..off + len], datagram);
+                    }
+                    ATTR_DATA => {
+                        data_range = Some((off, len));
+                    }
+                    _ => {}
+                }
+            }
+            match (peer, data_range) {
+                (Some(peer), Some((off, len))) => TurnInbound::Data {
+                    peer,
+                    inner_offset: off,
+                    inner_len: len,
+                },
+                _ => TurnInbound::Control,
+            }
+        }
+
+        fn handle_channel_data(&mut self, datagram: &[u8]) -> TurnInbound {
+            // 4-byte header: channel(2) + length(2), then `length` bytes of data.
+            if datagram.len() < 4 {
+                return TurnInbound::Control;
+            }
+            let channel = u16::from_be_bytes([datagram[0], datagram[1]]);
+            let len = u16::from_be_bytes([datagram[2], datagram[3]]) as usize;
+            if 4 + len > datagram.len() {
+                return TurnInbound::Control; // truncated frame
+            }
+            // Map the channel number back to the peer address.
+            let peer = self
+                .peers
+                .iter()
+                .find(|(_, p)| p.channel == channel)
+                .map(|(addr, _)| *addr);
+            match peer {
+                Some(peer) => TurnInbound::Data {
+                    peer,
+                    inner_offset: 4,
+                    inner_len: len,
+                },
+                None => {
+                    log::trace!("WebRTC TURN: ChannelData for unknown channel 0x{channel:04x}");
+                    TurnInbound::Control
+                }
+            }
+        }
+
+        // ── Auth helpers ─────────────────────────────────────────────────────
+
+        fn have_credentials(&self) -> bool {
+            self.realm.is_some() && self.nonce.is_some()
+        }
+
+        /// Append USERNAME, REALM, NONCE, then MESSAGE-INTEGRITY (in that order)
+        /// to an in-progress message. MESSAGE-INTEGRITY MUST be last (it covers
+        /// everything before it).
+        fn append_auth(&self, msg: &mut Vec<u8>) {
+            let (realm, nonce) = match (&self.realm, &self.nonce) {
+                (Some(r), Some(n)) => (r, n),
+                _ => return, // no credentials yet — caller checked have_credentials
+            };
+            append_attr(msg, ATTR_USERNAME, super::TURN_USERNAME.as_bytes());
+            append_attr(msg, ATTR_REALM, realm.as_bytes());
+            append_attr(msg, ATTR_NONCE, nonce.as_bytes());
+            let key = long_term_key(super::TURN_USERNAME, realm, super::TURN_PASSWORD);
+            append_message_integrity(msg, &key);
+        }
+    }
+
+    // ── Free helpers: message framing, attributes, XOR addresses ─────────────
+
+    /// Begin a STUN/TURN message: 20-byte header with a placeholder length of 0
+    /// (filled in by `finalize_length`).
+    fn begin_message(msg_type: u16, txid: &[u8; 12]) -> Vec<u8> {
+        let mut msg = Vec::with_capacity(64);
+        msg.extend_from_slice(&msg_type.to_be_bytes());
+        msg.extend_from_slice(&0u16.to_be_bytes()); // length placeholder
+        msg.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
+        msg.extend_from_slice(txid);
+        msg
+    }
+
+    /// Append one TLV attribute (type, length, value) with padding to a 4-byte
+    /// boundary, and DOES NOT touch the header length (that's `finalize_length`).
+    fn append_attr(msg: &mut Vec<u8>, atype: u16, value: &[u8]) {
+        msg.extend_from_slice(&atype.to_be_bytes());
+        msg.extend_from_slice(&(value.len() as u16).to_be_bytes());
+        msg.extend_from_slice(value);
+        // Pad to 4-byte boundary with zeros.
+        let pad = (4 - (value.len() % 4)) % 4;
+        for _ in 0..pad {
+            msg.push(0);
+        }
+    }
+
+    /// Set the header's message-length field (bytes 2..4) to the current
+    /// attribute-region length (everything after the 20-byte header).
+    fn finalize_length(msg: &mut [u8]) {
+        let attr_len = (msg.len() - 20) as u16;
+        msg[2..4].copy_from_slice(&attr_len.to_be_bytes());
+    }
+
+    /// Append an XOR-PEER-ADDRESS (or any XOR-address) attribute for `addr`,
+    /// XOR-encoded per RFC 5389 §15.2 (IPv4): family(1, after 1 reserved),
+    /// X-Port = port ^ (cookie>>16), X-Address = addr ^ cookie.
+    fn append_xor_peer_address(msg: &mut Vec<u8>, addr: SocketAddr, _txid: &[u8; 12]) {
+        let v4 = match addr {
+            SocketAddr::V4(v4) => v4,
+            // IPv6 peers aren't relayed through our IPv4 allocation; callers
+            // guard against this, but encode a zeroed v4 defensively if reached.
+            SocketAddr::V6(_) => SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0),
+        };
+        let x_port = v4.port() ^ ((MAGIC_COOKIE >> 16) as u16);
+        let x_addr = u32::from(*v4.ip()) ^ MAGIC_COOKIE;
+        let mut val = [0u8; 8];
+        val[0] = 0x00; // reserved
+        val[1] = 0x01; // family = IPv4
+        val[2..4].copy_from_slice(&x_port.to_be_bytes());
+        val[4..8].copy_from_slice(&x_addr.to_be_bytes());
+        append_attr(msg, ATTR_XOR_PEER_ADDRESS, &val);
+    }
+
+    /// Parse an XOR-MAPPED/RELAYED/PEER-ADDRESS attribute value (IPv4 only).
+    /// `_full` is the whole message (unused for IPv4, since the XOR uses only the
+    /// magic cookie; it would be needed for the IPv6 txid XOR which we don't do).
+    fn parse_xor_address(val: &[u8], _full: &[u8]) -> Option<SocketAddr> {
+        if val.len() < 8 || val[1] != 0x01 {
+            return None; // need IPv4 family + 8 bytes
+        }
+        let x_port = u16::from_be_bytes([val[2], val[3]]);
+        let port = x_port ^ ((MAGIC_COOKIE >> 16) as u16);
+        let x_addr = u32::from_be_bytes([val[4], val[5], val[6], val[7]]);
+        let ip = Ipv4Addr::from(x_addr ^ MAGIC_COOKIE);
+        Some(SocketAddr::V4(SocketAddrV4::new(ip, port)))
+    }
+
+    /// Parse an error response's ERROR-CODE, REALM, and NONCE (for the 401/438
+    /// challenge flow). ERROR-CODE value: 2 reserved bytes, then class(1) +
+    /// number(1), then a UTF-8 reason (ignored). code = class*100 + number.
+    fn parse_error_challenge(datagram: &[u8]) -> (Option<u16>, Option<String>, Option<String>) {
+        let mut code = None;
+        let mut realm = None;
+        let mut nonce = None;
+        for (atype, val) in iter_attrs(datagram) {
+            match atype {
+                ATTR_ERROR_CODE if val.len() >= 4 => {
+                    let class = (val[2] & 0x07) as u16;
+                    let number = val[3] as u16;
+                    code = Some(class * 100 + number);
+                }
+                ATTR_REALM => {
+                    realm = String::from_utf8(val.to_vec()).ok();
+                }
+                ATTR_NONCE => {
+                    nonce = String::from_utf8(val.to_vec()).ok();
+                }
+                _ => {}
+            }
+        }
+        (code, realm, nonce)
+    }
+
+    /// Iterate (attr_type, value) over a STUN/TURN message's attribute region.
+    fn iter_attrs(datagram: &[u8]) -> Vec<(u16, &[u8])> {
+        iter_attrs_with_offsets(datagram)
+            .into_iter()
+            .map(|(t, off, len)| (t, &datagram[off..off + len]))
+            .collect()
+    }
+
+    /// Iterate (attr_type, value_offset_within_datagram, value_len) — the offset
+    /// form is needed so callers can return DATA sub-slices by index.
+    fn iter_attrs_with_offsets(datagram: &[u8]) -> Vec<(u16, usize, usize)> {
+        let mut out = Vec::new();
+        if datagram.len() < 20 {
+            return out;
+        }
+        let msg_len = u16::from_be_bytes([datagram[2], datagram[3]]) as usize;
+        let end = (20 + msg_len).min(datagram.len());
+        let mut off = 20;
+        while off + 4 <= end {
+            let atype = u16::from_be_bytes([datagram[off], datagram[off + 1]]);
+            let alen = u16::from_be_bytes([datagram[off + 2], datagram[off + 3]]) as usize;
+            let vstart = off + 4;
+            if vstart + alen > end {
+                break;
+            }
+            out.push((atype, vstart, alen));
+            // Advance past value + padding to 4-byte boundary.
+            let padded = (alen + 3) & !3;
+            off = vstart + padded;
+        }
+        out
+    }
+
+    /// The long-term-credential key: `MD5(username ":" realm ":" password)`.
+    /// (RFC 5389 §15.4 — when there's no SASLprep, the raw bytes are used.)
+    pub fn long_term_key(username: &str, realm: &str, password: &str) -> [u8; 16] {
+        use md5::{Digest, Md5};
+        let mut hasher = Md5::new();
+        hasher.update(username.as_bytes());
+        hasher.update(b":");
+        hasher.update(realm.as_bytes());
+        hasher.update(b":");
+        hasher.update(password.as_bytes());
+        let out = hasher.finalize();
+        let mut key = [0u8; 16];
+        key.copy_from_slice(&out);
+        key
+    }
+
+    /// Append the MESSAGE-INTEGRITY attribute = HMAC-SHA1(key, message-so-far),
+    /// where the hash input is the message from byte 0 up to (but NOT including)
+    /// the MESSAGE-INTEGRITY attribute's TLV, with the header length field FIRST
+    /// set to cover the whole message INCLUDING this 24-byte attribute.
+    ///
+    /// Exact byte ranges (RFC 5389 §15.4):
+    ///   * Let `pre_len = msg.len()` (everything appended before M-I).
+    ///   * Set header length (bytes 2..4) = `(pre_len - 20) + 24`  (the +24 is the
+    ///     4-byte attr header + 20-byte HMAC value this attribute will occupy).
+    ///   * HMAC input = `msg[0..pre_len]` (the header with the patched length +
+    ///     all prior attributes), NOT including the M-I TLV itself.
+    ///   * Append attr type 0x0008, length 20, then the 20-byte HMAC value.
+    pub fn append_message_integrity(msg: &mut Vec<u8>, key: &[u8]) {
+        use hmac::{Hmac, Mac};
+        use sha1::Sha1;
+
+        let pre_len = msg.len();
+        // Patch the header length to include the forthcoming 24-byte M-I attr.
+        let len_with_mi = ((pre_len - 20) + 24) as u16;
+        msg[2..4].copy_from_slice(&len_with_mi.to_be_bytes());
+
+        // HMAC-SHA1 over the message bytes BEFORE the M-I attribute.
+        let mut mac = Hmac::<Sha1>::new_from_slice(key).expect("HMAC accepts any key length");
+        mac.update(&msg[0..pre_len]);
+        let tag = mac.finalize().into_bytes(); // 20 bytes
+
+        // Append the MESSAGE-INTEGRITY attribute (type + len 20 + the 20-byte tag).
+        append_attr(msg, ATTR_MESSAGE_INTEGRITY, &tag);
+        // NOTE: header length already accounts for this attribute (set above), so
+        // we do NOT call finalize_length again after M-I.
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// Lock the STUN message-type bit interleaving for the TURN methods we
+        /// use, against the RFC 5766 §13 / RFC 5389 §6 known values.
+        #[test]
+        fn message_type_bit_interleaving() {
+            assert_eq!(message_type(METHOD_ALLOCATE, CLASS_REQUEST), 0x0003);
+            assert_eq!(message_type(METHOD_ALLOCATE, CLASS_SUCCESS), 0x0103);
+            assert_eq!(message_type(METHOD_ALLOCATE, CLASS_ERROR), 0x0113);
+            assert_eq!(message_type(METHOD_REFRESH, CLASS_REQUEST), 0x0004);
+            assert_eq!(message_type(METHOD_CREATE_PERMISSION, CLASS_REQUEST), 0x0008);
+            assert_eq!(message_type(METHOD_CHANNEL_BIND, CLASS_REQUEST), 0x0009);
+            assert_eq!(message_type(METHOD_SEND, CLASS_INDICATION), 0x0016);
+            assert_eq!(message_type(METHOD_DATA, CLASS_INDICATION), 0x0017);
+        }
+
+        /// RFC 5769 §2.4 "Sample Request with Long-Term Authentication" pins the
+        /// long-term-credential key derivation. With:
+        ///   username = "\u{30DE}\u{30C8}\u{30EA}\u{30C3}\u{30AF}\u{30B9}" (SASLprep'd)
+        ///   realm    = "example.org"
+        ///   password = "TheMatrIX"
+        /// the key MD5(username:realm:password) is the documented 16-byte value.
+        /// We assert our `long_term_key` reproduces it byte-for-byte. (We pass the
+        /// already-SASLprep'd UTF-8 username bytes, matching the RFC's note that
+        /// the key is computed over the processed username.)
+        #[test]
+        fn rfc5769_long_term_key_kat() {
+            // The RFC 5769 §2.4 username, post-SASLprep, is these exact UTF-8
+            // bytes (the Katakana string マトリックス).
+            let username = "\u{30DE}\u{30C8}\u{30EA}\u{30C3}\u{30AF}\u{30B9}";
+            let realm = "example.org";
+            let password = "TheMatrIX";
+            let key = long_term_key(username, realm, password);
+            // RFC 5769 §2.4: the 16-byte key = MD5(username ":" realm ":"
+            // password) over the SASLprep'd username (the Katakana string is
+            // already in normalized form, so SASLprep is a no-op and the raw
+            // UTF-8 bytes are hashed). This value is cross-checked against an
+            // independent MD5 implementation (Node's crypto):
+            //   MD5("マトリックス:example.org:TheMatrIX")
+            //     = e8ca7ad59d5eb0518e312911d2dab2a9
+            let expected: [u8; 16] = [
+                0xe8, 0xca, 0x7a, 0xd5, 0x9d, 0x5e, 0xb0, 0x51, 0x8e, 0x31, 0x29, 0x11, 0xd2, 0xda,
+                0xb2, 0xa9,
+            ];
+            assert_eq!(key, expected, "RFC 5769 §2.4 long-term key MD5(user:realm:pass)");
+        }
+
+        /// Lock the MESSAGE-INTEGRITY construction: the HMAC-SHA1 must be computed
+        /// over the message bytes up to (not including) the M-I attribute, with
+        /// the header length pre-patched to include the 24-byte M-I attribute.
+        /// This is a self-consistent round-trip: we build a message, append M-I,
+        /// then independently recompute the HMAC over the documented byte range
+        /// and confirm the appended tag matches, AND that the header length is
+        /// the pre-M-I attribute length + 24.
+        #[test]
+        fn message_integrity_byte_ranges() {
+            use hmac::{Hmac, Mac};
+            use sha1::Sha1;
+
+            let key = long_term_key("humanity", "united-humanity.us", "turnRelay2026!secure");
+            let txid = [1u8; 12];
+            let mut msg = begin_message(message_type(METHOD_ALLOCATE, CLASS_REQUEST), &txid);
+            append_attr(&mut msg, ATTR_REQUESTED_TRANSPORT, &REQUESTED_TRANSPORT_UDP.to_be_bytes());
+            let pre_len = msg.len();
+
+            append_message_integrity(&mut msg, &key);
+
+            // (a) Header length = (pre_len - 20) + 24.
+            let hdr_len = u16::from_be_bytes([msg[2], msg[3]]) as usize;
+            assert_eq!(hdr_len, (pre_len - 20) + 24, "length field includes the M-I attr");
+
+            // (b) The appended attribute is MESSAGE-INTEGRITY (type 0x0008, len 20).
+            let attr_type = u16::from_be_bytes([msg[pre_len], msg[pre_len + 1]]);
+            let attr_len = u16::from_be_bytes([msg[pre_len + 2], msg[pre_len + 3]]) as usize;
+            assert_eq!(attr_type, ATTR_MESSAGE_INTEGRITY);
+            assert_eq!(attr_len, 20);
+
+            // (c) Independently recompute HMAC-SHA1 over msg[0..pre_len] and
+            //     confirm it equals the 20-byte tag the function appended.
+            let mut mac = Hmac::<Sha1>::new_from_slice(&key).unwrap();
+            mac.update(&msg[0..pre_len]);
+            let expected = mac.finalize().into_bytes();
+            let appended_tag = &msg[pre_len + 4..pre_len + 4 + 20];
+            assert_eq!(appended_tag, &expected[..], "HMAC-SHA1 over the pre-M-I bytes");
+
+            // (d) Cross-language oracle: the same key + message bytes, run through
+            //     an INDEPENDENT HMAC-SHA1 implementation (Node's crypto), produce
+            //     this exact 20-byte tag. Locks our RustCrypto HMAC-SHA1 + the
+            //     MD5 key + the byte ranges against an external reference, not just
+            //     self-consistency. (key = MD5("humanity:united-humanity.us:\
+            //     turnRelay2026!secure") = 4457ac79…; tag computed in node.)
+            let node_tag: [u8; 20] = [
+                0xcc, 0xea, 0x50, 0xf7, 0x7b, 0xe4, 0x1a, 0x1b, 0xeb, 0x3d, 0x60, 0x33, 0x51, 0x9c,
+                0xab, 0x0b, 0xfd, 0x71, 0xb1, 0x73,
+            ];
+            assert_eq!(appended_tag, &node_tag[..], "HMAC-SHA1 matches the node reference");
+        }
+
+        /// XOR-PEER-ADDRESS round-trip: encode an address, parse it back.
+        #[test]
+        fn xor_peer_address_roundtrip() {
+            let addr: SocketAddr = "203.0.113.45:51234".parse().unwrap();
+            let txid = random_txid();
+            let mut msg = begin_message(message_type(METHOD_SEND, CLASS_INDICATION), &txid);
+            append_xor_peer_address(&mut msg, addr, &txid);
+            finalize_length(&mut msg);
+
+            // Find the XOR-PEER-ADDRESS attr and decode it.
+            let attrs = iter_attrs(&msg);
+            let (_, val) = attrs
+                .iter()
+                .find(|(t, _)| *t == ATTR_XOR_PEER_ADDRESS)
+                .expect("XOR-PEER-ADDRESS present");
+            let decoded = parse_xor_address(val, &msg).expect("decodes");
+            assert_eq!(decoded, addr, "XOR address round-trips");
+        }
+
+        /// ChannelData framing: a bound channel's outbound frame is
+        /// channel(2) + length(2) + data, and our inbound parser recovers the
+        /// peer + the exact inner byte range.
+        #[test]
+        fn channel_data_frame_and_parse() {
+            let mut client = TurnClient {
+                server: "1.2.3.4:3478".parse().unwrap(),
+                phase: Phase::Allocated,
+                realm: Some("r".into()),
+                nonce: Some("n".into()),
+                relayed: Some("5.6.7.8:9000".parse().unwrap()),
+                lifetime: Duration::from_secs(600),
+                allocated_at: Some(Instant::now()),
+                last_allocate: None,
+                last_refresh: None,
+                peers: HashMap::new(),
+                next_channel: FIRST_CHANNEL,
+            };
+            let peer: SocketAddr = "9.9.9.9:1111".parse().unwrap();
+            client.peers.insert(
+                peer,
+                PeerChannel { channel: 0x4001, bound: true, last_bind: None },
+            );
+
+            // Build a ChannelData frame by hand (what a server would send to us).
+            let payload = b"hello-relayed";
+            let mut frame = Vec::new();
+            frame.extend_from_slice(&0x4001u16.to_be_bytes());
+            frame.extend_from_slice(&(payload.len() as u16).to_be_bytes());
+            frame.extend_from_slice(payload);
+
+            match client.handle_channel_data(&frame) {
+                TurnInbound::Data { peer: p, inner_offset, inner_len } => {
+                    assert_eq!(p, peer, "channel mapped back to the right peer");
+                    assert_eq!(&frame[inner_offset..inner_offset + inner_len], payload);
+                }
+                _ => panic!("expected relayed Data from ChannelData"),
+            }
+        }
+
+        /// A first-byte in 0x40..=0x7F is ChannelData; a STUN message (first byte
+        /// ≤ 0x3F) is not — the wire discriminator must hold.
+        #[test]
+        fn channel_data_vs_stun_discriminator() {
+            // Allocate Success starts with 0x01 (type 0x0103) → NOT channel data.
+            let stun_type = message_type(METHOD_ALLOCATE, CLASS_SUCCESS);
+            assert!(stun_type <= 0x3FFF, "STUN message types are <= 0x3FFF");
+            assert!((stun_type >> 8) as u8 <= 0x3F, "STUN first byte <= 0x3F");
+            // Channel numbers occupy 0x4000..=0x7FFF → first byte 0x40..=0x7F.
+            assert!((0x4000u16 >> 8) as u8 == 0x40);
+            assert!((0x7FFFu16 >> 8) as u8 == 0x7F);
         }
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.319.0"
+version = "0.320.0"
 edition = "2021"
 
 [[bin]]
@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m"]
+native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5"]
 relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -96,6 +96,16 @@ p256 = { version = "0.13", optional = true, features = ["ecdh", "pkcs8"] }
 # also drop the `examples` default feature (it pulls in rouille/rustls for the
 # bundled demo server, which we don't use).
 str0m = { version = "0.20", optional = true, default-features = false, features = ["rust-crypto"] }
+# === TURN relay client crypto (RFC 5766 long-term credential auth) ===
+# The native WebRTC TURN client (src/net/webrtc.rs, inc-3b) authenticates to the
+# operator's TURN server with the long-term-credential mechanism: a per-message
+# MESSAGE-INTEGRITY = HMAC-SHA1 over the STUN message, keyed by MD5(user:realm:pass).
+# These are small pure-Rust RustCrypto crates on the same `digest 0.10` family as
+# the rest of our stack (sha2, hmac) — no new digest version is pulled into the
+# graph. `hmac` is already declared above (a relay dep); we just add it to the
+# `native` feature list. native feature only — relay/wasm never run a TURN client.
+sha1 = { version = "0.10", optional = true }
+md-5 = { version = "0.10", optional = true }
 
 # === Platform: WASM ===
 web-sys = { version = "0.3", optional = true, features = [
