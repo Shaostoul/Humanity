@@ -3,11 +3,11 @@
   "_workflow": "Operator opens Testing page → reads task → does the test in-app → clicks Mark Passed or Report Issue (with optional note) → result is sent as a chat message tagged [QA] which Claude reads next session.",
   "tasks": [
     {
-      "id": "v0323-crafting-works",
-      "version": "0.323.0",
-      "feature": "Crafting actually crafts (engine-wiring: registries -> DataStore)",
-      "what_to_test": "Open the Crafting page. Before v0.323 it showed an empty recipe list and nothing could be crafted (the recipe registry was loaded then discarded, never reaching the runtime). Look for recipes; craft something you have the inputs for (e.g. smelt iron: iron ore + coal -> iron ingot).",
-      "expected": "Recipes are listed (not empty). Crafting consumes the inputs and the output item appears in your inventory after the craft time. (An automated end-to-end test already proves smelt_iron works against the real data; this confirms the in-app path.)",
+      "id": "v0323-crafting-browser",
+      "version": "0.325.0",
+      "feature": "Crafting page recipe browser populated (engine-wiring 1 + 1b)",
+      "what_to_test": "Open the Crafting page. Before v0.325 it showed 'No recipes match your filter' (the page's recipe list was never populated, even after the recipe registry started loading into the runtime in v0.323). Browse the category sidebar + recipe list; click a recipe to see its ingredients, outputs, station, and craft time.",
+      "expected": "The Crafting page now LISTS the real recipes (300+) with categories, ingredients, and outputs — a working recipe browser. HONEST NOTE: the 'Craft' button is still a visual preview only. Actually consuming inputs + producing outputs (the full crafting LOOP) needs an item source (gathering/mining) + a GUI->ECS bridge — a later gameplay increment. The crafting SYSTEM itself (consume/produce) is already proven by an automated end-to-end test against the real data.",
       "category": "crafting"
     },
     {

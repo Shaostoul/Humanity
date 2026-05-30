@@ -2211,7 +2211,54 @@ pub fn load_bug_taxonomy(data_dir: &std::path::Path) -> (Vec<String>, Vec<String
         .unwrap_or_default()
 }
 
-/// Load crafting category filters from `data/crafting/categories.json`.
+/// Load crafting recipes from `data/recipes.csv` into the Crafting page's recipe
+/// browser (`GuiState.craft_recipes`).
+#[cfg(feature = "native")]
+pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
+    // Mirrors the runtime RecipeRegistry load (Wiring-1) but builds the GUI-facing
+    // GuiRecipe rows the Crafting page browses. Reuses the shared CSV loader (skips
+    // # comments, row-resilient) + Recipe::parse_ingredients for the pipe-separated
+    // item:qty inputs/outputs. Before this the page's craft_recipes Vec was never
+    // populated, so the Crafting page always showed "No recipes match your filter"
+    // even after the recipe registry loaded into the runtime.
+    #[derive(serde::Deserialize)]
+    struct Row {
+        id: String,
+        name: String,
+        #[serde(default)]
+        category: String,
+        #[serde(default)]
+        inputs: String,
+        #[serde(default)]
+        outputs: String,
+        #[serde(default)]
+        craft_time_sec: f32,
+        #[serde(default)]
+        station_required: String,
+        #[serde(default)]
+        description: String,
+    }
+    let bytes = match std::fs::read(data_dir.join("recipes.csv")) {
+        Ok(b) => b,
+        Err(_) => return Vec::new(),
+    };
+    let rows: Vec<Row> = crate::assets::loader::parse_csv(&bytes).unwrap_or_default();
+    rows.into_iter()
+        .map(|r| GuiRecipe {
+            id: r.id,
+            name: r.name,
+            category: r.category,
+            inputs: crate::systems::crafting::Recipe::parse_ingredients(&r.inputs),
+            outputs: crate::systems::crafting::Recipe::parse_ingredients(&r.outputs),
+            craft_time_sec: r.craft_time_sec,
+            station_required: r.station_required,
+            description: r.description,
+        })
+        .collect()
+}
+
+/// Load crafting category filters from `data/crafting/categories.json` for the
+/// Crafting page sidebar.
 #[cfg(feature = "native")]
 pub fn load_crafting_categories(data_dir: &std::path::Path) -> Vec<String> {
     #[derive(serde::Deserialize)]
@@ -2219,6 +2266,28 @@ pub fn load_crafting_categories(data_dir: &std::path::Path) -> Vec<String> {
     read_data_json::<File>(data_dir, "crafting/categories.json")
         .map(|f| f.categories)
         .unwrap_or_default()
+}
+
+#[cfg(all(test, feature = "native"))]
+mod crafting_recipes_load_tests {
+    use super::*;
+
+    #[test]
+    fn load_crafting_recipes_populates_from_real_data() {
+        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let recipes = load_crafting_recipes(&data_dir);
+        assert!(
+            recipes.len() > 50,
+            "Crafting page should load the real recipes.csv (got {})",
+            recipes.len()
+        );
+        let smelt = recipes
+            .iter()
+            .find(|r| r.id == "smelt_iron")
+            .expect("smelt_iron present in the browser");
+        assert!(!smelt.inputs.is_empty(), "smelt_iron has inputs");
+        assert!(!smelt.outputs.is_empty(), "smelt_iron has outputs");
+    }
 }
 
 /// Load marketplace category filters from `data/market/categories.json`.
