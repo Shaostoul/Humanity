@@ -640,7 +640,7 @@ pub async fn run_relay() {
                 .allow_methods([http::Method::GET, http::Method::POST, http::Method::PUT, http::Method::DELETE, http::Method::PATCH])
                 .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
         )
-        .with_state(state);
+        .with_state(state.clone());
 
     let addr = format!("0.0.0.0:{port}");
     tracing::info!("Humanity relay listening on {addr}");
@@ -649,7 +649,57 @@ pub async fn run_relay() {
     tracing::info!("Bot API:    http://localhost:{port}/api/");
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    // Serve with graceful shutdown so we get one last chance to persist the
+    // game world on Ctrl-C / SIGTERM (the deploy pipeline restarts the relay
+    // with SIGTERM). Without this, anything since the last 30s periodic save
+    // would be lost on a clean restart.
+    let shutdown_state = state.clone();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal(shutdown_state))
+        .await
+        .unwrap();
+}
+
+/// Resolves when the process receives a shutdown signal (Ctrl-C, or SIGTERM on
+/// Unix). On resolve, it performs a final game-world save so player positions /
+/// world entities / game_time aren't lost between the last periodic save and
+/// the restart. Best-effort: a save error is logged, not fatal.
+async fn shutdown_signal(state: Arc<RelayState>) {
+    // Ctrl-C works on every platform tokio supports.
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+
+    // SIGTERM is how systemd / the deploy script stops the relay on Linux.
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => {
+                sig.recv().await;
+            }
+            Err(e) => {
+                tracing::warn!("Could not install SIGTERM handler: {e}");
+                // Park forever so this branch never wins the select.
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    // Wait for whichever signal arrives first.
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    tracing::info!("Shutdown signal received — performing final game-world save…");
+    let world = state.game_world.read().await;
+    if let Err(e) = world.save_to_db(&state.db) {
+        tracing::warn!("Final game-world save on shutdown failed: {e}");
+    } else {
+        tracing::info!("Final game-world save complete.");
+    }
 }
 
 async fn health(

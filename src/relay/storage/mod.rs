@@ -621,6 +621,39 @@ impl Storage {
             );"
         )?;
 
+        // ── Game-state persistence (relay game-world durability) ──
+        // The server-authoritative GameWorld (entities/positions/game_time)
+        // and per-player quest/XP/reputation used to live ONLY in memory and
+        // reset on every relay restart. These two tables make them durable.
+        // See storage/game_persistence.rs for the full rationale.
+        //
+        //   game_world_snapshots — one row per logical world. snapshot_json is
+        //   the opaque serialized world blob (entities + the two scalars);
+        //   game_time + next_entity_id are also broken out as columns for cheap
+        //   inspection without parsing the JSON.
+        //
+        //   player_progress — one row per player (their Dilithium pubkey hex).
+        //   completed_quests is a JSON array string (SQLite has no array type,
+        //   matching how project_tasks.labels is stored).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS game_world_snapshots (
+                world_id        TEXT PRIMARY KEY,
+                snapshot_json   TEXT NOT NULL,
+                game_time       REAL NOT NULL DEFAULT 0,
+                next_entity_id  INTEGER NOT NULL DEFAULT 1,
+                updated_at      INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS player_progress (
+                public_key       TEXT PRIMARY KEY,
+                current_quest    TEXT,
+                completed_quests TEXT NOT NULL DEFAULT '[]',
+                xp               INTEGER NOT NULL DEFAULT 0,
+                reputation       INTEGER NOT NULL DEFAULT 0,
+                updated_at       INTEGER NOT NULL DEFAULT 0
+            );"
+        )?;
+
         // Federation: federated server registry.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS federated_servers (
@@ -2067,6 +2100,7 @@ pub mod files;
 mod bugs;
 mod guilds;
 mod reputation;
+mod game_persistence;
 
 pub use civilization::CivilizationStats;
 pub use guilds::{GuildRecord, GuildMemberRecord, GuildInviteRecord};
@@ -2075,6 +2109,9 @@ pub use notification_prefs::NotifPrefs;
 pub use bugs::BugReport;
 pub use reputation::{ReputationRecord, ReputationEventRecord};
 pub use trading::TradeRecord;
+// Durable game-world snapshot + per-player progress (relay game-state
+// persistence). See game_persistence.rs for the rationale + schema.
+pub use game_persistence::{GameWorldSnapshot, PlayerProgress};
 
 #[cfg(test)]
 mod resilient_open_tests {

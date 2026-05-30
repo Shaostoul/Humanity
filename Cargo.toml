@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.321.0"
+version = "0.322.0"
 edition = "2021"
 
 [[bin]]
@@ -53,7 +53,7 @@ winit = { version = "0.30", optional = true }
 notify = { version = "7", optional = true }
 pollster = { version = "0.4", optional = true }
 env_logger = { version = "0.11", optional = true }
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "signal"], optional = true }
 egui = { version = "0.31", optional = true }
 egui-wgpu = { version = "0.31", optional = true }
 egui-winit = { version = "0.31", optional = true }

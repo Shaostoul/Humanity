@@ -3291,9 +3291,32 @@ pub async fn handle_game_join(
         return;
     }
 
-    // Spawn player at default position.
+    // Spawn player at default position. spawn_player always grants the
+    // explore_ship starter quest with zeroed stats.
     let spawn_pos = [0.0_f32, 1.0, 0.0];
     let player_id = world.spawn_player(my_key, spawn_pos);
+
+    // Re-seed a RETURNING player from durable storage so they keep their
+    // quest progress / XP / reputation across relay restarts (or across a
+    // world-snapshot version bump, which is keyed separately). A brand-new
+    // player has no saved row and keeps the fresh explore_ship grant above.
+    match state.db.load_player_progress(my_key) {
+        Ok(Some(p)) => {
+            world.seed_player_progress(
+                player_id,
+                p.current_quest.as_deref(),
+                &p.completed_quests,
+                p.xp,
+                p.reputation,
+            );
+            tracing::info!(
+                "Restored player progress for {}: quest={:?}, xp={}, rep={}",
+                my_key, p.current_quest, p.xp, p.reputation
+            );
+        }
+        Ok(None) => {} // new player — nothing to restore
+        Err(e) => tracing::warn!("Could not load player progress for {}: {e}", my_key),
+    }
 
     // Build world snapshot for the joiner.
     let snapshot = world.snapshot();
@@ -3495,6 +3518,10 @@ pub async fn handle_game_position_update(
             let reward = world.apply_quest_reward(player_id);
             let next_quest = world.chain_next_quest(player_id);
             drop(world);
+            // Durably persist the player's new progress (xp/reputation bumped,
+            // completed_quests appended, current_quest advanced) so it survives
+            // a relay restart. Best-effort; never blocks the reward broadcast.
+            persist_player_progress(state, my_key, player_id).await;
             if let Some(r) = reward {
                 let reward_payload = serde_json::json!({
                     "type": "game_quest_reward",
@@ -3539,8 +3566,29 @@ pub async fn handle_game_disconnect(
     player_key: &str,
 ) {
     let mut world = state.game_world.write().await;
+    // Capture the player's progress BEFORE despawning (despawn removes the
+    // entity, so we can't read it afterward). Find the entity, snapshot its
+    // progression, then despawn.
+    let progress = world
+        .find_player_entity(player_key)
+        .and_then(|id| world.extract_player_progress(id));
     if let Some(entity_id) = world.despawn_player(player_key) {
         drop(world);
+
+        // Durably persist the leaving player's progress so a returning player
+        // resumes their quest/XP even if the periodic world snapshot hadn't
+        // captured this session yet. Best-effort; failure is logged only.
+        if let Some((current_quest, completed, xp, reputation)) = progress {
+            if let Err(e) = state.db.save_player_progress(
+                player_key,
+                current_quest.as_deref(),
+                &completed,
+                xp,
+                reputation,
+            ) {
+                tracing::warn!("Could not persist progress on disconnect for {}: {e}", player_key);
+            }
+        }
 
         let left = serde_json::json!({
             "type": "game_player_left",
@@ -3818,6 +3866,12 @@ pub async fn handle_game_interact(
             None
         };
         drop(world);
+        // If this interaction completed a quest, the player's xp/reputation/
+        // current_quest just changed — persist it durably so it survives a
+        // relay restart. Best-effort; never blocks the broadcasts below.
+        if reward_and_next.is_some() {
+            persist_player_progress(state, my_key, player_id).await;
+        }
         if let Some(progress) = progress {
             let event_type = if progress.complete {
                 "game_quest_completed"
@@ -3983,6 +4037,32 @@ async fn send_game_private(state: &Arc<RelayState>, to_key: &str, msg: &serde_js
         message: format!("__game__:{}", msg),
     };
     let _ = state.broadcast_tx.send(private);
+}
+
+/// Persist a player's current progression (quest / completed list / xp /
+/// reputation) to durable storage. Call this whenever a player's progress
+/// changes meaningfully — i.e. after a quest reward is applied / the quest
+/// chain advances, and on disconnect — so it survives a relay restart.
+///
+/// Reads the player entity under a fresh read lock, so callers should invoke
+/// this AFTER dropping any write lock they hold. Best-effort: a DB error is
+/// logged, not propagated (a failed progress save must never break gameplay).
+async fn persist_player_progress(state: &Arc<RelayState>, player_key: &str, player_id: u64) {
+    let extracted = {
+        let world = state.game_world.read().await;
+        world.extract_player_progress(player_id)
+    };
+    if let Some((current_quest, completed, xp, reputation)) = extracted {
+        if let Err(e) = state.db.save_player_progress(
+            player_key,
+            current_quest.as_deref(),
+            &completed,
+            xp,
+            reputation,
+        ) {
+            tracing::warn!("Could not persist player progress for {}: {e}", player_key);
+        }
+    }
 }
 
 // ── handle_mod_action handler-layer tests (v0.250 — regression guards

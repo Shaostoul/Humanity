@@ -993,16 +993,35 @@ impl GameWorld {
     }
 
     // ── Persistence ────────────────────────────────────────────
+    //
+    // The live world is in-memory; these methods make it durable across relay
+    // restarts via two dedicated SQLite tables (see
+    // storage/game_persistence.rs):
+    //   * game_world_snapshots — the whole entity set + game_time + next id.
+    //   * player_progress       — per-player quest/XP/reputation.
+    // Static-ship fields (rooms, ship_name) are NEVER persisted; they reload
+    // from data/ships/*.ron on every boot so layout edits always propagate.
 
-    /// Storage key for the persisted world snapshot. Bump the version suffix
-    /// when entity spawn logic changes so old snapshots are ignored on load
-    /// (otherwise persisted entities would shadow newly-added ambient NPCs).
+    /// `world_id` used for the single persisted world snapshot row.
+    ///
+    /// The version suffix is load-bearing: bump it whenever entity *spawn*
+    /// logic changes (new ambient NPCs, new equipment, etc.). On the next boot
+    /// the old `world_id` row is simply not found, so the relay rebuilds the
+    /// world fresh from RON instead of restoring a stale snapshot that would
+    /// shadow the newly-added entities. Player *progress* is keyed separately
+    /// (by pubkey) and is NOT discarded by a world version bump — returning
+    /// players keep their XP/quests even when the shared world is rebuilt.
     pub const PERSIST_KEY: &'static str = "game_world_snapshot_v8";
 
-    /// Save the world to the SQLite `server_state` table as a JSON blob.
-    /// Called periodically from the tick loop. Static-ship fields (rooms,
-    /// ship_name) are NOT saved — those reload from RON on every startup.
+    /// Save the world to the `game_world_snapshots` table as a JSON blob.
+    /// Called periodically from the relay tick loop (and on graceful shutdown).
+    /// Static-ship fields (rooms, ship_name) are NOT saved — they reload from
+    /// RON on every startup.
     pub fn save_to_db(&self, db: &crate::relay::storage::Storage) -> Result<(), String> {
+        // Serialize ONLY the dynamic world state. The shape here is the
+        // `snapshot_json` blob stored in game_world_snapshots; game_time and
+        // next_entity_id are also passed as their own columns for cheap
+        // inspection, but the blob remains the authoritative restore source.
         #[derive(Serialize)]
         struct Snapshot<'a> {
             entities: &'a HashMap<u64, GameEntity>,
@@ -1015,14 +1034,15 @@ impl GameWorld {
             game_time: self.game_time,
         };
         let json = serde_json::to_string(&snap).map_err(|e| format!("serialize: {e}"))?;
-        db.set_state(Self::PERSIST_KEY, &json).map_err(|e| format!("save: {e}"))?;
+        db.save_game_world(Self::PERSIST_KEY, &json, self.game_time, self.next_entity_id)
+            .map_err(|e| format!("save: {e}"))?;
         Ok(())
     }
 
     /// Restore world entities from the SQLite snapshot if one exists.
-    /// Returns true if a snapshot was found and applied. Replaces freshly
-    /// populated ship entities with the persisted set so player movement
-    /// and inventory survive relay restarts.
+    /// Returns true if a snapshot was found and applied. Replaces the freshly
+    /// populated ship entities with the persisted set so player movement,
+    /// inventory, and quest state survive relay restarts.
     pub fn restore_from_db(&mut self, db: &crate::relay::storage::Storage) -> bool {
         #[derive(Deserialize)]
         struct Snapshot {
@@ -1030,17 +1050,19 @@ impl GameWorld {
             next_entity_id: u64,
             game_time: f64,
         }
-        let json = match db.get_state(Self::PERSIST_KEY) {
+        let snapshot = match db.load_game_world(Self::PERSIST_KEY) {
             Ok(Some(s)) => s,
-            Ok(None) => return false,
+            Ok(None) => return false, // fresh relay / world version bumped → rebuild from RON
             Err(e) => {
                 tracing::warn!("Could not read game_world_snapshot: {e}");
                 return false;
             }
         };
-        match serde_json::from_str::<Snapshot>(&json) {
+        match serde_json::from_str::<Snapshot>(&snapshot.snapshot_json) {
             Ok(snap) => {
                 self.entities = snap.entities;
+                // Never hand out an id below either the snapshot's high-water
+                // mark OR the freshly-populated world's — avoids id reuse.
                 self.next_entity_id = snap.next_entity_id.max(self.next_entity_id);
                 self.game_time = snap.game_time;
                 tracing::info!(
@@ -1054,6 +1076,119 @@ impl GameWorld {
                 false
             }
         }
+    }
+
+    // ── Player progress bridge ──────────────────────────────────
+    //
+    // Player progression (current quest id, completed quests, xp, reputation)
+    // lives inside the player entity's in-memory `components`. These two helpers
+    // bridge that in-memory shape to/from the durable `player_progress` table so
+    // a returning player keeps what they earned even if the world snapshot was
+    // invalidated by a spawn-logic version bump.
+
+    /// Extract a player's persistable progression from their entity, by entity
+    /// id. Returns `(current_quest_id, completed_quests, xp, reputation)`, or
+    /// `None` if the entity is missing. `current_quest_id` is `None` once the
+    /// player has finished the whole starter chain (no `current_quest` block).
+    pub fn extract_player_progress(
+        &self,
+        player_id: u64,
+    ) -> Option<(Option<String>, Vec<String>, u64, u64)> {
+        let entity = self.entities.get(&player_id)?;
+        let current_quest = entity
+            .components
+            .get("current_quest")
+            .and_then(|q| q.get("id"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let completed_quests = entity
+            .components
+            .get("completed_quests")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let xp = entity.components.get("xp").and_then(|v| v.as_u64()).unwrap_or(0);
+        let reputation = entity
+            .components
+            .get("reputation")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        Some((current_quest, completed_quests, xp, reputation))
+    }
+
+    /// Seed a freshly-spawned player entity with previously-persisted
+    /// progression: restores xp, reputation, and the completed-quests list, and
+    /// fast-forwards the quest chain so the player resumes on the quest they
+    /// were last on (rather than restarting at explore_ship).
+    ///
+    /// `spawn_player` always grants the explore_ship starter quest; this is
+    /// called immediately after, on `game_join`, ONLY when the DB had a saved
+    /// row for the player. Returns true if anything was applied.
+    pub fn seed_player_progress(
+        &mut self,
+        player_id: u64,
+        current_quest: Option<&str>,
+        completed_quests: &[String],
+        xp: u64,
+        reputation: u64,
+    ) -> bool {
+        // Restore the flat stats + completed list on the entity.
+        {
+            let Some(entity) = self.entities.get_mut(&player_id) else { return false };
+            entity.components["xp"] = serde_json::json!(xp);
+            entity.components["reputation"] = serde_json::json!(reputation);
+            entity.components["completed_quests"] =
+                serde_json::Value::Array(
+                    completed_quests
+                        .iter()
+                        .map(|q| serde_json::Value::String(q.clone()))
+                        .collect(),
+                );
+        }
+
+        // Fast-forward the quest chain to the saved current quest. We walk the
+        // chain by repeatedly marking the current quest complete and chaining,
+        // WITHOUT re-applying rewards (apply_quest_reward is intentionally not
+        // called — the xp/reputation we just restored already include past
+        // rewards). This reuses the single source of truth for quest shapes
+        // (chain_next_quest) instead of duplicating quest JSON here.
+        if let Some(target) = current_quest {
+            // explore_ship is what spawn_player granted; if that's the saved
+            // quest there's nothing to advance.
+            // Bounded loop: the starter chain is 3 long; cap iterations so a
+            // future cycle in the chain can never hang the join handler.
+            for _ in 0..8 {
+                let cur = self
+                    .entities
+                    .get(&player_id)
+                    .and_then(|e| e.components.get("current_quest"))
+                    .and_then(|q| q.get("id"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                match cur {
+                    Some(ref id) if id == target => break, // arrived
+                    Some(_) => {
+                        // Mark current complete so chain_next_quest advances,
+                        // then chain. If chaining yields nothing (end of chain)
+                        // we stop regardless.
+                        if let Some(e) = self.entities.get_mut(&player_id) {
+                            if let Some(q) = e.components.get_mut("current_quest") {
+                                q["complete"] = serde_json::Value::Bool(true);
+                            }
+                        }
+                        if self.chain_next_quest(player_id).is_none() {
+                            break;
+                        }
+                    }
+                    None => break, // no current quest at all
+                }
+            }
+        }
+        true
     }
 }
 
@@ -1173,5 +1308,137 @@ mod tests {
         let room = world.room_for_position(player.position);
         assert!(room.is_some(), "player not in any room");
         assert_eq!(room.unwrap().id, "quarters");
+    }
+
+    // ── Persistence integration (save → restore through SQLite) ──
+
+    /// Throwaway on-disk DB with the full relay schema (mirrors the storage
+    /// modules' per-test helper).
+    fn make_test_storage() -> crate::relay::storage::Storage {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_gameworld_test_{pid}_{nanos}.db"));
+        crate::relay::storage::Storage::open(&path).expect("open test db")
+    }
+
+    /// save_to_db → restore_from_db must reconstruct the dynamic world:
+    /// the entity set, game_time, and next_entity_id all survive a round-trip
+    /// through SQLite (simulating a relay restart). A spawned player's moved
+    /// position must be preserved too.
+    #[test]
+    fn world_save_restore_preserves_entities_time_and_next_id() {
+        let db = make_test_storage();
+
+        // Build a world, spawn a player, advance the clock, move the player.
+        let mut world = GameWorld::new();
+        let player_id = world.spawn_player("pk_persist", [0.0, 1.0, 0.0]);
+        world.tick(5.0); // advance game_time
+        world.update_position(player_id, [12.0, 1.0, 34.0], [0.0, 0.0, 0.0, 1.0]);
+        let saved_entity_count = world.entities.len();
+        let saved_game_time = world.game_time;
+        let saved_next_id = world.next_entity_id;
+
+        // Persist it.
+        world.save_to_db(&db).expect("save_to_db");
+
+        // A FRESH world (as if the relay restarted) restores from the snapshot.
+        let mut restored = GameWorld::new();
+        let did_restore = restored.restore_from_db(&db);
+        assert!(did_restore, "restore_from_db should find the saved snapshot");
+
+        assert_eq!(restored.entities.len(), saved_entity_count, "entity count preserved");
+        assert_eq!(restored.game_time, saved_game_time, "game_time preserved");
+        assert!(restored.next_entity_id >= saved_next_id, "next_entity_id not regressed");
+
+        // The player's moved position survived.
+        let p = restored.entities.get(&player_id).expect("player entity restored");
+        assert_eq!(p.position, [12.0, 1.0, 34.0], "player position preserved across restart");
+        assert_eq!(p.owner.as_deref(), Some("pk_persist"));
+    }
+
+    /// restore_from_db on an empty DB returns false (no snapshot) and leaves
+    /// the freshly-built world intact — the relay then keeps the RON-built one.
+    #[test]
+    fn world_restore_on_empty_db_is_a_noop() {
+        let db = make_test_storage();
+        let mut world = GameWorld::new();
+        let before = world.entities.len();
+        assert!(!world.restore_from_db(&db), "no snapshot → returns false");
+        assert_eq!(world.entities.len(), before, "world untouched when nothing to restore");
+    }
+
+    /// extract_player_progress must read the progression fields off the
+    /// player entity (current quest id, completed list, xp, reputation), and
+    /// seed_player_progress must fast-forward a fresh player to a saved quest
+    /// while restoring xp/reputation/completed — the restore-on-join flow.
+    #[test]
+    fn player_progress_extract_and_seed_round_trip() {
+        let mut world = GameWorld::new();
+        let player_id = world.spawn_player("pk_prog", [0.0, 1.0, 0.0]);
+
+        // Fresh player: explore_ship, zeroed stats.
+        let (q, completed, xp, rep) =
+            world.extract_player_progress(player_id).expect("progress");
+        assert_eq!(q.as_deref(), Some("explore_ship"));
+        assert!(completed.is_empty());
+        assert_eq!(xp, 0);
+        assert_eq!(rep, 0);
+
+        // Simulate a returning player who finished explore_ship + meet_the_crew,
+        // is now on survey_storage, with earned stats.
+        let saved_completed = vec!["explore_ship".to_string(), "meet_the_crew".to_string()];
+        let ok = world.seed_player_progress(
+            player_id,
+            Some("survey_storage"),
+            &saved_completed,
+            300,
+            15,
+        );
+        assert!(ok, "seed should apply");
+
+        // The entity now reflects the restored progress.
+        let (q2, completed2, xp2, rep2) =
+            world.extract_player_progress(player_id).expect("progress");
+        assert_eq!(q2.as_deref(), Some("survey_storage"), "fast-forwarded to saved quest");
+        assert_eq!(completed2, saved_completed, "completed list restored");
+        assert_eq!(xp2, 300, "xp restored");
+        assert_eq!(rep2, 15, "reputation restored");
+    }
+
+    /// End-to-end via SQLite: a player's progress saved to player_progress and
+    /// re-applied to a fresh player entity (the exact game_join restore path)
+    /// keeps them on the right quest with the right stats.
+    #[test]
+    fn player_progress_persists_and_restores_via_db() {
+        let db = make_test_storage();
+
+        // Save a returning player's progress through the storage layer.
+        let completed = vec!["explore_ship".to_string()];
+        db.save_player_progress("pk_join", Some("meet_the_crew"), &completed, 100, 5)
+            .expect("save_player_progress");
+
+        // New world + fresh spawn (relay restarted; player rejoins).
+        let mut world = GameWorld::new();
+        let player_id = world.spawn_player("pk_join", [0.0, 1.0, 0.0]);
+
+        // Load + seed, exactly like handle_game_join does.
+        let loaded = db.load_player_progress("pk_join").unwrap().expect("row present");
+        world.seed_player_progress(
+            player_id,
+            loaded.current_quest.as_deref(),
+            &loaded.completed_quests,
+            loaded.xp,
+            loaded.reputation,
+        );
+
+        let (q, completed_out, xp, rep) =
+            world.extract_player_progress(player_id).expect("progress");
+        assert_eq!(q.as_deref(), Some("meet_the_crew"), "resumed on saved quest");
+        assert_eq!(completed_out, completed);
+        assert_eq!(xp, 100);
+        assert_eq!(rep, 5);
     }
 }
