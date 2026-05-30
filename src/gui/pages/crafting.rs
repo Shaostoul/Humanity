@@ -85,169 +85,60 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             });
         });
 
-    egui::CentralPanel::default()
+    // Owned filter/search captured before the panels so the immutable borrows of
+    // `state` don't straddle the mutable closures below.
+    let filter_cat: Option<String> = if state.craft_category == 0 {
+        None
+    } else {
+        state.crafting_categories.get(state.craft_category).cloned()
+    };
+    let search_term = with_local(|local| local.search.to_lowercase());
+
+    // ── Right panel: selected recipe detail (full height, resizable) ──
+    // A SidePanel has a real bounded height, so the detail fills the screen instead
+    // of collapsing to its content height (the old in-CentralPanel layout relied on
+    // ui.available_height(), which came back tiny and cramped everything).
+    egui::SidePanel::right("craft_detail_panel")
+        .default_width(480.0)
+        .min_width(300.0)
+        .resizable(true)
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
-            ui.label(
-                RichText::new("Crafting")
-                    .size(theme.font_size_title)
-                    .color(theme.text_primary()),
-            );
-            ui.add_space(theme.spacing_sm);
-
-            // Search bar
-            with_local(|local| {
-                widgets::search_bar(ui, theme, &mut local.search, "Filter recipes...");
-            });
-            ui.add_space(theme.spacing_sm);
-
-            let available_h = ui.available_height();
-            // Main content: recipe list (left) + detail (right), queue at bottom
-            let main_h = (available_h - 120.0).max(200.0);
-
-            ui.horizontal(|ui| {
-                // Center: scrollable recipe list
-                ui.vertical(|ui| {
-                    ui.set_min_width(260.0);
-                    ui.set_max_width(260.0);
-
-                    // Owned to avoid an immutable borrow of `state` straddling the
-                    // mutable closure capture below.
-                    let filter_cat: Option<String> = if state.craft_category == 0 {
-                        None
+            ScrollArea::vertical()
+                .id_salt("craft_detail")
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    if let Some(idx) = state.craft_selected {
+                        if let Some(recipe) = state.craft_recipes.get(idx).cloned() {
+                            draw_recipe_detail(ui, theme, state, &recipe);
+                        } else {
+                            state.craft_selected = None;
+                        }
                     } else {
-                        state.crafting_categories.get(state.craft_category).cloned()
-                    };
-
-                    let search_term = with_local(|local| local.search.to_lowercase());
-
-                    ScrollArea::vertical()
-                        .id_salt("craft_recipe_list")
-                        .max_height(main_h)
-                        .show(ui, |ui| {
-                            let filtered: Vec<(usize, GuiRecipe)> = state
-                                .craft_recipes
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, r)| {
-                                    filter_cat.as_deref().map_or(true, |f| category_matches(f, &r.category))
-                                })
-                                .filter(|(_, r)| {
-                                    search_term.is_empty()
-                                        || r.name.to_lowercase().contains(&search_term)
-                                        || r.id.to_lowercase().contains(&search_term)
-                                })
-                                .map(|(i, r)| (i, r.clone()))
-                                .collect();
-
-                            if filtered.is_empty() {
-                                ui.add_space(theme.spacing_md);
-                                ui.label(
-                                    RichText::new("No recipes match your filter")
-                                        .color(theme.text_muted()),
-                                );
-                            }
-
-                            for (idx, recipe) in &filtered {
-                                let is_selected = state.craft_selected == Some(*idx);
-                                let fill = if is_selected { theme.bg_card() } else { Color32::TRANSPARENT };
-                                let stroke = if is_selected {
-                                    Stroke::new(1.0, theme.accent())
-                                } else {
-                                    Stroke::NONE
-                                };
-
-                                let frame = egui::Frame::none()
-                                    .fill(fill)
-                                    .rounding(Rounding::same(4))
-                                    .stroke(stroke)
-                                    .inner_margin(theme.panel_margin);
-
-                                frame.show(ui, |ui| {
-                                    let resp = ui.vertical(|ui| {
-                                        ui.label(
-                                            RichText::new(&recipe.name)
-                                                .size(theme.font_size_body)
-                                                .color(theme.text_primary()),
-                                        );
-                                        // Inputs summary
-                                        let inputs_str: String = recipe
-                                            .inputs
-                                            .iter()
-                                            .map(|(id, qty)| {
-                                                let have = count_in_inventory(state, id);
-                                                format!("{} {}/{}", id, have, qty)
-                                            })
-                                            .collect::<Vec<_>>()
-                                            .join(", ");
-                                        ui.label(
-                                            RichText::new(inputs_str)
-                                                .size(theme.font_size_small)
-                                                .color(theme.text_muted()),
-                                        );
-                                        ui.horizontal(|ui| {
-                                            ui.label(
-                                                RichText::new(&recipe.category)
-                                                    .size(theme.font_size_small)
-                                                    .color(theme.text_muted()),
-                                            );
-                                            ui.label(
-                                                RichText::new(format!("{}s", recipe.craft_time_sec))
-                                                    .size(theme.font_size_small)
-                                                    .color(theme.text_muted()),
-                                            );
-                                        });
-                                    }).response;
-                                    if resp.interact(egui::Sense::click()).clicked() {
-                                        state.craft_selected = Some(*idx);
-                                    }
-                                });
-                                ui.add_space(theme.row_gap);
-                            }
+                        ui.add_space(theme.spacing_xl);
+                        ui.centered_and_justified(|ui| {
+                            ui.label(
+                                RichText::new("Select a recipe to view details")
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_muted()),
+                            );
                         });
+                    }
                 });
+        });
 
-                ui.separator();
-
-                // Right panel: selected recipe detail
-                ui.vertical(|ui| {
-                    ScrollArea::vertical()
-                        .id_salt("craft_detail")
-                        .max_height(main_h)
-                        .show(ui, |ui| {
-                            if let Some(idx) = state.craft_selected {
-                                if let Some(recipe) = state.craft_recipes.get(idx) {
-                                    let recipe = recipe.clone();
-                                    draw_recipe_detail(ui, theme, state, &recipe);
-                                } else {
-                                    state.craft_selected = None;
-                                }
-                            } else {
-                                ui.add_space(theme.spacing_xl);
-                                ui.centered_and_justified(|ui| {
-                                    ui.label(
-                                        RichText::new("Select a recipe to view details")
-                                            .size(theme.font_size_body)
-                                            .color(theme.text_muted()),
-                                    );
-                                });
-                            }
-                        });
-                });
-            });
-
-            ui.add_space(theme.spacing_sm);
-            ui.separator();
-            ui.add_space(theme.spacing_xs);
-
-            // Craft queue at bottom
+    // ── Bottom strip: craft queue ──
+    egui::TopBottomPanel::bottom("craft_queue")
+        .resizable(false)
+        .min_height(72.0)
+        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(theme.card_padding))
+        .show(ctx, |ui| {
             ui.label(
                 RichText::new("Craft Queue")
                     .size(theme.font_size_heading)
                     .color(theme.text_primary()),
             );
             ui.add_space(theme.spacing_xs);
-
             with_local(|local| {
                 if local.queue.is_empty() {
                     ui.label(
@@ -275,8 +166,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 }
             });
-
-            // Status message
             if !state.craft_status.is_empty() {
                 ui.label(
                     RichText::new(&state.craft_status)
@@ -284,6 +173,109 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .color(theme.success()),
                 );
             }
+        });
+
+    // ── Center: recipe list (fills the remaining space) ──
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .show(ctx, |ui| {
+            ui.label(
+                RichText::new("Crafting")
+                    .size(theme.font_size_title)
+                    .color(theme.text_primary()),
+            );
+            ui.add_space(theme.spacing_sm);
+            with_local(|local| {
+                widgets::search_bar(ui, theme, &mut local.search, "Filter recipes...");
+            });
+            ui.add_space(theme.spacing_sm);
+
+            ScrollArea::vertical()
+                .id_salt("craft_recipe_list")
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    let filtered: Vec<(usize, GuiRecipe)> = state
+                        .craft_recipes
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, r)| {
+                            filter_cat.as_deref().map_or(true, |f| category_matches(f, &r.category))
+                        })
+                        .filter(|(_, r)| {
+                            search_term.is_empty()
+                                || r.name.to_lowercase().contains(&search_term)
+                                || r.id.to_lowercase().contains(&search_term)
+                        })
+                        .map(|(i, r)| (i, r.clone()))
+                        .collect();
+
+                    if filtered.is_empty() {
+                        ui.add_space(theme.spacing_md);
+                        ui.label(
+                            RichText::new("No recipes match your filter")
+                                .color(theme.text_muted()),
+                        );
+                    }
+
+                    for (idx, recipe) in &filtered {
+                        let is_selected = state.craft_selected == Some(*idx);
+                        let fill = if is_selected { theme.bg_card() } else { Color32::TRANSPARENT };
+                        let stroke = if is_selected {
+                            Stroke::new(1.0, theme.accent())
+                        } else {
+                            Stroke::NONE
+                        };
+
+                        let frame = egui::Frame::none()
+                            .fill(fill)
+                            .rounding(Rounding::same(4))
+                            .stroke(stroke)
+                            .inner_margin(theme.panel_margin);
+
+                        // Whole-row clickable: the frame fills the full list width and
+                        // its response covers the entire row (fixes the old "only some
+                        // spots are clickable" — the click target used to be just the
+                        // inner text's bounding box, not the padded frame).
+                        let inner = frame.show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            ui.label(
+                                RichText::new(&recipe.name)
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary()),
+                            );
+                            let inputs_str: String = recipe
+                                .inputs
+                                .iter()
+                                .map(|(id, qty)| {
+                                    let have = count_in_inventory(state, id);
+                                    format!("{} {}/{}", id, have, qty)
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            ui.label(
+                                RichText::new(inputs_str)
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            );
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(&recipe.category)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_muted()),
+                                );
+                                ui.label(
+                                    RichText::new(format!("{}s", recipe.craft_time_sec))
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_muted()),
+                                );
+                            });
+                        });
+                        if inner.response.interact(egui::Sense::click()).clicked() {
+                            state.craft_selected = Some(*idx);
+                        }
+                        ui.add_space(theme.row_gap);
+                    }
+                });
         });
 
     // Request repaint while queue has items
