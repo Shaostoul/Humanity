@@ -397,6 +397,25 @@ pub struct GuiCrop {
     pub dead: bool,
 }
 
+/// An asteroid (with remaining ore) for GUI display.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiAsteroid {
+    pub name: String,
+    pub classification: String,
+    /// Remaining ore by item id.
+    pub ores: Vec<(String, f32)>,
+}
+
+/// An active mining drone for GUI display.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiDrone {
+    pub ore_id: String,
+    pub phase: String,
+    pub cargo: u32,
+}
+
 /// A guild for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -936,6 +955,14 @@ pub struct GuiState {
     pub dev_grow_crops: bool,
     /// Growing crops, synced from the ECS each frame for the Garden panel.
     pub crops: Vec<GuiCrop>,
+
+    // ── Mining / drones state ──
+    /// Ore id the player clicked "Commission drone" for this frame → DroneSystem.
+    pub pending_commission_ore: Option<String>,
+    /// Asteroids (name + remaining ore), synced from the ECS for the Mining panel.
+    pub asteroids: Vec<GuiAsteroid>,
+    /// Active mining drones (ore / phase / cargo), synced from the ECS.
+    pub drones: Vec<GuiDrone>,
 
     // ── Guilds state ──
     pub guilds: Vec<GuiGuild>,
@@ -1735,6 +1762,9 @@ impl Default for GuiState {
             pending_harvest_crop: None,
             dev_grow_crops: false,
             crops: Vec::new(),
+            pending_commission_ore: None,
+            asteroids: Vec::new(),
+            drones: Vec::new(),
 
             // Guilds defaults
             guilds: Vec::new(),

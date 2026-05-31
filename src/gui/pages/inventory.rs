@@ -59,6 +59,17 @@ fn category_color(category: &str) -> Color32 {
     }
 }
 
+/// Short, capitalized ore name for display: "iron_ore_0" -> "Iron".
+fn ore_short(item_id: &str) -> String {
+    let base = item_id.strip_suffix("_0").unwrap_or(item_id);
+    let base = base.strip_suffix("_ore").unwrap_or(base);
+    let mut chars = base.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => base.to_string(),
+    }
+}
+
 /// Parse item data from embedded CSV to get details for a given item_id.
 fn lookup_item_details(item_id: &str) -> Option<ItemDetails> {
     let csv = crate::embedded_data::ITEMS_CSV;
@@ -132,6 +143,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut action_water_crop: Option<u64> = None;
     let mut action_harvest_crop: Option<u64> = None;
     let mut action_dev_grow = false;
+    let mut action_commission_ore: Option<String> = None;
 
     if let Some(idx) = state.selected_slot {
         egui::SidePanel::right("inv_detail_panel")
@@ -576,6 +588,90 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.add_space(theme.spacing_xs);
                     }
                 }
+
+                // ── Mining: commission drones to fetch ore from finite asteroids. ──
+                ui.add_space(theme.spacing_md);
+                ui.separator();
+                ui.add_space(theme.spacing_sm);
+                ui.label(
+                    RichText::new("Mining")
+                        .size(theme.font_size_heading)
+                        .color(theme.text_primary()),
+                );
+                ui.add_space(theme.spacing_xs);
+                if state.asteroids.is_empty() {
+                    ui.label(RichText::new("No asteroids in range.").color(theme.text_muted()));
+                } else {
+                    // Distinct ores available across all asteroids (id -> total qty).
+                    let mut ores: Vec<(String, f32)> = Vec::new();
+                    for ast in &state.asteroids {
+                        for (id, qty) in &ast.ores {
+                            if *qty < 1.0 {
+                                continue;
+                            }
+                            if let Some(slot) = ores.iter_mut().find(|(i, _)| i == id) {
+                                slot.1 += *qty;
+                            } else {
+                                ores.push((id.clone(), *qty));
+                            }
+                        }
+                    }
+                    for ast in &state.asteroids {
+                        let summary: Vec<String> = ast
+                            .ores
+                            .iter()
+                            .filter(|(_, q)| *q >= 1.0)
+                            .map(|(id, q)| format!("{} {:.0}", ore_short(id), q))
+                            .collect();
+                        ui.label(
+                            RichText::new(format!(
+                                "{} [{}] — {}",
+                                ast.name,
+                                ast.classification,
+                                if summary.is_empty() {
+                                    "depleted".to_string()
+                                } else {
+                                    summary.join(", ")
+                                }
+                            ))
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                        );
+                    }
+                    ui.add_space(theme.spacing_xs);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(
+                            RichText::new("Commission drone:").color(theme.text_secondary()),
+                        );
+                        for (id, total) in &ores {
+                            let label = format!("{} ({:.0})", ore_short(id), total);
+                            if widgets::secondary_button(ui, theme, &label) {
+                                action_commission_ore = Some(id.clone());
+                            }
+                        }
+                    });
+                }
+                ui.add_space(theme.spacing_xs);
+                if state.drones.is_empty() {
+                    ui.label(
+                        RichText::new("No drones in flight.")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                } else {
+                    for drone in &state.drones {
+                        ui.label(
+                            RichText::new(format!(
+                                "Drone → {} · {} · cargo {}",
+                                ore_short(&drone.ore_id),
+                                drone.phase,
+                                drone.cargo
+                            ))
+                            .size(theme.font_size_small)
+                            .color(theme.text_primary()),
+                        );
+                    }
+                }
             });
         });
 
@@ -589,6 +685,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     if action_dev_grow {
         state.dev_grow_crops = true;
+    }
+    // Bridge a commissioned drone to DroneSystem (via the main loop).
+    if let Some(ore_id) = action_commission_ore {
+        state.pending_commission_ore = Some(ore_id);
     }
 }
 

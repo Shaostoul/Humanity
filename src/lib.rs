@@ -86,6 +86,7 @@ mod native_app {
     use crate::systems::crafting::CraftingSystem;
     use crate::systems::farming::FarmingSystem;
     use crate::systems::food::FoodSystem;
+    use crate::systems::mining::DroneSystem;
     use crate::systems::interaction::InteractionSystem;
     use crate::systems::inventory::{Inventory, InventorySystem, ItemRegistry};
     use crate::systems::inventory::containers::ContainerCompatibilitySystem;
@@ -853,6 +854,11 @@ mod native_app {
             data_store.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("dev_grow_crops", std::sync::Mutex::new(false));
+            // Mining: commission a drone to fetch an ore (DroneSystem picks an asteroid).
+            data_store.insert(
+                "commission_drone",
+                std::sync::Mutex::new(Option::<String>::None),
+            );
             system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
@@ -865,6 +871,9 @@ mod native_app {
             // and spoilage. Reads consume_request + status_effect_registry from the
             // DataStore. Loads food_system.ron from the data dir at construction.
             system_runner.register(FoodSystem::new(&data_dir));
+            // DroneSystem: autonomous mining drones (commission → trip → mine a finite
+            // asteroid → deliver ore home). Reads commission_drone + item_registry.
+            system_runner.register(DroneSystem::new());
             game_world.world.spawn((
                 Transform::default(),
                 Velocity::default(),
@@ -875,6 +884,25 @@ mod native_app {
                 crate::ecs::components::Vitals::default(),
                 crate::ecs::components::StatusEffects::default(),
             ));
+            // Test asteroids for the mining loop (finite ore; DroneSystem deletes one
+            // when fully consumed). Dev/testing content — MMO asteroids are server-side.
+            game_world.world.spawn((crate::ecs::components::AsteroidBody {
+                name: "Asteroid M-12 (metallic)".to_string(),
+                classification: "M".to_string(),
+                ores: vec![
+                    ("iron_ore_0".to_string(), 120.0),
+                    ("nickel_ore_0".to_string(), 60.0),
+                    ("platinum_ore_0".to_string(), 20.0),
+                ],
+            },));
+            game_world.world.spawn((crate::ecs::components::AsteroidBody {
+                name: "Asteroid S-7 (silicaceous)".to_string(),
+                classification: "S".to_string(),
+                ores: vec![
+                    ("iron_ore_0".to_string(), 40.0),
+                    ("copper_ore_0".to_string(), 50.0),
+                ],
+            },));
 
             // Initialize egui
             let egui_ctx = egui::Context::default();
@@ -1271,6 +1299,17 @@ mod native_app {
                         {
                             if let Ok(mut s) = slot.lock() {
                                 *s = true;
+                            }
+                        }
+                    }
+                    // Mining: bridge a commissioned drone (ore id) to DroneSystem.
+                    if let Some(ore_id) = state.gui_state.pending_commission_ore.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<String>>>("commission_drone")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(ore_id);
                             }
                         }
                     }
@@ -1676,6 +1715,35 @@ mod native_app {
                                 health: crop.health,
                                 mature,
                                 dead,
+                            });
+                        }
+                    }
+                    // Bridge asteroids + active mining drones from ECS for the Mining panel.
+                    {
+                        state.gui_state.asteroids.clear();
+                        for (_e, ast) in state
+                            .game_world
+                            .world
+                            .query::<&crate::ecs::components::AsteroidBody>()
+                            .iter()
+                        {
+                            state.gui_state.asteroids.push(crate::gui::GuiAsteroid {
+                                name: ast.name.clone(),
+                                classification: ast.classification.clone(),
+                                ores: ast.ores.iter().map(|(id, q)| (id.clone(), *q)).collect(),
+                            });
+                        }
+                        state.gui_state.drones.clear();
+                        for (_e, drone) in state
+                            .game_world
+                            .world
+                            .query::<&crate::ecs::components::Drone>()
+                            .iter()
+                        {
+                            state.gui_state.drones.push(crate::gui::GuiDrone {
+                                ore_id: drone.ore_id.clone(),
+                                phase: format!("{:?}", drone.phase),
+                                cargo: drone.cargo,
                             });
                         }
                     }

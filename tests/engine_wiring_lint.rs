@@ -26,9 +26,9 @@ use std::path::{Path, PathBuf};
 /// Systems that have an `impl System` but are intentionally NOT yet registered in
 /// the runtime, each with the reason. Shrinks as systems are genuinely wired.
 ///
-/// (Registered as of v0.330.0: TimeSystem, PlayerControllerSystem,
+/// (Registered as of v0.332.0: TimeSystem, PlayerControllerSystem,
 /// InteractionSystem, FarmingSystem, InventorySystem, ContainerCompatibilitySystem,
-/// CraftingSystem, FoodSystem.)
+/// CraftingSystem, FoodSystem, DroneSystem.)
 const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // Simulation systems — implemented, tick safely, read game_time (now exported),
     // but operate on world entities/outputs not yet spawned/consumed. Register each

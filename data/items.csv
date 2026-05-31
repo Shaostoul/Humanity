@@ -210,6 +210,8 @@ iron_ore_0,Iron Ore,material,ore,iron,4.5,20,0,Unrefined ferrous mineral,solid
 iron_ingot_0,Iron Ingot,material,ingot,iron,3.0,20,0,Smelted iron bar,solid
 steel_ingot_0,Steel Ingot,material,ingot,steel,3.5,20,0,Forged steel bar,solid
 copper_ore_0,Copper Ore,material,ore,copper,4.2,20,0,Unrefined cupric mineral,solid
+nickel_ore_0,Nickel Ore,material,ore,nickel,4.8,20,0,Unrefined nickel mineral,solid
+platinum_ore_0,Platinum Ore,material,ore,platinum,8.0,20,0,Unrefined platinum-group mineral,solid
 copper_ingot_0,Copper Ingot,material,ingot,copper,2.8,20,0,Smelted copper bar,solid
 aluminum_ingot_0,Aluminum Ingot,material,ingot,aluminum,1.0,20,0,Smelted aluminum bar,solid
 titanium_ingot_0,Titanium Ingot,material,ingot,titanium,2.0,10,0,Smelted titanium bar,solid

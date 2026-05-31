@@ -533,6 +533,76 @@ pub struct OreDeposit {
     pub yield_initial: f32,
 }
 
+/// A mineable asteroid as an ECS entity — a FINITE multi-ore body. A mining drone
+/// depletes its `ores`; when nothing remains (fully consumed) the entity is deleted
+/// by `DroneSystem`. (The 3D voxel `terrain::asteroid::Asteroid` octree is a separate
+/// visualization layer for #5b; this is the logical resource the mining loop runs on.)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AsteroidBody {
+    /// Display name (e.g. "Asteroid X-12").
+    pub name: String,
+    /// Spectral class: C (carbonaceous), S (silicaceous), M (metallic).
+    pub classification: String,
+    /// Remaining ore by item id, e.g. ("iron_ore_0", 80.0). Units = inventory items.
+    pub ores: Vec<(String, f32)>,
+}
+
+impl AsteroidBody {
+    /// Total ore remaining across all types.
+    pub fn total_remaining(&self) -> f32 {
+        self.ores.iter().map(|(_, q)| *q).sum()
+    }
+
+    /// Mine up to `amount` of one ore; returns the whole units actually extracted
+    /// and decrements the remaining stock.
+    pub fn take(&mut self, ore_id: &str, amount: f32) -> u32 {
+        if let Some(slot) = self.ores.iter_mut().find(|(id, _)| id == ore_id) {
+            let taken = slot.1.min(amount).max(0.0);
+            slot.1 -= taken;
+            taken.floor() as u32
+        } else {
+            0
+        }
+    }
+
+    /// True if this asteroid still holds at least one unit of a given ore.
+    pub fn has_ore(&self, ore_id: &str) -> bool {
+        self.ores.iter().any(|(id, q)| id == ore_id && *q >= 1.0)
+    }
+}
+
+/// A mining drone's mission phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DronePhase {
+    /// Flying out to the target asteroid.
+    Outbound,
+    /// At the asteroid, extracting ore.
+    Mining,
+    /// Flying home with cargo.
+    Returning,
+    /// Arrived home; cargo delivered — ready to despawn.
+    Done,
+}
+
+/// An autonomous mining drone. Commissioned for one ore, it flies to an asteroid,
+/// mines, returns, and drops its cargo into the home entity's inventory.
+/// `DroneSystem` drives this phase state machine.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Drone {
+    /// Entity bits of the home to deliver cargo to (the player's inventory).
+    pub home: u64,
+    /// Entity bits of the target asteroid.
+    pub target: u64,
+    /// Requested ore item id (e.g. "platinum_ore_0").
+    pub ore_id: String,
+    /// Current mission phase.
+    pub phase: DronePhase,
+    /// Seconds elapsed in the current phase.
+    pub phase_time: f32,
+    /// Units of `ore_id` collected so far.
+    pub cargo: u32,
+}
+
 /// A soil patch — slowly accumulates nutrients from organic matter.
 /// `GeologySystem::tick` increments fertility based on adjacent decomposing waste.
 #[derive(Debug, Clone, Serialize, Deserialize)]

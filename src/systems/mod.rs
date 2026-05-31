@@ -30,6 +30,7 @@ pub mod fire;
 pub mod medical;
 pub mod status_effects;
 pub mod food;
+pub mod mining;
 pub mod governance;
 pub mod psychology;
 pub mod docking;
