@@ -100,6 +100,14 @@ const BODY_TEMP_RATE: f32 = 0.5;
 const HYPOTHERMIA_C: f32 = 35.0;
 const HEAT_EXHAUSTION_C: f32 = 39.0;
 const TEMP_DAMAGE_PER_SEC: f32 = 2.0;
+// ── Sanitation (organic waste → compost → fertilizer). ──
+/// Waste accrued per real second while living, + per meal eaten.
+const WASTE_RISE_PER_SEC: f32 = 0.05;
+const WASTE_PER_MEAL: f32 = 4.0;
+/// Above this waste the `unsanitary` debuff applies (compost to clear it).
+const UNSANITARY_THRESHOLD: f32 = 75.0;
+/// Waste units consumed per unit of fertilizer produced when composting.
+const WASTE_PER_FERTILIZER: f32 = 25.0;
 
 /// Unique key for tracking a specific food stack: (entity bits, inventory slot index).
 type FoodKey = (u64, usize);
@@ -225,13 +233,14 @@ impl System for FoodSystem {
 
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         use crate::ecs::components::{Health, Name, StatusEffects, Vitals};
-        use crate::systems::inventory::Inventory;
+        use crate::systems::inventory::{Inventory, ItemRegistry};
         use crate::systems::status_effects::StatusEffectRegistry;
 
         // ── 1. EAT: drain the consume_request channel (the Eat button writes it
         //    via the main-loop bridge) and apply the food's nutrition to the first
         //    player (Inventory + Vitals + StatusEffects) that actually has the item.
         let registry = data.get::<StatusEffectRegistry>("status_effect_registry");
+        let item_registry = data.get::<ItemRegistry>("item_registry");
         let consumed = data
             .get::<std::sync::Mutex<Option<String>>>("consume_request")
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
@@ -268,6 +277,8 @@ impl System for FoodSystem {
                         .min(vitals.satiation_max);
                     let hydration_gain = if is_produce { PRODUCE_HYDRATION } else { BASE_HYDRATION };
                     vitals.hydration = (vitals.hydration + hydration_gain).min(vitals.hydration_max);
+                    // Eating produces a little organic waste (scraps) to compost later.
+                    vitals.waste = (vitals.waste + WASTE_PER_MEAL).min(vitals.waste_max);
                     // Eating raw food risks illness; cooked/preserved food is safe.
                     if risk > 0.0 && rand::random::<f32>() < risk {
                         effects.apply("food_poisoning", poison_dur);
@@ -320,6 +331,29 @@ impl System for FoodSystem {
             .get::<crate::ecs::components::EnvironmentContext>("environment_context")
             .map(|e| (e.sealed, e.oxygenated, e.ambient_temp_c))
             .unwrap_or((true, true, 21.0));
+
+        // ── 1c. COMPOST: drain compost_request -> turn the player's accumulated waste
+        //    into fertilizer items (the food -> waste -> compost -> soil cycle) + clear it.
+        let do_compost = data
+            .get::<std::sync::Mutex<bool>>("compost_request")
+            .and_then(|m| m.lock().ok().map(|mut s| std::mem::replace(&mut *s, false)))
+            .unwrap_or(false);
+        if do_compost {
+            let max_stack = item_registry
+                .map(|r| r.max_stack_for("fertilizer_0"))
+                .unwrap_or(99);
+            // First entity that owns both an inventory and vitals = the player
+            // (consistent with the eat pass; no Controllable filter needed).
+            for (_e, (inv, vitals)) in world.query_mut::<(&mut Inventory, &mut Vitals)>() {
+                let units = (vitals.waste / WASTE_PER_FERTILIZER).floor() as u32;
+                if units > 0 {
+                    inv.add_item("fertilizer_0", units, max_stack);
+                    log::info!("[Sanitation] composted waste -> {units}x fertilizer_0");
+                }
+                vitals.waste = 0.0;
+                break; // first player only
+            }
+        }
 
         // ── 2. DECAY + CONDITIONS: every entity with Vitals gets hungrier/thirstier/
         //    short-of-breath/colder; low levels apply conditions; empty/extreme levels
@@ -393,6 +427,14 @@ impl System for FoodSystem {
             } else {
                 effects.remove("hypothermia");
                 effects.remove("heat_exhaustion");
+            }
+
+            // Organic waste accrues while living; high waste -> the unsanitary debuff.
+            vitals.waste = (vitals.waste + WASTE_RISE_PER_SEC * dt).min(vitals.waste_max);
+            if vitals.waste > UNSANITARY_THRESHOLD {
+                effects.apply("unsanitary", CONDITION_LINGER);
+            } else {
+                effects.remove("unsanitary");
             }
 
             // Apply the tick's accumulated Health drain (all survival sources).
@@ -510,6 +552,7 @@ mod nutrition_tests {
             std::sync::Mutex::new(Option::<String>::None),
         );
         data.insert("rest_request", std::sync::Mutex::new(false));
+        data.insert("compost_request", std::sync::Mutex::new(false));
         data
     }
 
@@ -520,10 +563,12 @@ mod nutrition_tests {
             energy: 100.0,
             oxygen: 100.0,
             body_temp_c: 37.0,
+            waste: 0.0,
             satiation_max: 100.0,
             hydration_max: 100.0,
             energy_max: 100.0,
             oxygen_max: 100.0,
+            waste_max: 100.0,
         }
     }
 
@@ -610,10 +655,12 @@ mod nutrition_tests {
                 energy: 10.0,
                 oxygen: 100.0,
                 body_temp_c: 37.0,
+                waste: 0.0,
                 satiation_max: 100.0,
                 hydration_max: 100.0,
                 energy_max: 100.0,
                 oxygen_max: 100.0,
+                waste_max: 100.0,
             },
             StatusEffects::default(),
             Health::default(),
@@ -692,6 +739,41 @@ mod nutrition_tests {
         assert!(
             !fx.has("hypoxia") && !fx.has("suffocation"),
             "oxygen conditions cleared when sealed"
+        );
+    }
+
+    /// Waste accrues → the `unsanitary` debuff; Compost turns it into fertilizer and
+    /// clears it (the food → waste → compost → fertilizer cycle).
+    #[test]
+    fn waste_accrues_unsanitary_and_composts_to_fertilizer() {
+        let mut sys = FoodSystem::new(data_dir());
+        let data = make_store();
+
+        let mut world = hecs::World::new();
+        let mut v = vitals(80.0, 80.0);
+        v.waste = 80.0; // already above UNSANITARY_THRESHOLD (75)
+        let player = world.spawn((Inventory::new(8), v, StatusEffects::default(), Health::default()));
+
+        sys.tick(&mut world, 1.0, &data);
+        assert!(
+            world.get::<&StatusEffects>(player).unwrap().has("unsanitary"),
+            "high waste applies the unsanitary debuff"
+        );
+
+        // Compost → fertilizer + waste cleared + unsanitary lifts.
+        *data
+            .get::<std::sync::Mutex<bool>>("compost_request")
+            .unwrap()
+            .lock()
+            .unwrap() = true;
+        sys.tick(&mut world, 1.0, &data);
+        let fert = world.get::<&Inventory>(player).unwrap().count_item("fertilizer_0");
+        let waste = world.get::<&Vitals>(player).unwrap().waste;
+        assert!(fert >= 3, "compost produced fertilizer (80/25 ≈ 3, got {fert})");
+        assert!(waste < 5.0, "compost cleared the waste (got {waste})");
+        assert!(
+            !world.get::<&StatusEffects>(player).unwrap().has("unsanitary"),
+            "composting lifted the unsanitary debuff"
         );
     }
 }

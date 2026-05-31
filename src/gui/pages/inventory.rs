@@ -145,6 +145,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut action_dev_grow = false;
     let mut action_commission_ore: Option<String> = None;
     let mut action_rest = false;
+    let mut action_compost = false;
+    let mut action_fertilize_crop: Option<u64> = None;
 
     if let Some(idx) = state.selected_slot {
         egui::SidePanel::right("inv_detail_panel")
@@ -401,6 +403,30 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         }
                     });
                 });
+                // Waste / sanitation: rises over time + when eating; Compost → fertilizer.
+                let waste = state.vitals.waste;
+                let waste_max = state.vitals.waste_max.max(1.0);
+                let waste_frac = (waste / waste_max).clamp(0.0, 1.0);
+                // High waste is BAD here (inverted color vs the other vitals).
+                let waste_col = if waste_frac > 0.75 {
+                    theme.danger()
+                } else if waste_frac > 0.5 {
+                    theme.warning()
+                } else {
+                    theme.text_secondary()
+                };
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Waste:").color(theme.text_secondary()));
+                    ui.label(
+                        RichText::new(format!("{:.0} / {:.0}", waste, waste_max)).color(waste_col),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if widgets::secondary_button(ui, theme, "Compost") {
+                            action_compost = true;
+                        }
+                    });
+                });
+                ui.add(egui::ProgressBar::new(waste_frac).fill(waste_col));
                 if !effects.is_empty() {
                     ui.add_space(theme.spacing_xs);
                     ui.horizontal_wrapped(|ui| {
@@ -615,6 +641,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         {
                                             action_water_crop = Some(crop.entity_bits);
                                         }
+                                        if !crop.dead
+                                            && widgets::secondary_button(ui, theme, "Fertilize")
+                                        {
+                                            action_fertilize_crop = Some(crop.entity_bits);
+                                        }
                                     },
                                 );
                             });
@@ -749,6 +780,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Bridge the Rest button to FoodSystem (refills energy).
     if action_rest {
         state.pending_rest = true;
+    }
+    // Bridge Compost (FoodSystem) + Fertilize (FarmingSystem).
+    if action_compost {
+        state.pending_compost = true;
+    }
+    if let Some(bits) = action_fertilize_crop {
+        state.pending_fertilize_crop = Some(bits);
     }
 }
 

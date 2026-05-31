@@ -885,6 +885,13 @@ mod native_app {
             );
             // Survival: rest to refill energy (FoodSystem drains it).
             data_store.insert("rest_request", std::sync::Mutex::new(false));
+            // Sanitation: compost accumulated waste -> fertilizer (FoodSystem);
+            // fertilize a crop by entity bits (FarmingSystem).
+            data_store.insert("compost_request", std::sync::Mutex::new(false));
+            data_store.insert(
+                "fertilize_crop_request",
+                std::sync::Mutex::new(Option::<u64>::None),
+            );
             system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
@@ -1411,6 +1418,27 @@ mod native_app {
                             }
                         }
                     }
+                    // Sanitation: bridge Compost (FoodSystem) + Fertilize (FarmingSystem).
+                    if state.gui_state.pending_compost {
+                        state.gui_state.pending_compost = false;
+                        if let Some(slot) =
+                            state.data_store.get::<std::sync::Mutex<bool>>("compost_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = true;
+                            }
+                        }
+                    }
+                    if let Some(bits) = state.gui_state.pending_fertilize_crop.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<u64>>>("fertilize_crop_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(bits);
+                            }
+                        }
+                    }
 
                     // Tick all ECS systems
                     state.system_runner.tick(
@@ -1761,6 +1789,8 @@ mod native_app {
                             state.gui_state.vitals.hydration_max = vitals.hydration_max;
                             state.gui_state.vitals.energy_max = vitals.energy_max;
                             state.gui_state.vitals.oxygen_max = vitals.oxygen_max;
+                            state.gui_state.vitals.waste = vitals.waste;
+                            state.gui_state.vitals.waste_max = vitals.waste_max;
                             state.gui_state.vitals.sealed = state
                                 .data_store
                                 .get::<crate::ecs::components::EnvironmentContext>(

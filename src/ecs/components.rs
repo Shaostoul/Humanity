@@ -95,12 +95,18 @@ pub struct Vitals {
     /// exposed; far from baseline → hypothermia / heat exhaustion.
     #[serde(default = "default_body_temp")]
     pub body_temp_c: f32,
+    /// Accumulated organic waste, 0..=waste_max. RISES over time + when eating;
+    /// high waste → the `unsanitary` debuff. Compost it into fertilizer to clear it.
+    #[serde(default)]
+    pub waste: f32,
     pub satiation_max: f32,
     pub hydration_max: f32,
     #[serde(default = "default_vital_full")]
     pub energy_max: f32,
     #[serde(default = "default_vital_full")]
     pub oxygen_max: f32,
+    #[serde(default = "default_vital_full")]
+    pub waste_max: f32,
 }
 
 /// Default for a vital that starts full (serde fallback for older saves).
@@ -123,10 +129,12 @@ impl Default for Vitals {
             energy: 100.0,
             oxygen: 100.0,
             body_temp_c: 37.0,
+            waste: 0.0,
             satiation_max: 100.0,
             hydration_max: 100.0,
             energy_max: 100.0,
             oxygen_max: 100.0,
+            waste_max: 100.0,
         }
     }
 }

@@ -306,6 +306,35 @@ impl System for FarmingSystem {
             }
         }
 
+        // FERTILIZE: consume 1 fertilizer_0 from the player -> boost a crop's health
+        // (growth is health-weighted, so fertilizing speeds it up). Closes the
+        // food -> waste -> compost -> fertilizer -> crop cycle (#7c sanitation).
+        let fertilize_bits = data
+            .get::<std::sync::Mutex<Option<u64>>>("fertilize_crop_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+        if let Some(bits) = fertilize_bits {
+            if let Some(entity) = hecs::Entity::from_bits(bits) {
+                let mut had_fertilizer = false;
+                for (_e, (inv, _ctrl)) in world.query_mut::<(
+                    &mut crate::systems::inventory::Inventory,
+                    &crate::ecs::components::Controllable,
+                )>() {
+                    if inv.has_item("fertilizer_0", 1) {
+                        inv.remove_item("fertilizer_0", 1);
+                        had_fertilizer = true;
+                    }
+                    break;
+                }
+                if had_fertilizer {
+                    if let Ok(mut crop) = world.get::<&mut CropInstance>(entity) {
+                        crop.health = (crop.health + 40.0).min(100.0);
+                        crop.water_level = crop.water_level.max(0.5);
+                        log::info!("[Farming] fertilized a crop (+health)");
+                    }
+                }
+            }
+        }
+
         // DEV: instantly mature every living crop (a testing affordance, like
         // "Dev: stock all materials" — so the loop is verifiable without waiting
         // game-days for growth).
@@ -502,6 +531,10 @@ mod gardening_tests {
         data.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
         data.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
         data.insert("dev_grow_crops", std::sync::Mutex::new(false));
+        data.insert(
+            "fertilize_crop_request",
+            std::sync::Mutex::new(Option::<u64>::None),
+        );
         data
     }
 
@@ -588,5 +621,44 @@ mod gardening_tests {
         );
         // A plant with no produce item in items.csv yields nothing (no crash).
         assert_eq!(harvest_item_for("void_orchid", Some(&items)), None);
+    }
+
+    /// Fertilizing a crop consumes one fertilizer_0 from the player and boosts the
+    /// crop's health (closing the compost → fertilizer → crop cycle).
+    #[test]
+    fn fertilize_consumes_fertilizer_and_boosts_crop_health() {
+        use crate::ecs::components::{Controllable, CropInstance};
+        let data = make_store();
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("fertilizer_0", 2, 99);
+        world.spawn((inv, Controllable));
+        let crop = world.spawn((CropInstance {
+            crop_def_id: "tomato".to_string(),
+            growth_stage: "sprout".to_string(),
+            planted_at: 0.0,
+            water_level: 0.5,
+            health: 40.0,
+        },));
+
+        *data
+            .get::<std::sync::Mutex<Option<u64>>>("fertilize_crop_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(crop.to_bits().into());
+        sys.tick(&mut world, 1.0, &data);
+
+        let fert_count = world
+            .query::<(&Inventory, &Controllable)>()
+            .iter()
+            .next()
+            .map(|(_, (i, _))| i.count_item("fertilizer_0"))
+            .unwrap();
+        assert_eq!(fert_count, 1, "fertilizing consumed one fertilizer_0");
+        assert!(
+            world.get::<&CropInstance>(crop).unwrap().health > 40.0,
+            "fertilizing boosted the crop's health"
+        );
     }
 }

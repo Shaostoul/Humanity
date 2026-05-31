@@ -63,6 +63,7 @@ fatigued,Fatigued,condition,0,false,1,0,speed:0.85:multiply,0,physical,0,rest,su
 hypoxia,Hypoxia,condition,0,false,1,0,speed:0.7:multiply,0,none,0,rest,survival|oxygen,Low blood oxygen; movement slowed 30% until you reach breathable air
 suffocation,Suffocation,condition,0,false,1,0,speed:0.5:multiply,0,none,0,rest,survival|oxygen,No oxygen; severe health loss until you reach breathable air
 heat_exhaustion,Heat Exhaustion,condition,0,false,1,0,speed:0.8:multiply,0,none,0,rest,survival|temperature,Overheating; movement slowed and health draining
+unsanitary,Unsanitary,condition,0,false,1,0,speed:0.95:multiply,0,none,0,rest,survival|sanitation,Accumulated waste; compost it into fertilizer to clean up
 common_cold,Common Cold,disease,7200,false,1,30,stamina_regen:0.85:multiply,1,disease,0,medicine,illness|minor,Mildly reduces stamina regen and causes occasional sneezing
 flu,Flu,disease,14400,false,1,20,speed:0.8:multiply,2,disease,0,medicine,illness|moderate,Reduces speed and stamina with periodic fever spikes
 infection,Infection,disease,28800,false,1,15,max_hp:-10:add,3,disease,0,medicine,illness|serious,Reduces max HP and deals ongoing damage requiring antibiotics

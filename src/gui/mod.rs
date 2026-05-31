@@ -378,10 +378,12 @@ pub struct GuiVitals {
     pub energy: f32,
     pub oxygen: f32,
     pub body_temp_c: f32,
+    pub waste: f32,
     pub satiation_max: f32,
     pub hydration_max: f32,
     pub energy_max: f32,
     pub oxygen_max: f32,
+    pub waste_max: f32,
     /// True if the player is in a sealed/oxygenated space (else exposed/vacuum).
     pub sealed: bool,
     /// Active status effects: (display name, seconds remaining).
@@ -949,6 +951,10 @@ pub struct GuiState {
     pub pending_consume_item: Option<String>,
     /// True for the frame the player clicked "Rest" → refills energy via FoodSystem.
     pub pending_rest: bool,
+    /// True for the frame the player clicked "Compost" → waste→fertilizer via FoodSystem.
+    pub pending_compost: bool,
+    /// Crop entity bits the player clicked "Fertilize" on this frame → FarmingSystem.
+    pub pending_fertilize_crop: Option<u64>,
     /// Player vitals (satiation/hydration + active status effects), synced from the
     /// ECS each frame for the HUD / inventory page to display.
     pub vitals: GuiVitals,
@@ -1766,6 +1772,8 @@ impl Default for GuiState {
             craft_status: String::new(),
             pending_consume_item: None,
             pending_rest: false,
+            pending_compost: false,
+            pending_fertilize_crop: None,
             vitals: GuiVitals::default(),
             pending_plant_seed: None,
             pending_water_crop: None,
