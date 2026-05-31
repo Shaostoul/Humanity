@@ -912,6 +912,9 @@ mod native_app {
                 "xp_grants",
                 std::sync::Mutex::new(Vec::<SkillXPEvent>::new()),
             );
+            // Dev: max all skills (testing affordance — keeps every recipe craftable
+            // under the #8b skill-gate, like "Dev: stock materials" for inventory).
+            data_store.insert("dev_max_skills", std::sync::Mutex::new(false));
             system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
@@ -1426,6 +1429,17 @@ mod native_app {
                         state.gui_state.dev_grow_crops = false;
                         if let Some(slot) =
                             state.data_store.get::<std::sync::Mutex<bool>>("dev_grow_crops")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = true;
+                            }
+                        }
+                    }
+                    // Skills: bridge the "Dev: max skills" button to SkillSystem.
+                    if state.gui_state.pending_dev_max_skills {
+                        state.gui_state.pending_dev_max_skills = false;
+                        if let Some(slot) =
+                            state.data_store.get::<std::sync::Mutex<bool>>("dev_max_skills")
                         {
                             if let Ok(mut s) = slot.lock() {
                                 *s = true;

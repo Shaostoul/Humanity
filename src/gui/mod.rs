@@ -366,6 +366,11 @@ pub struct GuiRecipe {
     pub outputs: Vec<(String, u32)>,
     pub craft_time_sec: f32,
     pub station_required: String,
+    /// Canonical skill id required to craft (None = none), for the #8b tech-unlock
+    /// gate display. The player's level comes from `GuiState::skills`.
+    pub skill_required: Option<String>,
+    /// Minimum level of `skill_required` (0 = none).
+    pub skill_level: u32,
     pub description: String,
 }
 
@@ -999,6 +1004,8 @@ pub struct GuiState {
     /// Player skills (live level + XP), synced from the ECS PlayerSkills each
     /// frame for the profile Skills panel. Empty until the first XP is earned.
     pub skills: Vec<GuiSkill>,
+    /// Dev: max all skills next frame (testing affordance under #8b skill-gating).
+    pub pending_dev_max_skills: bool,
 
     // ── Guilds state ──
     pub guilds: Vec<GuiGuild>,
@@ -1806,6 +1813,7 @@ impl Default for GuiState {
             asteroids: Vec::new(),
             drones: Vec::new(),
             skills: Vec::new(),
+            pending_dev_max_skills: false,
 
             // Guilds defaults
             guilds: Vec::new(),
@@ -2370,6 +2378,10 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
         #[serde(default)]
         station_required: String,
         #[serde(default)]
+        skill_required: String,
+        #[serde(default)]
+        skill_level: u32,
+        #[serde(default)]
         description: String,
     }
     let bytes = match std::fs::read(data_dir.join("recipes.csv")) {
@@ -2386,6 +2398,15 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
             outputs: crate::systems::crafting::Recipe::parse_ingredients(&r.outputs),
             craft_time_sec: r.craft_time_sec,
             station_required: r.station_required,
+            skill_required: {
+                let s = r.skill_required.trim();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s.to_string())
+                }
+            },
+            skill_level: r.skill_level,
             description: r.description,
         })
         .collect()

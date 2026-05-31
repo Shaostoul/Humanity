@@ -158,6 +158,29 @@ impl System for SkillSystem {
         // `&mut SkillSystem`, so the channel is the decoupling. SkillSystem is
         // registered LAST in the runner, so grants pushed earlier THIS frame are
         // drained + applied the same frame.
+        let registry = data.get::<SkillRegistry>("skill_registry");
+
+        // Dev: max ALL skills (testing affordance — preserves the "develop as if
+        // 100% unlocked" posture even with skill-gated crafting). Drains the
+        // dev_max_skills bool channel (set by the profile Skills panel's button).
+        let dev_max = data
+            .get::<std::sync::Mutex<bool>>("dev_max_skills")
+            .and_then(|m| m.lock().ok().map(|mut s| std::mem::replace(&mut *s, false)))
+            .unwrap_or(false);
+        if dev_max {
+            if let Some(reg) = registry {
+                for (_e, skills) in world.query_mut::<&mut PlayerSkills>() {
+                    for (id, def) in reg.skills.iter() {
+                        skills
+                            .skills
+                            .insert(id.clone(), SkillProgress { level: def.max_level, xp: 0 });
+                    }
+                    break;
+                }
+                log::info!("Dev: maxed all player skills");
+            }
+        }
+
         let mut events: Vec<SkillXPEvent> = self.pending_xp.drain(..).collect();
         if let Some(lock) = data.get::<std::sync::Mutex<Vec<SkillXPEvent>>>("xp_grants") {
             if let Ok(mut grants) = lock.lock() {
@@ -167,8 +190,6 @@ impl System for SkillSystem {
         if events.is_empty() {
             return;
         }
-
-        let registry = data.get::<SkillRegistry>("skill_registry");
 
         // Find the entity with PlayerSkills (usually the local player)
         for (_entity, skills) in world.query_mut::<&mut PlayerSkills>() {
@@ -296,5 +317,33 @@ mod skill_tests {
              silently vanish). Fix recipes.csv skill_required or add the skill:\n  {}",
             orphans.join("\n  ")
         );
+    }
+
+    /// #8b dev affordance: the dev_max_skills command maxes EVERY skill on the
+    /// player (so skill-gated recipes stay testable under the "100% unlocked" posture).
+    #[test]
+    fn dev_max_skills_maxes_every_skill() {
+        let mut data = DataStore::new();
+        data.insert(
+            "skill_registry",
+            SkillRegistry::from_csv(skills_csv()).unwrap(),
+        );
+        data.insert("dev_max_skills", std::sync::Mutex::new(false));
+
+        let mut world = hecs::World::new();
+        let player = world.spawn((PlayerSkills::new(),));
+        let mut sys = SkillSystem::new();
+
+        *data
+            .get::<std::sync::Mutex<bool>>("dev_max_skills")
+            .unwrap()
+            .lock()
+            .unwrap() = true;
+        sys.tick(&mut world, 0.0, &data);
+
+        let sk = world.get::<&PlayerSkills>(player).unwrap();
+        assert_eq!(sk.level("mining"), 25, "mining maxed to its max_level");
+        assert_eq!(sk.level("foraging"), 20, "foraging maxed to its max_level");
+        assert!(sk.skills.len() >= 20, "every skill present after dev-max");
     }
 }

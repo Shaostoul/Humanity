@@ -414,10 +414,41 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
 
     ui.add_space(theme.spacing_md);
 
-    // Craft button
-    let can_craft = recipe.inputs.iter().all(|(item_id, qty)| {
-        count_in_inventory(state, item_id) >= *qty
-    });
+    // Craft button — gated by ingredients AND (#8b tech-unlock) the recipe's skill.
+    let has_ingredients = recipe
+        .inputs
+        .iter()
+        .all(|(item_id, qty)| count_in_inventory(state, item_id) >= *qty);
+    let skill_ok = match &recipe.skill_required {
+        Some(skill) if recipe.skill_level > 0 => {
+            player_skill_level(state, skill) >= recipe.skill_level
+        }
+        _ => true,
+    };
+    let can_craft = has_ingredients && skill_ok;
+
+    // Skill requirement line (shown in danger colour when the player is under-level).
+    if let Some(skill) = &recipe.skill_required {
+        if recipe.skill_level > 0 {
+            let lvl = player_skill_level(state, skill);
+            let color = if lvl >= recipe.skill_level {
+                theme.text_muted()
+            } else {
+                theme.danger()
+            };
+            ui.label(
+                RichText::new(format!(
+                    "Requires {} Lv {} (you: Lv {})",
+                    skill_display_name(state, skill),
+                    recipe.skill_level,
+                    lvl
+                ))
+                .size(theme.font_size_small)
+                .color(color),
+            );
+            ui.add_space(theme.spacing_xs);
+        }
+    }
 
     ui.add_enabled_ui(can_craft, |ui| {
         if widgets::primary_button(ui, theme, "Craft") {
@@ -439,11 +470,40 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
 
     if !can_craft {
         ui.add_space(theme.spacing_xs);
+        let msg = if !has_ingredients {
+            "Missing ingredients"
+        } else {
+            "Skill level too low"
+        };
         ui.label(
-            RichText::new("Missing ingredients")
+            RichText::new(msg)
                 .size(theme.font_size_small)
                 .color(theme.danger()),
         );
+    }
+}
+
+/// Player's current level in a skill (from the live `GuiState::skills` synced from
+/// the ECS PlayerSkills), 0 if the skill isn't tracked yet (no XP earned).
+fn player_skill_level(state: &GuiState, skill_id: &str) -> u32 {
+    state
+        .skills
+        .iter()
+        .find(|s| s.id == skill_id)
+        .map(|s| s.level)
+        .unwrap_or(0)
+}
+
+/// Display name for a skill id — the live skill's name if the player has it,
+/// else a capitalised fallback of the id (so under-level requirements still read).
+fn skill_display_name(state: &GuiState, skill_id: &str) -> String {
+    if let Some(s) = state.skills.iter().find(|s| s.id == skill_id) {
+        return s.name.clone();
+    }
+    let mut chars = skill_id.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
     }
 }
 

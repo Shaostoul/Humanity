@@ -410,6 +410,27 @@ impl CraftingSystem {
             crate::systems::skills::award_skill_xp(data, skill, 10 + recipe.skill_level * 5);
         }
     }
+
+    /// Tech-unlock gate: does the crafter meet the recipe's `skill_level`? Recipes
+    /// with no skill (or level 0) are always allowed. An entity WITHOUT a
+    /// `PlayerSkills` component (e.g. an NPC/bot crafter) is not blocked — the gate
+    /// applies to skilled actors (the player). This is the AUTHORITATIVE gate
+    /// (enforced server/system-side, not just greyed-out in the GUI), so a bot or
+    /// non-GUI path can't craft above its level.
+    fn meets_skill_requirement(
+        world: &hecs::World,
+        crafter: hecs::Entity,
+        recipe: &Recipe,
+    ) -> bool {
+        let skill = match &recipe.skill_required {
+            Some(s) if recipe.skill_level > 0 => s,
+            _ => return true,
+        };
+        match world.get::<&crate::systems::skills::PlayerSkills>(crafter) {
+            Ok(skills) => skills.level(skill) >= recipe.skill_level,
+            Err(_) => true,
+        }
+    }
 }
 
 impl System for CraftingSystem {
@@ -502,6 +523,19 @@ impl System for CraftingSystem {
                         continue;
                     }
                 };
+
+                // Tech-unlock gate: skip if the crafter's skill is below the
+                // recipe's required level (the GUI greys these out; this is the
+                // authoritative enforcement for any path, incl. bots/NPCs).
+                if !Self::meets_skill_requirement(world, request.crafter, &recipe) {
+                    log::debug!(
+                        "Skill too low to craft {} (needs {:?} Lv {})",
+                        recipe.id,
+                        recipe.skill_required,
+                        recipe.skill_level
+                    );
+                    continue;
+                }
 
                 // Validate inventory has required inputs
                 let can_craft = match world.get::<&Inventory>(request.crafter) {
@@ -690,5 +724,74 @@ mod skill_xp_tests {
         assert_eq!(grants.len(), 1, "one completed craft → one XP grant");
         assert_eq!(grants[0].skill_id, "metalworking");
         assert_eq!(grants[0].amount, 20, "10 + skill_level(2)*5 = 20");
+    }
+
+    /// #8b tech-unlock: a recipe with a skill_level requirement is BLOCKED when the
+    /// crafter is under-level (no output, inputs untouched) and ALLOWED once they
+    /// reach the level — enforced authoritatively in CraftingSystem, not just the GUI.
+    #[test]
+    fn skill_gate_blocks_under_level_then_allows() {
+        use crate::systems::skills::{PlayerSkills, SkillProgress, SkillXPEvent};
+
+        // Instant recipe requiring metalworking Lv 3.
+        let recipe_csv = b"id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
+            test_forge,Test Forge,smelting,iron_ore_0:1,iron_ingot_0:1,0,,metalworking,3,test\n";
+        let recipes = RecipeRegistry::from_csv(recipe_csv).expect("recipes");
+        let items = ItemRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/items.csv"
+        )))
+        .expect("items.csv");
+
+        let mut data = DataStore::new();
+        data.insert("recipe_registry", recipes);
+        data.insert("item_registry", items);
+        data.insert("dev_stock_materials", std::sync::Mutex::new(false));
+        data.insert(
+            "craft_request",
+            std::sync::Mutex::new(Option::<String>::None),
+        );
+        data.insert("xp_grants", std::sync::Mutex::new(Vec::<SkillXPEvent>::new()));
+
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 2, 99);
+        let mut skills = PlayerSkills::new();
+        skills
+            .skills
+            .insert("metalworking".to_string(), SkillProgress { level: 1, xp: 0 });
+        let player = world.spawn((inv, Controllable, skills));
+
+        let mut sys = CraftingSystem::new();
+        let request = |data: &DataStore| {
+            *data
+                .get::<std::sync::Mutex<Option<String>>>("craft_request")
+                .unwrap()
+                .lock()
+                .unwrap() = Some("test_forge".to_string());
+        };
+
+        // Lv 1 < required Lv 3 → blocked (no ingot; ore not consumed).
+        request(&data);
+        sys.tick(&mut world, 0.016, &data);
+        {
+            let inv = world.get::<&Inventory>(player).unwrap();
+            assert_eq!(inv.count_item("iron_ingot_0"), 0, "under-level craft is blocked");
+            assert_eq!(inv.count_item("iron_ore_0"), 2, "blocked craft consumes nothing");
+        }
+
+        // Raise metalworking to Lv 3 → the same craft now succeeds.
+        world
+            .get::<&mut PlayerSkills>(player)
+            .unwrap()
+            .skills
+            .insert("metalworking".to_string(), SkillProgress { level: 3, xp: 0 });
+        request(&data);
+        sys.tick(&mut world, 0.016, &data);
+        {
+            let inv = world.get::<&Inventory>(player).unwrap();
+            assert_eq!(inv.count_item("iron_ingot_0"), 1, "at-level craft succeeds");
+            assert_eq!(inv.count_item("iron_ore_0"), 1, "the craft consumed one ore");
+        }
     }
 }

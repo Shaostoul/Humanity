@@ -321,6 +321,13 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
     });
+
+    // Dev: max all skills (testing affordance — unlocks every #8b skill-gated
+    // recipe in one click, mirroring "Dev: stock materials" for inventory).
+    ui.add_space(theme.spacing_sm);
+    if widgets::Button::secondary("Dev: max skills").show(ui, theme) {
+        state.pending_dev_max_skills = true;
+    }
 }
 
 fn draw_social_links(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
