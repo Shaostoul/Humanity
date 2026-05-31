@@ -363,6 +363,44 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     });
                 });
                 ui.add(egui::ProgressBar::new(energy_frac).fill(color_for(energy_frac)));
+                // Oxygen + body temperature + seal status (survival #7b).
+                let oxy = state.vitals.oxygen;
+                let oxy_max = state.vitals.oxygen_max.max(1.0);
+                let oxy_frac = (oxy / oxy_max).clamp(0.0, 1.0);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Oxygen:").color(theme.text_secondary()));
+                    ui.label(
+                        RichText::new(format!("{:.0} / {:.0}", oxy, oxy_max)).color(color_for(oxy_frac)),
+                    );
+                });
+                ui.add(egui::ProgressBar::new(oxy_frac).fill(color_for(oxy_frac)));
+                let temp = state.vitals.body_temp_c;
+                let temp_col = if temp < 35.0 || temp > 39.0 {
+                    theme.danger()
+                } else if temp < 36.0 || temp > 38.0 {
+                    theme.warning()
+                } else {
+                    theme.accent()
+                };
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Body temp:").color(theme.text_secondary()));
+                    ui.label(RichText::new(format!("{:.1}°C", temp)).color(temp_col));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if state.vitals.sealed {
+                            ui.label(
+                                RichText::new("Sealed")
+                                    .size(theme.font_size_small)
+                                    .color(theme.accent()),
+                            );
+                        } else {
+                            ui.label(
+                                RichText::new("EXPOSED — no air!")
+                                    .size(theme.font_size_small)
+                                    .color(theme.danger()),
+                            );
+                        }
+                    });
+                });
                 if !effects.is_empty() {
                     ui.add_space(theme.spacing_xs);
                     ui.horizontal_wrapped(|ui| {

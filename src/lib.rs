@@ -298,6 +298,17 @@ mod native_app {
             (light_pos, [1.0, 0.95, 0.85], intensity, radius)
         }).collect();
 
+        // Sealed-volume AABB (encompasses every room) for the survival environment
+        // context — inside it the player is sealed/oxygenated, outside = vacuum.
+        state.homestead_bounds = homestead.room_info.iter().fold(None, |acc, r| {
+            let rmin = r.center - r.dimensions * 0.5;
+            let rmax = r.center + r.dimensions * 0.5;
+            Some(match acc {
+                None => (rmin, rmax),
+                Some((mn, mx)) => (mn.min(rmin), mx.max(rmax)),
+            })
+        });
+
         // Hologram + spawn rooms
         let hologram_room_center = homestead.room_info.iter()
             .find(|r| r.is_hologram_room)
@@ -735,6 +746,10 @@ mod native_app {
         hologram_room_center: Vec3,
         /// Room ceiling lights: (position, color, intensity, radius).
         room_lights: Vec<(Vec3, [f32; 3], f32, f32)>,
+        /// Sealed homestead volume AABB (min, max), encompassing all rooms — the
+        /// survival environment context: inside = oxygenated/heated, outside =
+        /// vacuum/cold. None until the homestead generates.
+        homestead_bounds: Option<(Vec3, Vec3)>,
         /// Ship world position (GEO orbit coordinates).
         ship_world_pos: glam::DVec3,
         start_time: Instant,
@@ -1038,6 +1053,7 @@ mod native_app {
                 targeted_planet: None,
                 hologram_room_center: Vec3::new(-0.5, 1.0, 2.5),
                 room_lights: Vec::new(),
+                homestead_bounds: None,
                 ship_world_pos: glam::DVec3::ZERO,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
@@ -1253,6 +1269,32 @@ mod native_app {
                     let forward = Vec3::new(-yaw_sin, 0.0, -yaw_cos).normalize();
                     state.data_store.insert("camera_forward", forward);
                     state.data_store.insert("camera_yaw", state.camera.yaw);
+
+                    // Survival environment context: is the player inside the sealed
+                    // homestead volume (oxygenated/heated) or exposed (vacuum/cold)?
+                    // FoodSystem reads this to drive oxygen + body temperature.
+                    {
+                        let pos = state.camera.position;
+                        let env = match state.homestead_bounds {
+                            Some((mn, mx))
+                                if pos.x >= mn.x && pos.x <= mx.x
+                                    && pos.y >= mn.y && pos.y <= mx.y
+                                    && pos.z >= mn.z && pos.z <= mx.z =>
+                            {
+                                // Inside the homestead — sealed, oxygenated, comfortable.
+                                crate::ecs::components::EnvironmentContext::default()
+                            }
+                            Some(_) => crate::ecs::components::EnvironmentContext {
+                                // Outside the hull — vacuum + deep cold.
+                                sealed: false,
+                                oxygenated: false,
+                                ambient_temp_c: -40.0,
+                            },
+                            // Homestead not generated yet → assume safe.
+                            None => crate::ecs::components::EnvironmentContext::default(),
+                        };
+                        state.data_store.insert("environment_context", env);
+                    }
 
                     // Bridge GUI craft/dev commands into the DataStore so the ECS
                     // CraftingSystem (which only gets &DataStore in tick) acts on them
@@ -1696,9 +1738,19 @@ mod native_app {
                             state.gui_state.vitals.satiation = vitals.satiation;
                             state.gui_state.vitals.hydration = vitals.hydration;
                             state.gui_state.vitals.energy = vitals.energy;
+                            state.gui_state.vitals.oxygen = vitals.oxygen;
+                            state.gui_state.vitals.body_temp_c = vitals.body_temp_c;
                             state.gui_state.vitals.satiation_max = vitals.satiation_max;
                             state.gui_state.vitals.hydration_max = vitals.hydration_max;
                             state.gui_state.vitals.energy_max = vitals.energy_max;
+                            state.gui_state.vitals.oxygen_max = vitals.oxygen_max;
+                            state.gui_state.vitals.sealed = state
+                                .data_store
+                                .get::<crate::ecs::components::EnvironmentContext>(
+                                    "environment_context",
+                                )
+                                .map(|e| e.sealed)
+                                .unwrap_or(true);
                             state.gui_state.vitals.effects = effects
                                 .active
                                 .iter()

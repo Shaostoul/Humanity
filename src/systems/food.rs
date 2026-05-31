@@ -86,6 +86,20 @@ const FALLBACK_RESTED_S: f32 = 3600.0;
 const ENERGY_DECAY_PER_SEC: f32 = 0.06;
 /// Below this energy the `fatigued` speed debuff applies; resting refills to full.
 const FATIGUED_THRESHOLD: f32 = 25.0;
+// ── Environment vitals (oxygen + body temperature; driven by EnvironmentContext). ──
+/// Blood-oxygen lost per second in vacuum / unbreathable air (~40s of reserve).
+const OXYGEN_DRAIN_PER_SEC: f32 = 2.5;
+/// Blood-oxygen regained per second while breathing (catch your breath fast).
+const OXYGEN_RECOVER_PER_SEC: f32 = 12.0;
+/// Below this oxygen the `hypoxia` debuff applies; at 0 it's `suffocation` + damage.
+const HYPOXIA_THRESHOLD: f32 = 50.0;
+const SUFFOCATION_DAMAGE_PER_SEC: f32 = 8.0;
+/// Body temperature moves this many °C/sec toward its target (37 sealed, else ambient).
+const BODY_TEMP_RATE: f32 = 0.5;
+/// Core temp below this = hypothermia; above HEAT_EXHAUSTION_C = heat exhaustion.
+const HYPOTHERMIA_C: f32 = 35.0;
+const HEAT_EXHAUSTION_C: f32 = 39.0;
+const TEMP_DAMAGE_PER_SEC: f32 = 2.0;
 
 /// Unique key for tracking a specific food stack: (entity bits, inventory slot index).
 type FoodKey = (u64, usize);
@@ -299,16 +313,25 @@ impl System for FoodSystem {
             }
         }
 
-        // ── 2. DECAY + CONDITIONS: every entity with Vitals gets hungrier/thirstier;
-        //    low levels apply the hungry/thirsty conditions; empty levels drain Health;
-        //    timed buffs/debuffs count down and expire.
+        // Player environment context (sealed / oxygenated / ambient temp) for the
+        // oxygen + body-temperature vitals — computed in the main loop from the
+        // player's position vs the sealed homestead volume. Absent = safe defaults.
+        let (env_sealed, env_oxygenated, env_ambient_c) = data
+            .get::<crate::ecs::components::EnvironmentContext>("environment_context")
+            .map(|e| (e.sealed, e.oxygenated, e.ambient_temp_c))
+            .unwrap_or((true, true, 21.0));
+
+        // ── 2. DECAY + CONDITIONS: every entity with Vitals gets hungrier/thirstier/
+        //    short-of-breath/colder; low levels apply conditions; empty/extreme levels
+        //    drain Health; timed buffs/debuffs count down and expire. All Health loss
+        //    this tick is accumulated and applied once (Option<&mut Health> moves).
         for (_e, (vitals, effects, health)) in
             world.query_mut::<(&mut Vitals, &mut StatusEffects, Option<&mut Health>)>()
         {
+            let mut health_drain = 0.0_f32;
+
             vitals.satiation = (vitals.satiation - SATIATION_DECAY_PER_SEC * dt).max(0.0);
             vitals.hydration = (vitals.hydration - HYDRATION_DECAY_PER_SEC * dt).max(0.0);
-
-            // Conditions: refreshed each tick while the trigger holds, else cleared.
             if vitals.satiation < HUNGRY_THRESHOLD {
                 effects.apply("hungry", CONDITION_LINGER);
             } else {
@@ -319,9 +342,14 @@ impl System for FoodSystem {
             } else {
                 effects.remove("thirsty");
             }
+            if vitals.satiation <= 0.0 {
+                health_drain += STARVE_DAMAGE_PER_SEC * dt;
+            }
+            if vitals.hydration <= 0.0 {
+                health_drain += DEHYDRATE_DAMAGE_PER_SEC * dt;
+            }
 
-            // Energy drains while awake; low energy applies the `fatigued` speed
-            // debuff (made tangible by the camera speed_multiplier, #3b). Rest refills.
+            // Energy drains while awake; low energy -> fatigued (speed debuff, #3b).
             vitals.energy = (vitals.energy - ENERGY_DECAY_PER_SEC * dt).max(0.0);
             if vitals.energy < FATIGUED_THRESHOLD {
                 effects.apply("fatigued", CONDITION_LINGER);
@@ -329,13 +357,48 @@ impl System for FoodSystem {
                 effects.remove("fatigued");
             }
 
-            // Starvation / dehydration damage at zero.
-            if let Some(health) = health {
-                if vitals.satiation <= 0.0 {
-                    health.current = (health.current - STARVE_DAMAGE_PER_SEC * dt).max(0.0);
-                }
-                if vitals.hydration <= 0.0 {
-                    health.current = (health.current - DEHYDRATE_DAMAGE_PER_SEC * dt).max(0.0);
+            // Oxygen: recover when breathing, drain in vacuum -> hypoxia then suffocation.
+            if env_oxygenated {
+                vitals.oxygen =
+                    (vitals.oxygen + OXYGEN_RECOVER_PER_SEC * dt).min(vitals.oxygen_max);
+            } else {
+                vitals.oxygen = (vitals.oxygen - OXYGEN_DRAIN_PER_SEC * dt).max(0.0);
+            }
+            if vitals.oxygen <= 0.0 {
+                effects.remove("hypoxia");
+                effects.apply("suffocation", CONDITION_LINGER);
+                health_drain += SUFFOCATION_DAMAGE_PER_SEC * dt;
+            } else if vitals.oxygen < HYPOXIA_THRESHOLD {
+                effects.remove("suffocation");
+                effects.apply("hypoxia", CONDITION_LINGER);
+            } else {
+                effects.remove("hypoxia");
+                effects.remove("suffocation");
+            }
+
+            // Body temperature drifts toward 37 °C when sealed, toward ambient when
+            // exposed; far from baseline -> hypothermia / heat exhaustion + damage.
+            let temp_target = if env_sealed { 37.0 } else { env_ambient_c };
+            let diff = temp_target - vitals.body_temp_c;
+            let step = (BODY_TEMP_RATE * dt).min(diff.abs());
+            vitals.body_temp_c += step * diff.signum();
+            if vitals.body_temp_c < HYPOTHERMIA_C {
+                effects.remove("heat_exhaustion");
+                effects.apply("hypothermia", CONDITION_LINGER);
+                health_drain += TEMP_DAMAGE_PER_SEC * dt;
+            } else if vitals.body_temp_c > HEAT_EXHAUSTION_C {
+                effects.remove("hypothermia");
+                effects.apply("heat_exhaustion", CONDITION_LINGER);
+                health_drain += TEMP_DAMAGE_PER_SEC * dt;
+            } else {
+                effects.remove("hypothermia");
+                effects.remove("heat_exhaustion");
+            }
+
+            // Apply the tick's accumulated Health drain (all survival sources).
+            if health_drain > 0.0 {
+                if let Some(health) = health {
+                    health.current = (health.current - health_drain).max(0.0);
                 }
             }
 
@@ -455,9 +518,12 @@ mod nutrition_tests {
             satiation,
             hydration,
             energy: 100.0,
+            oxygen: 100.0,
+            body_temp_c: 37.0,
             satiation_max: 100.0,
             hydration_max: 100.0,
             energy_max: 100.0,
+            oxygen_max: 100.0,
         }
     }
 
@@ -542,9 +608,12 @@ mod nutrition_tests {
                 satiation: 80.0,
                 hydration: 80.0,
                 energy: 10.0,
+                oxygen: 100.0,
+                body_temp_c: 37.0,
                 satiation_max: 100.0,
                 hydration_max: 100.0,
                 energy_max: 100.0,
+                oxygen_max: 100.0,
             },
             StatusEffects::default(),
             Health::default(),
@@ -569,6 +638,60 @@ mod nutrition_tests {
         assert!(
             !world.get::<&StatusEffects>(player).unwrap().has("fatigued"),
             "rest cleared fatigue"
+        );
+    }
+
+    /// Exposure to vacuum/cold (an exposed EnvironmentContext) drains oxygen + chills
+    /// the body → hypoxia/hypothermia + health loss; re-sealing recovers oxygen.
+    #[test]
+    fn exposure_drains_oxygen_and_chills_then_recovers_when_sealed() {
+        use crate::ecs::components::EnvironmentContext;
+        let mut sys = FoodSystem::new(data_dir());
+        let mut data = make_store();
+        data.insert(
+            "environment_context",
+            EnvironmentContext {
+                sealed: false,
+                oxygenated: false,
+                ambient_temp_c: -40.0,
+            },
+        );
+
+        let mut world = hecs::World::new();
+        let player = world.spawn((
+            Inventory::new(4),
+            vitals(80.0, 80.0),
+            StatusEffects::default(),
+            Health::default(),
+        ));
+
+        for _ in 0..30 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        {
+            let v = world.get::<&Vitals>(player).unwrap();
+            assert!(v.oxygen < 50.0, "oxygen drained while exposed (got {})", v.oxygen);
+            assert!(v.body_temp_c < 35.0, "body chilled while exposed (got {})", v.body_temp_c);
+            let fx = world.get::<&StatusEffects>(player).unwrap();
+            assert!(fx.has("hypoxia") || fx.has("suffocation"), "an oxygen condition applied");
+            assert!(fx.has("hypothermia"), "hypothermia applied");
+        }
+        assert!(
+            world.get::<&Health>(player).unwrap().current < 100.0,
+            "exposure damaged health"
+        );
+
+        // Re-seal the environment → oxygen recovers, oxygen conditions clear.
+        data.insert("environment_context", EnvironmentContext::default());
+        for _ in 0..15 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let v = world.get::<&Vitals>(player).unwrap();
+        let fx = world.get::<&StatusEffects>(player).unwrap();
+        assert!(v.oxygen > 50.0, "oxygen recovered when sealed (got {})", v.oxygen);
+        assert!(
+            !fx.has("hypoxia") && !fx.has("suffocation"),
+            "oxygen conditions cleared when sealed"
         );
     }
 }

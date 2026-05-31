@@ -87,28 +87,70 @@ pub struct Vitals {
     /// Low energy applies the `fatigued` speed debuff.
     #[serde(default = "default_vital_full")]
     pub energy: f32,
+    /// Blood oxygen, 0..=oxygen_max. Drains when exposed to vacuum / no breathable
+    /// air; low = hypoxia, 0 = suffocation.
+    #[serde(default = "default_vital_full")]
+    pub oxygen: f32,
+    /// Core body temperature (Celsius, ~37 healthy). Drifts toward ambient when
+    /// exposed; far from baseline → hypothermia / heat exhaustion.
+    #[serde(default = "default_body_temp")]
+    pub body_temp_c: f32,
     pub satiation_max: f32,
     pub hydration_max: f32,
     #[serde(default = "default_vital_full")]
     pub energy_max: f32,
+    #[serde(default = "default_vital_full")]
+    pub oxygen_max: f32,
 }
 
-/// Default for a vital that starts full (serde fallback for pre-energy saves).
+/// Default for a vital that starts full (serde fallback for older saves).
 fn default_vital_full() -> f32 {
     100.0
 }
 
+/// Healthy baseline core body temperature (Celsius).
+fn default_body_temp() -> f32 {
+    37.0
+}
+
 impl Default for Vitals {
     fn default() -> Self {
-        // Start comfortably fed (not full) so the player has headroom but will
-        // need to eat/drink/rest within a session.
+        // Start comfortably fed (not full) so the player has headroom but will need
+        // to eat/drink/rest within a session; oxygen full + body temperature healthy.
         Self {
             satiation: 80.0,
             hydration: 80.0,
             energy: 100.0,
+            oxygen: 100.0,
+            body_temp_c: 37.0,
             satiation_max: 100.0,
             hydration_max: 100.0,
             energy_max: 100.0,
+            oxygen_max: 100.0,
+        }
+    }
+}
+
+/// The player's current environment, recomputed each frame from their position vs the
+/// sealed homestead volume. Lives in the DataStore under "environment_context" and
+/// drives oxygen + body temperature in FoodSystem. Its `Default` is safe
+/// (sealed/oxygenated/comfortable), so absent data never harms the player.
+#[derive(Debug, Clone)]
+pub struct EnvironmentContext {
+    /// True inside a sealed/pressurized space (the homestead); outside = vacuum.
+    pub sealed: bool,
+    /// True if breathable oxygen is available at the player's location.
+    pub oxygenated: bool,
+    /// Ambient temperature (Celsius) the body drifts toward when exposed.
+    pub ambient_temp_c: f32,
+}
+
+impl Default for EnvironmentContext {
+    fn default() -> Self {
+        Self {
+            sealed: true,
+            oxygenated: true,
+            ambient_temp_c: 21.0,
         }
     }
 }

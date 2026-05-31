@@ -376,9 +376,14 @@ pub struct GuiVitals {
     pub satiation: f32,
     pub hydration: f32,
     pub energy: f32,
+    pub oxygen: f32,
+    pub body_temp_c: f32,
     pub satiation_max: f32,
     pub hydration_max: f32,
     pub energy_max: f32,
+    pub oxygen_max: f32,
+    /// True if the player is in a sealed/oxygenated space (else exposed/vacuum).
+    pub sealed: bool,
     /// Active status effects: (display name, seconds remaining).
     pub effects: Vec<(String, f32)>,
 }

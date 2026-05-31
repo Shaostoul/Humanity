@@ -49,7 +49,7 @@ bleeding,Bleeding,debuff,45,true,3,2,none:0:none,6,physical,0,medicine,physical|
 stunned,Stunned,debuff,5,false,1,0,speed:0:multiply,0,none,0,none,control|disabling,Completely prevents all actions for a short time
 disarmed,Disarmed,debuff,10,false,1,0,damage:0.3:multiply,0,none,0,none,combat|disabling,Forces weapon drop reducing damage to 30%
 vulnerable,Vulnerable,debuff,90,false,1,0,armor:-20:add,0,none,0,magic,defense|weakening,Reduces armor by 20 making target take more damage
-hungry,Hungry,condition,0,false,1,60,stamina_regen:0.7:multiply,1,physical,0,item,survival|food,Reduces stamina regen by 30% and slowly drains health
+hungry,Hungry,condition,0,false,1,60,speed:0.9:multiply,1,physical,0,item,survival|food,Hunger slows your movement 10% and slowly drains health
 thirsty,Thirsty,condition,0,false,1,45,speed:0.8:multiply,2,physical,0,item,survival|water,Reduces speed by 20% and drains health faster than hunger
 overheated,Overheated,condition,0,false,1,30,stamina_regen:0.5:multiply,3,heat,0,item,temperature|heat,Halves stamina regen and deals heat damage from high temperatures
 hypothermia,Hypothermia,condition,0,false,1,30,speed:0.5:multiply,4,cold,0,item,temperature|cold,Halves movement speed and deals cold damage from low temperatures
@@ -60,6 +60,9 @@ concussion,Concussion,condition,0,false,1,0,accuracy:0.6:multiply,0,none,0,medic
 infected_wound,Infected Wound,condition,0,false,1,20,none:0:none,3,infection,0,medicine,injury|infection,Deals ongoing damage that worsens over time if untreated
 sleep_deprived,Sleep Deprived,condition,0,false,1,0,xp_gain:0.5:multiply,0,none,0,rest,survival|fatigue,Halves experience gain and reduces accuracy by 20%
 fatigued,Fatigued,condition,0,false,1,0,speed:0.85:multiply,0,physical,0,rest,survival|fatigue,Low energy slows your movement by 15% until you rest
+hypoxia,Hypoxia,condition,0,false,1,0,speed:0.7:multiply,0,none,0,rest,survival|oxygen,Low blood oxygen; movement slowed 30% until you reach breathable air
+suffocation,Suffocation,condition,0,false,1,0,speed:0.5:multiply,0,none,0,rest,survival|oxygen,No oxygen; severe health loss until you reach breathable air
+heat_exhaustion,Heat Exhaustion,condition,0,false,1,0,speed:0.8:multiply,0,none,0,rest,survival|temperature,Overheating; movement slowed and health draining
 common_cold,Common Cold,disease,7200,false,1,30,stamina_regen:0.85:multiply,1,disease,0,medicine,illness|minor,Mildly reduces stamina regen and causes occasional sneezing
 flu,Flu,disease,14400,false,1,20,speed:0.8:multiply,2,disease,0,medicine,illness|moderate,Reduces speed and stamina with periodic fever spikes
 infection,Infection,disease,28800,false,1,15,max_hp:-10:add,3,disease,0,medicine,illness|serious,Reduces max HP and deals ongoing damage requiring antibiotics
