@@ -28,6 +28,7 @@ pub mod plumbing;
 pub mod hvac;
 pub mod fire;
 pub mod medical;
+pub mod status_effects;
 pub mod food;
 pub mod governance;
 pub mod psychology;

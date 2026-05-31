@@ -369,6 +369,18 @@ pub struct GuiRecipe {
     pub description: String,
 }
 
+/// Player survival vitals for GUI display (synced from the ECS each frame).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiVitals {
+    pub satiation: f32,
+    pub hydration: f32,
+    pub satiation_max: f32,
+    pub hydration_max: f32,
+    /// Active status effects: (display name, seconds remaining).
+    pub effects: Vec<(String, f32)>,
+}
+
 /// A guild for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -888,6 +900,14 @@ pub struct GuiState {
     /// Dev/creative provisioning request: stock the player with one stack of every
     /// recipe input (raws + intermediates) so every recipe is craftable immediately.
     pub dev_stock_materials: bool,
+
+    // ── Survival / nutrition state ──
+    /// Item id the player clicked "Eat" on this frame; the main loop bridges it to
+    /// FoodSystem's consume channel. None = nothing pending.
+    pub pending_consume_item: Option<String>,
+    /// Player vitals (satiation/hydration + active status effects), synced from the
+    /// ECS each frame for the HUD / inventory page to display.
+    pub vitals: GuiVitals,
 
     // ── Guilds state ──
     pub guilds: Vec<GuiGuild>,
@@ -1680,6 +1700,8 @@ impl Default for GuiState {
             pending_craft_recipe: None,
             dev_stock_materials: false,
             craft_status: String::new(),
+            pending_consume_item: None,
+            vitals: GuiVitals::default(),
 
             // Guilds defaults
             guilds: Vec::new(),

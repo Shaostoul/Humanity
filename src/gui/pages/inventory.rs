@@ -124,6 +124,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Right side panel: item detail
     let mut action_drop = false;
     let mut action_equip = false;
+    // Set to the item id when the player clicks "Eat"; applied after the panel
+    // closure (which borrows `state` immutably) so we can mutate GuiState.
+    let mut action_eat: Option<String> = None;
 
     if let Some(idx) = state.selected_slot {
         egui::SidePanel::right("inv_detail_panel")
@@ -181,8 +184,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.label(RichText::new("Actions").size(theme.font_size_body).color(theme.text_secondary()));
                         ui.add_space(theme.spacing_xs);
                         ui.horizontal(|ui| {
-                            if widgets::primary_button(ui, theme, "Use") {
-                                // Placeholder
+                            // Food items get a real "Eat" action (drives the
+                            // nutrition loop via FoodSystem); everything else keeps
+                            // the placeholder "Use".
+                            let is_food = lookup_item_details(&item.item_id)
+                                .map(|d| d.category == "food")
+                                .unwrap_or(false);
+                            if is_food {
+                                if widgets::primary_button(ui, theme, "Eat") {
+                                    action_eat = Some(item.item_id.clone());
+                                }
+                            } else if widgets::primary_button(ui, theme, "Use") {
+                                // Placeholder for non-food use.
                             }
                             if widgets::secondary_button(ui, theme, "Equip") {
                                 action_equip = true;
@@ -229,6 +242,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         }
     }
 
+    // Handle eat action — bridge to FoodSystem via GuiState (the main loop forwards
+    // pending_consume_item into the consume_request DataStore channel before the tick).
+    if let Some(item_id) = action_eat {
+        state.pending_consume_item = Some(item_id);
+    }
+
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
@@ -259,6 +278,68 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let bar = egui::ProgressBar::new(weight_frac.clamp(0.0, 1.0))
                 .fill(weight_color);
             ui.add(bar);
+
+            // ── Survival vitals: satiation / hydration + active status effects ──
+            // (synced from the player's ECS Vitals + StatusEffects each frame).
+            let (sat, sat_max, hyd, hyd_max) = (
+                state.vitals.satiation,
+                state.vitals.satiation_max,
+                state.vitals.hydration,
+                state.vitals.hydration_max,
+            );
+            if sat_max > 0.0 {
+                let effects = state.vitals.effects.clone();
+                let sat_frac = (sat / sat_max).clamp(0.0, 1.0);
+                let hyd_frac = (hyd / hyd_max.max(1.0)).clamp(0.0, 1.0);
+                let color_for = |frac: f32| {
+                    if frac < 0.25 {
+                        theme.danger()
+                    } else if frac < 0.5 {
+                        theme.warning()
+                    } else {
+                        theme.accent()
+                    }
+                };
+                ui.add_space(theme.spacing_xs);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Satiation:").color(theme.text_secondary()));
+                    ui.label(
+                        RichText::new(format!("{:.0} / {:.0}", sat, sat_max)).color(color_for(sat_frac)),
+                    );
+                });
+                ui.add(egui::ProgressBar::new(sat_frac).fill(color_for(sat_frac)));
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Hydration:").color(theme.text_secondary()));
+                    ui.label(
+                        RichText::new(format!("{:.0} / {:.0}", hyd, hyd_max)).color(color_for(hyd_frac)),
+                    );
+                });
+                ui.add(egui::ProgressBar::new(hyd_frac).fill(color_for(hyd_frac)));
+                if !effects.is_empty() {
+                    ui.add_space(theme.spacing_xs);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new("Effects:").color(theme.text_secondary()));
+                        for (name, remaining) in &effects {
+                            let label = if *remaining >= 60.0 {
+                                format!("{} ({:.0}m)", name, remaining / 60.0)
+                            } else {
+                                format!("{} ({:.0}s)", name, remaining)
+                            };
+                            egui::Frame::none()
+                                .fill(theme.bg_secondary())
+                                .rounding(Rounding::same(3))
+                                .inner_margin(Vec2::new(6.0, 2.0))
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        RichText::new(label)
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_primary()),
+                                    );
+                                });
+                        }
+                    });
+                }
+            }
 
             ui.add_space(theme.spacing_sm);
 

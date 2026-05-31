@@ -85,6 +85,7 @@ mod native_app {
     use crate::renderer::{RenderObject, Renderer};
     use crate::systems::crafting::CraftingSystem;
     use crate::systems::farming::FarmingSystem;
+    use crate::systems::food::FoodSystem;
     use crate::systems::interaction::InteractionSystem;
     use crate::systems::inventory::{Inventory, InventorySystem, ItemRegistry};
     use crate::systems::inventory::containers::ContainerCompatibilitySystem;
@@ -627,6 +628,12 @@ mod native_app {
                 "plant_registry",
                 crate::systems::farming::PlantRegistry::from_csv,
             );
+            load_csv_registry(
+                &mut state.data_store,
+                dir.join("status_effects.csv"),
+                "status_effect_registry",
+                crate::systems::status_effects::StatusEffectRegistry::from_csv,
+            );
         }
 
         // ── Container types + content-class compatibility rules ──
@@ -823,14 +830,20 @@ mod native_app {
             system_runner.register(PlayerControllerSystem);
             data_store.insert("interaction_prompt", std::sync::Mutex::new(String::new()));
             // GUI -> ECS command channels (interior-mutable; the main loop writes
-            // these from GuiState before each tick, CraftingSystem reads + acts in
+            // these from GuiState before each tick, the owning System reads + acts in
             // its tick). craft_request = a recipe id the player clicked Craft on;
-            // dev_stock_materials = dev/creative provisioning (stock every recipe input).
+            // dev_stock_materials = dev/creative provisioning (stock every recipe input);
+            // consume_request = an item id the player clicked Eat on (FoodSystem applies
+            // its nutrition to the player's Vitals).
             data_store.insert(
                 "craft_request",
                 std::sync::Mutex::new(Option::<String>::None),
             );
             data_store.insert("dev_stock_materials", std::sync::Mutex::new(false));
+            data_store.insert(
+                "consume_request",
+                std::sync::Mutex::new(Option::<String>::None),
+            );
             system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
@@ -839,6 +852,10 @@ mod native_app {
             // "container_registry" loaded into the DataStore above.
             system_runner.register(ContainerCompatibilitySystem::new());
             system_runner.register(CraftingSystem::new());
+            // FoodSystem: nutrition (eat -> Vitals + buffs), hunger/thirst decay,
+            // and spoilage. Reads consume_request + status_effect_registry from the
+            // DataStore. Loads food_system.ron from the data dir at construction.
+            system_runner.register(FoodSystem::new(&data_dir));
             game_world.world.spawn((
                 Transform::default(),
                 Velocity::default(),
@@ -846,6 +863,8 @@ mod native_app {
                 Health::default(),
                 Name("Player".to_string()),
                 Inventory::new(36),
+                crate::ecs::components::Vitals::default(),
+                crate::ecs::components::StatusEffects::default(),
             ));
 
             // Initialize egui
@@ -1194,6 +1213,17 @@ mod native_app {
                             }
                         }
                     }
+                    // Eat: bridge the clicked food item to FoodSystem's consume channel.
+                    if let Some(item_id) = state.gui_state.pending_consume_item.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<String>>>("consume_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(item_id);
+                            }
+                        }
+                    }
 
                     // Tick all ECS systems
                     state.system_runner.tick(
@@ -1519,6 +1549,38 @@ mod native_app {
                                 }
                             })
                         }).collect();
+                    }
+                    // Bridge player vitals + active status effects from ECS for the HUD.
+                    {
+                        let fx_registry = state.data_store.get::<
+                            crate::systems::status_effects::StatusEffectRegistry,
+                        >("status_effect_registry");
+                        for (_entity, (vitals, effects, _ctrl)) in state
+                            .game_world
+                            .world
+                            .query::<(
+                                &crate::ecs::components::Vitals,
+                                &crate::ecs::components::StatusEffects,
+                                &Controllable,
+                            )>()
+                            .iter()
+                        {
+                            state.gui_state.vitals.satiation = vitals.satiation;
+                            state.gui_state.vitals.hydration = vitals.hydration;
+                            state.gui_state.vitals.satiation_max = vitals.satiation_max;
+                            state.gui_state.vitals.hydration_max = vitals.hydration_max;
+                            state.gui_state.vitals.effects = effects
+                                .active
+                                .iter()
+                                .map(|e| {
+                                    let name = fx_registry
+                                        .and_then(|r| r.get(&e.id))
+                                        .map(|d| d.name.clone())
+                                        .unwrap_or_else(|| e.id.clone());
+                                    (name, e.remaining)
+                                })
+                                .collect();
+                        }
                     }
 
                     // Bridge game time from DataStore (if TimeSystem writes it)

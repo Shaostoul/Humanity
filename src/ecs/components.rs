@@ -72,6 +72,86 @@ impl Default for Health {
     }
 }
 
+// ── Survival vitals & status effects ─────────────────────────
+
+/// Survival baseline: satiation (fullness) and hydration. Both decay over time
+/// and are replenished by eating/drinking. When either hits zero, Health drains
+/// (starvation / dehydration). Low levels apply the `hungry` / `thirsty` conditions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Vitals {
+    /// Fullness, 0..=satiation_max. 0 = starving.
+    pub satiation: f32,
+    /// Hydration, 0..=hydration_max. 0 = dehydrated.
+    pub hydration: f32,
+    pub satiation_max: f32,
+    pub hydration_max: f32,
+}
+
+impl Default for Vitals {
+    fn default() -> Self {
+        // Start comfortably fed (not full) so the player has headroom but will
+        // need to eat/drink within a session.
+        Self {
+            satiation: 80.0,
+            hydration: 80.0,
+            satiation_max: 100.0,
+            hydration_max: 100.0,
+        }
+    }
+}
+
+/// One active status effect on an entity, with its remaining duration in seconds.
+/// Timed buffs/debuffs count down to 0 and expire; condition-type effects (e.g.
+/// `hungry`) are refreshed each tick by the system that owns their trigger and
+/// fade a few seconds after the trigger clears. Always finite (JSON-save-safe).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveEffect {
+    /// Effect id from `data/status_effects.csv`.
+    pub id: String,
+    /// Seconds remaining before this effect expires.
+    pub remaining: f32,
+}
+
+/// Active buffs / debuffs / conditions on an entity (food, environment, medical…).
+/// Systems that own a stat (movement, vision, regen) read this plus the
+/// `StatusEffectRegistry` to apply each effect's `stat:value:op` modifier.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct StatusEffects {
+    pub active: Vec<ActiveEffect>,
+}
+
+impl StatusEffects {
+    /// True if an effect with this id is currently active.
+    pub fn has(&self, id: &str) -> bool {
+        self.active.iter().any(|e| e.id == id)
+    }
+
+    /// Add the effect, or refresh its timer to at least `duration` if already present.
+    pub fn apply(&mut self, id: &str, duration: f32) {
+        if let Some(e) = self.active.iter_mut().find(|e| e.id == id) {
+            e.remaining = e.remaining.max(duration);
+        } else {
+            self.active.push(ActiveEffect {
+                id: id.to_string(),
+                remaining: duration,
+            });
+        }
+    }
+
+    /// Remove an effect by id (e.g. when its triggering condition clears).
+    pub fn remove(&mut self, id: &str) {
+        self.active.retain(|e| e.id != id);
+    }
+
+    /// Count down every effect and drop the ones that have expired.
+    pub fn tick(&mut self, dt: f32) {
+        for e in &mut self.active {
+            e.remaining -= dt;
+        }
+        self.active.retain(|e| e.remaining > 0.0);
+    }
+}
+
 /// Faction/allegiance for PvP/PvE.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Faction {
