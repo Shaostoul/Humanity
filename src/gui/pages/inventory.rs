@@ -744,12 +744,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         );
                     }
                     ui.add_space(theme.spacing_xs);
+                    // The number after each ore is how much is LEFT in the field; a
+                    // drone hauls only up to 10 per round trip (say so, since the
+                    // big number was misread as the per-trip amount).
                     ui.horizontal_wrapped(|ui| {
                         ui.label(
-                            RichText::new("Commission drone:").color(theme.text_secondary()),
+                            RichText::new("Commission drone (hauls up to 10 per trip):")
+                                .color(theme.text_secondary()),
                         );
                         for (id, total) in &ores {
-                            let label = format!("{} ({:.0})", ore_short(id), total);
+                            let label = format!("{} · {:.0} left", ore_short(id), total);
                             if widgets::secondary_button(ui, theme, &label) {
                                 action_commission_ore = Some(id.clone());
                             }
@@ -764,17 +768,27 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .color(theme.text_muted()),
                     );
                 } else {
+                    // A drone runs a 3-stage round trip; show which stage it's in +
+                    // a bar of how far through that stage it is (the "ship is out" cue).
                     for drone in &state.drones {
+                        let (stage, desc) = match drone.phase.as_str() {
+                            "Outbound" => ("Stage 1/3", "outbound to the asteroid"),
+                            "Mining" => ("Stage 2/3", "mining"),
+                            "Returning" => ("Stage 3/3", "returning home"),
+                            _ => ("Done", "delivering cargo"),
+                        };
                         ui.label(
                             RichText::new(format!(
-                                "Drone → {} · {} · cargo {}",
+                                "Drone ({}) — {} · {} · cargo {}",
                                 ore_short(&drone.ore_id),
-                                drone.phase,
+                                stage,
+                                desc,
                                 drone.cargo
                             ))
                             .size(theme.font_size_small)
                             .color(theme.text_primary()),
                         );
+                        widgets::progress_bar(ui, theme, drone.phase_progress, None);
                     }
                 }
             });

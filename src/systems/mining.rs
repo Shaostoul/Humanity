@@ -18,6 +18,17 @@ const RETURNING_SECS: f32 = 5.0;
 /// Ore units a drone hauls per trip.
 const DRONE_CAPACITY: f32 = 10.0;
 
+/// Real seconds the given mission phase lasts — exposed so the Mining UI can draw
+/// a per-stage progress bar (the operator's "show the drone is working" cue).
+pub fn phase_secs(phase: &DronePhase) -> f32 {
+    match phase {
+        DronePhase::Outbound => OUTBOUND_SECS,
+        DronePhase::Mining => MINING_SECS,
+        DronePhase::Returning => RETURNING_SECS,
+        DronePhase::Done => 0.0,
+    }
+}
+
 /// What a drone needs done to OTHER entities this tick — computed while iterating
 /// drones (a `&mut Drone` query) and applied afterwards, so the cross-entity
 /// `&mut World` borrows never overlap the drone query.

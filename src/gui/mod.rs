@@ -428,6 +428,8 @@ pub struct GuiDrone {
     pub ore_id: String,
     pub phase: String,
     pub cargo: u32,
+    /// Progress 0..1 through the current mission phase (for the panel's bar).
+    pub phase_progress: f32,
 }
 
 /// A player skill (live level + XP) for GUI display, synced from the ECS

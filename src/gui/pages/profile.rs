@@ -311,16 +311,13 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.section_gap);
             }
         } else {
-            // Pre-game / no live session: the static default profile skills
-            // (data/skills/default_profile.json via load_default_player_skills).
-            for (skill_name, progress) in state.profile_skills.iter() {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(skill_name).color(theme.text_secondary()).size(theme.font_size_body));
-                    ui.label(RichText::new(format!("{:.0}%", progress * 100.0)).color(theme.text_muted()).size(theme.font_size_small));
-                });
-                widgets::progress_bar(ui, theme, *progress, None);
-                ui.add_space(theme.section_gap);
-            }
+            // No live skill data (not in-world yet). The old static placeholder
+            // list was misleading (wrong skill names, %s) — show a clear hint instead.
+            ui.label(
+                RichText::new("Enter the world to start gaining skills.")
+                    .size(theme.font_size_body)
+                    .color(theme.text_muted()),
+            );
         }
     });
 

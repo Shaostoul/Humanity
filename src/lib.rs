@@ -181,7 +181,29 @@ mod native_app {
             candidates.push(cwd_data);
         }
 
-        // Prefer a "full" data dir (with world/ subdirectory) over extracted-only
+        // A "repo" data dir = one whose parent holds Cargo.toml (the source tree).
+        // Prefer it over a FROZEN extracted copy beside a build exe, so dev runs —
+        // including `target/release/HumanityOS.exe` directly — always read LIVE data
+        // edits instead of a stale `target/release/data` snapshot a prior run
+        // extracted. (Distributed builds have no sibling Cargo.toml, so they fall
+        // through to the beside-exe data as before.) This was a real footgun:
+        // `extract_data_if_needed` writes embedded data beside the exe once and
+        // never refreshes it, so a stale copy silently shadowed the repo's data.
+        let is_repo_data = |p: &PathBuf| -> bool {
+            p.parent()
+                .map(|parent| parent.join("Cargo.toml").exists())
+                .unwrap_or(false)
+        };
+
+        // 1st preference: a full repo data dir (live source-tree data).
+        for c in &candidates {
+            if is_full_data(c) && is_repo_data(c) {
+                log::info!("Data directory (repo, full): {}", c.display());
+                return c.clone();
+            }
+        }
+
+        // 2nd: any "full" data dir (with world/ subdirectory) over extracted-only.
         for c in &candidates {
             if is_full_data(c) {
                 log::info!("Data directory (full, with world/): {}", c.display());
@@ -231,8 +253,13 @@ mod native_app {
             "solar_system/earth.ron", "solar_system/mars.ron", "solar_system/sun.ron",
             "ships/bridge.ron", "ships/layout_medium.ron", "ships/reactor.ron",
             "ships/starter_fleet.ron",
+            // NOTE: this hand-maintained list has drifted from the full data set
+            // (e.g. status_effects.csv, containers/, food_system.ron are loaded at
+            // runtime but not listed here) — distributed-build completeness is
+            // tracked as a follow-up to derive this list from embedded_data's keys.
+            // Dev runs are unaffected (find_data_dir prefers the live repo data).
             "quests/construction.ron", "quests/exploration.ron",
-            "quests/farming.ron", "quests/tutorial.ron",
+            "quests/farming.ron", "quests/tutorial.ron", "quests/getting_started.ron",
             "blueprints/basic.ron", "blueprints/construction.ron",
             "blueprints/habitat.ron", "blueprints/materials.ron",
             "blueprints/objects.ron",
@@ -1889,30 +1916,34 @@ mod native_app {
                             .data_store
                             .get::<SkillRegistry>("skill_registry");
                         state.gui_state.skills.clear();
-                        for (_e, (skills, _ctrl)) in state
-                            .game_world
-                            .world
-                            .query::<(&PlayerSkills, &Controllable)>()
-                            .iter()
-                        {
-                            for (id, prog) in skills.skills.iter() {
-                                let def = skill_reg.and_then(|r| r.get(id));
-                                let name =
-                                    def.map(|d| d.name.clone()).unwrap_or_else(|| id.clone());
-                                let category = def.map(|d| d.category.clone()).unwrap_or_default();
-                                let xp_needed =
-                                    def.map(|d| d.xp_for_level(prog.level + 1)).unwrap_or(0);
-                                state.gui_state.skills.push(crate::gui::GuiSkill {
-                                    id: id.clone(),
-                                    name,
-                                    category,
-                                    level: prog.level,
-                                    xp: prog.xp,
-                                    xp_needed,
+                        if let Some(reg) = skill_reg {
+                            for (_e, (skills, _ctrl)) in state
+                                .game_world
+                                .world
+                                .query::<(&PlayerSkills, &Controllable)>()
+                                .iter()
+                            {
+                                // Show EVERY defined skill with the player's progress
+                                // (0 if untrained) — a complete, real skill sheet, not
+                                // the old static placeholder list. Grouped by category.
+                                for (id, def) in reg.skills.iter() {
+                                    let prog = skills.skills.get(id);
+                                    let level = prog.map(|p| p.level).unwrap_or(0);
+                                    let xp = prog.map(|p| p.xp).unwrap_or(0);
+                                    state.gui_state.skills.push(crate::gui::GuiSkill {
+                                        id: id.clone(),
+                                        name: def.name.clone(),
+                                        category: def.category.clone(),
+                                        level,
+                                        xp,
+                                        xp_needed: def.xp_for_level(level + 1),
+                                    });
+                                }
+                                state.gui_state.skills.sort_by(|a, b| {
+                                    a.category.cmp(&b.category).then(a.name.cmp(&b.name))
                                 });
+                                break;
                             }
-                            state.gui_state.skills.sort_by(|a, b| a.name.cmp(&b.name));
-                            break;
                         }
                     }
                     // Bridge player quests (active steps + completed) from ECS for
@@ -2030,10 +2061,17 @@ mod native_app {
                             .query::<&crate::ecs::components::Drone>()
                             .iter()
                         {
+                            let dur = crate::systems::mining::phase_secs(&drone.phase);
+                            let phase_progress = if dur > 0.0 {
+                                (drone.phase_time / dur).clamp(0.0, 1.0)
+                            } else {
+                                1.0
+                            };
                             state.gui_state.drones.push(crate::gui::GuiDrone {
                                 ore_id: drone.ore_id.clone(),
                                 phase: format!("{:?}", drone.phase),
                                 cargo: drone.cargo,
+                                phase_progress,
                             });
                         }
                     }
