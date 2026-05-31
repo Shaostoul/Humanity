@@ -78,12 +78,47 @@ impl SkillRegistry {
     pub fn get(&self, id: &str) -> Option<&SkillDef> {
         self.skills.get(id)
     }
+
+    /// Build the registry from raw `data/skills/skills.csv` bytes.
+    ///
+    /// `SkillDef`'s fields map 1:1 onto the CSV columns
+    /// (id,name,category,max_level,xp_per_level,description), so the shared CSV
+    /// loader deserializes rows straight into `SkillDef`. This is the constructor
+    /// the runtime calls to populate `DataStore["skill_registry"]`; without it the
+    /// SkillSystem would find no defs and every XP award would silently no-op.
+    pub fn from_csv(data: &[u8]) -> Result<Self, String> {
+        let defs: Vec<SkillDef> = crate::assets::loader::parse_csv(data)?;
+        let mut skills = HashMap::new();
+        for def in defs {
+            skills.insert(def.id.clone(), def);
+        }
+        Ok(Self { skills })
+    }
 }
 
 /// XP gain event queued for processing.
 pub struct SkillXPEvent {
     pub skill_id: String,
     pub amount: u32,
+}
+
+/// Push a skill-XP grant onto the shared `"xp_grants"` DataStore channel that
+/// [`SkillSystem`] drains each tick. This is the decoupled path any action system
+/// uses to award XP: they hold only `&DataStore` (not `&mut SkillSystem`), so they
+/// can't call `award_xp` directly. No-ops cleanly if the channel is absent (e.g.
+/// a headless/test world that never registered it) or the amount is zero.
+pub fn award_skill_xp(data: &DataStore, skill_id: &str, amount: u32) {
+    if amount == 0 {
+        return;
+    }
+    if let Some(lock) = data.get::<std::sync::Mutex<Vec<SkillXPEvent>>>("xp_grants") {
+        if let Ok(mut grants) = lock.lock() {
+            grants.push(SkillXPEvent {
+                skill_id: skill_id.to_string(),
+                amount,
+            });
+        }
+    }
 }
 
 /// Skill system processes XP events and levels up skills.
@@ -117,11 +152,22 @@ impl System for SkillSystem {
     }
 
     fn tick(&mut self, world: &mut hecs::World, _dt: f32, data: &DataStore) {
-        if self.pending_xp.is_empty() {
+        // XP arrives two ways: direct award_xp() calls (used by tests) and the
+        // shared "xp_grants" DataStore channel that the action systems
+        // (crafting/farming/mining) push to — they hold only `&DataStore`, not
+        // `&mut SkillSystem`, so the channel is the decoupling. SkillSystem is
+        // registered LAST in the runner, so grants pushed earlier THIS frame are
+        // drained + applied the same frame.
+        let mut events: Vec<SkillXPEvent> = self.pending_xp.drain(..).collect();
+        if let Some(lock) = data.get::<std::sync::Mutex<Vec<SkillXPEvent>>>("xp_grants") {
+            if let Ok(mut grants) = lock.lock() {
+                events.append(&mut grants);
+            }
+        }
+        if events.is_empty() {
             return;
         }
 
-        let events: Vec<SkillXPEvent> = self.pending_xp.drain(..).collect();
         let registry = data.get::<SkillRegistry>("skill_registry");
 
         // Find the entity with PlayerSkills (usually the local player)
@@ -163,5 +209,92 @@ impl System for SkillSystem {
             }
             break; // Only process first entity with PlayerSkills
         }
+    }
+}
+
+#[cfg(test)]
+mod skill_tests {
+    use super::*;
+
+    fn skills_csv() -> &'static [u8] {
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/skills/skills.csv"))
+    }
+
+    #[test]
+    fn from_csv_parses_the_real_skill_registry() {
+        let reg = SkillRegistry::from_csv(skills_csv()).expect("skills.csv parses");
+        assert!(
+            reg.skills.len() >= 20,
+            "expected the full skill set, got {}",
+            reg.skills.len()
+        );
+        let mining = reg.get("mining").expect("mining skill present");
+        assert_eq!(mining.name, "Mining");
+        assert_eq!(mining.xp_per_level, 100);
+        // Exponential curve: level 1 needs xp_base * 1^1.5 = 100.
+        assert_eq!(mining.xp_for_level(1), 100);
+    }
+
+    #[test]
+    fn channel_xp_grant_levels_up_the_player() {
+        let mut data = DataStore::new();
+        data.insert(
+            "skill_registry",
+            SkillRegistry::from_csv(skills_csv()).unwrap(),
+        );
+        data.insert("xp_grants", std::sync::Mutex::new(Vec::<SkillXPEvent>::new()));
+
+        let mut world = hecs::World::new();
+        let player = world.spawn((PlayerSkills::new(),));
+        let mut sys = SkillSystem::new();
+
+        // 50 XP — below the 100 needed for level 1 → no level-up yet.
+        award_skill_xp(&data, "mining", 50);
+        sys.tick(&mut world, 0.0, &data);
+        {
+            let sk = world.get::<&PlayerSkills>(player).unwrap();
+            assert_eq!(sk.level("mining"), 0);
+            assert_eq!(sk.xp("mining"), 50);
+        }
+
+        // Another 50 → 100 total → reaches level 1 (leftover XP resets to 0).
+        award_skill_xp(&data, "mining", 50);
+        sys.tick(&mut world, 0.0, &data);
+        {
+            let sk = world.get::<&PlayerSkills>(player).unwrap();
+            assert_eq!(sk.level("mining"), 1, "100 XP reaches mining level 1");
+            assert_eq!(sk.xp("mining"), 0, "leftover XP after the level-up is 0");
+        }
+    }
+
+    /// Drift guard (the recipe-skill lint): every non-empty `skill_required` in
+    /// recipes.csv MUST resolve to a real skill id in skills.csv, or the XP award
+    /// silently no-ops on the registry lookup miss. The recipe vocabulary was
+    /// reconciled to the canonical skills in v0.340.0; this keeps it reconciled.
+    #[test]
+    fn every_recipe_skill_is_a_real_skill() {
+        let skills = SkillRegistry::from_csv(skills_csv()).unwrap();
+        let recipes = crate::systems::crafting::RecipeRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/recipes.csv"
+        )))
+        .expect("recipes.csv parses");
+        let mut orphans: Vec<String> = recipes
+            .recipes
+            .values()
+            .filter_map(|r| {
+                r.skill_required
+                    .as_ref()
+                    .filter(|s| skills.get(s).is_none())
+                    .map(|s| format!("{} -> {}", r.id, s))
+            })
+            .collect();
+        orphans.sort();
+        assert!(
+            orphans.is_empty(),
+            "recipes reference skills absent from data/skills/skills.csv (XP would \
+             silently vanish). Fix recipes.csv skill_required or add the skill:\n  {}",
+            orphans.join("\n  ")
+        );
     }
 }

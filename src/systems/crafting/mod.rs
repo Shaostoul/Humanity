@@ -27,6 +27,12 @@ pub struct Recipe {
     pub craft_time: f32,
     /// Required workstation type (None = hand-craftable).
     pub required_station: Option<String>,
+    /// Skill whose XP this recipe grants on completion (None = no skill trained).
+    /// Canonical skill id from data/skills/skills.csv (recipe_skill_lint enforces).
+    pub skill_required: Option<String>,
+    /// Minimum level of `skill_required` to craft (0 = none). Also scales the XP
+    /// reward so harder recipes grant more.
+    pub skill_level: u32,
 }
 
 impl Recipe {
@@ -110,6 +116,15 @@ impl RecipeRegistry {
                     } else {
                         Some(station.to_string())
                     },
+                    skill_required: {
+                        let s = row.skill_required.trim();
+                        if s.is_empty() {
+                            None
+                        } else {
+                            Some(s.to_string())
+                        }
+                    },
+                    skill_level: row.skill_level,
                 },
             );
         }
@@ -117,8 +132,9 @@ impl RecipeRegistry {
     }
 }
 
-/// One row of `recipes.csv` — only the columns `RecipeRegistry` consumes (the
-/// skill_required/skill_level/category/description columns are ignored for now).
+/// One row of `recipes.csv` — the columns `RecipeRegistry` consumes (the
+/// category/description columns are still ignored; skill_required + skill_level
+/// are now parsed to drive skill XP + tech-unlock gating).
 #[derive(Debug, Deserialize)]
 struct RecipeRow {
     id: String,
@@ -131,6 +147,10 @@ struct RecipeRow {
     craft_time_sec: f32,
     #[serde(default)]
     station_required: String,
+    #[serde(default)]
+    skill_required: String,
+    #[serde(default)]
+    skill_level: u32,
 }
 
 #[cfg(test)]
@@ -379,6 +399,17 @@ impl CraftingSystem {
             }
         }
     }
+
+    /// Award skill XP for a completed craft by pushing onto the shared
+    /// "xp_grants" channel (drained by SkillSystem, which ticks last). Recipes
+    /// with no `skill_required` train nothing. The reward scales with the
+    /// recipe's `skill_level` so harder recipes grant more (a level-5 recipe =
+    /// 35 XP, a level-1 = 15). No-ops cleanly if the channel/skill is absent.
+    fn award_craft_xp(data: &DataStore, recipe: &Recipe) {
+        if let Some(skill) = &recipe.skill_required {
+            crate::systems::skills::award_skill_xp(data, skill, 10 + recipe.skill_level * 5);
+        }
+    }
 }
 
 impl System for CraftingSystem {
@@ -496,6 +527,7 @@ impl System for CraftingSystem {
                     if let Ok(mut inv) = world.get::<&mut Inventory>(request.crafter) {
                         Self::produce_outputs(&mut inv, &recipe, item_registry);
                     }
+                    Self::award_craft_xp(data, &recipe);
                     log::debug!("Instant craft complete: {}", recipe.id);
                 } else {
                     // Queue as active craft with timer
@@ -535,6 +567,7 @@ impl System for CraftingSystem {
                 if let Some(recipe) = recipes.recipes.get(&craft.recipe_id) {
                     if let Ok(mut inv) = world.get::<&mut Inventory>(craft.crafter) {
                         Self::produce_outputs(&mut inv, recipe, item_registry);
+                        Self::award_craft_xp(data, recipe);
                         log::debug!("Craft complete: {}", recipe.id);
                     } else {
                         log::warn!(
@@ -599,5 +632,63 @@ mod refining_chain_tests {
             stainless.inputs.iter().any(|(id, _)| id == "nickel_ingot_0"),
             "stainless steel should consume nickel ingots (a refined intermediate)"
         );
+    }
+}
+
+#[cfg(test)]
+mod skill_xp_tests {
+    use super::*;
+    use crate::ecs::components::Controllable;
+    use crate::systems::inventory::{Inventory, ItemRegistry};
+    use crate::systems::skills::SkillXPEvent;
+
+    /// End-to-end: clicking Craft on a recipe with a `skill_required` pushes a
+    /// scaled XP grant onto the shared channel when the craft completes (proves
+    /// the skill_required column is parsed + the completion hook fires).
+    #[test]
+    fn completing_a_craft_awards_skill_xp() {
+        // A tiny INSTANT recipe (craft_time 0) that trains metalworking at level 2.
+        let recipe_csv = b"id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
+            test_smelt,Test Smelt,smelting,iron_ore_0:1,iron_ingot_0:1,0,,metalworking,2,test\n";
+        let recipes = RecipeRegistry::from_csv(recipe_csv).expect("recipes");
+        let items = ItemRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/items.csv"
+        )))
+        .expect("items.csv");
+
+        let mut data = DataStore::new();
+        data.insert("recipe_registry", recipes);
+        data.insert("item_registry", items);
+        data.insert("dev_stock_materials", std::sync::Mutex::new(false));
+        data.insert(
+            "craft_request",
+            std::sync::Mutex::new(Option::<String>::None),
+        );
+        data.insert("xp_grants", std::sync::Mutex::new(Vec::<SkillXPEvent>::new()));
+
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 1, 99);
+        world.spawn((inv, Controllable));
+
+        // The GUI sets craft_request when the player clicks Craft.
+        *data
+            .get::<std::sync::Mutex<Option<String>>>("craft_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some("test_smelt".to_string());
+
+        let mut sys = CraftingSystem::new();
+        sys.tick(&mut world, 0.016, &data); // instant craft completes this tick
+
+        let grants = data
+            .get::<std::sync::Mutex<Vec<SkillXPEvent>>>("xp_grants")
+            .unwrap()
+            .lock()
+            .unwrap();
+        assert_eq!(grants.len(), 1, "one completed craft → one XP grant");
+        assert_eq!(grants[0].skill_id, "metalworking");
+        assert_eq!(grants[0].amount, 20, "10 + skill_level(2)*5 = 20");
     }
 }

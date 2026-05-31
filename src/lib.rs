@@ -87,6 +87,7 @@ mod native_app {
     use crate::systems::farming::FarmingSystem;
     use crate::systems::food::FoodSystem;
     use crate::systems::mining::DroneSystem;
+    use crate::systems::skills::{PlayerSkills, SkillRegistry, SkillSystem, SkillXPEvent};
     use crate::systems::interaction::InteractionSystem;
     use crate::systems::inventory::{Inventory, InventorySystem, ItemRegistry};
     use crate::systems::inventory::containers::ContainerCompatibilitySystem;
@@ -646,6 +647,14 @@ mod native_app {
                 "status_effect_registry",
                 crate::systems::status_effects::StatusEffectRegistry::from_csv,
             );
+            // Skill definitions (data/skills/skills.csv — a subdirectory). Drives
+            // SkillSystem's level-up curve + names; without it every XP award no-ops.
+            load_csv_registry(
+                &mut state.data_store,
+                dir.join("skills").join("skills.csv"),
+                "skill_registry",
+                SkillRegistry::from_csv,
+            );
         }
 
         // ── Container types + content-class compatibility rules ──
@@ -896,6 +905,13 @@ mod native_app {
                 "fertilize_crop_request",
                 std::sync::Mutex::new(Option::<u64>::None),
             );
+            // Skill XP grants: the action systems (crafting/farming/mining) push
+            // SkillXPEvents onto this channel; SkillSystem (registered LAST) drains
+            // + applies them the same frame → level-ups.
+            data_store.insert(
+                "xp_grants",
+                std::sync::Mutex::new(Vec::<SkillXPEvent>::new()),
+            );
             system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
@@ -911,6 +927,10 @@ mod native_app {
             // DroneSystem: autonomous mining drones (commission → trip → mine a finite
             // asteroid → deliver ore home). Reads commission_drone + item_registry.
             system_runner.register(DroneSystem::new());
+            // SkillSystem ticks LAST so it drains the xp_grants the action systems
+            // pushed THIS frame (craft → recipe skill, harvest → farming, mine → mining)
+            // and applies level-ups before the frame's ECS→GUI sync reads them.
+            system_runner.register(SkillSystem::new());
             game_world.world.spawn((
                 Transform::default(),
                 Velocity::default(),
@@ -920,6 +940,7 @@ mod native_app {
                 Inventory::new(36),
                 crate::ecs::components::Vitals::default(),
                 crate::ecs::components::StatusEffects::default(),
+                PlayerSkills::new(),
             ));
             // Test asteroids for the mining loop (finite ore; DroneSystem deletes one
             // when fully consumed). Dev/testing content — MMO asteroids are server-side.
@@ -1824,6 +1845,40 @@ mod native_app {
                                     (name, e.remaining)
                                 })
                                 .collect();
+                        }
+                    }
+                    // Bridge player skills (live levels + XP) from ECS for the profile
+                    // Skills panel. Reads SkillRegistry for the display name + the
+                    // per-level XP curve (xp_needed = XP to reach the next level).
+                    {
+                        let skill_reg = state
+                            .data_store
+                            .get::<SkillRegistry>("skill_registry");
+                        state.gui_state.skills.clear();
+                        for (_e, (skills, _ctrl)) in state
+                            .game_world
+                            .world
+                            .query::<(&PlayerSkills, &Controllable)>()
+                            .iter()
+                        {
+                            for (id, prog) in skills.skills.iter() {
+                                let def = skill_reg.and_then(|r| r.get(id));
+                                let name =
+                                    def.map(|d| d.name.clone()).unwrap_or_else(|| id.clone());
+                                let category = def.map(|d| d.category.clone()).unwrap_or_default();
+                                let xp_needed =
+                                    def.map(|d| d.xp_for_level(prog.level + 1)).unwrap_or(0);
+                                state.gui_state.skills.push(crate::gui::GuiSkill {
+                                    id: id.clone(),
+                                    name,
+                                    category,
+                                    level: prog.level,
+                                    xp: prog.xp,
+                                    xp_needed,
+                                });
+                            }
+                            state.gui_state.skills.sort_by(|a, b| a.name.cmp(&b.name));
+                            break;
                         }
                     }
                     // Bridge growing crops from ECS for the gardening (Garden) panel.

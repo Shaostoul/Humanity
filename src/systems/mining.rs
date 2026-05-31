@@ -159,6 +159,8 @@ impl System for DroneSystem {
                             if let Ok(mut inv) = world.get::<&mut Inventory>(home_e) {
                                 inv.add_item(&ore_id, qty, max_stack);
                                 log::info!("[Mining] drone delivered {qty}x {ore_id} home");
+                                // A delivered haul trains Mining (1 XP per ore unit).
+                                crate::systems::skills::award_skill_xp(data, "mining", qty);
                             }
                         }
                     }

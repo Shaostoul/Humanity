@@ -15,111 +15,111 @@
 #
 # === SMELTING (ores to ingots) ===
 id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description
-smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1,10,smelter_0,smithing,1,Reduce iron ore into a pure iron ingot
-smelt_copper,Smelt Copper,smelting,copper_ore_0:2|coal_0:1,copper_ingot_0:1,10,smelter_0,smithing,1,Reduce copper ore into a pure copper ingot
-smelt_nickel,Smelt Nickel,smelting,nickel_ore_0:2|coal_0:1,nickel_ingot_0:1,10,smelter_0,smithing,2,Reduce nickel ore into a nickel ingot
-smelt_platinum,Smelt Platinum,smelting,platinum_ore_0:2|coal_0:2,platinum_ingot_0:1,18,smelter_0,smithing,4,Refine platinum-group ore into a platinum ingot
-smelt_stainless,Smelt Stainless Steel,smelting,iron_ingot_0:2|nickel_ingot_0:1|coal_0:1,stainless_steel_ingot_0:1,18,smelter_0,smithing,3,Alloy iron with nickel into corrosion-resistant stainless steel
-smelt_steel,Smelt Steel,smelting,iron_ingot_0:2|coal_0:2,steel_ingot_0:1,15,smelter_0,smithing,2,Alloy iron with carbon to form steel
-smelt_aluminum,Smelt Aluminum,smelting,iron_ore_0:3|coal_0:2,aluminum_ingot_0:1,20,smelter_0,smithing,3,Electrolytic reduction of alumina ore
-smelt_titanium,Smelt Titanium,smelting,iron_ore_0:4|coal_0:3,titanium_ingot_0:1,30,smelter_0,smithing,5,High-temperature titanium extraction
-smelt_gold,Smelt Gold,smelting,iron_ore_0:5,gold_ingot_0:1,25,smelter_0,smithing,4,Refine gold from raw ore
-smelt_silver,Smelt Silver,smelting,iron_ore_0:4,silver_ingot_0:1,20,smelter_0,smithing,3,Refine silver from raw ore
-smelt_glass,Smelt Glass,smelting,sand_0:3|coal_0:1,glass_pane_0:2,12,smelter_0,smithing,2,Melt silica sand into clear glass
-fire_brick,Fire Brick,smelting,clay_raw_0:4|coal_0:1,stone_brick_0:4,15,kiln_0,smithing,1,Fire clay into durable bricks
-fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane_0:1,20,kiln_0,smithing,3,Fire fine porcelain ceramic
+smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1,10,smelter_0,metalworking,1,Reduce iron ore into a pure iron ingot
+smelt_copper,Smelt Copper,smelting,copper_ore_0:2|coal_0:1,copper_ingot_0:1,10,smelter_0,metalworking,1,Reduce copper ore into a pure copper ingot
+smelt_nickel,Smelt Nickel,smelting,nickel_ore_0:2|coal_0:1,nickel_ingot_0:1,10,smelter_0,metalworking,2,Reduce nickel ore into a nickel ingot
+smelt_platinum,Smelt Platinum,smelting,platinum_ore_0:2|coal_0:2,platinum_ingot_0:1,18,smelter_0,metalworking,4,Refine platinum-group ore into a platinum ingot
+smelt_stainless,Smelt Stainless Steel,smelting,iron_ingot_0:2|nickel_ingot_0:1|coal_0:1,stainless_steel_ingot_0:1,18,smelter_0,metalworking,3,Alloy iron with nickel into corrosion-resistant stainless steel
+smelt_steel,Smelt Steel,smelting,iron_ingot_0:2|coal_0:2,steel_ingot_0:1,15,smelter_0,metalworking,2,Alloy iron with carbon to form steel
+smelt_aluminum,Smelt Aluminum,smelting,iron_ore_0:3|coal_0:2,aluminum_ingot_0:1,20,smelter_0,metalworking,3,Electrolytic reduction of alumina ore
+smelt_titanium,Smelt Titanium,smelting,iron_ore_0:4|coal_0:3,titanium_ingot_0:1,30,smelter_0,metalworking,5,High-temperature titanium extraction
+smelt_gold,Smelt Gold,smelting,iron_ore_0:5,gold_ingot_0:1,25,smelter_0,metalworking,4,Refine gold from raw ore
+smelt_silver,Smelt Silver,smelting,iron_ore_0:4,silver_ingot_0:1,20,smelter_0,metalworking,3,Refine silver from raw ore
+smelt_glass,Smelt Glass,smelting,sand_0:3|coal_0:1,glass_pane_0:2,12,smelter_0,metalworking,2,Melt silica sand into clear glass
+fire_brick,Fire Brick,smelting,clay_raw_0:4|coal_0:1,stone_brick_0:4,15,kiln_0,metalworking,1,Fire clay into durable bricks
+fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane_0:1,20,kiln_0,metalworking,3,Fire fine porcelain ceramic
 #
 # === REFINING (raw to processed) ===
 saw_planks,Saw Planks,refining,wood_log_0:1,wood_plank_0:4,5,sawmill_0,,0,Cut a log into flat lumber boards
-saw_planks_hand,Saw Planks by Hand,refining,wood_log_0:1,wood_plank_0:2,15,,crafting,1,Hand-saw a log into planks
-cut_stone,Cut Stone,refining,stone_raw_0:1,stone_brick_0:2,10,workbench_0,crafting,1,Shape raw stone into building blocks
+saw_planks_hand,Saw Planks by Hand,refining,wood_log_0:1,wood_plank_0:2,15,,woodworking,1,Hand-saw a log into planks
+cut_stone,Cut Stone,refining,stone_raw_0:1,stone_brick_0:2,10,workbench_0,woodworking,1,Shape raw stone into building blocks
 refine_fuel,Refine Fuel,refining,oil_crude_0:2,fuel_refined_0:3,30,fuel_refinery_0,engineering,3,Distill crude oil into usable fuel
 grind_flour,Grind Flour,refining,rice_0:2,flour_0:2,8,grain_mill_0,,0,Mill grain into baking flour
 purify_water,Purify Water,refining,water_bottle_0:2,water_purified_0:2,5,water_purifier_0,,0,Filter and sterilize drinking water
 make_charcoal,Make Charcoal,refining,wood_log_0:3,coal_0:4,20,kiln_0,,0,Carbonize wood into charcoal
-extract_fiber,Extract Fiber,refining,wood_log_0:1,fiber_bundle_0:3,8,,crafting,1,Strip plant matter into raw fibers
-make_rope,Make Rope,refining,fiber_bundle_0:3,rope_0:1,10,,crafting,1,Braid plant fibers into strong rope
-make_wire,Draw Wire,refining,copper_ingot_0:1,wire_0:5,8,workbench_0,smithing,2,Draw copper into insulated wire
-vulcanize_rubber,Vulcanize Rubber,refining,rubber_sheet_0:2|coal_0:1,rubber_sheet_0:3,15,forge_0,smithing,2,Heat-treat rubber for durability
-tan_leather,Tan Leather,refining,leather_hide_0:1|salt_food_0:1,leather_hide_0:2,20,workbench_0,crafting,2,Cure raw hide into usable leather
-make_cement,Mix Cement,refining,stone_raw_0:2|clay_raw_0:1|sand_0:1,cement_0:2,10,,construction,1,Blend mineral powder for concrete
-make_concrete,Pour Concrete,refining,cement_0:2|gravel_0:2|water_purified_0:1,concrete_block_0:2,15,,construction,2,Mix and cure concrete blocks
+extract_fiber,Extract Fiber,refining,wood_log_0:1,fiber_bundle_0:3,8,,woodworking,1,Strip plant matter into raw fibers
+make_rope,Make Rope,refining,fiber_bundle_0:3,rope_0:1,10,,woodworking,1,Braid plant fibers into strong rope
+make_wire,Draw Wire,refining,copper_ingot_0:1,wire_0:5,8,workbench_0,metalworking,2,Draw copper into insulated wire
+vulcanize_rubber,Vulcanize Rubber,refining,rubber_sheet_0:2|coal_0:1,rubber_sheet_0:3,15,forge_0,metalworking,2,Heat-treat rubber for durability
+tan_leather,Tan Leather,refining,leather_hide_0:1|salt_food_0:1,leather_hide_0:2,20,workbench_0,woodworking,2,Cure raw hide into usable leather
+make_cement,Mix Cement,refining,stone_raw_0:2|clay_raw_0:1|sand_0:1,cement_0:2,10,,shelter_building,1,Blend mineral powder for concrete
+make_concrete,Pour Concrete,refining,cement_0:2|gravel_0:2|water_purified_0:1,concrete_block_0:2,15,,shelter_building,2,Mix and cure concrete blocks
 make_plastic,Mold Plastic Sheet,refining,oil_crude_0:1,plastic_sheet_0:3,12,fuel_refinery_0,engineering,2,Polymerize crude oil into HDPE sheet
-weave_cloth,Weave Cloth,refining,fiber_bundle_0:4,cloth_bolt_0:1,15,loom_0,textile,1,Weave raw fiber into cotton fabric
-spin_thread,Spin Thread,refining,fiber_bundle_0:2,cloth_bolt_0:1,20,,textile,1,Hand-spin fiber into thread and fabric
+weave_cloth,Weave Cloth,refining,fiber_bundle_0:4,cloth_bolt_0:1,15,loom_0,tailoring,1,Weave raw fiber into cotton fabric
+spin_thread,Spin Thread,refining,fiber_bundle_0:2,cloth_bolt_0:1,20,,tailoring,1,Hand-spin fiber into thread and fabric
 make_glue,Make Glue,refining,bone:3|water_purified_0:1,glue_0:2,10,stove_0,,0,Boil bones into adhesive glue
 make_paint,Make Paint,refining,oil_crude_0:1|clay_raw_0:1,paint_0:2,8,chemistry_set_0,,0,Mix pigment with binder for paint
 #
 # === TOOL CRAFTING ===
-craft_hammer,Craft Hammer,crafting,iron_ingot_0:1|wood_plank_0:1,hammer_0:1,10,workbench_0,smithing,1,Forge a claw hammer
-craft_screwdriver_flat,Craft Flat Screwdriver,crafting,iron_ingot_0:1|wood_plank_0:1,screwdriver_flat_0:1,8,workbench_0,smithing,1,Forge a slotted screwdriver
-craft_screwdriver_phillips,Craft Phillips Screwdriver,crafting,iron_ingot_0:1|wood_plank_0:1,screwdriver_phillips_0:1,8,workbench_0,smithing,1,Forge a cross-head screwdriver
-craft_wrench,Craft Wrench,crafting,steel_ingot_0:1,wrench_adjustable_0:1,12,forge_0,smithing,2,Forge an adjustable wrench
-craft_pliers,Craft Pliers,crafting,steel_ingot_0:1,pliers_0:1,10,forge_0,smithing,2,Forge a pair of pliers
-craft_saw_hand,Craft Hand Saw,crafting,steel_ingot_0:1|wood_plank_0:1,saw_hand_0:1,12,forge_0,smithing,2,Forge and set a hand saw blade
-craft_axe,Craft Axe,crafting,iron_ingot_0:2|wood_plank_0:1,axe_0:1,15,forge_0,smithing,2,Forge an axe head and haft it
-craft_hatchet,Craft Hatchet,crafting,iron_ingot_0:1|wood_plank_0:1,hatchet_0:1,10,forge_0,smithing,1,Forge a compact chopping hatchet
-craft_pickaxe,Craft Pickaxe,crafting,iron_ingot_0:2|wood_plank_0:1,pickaxe_0:1,15,forge_0,smithing,2,Forge a pointed mining pick
-craft_shovel,Craft Shovel,crafting,iron_ingot_0:1|wood_plank_0:2,shovel_0:1,12,forge_0,smithing,1,Forge a flat digging blade
-craft_hoe,Craft Hoe,crafting,iron_ingot_0:1|wood_plank_0:2,hoe_0:1,10,forge_0,smithing,1,Forge a soil cultivation hoe
-craft_chisel,Craft Chisel,crafting,steel_ingot_0:1,chisel_0:1,8,forge_0,smithing,2,Forge a flat-edge chisel
-craft_crowbar,Craft Crowbar,crafting,steel_ingot_0:2,crowbar_0:1,10,forge_0,smithing,2,Forge a heavy prying bar
-craft_knife_utility,Craft Utility Knife,crafting,steel_ingot_0:1|wood_plank_0:1,knife_utility_0:1,10,forge_0,smithing,1,Forge a folding knife
-craft_trowel,Craft Trowel,crafting,iron_ingot_0:1|wood_plank_0:1,trowel_0:1,8,forge_0,smithing,1,Forge a flat masonry trowel
-craft_rake,Craft Rake,crafting,iron_ingot_0:1|wood_plank_0:2,rake_0:1,10,forge_0,smithing,1,Forge tines and mount on handle
-craft_scythe,Craft Scythe,crafting,steel_ingot_0:2|wood_plank_0:2,scythe_0:1,15,forge_0,smithing,3,Forge a curved harvesting blade
-craft_anvil,Craft Anvil,crafting,steel_ingot_0:10,anvil_0:1,60,forge_0,smithing,4,Forge a heavy work anvil
-craft_vise,Craft Vise,crafting,steel_ingot_0:3|bolt_box_0:1,vise_0:1,20,forge_0,smithing,3,Assemble a bench clamping vise
-craft_clamp,Craft Clamp,crafting,steel_ingot_0:1|bolt_box_0:1,clamp_0:2,10,workbench_0,smithing,1,Forge adjustable workpiece clamps
-craft_file,Craft Metal File,crafting,steel_ingot_0:1,file_metal_0:1,10,forge_0,smithing,2,Cut abrasive grooves into a steel bar
-craft_bolt_cutter,Craft Bolt Cutter,crafting,steel_ingot_0:2|bolt_box_0:1,bolt_cutter_0:1,15,forge_0,smithing,3,Forge heavy shearing jaws
-craft_pipe_wrench,Craft Pipe Wrench,crafting,steel_ingot_0:2,pipe_wrench_0:1,12,forge_0,smithing,2,Forge a serrated-jaw wrench
-craft_pruning_shears,Craft Pruning Shears,crafting,steel_ingot_0:1,pruning_shears_0:1,10,forge_0,smithing,2,Forge spring-loaded branch cutters
+craft_hammer,Craft Hammer,crafting,iron_ingot_0:1|wood_plank_0:1,hammer_0:1,10,workbench_0,metalworking,1,Forge a claw hammer
+craft_screwdriver_flat,Craft Flat Screwdriver,crafting,iron_ingot_0:1|wood_plank_0:1,screwdriver_flat_0:1,8,workbench_0,metalworking,1,Forge a slotted screwdriver
+craft_screwdriver_phillips,Craft Phillips Screwdriver,crafting,iron_ingot_0:1|wood_plank_0:1,screwdriver_phillips_0:1,8,workbench_0,metalworking,1,Forge a cross-head screwdriver
+craft_wrench,Craft Wrench,crafting,steel_ingot_0:1,wrench_adjustable_0:1,12,forge_0,metalworking,2,Forge an adjustable wrench
+craft_pliers,Craft Pliers,crafting,steel_ingot_0:1,pliers_0:1,10,forge_0,metalworking,2,Forge a pair of pliers
+craft_saw_hand,Craft Hand Saw,crafting,steel_ingot_0:1|wood_plank_0:1,saw_hand_0:1,12,forge_0,metalworking,2,Forge and set a hand saw blade
+craft_axe,Craft Axe,crafting,iron_ingot_0:2|wood_plank_0:1,axe_0:1,15,forge_0,metalworking,2,Forge an axe head and haft it
+craft_hatchet,Craft Hatchet,crafting,iron_ingot_0:1|wood_plank_0:1,hatchet_0:1,10,forge_0,metalworking,1,Forge a compact chopping hatchet
+craft_pickaxe,Craft Pickaxe,crafting,iron_ingot_0:2|wood_plank_0:1,pickaxe_0:1,15,forge_0,metalworking,2,Forge a pointed mining pick
+craft_shovel,Craft Shovel,crafting,iron_ingot_0:1|wood_plank_0:2,shovel_0:1,12,forge_0,metalworking,1,Forge a flat digging blade
+craft_hoe,Craft Hoe,crafting,iron_ingot_0:1|wood_plank_0:2,hoe_0:1,10,forge_0,metalworking,1,Forge a soil cultivation hoe
+craft_chisel,Craft Chisel,crafting,steel_ingot_0:1,chisel_0:1,8,forge_0,metalworking,2,Forge a flat-edge chisel
+craft_crowbar,Craft Crowbar,crafting,steel_ingot_0:2,crowbar_0:1,10,forge_0,metalworking,2,Forge a heavy prying bar
+craft_knife_utility,Craft Utility Knife,crafting,steel_ingot_0:1|wood_plank_0:1,knife_utility_0:1,10,forge_0,metalworking,1,Forge a folding knife
+craft_trowel,Craft Trowel,crafting,iron_ingot_0:1|wood_plank_0:1,trowel_0:1,8,forge_0,metalworking,1,Forge a flat masonry trowel
+craft_rake,Craft Rake,crafting,iron_ingot_0:1|wood_plank_0:2,rake_0:1,10,forge_0,metalworking,1,Forge tines and mount on handle
+craft_scythe,Craft Scythe,crafting,steel_ingot_0:2|wood_plank_0:2,scythe_0:1,15,forge_0,metalworking,3,Forge a curved harvesting blade
+craft_anvil,Craft Anvil,crafting,steel_ingot_0:10,anvil_0:1,60,forge_0,metalworking,4,Forge a heavy work anvil
+craft_vise,Craft Vise,crafting,steel_ingot_0:3|bolt_box_0:1,vise_0:1,20,forge_0,metalworking,3,Assemble a bench clamping vise
+craft_clamp,Craft Clamp,crafting,steel_ingot_0:1|bolt_box_0:1,clamp_0:2,10,workbench_0,metalworking,1,Forge adjustable workpiece clamps
+craft_file,Craft Metal File,crafting,steel_ingot_0:1,file_metal_0:1,10,forge_0,metalworking,2,Cut abrasive grooves into a steel bar
+craft_bolt_cutter,Craft Bolt Cutter,crafting,steel_ingot_0:2|bolt_box_0:1,bolt_cutter_0:1,15,forge_0,metalworking,3,Forge heavy shearing jaws
+craft_pipe_wrench,Craft Pipe Wrench,crafting,steel_ingot_0:2,pipe_wrench_0:1,12,forge_0,metalworking,2,Forge a serrated-jaw wrench
+craft_pruning_shears,Craft Pruning Shears,crafting,steel_ingot_0:1,pruning_shears_0:1,10,forge_0,metalworking,2,Forge spring-loaded branch cutters
 #
 # === WEAPON CRAFTING ===
-craft_knife_combat,Craft Combat Knife,crafting,steel_ingot_0:1|leather_hide_0:1,knife_combat_0:1,15,forge_0,smithing,2,Forge a fixed-blade fighting knife
-craft_sword,Craft Sword,crafting,steel_ingot_0:3|leather_hide_0:1,sword_0:1,30,forge_0,smithing,4,Forge and temper a steel sword
-craft_spear,Craft Spear,crafting,steel_ingot_0:1|wood_plank_0:2,spear_0:1,12,forge_0,smithing,2,Forge a spearhead and mount on shaft
-craft_mace,Craft Mace,crafting,steel_ingot_0:2|wood_plank_0:1,mace_0:1,20,forge_0,smithing,3,Forge a flanged striking head
-craft_bow_recurve,Craft Recurve Bow,crafting,wood_plank_0:3|rope_0:1,bow_recurve_0:1,20,workbench_0,crafting,2,Laminate and string a curved bow
-craft_bow_compound,Craft Compound Bow,crafting,aluminum_ingot_0:2|rope_0:1|bolt_box_0:1,bow_compound_0:1,30,workbench_0,crafting,4,Assemble a cam-levered bow
-craft_crossbow,Craft Crossbow,crafting,steel_ingot_0:2|wood_plank_0:2|rope_0:1,crossbow_0:1,30,workbench_0,crafting,3,Assemble a trigger-release crossbow
-craft_sling,Craft Sling,crafting,leather_hide_0:1|rope_0:1,sling_0:1,5,,crafting,1,Cut and tie a leather sling pouch
-craft_staff,Craft Staff,crafting,wood_plank_0:3,staff_0:1,8,,crafting,1,Carve and smooth a hardwood staff
-craft_shield_round,Craft Round Shield,crafting,steel_ingot_0:2|leather_hide_0:1,shield_round_0:1,25,forge_0,smithing,3,Hammer and rivet a circular shield
-craft_shield_tower,Craft Tower Shield,crafting,steel_ingot_0:4|leather_hide_0:2,shield_tower_0:1,40,forge_0,smithing,4,Construct a full-body standing shield
-craft_arrow,Craft Arrows,crafting,wood_plank_0:1|iron_ingot_0:1,arrow_0:20,10,workbench_0,crafting,1,Whittle shafts and forge broadheads
-craft_bolt_crossbow,Craft Crossbow Bolts,crafting,wood_plank_0:1|steel_ingot_0:1,bolt_crossbow_0:15,10,workbench_0,crafting,2,Forge short heavy bolts
-craft_quiver,Craft Quiver,crafting,leather_hide_0:2,quiver_0:1,10,workbench_0,crafting,1,Stitch a back-mounted arrow holder
-craft_holster,Craft Gun Holster,crafting,leather_hide_0:2,gun_holster_0:1,10,workbench_0,crafting,2,Stitch a belt-mounted holster
-craft_ammo_pouch,Craft Ammo Pouch,crafting,cloth_bolt_0:1|leather_hide_0:1,ammo_pouch_0:1,8,workbench_0,crafting,1,Sew a belt cartridge carrier
+craft_knife_combat,Craft Combat Knife,crafting,steel_ingot_0:1|leather_hide_0:1,knife_combat_0:1,15,forge_0,metalworking,2,Forge a fixed-blade fighting knife
+craft_sword,Craft Sword,crafting,steel_ingot_0:3|leather_hide_0:1,sword_0:1,30,forge_0,metalworking,4,Forge and temper a steel sword
+craft_spear,Craft Spear,crafting,steel_ingot_0:1|wood_plank_0:2,spear_0:1,12,forge_0,metalworking,2,Forge a spearhead and mount on shaft
+craft_mace,Craft Mace,crafting,steel_ingot_0:2|wood_plank_0:1,mace_0:1,20,forge_0,metalworking,3,Forge a flanged striking head
+craft_bow_recurve,Craft Recurve Bow,crafting,wood_plank_0:3|rope_0:1,bow_recurve_0:1,20,workbench_0,woodworking,2,Laminate and string a curved bow
+craft_bow_compound,Craft Compound Bow,crafting,aluminum_ingot_0:2|rope_0:1|bolt_box_0:1,bow_compound_0:1,30,workbench_0,woodworking,4,Assemble a cam-levered bow
+craft_crossbow,Craft Crossbow,crafting,steel_ingot_0:2|wood_plank_0:2|rope_0:1,crossbow_0:1,30,workbench_0,woodworking,3,Assemble a trigger-release crossbow
+craft_sling,Craft Sling,crafting,leather_hide_0:1|rope_0:1,sling_0:1,5,,woodworking,1,Cut and tie a leather sling pouch
+craft_staff,Craft Staff,crafting,wood_plank_0:3,staff_0:1,8,,woodworking,1,Carve and smooth a hardwood staff
+craft_shield_round,Craft Round Shield,crafting,steel_ingot_0:2|leather_hide_0:1,shield_round_0:1,25,forge_0,metalworking,3,Hammer and rivet a circular shield
+craft_shield_tower,Craft Tower Shield,crafting,steel_ingot_0:4|leather_hide_0:2,shield_tower_0:1,40,forge_0,metalworking,4,Construct a full-body standing shield
+craft_arrow,Craft Arrows,crafting,wood_plank_0:1|iron_ingot_0:1,arrow_0:20,10,workbench_0,woodworking,1,Whittle shafts and forge broadheads
+craft_bolt_crossbow,Craft Crossbow Bolts,crafting,wood_plank_0:1|steel_ingot_0:1,bolt_crossbow_0:15,10,workbench_0,woodworking,2,Forge short heavy bolts
+craft_quiver,Craft Quiver,crafting,leather_hide_0:2,quiver_0:1,10,workbench_0,woodworking,1,Stitch a back-mounted arrow holder
+craft_holster,Craft Gun Holster,crafting,leather_hide_0:2,gun_holster_0:1,10,workbench_0,woodworking,2,Stitch a belt-mounted holster
+craft_ammo_pouch,Craft Ammo Pouch,crafting,cloth_bolt_0:1|leather_hide_0:1,ammo_pouch_0:1,8,workbench_0,woodworking,1,Sew a belt cartridge carrier
 #
 # === FURNITURE CONSTRUCTION ===
-build_chair,Build Chair,construction,wood_plank_0:4|nail_box_0:1,chair_0:1,15,workbench_0,construction,1,Assemble a four-leg wooden chair
-build_table_dining,Build Dining Table,construction,wood_plank_0:8|nail_box_0:2,table_dining_0:1,30,workbench_0,construction,2,Assemble a six-seat table
-build_table_work,Build Work Table,construction,wood_plank_0:6|nail_box_0:2|bolt_box_0:1,table_work_0:1,25,workbench_0,construction,2,Assemble a reinforced work table
-build_desk,Build Desk,construction,wood_plank_0:6|nail_box_0:2,desk_0:1,25,workbench_0,construction,2,Assemble a writing desk
-build_bed_single,Build Single Bed,construction,wood_plank_0:8|nail_box_0:2|cloth_bolt_0:2,bed_single_0:1,30,workbench_0,construction,2,Assemble a single sleeping frame
-build_bed_double,Build Double Bed,construction,wood_plank_0:12|nail_box_0:3|cloth_bolt_0:4,bed_double_0:1,45,workbench_0,construction,3,Assemble a double sleeping frame
-build_bunk_bed,Build Bunk Bed,construction,wood_plank_0:10|nail_box_0:3|bolt_box_0:2,bunk_bed_0:1,40,workbench_0,construction,3,Assemble a stacked two-tier bed
-build_shelf,Build Shelf,construction,wood_plank_0:2|nail_box_0:1,shelf_0:1,8,workbench_0,construction,1,Mount a wall shelf with brackets
-build_bookcase,Build Bookcase,construction,wood_plank_0:6|nail_box_0:2,bookcase_0:1,20,workbench_0,construction,2,Assemble a multi-shelf bookcase
-build_cabinet,Build Cabinet,construction,wood_plank_0:8|nail_box_0:2,cabinet_0:1,25,workbench_0,construction,2,Assemble an enclosed shelf cabinet
-build_wardrobe,Build Wardrobe,construction,wood_plank_0:10|nail_box_0:3,wardrobe_0:1,35,workbench_0,construction,3,Assemble a full-height wardrobe
-build_dresser,Build Dresser,construction,wood_plank_0:8|nail_box_0:2,dresser_0:1,30,workbench_0,construction,2,Assemble a multi-drawer dresser
-build_nightstand,Build Nightstand,construction,wood_plank_0:3|nail_box_0:1,nightstand_0:1,12,workbench_0,construction,1,Assemble a bedside table
-build_couch,Build Couch,construction,wood_plank_0:8|cloth_bolt_0:4|nail_box_0:2,couch_0:1,40,workbench_0,construction,3,Upholster a three-seat sofa frame
-build_bench,Build Bench,construction,wood_plank_0:4|nail_box_0:1,bench_0:1,12,workbench_0,construction,1,Assemble a backless long seat
-build_stool,Build Stool,construction,wood_plank_0:2|nail_box_0:1,stool_0:1,8,workbench_0,construction,1,Assemble a simple round stool
-build_door,Build Door,construction,wood_plank_0:4|nail_box_0:1,door_wood_0:1,15,workbench_0,construction,1,Assemble a hinged wood door
-build_window,Build Window Frame,construction,wood_plank_0:3|glass_pane_0:1,window_frame_0:1,15,workbench_0,construction,2,Frame glass into a window
-build_hammock,Craft Hammock,construction,cloth_bolt_0:3|rope_0:2,hammock_0:1,10,,crafting,1,Sew and tie a fabric hammock
-build_rug,Weave Rug,textile,cloth_bolt_0:4,rug_0:1,20,loom_0,textile,2,Weave a decorative floor covering
-build_curtain,Sew Curtain,textile,cloth_bolt_0:2,curtain_0:2,10,sewing_machine_0,textile,1,Stitch window covering drapes
-build_chest,Build Chest,construction,wood_plank_0:6|nail_box_0:2,chest_wood_0:1,20,workbench_0,construction,2,Assemble a lidded storage chest
-build_crate,Build Crate,construction,wood_plank_0:4|nail_box_0:1,crate_0:2,10,workbench_0,construction,1,Nail together a shipping crate
-build_barrel,Build Barrel,construction,wood_plank_0:6|steel_ingot_0:1,barrel_0:1,20,workbench_0,construction,2,Cooperage of a staved barrel
-build_picture_frame,Craft Picture Frame,construction,wood_plank_0:1|glass_pane_0:1,picture_frame_0:2,8,workbench_0,crafting,1,Assemble a simple picture frame
+build_chair,Build Chair,construction,wood_plank_0:4|nail_box_0:1,chair_0:1,15,workbench_0,shelter_building,1,Assemble a four-leg wooden chair
+build_table_dining,Build Dining Table,construction,wood_plank_0:8|nail_box_0:2,table_dining_0:1,30,workbench_0,shelter_building,2,Assemble a six-seat table
+build_table_work,Build Work Table,construction,wood_plank_0:6|nail_box_0:2|bolt_box_0:1,table_work_0:1,25,workbench_0,shelter_building,2,Assemble a reinforced work table
+build_desk,Build Desk,construction,wood_plank_0:6|nail_box_0:2,desk_0:1,25,workbench_0,shelter_building,2,Assemble a writing desk
+build_bed_single,Build Single Bed,construction,wood_plank_0:8|nail_box_0:2|cloth_bolt_0:2,bed_single_0:1,30,workbench_0,shelter_building,2,Assemble a single sleeping frame
+build_bed_double,Build Double Bed,construction,wood_plank_0:12|nail_box_0:3|cloth_bolt_0:4,bed_double_0:1,45,workbench_0,shelter_building,3,Assemble a double sleeping frame
+build_bunk_bed,Build Bunk Bed,construction,wood_plank_0:10|nail_box_0:3|bolt_box_0:2,bunk_bed_0:1,40,workbench_0,shelter_building,3,Assemble a stacked two-tier bed
+build_shelf,Build Shelf,construction,wood_plank_0:2|nail_box_0:1,shelf_0:1,8,workbench_0,shelter_building,1,Mount a wall shelf with brackets
+build_bookcase,Build Bookcase,construction,wood_plank_0:6|nail_box_0:2,bookcase_0:1,20,workbench_0,shelter_building,2,Assemble a multi-shelf bookcase
+build_cabinet,Build Cabinet,construction,wood_plank_0:8|nail_box_0:2,cabinet_0:1,25,workbench_0,shelter_building,2,Assemble an enclosed shelf cabinet
+build_wardrobe,Build Wardrobe,construction,wood_plank_0:10|nail_box_0:3,wardrobe_0:1,35,workbench_0,shelter_building,3,Assemble a full-height wardrobe
+build_dresser,Build Dresser,construction,wood_plank_0:8|nail_box_0:2,dresser_0:1,30,workbench_0,shelter_building,2,Assemble a multi-drawer dresser
+build_nightstand,Build Nightstand,construction,wood_plank_0:3|nail_box_0:1,nightstand_0:1,12,workbench_0,shelter_building,1,Assemble a bedside table
+build_couch,Build Couch,construction,wood_plank_0:8|cloth_bolt_0:4|nail_box_0:2,couch_0:1,40,workbench_0,shelter_building,3,Upholster a three-seat sofa frame
+build_bench,Build Bench,construction,wood_plank_0:4|nail_box_0:1,bench_0:1,12,workbench_0,shelter_building,1,Assemble a backless long seat
+build_stool,Build Stool,construction,wood_plank_0:2|nail_box_0:1,stool_0:1,8,workbench_0,shelter_building,1,Assemble a simple round stool
+build_door,Build Door,construction,wood_plank_0:4|nail_box_0:1,door_wood_0:1,15,workbench_0,shelter_building,1,Assemble a hinged wood door
+build_window,Build Window Frame,construction,wood_plank_0:3|glass_pane_0:1,window_frame_0:1,15,workbench_0,shelter_building,2,Frame glass into a window
+build_hammock,Craft Hammock,construction,cloth_bolt_0:3|rope_0:2,hammock_0:1,10,,shelter_building,1,Sew and tie a fabric hammock
+build_rug,Weave Rug,textile,cloth_bolt_0:4,rug_0:1,20,loom_0,tailoring,2,Weave a decorative floor covering
+build_curtain,Sew Curtain,textile,cloth_bolt_0:2,curtain_0:2,10,sewing_machine_0,tailoring,1,Stitch window covering drapes
+build_chest,Build Chest,construction,wood_plank_0:6|nail_box_0:2,chest_wood_0:1,20,workbench_0,shelter_building,2,Assemble a lidded storage chest
+build_crate,Build Crate,construction,wood_plank_0:4|nail_box_0:1,crate_0:2,10,workbench_0,shelter_building,1,Nail together a shipping crate
+build_barrel,Build Barrel,construction,wood_plank_0:6|steel_ingot_0:1,barrel_0:1,20,workbench_0,shelter_building,2,Cooperage of a staved barrel
+build_picture_frame,Craft Picture Frame,construction,wood_plank_0:1|glass_pane_0:1,picture_frame_0:2,8,workbench_0,shelter_building,1,Assemble a simple picture frame
 #
 # === COOKING ===
 cook_bread,Bake Bread,cooking,flour_0:2|water_purified_0:1|salt_food_0:1,bread_0:3,10,oven_0,cooking,1,Knead and bake wheat bread loaves
@@ -143,51 +143,51 @@ cook_honey,Harvest Honey,cooking,water_purified_0:1,honey_0:1,5,,farming,2,Colle
 cook_spice,Blend Spices,cooking,seed_wheat_0:2|salt_food_0:1,spice_mix_0:3,5,,cooking,1,Grind and mix seasoning blend
 #
 # === CLOTHING / TEXTILE ===
-sew_tshirt,Sew T-Shirt,textile,cloth_bolt_0:2,t_shirt_0:1,10,sewing_machine_0,textile,1,Cut and stitch a cotton t-shirt
-sew_long_sleeve,Sew Long Sleeve,textile,cloth_bolt_0:3,long_sleeve_0:1,12,sewing_machine_0,textile,1,Cut and stitch a long-sleeve shirt
-sew_hoodie,Sew Hoodie,textile,cloth_bolt_0:4|rope_0:1,hoodie_0:1,15,sewing_machine_0,textile,2,Construct a hooded sweatshirt
-sew_pants,Sew Pants,textile,cloth_bolt_0:3,pants_0:1,12,sewing_machine_0,textile,1,Cut and stitch full-length trousers
-sew_shorts,Sew Shorts,textile,cloth_bolt_0:2,shorts_0:1,8,sewing_machine_0,textile,1,Cut and stitch knee-length shorts
-sew_dress,Sew Dress,textile,cloth_bolt_0:3,dress_0:1,15,sewing_machine_0,textile,2,Pattern and stitch a one-piece dress
-sew_overalls,Sew Overalls,textile,cloth_bolt_0:4|bolt_box_0:1,overalls_0:1,18,sewing_machine_0,textile,2,Construct bib-and-brace overalls
-sew_underwear,Sew Underwear,textile,cloth_bolt_0:1,underwear_0:3,5,sewing_machine_0,textile,1,Cut and stitch basic undergarments
-sew_socks,Sew Socks,textile,cloth_bolt_0:1,socks_0:4,5,sewing_machine_0,textile,1,Knit ankle-height foot coverings
-sew_backpack_small,Sew Small Backpack,textile,cloth_bolt_0:3|rope_0:1,backpack_small_0:1,15,sewing_machine_0,textile,2,Construct a 20L day rucksack
-sew_backpack_large,Sew Large Backpack,textile,cloth_bolt_0:5|rope_0:2|bolt_box_0:1,backpack_large_0:1,25,sewing_machine_0,textile,3,Construct a 60L expedition rucksack
-sew_apron,Sew Apron,textile,cloth_bolt_0:2,apron_0:1,8,sewing_machine_0,textile,1,Stitch a front-body work apron
-sew_scarf,Sew Scarf,textile,cloth_bolt_0:1,scarf_0:2,5,sewing_machine_0,textile,1,Cut and hem a neck wrap
-sew_vest,Sew Vest,textile,cloth_bolt_0:2,vest_0:1,8,sewing_machine_0,textile,1,Cut and stitch a sleeveless top
-sew_skirt,Sew Skirt,textile,cloth_bolt_0:2,skirt_0:1,8,sewing_machine_0,textile,1,Pattern and stitch a simple skirt
-sew_jumpsuit,Sew Jumpsuit,textile,cloth_bolt_0:5,jumpsuit_0:1,20,sewing_machine_0,textile,2,Construct a one-piece utility suit
-sew_coveralls,Sew Coveralls,textile,cloth_bolt_0:4,coveralls_0:1,18,sewing_machine_0,textile,2,Stitch full-body mechanic coveralls
-sew_poncho,Sew Poncho,textile,cloth_bolt_0:2|rubber_sheet_0:1,poncho_0:1,10,sewing_machine_0,textile,1,Waterproof a sleeveless rain cover
-sew_hat_beanie,Knit Beanie,textile,cloth_bolt_0:1,hat_beanie_0:2,5,sewing_machine_0,textile,1,Knit a cold-weather cap
-sew_gloves_work,Sew Work Gloves,textile,leather_hide_0:1,gloves_work_0:1,10,sewing_machine_0,textile,2,Cut and stitch reinforced gloves
-sew_gloves_winter,Sew Winter Gloves,textile,cloth_bolt_0:1|leather_hide_0:1,gloves_winter_0:1,10,sewing_machine_0,textile,2,Insulate and stitch warm gloves
-sew_belt,Craft Belt,textile,leather_hide_0:1,belt_0:2,8,workbench_0,crafting,1,Cut and buckle a leather belt
-craft_boots_work,Craft Work Boots,textile,leather_hide_0:2|rubber_sheet_0:1|steel_ingot_0:1,boots_work_0:1,25,workbench_0,crafting,3,Cobble steel-toe protective boots
-craft_boots_hiking,Craft Hiking Boots,textile,leather_hide_0:2|rubber_sheet_0:1,boots_hiking_0:1,20,workbench_0,crafting,2,Cobble ankle-support trail boots
-craft_shoes,Craft Casual Shoes,textile,leather_hide_0:1|rubber_sheet_0:1,shoes_casual_0:1,15,workbench_0,crafting,2,Cobble everyday walking shoes
-craft_sandals,Craft Sandals,textile,rubber_sheet_0:1|rope_0:1,sandals_0:1,8,,crafting,1,Shape rubber sole open-toe footwear
-sew_raincoat,Sew Raincoat,textile,cloth_bolt_0:2|rubber_sheet_0:2,raincoat_0:1,15,sewing_machine_0,textile,2,Laminate waterproof full-length coat
-sew_wetsuit,Sew Wetsuit,textile,rubber_sheet_0:4|cloth_bolt_0:1,wetsuit_0:1,25,sewing_machine_0,textile,3,Construct a neoprene thermal suit
-craft_helmet_hard,Mold Hard Hat,crafting,plastic_sheet_0:2,helmet_hard_0:1,10,workbench_0,crafting,2,Thermoform an impact safety helmet
-craft_goggles,Craft Safety Goggles,crafting,plastic_sheet_0:1|rubber_sheet_0:1,goggles_safety_0:1,8,workbench_0,crafting,1,Mold splash-proof eye guards
-craft_hat_baseball,Sew Baseball Cap,textile,cloth_bolt_0:1,hat_baseball_0:2,5,sewing_machine_0,textile,1,Stitch a brimmed casual cap
+sew_tshirt,Sew T-Shirt,textile,cloth_bolt_0:2,t_shirt_0:1,10,sewing_machine_0,tailoring,1,Cut and stitch a cotton t-shirt
+sew_long_sleeve,Sew Long Sleeve,textile,cloth_bolt_0:3,long_sleeve_0:1,12,sewing_machine_0,tailoring,1,Cut and stitch a long-sleeve shirt
+sew_hoodie,Sew Hoodie,textile,cloth_bolt_0:4|rope_0:1,hoodie_0:1,15,sewing_machine_0,tailoring,2,Construct a hooded sweatshirt
+sew_pants,Sew Pants,textile,cloth_bolt_0:3,pants_0:1,12,sewing_machine_0,tailoring,1,Cut and stitch full-length trousers
+sew_shorts,Sew Shorts,textile,cloth_bolt_0:2,shorts_0:1,8,sewing_machine_0,tailoring,1,Cut and stitch knee-length shorts
+sew_dress,Sew Dress,textile,cloth_bolt_0:3,dress_0:1,15,sewing_machine_0,tailoring,2,Pattern and stitch a one-piece dress
+sew_overalls,Sew Overalls,textile,cloth_bolt_0:4|bolt_box_0:1,overalls_0:1,18,sewing_machine_0,tailoring,2,Construct bib-and-brace overalls
+sew_underwear,Sew Underwear,textile,cloth_bolt_0:1,underwear_0:3,5,sewing_machine_0,tailoring,1,Cut and stitch basic undergarments
+sew_socks,Sew Socks,textile,cloth_bolt_0:1,socks_0:4,5,sewing_machine_0,tailoring,1,Knit ankle-height foot coverings
+sew_backpack_small,Sew Small Backpack,textile,cloth_bolt_0:3|rope_0:1,backpack_small_0:1,15,sewing_machine_0,tailoring,2,Construct a 20L day rucksack
+sew_backpack_large,Sew Large Backpack,textile,cloth_bolt_0:5|rope_0:2|bolt_box_0:1,backpack_large_0:1,25,sewing_machine_0,tailoring,3,Construct a 60L expedition rucksack
+sew_apron,Sew Apron,textile,cloth_bolt_0:2,apron_0:1,8,sewing_machine_0,tailoring,1,Stitch a front-body work apron
+sew_scarf,Sew Scarf,textile,cloth_bolt_0:1,scarf_0:2,5,sewing_machine_0,tailoring,1,Cut and hem a neck wrap
+sew_vest,Sew Vest,textile,cloth_bolt_0:2,vest_0:1,8,sewing_machine_0,tailoring,1,Cut and stitch a sleeveless top
+sew_skirt,Sew Skirt,textile,cloth_bolt_0:2,skirt_0:1,8,sewing_machine_0,tailoring,1,Pattern and stitch a simple skirt
+sew_jumpsuit,Sew Jumpsuit,textile,cloth_bolt_0:5,jumpsuit_0:1,20,sewing_machine_0,tailoring,2,Construct a one-piece utility suit
+sew_coveralls,Sew Coveralls,textile,cloth_bolt_0:4,coveralls_0:1,18,sewing_machine_0,tailoring,2,Stitch full-body mechanic coveralls
+sew_poncho,Sew Poncho,textile,cloth_bolt_0:2|rubber_sheet_0:1,poncho_0:1,10,sewing_machine_0,tailoring,1,Waterproof a sleeveless rain cover
+sew_hat_beanie,Knit Beanie,textile,cloth_bolt_0:1,hat_beanie_0:2,5,sewing_machine_0,tailoring,1,Knit a cold-weather cap
+sew_gloves_work,Sew Work Gloves,textile,leather_hide_0:1,gloves_work_0:1,10,sewing_machine_0,tailoring,2,Cut and stitch reinforced gloves
+sew_gloves_winter,Sew Winter Gloves,textile,cloth_bolt_0:1|leather_hide_0:1,gloves_winter_0:1,10,sewing_machine_0,tailoring,2,Insulate and stitch warm gloves
+sew_belt,Craft Belt,textile,leather_hide_0:1,belt_0:2,8,workbench_0,tailoring,1,Cut and buckle a leather belt
+craft_boots_work,Craft Work Boots,textile,leather_hide_0:2|rubber_sheet_0:1|steel_ingot_0:1,boots_work_0:1,25,workbench_0,tailoring,3,Cobble steel-toe protective boots
+craft_boots_hiking,Craft Hiking Boots,textile,leather_hide_0:2|rubber_sheet_0:1,boots_hiking_0:1,20,workbench_0,tailoring,2,Cobble ankle-support trail boots
+craft_shoes,Craft Casual Shoes,textile,leather_hide_0:1|rubber_sheet_0:1,shoes_casual_0:1,15,workbench_0,tailoring,2,Cobble everyday walking shoes
+craft_sandals,Craft Sandals,textile,rubber_sheet_0:1|rope_0:1,sandals_0:1,8,,tailoring,1,Shape rubber sole open-toe footwear
+sew_raincoat,Sew Raincoat,textile,cloth_bolt_0:2|rubber_sheet_0:2,raincoat_0:1,15,sewing_machine_0,tailoring,2,Laminate waterproof full-length coat
+sew_wetsuit,Sew Wetsuit,textile,rubber_sheet_0:4|cloth_bolt_0:1,wetsuit_0:1,25,sewing_machine_0,tailoring,3,Construct a neoprene thermal suit
+craft_helmet_hard,Mold Hard Hat,crafting,plastic_sheet_0:2,helmet_hard_0:1,10,workbench_0,woodworking,2,Thermoform an impact safety helmet
+craft_goggles,Craft Safety Goggles,crafting,plastic_sheet_0:1|rubber_sheet_0:1,goggles_safety_0:1,8,workbench_0,woodworking,1,Mold splash-proof eye guards
+craft_hat_baseball,Sew Baseball Cap,textile,cloth_bolt_0:1,hat_baseball_0:2,5,sewing_machine_0,tailoring,1,Stitch a brimmed casual cap
 #
 # === BUILDING COMPONENTS ===
-craft_nails,Forge Nails,crafting,iron_ingot_0:1,nail_box_0:4,8,forge_0,smithing,1,Cut and point a box of wire nails
-craft_screws,Forge Screws,crafting,steel_ingot_0:1,screw_box_0:3,10,forge_0,smithing,2,Thread and slot steel screws
-craft_bolts,Forge Bolts,crafting,steel_ingot_0:1,bolt_box_0:2,10,forge_0,smithing,2,Thread and hex-head steel bolts
-craft_tape_duct,Make Duct Tape,crafting,cloth_bolt_0:1|rubber_sheet_0:1|glue_0:1,tape_duct_0:3,8,workbench_0,crafting,1,Laminate adhesive reinforced tape
+craft_nails,Forge Nails,crafting,iron_ingot_0:1,nail_box_0:4,8,forge_0,metalworking,1,Cut and point a box of wire nails
+craft_screws,Forge Screws,crafting,steel_ingot_0:1,screw_box_0:3,10,forge_0,metalworking,2,Thread and slot steel screws
+craft_bolts,Forge Bolts,crafting,steel_ingot_0:1,bolt_box_0:2,10,forge_0,metalworking,2,Thread and hex-head steel bolts
+craft_tape_duct,Make Duct Tape,crafting,cloth_bolt_0:1|rubber_sheet_0:1|glue_0:1,tape_duct_0:3,8,workbench_0,woodworking,1,Laminate adhesive reinforced tape
 craft_sandpaper,Make Sandpaper,crafting,sand_0:1|glue_0:1,sandpaper_0:10,5,workbench_0,,0,Bond grit to paper backing
 #
 # === ELECTRONICS ASSEMBLY ===
 assemble_circuit_board,Assemble Circuit Board,electronics,wire_0:3|copper_ingot_0:1|plastic_sheet_0:1,wire_0:1,20,electronics_bench_0,engineering,2,Etch and populate a printed circuit board
 assemble_battery_pack,Assemble Battery Pack,electronics,wire_0:2|copper_ingot_0:1|plastic_sheet_0:1,battery_pack_0:2,15,electronics_bench_0,engineering,2,Wire cells into a rechargeable pack
 assemble_solar_charger,Build Solar Charger,electronics,glass_pane_0:1|wire_0:2|plastic_sheet_0:1,solar_charger_0:1,20,electronics_bench_0,engineering,3,Wire a portable PV charging panel
-assemble_flashlight,Build Flashlight,electronics,aluminum_ingot_0:1|wire_0:1|glass_pane_0:1,flashlight_0:1,10,workbench_0,crafting,1,Assemble an LED handheld torch
-assemble_lantern,Build Lantern,electronics,steel_ingot_0:1|wire_0:1|glass_pane_0:1,lantern_0:1,12,workbench_0,crafting,1,Assemble a portable area light
+assemble_flashlight,Build Flashlight,electronics,aluminum_ingot_0:1|wire_0:1|glass_pane_0:1,flashlight_0:1,10,workbench_0,engineering,1,Assemble an LED handheld torch
+assemble_lantern,Build Lantern,electronics,steel_ingot_0:1|wire_0:1|glass_pane_0:1,lantern_0:1,12,workbench_0,engineering,1,Assemble a portable area light
 assemble_radio,Build Radio,electronics,wire_0:3|copper_ingot_0:1|plastic_sheet_0:2,radio_0:1,30,electronics_bench_0,engineering,3,Assemble a two-way transceiver
 assemble_walkie_talkie,Build Walkie Talkie,electronics,wire_0:2|copper_ingot_0:1|plastic_sheet_0:1,walkie_talkie_0:1,20,electronics_bench_0,engineering,2,Assemble a short-range voice radio
 assemble_multimeter,Build Multimeter,electronics,wire_0:2|copper_ingot_0:1|plastic_sheet_0:1,multimeter_0:1,15,electronics_bench_0,engineering,2,Assemble an electrical test meter
@@ -200,16 +200,16 @@ assemble_geiger,Build Geiger Counter,electronics,wire_0:2|aluminum_ingot_0:1|pla
 assemble_water_tester,Build Water Tester,electronics,wire_0:1|plastic_sheet_0:1,water_tester_0:1,10,electronics_bench_0,engineering,1,Assemble a water quality probe
 #
 # === MACHINE ASSEMBLY ===
-build_workbench,Build Workbench,assembly,wood_plank_0:8|bolt_box_0:2|steel_ingot_0:2,workbench_0:1,30,,construction,2,Assemble a general crafting station
-build_forge,Build Forge,assembly,stone_brick_0:10|iron_ingot_0:4|coal_0:5,forge_0:1,60,,construction,3,Construct a metal-heating furnace
-build_smelter,Build Smelter,assembly,stone_brick_0:8|iron_ingot_0:3|coal_0:3,smelter_0:1,50,,construction,3,Construct an ore-melting furnace
-build_kiln,Build Kiln,assembly,stone_brick_0:12|clay_raw_0:4,kiln_0:1,60,,construction,3,Construct a high-temperature kiln
-build_anvil_station,Build Anvil Station,assembly,anvil_0:1|wood_plank_0:4|bolt_box_0:1,anvil_station_0:1,20,workbench_0,construction,2,Mount anvil on a stable platform
-build_electronics_bench,Build Electronics Bench,assembly,wood_plank_0:6|wire_0:5|nail_box_0:2,electronics_bench_0:1,25,workbench_0,construction,2,Set up a circuit assembly station
+build_workbench,Build Workbench,assembly,wood_plank_0:8|bolt_box_0:2|steel_ingot_0:2,workbench_0:1,30,,shelter_building,2,Assemble a general crafting station
+build_forge,Build Forge,assembly,stone_brick_0:10|iron_ingot_0:4|coal_0:5,forge_0:1,60,,shelter_building,3,Construct a metal-heating furnace
+build_smelter,Build Smelter,assembly,stone_brick_0:8|iron_ingot_0:3|coal_0:3,smelter_0:1,50,,shelter_building,3,Construct an ore-melting furnace
+build_kiln,Build Kiln,assembly,stone_brick_0:12|clay_raw_0:4,kiln_0:1,60,,shelter_building,3,Construct a high-temperature kiln
+build_anvil_station,Build Anvil Station,assembly,anvil_0:1|wood_plank_0:4|bolt_box_0:1,anvil_station_0:1,20,workbench_0,shelter_building,2,Mount anvil on a stable platform
+build_electronics_bench,Build Electronics Bench,assembly,wood_plank_0:6|wire_0:5|nail_box_0:2,electronics_bench_0:1,25,workbench_0,shelter_building,2,Set up a circuit assembly station
 build_sewing_machine,Build Sewing Machine,assembly,steel_ingot_0:3|wire_0:2|wood_plank_0:2,sewing_machine_0:1,30,workbench_0,engineering,2,Assemble an electric sewing machine
-build_loom,Build Loom,assembly,wood_plank_0:10|rope_0:3|nail_box_0:2,loom_0:1,40,workbench_0,construction,2,Assemble a frame-based loom
-build_stove,Build Stove,assembly,steel_ingot_0:4|wire_0:2|copper_ingot_0:1,stove_0:1,30,workbench_0,construction,2,Assemble a four-burner range
-build_oven,Build Oven,assembly,steel_ingot_0:5|stone_brick_0:4|wire_0:2,oven_0:1,40,workbench_0,construction,3,Construct an enclosed baking oven
+build_loom,Build Loom,assembly,wood_plank_0:10|rope_0:3|nail_box_0:2,loom_0:1,40,workbench_0,shelter_building,2,Assemble a frame-based loom
+build_stove,Build Stove,assembly,steel_ingot_0:4|wire_0:2|copper_ingot_0:1,stove_0:1,30,workbench_0,shelter_building,2,Assemble a four-burner range
+build_oven,Build Oven,assembly,steel_ingot_0:5|stone_brick_0:4|wire_0:2,oven_0:1,40,workbench_0,shelter_building,3,Construct an enclosed baking oven
 build_fridge,Build Fridge,assembly,steel_ingot_0:4|wire_0:3|copper_ingot_0:2|rubber_sheet_0:1,fridge_0:1,50,workbench_0,engineering,3,Assemble a refrigerated storage unit
 build_generator,Build Portable Generator,assembly,steel_ingot_0:5|copper_ingot_0:3|wire_0:4|rubber_sheet_0:1,generator_portable_0:1,60,workbench_0,engineering,4,Assemble a 2kW gasoline generator
 build_solar_panel,Build Solar Panel,assembly,glass_pane_0:4|wire_0:3|aluminum_ingot_0:2,solar_panel_0:1,40,electronics_bench_0,engineering,3,Assemble a photovoltaic panel
@@ -220,65 +220,65 @@ build_heater,Build Heater,assembly,steel_ingot_0:2|wire_0:3|copper_ingot_0:1,hea
 build_cooler,Build Cooler,assembly,aluminum_ingot_0:2|wire_0:2|copper_ingot_0:1,cooler_0:1,20,workbench_0,engineering,2,Assemble an evaporative cooler
 build_washing_machine,Build Washing Machine,assembly,steel_ingot_0:4|wire_0:3|rubber_sheet_0:2,washing_machine_0:1,50,workbench_0,engineering,3,Assemble an automatic laundry washer
 build_sawmill,Build Sawmill,assembly,steel_ingot_0:5|wood_plank_0:6|bolt_box_0:3|wire_0:2,sawmill_0:1,60,workbench_0,engineering,3,Construct a powered lumber cutting station
-build_grain_mill,Build Grain Mill,assembly,stone_raw_0:4|wood_plank_0:4|bolt_box_0:2,grain_mill_0:1,40,workbench_0,construction,2,Construct a seed-to-flour grinding mill
+build_grain_mill,Build Grain Mill,assembly,stone_raw_0:4|wood_plank_0:4|bolt_box_0:2,grain_mill_0:1,40,workbench_0,shelter_building,2,Construct a seed-to-flour grinding mill
 build_fuel_refinery,Build Fuel Refinery,assembly,steel_ingot_0:10|copper_ingot_0:3|wire_0:5|rubber_sheet_0:2,fuel_refinery_0:1,90,workbench_0,engineering,5,Construct a crude oil distillation unit
 build_battery_bank,Build Battery Bank,assembly,steel_ingot_0:4|wire_0:6|copper_ingot_0:3|battery_pack_0:5,battery_bank_0:1,60,electronics_bench_0,engineering,4,Wire a large-scale energy storage array
 build_3d_printer,Build 3D Printer,assembly,steel_ingot_0:3|wire_0:4|plastic_sheet_0:3|aluminum_ingot_0:1,printer_3d_0:1,50,electronics_bench_0,engineering,4,Assemble an additive manufacturing device
 build_microscope,Build Microscope,assembly,glass_pane_0:2|steel_ingot_0:1|aluminum_ingot_0:1,microscope_0:1,25,electronics_bench_0,engineering,3,Assemble an optical magnification instrument
 build_telescope,Build Telescope,assembly,glass_pane_0:3|aluminum_ingot_0:2|steel_ingot_0:1,telescope_0:1,30,workbench_0,engineering,3,Assemble a celestial observation instrument
 build_chemistry_set,Build Chemistry Set,assembly,glass_pane_0:4|rubber_sheet_0:1|steel_ingot_0:1,chemistry_set_0:1,20,workbench_0,engineering,2,Assemble laboratory reaction apparatus
-build_composter,Build Composter,assembly,wood_plank_0:6|nail_box_0:2,composter_0:1,15,workbench_0,construction,1,Construct an organic waste bin
-build_greenhouse,Build Greenhouse,assembly,glass_pane_0:8|wood_plank_0:8|nail_box_0:3,greenhouse_0:1,60,workbench_0,construction,3,Construct a climate-controlled enclosure
+build_composter,Build Composter,assembly,wood_plank_0:6|nail_box_0:2,composter_0:1,15,workbench_0,shelter_building,1,Construct an organic waste bin
+build_greenhouse,Build Greenhouse,assembly,glass_pane_0:8|wood_plank_0:8|nail_box_0:3,greenhouse_0:1,60,workbench_0,shelter_building,3,Construct a climate-controlled enclosure
 build_irrigation,Build Irrigation System,assembly,plastic_sheet_0:5|rubber_sheet_0:2|wire_0:2,irrigation_system_0:1,30,workbench_0,engineering,2,Assemble an automated watering network
 build_air_filter,Build Air Filter Unit,assembly,steel_ingot_0:2|cloth_bolt_0:2|wire_0:2,air_filter_unit_0:1,20,workbench_0,engineering,2,Construct a powered air purifier
 #
 # === CONTAINER CRAFTING ===
-craft_toolbox,Build Toolbox,crafting,steel_ingot_0:2,toolbox_0:1,10,workbench_0,smithing,1,Weld a portable compartmented case
-craft_locker,Build Locker,crafting,steel_ingot_0:3|bolt_box_0:1,locker_0:1,20,workbench_0,construction,2,Assemble a vertical locking cabinet
-craft_safe,Build Safe,crafting,steel_ingot_0:6|bolt_box_0:2,safe_0:1,40,forge_0,smithing,4,Forge an armored valuables vault
-craft_fuel_drum,Make Fuel Drum,crafting,steel_ingot_0:3,fuel_drum_0:1,15,forge_0,smithing,2,Roll and weld a 200L drum
-craft_water_tank,Make Water Tank,crafting,plastic_sheet_0:4|bolt_box_0:1,water_tank_0:1,15,workbench_0,construction,2,Mold a potable water cistern
-craft_ammo_crate,Build Ammo Crate,crafting,wood_plank_0:4|nail_box_0:1,ammo_crate_0:2,10,workbench_0,construction,1,Nail together sealed ammo shipping boxes
+craft_toolbox,Build Toolbox,crafting,steel_ingot_0:2,toolbox_0:1,10,workbench_0,metalworking,1,Weld a portable compartmented case
+craft_locker,Build Locker,crafting,steel_ingot_0:3|bolt_box_0:1,locker_0:1,20,workbench_0,shelter_building,2,Assemble a vertical locking cabinet
+craft_safe,Build Safe,crafting,steel_ingot_0:6|bolt_box_0:2,safe_0:1,40,forge_0,metalworking,4,Forge an armored valuables vault
+craft_fuel_drum,Make Fuel Drum,crafting,steel_ingot_0:3,fuel_drum_0:1,15,forge_0,metalworking,2,Roll and weld a 200L drum
+craft_water_tank,Make Water Tank,crafting,plastic_sheet_0:4|bolt_box_0:1,water_tank_0:1,15,workbench_0,shelter_building,2,Mold a potable water cistern
+craft_ammo_crate,Build Ammo Crate,crafting,wood_plank_0:4|nail_box_0:1,ammo_crate_0:2,10,workbench_0,shelter_building,1,Nail together sealed ammo shipping boxes
 #
 # === VEHICLE ASSEMBLY ===
 build_bicycle,Build Bicycle,assembly,steel_ingot_0:3|rubber_sheet_0:2|wire_0:1,bicycle_0:1,30,workbench_0,engineering,2,Assemble a two-wheel pedal vehicle
-build_hand_cart,Build Hand Cart,assembly,steel_ingot_0:2|wood_plank_0:4|rubber_sheet_0:1,cart_hand_0:1,20,workbench_0,construction,1,Assemble a two-wheel push cart
-build_horse_cart,Build Horse Cart,assembly,wood_plank_0:12|steel_ingot_0:4|rope_0:3,cart_horse_0:1,60,workbench_0,construction,3,Construct a four-wheel wagon
-build_sled,Build Sled,assembly,wood_plank_0:4|rope_0:1,sled_0:1,10,workbench_0,construction,1,Assemble a snow-surface sled
-build_raft,Build Raft,assembly,wood_log_0:6|rope_0:4,raft_0:1,20,,construction,1,Lash together a simple floating platform
-build_canoe,Build Canoe,assembly,wood_plank_0:8|rope_0:2|rubber_sheet_0:1,canoe_0:1,40,workbench_0,construction,3,Hollow and seal a narrow paddle boat
-build_rowboat,Build Rowboat,assembly,wood_plank_0:10|nail_box_0:3|rubber_sheet_0:2,boat_rowboat_0:1,50,workbench_0,construction,3,Plank and seal a small rowboat hull
-build_sailboat,Build Sailboat,assembly,wood_plank_0:20|cloth_bolt_0:6|rope_0:5|nail_box_0:5,boat_sailboat_0:1,120,workbench_0,construction,4,Construct a wind-powered sailing vessel
-build_wheelbarrow,Build Wheelbarrow,assembly,steel_ingot_0:2|wood_plank_0:3|rubber_sheet_0:1,wheelbarrow_0:1,15,workbench_0,construction,1,Assemble a single-wheel hand cart
-build_ladder,Build Ladder,assembly,aluminum_ingot_0:2|bolt_box_0:1,ladder_0:1,15,workbench_0,construction,1,Assemble a folding step ladder
+build_hand_cart,Build Hand Cart,assembly,steel_ingot_0:2|wood_plank_0:4|rubber_sheet_0:1,cart_hand_0:1,20,workbench_0,shelter_building,1,Assemble a two-wheel push cart
+build_horse_cart,Build Horse Cart,assembly,wood_plank_0:12|steel_ingot_0:4|rope_0:3,cart_horse_0:1,60,workbench_0,shelter_building,3,Construct a four-wheel wagon
+build_sled,Build Sled,assembly,wood_plank_0:4|rope_0:1,sled_0:1,10,workbench_0,shelter_building,1,Assemble a snow-surface sled
+build_raft,Build Raft,assembly,wood_log_0:6|rope_0:4,raft_0:1,20,,shelter_building,1,Lash together a simple floating platform
+build_canoe,Build Canoe,assembly,wood_plank_0:8|rope_0:2|rubber_sheet_0:1,canoe_0:1,40,workbench_0,shelter_building,3,Hollow and seal a narrow paddle boat
+build_rowboat,Build Rowboat,assembly,wood_plank_0:10|nail_box_0:3|rubber_sheet_0:2,boat_rowboat_0:1,50,workbench_0,shelter_building,3,Plank and seal a small rowboat hull
+build_sailboat,Build Sailboat,assembly,wood_plank_0:20|cloth_bolt_0:6|rope_0:5|nail_box_0:5,boat_sailboat_0:1,120,workbench_0,shelter_building,4,Construct a wind-powered sailing vessel
+build_wheelbarrow,Build Wheelbarrow,assembly,steel_ingot_0:2|wood_plank_0:3|rubber_sheet_0:1,wheelbarrow_0:1,15,workbench_0,shelter_building,1,Assemble a single-wheel hand cart
+build_ladder,Build Ladder,assembly,aluminum_ingot_0:2|bolt_box_0:1,ladder_0:1,15,workbench_0,shelter_building,1,Assemble a folding step ladder
 #
 # === MEDICAL / CHEMISTRY ===
-craft_bandage,Craft Bandage,chemistry,cloth_bolt_0:1,bandage_0:5,5,,crafting,0,Cut and roll sterile wound dressings
-craft_medkit,Assemble Medkit,chemistry,bandage_0:5|antiseptic_0:2|splint_0:1|painkiller_0:3,medkit_0:1,15,workbench_0,medical,2,Pack a complete first-aid kit
-craft_splint,Craft Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:1,splint_0:3,8,workbench_0,crafting,1,Bend and pad fracture immobilizers
-craft_antiseptic,Brew Antiseptic,chemistry,water_purified_0:2|salt_food_0:1,antiseptic_0:3,10,chemistry_set_0,medical,1,Distill wound disinfectant solution
+craft_bandage,Craft Bandage,chemistry,cloth_bolt_0:1,bandage_0:5,5,,medicine,0,Cut and roll sterile wound dressings
+craft_medkit,Assemble Medkit,chemistry,bandage_0:5|antiseptic_0:2|splint_0:1|painkiller_0:3,medkit_0:1,15,workbench_0,medicine,2,Pack a complete first-aid kit
+craft_splint,Craft Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:1,splint_0:3,8,workbench_0,medicine,1,Bend and pad fracture immobilizers
+craft_antiseptic,Brew Antiseptic,chemistry,water_purified_0:2|salt_food_0:1,antiseptic_0:3,10,chemistry_set_0,medicine,1,Distill wound disinfectant solution
 craft_fire_extinguisher,Build Fire Extinguisher,chemistry,steel_ingot_0:2|water_purified_0:2,fire_extinguisher_0:1,15,workbench_0,engineering,2,Pressurize a fire suppression unit
-craft_flare,Make Flare,chemistry,iron_ingot_0:1|coal_0:1|plastic_sheet_0:1,flare_0:5,10,chemistry_set_0,chemistry,1,Mix and pack emergency signal flares
+craft_flare,Make Flare,chemistry,iron_ingot_0:1|coal_0:1|plastic_sheet_0:1,flare_0:5,10,chemistry_set_0,alchemy,1,Mix and pack emergency signal flares
 craft_fertilizer,Compost Fertilizer,chemistry,seed_wheat_0:3|water_purified_0:1,fertilizer_0:2,20,composter_0,farming,1,Decompose organic waste into plant food
 #
 # === MISCELLANEOUS ===
-craft_compass,Craft Compass,crafting,iron_ingot_0:1|glass_pane_0:1,compass_0:1,10,workbench_0,crafting,1,Magnetize a needle in a glass housing
-craft_binoculars,Build Binoculars,crafting,glass_pane_0:2|aluminum_ingot_0:1,binoculars_0:1,15,workbench_0,crafting,2,Grind lenses and mount in tubes
-craft_lamp_floor,Build Floor Lamp,crafting,steel_ingot_0:2|wire_0:1|glass_pane_0:1,lamp_floor_0:1,15,workbench_0,crafting,2,Assemble a standing room light
-craft_lamp_desk,Build Desk Lamp,crafting,aluminum_ingot_0:1|wire_0:1|glass_pane_0:1,lamp_desk_0:1,10,workbench_0,crafting,1,Assemble an adjustable task light
-craft_chandelier,Build Chandelier,crafting,steel_ingot_0:2|wire_0:3|glass_pane_0:3,chandelier_0:1,25,workbench_0,crafting,3,Assemble a suspended multi-light fixture
-craft_clock,Build Wall Clock,crafting,wood_plank_0:1|copper_ingot_0:1|glass_pane_0:1,clock_wall_0:1,12,workbench_0,crafting,2,Assemble a mechanical wall clock
-craft_mirror,Craft Mirror,crafting,glass_pane_0:1|silver_ingot_0:1|wood_plank_0:1,mirror_0:1,10,workbench_0,crafting,2,Coat glass with reflective silver
-craft_grain_silo,Build Grain Silo,assembly,steel_ingot_0:8|bolt_box_0:4|concrete_block_0:4,grain_silo_0:1,90,workbench_0,construction,4,Erect a bulk crop storage cylinder
+craft_compass,Craft Compass,crafting,iron_ingot_0:1|glass_pane_0:1,compass_0:1,10,workbench_0,woodworking,1,Magnetize a needle in a glass housing
+craft_binoculars,Build Binoculars,crafting,glass_pane_0:2|aluminum_ingot_0:1,binoculars_0:1,15,workbench_0,woodworking,2,Grind lenses and mount in tubes
+craft_lamp_floor,Build Floor Lamp,crafting,steel_ingot_0:2|wire_0:1|glass_pane_0:1,lamp_floor_0:1,15,workbench_0,woodworking,2,Assemble a standing room light
+craft_lamp_desk,Build Desk Lamp,crafting,aluminum_ingot_0:1|wire_0:1|glass_pane_0:1,lamp_desk_0:1,10,workbench_0,woodworking,1,Assemble an adjustable task light
+craft_chandelier,Build Chandelier,crafting,steel_ingot_0:2|wire_0:3|glass_pane_0:3,chandelier_0:1,25,workbench_0,woodworking,3,Assemble a suspended multi-light fixture
+craft_clock,Build Wall Clock,crafting,wood_plank_0:1|copper_ingot_0:1|glass_pane_0:1,clock_wall_0:1,12,workbench_0,woodworking,2,Assemble a mechanical wall clock
+craft_mirror,Craft Mirror,crafting,glass_pane_0:1|silver_ingot_0:1|wood_plank_0:1,mirror_0:1,10,workbench_0,woodworking,2,Coat glass with reflective silver
+craft_grain_silo,Build Grain Silo,assembly,steel_ingot_0:8|bolt_box_0:4|concrete_block_0:4,grain_silo_0:1,90,workbench_0,shelter_building,4,Erect a bulk crop storage cylinder
 #
 # === ADVANCED MATERIALS ===
 craft_carbon_fiber,Synthesize Carbon Fiber,chemistry,coal_0:4|plastic_sheet_0:2|oil_crude_0:1,carbon_fiber_sheet_0:2,60,chemistry_set_0,engineering,4,Pyrolyze polymer precursor into carbon composite
-craft_titanium_alloy,Forge Titanium Alloy,smelting,titanium_ingot_0:2|aluminum_ingot_0:1|steel_ingot_0:1,titanium_ingot_0:4,45,smelter_0,smithing,5,Alloy titanium with aluminum and steel for strength
-craft_ceramic_composite,Fire Ceramic Composite,smelting,clay_raw_0:3|sand_0:2|carbon_fiber_sheet_0:1,concrete_block_0:4,40,kiln_0,smithing,4,Sinter ceramic matrix with carbon reinforcement
+craft_titanium_alloy,Forge Titanium Alloy,smelting,titanium_ingot_0:2|aluminum_ingot_0:1|steel_ingot_0:1,titanium_ingot_0:4,45,smelter_0,metalworking,5,Alloy titanium with aluminum and steel for strength
+craft_ceramic_composite,Fire Ceramic Composite,smelting,clay_raw_0:3|sand_0:2|carbon_fiber_sheet_0:1,concrete_block_0:4,40,kiln_0,metalworking,4,Sinter ceramic matrix with carbon reinforcement
 craft_optical_fiber,Draw Optical Fiber,electronics,glass_pane_0:3|plastic_sheet_0:1,wire_0:6,35,electronics_bench_0,engineering,4,Draw silica glass into light-transmitting strands
 craft_superconductor,Synthesize Superconductor,chemistry,copper_ingot_0:3|titanium_ingot_0:1|gold_ingot_0:1,wire_0:8,90,chemistry_set_0,engineering,5,Cool rare-earth compound into zero-resistance wire
 craft_nanomaterial,Synthesize Nanomaterial,chemistry,carbon_fiber_sheet_0:2|gold_ingot_0:1|plastic_sheet_0:1,plastic_sheet_0:5,120,chemistry_set_0,engineering,5,Assemble molecular-scale structured material
-craft_kevlar_sheet,Weave Kevlar Sheet,textile,fiber_bundle_0:6|plastic_sheet_0:2,cloth_bolt_0:3,50,loom_0,textile,4,Weave aramid fiber into ballistic fabric
+craft_kevlar_sheet,Weave Kevlar Sheet,textile,fiber_bundle_0:6|plastic_sheet_0:2,cloth_bolt_0:3,50,loom_0,tailoring,4,Weave aramid fiber into ballistic fabric
 craft_aerogel,Synthesize Aerogel,chemistry,glass_pane_0:2|oil_crude_0:1|water_purified_0:2,plastic_sheet_0:4,80,chemistry_set_0,engineering,5,Supercritically dry silica gel into ultralight insulator
 craft_graphene,Synthesize Graphene,chemistry,coal_0:5|copper_ingot_0:1,carbon_fiber_sheet_0:3,100,chemistry_set_0,engineering,5,Exfoliate graphite into single-atom carbon sheets
 craft_bioplastic,Mold Bioplastic,refining,seed_corn_0:6|water_purified_0:2|oil_crude_0:1,plastic_sheet_0:6,30,fuel_refinery_0,engineering,3,Polymerize plant starch into biodegradable plastic
@@ -296,50 +296,50 @@ manufacture_led_panel,Manufacture LED Panel,electronics,glass_pane_0:1|wire_0:2|
 manufacture_camera,Manufacture Camera,electronics,glass_pane_0:2|wire_0:2|circuit_board_0:1|plastic_sheet_0:1,camera_0:1,35,electronics_bench_0,engineering,4,Assemble digital image sensor and lens optics
 #
 # === MEDICAL CRAFTING ===
-craft_bandage_sterile,Craft Sterile Bandage,chemistry,cloth_bolt_0:1|water_purified_0:1,bandage_0:8,8,,medical,0,Cut and sterilize wound dressing strips
-craft_medkit_full,Assemble Full Medkit,chemistry,bandage_0:5|splint_0:2|painkiller_0:5|antibiotic_0:3,medkit_0:1,20,workbench_0,medical,3,Pack a comprehensive field medical kit
-craft_splint_padded,Craft Padded Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:2,splint_0:4,10,workbench_0,medical,1,Bend and cushion fracture immobilizers
-craft_painkillers,Synthesize Painkillers,chemistry,water_purified_0:2|coal_0:1|salt_food_0:1,painkillers_0:10,30,chemistry_set_0,medical,3,Extract and tablet analgesic compounds
-craft_antibiotics,Culture Antibiotics,chemistry,water_purified_0:3|flour_0:1|sugar_0:1,antibiotics_0:5,60,chemistry_set_0,medical,4,Culture and extract antimicrobial compounds
-craft_antivenom,Brew Antivenom,chemistry,water_purified_0:2|antiseptic_0:2|salt_food_0:1,antivenom_0:3,45,chemistry_set_0,medical,4,Prepare venom neutralization serum
-craft_surgical_kit,Assemble Surgical Kit,chemistry,steel_ingot_0:2|cloth_bolt_0:1|antiseptic_0:3,surgical_kit_0:1,40,workbench_0,medical,5,Sterilize and pack field surgery instruments
-craft_stim_pack,Synthesize Stim Pack,chemistry,water_purified_0:1|sugar_0:2|salt_food_0:1,stim_pack_0:5,25,chemistry_set_0,medical,3,Mix fast-acting combat stimulant formula
+craft_bandage_sterile,Craft Sterile Bandage,chemistry,cloth_bolt_0:1|water_purified_0:1,bandage_0:8,8,,medicine,0,Cut and sterilize wound dressing strips
+craft_medkit_full,Assemble Full Medkit,chemistry,bandage_0:5|splint_0:2|painkiller_0:5|antibiotic_0:3,medkit_0:1,20,workbench_0,medicine,3,Pack a comprehensive field medical kit
+craft_splint_padded,Craft Padded Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:2,splint_0:4,10,workbench_0,medicine,1,Bend and cushion fracture immobilizers
+craft_painkillers,Synthesize Painkillers,chemistry,water_purified_0:2|coal_0:1|salt_food_0:1,painkillers_0:10,30,chemistry_set_0,medicine,3,Extract and tablet analgesic compounds
+craft_antibiotics,Culture Antibiotics,chemistry,water_purified_0:3|flour_0:1|sugar_0:1,antibiotics_0:5,60,chemistry_set_0,medicine,4,Culture and extract antimicrobial compounds
+craft_antivenom,Brew Antivenom,chemistry,water_purified_0:2|antiseptic_0:2|salt_food_0:1,antivenom_0:3,45,chemistry_set_0,medicine,4,Prepare venom neutralization serum
+craft_surgical_kit,Assemble Surgical Kit,chemistry,steel_ingot_0:2|cloth_bolt_0:1|antiseptic_0:3,surgical_kit_0:1,40,workbench_0,medicine,5,Sterilize and pack field surgery instruments
+craft_stim_pack,Synthesize Stim Pack,chemistry,water_purified_0:1|sugar_0:2|salt_food_0:1,stim_pack_0:5,25,chemistry_set_0,medicine,3,Mix fast-acting combat stimulant formula
 #
 # === CONTAINER CRAFTING ===
-craft_chest_wood,Build Wood Chest,crafting,wood_plank_0:6|nail_box_0:2,chest_wood_0:1,15,workbench_0,construction,1,Assemble a lidded wooden storage box
-craft_chest_metal,Build Metal Chest,crafting,steel_ingot_0:4|bolt_box_0:2,chest_metal_0:1,25,forge_0,smithing,3,Weld a reinforced lockable container
-craft_safe_heavy,Build Heavy Safe,crafting,steel_ingot_0:8|bolt_box_0:3|copper_ingot_0:1,safe_0:1,50,forge_0,smithing,4,Forge a thick-walled armored vault
-craft_barrel_coopered,Cooper Barrel,crafting,wood_plank_0:6|steel_ingot_0:1,barrel_0:2,20,workbench_0,construction,2,Stave and band wooden liquid containers
-craft_backpack_small,Sew Small Backpack,textile,cloth_bolt_0:3|rope_0:1|bolt_box_0:1,backpack_small_0:1,15,sewing_machine_0,textile,2,Construct a 20L carry pack
-craft_backpack_large,Sew Large Backpack,textile,cloth_bolt_0:5|rope_0:2|leather_hide_0:1|bolt_box_0:1,backpack_large_0:1,25,sewing_machine_0,textile,3,Construct a 65L expedition rucksack
+craft_chest_wood,Build Wood Chest,crafting,wood_plank_0:6|nail_box_0:2,chest_wood_0:1,15,workbench_0,shelter_building,1,Assemble a lidded wooden storage box
+craft_chest_metal,Build Metal Chest,crafting,steel_ingot_0:4|bolt_box_0:2,chest_metal_0:1,25,forge_0,metalworking,3,Weld a reinforced lockable container
+craft_safe_heavy,Build Heavy Safe,crafting,steel_ingot_0:8|bolt_box_0:3|copper_ingot_0:1,safe_0:1,50,forge_0,metalworking,4,Forge a thick-walled armored vault
+craft_barrel_coopered,Cooper Barrel,crafting,wood_plank_0:6|steel_ingot_0:1,barrel_0:2,20,workbench_0,shelter_building,2,Stave and band wooden liquid containers
+craft_backpack_small,Sew Small Backpack,textile,cloth_bolt_0:3|rope_0:1|bolt_box_0:1,backpack_small_0:1,15,sewing_machine_0,tailoring,2,Construct a 20L carry pack
+craft_backpack_large,Sew Large Backpack,textile,cloth_bolt_0:5|rope_0:2|leather_hide_0:1|bolt_box_0:1,backpack_large_0:1,25,sewing_machine_0,tailoring,3,Construct a 65L expedition rucksack
 #
 # === AMMUNITION / CONSUMABLES ===
-craft_arrows_batch,Fletch Arrow Batch,crafting,wood_plank_0:2|iron_ingot_0:1|fiber_bundle_0:1,arrow_0:30,15,workbench_0,crafting,1,Whittle shafts and forge broadhead tips
-craft_bullets_pistol,Load Pistol Rounds,crafting,copper_ingot_0:1|coal_0:1|iron_ingot_0:1,bullet_pistol_0:50,20,workbench_0,smithing,2,Press brass casings and seat projectiles
-craft_bullets_rifle,Load Rifle Rounds,crafting,copper_ingot_0:2|coal_0:1|steel_ingot_0:1,bullet_rifle_0:30,25,workbench_0,smithing,3,Press long casings and seat heavy projectiles
+craft_arrows_batch,Fletch Arrow Batch,crafting,wood_plank_0:2|iron_ingot_0:1|fiber_bundle_0:1,arrow_0:30,15,workbench_0,woodworking,1,Whittle shafts and forge broadhead tips
+craft_bullets_pistol,Load Pistol Rounds,crafting,copper_ingot_0:1|coal_0:1|iron_ingot_0:1,bullet_pistol_0:50,20,workbench_0,metalworking,2,Press brass casings and seat projectiles
+craft_bullets_rifle,Load Rifle Rounds,crafting,copper_ingot_0:2|coal_0:1|steel_ingot_0:1,bullet_rifle_0:30,25,workbench_0,metalworking,3,Press long casings and seat heavy projectiles
 craft_fuel_cell,Manufacture Fuel Cell,electronics,steel_ingot_0:2|copper_ingot_0:1|wire_0:2|water_purified_0:2,battery_large_0:1,40,electronics_bench_0,engineering,4,Assemble hydrogen electrochemical converter
 craft_battery_charge,Charge Battery Pack,electronics,battery_pack_0:1|wire_0:1,battery_pack_0:2,10,electronics_bench_0,engineering,1,Recondition and recharge depleted cells
-craft_healing_potion,Brew Healing Potion,chemistry,water_purified_0:2|honey_0:1|seed_wheat_0:2,medkit_0:1,20,chemistry_set_0,medical,2,Distill restorative herbal tincture
-craft_grenade,Assemble Grenade,crafting,iron_ingot_0:2|coal_0:2|rope_0:1,flare_0:3,30,workbench_0,smithing,3,Pack and fuse fragmentation shells
-craft_smoke_bomb,Craft Smoke Bomb,crafting,iron_ingot_0:1|coal_0:2|cloth_bolt_0:1,flare_0:5,15,workbench_0,crafting,2,Pack slow-burn obscurant canisters
+craft_healing_potion,Brew Healing Potion,chemistry,water_purified_0:2|honey_0:1|seed_wheat_0:2,medkit_0:1,20,chemistry_set_0,medicine,2,Distill restorative herbal tincture
+craft_grenade,Assemble Grenade,crafting,iron_ingot_0:2|coal_0:2|rope_0:1,flare_0:3,30,workbench_0,metalworking,3,Pack and fuse fragmentation shells
+craft_smoke_bomb,Craft Smoke Bomb,crafting,iron_ingot_0:1|coal_0:2|cloth_bolt_0:1,flare_0:5,15,workbench_0,woodworking,2,Pack slow-burn obscurant canisters
 #
 # === ENCHANTING ===
-enchant_fire_imbue,Enchant Fire Imbue,crafting,coal_0:5|oil_crude_0:2|gold_ingot_0:1,coal_0:1,60,forge_0,smithing,4,Imbue an item with searing flame essence
-enchant_sharpness,Enchant Sharpness,crafting,steel_ingot_0:3|diamond:1|gold_ingot_0:1,steel_ingot_0:1,45,forge_0,smithing,4,Hone an edge to preternatural keenness
-enchant_fortification,Enchant Fortification,crafting,steel_ingot_0:4|titanium_ingot_0:1|gold_ingot_0:1,steel_ingot_0:1,50,forge_0,smithing,4,Reinforce material beyond natural limits
+enchant_fire_imbue,Enchant Fire Imbue,crafting,coal_0:5|oil_crude_0:2|gold_ingot_0:1,coal_0:1,60,forge_0,metalworking,4,Imbue an item with searing flame essence
+enchant_sharpness,Enchant Sharpness,crafting,steel_ingot_0:3|diamond:1|gold_ingot_0:1,steel_ingot_0:1,45,forge_0,metalworking,4,Hone an edge to preternatural keenness
+enchant_fortification,Enchant Fortification,crafting,steel_ingot_0:4|titanium_ingot_0:1|gold_ingot_0:1,steel_ingot_0:1,50,forge_0,metalworking,4,Reinforce material beyond natural limits
 enchant_efficiency,Enchant Efficiency,crafting,copper_ingot_0:3|gold_ingot_0:1|wire_0:2,copper_ingot_0:1,40,electronics_bench_0,engineering,4,Tune a tool for reduced resource consumption
-enchant_indestructible,Enchant Indestructible,crafting,titanium_ingot_0:3|gold_ingot_0:2|carbon_fiber_sheet_0:1,titanium_ingot_0:1,90,forge_0,smithing,5,Render material virtually immune to wear
+enchant_indestructible,Enchant Indestructible,crafting,titanium_ingot_0:3|gold_ingot_0:2|carbon_fiber_sheet_0:1,titanium_ingot_0:1,90,forge_0,metalworking,5,Render material virtually immune to wear
 enchant_speed_boost,Enchant Speed Boost,crafting,aluminum_ingot_0:3|gold_ingot_0:1|wire_0:3,aluminum_ingot_0:1,45,electronics_bench_0,engineering,4,Accelerate action speed beyond normal limits
 enchant_night_vision,Enchant Night Vision,crafting,glass_pane_0:3|gold_ingot_0:1|wire_0:2,glass_pane_0:1,50,electronics_bench_0,engineering,4,Grant low-light visual amplification
 enchant_auto_repair,Enchant Auto Repair,crafting,wire_0:4|gold_ingot_0:2|copper_ingot_0:2,wire_0:1,60,electronics_bench_0,engineering,5,Enable gradual self-restoration of durability
 #
 # === DECORATION CRAFTING ===
-craft_painting,Paint Canvas Art,crafting,cloth_bolt_0:1|wood_plank_0:1|paint_0:2,painting_0:1,20,workbench_0,crafting,2,Stretch and paint a framed canvas
-craft_statue_small,Carve Small Statue,crafting,stone_raw_0:4|chisel_0:1,statue_small_0:1,30,workbench_0,crafting,3,Chisel a decorative stone figure
-craft_statue_large,Sculpt Large Statue,crafting,stone_raw_0:12|chisel_0:1|steel_ingot_0:2,statue_large_0:1,90,workbench_0,crafting,5,Sculpt a monumental stone figure
-craft_flag,Sew Flag,textile,cloth_bolt_0:2|wood_plank_0:1|paint_0:1,flag_0:2,10,sewing_machine_0,textile,1,Stitch and mount a cloth standard
-craft_fountain,Build Fountain,construction,stone_raw_0:8|steel_ingot_0:2|rubber_sheet_0:1|wire_0:2,fountain_0:1,60,workbench_0,construction,4,Construct an ornamental water feature
-craft_planter,Shape Planter,crafting,clay_raw_0:4|paint_0:1,planter_0:2,15,kiln_0,crafting,2,Fire and glaze ornamental plant pots
+craft_painting,Paint Canvas Art,crafting,cloth_bolt_0:1|wood_plank_0:1|paint_0:2,painting_0:1,20,workbench_0,woodworking,2,Stretch and paint a framed canvas
+craft_statue_small,Carve Small Statue,crafting,stone_raw_0:4|chisel_0:1,statue_small_0:1,30,workbench_0,woodworking,3,Chisel a decorative stone figure
+craft_statue_large,Sculpt Large Statue,crafting,stone_raw_0:12|chisel_0:1|steel_ingot_0:2,statue_large_0:1,90,workbench_0,woodworking,5,Sculpt a monumental stone figure
+craft_flag,Sew Flag,textile,cloth_bolt_0:2|wood_plank_0:1|paint_0:1,flag_0:2,10,sewing_machine_0,tailoring,1,Stitch and mount a cloth standard
+craft_fountain,Build Fountain,construction,stone_raw_0:8|steel_ingot_0:2|rubber_sheet_0:1|wire_0:2,fountain_0:1,60,workbench_0,shelter_building,4,Construct an ornamental water feature
+craft_planter,Shape Planter,crafting,clay_raw_0:4|paint_0:1,planter_0:2,15,kiln_0,woodworking,2,Fire and glaze ornamental plant pots
 #
 # === VEHICLE ASSEMBLY ===
 build_electric_car,Build Electric Car,assembly,steel_ingot_0:15|aluminum_ingot_0:8|wire_0:10|rubber_sheet_0:6|battery_large_0:4|circuit_board_0:2,car_electric_0:1,600,workbench_0,engineering,5,Assemble a battery-powered four-seat sedan
@@ -369,29 +369,29 @@ build_station_module,Build Station Module,assembly,steel_ingot_0:25|titanium_ing
 build_spacecraft_pod,Build Spacecraft Pod,assembly,titanium_ingot_0:6|aluminum_ingot_0:4|wire_0:8|circuit_board_0:2|battery_large_0:3|glass_pane_0:2,spacecraft_pod_0:1,900,workbench_0,engineering,5,Assemble a single-seat orbital vehicle
 #
 # === STRUCTURE CRAFTING ===
-craft_wall_wood,Build Wood Wall Panel,construction,wood_plank_0:6|nail_box_0:2,door_wood_0:1,20,workbench_0,construction,2,Frame and sheath a standard wall section
-craft_wall_reinforced,Build Reinforced Wall,construction,steel_ingot_0:4|concrete_block_0:4|bolt_box_0:2,concrete_block_0:2,40,workbench_0,construction,4,Construct a steel-reinforced concrete wall panel
-craft_floor_tile,Lay Floor Tiles,construction,clay_raw_0:4|cement_0:1,stone_brick_0:6,25,kiln_0,construction,2,Fire and set ceramic floor tiles
-craft_roof_panel,Build Roof Panel,construction,wood_plank_0:4|steel_ingot_0:1|rubber_sheet_0:1,wood_plank_0:1,20,workbench_0,construction,2,Frame and weatherproof a roof section
+craft_wall_wood,Build Wood Wall Panel,construction,wood_plank_0:6|nail_box_0:2,door_wood_0:1,20,workbench_0,shelter_building,2,Frame and sheath a standard wall section
+craft_wall_reinforced,Build Reinforced Wall,construction,steel_ingot_0:4|concrete_block_0:4|bolt_box_0:2,concrete_block_0:2,40,workbench_0,shelter_building,4,Construct a steel-reinforced concrete wall panel
+craft_floor_tile,Lay Floor Tiles,construction,clay_raw_0:4|cement_0:1,stone_brick_0:6,25,kiln_0,shelter_building,2,Fire and set ceramic floor tiles
+craft_roof_panel,Build Roof Panel,construction,wood_plank_0:4|steel_ingot_0:1|rubber_sheet_0:1,wood_plank_0:1,20,workbench_0,shelter_building,2,Frame and weatherproof a roof section
 #
 # === JEWELRY CRAFTING ===
-craft_ring_gold,Forge Gold Ring,crafting,gold_ingot_0:1,ring_gold_0:1,30,anvil_station_0,smithing,3,Hammer a polished gold finger band
-craft_ring_silver,Forge Silver Ring,crafting,silver_ingot_0:1,ring_silver_0:1,25,anvil_station_0,smithing,2,Hammer a polished silver finger band
-craft_necklace_gold,Forge Gold Necklace,crafting,gold_ingot_0:2,necklace_gold_0:1,60,anvil_station_0,smithing,4,Link gold rings into a neck chain
-craft_bracelet_silver,Forge Silver Bracelet,crafting,silver_ingot_0:1,bracelet_silver_0:1,40,anvil_station_0,smithing,3,Link silver into a wrist band
-craft_amulet,Carve Amulet,crafting,silver_ingot_0:1,amulet_protective_0:1,45,anvil_station_0,smithing,3,Engrave a protective silver charm
+craft_ring_gold,Forge Gold Ring,crafting,gold_ingot_0:1,ring_gold_0:1,30,anvil_station_0,metalworking,3,Hammer a polished gold finger band
+craft_ring_silver,Forge Silver Ring,crafting,silver_ingot_0:1,ring_silver_0:1,25,anvil_station_0,metalworking,2,Hammer a polished silver finger band
+craft_necklace_gold,Forge Gold Necklace,crafting,gold_ingot_0:2,necklace_gold_0:1,60,anvil_station_0,metalworking,4,Link gold rings into a neck chain
+craft_bracelet_silver,Forge Silver Bracelet,crafting,silver_ingot_0:1,bracelet_silver_0:1,40,anvil_station_0,metalworking,3,Link silver into a wrist band
+craft_amulet,Carve Amulet,crafting,silver_ingot_0:1,amulet_protective_0:1,45,anvil_station_0,metalworking,3,Engrave a protective silver charm
 #
 # === BOOK / WRITING CRAFTING ===
-craft_book_blank,Bind Blank Book,crafting,plant_fiber_0:5|leather_hide_0:1|glue_0:1,book_blank_0:1,60,workbench_0,crafting,2,Sew and bind paper into a blank book
-craft_pencil,Make Pencil,crafting,wood_plank_0:1|coal_0:1,pencil_0:5,15,workbench_0,crafting,1,Glue graphite core into wooden sticks
-craft_ink,Brew Ink,chemistry,charcoal_lump_0:1|water_purified_0:1,ink_bottle_0:1,30,chemistry_set_0,chemistry,2,Combine carbon and binder into writing fluid
-craft_notebook,Bind Notebook,crafting,plant_fiber_0:3|wire_0:1,notebook_0:1,30,workbench_0,crafting,1,Spiral-bind paper into a notebook
+craft_book_blank,Bind Blank Book,crafting,plant_fiber_0:5|leather_hide_0:1|glue_0:1,book_blank_0:1,60,workbench_0,woodworking,2,Sew and bind paper into a blank book
+craft_pencil,Make Pencil,crafting,wood_plank_0:1|coal_0:1,pencil_0:5,15,workbench_0,woodworking,1,Glue graphite core into wooden sticks
+craft_ink,Brew Ink,chemistry,charcoal_lump_0:1|water_purified_0:1,ink_bottle_0:1,30,chemistry_set_0,alchemy,2,Combine carbon and binder into writing fluid
+craft_notebook,Bind Notebook,crafting,plant_fiber_0:3|wire_0:1,notebook_0:1,30,workbench_0,woodworking,1,Spiral-bind paper into a notebook
 #
 # === LIGHTING CRAFTING ===
-craft_candle,Pour Candle,crafting,beeswax_0:1|cloth_bolt_0:1,candle_0:5,20,workbench_0,crafting,1,Pour wax around cotton wicks
-craft_lantern_oil,Assemble Oil Lantern,crafting,brass_ingot_0:1|glass_pane_0:1|cloth_bolt_0:1,lantern_oil_0:1,40,workbench_0,crafting,2,Build a glass-shielded oil lamp
-craft_flashlight,Assemble Flashlight,electronics,aluminum_ingot_0:1|battery_small_0:2|wire_0:1|led_panel_0:1,flashlight_0:1,30,electronics_bench_0,electronics,2,Assemble a handheld battery torch
-craft_headlamp,Assemble Headlamp,electronics,plastic_sheet_0:1|battery_small_0:1|wire_0:1|led_panel_0:1|cloth_bolt_0:1,headlamp_0:1,35,electronics_bench_0,electronics,2,Build a strap-mounted hands-free light
+craft_candle,Pour Candle,crafting,beeswax_0:1|cloth_bolt_0:1,candle_0:5,20,workbench_0,woodworking,1,Pour wax around cotton wicks
+craft_lantern_oil,Assemble Oil Lantern,crafting,brass_ingot_0:1|glass_pane_0:1|cloth_bolt_0:1,lantern_oil_0:1,40,workbench_0,woodworking,2,Build a glass-shielded oil lamp
+craft_flashlight,Assemble Flashlight,electronics,aluminum_ingot_0:1|battery_small_0:2|wire_0:1|led_panel_0:1,flashlight_0:1,30,electronics_bench_0,engineering,2,Assemble a handheld battery torch
+craft_headlamp,Assemble Headlamp,electronics,plastic_sheet_0:1|battery_small_0:1|wire_0:1|led_panel_0:1|cloth_bolt_0:1,headlamp_0:1,35,electronics_bench_0,engineering,2,Build a strap-mounted hands-free light
 #
 # === COOKED FOOD ===
 cook_soup_vegetable,Cook Vegetable Soup,cooking,vegetable_carrot_0:1|vegetable_potato_0:1|vegetable_onion_0:1|water_purified_0:1,soup_vegetable_0:1,15,stove_0,cooking,1,Simmer vegetables into a hot broth
@@ -407,26 +407,26 @@ bake_cookies,Bake Cookies,cooking,flour_0:1|sugar_0:1|butter_0:1|egg_0:1,cookies
 cook_salad,Make Salad,cooking,vegetable_lettuce_0:1|vegetable_tomato_0:1|vegetable_carrot_0:1,salad_0:1,5,workbench_0,cooking,1,Combine raw vegetables in a bowl
 #
 # === HYGIENE / PLUMBING ===
-craft_soap_bar,Make Soap Bar,chemistry,animal_fat_0:1|salt_block_0:1,soap_bar_0:5,30,chemistry_set_0,chemistry,2,Saponify fat into cleaning bars
-craft_pipe_metal,Forge Metal Pipe,crafting,steel_ingot_0:2,pipe_metal_0:4,25,forge_0,smithing,2,Form threaded steel pipe segments
-craft_faucet,Forge Faucet,crafting,brass_ingot_0:1|rubber_sheet_0:1,faucet_0:1,40,workbench_0,smithing,3,Assemble a threaded water tap
-craft_toilet,Cast Toilet,crafting,clay_raw_0:8|water_purified_0:1,toilet_0:1,90,kiln_0,crafting,3,Fire a porcelain waste fixture
-craft_sink,Cast Sink,crafting,clay_raw_0:5,sink_0:1,60,kiln_0,crafting,2,Fire a porcelain wash basin
+craft_soap_bar,Make Soap Bar,chemistry,animal_fat_0:1|salt_block_0:1,soap_bar_0:5,30,chemistry_set_0,alchemy,2,Saponify fat into cleaning bars
+craft_pipe_metal,Forge Metal Pipe,crafting,steel_ingot_0:2,pipe_metal_0:4,25,forge_0,metalworking,2,Form threaded steel pipe segments
+craft_faucet,Forge Faucet,crafting,brass_ingot_0:1|rubber_sheet_0:1,faucet_0:1,40,workbench_0,metalworking,3,Assemble a threaded water tap
+craft_toilet,Cast Toilet,crafting,clay_raw_0:8|water_purified_0:1,toilet_0:1,90,kiln_0,woodworking,3,Fire a porcelain waste fixture
+craft_sink,Cast Sink,crafting,clay_raw_0:5,sink_0:1,60,kiln_0,woodworking,2,Fire a porcelain wash basin
 #
 # === ART / INSTRUMENTS ===
-craft_paintbrush_set,Make Paintbrush Set,crafting,wood_plank_0:1|cloth_bolt_0:1|fiber_bundle_0:1,paintbrush_set_0:1,20,workbench_0,crafting,1,Bind bristles to wooden handles
-craft_canvas_blank,Stretch Canvas,textile,cloth_bolt_0:2|wood_plank_0:1,canvas_blank_0:1,25,workbench_0,crafting,2,Stretch primed cloth on a frame
-craft_easel,Build Easel,crafting,wood_plank_0:4|nail_box_0:1,easel_0:1,30,workbench_0,crafting,2,Construct a tripod canvas stand
-craft_guitar_acoustic,Build Acoustic Guitar,crafting,wood_plank_0:5|wire_0:2|glue_0:1,guitar_acoustic_0:1,300,workbench_0,crafting,4,Hand-build a six-string fretted guitar
-craft_violin,Build Violin,crafting,wood_plank_0:3|wire_0:2|glue_0:1,violin_0:1,360,workbench_0,crafting,5,Hand-build a four-string bowed instrument
-craft_flute_wood,Carve Wooden Flute,crafting,wood_plank_0:1,flute_wood_0:1,90,workbench_0,crafting,3,Carve a hollow keyed wind instrument
-craft_drum_hand,Build Hand Drum,crafting,wood_plank_0:2|leather_hide_0:1,drum_hand_0:1,60,workbench_0,crafting,2,Stretch hide over a wooden frame
-craft_harmonica,Forge Harmonica,crafting,copper_ingot_0:1,harmonica_0:1,45,workbench_0,smithing,3,Cut and tune brass reed plates
+craft_paintbrush_set,Make Paintbrush Set,crafting,wood_plank_0:1|cloth_bolt_0:1|fiber_bundle_0:1,paintbrush_set_0:1,20,workbench_0,woodworking,1,Bind bristles to wooden handles
+craft_canvas_blank,Stretch Canvas,textile,cloth_bolt_0:2|wood_plank_0:1,canvas_blank_0:1,25,workbench_0,tailoring,2,Stretch primed cloth on a frame
+craft_easel,Build Easel,crafting,wood_plank_0:4|nail_box_0:1,easel_0:1,30,workbench_0,woodworking,2,Construct a tripod canvas stand
+craft_guitar_acoustic,Build Acoustic Guitar,crafting,wood_plank_0:5|wire_0:2|glue_0:1,guitar_acoustic_0:1,300,workbench_0,woodworking,4,Hand-build a six-string fretted guitar
+craft_violin,Build Violin,crafting,wood_plank_0:3|wire_0:2|glue_0:1,violin_0:1,360,workbench_0,woodworking,5,Hand-build a four-string bowed instrument
+craft_flute_wood,Carve Wooden Flute,crafting,wood_plank_0:1,flute_wood_0:1,90,workbench_0,woodworking,3,Carve a hollow keyed wind instrument
+craft_drum_hand,Build Hand Drum,crafting,wood_plank_0:2|leather_hide_0:1,drum_hand_0:1,60,workbench_0,woodworking,2,Stretch hide over a wooden frame
+craft_harmonica,Forge Harmonica,crafting,copper_ingot_0:1,harmonica_0:1,45,workbench_0,metalworking,3,Cut and tune brass reed plates
 #
 # === OUTDOOR / CAMPING ===
-craft_tent_2person,Sew Two-Person Tent,textile,cloth_bolt_0:4|rope_0:2|aluminum_ingot_0:1,tent_2person_0:1,90,sewing_machine_0,textile,3,Sew a backpack camping shelter
-craft_sleeping_bag,Sew Sleeping Bag,textile,cloth_bolt_0:3|fiber_bundle_0:2,sleeping_bag_0:1,60,sewing_machine_0,textile,2,Sew an insulated portable bedroll
-craft_fishing_rod,Carve Fishing Rod,crafting,wood_plank_0:1|wire_0:1,fishing_rod_0:1,30,workbench_0,crafting,1,Carve a reel-and-line fish capture pole
-craft_fishing_net,Weave Fishing Net,textile,cloth_bolt_0:3|rope_0:1,fishing_net_0:1,45,sewing_machine_0,textile,2,Weave a weighted mesh fish trap
-craft_compass,Assemble Compass,crafting,copper_ingot_0:1|glass_pane_0:1,compass_0:1,40,workbench_0,crafting,3,Build a magnetic direction indicator
-craft_binoculars,Assemble Binoculars,crafting,plastic_sheet_0:2|glass_pane_0:2,binoculars_0:1,60,workbench_0,crafting,3,Build a twin-tube long-range optic
+craft_tent_2person,Sew Two-Person Tent,textile,cloth_bolt_0:4|rope_0:2|aluminum_ingot_0:1,tent_2person_0:1,90,sewing_machine_0,tailoring,3,Sew a backpack camping shelter
+craft_sleeping_bag,Sew Sleeping Bag,textile,cloth_bolt_0:3|fiber_bundle_0:2,sleeping_bag_0:1,60,sewing_machine_0,tailoring,2,Sew an insulated portable bedroll
+craft_fishing_rod,Carve Fishing Rod,crafting,wood_plank_0:1|wire_0:1,fishing_rod_0:1,30,workbench_0,woodworking,1,Carve a reel-and-line fish capture pole
+craft_fishing_net,Weave Fishing Net,textile,cloth_bolt_0:3|rope_0:1,fishing_net_0:1,45,sewing_machine_0,tailoring,2,Weave a weighted mesh fish trap
+craft_compass,Assemble Compass,crafting,copper_ingot_0:1|glass_pane_0:1,compass_0:1,40,workbench_0,woodworking,3,Build a magnetic direction indicator
+craft_binoculars,Assemble Binoculars,crafting,plastic_sheet_0:2|glass_pane_0:2,binoculars_0:1,60,workbench_0,woodworking,3,Build a twin-tube long-range optic

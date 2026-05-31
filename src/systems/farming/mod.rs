@@ -394,6 +394,8 @@ impl System for FarmingSystem {
                         )>() {
                             inv.add_item(&yield_item, qty, max_stack);
                             log::info!("[Farming] harvested {qty}x {yield_item} from {plant_id}");
+                            // Harvesting trains Farming (scales lightly with yield).
+                            crate::systems::skills::award_skill_xp(data, "farming", 10 + qty * 2);
                             break;
                         }
                     } else {

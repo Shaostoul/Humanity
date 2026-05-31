@@ -291,13 +291,34 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_md);
 
     widgets::card(ui, theme, |ui| {
-        for (skill_name, progress) in state.profile_skills.iter() {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(skill_name).color(theme.text_secondary()).size(theme.font_size_body));
-                ui.label(RichText::new(format!("{:.0}%", progress * 100.0)).color(theme.text_muted()).size(theme.font_size_small));
-            });
-            widgets::progress_bar(ui, theme, *progress, None);
-            ui.add_space(theme.section_gap);
+        if !state.skills.is_empty() {
+            // Live skills from the running game: level + XP toward the next level.
+            // Earned by doing actions — craft → recipe's skill, harvest → farming,
+            // mine → mining (SkillSystem applies the XP, the ECS syncs it here).
+            for sk in state.skills.iter() {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(&sk.name).color(theme.text_secondary()).size(theme.font_size_body));
+                    ui.label(RichText::new(format!("Lv {}", sk.level)).color(theme.text_primary()).size(theme.font_size_small));
+                });
+                let frac = if sk.xp_needed > 0 {
+                    (sk.xp as f32 / sk.xp_needed as f32).clamp(0.0, 1.0)
+                } else {
+                    1.0
+                };
+                widgets::progress_bar(ui, theme, frac, Some(&format!("{} / {} XP", sk.xp, sk.xp_needed)));
+                ui.add_space(theme.section_gap);
+            }
+        } else {
+            // Pre-game / no live session: the static default profile skills
+            // (data/skills/default_profile.json via load_default_player_skills).
+            for (skill_name, progress) in state.profile_skills.iter() {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(skill_name).color(theme.text_secondary()).size(theme.font_size_body));
+                    ui.label(RichText::new(format!("{:.0}%", progress * 100.0)).color(theme.text_muted()).size(theme.font_size_small));
+                });
+                widgets::progress_bar(ui, theme, *progress, None);
+                ui.add_space(theme.section_gap);
+            }
         }
     });
 }

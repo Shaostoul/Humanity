@@ -425,6 +425,20 @@ pub struct GuiDrone {
     pub cargo: u32,
 }
 
+/// A player skill (live level + XP) for GUI display, synced from the ECS
+/// PlayerSkills component each frame. `xp_needed` is the XP to reach the next
+/// level (per the skill's curve); the bar fills `xp / xp_needed`.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiSkill {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub level: u32,
+    pub xp: u32,
+    pub xp_needed: u32,
+}
+
 /// A guild for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -980,6 +994,11 @@ pub struct GuiState {
     pub asteroids: Vec<GuiAsteroid>,
     /// Active mining drones (ore / phase / cargo), synced from the ECS.
     pub drones: Vec<GuiDrone>,
+
+    // ── Skills / progression state ──
+    /// Player skills (live level + XP), synced from the ECS PlayerSkills each
+    /// frame for the profile Skills panel. Empty until the first XP is earned.
+    pub skills: Vec<GuiSkill>,
 
     // ── Guilds state ──
     pub guilds: Vec<GuiGuild>,
@@ -1786,6 +1805,7 @@ impl Default for GuiState {
             pending_commission_ore: None,
             asteroids: Vec::new(),
             drones: Vec::new(),
+            skills: Vec::new(),
 
             // Guilds defaults
             guilds: Vec::new(),
