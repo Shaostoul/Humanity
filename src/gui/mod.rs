@@ -375,8 +375,10 @@ pub struct GuiRecipe {
 pub struct GuiVitals {
     pub satiation: f32,
     pub hydration: f32,
+    pub energy: f32,
     pub satiation_max: f32,
     pub hydration_max: f32,
+    pub energy_max: f32,
     /// Active status effects: (display name, seconds remaining).
     pub effects: Vec<(String, f32)>,
 }
@@ -940,6 +942,8 @@ pub struct GuiState {
     /// Item id the player clicked "Eat" on this frame; the main loop bridges it to
     /// FoodSystem's consume channel. None = nothing pending.
     pub pending_consume_item: Option<String>,
+    /// True for the frame the player clicked "Rest" → refills energy via FoodSystem.
+    pub pending_rest: bool,
     /// Player vitals (satiation/hydration + active status effects), synced from the
     /// ECS each frame for the HUD / inventory page to display.
     pub vitals: GuiVitals,
@@ -1756,6 +1760,7 @@ impl Default for GuiState {
             dev_stock_materials: false,
             craft_status: String::new(),
             pending_consume_item: None,
+            pending_rest: false,
             vitals: GuiVitals::default(),
             pending_plant_seed: None,
             pending_water_crop: None,

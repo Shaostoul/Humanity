@@ -859,6 +859,8 @@ mod native_app {
                 "commission_drone",
                 std::sync::Mutex::new(Option::<String>::None),
             );
+            // Survival: rest to refill energy (FoodSystem drains it).
+            data_store.insert("rest_request", std::sync::Mutex::new(false));
             system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
@@ -1339,6 +1341,17 @@ mod native_app {
                             }
                         }
                     }
+                    // Survival: bridge the Rest button to FoodSystem's rest channel.
+                    if state.gui_state.pending_rest {
+                        state.gui_state.pending_rest = false;
+                        if let Some(slot) =
+                            state.data_store.get::<std::sync::Mutex<bool>>("rest_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = true;
+                            }
+                        }
+                    }
 
                     // Tick all ECS systems
                     state.system_runner.tick(
@@ -1682,8 +1695,10 @@ mod native_app {
                         {
                             state.gui_state.vitals.satiation = vitals.satiation;
                             state.gui_state.vitals.hydration = vitals.hydration;
+                            state.gui_state.vitals.energy = vitals.energy;
                             state.gui_state.vitals.satiation_max = vitals.satiation_max;
                             state.gui_state.vitals.hydration_max = vitals.hydration_max;
+                            state.gui_state.vitals.energy_max = vitals.energy_max;
                             state.gui_state.vitals.effects = effects
                                 .active
                                 .iter()

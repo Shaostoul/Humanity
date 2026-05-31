@@ -83,19 +83,32 @@ pub struct Vitals {
     pub satiation: f32,
     /// Hydration, 0..=hydration_max. 0 = dehydrated.
     pub hydration: f32,
+    /// Energy / rest, 0..=energy_max. Drains while awake; restored by resting.
+    /// Low energy applies the `fatigued` speed debuff.
+    #[serde(default = "default_vital_full")]
+    pub energy: f32,
     pub satiation_max: f32,
     pub hydration_max: f32,
+    #[serde(default = "default_vital_full")]
+    pub energy_max: f32,
+}
+
+/// Default for a vital that starts full (serde fallback for pre-energy saves).
+fn default_vital_full() -> f32 {
+    100.0
 }
 
 impl Default for Vitals {
     fn default() -> Self {
         // Start comfortably fed (not full) so the player has headroom but will
-        // need to eat/drink within a session.
+        // need to eat/drink/rest within a session.
         Self {
             satiation: 80.0,
             hydration: 80.0,
+            energy: 100.0,
             satiation_max: 100.0,
             hydration_max: 100.0,
+            energy_max: 100.0,
         }
     }
 }

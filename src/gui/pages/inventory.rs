@@ -144,6 +144,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut action_harvest_crop: Option<u64> = None;
     let mut action_dev_grow = false;
     let mut action_commission_ore: Option<String> = None;
+    let mut action_rest = false;
 
     if let Some(idx) = state.selected_slot {
         egui::SidePanel::right("inv_detail_panel")
@@ -311,16 +312,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             // ── Survival vitals: satiation / hydration + active status effects ──
             // (synced from the player's ECS Vitals + StatusEffects each frame).
-            let (sat, sat_max, hyd, hyd_max) = (
+            let (sat, sat_max, hyd, hyd_max, energy, energy_max) = (
                 state.vitals.satiation,
                 state.vitals.satiation_max,
                 state.vitals.hydration,
                 state.vitals.hydration_max,
+                state.vitals.energy,
+                state.vitals.energy_max,
             );
             if sat_max > 0.0 {
                 let effects = state.vitals.effects.clone();
                 let sat_frac = (sat / sat_max).clamp(0.0, 1.0);
                 let hyd_frac = (hyd / hyd_max.max(1.0)).clamp(0.0, 1.0);
+                let energy_frac = (energy / energy_max.max(1.0)).clamp(0.0, 1.0);
                 let color_for = |frac: f32| {
                     if frac < 0.25 {
                         theme.danger()
@@ -345,6 +349,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     );
                 });
                 ui.add(egui::ProgressBar::new(hyd_frac).fill(color_for(hyd_frac)));
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Energy:").color(theme.text_secondary()));
+                    ui.label(
+                        RichText::new(format!("{:.0} / {:.0}", energy, energy_max))
+                            .color(color_for(energy_frac)),
+                    );
+                    // Rest refills energy + clears fatigue (instant for now).
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if widgets::secondary_button(ui, theme, "Rest") {
+                            action_rest = true;
+                        }
+                    });
+                });
+                ui.add(egui::ProgressBar::new(energy_frac).fill(color_for(energy_frac)));
                 if !effects.is_empty() {
                     ui.add_space(theme.spacing_xs);
                     ui.horizontal_wrapped(|ui| {
@@ -689,6 +707,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Bridge a commissioned drone to DroneSystem (via the main loop).
     if let Some(ore_id) = action_commission_ore {
         state.pending_commission_ore = Some(ore_id);
+    }
+    // Bridge the Rest button to FoodSystem (refills energy).
+    if action_rest {
+        state.pending_rest = true;
     }
 }
 

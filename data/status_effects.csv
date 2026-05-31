@@ -59,6 +59,7 @@ broken_bone,Broken Bone,condition,0,false,1,0,speed:0.4:multiply,0,none,0,medici
 concussion,Concussion,condition,0,false,1,0,accuracy:0.6:multiply,0,none,0,medicine,injury|head,Reduces accuracy by 40% and causes periodic blurred vision
 infected_wound,Infected Wound,condition,0,false,1,20,none:0:none,3,infection,0,medicine,injury|infection,Deals ongoing damage that worsens over time if untreated
 sleep_deprived,Sleep Deprived,condition,0,false,1,0,xp_gain:0.5:multiply,0,none,0,rest,survival|fatigue,Halves experience gain and reduces accuracy by 20%
+fatigued,Fatigued,condition,0,false,1,0,speed:0.85:multiply,0,physical,0,rest,survival|fatigue,Low energy slows your movement by 15% until you rest
 common_cold,Common Cold,disease,7200,false,1,30,stamina_regen:0.85:multiply,1,disease,0,medicine,illness|minor,Mildly reduces stamina regen and causes occasional sneezing
 flu,Flu,disease,14400,false,1,20,speed:0.8:multiply,2,disease,0,medicine,illness|moderate,Reduces speed and stamina with periodic fever spikes
 infection,Infection,disease,28800,false,1,15,max_hp:-10:add,3,disease,0,medicine,illness|serious,Reduces max HP and deals ongoing damage requiring antibiotics

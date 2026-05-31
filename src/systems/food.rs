@@ -81,6 +81,11 @@ const CONDITION_LINGER: f32 = 3.0;
 /// Fallback durations (seconds) if status_effects.csv isn't loaded.
 const FALLBACK_WELL_FED_S: f32 = 1800.0;
 const FALLBACK_FOOD_POISONING_S: f32 = 5400.0;
+const FALLBACK_RESTED_S: f32 = 3600.0;
+/// Energy lost per real second while awake (full -> fatigued threshold in ~20 min).
+const ENERGY_DECAY_PER_SEC: f32 = 0.06;
+/// Below this energy the `fatigued` speed debuff applies; resting refills to full.
+const FATIGUED_THRESHOLD: f32 = 25.0;
 
 /// Unique key for tracking a specific food stack: (entity bits, inventory slot index).
 type FoodKey = (u64, usize);
@@ -274,6 +279,26 @@ impl System for FoodSystem {
             }
         }
 
+        // ── 1b. REST: drain the rest_request channel (the Rest button) -> refill the
+        //    player's energy, clear fatigue, grant the `rested` buff.
+        let do_rest = data
+            .get::<std::sync::Mutex<bool>>("rest_request")
+            .and_then(|m| m.lock().ok().map(|mut s| std::mem::replace(&mut *s, false)))
+            .unwrap_or(false);
+        if do_rest {
+            let rested_dur = registry
+                .map(|r| r.duration("rested"))
+                .filter(|d| *d > 0.0)
+                .unwrap_or(FALLBACK_RESTED_S);
+            for (_e, (vitals, effects)) in world.query_mut::<(&mut Vitals, &mut StatusEffects)>() {
+                vitals.energy = vitals.energy_max;
+                effects.remove("fatigued");
+                effects.apply("rested", rested_dur);
+                log::info!("[Survival] player rested -> energy restored to full");
+                break; // first player only
+            }
+        }
+
         // ── 2. DECAY + CONDITIONS: every entity with Vitals gets hungrier/thirstier;
         //    low levels apply the hungry/thirsty conditions; empty levels drain Health;
         //    timed buffs/debuffs count down and expire.
@@ -293,6 +318,15 @@ impl System for FoodSystem {
                 effects.apply("thirsty", CONDITION_LINGER);
             } else {
                 effects.remove("thirsty");
+            }
+
+            // Energy drains while awake; low energy applies the `fatigued` speed
+            // debuff (made tangible by the camera speed_multiplier, #3b). Rest refills.
+            vitals.energy = (vitals.energy - ENERGY_DECAY_PER_SEC * dt).max(0.0);
+            if vitals.energy < FATIGUED_THRESHOLD {
+                effects.apply("fatigued", CONDITION_LINGER);
+            } else {
+                effects.remove("fatigued");
             }
 
             // Starvation / dehydration damage at zero.
@@ -412,6 +446,7 @@ mod nutrition_tests {
             "consume_request",
             std::sync::Mutex::new(Option::<String>::None),
         );
+        data.insert("rest_request", std::sync::Mutex::new(false));
         data
     }
 
@@ -419,8 +454,10 @@ mod nutrition_tests {
         Vitals {
             satiation,
             hydration,
+            energy: 100.0,
             satiation_max: 100.0,
             hydration_max: 100.0,
+            energy_max: 100.0,
         }
     }
 
@@ -489,5 +526,49 @@ mod nutrition_tests {
         sys.tick(&mut world, 1.0, &data);
         let after = world.get::<&Health>(player).unwrap().current;
         assert!(after < before, "starvation drains health ({before} -> {after})");
+    }
+
+    /// Low energy applies the `fatigued` speed debuff; the Rest action (rest_request)
+    /// refills energy to full and clears fatigue.
+    #[test]
+    fn low_energy_fatigues_and_rest_restores() {
+        let mut sys = FoodSystem::new(data_dir());
+        let data = make_store();
+
+        let mut world = hecs::World::new();
+        let player = world.spawn((
+            Inventory::new(4),
+            Vitals {
+                satiation: 80.0,
+                hydration: 80.0,
+                energy: 10.0,
+                satiation_max: 100.0,
+                hydration_max: 100.0,
+                energy_max: 100.0,
+            },
+            StatusEffects::default(),
+            Health::default(),
+        ));
+
+        // Low energy -> fatigued after a tick.
+        sys.tick(&mut world, 1.0, &data);
+        assert!(
+            world.get::<&StatusEffects>(player).unwrap().has("fatigued"),
+            "low energy applies the fatigued speed debuff"
+        );
+
+        // Rest -> energy refilled to (near) full + fatigue cleared.
+        *data
+            .get::<std::sync::Mutex<bool>>("rest_request")
+            .unwrap()
+            .lock()
+            .unwrap() = true;
+        sys.tick(&mut world, 1.0, &data);
+        let energy = world.get::<&Vitals>(player).unwrap().energy;
+        assert!(energy > 90.0, "rest restored energy (got {energy})");
+        assert!(
+            !world.get::<&StatusEffects>(player).unwrap().has("fatigued"),
+            "rest cleared fatigue"
+        );
     }
 }
