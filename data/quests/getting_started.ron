@@ -1,0 +1,51 @@
+// HumanityOS Quest Chain: Getting Started
+//
+// A SATISFIABLE starter chain that uses only the wired gameplay loops:
+//   - Gather objectives → checked against live inventory (mine ore with a drone,
+//     or use "Dev: stock materials").
+//   - Craft objectives  → satisfied by the quest-progress event CraftingSystem
+//     emits on completion ("craft_<recipe_id>"). All recipes used here are
+//     skill_level <= 1 (the free starter tier), so a fresh player can complete them.
+//
+// The older tutorial/farming/construction/exploration chains lean on Build
+// objectives that need ConstructionSystem (still deferred), so they can't complete
+// yet — this is the playable/testable chain for #8c. gs_first_steps is auto-accepted
+// on spawn; completing it auto-accepts gs_toolsmith (prerequisite chaining).
+//
+// Format: Vec<QuestDef> — see src/systems/quests/mod.rs
+[
+    (
+        id: "gs_first_steps",
+        name: "First Steps",
+        description: "Get your production loop going: acquire raw ore, then refine your first metal.",
+        steps: [
+            (
+                description: "Acquire 3 iron ore (mine it with a drone, or stock it)",
+                objective: Gather(item_id: "iron_ore_0", quantity: 3),
+            ),
+            (
+                description: "Smelt an iron ingot at a smelter",
+                objective: Craft(recipe_id: "smelt_iron", quantity: 1),
+            ),
+        ],
+        rewards: [
+            ("iron_ingot_0", 2),
+        ],
+        prerequisite: None,
+    ),
+    (
+        id: "gs_toolsmith",
+        name: "Toolsmith",
+        description: "Put your metal to work — forge your first hand tool.",
+        steps: [
+            (
+                description: "Forge a hammer",
+                objective: Craft(recipe_id: "craft_hammer", quantity: 1),
+            ),
+        ],
+        rewards: [
+            ("wood_plank_0", 4),
+        ],
+        prerequisite: Some("gs_first_steps"),
+    ),
+]

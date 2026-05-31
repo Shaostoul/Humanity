@@ -405,25 +405,36 @@ impl CraftingSystem {
     /// with no `skill_required` train nothing. The reward scales with the
     /// recipe's `skill_level` so harder recipes grant more (a level-5 recipe =
     /// 35 XP, a level-1 = 15). No-ops cleanly if the channel/skill is absent.
-    fn award_craft_xp(data: &DataStore, recipe: &Recipe) {
+    /// Post-craft hooks fired when a craft completes: award skill XP (#8a) and
+    /// emit a quest-progress event (#8c) for any Craft objective tracking this
+    /// recipe. Both no-op cleanly if their channel/skill is absent.
+    fn on_craft_complete(data: &DataStore, recipe: &Recipe) {
         if let Some(skill) = &recipe.skill_required {
             crate::systems::skills::award_skill_xp(data, skill, 10 + recipe.skill_level * 5);
         }
+        crate::systems::quests::push_quest_event(data, format!("craft_{}", recipe.id));
     }
 
-    /// Tech-unlock gate: does the crafter meet the recipe's `skill_level`? Recipes
-    /// with no skill (or level 0) are always allowed. An entity WITHOUT a
-    /// `PlayerSkills` component (e.g. an NPC/bot crafter) is not blocked — the gate
-    /// applies to skilled actors (the player). This is the AUTHORITATIVE gate
-    /// (enforced server/system-side, not just greyed-out in the GUI), so a bot or
-    /// non-GUI path can't craft above its level.
+    /// Tech-unlock gate: does the crafter meet the recipe's `skill_level`?
+    ///
+    /// Recipes at **skill_level 0 or 1 are the free "starter tier"** — always
+    /// craftable. Gating only begins at level 2. This is deliberate: a fresh
+    /// player is level 0 in every skill and the ONLY way to earn a skill's XP is
+    /// crafting that skill's recipes, so if level-1 recipes were gated, every
+    /// skill with no level-0 recipe would be un-bootstrappable (a deadlock).
+    /// Level-1 recipes bootstrap the skill; level 2+ recipes are the real unlocks.
+    ///
+    /// An entity WITHOUT a `PlayerSkills` component (e.g. an NPC/bot crafter) is
+    /// never blocked — the gate applies to skilled actors (the player). This is
+    /// the AUTHORITATIVE gate (enforced system-side, not just greyed in the GUI),
+    /// so a bot or non-GUI path can't craft above its level.
     fn meets_skill_requirement(
         world: &hecs::World,
         crafter: hecs::Entity,
         recipe: &Recipe,
     ) -> bool {
         let skill = match &recipe.skill_required {
-            Some(s) if recipe.skill_level > 0 => s,
+            Some(s) if recipe.skill_level > 1 => s,
             _ => return true,
         };
         match world.get::<&crate::systems::skills::PlayerSkills>(crafter) {
@@ -561,7 +572,7 @@ impl System for CraftingSystem {
                     if let Ok(mut inv) = world.get::<&mut Inventory>(request.crafter) {
                         Self::produce_outputs(&mut inv, &recipe, item_registry);
                     }
-                    Self::award_craft_xp(data, &recipe);
+                    Self::on_craft_complete(data, &recipe);
                     log::debug!("Instant craft complete: {}", recipe.id);
                 } else {
                     // Queue as active craft with timer
@@ -601,7 +612,7 @@ impl System for CraftingSystem {
                 if let Some(recipe) = recipes.recipes.get(&craft.recipe_id) {
                     if let Ok(mut inv) = world.get::<&mut Inventory>(craft.crafter) {
                         Self::produce_outputs(&mut inv, recipe, item_registry);
-                        Self::award_craft_xp(data, recipe);
+                        Self::on_craft_complete(data, recipe);
                         log::debug!("Craft complete: {}", recipe.id);
                     } else {
                         log::warn!(

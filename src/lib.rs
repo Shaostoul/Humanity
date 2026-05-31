@@ -88,6 +88,7 @@ mod native_app {
     use crate::systems::food::FoodSystem;
     use crate::systems::mining::DroneSystem;
     use crate::systems::skills::{PlayerSkills, SkillRegistry, SkillSystem, SkillXPEvent};
+    use crate::systems::quests::{QuestRegistry, QuestSystem, QuestTracker};
     use crate::systems::interaction::InteractionSystem;
     use crate::systems::inventory::{Inventory, InventorySystem, ItemRegistry};
     use crate::systems::inventory::containers::ContainerCompatibilitySystem;
@@ -655,6 +656,13 @@ mod native_app {
                 "skill_registry",
                 SkillRegistry::from_csv,
             );
+            // Quest definitions (data/quests/*.ron — each a Vec<QuestDef>). RON, not
+            // CSV, so loaded directly (not via load_csv_registry). Data-driven: drop
+            // a new .ron in to add quests. Drives QuestSystem.
+            state.data_store.insert(
+                "quest_registry",
+                QuestRegistry::from_ron_dir(&dir.join("quests")),
+            );
         }
 
         // ── Container types + content-class compatibility rules ──
@@ -915,6 +923,10 @@ mod native_app {
             // Dev: max all skills (testing affordance — keeps every recipe craftable
             // under the #8b skill-gate, like "Dev: stock materials" for inventory).
             data_store.insert("dev_max_skills", std::sync::Mutex::new(false));
+            // Quest progress events: action systems push "craft_<recipe>" /
+            // "harvest_<crop>" keys; QuestSystem (registered after them) drains them
+            // each frame to advance count-based Craft/Harvest objectives.
+            data_store.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
             system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
@@ -934,6 +946,13 @@ mod native_app {
             // pushed THIS frame (craft → recipe skill, harvest → farming, mine → mining)
             // and applies level-ups before the frame's ECS→GUI sync reads them.
             system_runner.register(SkillSystem::new());
+            // QuestSystem ticks after the action + skill systems so it sees this
+            // frame's quest_events; advances/completes quests + grants rewards.
+            system_runner.register(QuestSystem::new());
+            // The player starts the "First Steps" quest (auto-accepted); completing
+            // it auto-accepts its dependents (prerequisite chaining in QuestSystem).
+            let mut player_quests = QuestTracker::default();
+            player_quests.accept_quest("gs_first_steps");
             game_world.world.spawn((
                 Transform::default(),
                 Velocity::default(),
@@ -944,6 +963,7 @@ mod native_app {
                 crate::ecs::components::Vitals::default(),
                 crate::ecs::components::StatusEffects::default(),
                 PlayerSkills::new(),
+                player_quests,
             ));
             // Test asteroids for the mining loop (finite ore; DroneSystem deletes one
             // when fully consumed). Dev/testing content — MMO asteroids are server-side.
@@ -1892,6 +1912,52 @@ mod native_app {
                                 });
                             }
                             state.gui_state.skills.sort_by(|a, b| a.name.cmp(&b.name));
+                            break;
+                        }
+                    }
+                    // Bridge player quests (active steps + completed) from ECS for
+                    // the profile Quests panel.
+                    {
+                        let quest_reg =
+                            state.data_store.get::<QuestRegistry>("quest_registry");
+                        state.gui_state.quests.clear();
+                        for (_e, (tracker, _ctrl)) in state
+                            .game_world
+                            .world
+                            .query::<(&QuestTracker, &Controllable)>()
+                            .iter()
+                        {
+                            for active in &tracker.active_quests {
+                                let def = quest_reg.and_then(|r| r.get(&active.quest_id));
+                                let name = def
+                                    .map(|d| d.name.clone())
+                                    .unwrap_or_else(|| active.quest_id.clone());
+                                let step_total = def.map(|d| d.steps.len()).unwrap_or(0);
+                                let step_desc = def
+                                    .and_then(|d| d.steps.get(active.current_step))
+                                    .map(|s| s.description.clone())
+                                    .unwrap_or_default();
+                                state.gui_state.quests.push(crate::gui::GuiQuest {
+                                    name,
+                                    step_index: active.current_step,
+                                    step_total,
+                                    step_desc,
+                                    completed: false,
+                                });
+                            }
+                            for cid in &tracker.completed_quests {
+                                let name = quest_reg
+                                    .and_then(|r| r.get(cid))
+                                    .map(|d| d.name.clone())
+                                    .unwrap_or_else(|| cid.clone());
+                                state.gui_state.quests.push(crate::gui::GuiQuest {
+                                    name,
+                                    step_index: 0,
+                                    step_total: 0,
+                                    step_desc: String::new(),
+                                    completed: true,
+                                });
+                            }
                             break;
                         }
                     }

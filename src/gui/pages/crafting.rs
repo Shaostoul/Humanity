@@ -419,8 +419,10 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         .inputs
         .iter()
         .all(|(item_id, qty)| count_in_inventory(state, item_id) >= *qty);
+    // skill_level 0/1 = free starter tier (see CraftingSystem::meets_skill_requirement);
+    // only level 2+ gates, so a fresh player can bootstrap each skill.
     let skill_ok = match &recipe.skill_required {
-        Some(skill) if recipe.skill_level > 0 => {
+        Some(skill) if recipe.skill_level > 1 => {
             player_skill_level(state, skill) >= recipe.skill_level
         }
         _ => true,
@@ -428,8 +430,9 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
     let can_craft = has_ingredients && skill_ok;
 
     // Skill requirement line (shown in danger colour when the player is under-level).
+    // Only for gated recipes (level 2+); level-1 recipes are the free starter tier.
     if let Some(skill) = &recipe.skill_required {
-        if recipe.skill_level > 0 {
+        if recipe.skill_level > 1 {
             let lvl = player_skill_level(state, skill);
             let color = if lvl >= recipe.skill_level {
                 theme.text_muted()

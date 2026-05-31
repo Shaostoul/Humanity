@@ -444,6 +444,19 @@ pub struct GuiSkill {
     pub xp_needed: u32,
 }
 
+/// A player quest for GUI display, synced from the ECS QuestTracker each frame.
+/// Active quests carry their current step (index/total + description); completed
+/// quests have `completed = true` and `step_total = 0`.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiQuest {
+    pub name: String,
+    pub step_index: usize,
+    pub step_total: usize,
+    pub step_desc: String,
+    pub completed: bool,
+}
+
 /// A guild for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -1006,6 +1019,9 @@ pub struct GuiState {
     pub skills: Vec<GuiSkill>,
     /// Dev: max all skills next frame (testing affordance under #8b skill-gating).
     pub pending_dev_max_skills: bool,
+    /// Player quests (active + completed), synced from the ECS QuestTracker each
+    /// frame for the profile Quests panel.
+    pub quests: Vec<GuiQuest>,
 
     // ── Guilds state ──
     pub guilds: Vec<GuiGuild>,
@@ -1814,6 +1830,7 @@ impl Default for GuiState {
             drones: Vec::new(),
             skills: Vec::new(),
             pending_dev_max_skills: false,
+            quests: Vec::new(),
 
             // Guilds defaults
             guilds: Vec::new(),
@@ -2685,6 +2702,7 @@ pub enum ProfileSection {
     NetworkProfile,
     Interests,
     Skills,
+    Quests,
     // Public (green)
     SocialLinks,
     Streaming,

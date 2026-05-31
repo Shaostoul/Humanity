@@ -76,6 +76,7 @@ pub const QUEST_CONSTRUCTION_RON: &str = include_str!("../data/quests/constructi
 pub const QUEST_EXPLORATION_RON: &str = include_str!("../data/quests/exploration.ron");
 pub const QUEST_FARMING_RON: &str = include_str!("../data/quests/farming.ron");
 pub const QUEST_TUTORIAL_RON: &str = include_str!("../data/quests/tutorial.ron");
+pub const QUEST_GETTING_STARTED_RON: &str = include_str!("../data/quests/getting_started.ron");
 
 // ── Blueprint data (RON) ───────────────────────────────────────────
 pub const BLUEPRINT_BASIC_RON: &str = include_str!("../data/blueprints/basic.ron");
@@ -187,6 +188,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "quests/exploration.ron" => Some(QUEST_EXPLORATION_RON),
         "quests/farming.ron" => Some(QUEST_FARMING_RON),
         "quests/tutorial.ron" => Some(QUEST_TUTORIAL_RON),
+        "quests/getting_started.ron" => Some(QUEST_GETTING_STARTED_RON),
 
         // RON — Blueprints
         "blueprints/basic.ron" => Some(BLUEPRINT_BASIC_RON),

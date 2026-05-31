@@ -41,6 +41,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             sidebar_item(ui, theme, "Network Profile", ProfileSection::NetworkProfile, PERSONAL_DOT, state);
             sidebar_item(ui, theme, "Interests", ProfileSection::Interests, PERSONAL_DOT, state);
             sidebar_item(ui, theme, "Skills", ProfileSection::Skills, PERSONAL_DOT, state);
+            sidebar_item(ui, theme, "Quests", ProfileSection::Quests, PERSONAL_DOT, state);
 
             ui.add_space(theme.spacing_sm);
 
@@ -62,6 +63,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ProfileSection::NetworkProfile => draw_network_profile(ui, theme, state),
                     ProfileSection::Interests => draw_interests(ui, theme, state),
                     ProfileSection::Skills => draw_skills(ui, theme, state),
+                    ProfileSection::Quests => draw_quests(ui, theme, state),
                     ProfileSection::SocialLinks => draw_social_links(ui, theme, state),
                     ProfileSection::Streaming => draw_streaming(ui, theme, state),
                 }
@@ -327,6 +329,67 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_sm);
     if widgets::Button::secondary("Dev: max skills").show(ui, theme) {
         state.pending_dev_max_skills = true;
+    }
+}
+
+fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    ui.label(RichText::new("Quests").size(theme.font_size_title).color(theme.text_primary()));
+    ui.add_space(theme.spacing_md);
+
+    let has_active = state.quests.iter().any(|q| !q.completed);
+    let has_completed = state.quests.iter().any(|q| q.completed);
+
+    if !has_active && !has_completed {
+        widgets::card(ui, theme, |ui| {
+            ui.label(
+                RichText::new("No quests yet — start a game session to receive your first quest.")
+                    .size(theme.font_size_body)
+                    .color(theme.text_muted()),
+            );
+        });
+        return;
+    }
+
+    // Active quests: current step + a step-progress bar.
+    if has_active {
+        ui.label(RichText::new("Active").size(theme.font_size_body).color(theme.text_secondary()));
+        ui.add_space(theme.spacing_xs);
+        for q in state.quests.iter().filter(|q| !q.completed) {
+            widgets::card(ui, theme, |ui| {
+                ui.label(RichText::new(&q.name).size(theme.font_size_body).color(theme.text_primary()));
+                if q.step_total > 0 {
+                    ui.label(
+                        RichText::new(format!(
+                            "Step {} of {}: {}",
+                            q.step_index + 1,
+                            q.step_total,
+                            q.step_desc
+                        ))
+                        .size(theme.font_size_small)
+                        .color(theme.text_secondary()),
+                    );
+                    let frac = (q.step_index as f32 / q.step_total as f32).clamp(0.0, 1.0);
+                    widgets::progress_bar(ui, theme, frac, None);
+                }
+            });
+            ui.add_space(theme.spacing_xs);
+        }
+    }
+
+    // Completed quests.
+    if has_completed {
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new("Completed").size(theme.font_size_body).color(theme.text_secondary()));
+        ui.add_space(theme.spacing_xs);
+        widgets::card(ui, theme, |ui| {
+            for q in state.quests.iter().filter(|q| q.completed) {
+                ui.label(
+                    RichText::new(format!("\u{2713} {}", q.name))
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            }
+        });
     }
 }
 

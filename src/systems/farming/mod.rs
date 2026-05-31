@@ -396,6 +396,11 @@ impl System for FarmingSystem {
                             log::info!("[Farming] harvested {qty}x {yield_item} from {plant_id}");
                             // Harvesting trains Farming (scales lightly with yield).
                             crate::systems::skills::award_skill_xp(data, "farming", 10 + qty * 2);
+                            // Quest progress: a harvest of this crop (Harvest objectives).
+                            crate::systems::quests::push_quest_event(
+                                data,
+                                format!("harvest_{}", plant_id),
+                            );
                             break;
                         }
                     } else {

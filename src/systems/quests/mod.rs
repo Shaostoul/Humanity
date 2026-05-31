@@ -46,6 +46,56 @@ impl QuestRegistry {
     pub fn get(&self, id: &str) -> Option<&QuestDef> {
         self.quests.get(id)
     }
+
+    /// Load every `*.ron` quest file in a directory (each a `Vec<QuestDef>`) and
+    /// merge them into one registry. Data-driven (infinite-of-X): drop a new
+    /// `.ron` into `data/quests/` and its quests appear. Malformed or unreadable
+    /// files are logged + skipped — never panics (same degradation policy as the
+    /// CSV registries). This is the constructor the runtime calls to populate
+    /// `DataStore["quest_registry"]`; without it QuestSystem finds no quests.
+    pub fn from_ron_dir(dir: &std::path::Path) -> Self {
+        let mut quests = HashMap::new();
+        match std::fs::read_dir(dir) {
+            Ok(entries) => {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().map(|x| x == "ron").unwrap_or(false) {
+                        match std::fs::read_to_string(&path) {
+                            Ok(text) => match ron::from_str::<Vec<QuestDef>>(&text) {
+                                Ok(defs) => {
+                                    for def in defs {
+                                        quests.insert(def.id.clone(), def);
+                                    }
+                                }
+                                Err(e) => {
+                                    log::warn!("Quest file {} parse error: {e}", path.display())
+                                }
+                            },
+                            Err(e) => {
+                                log::warn!("Quest file {} read error: {e}", path.display())
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => log::warn!("Quests dir {} unreadable: {e}", dir.display()),
+        }
+        log::info!("Loaded {} quest definitions", quests.len());
+        Self { quests }
+    }
+}
+
+/// Push a quest-progress event key (e.g. `"craft_smelt_iron"`, `"harvest_potato"`)
+/// onto the shared `"quest_events"` DataStore channel. Action systems call this on
+/// completion; [`QuestSystem`] drains it each tick and bumps matching progress
+/// counters so count-based objectives (Craft/Harvest/…) advance. No-ops cleanly if
+/// the channel is absent (e.g. a headless/test world that never registered it).
+pub fn push_quest_event(data: &DataStore, key: String) {
+    if let Some(lock) = data.get::<std::sync::Mutex<Vec<String>>>("quest_events") {
+        if let Ok(mut events) = lock.lock() {
+            events.push(key);
+        }
+    }
 }
 
 // ── Player quest state (ECS component) ──────────────────────
@@ -173,6 +223,15 @@ impl System for QuestSystem {
             None => return, // No quests loaded yet
         };
 
+        // Drain quest-progress events the action systems pushed this frame
+        // ("craft_<recipe>", "harvest_<crop>", ...). Applied to every active
+        // quest's progress map below so count-based objectives advance. (Gather
+        // objectives are checked against live inventory and need no events.)
+        let events: Vec<String> = data
+            .get::<std::sync::Mutex<Vec<String>>>("quest_events")
+            .and_then(|m| m.lock().ok().map(|mut e| e.drain(..).collect()))
+            .unwrap_or_default();
+
         // Collect entities with QuestTracker to process
         let mut updates: Vec<(hecs::Entity, QuestTracker, Vec<(String, Vec<(String, u32)>)>)> =
             Vec::new();
@@ -181,6 +240,16 @@ impl System for QuestSystem {
             world.query_mut::<(&QuestTracker, Option<&Inventory>)>()
         {
             let mut tracker = tracker.clone();
+            // Apply this frame's progress events to every active quest's counters
+            // (e.g. a "craft_smelt_iron" event bumps progress["craft_smelt_iron"]).
+            let events_applied = !events.is_empty() && !tracker.active_quests.is_empty();
+            if events_applied {
+                for active in tracker.active_quests.iter_mut() {
+                    for key in &events {
+                        *active.progress.entry(key.clone()).or_insert(0) += 1;
+                    }
+                }
+            }
             let mut completed_this_tick: Vec<(String, Vec<(String, u32)>)> = Vec::new();
             let mut quests_to_advance: Vec<(usize, usize)> = Vec::new(); // (quest_index, new_step)
             let mut quests_to_complete: Vec<usize> = Vec::new();
@@ -233,7 +302,21 @@ impl System for QuestSystem {
                 log::info!("Quest completed: {}", quest_id);
             }
 
-            if !completed_this_tick.is_empty()
+            // Prerequisite chaining: completing a quest auto-accepts any quest whose
+            // prerequisite it satisfies (and that isn't already active or completed).
+            for (completed_id, _) in &completed_this_tick {
+                for def in registry.quests.values() {
+                    if def.prerequisite.as_deref() == Some(completed_id.as_str())
+                        && !tracker.is_active(&def.id)
+                        && !tracker.is_completed(&def.id)
+                    {
+                        tracker.accept_quest(&def.id);
+                    }
+                }
+            }
+
+            if events_applied
+                || !completed_this_tick.is_empty()
                 || !quests_to_advance.is_empty()
             {
                 updates.push((entity, tracker, completed_this_tick));
@@ -264,5 +347,118 @@ impl System for QuestSystem {
         }
 
         self._initialized = true;
+    }
+}
+
+#[cfg(test)]
+mod quest_tests {
+    use super::*;
+
+    fn quest(id: &str, obj: QuestObjective, reward: Vec<(String, u32)>, prereq: Option<&str>) -> QuestDef {
+        QuestDef {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: String::new(),
+            steps: vec![QuestStep {
+                description: String::new(),
+                objective: obj,
+            }],
+            rewards: reward,
+            prerequisite: prereq.map(|s| s.to_string()),
+        }
+    }
+
+    #[test]
+    fn from_ron_dir_loads_the_real_quests() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/quests");
+        let reg = QuestRegistry::from_ron_dir(&dir);
+        assert!(reg.get("gs_first_steps").is_some(), "the getting-started chain loads");
+        assert!(reg.quests.len() >= 4, "all quest files merged, got {}", reg.quests.len());
+    }
+
+    #[test]
+    fn gather_quest_completes_from_inventory_and_grants_reward() {
+        let mut reg = QuestRegistry::default();
+        reg.quests.insert(
+            "q_gather".into(),
+            quest(
+                "q_gather",
+                QuestObjective::Gather { item_id: "iron_ore_0".into(), quantity: 3 },
+                vec![("iron_ingot_0".into(), 2)],
+                None,
+            ),
+        );
+        let mut data = DataStore::new();
+        data.insert("quest_registry", reg);
+
+        let mut world = hecs::World::new();
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("q_gather");
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 2, 99); // one short
+        let player = world.spawn((tracker, inv));
+        let mut sys = QuestSystem::new();
+
+        sys.tick(&mut world, 0.0, &data);
+        assert!(
+            !world.get::<&QuestTracker>(player).unwrap().is_completed("q_gather"),
+            "2 < 3 ore → incomplete"
+        );
+
+        world.get::<&mut Inventory>(player).unwrap().add_item("iron_ore_0", 1, 99);
+        sys.tick(&mut world, 0.0, &data);
+        let t = world.get::<&QuestTracker>(player).unwrap();
+        assert!(t.is_completed("q_gather"), "3 ore → quest completes");
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("iron_ingot_0"),
+            2,
+            "completion granted the reward"
+        );
+    }
+
+    #[test]
+    fn craft_event_completes_quest_and_chains_prerequisite() {
+        let mut reg = QuestRegistry::default();
+        reg.quests.insert(
+            "q_craft".into(),
+            quest(
+                "q_craft",
+                QuestObjective::Craft { recipe_id: "smelt_iron".into(), quantity: 1 },
+                vec![],
+                None,
+            ),
+        );
+        reg.quests.insert(
+            "q_next".into(),
+            quest(
+                "q_next",
+                QuestObjective::Gather { item_id: "iron_ingot_0".into(), quantity: 1 },
+                vec![],
+                Some("q_craft"),
+            ),
+        );
+        let mut data = DataStore::new();
+        data.insert("quest_registry", reg);
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+
+        let mut world = hecs::World::new();
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("q_craft");
+        let player = world.spawn((tracker, Inventory::new(16)));
+        let mut sys = QuestSystem::new();
+
+        sys.tick(&mut world, 0.0, &data);
+        assert!(!world.get::<&QuestTracker>(player).unwrap().is_completed("q_craft"));
+
+        // Emit the craft event CraftingSystem would push on completing smelt_iron.
+        push_quest_event(&data, "craft_smelt_iron".to_string());
+        sys.tick(&mut world, 0.0, &data);
+
+        let t = world.get::<&QuestTracker>(player).unwrap();
+        assert!(t.is_completed("q_craft"), "craft event completed the Craft quest");
+        assert!(
+            t.is_active("q_next"),
+            "completing q_craft auto-accepts its dependent q_next"
+        );
     }
 }
