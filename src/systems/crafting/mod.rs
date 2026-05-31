@@ -225,6 +225,88 @@ mod crafting_end_to_end_tests {
     }
 }
 
+#[cfg(test)]
+mod crafting_bridge_tests {
+    use super::*;
+    use crate::ecs::components::Controllable;
+    use crate::ecs::systems::System;
+    use crate::hot_reload::data_store::DataStore;
+    use crate::systems::inventory::{Inventory, ItemRegistry};
+
+    /// Full GUI->ECS loop: the dev "stock all materials" flag provisions the player
+    /// with every recipe input, then a `craft_request` (what the Craft button writes
+    /// via the main-loop bridge) drives a real consume/produce on the player's actual
+    /// inventory.
+    #[test]
+    fn dev_stock_then_gui_craft_request_runs_the_full_loop() {
+        let items = ItemRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/items.csv"
+        )))
+        .expect("items.csv");
+        let recipes = RecipeRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/recipes.csv"
+        )))
+        .expect("recipes.csv");
+
+        let mut data = DataStore::new();
+        data.insert("item_registry", items);
+        data.insert("recipe_registry", recipes);
+        data.insert("dev_stock_materials", std::sync::Mutex::new(true));
+        data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
+
+        // The CraftingSystem looks for a Controllable + Inventory entity (the player).
+        let mut world = hecs::World::new();
+        let entity = world.spawn((Inventory::new(64), Controllable));
+        let mut sys = CraftingSystem::new();
+
+        // Tick 1: the one-shot dev flag stocks the player with raw materials.
+        sys.tick(&mut world, 1.0, &data);
+        let ore_after_stock = {
+            let inv = world.get::<&Inventory>(entity).expect("inv");
+            assert!(inv.has_item("iron_ore_0", 2), "dev-stock provisioned iron ore (a raw)");
+            // coal_0 is an INTERMEDIATE (it is some recipe's output), so its presence
+            // proves dev-stock provisions every input, not just the raws — without it
+            // smelt_iron (iron_ore_0 + coal_0) would not be craftable in one click.
+            assert!(inv.has_item("coal_0", 1), "dev-stock provisioned coal (an intermediate)");
+            inv.count_item("iron_ore_0")
+        };
+        // Dev flag is one-shot (consumed).
+        assert!(
+            !*data
+                .get::<std::sync::Mutex<bool>>("dev_stock_materials")
+                .unwrap()
+                .lock()
+                .unwrap(),
+            "dev_stock flag should reset after firing"
+        );
+
+        // Request a craft via the GUI channel (what the Craft button writes).
+        *data
+            .get::<std::sync::Mutex<Option<String>>>("craft_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some("smelt_iron".to_string());
+
+        // Drive past the 10s craft timer.
+        for _ in 0..20 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+
+        let inv = world.get::<&Inventory>(entity).expect("inv");
+        assert!(
+            inv.has_item("iron_ingot_0", 1),
+            "GUI craft request did not produce iron_ingot_0"
+        );
+        assert_eq!(
+            inv.count_item("iron_ore_0"),
+            ore_after_stock - 2,
+            "smelt_iron should consume exactly 2 iron_ore from the player inventory"
+        );
+    }
+}
+
 /// A craft in progress, tracked per-entity.
 #[derive(Debug, Clone)]
 pub struct ActiveCraft {
@@ -307,6 +389,76 @@ impl System for CraftingSystem {
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         let recipe_registry = data.get::<RecipeRegistry>("recipe_registry");
         let item_registry = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+
+        // ── GUI / dev command channels (written by the main loop from GuiState). ──
+        // Drain the command flags first — these read `data`, never `world`, so they
+        // hold no ECS borrow.
+        let do_stock = data
+            .get::<std::sync::Mutex<bool>>("dev_stock_materials")
+            .and_then(|m| m.lock().ok().map(|mut s| std::mem::replace(&mut *s, false)))
+            .unwrap_or(false);
+        let requested = data
+            .get::<std::sync::Mutex<Option<String>>>("craft_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+
+        // Dev/creative provisioning: precompute one full stack of EVERY distinct recipe
+        // input — raw materials AND intermediates alike — so that every recipe is
+        // craftable in a single click, which is the whole point of "develop as if
+        // everything is unlocked 100%". Stocking only the raws (inputs that are never
+        // any recipe's output) would leave every recipe needing an intermediate
+        // uncraftable until you first built that intermediate — e.g. smelt_iron needs
+        // coal_0, which is itself a recipe output. Built here (reading
+        // `recipe_registry`) BEFORE the &mut World borrow below.
+        let inputs: Vec<String> = if do_stock {
+            match recipe_registry {
+                Some(recipes) => {
+                    let mut v: Vec<String> = Vec::new();
+                    for r in recipes.recipes.values() {
+                        for (id, _) in &r.inputs {
+                            if !v.iter().any(|x| x == id) {
+                                v.push(id.clone());
+                            }
+                        }
+                    }
+                    v.sort();
+                    v
+                }
+                None => Vec::new(),
+            }
+        } else {
+            Vec::new()
+        };
+
+        // Single EXCLUSIVE &mut World pass: locate the player (the controllable entity
+        // that owns an inventory) and dev-stock it in place. `query_mut` takes the
+        // world mutably, so unlike `world.query(...).iter()` + `world.get::<&mut _>`
+        // (whose shared borrow of the Inventory column stayed live, making the &mut get
+        // fail) there is no runtime-borrow conflict with the `world.get` calls in the
+        // pending-craft loop further down.
+        let mut player: Option<hecs::Entity> = None;
+        for (entity, (inv, _ctrl)) in
+            world.query_mut::<(&mut Inventory, &crate::ecs::components::Controllable)>()
+        {
+            player = Some(entity);
+            if do_stock {
+                // Grow the inventory so the full material set fits in one pass (a
+                // default 36-slot inventory can't hold all distinct inputs).
+                let occupied = inv.slots.iter().filter(|s| s.is_some()).count();
+                inv.ensure_slots(occupied + inputs.len());
+                for id in &inputs {
+                    let max_stack = item_registry.map(|r| r.max_stack_for(id)).unwrap_or(99);
+                    inv.add_item(id, max_stack, max_stack);
+                }
+                log::info!("Dev: stocked {} material types for the player", inputs.len());
+            }
+            break; // only the first controllable player
+        }
+
+        // Craft request from the GUI: queue it for the player entity (the
+        // pending-request loop below processes it this same tick).
+        if let (Some(recipe_id), Some(entity)) = (requested, player) {
+            self.request_craft(recipe_id, entity);
+        }
 
         // Process pending craft requests
         if let Some(recipes) = recipe_registry {

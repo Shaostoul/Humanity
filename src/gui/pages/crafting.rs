@@ -231,6 +231,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             with_local(|local| {
                 widgets::search_bar(ui, theme, &mut local.search, "Filter recipes...");
             });
+            // Dev/creative provisioning (the "develop as if 100% unlocked" posture):
+            // stock the player with one stack of every recipe input (raws AND
+            // intermediates) so EVERY recipe is craftable in one click right now.
+            // Gated/removed once progression lands.
+            if widgets::primary_button(ui, theme, "Dev: stock all materials") {
+                state.dev_stock_materials = true;
+                state.craft_status = "Stocking all materials...".to_string();
+            }
             ui.add_space(theme.spacing_sm);
 
             ScrollArea::vertical()
@@ -413,7 +421,12 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
 
     ui.add_enabled_ui(can_craft, |ui| {
         if widgets::primary_button(ui, theme, "Craft") {
-            state.craft_status = format!("Started crafting {}", recipe.name);
+            // Real craft: hand the recipe id to the ECS CraftingSystem (via the
+            // main-loop bridge -> DataStore "craft_request"), which consumes inputs
+            // and produces outputs on the player's actual inventory. The local queue
+            // below is just a visual progress indicator.
+            state.pending_craft_recipe = Some(recipe.id.clone());
+            state.craft_status = format!("Crafting {}...", recipe.name);
             with_local(|local| {
                 local.queue.push(CraftQueueItem {
                     recipe_name: recipe.name.clone(),

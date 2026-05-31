@@ -72,6 +72,16 @@ impl Inventory {
         }
     }
 
+    /// Grow the inventory to at least `min_slots` total slots (never shrinks; existing
+    /// contents are preserved). Used by dev/creative provisioning to fit a full
+    /// material set in one pass without overflowing a default-sized inventory.
+    pub fn ensure_slots(&mut self, min_slots: usize) {
+        if min_slots > self.max_slots {
+            self.slots.resize(min_slots, None);
+            self.max_slots = min_slots;
+        }
+    }
+
     /// Add items to the inventory, stacking where possible.
     /// Returns the number of items that could NOT be added (overflow).
     pub fn add_item(&mut self, item_id: &str, mut quantity: u32, max_stack: u32) -> u32 {

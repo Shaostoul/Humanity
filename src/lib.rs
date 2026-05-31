@@ -822,6 +822,15 @@ mod native_app {
             system_runner.register(TimeSystem::new());
             system_runner.register(PlayerControllerSystem);
             data_store.insert("interaction_prompt", std::sync::Mutex::new(String::new()));
+            // GUI -> ECS command channels (interior-mutable; the main loop writes
+            // these from GuiState before each tick, CraftingSystem reads + acts in
+            // its tick). craft_request = a recipe id the player clicked Craft on;
+            // dev_stock_materials = dev/creative provisioning (stock every recipe input).
+            data_store.insert(
+                "craft_request",
+                std::sync::Mutex::new(Option::<String>::None),
+            );
+            data_store.insert("dev_stock_materials", std::sync::Mutex::new(false));
             system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
@@ -1160,6 +1169,31 @@ mod native_app {
                     let forward = Vec3::new(-yaw_sin, 0.0, -yaw_cos).normalize();
                     state.data_store.insert("camera_forward", forward);
                     state.data_store.insert("camera_yaw", state.camera.yaw);
+
+                    // Bridge GUI craft/dev commands into the DataStore so the ECS
+                    // CraftingSystem (which only gets &DataStore in tick) acts on them
+                    // this frame. Take/clear the GuiState flags.
+                    if let Some(recipe_id) = state.gui_state.pending_craft_recipe.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<String>>>("craft_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(recipe_id);
+                            }
+                        }
+                    }
+                    if state.gui_state.dev_stock_materials {
+                        state.gui_state.dev_stock_materials = false;
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<bool>>("dev_stock_materials")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = true;
+                            }
+                        }
+                    }
 
                     // Tick all ECS systems
                     state.system_runner.tick(

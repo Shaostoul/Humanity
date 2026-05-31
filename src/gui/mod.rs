@@ -882,6 +882,12 @@ pub struct GuiState {
     pub craft_selected: Option<usize>,
     pub craft_selected_category: Option<String>,
     pub craft_status: String,
+    /// Recipe id the player clicked "Craft" on this frame; the main loop bridges it
+    /// to the ECS CraftingSystem. None = nothing pending.
+    pub pending_craft_recipe: Option<String>,
+    /// Dev/creative provisioning request: stock the player with one stack of every
+    /// recipe input (raws + intermediates) so every recipe is craftable immediately.
+    pub dev_stock_materials: bool,
 
     // ── Guilds state ──
     pub guilds: Vec<GuiGuild>,
@@ -1671,6 +1677,8 @@ impl Default for GuiState {
             craft_recipes: Vec::new(),
             craft_selected: None,
             craft_selected_category: None,
+            pending_craft_recipe: None,
+            dev_stock_materials: false,
             craft_status: String::new(),
 
             // Guilds defaults
