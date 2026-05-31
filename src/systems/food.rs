@@ -234,6 +234,10 @@ impl System for FoodSystem {
                     .map(|r| r.duration("well_fed"))
                     .filter(|d| *d > 0.0)
                     .unwrap_or(FALLBACK_WELL_FED_S);
+                let nourished_dur = registry
+                    .map(|r| r.duration("well_nourished"))
+                    .filter(|d| *d > 0.0)
+                    .unwrap_or(FALLBACK_WELL_FED_S);
                 for (_e, (inv, vitals, effects)) in
                     world.query_mut::<(&mut Inventory, &mut Vitals, &mut StatusEffects)>()
                 {
@@ -250,9 +254,11 @@ impl System for FoodSystem {
                         effects.apply("food_poisoning", poison_dur);
                         log::info!("[Food] {item_id} eaten raw -> food poisoning!");
                     }
-                    // A satisfying meal grants the well_fed buff.
+                    // A satisfying meal grants well_fed (stamina regen) + well_nourished
+                    // (a tangible +10% move speed via the camera speed_multiplier).
                     if vitals.satiation >= WELL_FED_THRESHOLD {
                         effects.apply("well_fed", well_fed_dur);
+                        effects.apply("well_nourished", nourished_dur);
                     }
                     log::info!(
                         "[Food] ate {item_id}: satiation {:.0}/{:.0}, hydration {:.0}/{:.0}",

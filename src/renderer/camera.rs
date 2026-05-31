@@ -402,6 +402,10 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 /// Behavior changes based on the camera's current mode.
 pub struct CameraController {
     pub speed: f32,
+    /// Multiplier on movement speed from the player's active status effects
+    /// (1.0 = normal). Set each frame by the main loop from the player's
+    /// StatusEffects + the status-effect registry. Look/rotation is unaffected.
+    pub speed_multiplier: f32,
     pub mouse_sensitivity: f32,
     // Movement keys held
     forward: bool,
@@ -433,6 +437,7 @@ impl CameraController {
     pub fn new(speed: f32, sensitivity: f32) -> Self {
         Self {
             speed,
+            speed_multiplier: 1.0,
             mouse_sensitivity: sensitivity,
             forward: false,
             backward: false,
@@ -634,12 +639,14 @@ impl CameraController {
         if self.right { velocity += right; }
         if self.left { velocity -= right; }
 
-        // Crouch: slow movement when shift is held
+        // Crouch: slow movement when shift is held. `speed_multiplier` carries
+        // status-effect modifiers (e.g. well_nourished speeds you up, thirsty/flu
+        // slow you down) — set each frame from the player's active effects.
         let move_speed = if self.descend {
             self.speed * 0.4
         } else {
             self.speed
-        };
+        } * self.speed_multiplier;
 
         if velocity.length_squared() > 0.0 {
             velocity = velocity.normalize() * move_speed * dt;
@@ -660,10 +667,10 @@ impl CameraController {
 
         // Space/Shift for vertical movement (fly mode in space)
         if self.ascend {
-            camera.position.y += self.speed * dt;
+            camera.position.y += self.speed * self.speed_multiplier * dt;
         }
         if self.descend {
-            camera.position.y -= self.speed * dt;
+            camera.position.y -= self.speed * self.speed_multiplier * dt;
         }
     }
 

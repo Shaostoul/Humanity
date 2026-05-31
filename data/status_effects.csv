@@ -31,6 +31,7 @@ berserk,Berserk,buff,30,false,1,0,damage:1.5:multiply,0,none,0,rest,combat|risky
 focused_mind,Focused Mind,buff,300,true,3,0,accuracy:1.2:multiply,0,none,0,rest,mental|precision,Improves accuracy and crafting quality by 20% per stack
 lucky,Lucky,buff,600,false,1,0,crit_chance:1.5:multiply,0,none,0,magic,fortune|rare,Increases critical hit and rare drop chance by 50%
 well_fed,Well Fed,buff,1800,false,1,0,stamina_regen:1.5:multiply,0,none,1,rest,food|sustain,Increases stamina regeneration by 50% and slowly heals
+well_nourished,Well Nourished,buff,1800,false,1,0,speed:1.1:multiply,0,none,0,rest,food|sustain,A balanced full belly quickens your step (+10% movement speed)
 rested,Rested,buff,3600,false,1,0,xp_gain:1.25:multiply,0,none,0,rest,rest|experience,Increases experience gained by 25% after sleeping
 inspired,Inspired,buff,900,false,1,0,craft_speed:1.5:multiply,0,none,0,rest,crafting|creativity,Increases crafting speed by 50% and improves quality
 weakness,Weakness,debuff,120,true,3,0,strength:0.75:multiply,0,none,0,medicine,combat|physical,Reduces physical strength by 25% per stack

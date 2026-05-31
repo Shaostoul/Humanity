@@ -87,6 +87,32 @@ impl StatusEffectRegistry {
         self.effects.get(id)
     }
 
+    /// Net multiplier for a stat across a set of active effect ids: starts at 1.0,
+    /// multiplies for `multiply` modifiers and adds for `add` modifiers, clamped at
+    /// 0. Used e.g. for the player's movement speed (well_nourished ×1.1, thirsty
+    /// ×0.8, flu ×0.8…) so buffs/debuffs are mechanically applied, not just shown.
+    pub fn net_stat_multiplier<'a>(
+        &self,
+        active_ids: impl IntoIterator<Item = &'a str>,
+        stat: &str,
+    ) -> f32 {
+        let mut mult = 1.0_f32;
+        for id in active_ids {
+            if let Some(def) = self.get(id) {
+                if let Some((s, value, op)) = def.modifier() {
+                    if s == stat {
+                        match op {
+                            "multiply" => mult *= value,
+                            "add" => mult += value,
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        mult.max(0.0)
+    }
+
     pub fn len(&self) -> usize {
         self.effects.len()
     }
@@ -125,5 +151,24 @@ mod tests {
         assert_eq!(op, "multiply");
         assert!((value - 1.5).abs() < f32::EPSILON);
         assert!(reg.get("shield").is_none() || true); // shield exists; just exercising get()
+    }
+
+    #[test]
+    fn net_speed_multiplier_combines_effects() {
+        let reg = StatusEffectRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/status_effects.csv"
+        )))
+        .expect("status_effects.csv");
+
+        // No effects -> neutral speed.
+        assert!((reg.net_stat_multiplier(std::iter::empty(), "speed") - 1.0).abs() < 1e-6);
+        // thirsty has speed:0.8 -> 0.8x (a tangible survival debuff).
+        assert!((reg.net_stat_multiplier(["thirsty"], "speed") - 0.8).abs() < 1e-6);
+        // well_nourished (speed:1.1) stacks multiplicatively with thirsty (0.8) -> 0.88x.
+        let combined = reg.net_stat_multiplier(["well_nourished", "thirsty"], "speed");
+        assert!((combined - 0.88).abs() < 1e-6, "combined speed mult = {combined}");
+        // well_fed modifies stamina_regen, NOT speed -> no effect on the speed stat.
+        assert!((reg.net_stat_multiplier(["well_fed"], "speed") - 1.0).abs() < 1e-6);
     }
 }

@@ -1213,6 +1213,32 @@ mod native_app {
                         log::info!("Hot-reload: {changed}");
                     }
 
+                    // Apply the player's active status-effect SPEED modifiers to movement
+                    // (well_nourished speeds you up; thirsty/flu slow you down). Look is
+                    // unaffected. Collect the effect ids first (owned → releases the world
+                    // borrow), then resolve the net multiplier from the registry.
+                    {
+                        let ids: Vec<String> = state
+                            .game_world
+                            .world
+                            .query::<(
+                                &crate::ecs::components::StatusEffects,
+                                &Controllable,
+                            )>()
+                            .iter()
+                            .next()
+                            .map(|(_, (fx, _))| fx.active.iter().map(|e| e.id.clone()).collect())
+                            .unwrap_or_default();
+                        let mult = state
+                            .data_store
+                            .get::<crate::systems::status_effects::StatusEffectRegistry>(
+                                "status_effect_registry",
+                            )
+                            .map(|reg| reg.net_stat_multiplier(ids.iter().map(|s| s.as_str()), "speed"))
+                            .unwrap_or(1.0);
+                        state.controller.speed_multiplier = mult;
+                    }
+
                     // Update camera from input
                     state.controller.update_camera(&mut state.camera, dt);
 
