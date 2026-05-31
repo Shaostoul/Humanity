@@ -869,6 +869,10 @@ mod native_app {
                 "consume_request",
                 std::sync::Mutex::new(Option::<String>::None),
             );
+            data_store.insert(
+                "drink_request",
+                std::sync::Mutex::new(Option::<String>::None),
+            );
             // Gardening command channels (inventory page -> FarmingSystem): plant a
             // seed by item id, water/harvest a crop by entity bits, dev-grow all.
             data_store.insert(
@@ -1349,6 +1353,17 @@ mod native_app {
                         if let Some(slot) = state
                             .data_store
                             .get::<std::sync::Mutex<Option<String>>>("consume_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(item_id);
+                            }
+                        }
+                    }
+                    // Drink: bridge the clicked beverage to FoodSystem's drink channel.
+                    if let Some(item_id) = state.gui_state.pending_drink_item.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<String>>>("drink_request")
                         {
                             if let Ok(mut s) = slot.lock() {
                                 *s = Some(item_id);

@@ -71,6 +71,8 @@ const SATIATION_PER_CALORIE: f32 = 0.15;
 /// Hydration restored by eating watery produce vs. everything else.
 const PRODUCE_HYDRATION: f32 = 10.0;
 const BASE_HYDRATION: f32 = 3.0;
+/// Hydration restored per drink consumed (water/juice/etc. via the Drink action).
+const DRINK_HYDRATION: f32 = 30.0;
 /// Health drained per second while fully starved / dehydrated (dehydration
 /// kills roughly twice as fast, matching the `thirsty` effect's data note).
 const STARVE_DAMAGE_PER_SEC: f32 = 1.0;
@@ -301,6 +303,23 @@ impl System for FoodSystem {
                 }
             } else {
                 log::debug!("[Food] consume_request for non-food item {item_id} ignored");
+            }
+        }
+
+        // ── 1a. DRINK: drain drink_request -> consume a drink item -> restore hydration
+        //    (mirrors EAT for beverages, which carry no nutrition profile).
+        let drank = data
+            .get::<std::sync::Mutex<Option<String>>>("drink_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+        if let Some(item_id) = drank {
+            for (_e, (inv, vitals)) in world.query_mut::<(&mut Inventory, &mut Vitals)>() {
+                if inv.has_item(&item_id, 1) {
+                    inv.remove_item(&item_id, 1);
+                    vitals.hydration =
+                        (vitals.hydration + DRINK_HYDRATION).min(vitals.hydration_max);
+                    log::info!("[Food] drank {item_id}: hydration {:.0}", vitals.hydration);
+                }
+                break; // first player only
             }
         }
 
@@ -553,6 +572,7 @@ mod nutrition_tests {
         );
         data.insert("rest_request", std::sync::Mutex::new(false));
         data.insert("compost_request", std::sync::Mutex::new(false));
+        data.insert("drink_request", std::sync::Mutex::new(Option::<String>::None));
         data
     }
 
@@ -774,6 +794,34 @@ mod nutrition_tests {
         assert!(
             !world.get::<&StatusEffects>(player).unwrap().has("unsanitary"),
             "composting lifted the unsanitary debuff"
+        );
+    }
+
+    /// The Drink action consumes a beverage and restores hydration (mirrors Eat).
+    #[test]
+    fn drinking_restores_hydration() {
+        let data = make_store();
+        let mut sys = FoodSystem::new(data_dir());
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("water_purified_0", 1, 99);
+        let player = world.spawn((inv, vitals(80.0, 40.0), StatusEffects::default(), Health::default()));
+
+        *data
+            .get::<std::sync::Mutex<Option<String>>>("drink_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some("water_purified_0".to_string());
+        sys.tick(&mut world, 1.0, &data);
+
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("water_purified_0"),
+            0,
+            "drinking consumed the water"
+        );
+        assert!(
+            world.get::<&Vitals>(player).unwrap().hydration > 40.0,
+            "drinking restored hydration"
         );
     }
 }

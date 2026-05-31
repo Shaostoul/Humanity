@@ -949,6 +949,8 @@ pub struct GuiState {
     /// Item id the player clicked "Eat" on this frame; the main loop bridges it to
     /// FoodSystem's consume channel. None = nothing pending.
     pub pending_consume_item: Option<String>,
+    /// Item id the player clicked "Drink" on this frame → FoodSystem (restores hydration).
+    pub pending_drink_item: Option<String>,
     /// True for the frame the player clicked "Rest" → refills energy via FoodSystem.
     pub pending_rest: bool,
     /// True for the frame the player clicked "Compost" → waste→fertilizer via FoodSystem.
@@ -1771,6 +1773,7 @@ impl Default for GuiState {
             dev_stock_materials: false,
             craft_status: String::new(),
             pending_consume_item: None,
+            pending_drink_item: None,
             pending_rest: false,
             pending_compost: false,
             pending_fertilize_crop: None,

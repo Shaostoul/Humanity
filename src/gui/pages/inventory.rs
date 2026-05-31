@@ -139,6 +139,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // so we can mutate GuiState. action_eat/action_plant come from the detail panel;
     // the crop actions come from the Garden section in the central panel.
     let mut action_eat: Option<String> = None;
+    let mut action_drink: Option<String> = None;
     let mut action_plant: Option<String> = None;
     let mut action_water_crop: Option<u64> = None;
     let mut action_harvest_crop: Option<u64> = None;
@@ -208,14 +209,27 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             // loop), seeds get "Plant" (drives the gardening loop); all
                             // else keeps the placeholder "Use".
                             let details = lookup_item_details(&item.item_id);
-                            let is_food =
-                                details.as_ref().map(|d| d.category == "food").unwrap_or(false);
+                            let is_drink = details
+                                .as_ref()
+                                .map(|d| d.subcategory == "drink" || d.subcategory == "liquid")
+                                .unwrap_or(false)
+                                || item.item_id.starts_with("water_");
+                            // Drinks are category "food" too, so check drink FIRST.
+                            let is_food = details
+                                .as_ref()
+                                .map(|d| d.category == "food")
+                                .unwrap_or(false)
+                                && !is_drink;
                             let is_seed = details
                                 .as_ref()
                                 .map(|d| d.subcategory == "seed")
                                 .unwrap_or(false)
                                 || item.item_id.starts_with("seed_");
-                            if is_food {
+                            if is_drink {
+                                if widgets::primary_button(ui, theme, "Drink") {
+                                    action_drink = Some(item.item_id.clone());
+                                }
+                            } else if is_food {
                                 if widgets::primary_button(ui, theme, "Eat") {
                                     action_eat = Some(item.item_id.clone());
                                 }
@@ -224,7 +238,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     action_plant = Some(item.item_id.clone());
                                 }
                             } else if widgets::primary_button(ui, theme, "Use") {
-                                // Placeholder for non-food/non-seed use.
+                                // Placeholder for non-food/non-seed/non-drink use.
                             }
                             if widgets::secondary_button(ui, theme, "Equip") {
                                 action_equip = true;
@@ -275,6 +289,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // pending_consume_item into the consume_request DataStore channel before the tick).
     if let Some(item_id) = action_eat {
         state.pending_consume_item = Some(item_id);
+    }
+    // Handle drink action — bridge to FoodSystem (restores hydration).
+    if let Some(item_id) = action_drink {
+        state.pending_drink_item = Some(item_id);
     }
     // Handle plant action — bridge to FarmingSystem (consumes the seed, spawns a crop).
     if let Some(seed_id) = action_plant {
