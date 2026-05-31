@@ -547,3 +547,57 @@ impl System for CraftingSystem {
         }
     }
 }
+
+#[cfg(test)]
+mod refining_chain_tests {
+    use super::*;
+    use crate::systems::inventory::ItemRegistry;
+
+    /// The ores mined by drones (#5) must be refineable: smelt recipes exist for
+    /// nickel + platinum, and a 2-tier alloy (stainless = iron + nickel ingots)
+    /// proves the ore → ingot → alloy chain — with every input/output a real item.
+    #[test]
+    fn nickel_platinum_refining_chain_is_wired() {
+        let recipes = RecipeRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/recipes.csv"
+        )))
+        .expect("recipes.csv");
+        let items = ItemRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/items.csv"
+        )))
+        .expect("items.csv");
+
+        let valid = |id: &str| items.items.contains_key(id);
+
+        for (recipe_id, want_out) in [
+            ("smelt_nickel", "nickel_ingot_0"),
+            ("smelt_platinum", "platinum_ingot_0"),
+            ("smelt_stainless", "stainless_steel_ingot_0"),
+        ] {
+            let r = recipes
+                .recipes
+                .get(recipe_id)
+                .unwrap_or_else(|| panic!("missing recipe {recipe_id}"));
+            for (id, _) in &r.inputs {
+                assert!(valid(id), "{recipe_id} input {id} is not a real item");
+            }
+            for (id, _) in &r.outputs {
+                assert!(valid(id), "{recipe_id} output {id} is not a real item");
+            }
+            assert!(
+                r.outputs.iter().any(|(id, _)| id == want_out),
+                "{recipe_id} should produce {want_out}"
+            );
+        }
+
+        // Multi-tier depth: stainless consumes nickel_ingot_0, which is itself
+        // smelt_nickel's output — ore → ingot → alloy, not a flat one-step tree.
+        let stainless = recipes.recipes.get("smelt_stainless").unwrap();
+        assert!(
+            stainless.inputs.iter().any(|(id, _)| id == "nickel_ingot_0"),
+            "stainless steel should consume nickel ingots (a refined intermediate)"
+        );
+    }
+}
