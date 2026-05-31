@@ -124,9 +124,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Right side panel: item detail
     let mut action_drop = false;
     let mut action_equip = false;
-    // Set to the item id when the player clicks "Eat"; applied after the panel
-    // closure (which borrows `state` immutably) so we can mutate GuiState.
+    // Set inside the panel/central closures (which borrow `state`); applied after
+    // so we can mutate GuiState. action_eat/action_plant come from the detail panel;
+    // the crop actions come from the Garden section in the central panel.
     let mut action_eat: Option<String> = None;
+    let mut action_plant: Option<String> = None;
+    let mut action_water_crop: Option<u64> = None;
+    let mut action_harvest_crop: Option<u64> = None;
+    let mut action_dev_grow = false;
 
     if let Some(idx) = state.selected_slot {
         egui::SidePanel::right("inv_detail_panel")
@@ -184,18 +189,27 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.label(RichText::new("Actions").size(theme.font_size_body).color(theme.text_secondary()));
                         ui.add_space(theme.spacing_xs);
                         ui.horizontal(|ui| {
-                            // Food items get a real "Eat" action (drives the
-                            // nutrition loop via FoodSystem); everything else keeps
-                            // the placeholder "Use".
-                            let is_food = lookup_item_details(&item.item_id)
-                                .map(|d| d.category == "food")
-                                .unwrap_or(false);
+                            // Food items get a real "Eat" action (drives the nutrition
+                            // loop), seeds get "Plant" (drives the gardening loop); all
+                            // else keeps the placeholder "Use".
+                            let details = lookup_item_details(&item.item_id);
+                            let is_food =
+                                details.as_ref().map(|d| d.category == "food").unwrap_or(false);
+                            let is_seed = details
+                                .as_ref()
+                                .map(|d| d.subcategory == "seed")
+                                .unwrap_or(false)
+                                || item.item_id.starts_with("seed_");
                             if is_food {
                                 if widgets::primary_button(ui, theme, "Eat") {
                                     action_eat = Some(item.item_id.clone());
                                 }
+                            } else if is_seed {
+                                if widgets::primary_button(ui, theme, "Plant") {
+                                    action_plant = Some(item.item_id.clone());
+                                }
                             } else if widgets::primary_button(ui, theme, "Use") {
-                                // Placeholder for non-food use.
+                                // Placeholder for non-food/non-seed use.
                             }
                             if widgets::secondary_button(ui, theme, "Equip") {
                                 action_equip = true;
@@ -246,6 +260,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // pending_consume_item into the consume_request DataStore channel before the tick).
     if let Some(item_id) = action_eat {
         state.pending_consume_item = Some(item_id);
+    }
+    // Handle plant action — bridge to FarmingSystem (consumes the seed, spawns a crop).
+    if let Some(seed_id) = action_plant {
+        state.pending_plant_seed = Some(seed_id);
     }
 
     egui::CentralPanel::default()
@@ -479,8 +497,99 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
                         }
                     });
+
+                // ── Garden: crops growing in the world (plant via a seed's "Plant"
+                //    action; FarmingSystem advances growth from game time + water). ──
+                ui.add_space(theme.spacing_md);
+                ui.separator();
+                ui.add_space(theme.spacing_sm);
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("Garden")
+                            .size(theme.font_size_heading)
+                            .color(theme.text_primary()),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Dev/testing affordance: skip the game-day wait for growth.
+                        if widgets::secondary_button(ui, theme, "Dev: grow all") {
+                            action_dev_grow = true;
+                        }
+                    });
+                });
+                ui.add_space(theme.spacing_xs);
+                if state.crops.is_empty() {
+                    ui.label(
+                        RichText::new("No crops yet — plant a seed from your inventory.")
+                            .color(theme.text_muted()),
+                    );
+                } else {
+                    for crop in &state.crops {
+                        widgets::card(ui, theme, |ui| {
+                            ui.horizontal(|ui| {
+                                let (title, title_col) = if crop.dead {
+                                    (format!("{} (dead)", crop.name), theme.danger())
+                                } else if crop.mature {
+                                    (format!("{} — ready to harvest", crop.name), theme.accent())
+                                } else {
+                                    (format!("{} — {}", crop.name, crop.stage), theme.text_primary())
+                                };
+                                ui.label(RichText::new(title).color(title_col));
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if crop.mature
+                                            && widgets::primary_button(ui, theme, "Harvest")
+                                        {
+                                            action_harvest_crop = Some(crop.entity_bits);
+                                        }
+                                        if !crop.dead
+                                            && widgets::secondary_button(ui, theme, "Water")
+                                        {
+                                            action_water_crop = Some(crop.entity_bits);
+                                        }
+                                    },
+                                );
+                            });
+                            ui.add(
+                                egui::ProgressBar::new(crop.progress.clamp(0.0, 1.0))
+                                    .fill(theme.accent())
+                                    .text("growth"),
+                            );
+                            ui.horizontal(|ui| {
+                                let wcol = if crop.water < 0.2 {
+                                    theme.danger()
+                                } else {
+                                    theme.text_secondary()
+                                };
+                                ui.label(
+                                    RichText::new(format!("Water {:.0}%", crop.water * 100.0))
+                                        .size(theme.font_size_small)
+                                        .color(wcol),
+                                );
+                                ui.label(
+                                    RichText::new(format!("Health {:.0}%", crop.health))
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_secondary()),
+                                );
+                            });
+                        });
+                        ui.add_space(theme.spacing_xs);
+                    }
+                }
             });
         });
+
+    // Apply the Garden actions (set inside the central panel) to GuiState; the main
+    // loop bridges these into FarmingSystem's command channels before the next tick.
+    if let Some(bits) = action_water_crop {
+        state.pending_water_crop = Some(bits);
+    }
+    if let Some(bits) = action_harvest_crop {
+        state.pending_harvest_crop = Some(bits);
+    }
+    if action_dev_grow {
+        state.dev_grow_crops = true;
+    }
 }
 
 // detail_row moved to crate::gui::widgets::detail_row

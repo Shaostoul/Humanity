@@ -844,6 +844,15 @@ mod native_app {
                 "consume_request",
                 std::sync::Mutex::new(Option::<String>::None),
             );
+            // Gardening command channels (inventory page -> FarmingSystem): plant a
+            // seed by item id, water/harvest a crop by entity bits, dev-grow all.
+            data_store.insert(
+                "plant_request",
+                std::sync::Mutex::new(Option::<String>::None),
+            );
+            data_store.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
+            data_store.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
+            data_store.insert("dev_grow_crops", std::sync::Mutex::new(false));
             system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
@@ -1224,6 +1233,47 @@ mod native_app {
                             }
                         }
                     }
+                    // Gardening: bridge plant/water/harvest/dev-grow to FarmingSystem.
+                    if let Some(seed_id) = state.gui_state.pending_plant_seed.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<String>>>("plant_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(seed_id);
+                            }
+                        }
+                    }
+                    if let Some(bits) = state.gui_state.pending_water_crop.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<u64>>>("water_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(bits);
+                            }
+                        }
+                    }
+                    if let Some(bits) = state.gui_state.pending_harvest_crop.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<u64>>>("harvest_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(bits);
+                            }
+                        }
+                    }
+                    if state.gui_state.dev_grow_crops {
+                        state.gui_state.dev_grow_crops = false;
+                        if let Some(slot) =
+                            state.data_store.get::<std::sync::Mutex<bool>>("dev_grow_crops")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = true;
+                            }
+                        }
+                    }
 
                     // Tick all ECS systems
                     state.system_runner.tick(
@@ -1580,6 +1630,53 @@ mod native_app {
                                     (name, e.remaining)
                                 })
                                 .collect();
+                        }
+                    }
+                    // Bridge growing crops from ECS for the gardening (Garden) panel.
+                    {
+                        let plant_reg = state
+                            .data_store
+                            .get::<crate::systems::farming::PlantRegistry>("plant_registry");
+                        state.gui_state.crops.clear();
+                        for (entity, crop) in state
+                            .game_world
+                            .world
+                            .query::<&crate::ecs::components::CropInstance>()
+                            .iter()
+                        {
+                            let def = plant_reg.and_then(|r| r.get(&crop.crop_def_id));
+                            let name = def
+                                .map(|d| d.name.clone())
+                                .unwrap_or_else(|| crop.crop_def_id.clone());
+                            let stages: Vec<&str> = def.map(|d| d.stages()).unwrap_or_else(|| {
+                                crate::ecs::components::DEFAULT_GROWTH_STAGES
+                                    .iter()
+                                    .copied()
+                                    .collect()
+                            });
+                            let dead =
+                                crop.growth_stage.as_str() == crate::ecs::components::STAGE_DEAD;
+                            let last = stages.last().copied().unwrap_or("");
+                            let mature = !dead && crop.growth_stage.as_str() == last;
+                            let progress = if dead {
+                                0.0
+                            } else {
+                                stages
+                                    .iter()
+                                    .position(|s| *s == crop.growth_stage.as_str())
+                                    .map(|i| (i as f32 + 1.0) / stages.len().max(1) as f32)
+                                    .unwrap_or(0.0)
+                            };
+                            state.gui_state.crops.push(crate::gui::GuiCrop {
+                                entity_bits: entity.to_bits().into(),
+                                name,
+                                stage: crop.growth_stage.clone(),
+                                progress,
+                                water: crop.water_level,
+                                health: crop.health,
+                                mature,
+                                dead,
+                            });
                         }
                     }
 

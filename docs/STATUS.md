@@ -261,7 +261,7 @@ Everything in this section is **built and working**.
 | Day/night cycle | ✅ | GameTime with seasons, sun direction/color (v0.31.0) |
 | Inventory system | ✅ | ItemStack slots, add/remove/transfer (v0.31.0) |
 | Crafting system | ✅ | Recipe matching from recipes.csv (v0.31.0) |
-| Farming system | ✅ | Growth timer, stage transitions, water/health simulation (v0.31.0) |
+| Farming / gardening loop | ✅ | `FarmingSystem` registered + ticking: growth (game_time + water/health) **plus the full loop (v0.331.0)** — Plant a seed (Plant button → spawn CropInstance), Water, Harvest a mature crop → produce into inventory → despawn. Garden panel on the inventory page + a "Dev: grow all" affordance. Proven by `farming::gardening_tests`. **#4b** (tracked in gameplay-loops.md): data-driven `harvest_item` column (124/129 plants have no produce item yet), soil/irrigation entities, 3D crop placement/visuals. |
 | InputState | ✅ | Cross-system input sharing (v0.31.0) |
 | Ship interior system | ✅ | ShipDef/DeckDef/RoomDef from RON, room mesh generation, BFS pathfinding (v0.33.0) |
 | AI behavior system | ⚠️ | Native `AISystem` (state machines) implemented but **NOT registered** — never ticks in the native runtime. (The relay drives ambient NPC wander separately, server-side.) See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |

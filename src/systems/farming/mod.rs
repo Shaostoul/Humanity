@@ -33,6 +33,9 @@ pub struct PlantDef {
     /// Loaded from plants.csv `growth_stages` column (colon-separated).
     /// Falls back to DEFAULT_GROWTH_STAGES when empty.
     pub growth_stages: Vec<String>,
+    /// Harvest yield range (units of produce per fully-grown plant).
+    pub yield_min: u32,
+    pub yield_max: u32,
 }
 
 impl PlantDef {
@@ -96,6 +99,8 @@ impl PlantRegistry {
                     water_per_day: row.water_liters_per_day,
                     seasons: split_colon_list(&row.seasons),
                     growth_stages: split_colon_list(&row.growth_stages),
+                    yield_min: row.yield_min,
+                    yield_max: row.yield_max,
                 },
             );
         }
@@ -117,6 +122,10 @@ struct PlantRow {
     growth_stages: String,
     #[serde(default)]
     seasons: String,
+    #[serde(default)]
+    yield_min: u32,
+    #[serde(default)]
+    yield_max: u32,
 }
 
 /// Split a colon-separated list field into trimmed, non-empty entries.
@@ -181,6 +190,35 @@ fn stage_index(stage: &str, stages: &[&str]) -> Option<usize> {
     stages.iter().position(|s| *s == stage)
 }
 
+/// Map a seed item id (`seed_<plant>_0`) to its plant-definition id (`<plant>`).
+/// Strips the `seed_` prefix and a trailing `_<n>` item-instance suffix.
+fn plant_id_from_seed(seed_id: &str) -> Option<String> {
+    let body = seed_id.strip_prefix("seed_")?;
+    if let Some((base, suffix)) = body.rsplit_once('_') {
+        if !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit()) {
+            return Some(base.to_string());
+        }
+    }
+    Some(body.to_string())
+}
+
+/// Resolve a plant id to the produce item it yields, VALIDATED against the item
+/// registry so a harvest only ever produces an item that actually exists. Tries
+/// the `vegetable_/fruit_/grain_` naming convention. (A `harvest_item` column on
+/// plants.csv would make this fully data-driven — tracked in gameplay-loops.md.)
+fn harvest_item_for(
+    plant_id: &str,
+    items: Option<&crate::systems::inventory::ItemRegistry>,
+) -> Option<String> {
+    for prefix in ["vegetable", "fruit", "grain"] {
+        let candidate = format!("{prefix}_{plant_id}_0");
+        if items.map(|r| r.items.contains_key(&candidate)).unwrap_or(false) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
 /// Simulates crop growth based on elapsed time and environmental factors.
 pub struct FarmingSystem {
     _initialized: bool,
@@ -211,6 +249,133 @@ impl System for FarmingSystem {
 
         // Build default stages vec once for plants without custom stages
         let default_stages: Vec<&str> = DEFAULT_GROWTH_STAGES.iter().copied().collect();
+
+        let item_registry = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+
+        // ── GUI / dev gardening commands (the inventory page writes these via the
+        //    main-loop bridge): plant a seed, water a crop, dev-grow all, harvest. ──
+        // PLANT: consume one matching seed from the player, spawn a CropInstance.
+        let plant_seed = data
+            .get::<std::sync::Mutex<Option<String>>>("plant_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+        if let Some(seed_id) = plant_seed {
+            if let Some(plant_id) = plant_id_from_seed(&seed_id) {
+                // Resolve the first growth stage now (immutable plant_registry borrow),
+                // copied out before the &mut World pass below.
+                let first_stage = plant_registry
+                    .and_then(|reg| reg.get(&plant_id))
+                    .map(|d| d.first_stage().to_string());
+                if let Some(first_stage) = first_stage {
+                    let mut planted = false;
+                    for (_e, (inv, _ctrl)) in world.query_mut::<(
+                        &mut crate::systems::inventory::Inventory,
+                        &crate::ecs::components::Controllable,
+                    )>() {
+                        if inv.has_item(&seed_id, 1) {
+                            inv.remove_item(&seed_id, 1);
+                            planted = true;
+                            break;
+                        }
+                    }
+                    if planted {
+                        world.spawn((CropInstance {
+                            crop_def_id: plant_id.clone(),
+                            growth_stage: first_stage,
+                            planted_at: elapsed_seconds,
+                            water_level: 1.0,
+                            health: 100.0,
+                        },));
+                        log::info!("[Farming] planted {plant_id} (from {seed_id})");
+                    }
+                } else {
+                    log::debug!("[Farming] no plant def for seed {seed_id}; not planted");
+                }
+            }
+        }
+
+        // WATER: top up one crop's water + a little health.
+        let water_bits = data
+            .get::<std::sync::Mutex<Option<u64>>>("water_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+        if let Some(bits) = water_bits {
+            if let Some(entity) = hecs::Entity::from_bits(bits) {
+                if let Ok(mut crop) = world.get::<&mut CropInstance>(entity) {
+                    crop.water_level = 1.0;
+                    crop.health = (crop.health + 10.0).min(100.0);
+                }
+            }
+        }
+
+        // DEV: instantly mature every living crop (a testing affordance, like
+        // "Dev: stock all materials" — so the loop is verifiable without waiting
+        // game-days for growth).
+        let dev_grow = data
+            .get::<std::sync::Mutex<bool>>("dev_grow_crops")
+            .and_then(|m| m.lock().ok().map(|mut s| std::mem::replace(&mut *s, false)))
+            .unwrap_or(false);
+        if dev_grow {
+            for (_e, crop) in world.query_mut::<&mut CropInstance>() {
+                if crop.growth_stage == STAGE_DEAD {
+                    continue;
+                }
+                if let Some(last) = plant_registry
+                    .and_then(|reg| reg.get(&crop.crop_def_id))
+                    .map(|d| d.last_stage().to_string())
+                {
+                    crop.growth_stage = last;
+                }
+            }
+        }
+
+        // HARVEST: a fully-grown crop -> produce items into the player + despawn it.
+        let harvest_bits = data
+            .get::<std::sync::Mutex<Option<u64>>>("harvest_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+        if let Some(bits) = harvest_bits {
+            if let Some(entity) = hecs::Entity::from_bits(bits) {
+                // Read the crop (immutable, scoped) to confirm maturity + plant id.
+                let plant_id = world.get::<&CropInstance>(entity).ok().and_then(|crop| {
+                    let stages: Vec<&str> = plant_registry
+                        .and_then(|reg| reg.get(&crop.crop_def_id))
+                        .map(|d| d.stages())
+                        .unwrap_or_else(|| default_stages.clone());
+                    let mature = stages.last().map(|l| crop.growth_stage == *l).unwrap_or(false);
+                    if mature {
+                        Some(crop.crop_def_id.clone())
+                    } else {
+                        None
+                    }
+                });
+                if let Some(plant_id) = plant_id {
+                    if let Some(yield_item) = harvest_item_for(&plant_id, item_registry) {
+                        let (ymin, ymax) = plant_registry
+                            .and_then(|reg| reg.get(&plant_id))
+                            .map(|d| (d.yield_min.max(1), d.yield_max.max(d.yield_min).max(1)))
+                            .unwrap_or((1, 1));
+                        let qty = if ymax > ymin {
+                            ymin + (rand::random::<u32>() % (ymax - ymin + 1))
+                        } else {
+                            ymin
+                        };
+                        let max_stack =
+                            item_registry.map(|r| r.max_stack_for(&yield_item)).unwrap_or(99);
+                        for (_e, (inv, _ctrl)) in world.query_mut::<(
+                            &mut crate::systems::inventory::Inventory,
+                            &crate::ecs::components::Controllable,
+                        )>() {
+                            inv.add_item(&yield_item, qty, max_stack);
+                            log::info!("[Farming] harvested {qty}x {yield_item} from {plant_id}");
+                            break;
+                        }
+                    } else {
+                        log::warn!(
+                            "[Farming] {plant_id} has no produce item in items.csv; harvest yielded nothing"
+                        );
+                    }
+                    let _ = world.despawn(entity);
+                }
+            }
+        }
 
         // Collect entities to update (avoid borrow conflict with world)
         let mut updates: Vec<(hecs::Entity, CropInstance)> = Vec::new();
@@ -302,5 +467,126 @@ impl System for FarmingSystem {
         }
 
         self._initialized = true;
+    }
+}
+
+#[cfg(test)]
+mod gardening_tests {
+    use super::*;
+    use crate::ecs::components::{Controllable, CropInstance};
+    use crate::ecs::systems::System;
+    use crate::hot_reload::data_store::DataStore;
+    use crate::systems::inventory::{Inventory, ItemRegistry};
+
+    /// DataStore with plant + item registries and the four gardening channels,
+    /// mirroring the runtime wiring in lib.rs.
+    fn make_store() -> DataStore {
+        let mut data = DataStore::new();
+        let plants = PlantRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/plants.csv"
+        )))
+        .expect("plants.csv");
+        let items = ItemRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/items.csv"
+        )))
+        .expect("items.csv");
+        data.insert("plant_registry", plants);
+        data.insert("item_registry", items);
+        data.insert(
+            "game_time",
+            std::sync::Mutex::new(crate::systems::time::GameTime::default()),
+        );
+        data.insert("plant_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
+        data.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
+        data.insert("dev_grow_crops", std::sync::Mutex::new(false));
+        data
+    }
+
+    fn set_string(data: &DataStore, key: &str, v: &str) {
+        *data
+            .get::<std::sync::Mutex<Option<String>>>(key)
+            .unwrap()
+            .lock()
+            .unwrap() = Some(v.to_string());
+    }
+
+    /// Full gardening loop: plant a seed (consumed → crop spawned) → dev-grow to
+    /// maturity → harvest (produce yielded into the player + crop despawned).
+    #[test]
+    fn plant_grow_harvest_full_loop() {
+        let data = make_store();
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("seed_tomato_0", 1, 99);
+        let player = world.spawn((inv, Controllable));
+
+        // PLANT.
+        set_string(&data, "plant_request", "seed_tomato_0");
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("seed_tomato_0"),
+            0,
+            "seed consumed by planting"
+        );
+        let crops: Vec<hecs::Entity> =
+            world.query::<&CropInstance>().iter().map(|(e, _)| e).collect();
+        assert_eq!(crops.len(), 1, "exactly one crop planted");
+        let crop_entity = crops[0];
+        assert_eq!(
+            world.get::<&CropInstance>(crop_entity).unwrap().crop_def_id,
+            "tomato",
+            "seed mapped to the tomato plant def"
+        );
+
+        // DEV-GROW to maturity (tomato's last stage is `ripe`).
+        *data.get::<std::sync::Mutex<bool>>("dev_grow_crops").unwrap().lock().unwrap() = true;
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.get::<&CropInstance>(crop_entity).unwrap().growth_stage,
+            "ripe",
+            "dev-grow matured the crop"
+        );
+
+        // HARVEST: yield produce + despawn the crop.
+        *data
+            .get::<std::sync::Mutex<Option<u64>>>("harvest_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(crop_entity.to_bits().into());
+        sys.tick(&mut world, 1.0, &data);
+        assert!(
+            world.get::<&CropInstance>(crop_entity).is_err(),
+            "harvested crop was despawned"
+        );
+        let tomatoes = world
+            .get::<&Inventory>(player)
+            .unwrap()
+            .count_item("vegetable_tomato_0");
+        assert!(
+            tomatoes >= 2,
+            "harvest yielded produce (>= yield_min 2 tomatoes), got {tomatoes}"
+        );
+    }
+
+    #[test]
+    fn seed_and_harvest_id_mapping() {
+        assert_eq!(plant_id_from_seed("seed_tomato_0").as_deref(), Some("tomato"));
+        assert_eq!(plant_id_from_seed("seed_sweet_potato_0").as_deref(), Some("sweet_potato"));
+        assert_eq!(plant_id_from_seed("iron_ore_0"), None);
+        let items = ItemRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/items.csv"
+        )))
+        .expect("items.csv");
+        assert_eq!(
+            harvest_item_for("tomato", Some(&items)).as_deref(),
+            Some("vegetable_tomato_0")
+        );
+        // A plant with no produce item in items.csv yields nothing (no crash).
+        assert_eq!(harvest_item_for("void_orchid", Some(&items)), None);
     }
 }

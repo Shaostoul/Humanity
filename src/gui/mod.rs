@@ -381,6 +381,22 @@ pub struct GuiVitals {
     pub effects: Vec<(String, f32)>,
 }
 
+/// A growing crop for GUI display (synced from the ECS each frame).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiCrop {
+    /// hecs entity bits — used to target water/harvest commands.
+    pub entity_bits: u64,
+    pub name: String,
+    pub stage: String,
+    /// Growth progress 0..1 (by stage index).
+    pub progress: f32,
+    pub water: f32,
+    pub health: f32,
+    pub mature: bool,
+    pub dead: bool,
+}
+
 /// A guild for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -908,6 +924,18 @@ pub struct GuiState {
     /// Player vitals (satiation/hydration + active status effects), synced from the
     /// ECS each frame for the HUD / inventory page to display.
     pub vitals: GuiVitals,
+
+    // ── Gardening state ──
+    /// Seed item id the player clicked "Plant" on this frame → FarmingSystem.
+    pub pending_plant_seed: Option<String>,
+    /// Crop entity bits the player clicked "Water" on this frame.
+    pub pending_water_crop: Option<u64>,
+    /// Crop entity bits the player clicked "Harvest" on this frame.
+    pub pending_harvest_crop: Option<u64>,
+    /// Dev: instantly mature all crops (testing affordance, like dev-stock).
+    pub dev_grow_crops: bool,
+    /// Growing crops, synced from the ECS each frame for the Garden panel.
+    pub crops: Vec<GuiCrop>,
 
     // ── Guilds state ──
     pub guilds: Vec<GuiGuild>,
@@ -1702,6 +1730,11 @@ impl Default for GuiState {
             craft_status: String::new(),
             pending_consume_item: None,
             vitals: GuiVitals::default(),
+            pending_plant_seed: None,
+            pending_water_crop: None,
+            pending_harvest_crop: None,
+            dev_grow_crops: false,
+            crops: Vec::new(),
 
             // Guilds defaults
             guilds: Vec::new(),
