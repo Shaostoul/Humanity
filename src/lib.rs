@@ -92,7 +92,7 @@ mod native_app {
     use crate::systems::inventory::containers::ContainerCompatibilitySystem;
     use crate::systems::player::PlayerControllerSystem;
     use crate::systems::time::{GameTime, TimeSystem};
-    use crate::systems::weather::Weather;
+    use crate::systems::weather::{Weather, WeatherSystem};
     use crate::terrain::planet::{PlanetDef, PlanetRenderer};
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -842,7 +842,16 @@ mod native_app {
                 "game_time",
                 std::sync::Mutex::new(crate::systems::time::GameTime::default()),
             );
+            // Weather behind a Mutex (the TimeSystem/game_time pattern): WeatherSystem
+            // writes it each tick; the survival env (exposed temp) + HUD read it.
+            data_store.insert(
+                "weather",
+                std::sync::Mutex::new(crate::systems::weather::Weather::default()),
+            );
             system_runner.register(TimeSystem::new());
+            // WeatherSystem ticks after TimeSystem (reads the exported season) and
+            // exports Weather; the exposed-environment temperature consumes it.
+            system_runner.register(WeatherSystem::new());
             system_runner.register(PlayerControllerSystem);
             data_store.insert("interaction_prompt", std::sync::Mutex::new(String::new()));
             // GUI -> ECS command channels (interior-mutable; the main loop writes
@@ -1274,6 +1283,14 @@ mod native_app {
                     // homestead volume (oxygenated/heated) or exposed (vacuum/cold)?
                     // FoodSystem reads this to drive oxygen + body temperature.
                     {
+                        // Exposed ambient temperature comes from the current weather
+                        // (winter / storms make the outside deadlier); -40 fallback.
+                        let exposed_temp = state
+                            .data_store
+                            .get::<std::sync::Mutex<Weather>>("weather")
+                            .and_then(|m| m.lock().ok())
+                            .map(|w| w.temperature)
+                            .unwrap_or(-40.0);
                         let pos = state.camera.position;
                         let env = match state.homestead_bounds {
                             Some((mn, mx))
@@ -1288,7 +1305,7 @@ mod native_app {
                                 // Outside the hull — vacuum + deep cold.
                                 sealed: false,
                                 oxygenated: false,
-                                ambient_temp_c: -40.0,
+                                ambient_temp_c: exposed_temp,
                             },
                             // Homestead not generated yet → assume safe.
                             None => crate::ecs::components::EnvironmentContext::default(),
@@ -1855,8 +1872,12 @@ mod native_app {
                         });
                     }
 
-                    // Bridge weather from DataStore (if WeatherSystem writes it)
-                    if let Some(w) = state.data_store.get::<Weather>("weather") {
+                    // Bridge weather from DataStore (WeatherSystem writes it via Mutex).
+                    if let Some(w) = state
+                        .data_store
+                        .get::<std::sync::Mutex<Weather>>("weather")
+                        .and_then(|m| m.lock().ok())
+                    {
                         state.gui_state.weather = Some(GuiWeather {
                             condition: format!("{:?}", w.condition),
                             temperature: w.temperature,

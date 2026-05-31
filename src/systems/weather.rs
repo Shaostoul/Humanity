@@ -302,6 +302,15 @@ impl System for WeatherSystem {
             self.weather.humidity = lerp(self.prev_humidity, self.target_humidity, t);
             self.weather.wind_speed = lerp(self.prev_wind_speed, self.target_wind_speed, t);
         }
+
+        // Export the current weather to the DataStore so the survival environment
+        // (the exposed ambient temperature) and the HUD read it. Interior mutability
+        // via a Mutex (the TimeSystem/game_time pattern) since tick only gets &DataStore.
+        if let Some(slot) = data.get::<std::sync::Mutex<Weather>>("weather") {
+            if let Ok(mut w) = slot.lock() {
+                *w = self.weather.clone();
+            }
+        }
     }
 }
 
@@ -338,6 +347,28 @@ mod tests {
         for _ in 0..100 {
             system.tick(&mut world, 1.0 / 60.0, &data);
         }
+    }
+
+    #[test]
+    fn exports_weather_to_datastore() {
+        // Pre-seed the slot as world init does, tick, and confirm the system's
+        // weather is visible in the DataStore (what the survival env + HUD read).
+        let mut data = DataStore::new();
+        data.insert("weather", std::sync::Mutex::new(Weather::default()));
+        let mut world = hecs::World::new();
+        let mut sys = WeatherSystem::new();
+        sys.begin_transition(WeatherCondition::Snow, Season::Winter);
+        for _ in 0..40 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let exported = data
+            .get::<std::sync::Mutex<Weather>>("weather")
+            .expect("weather slot")
+            .lock()
+            .unwrap()
+            .clone();
+        assert_eq!(exported.condition, sys.weather().condition);
+        assert!((exported.temperature - sys.weather().temperature).abs() < 1e-6);
     }
 
     #[test]
