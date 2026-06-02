@@ -546,6 +546,92 @@ pub fn stepper_button(
     enabled && resp.clicked()
 }
 
+/// A node in a [`tree_list`] — the uniform recursive container model: a node carries
+/// an optional `detail` value and any number of child nodes. A "container" is a node
+/// with children; an "item" is a leaf. The same shape serves your inventory, a
+/// vehicle's hold, a home's rooms — anything nested, any depth.
+#[derive(Debug, Clone, Default)]
+pub struct TreeNode {
+    /// Selection id — empty means the row isn't clickable. For a backpack item this
+    /// is its slot index; clicking it is how the caller drives the item detail panel.
+    pub id: String,
+    pub label: String,
+    /// Right-aligned secondary text (quantity, weight, …). Empty = none.
+    pub detail: String,
+    pub children: Vec<TreeNode>,
+}
+
+impl TreeNode {
+    pub fn leaf(label: impl Into<String>, detail: impl Into<String>) -> Self {
+        Self { id: String::new(), label: label.into(), detail: detail.into(), children: Vec::new() }
+    }
+    /// A clickable leaf — clicking it makes [`tree_list`] return `id`.
+    pub fn selectable(id: impl Into<String>, label: impl Into<String>, detail: impl Into<String>) -> Self {
+        Self { id: id.into(), label: label.into(), detail: detail.into(), children: Vec::new() }
+    }
+    pub fn branch(label: impl Into<String>, detail: impl Into<String>, children: Vec<TreeNode>) -> Self {
+        Self { id: String::new(), label: label.into(), detail: detail.into(), children }
+    }
+}
+
+fn tree_detail(ui: &mut Ui, theme: &Theme, detail: &str) {
+    if !detail.is_empty() {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(
+                egui::RichText::new(detail)
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        });
+    }
+}
+
+fn container_node(ui: &mut Ui, theme: &Theme, node: &TreeNode, selected: &str, clicked: &mut Option<String>) {
+    if node.children.is_empty() {
+        ui.horizontal(|ui| {
+            if node.id.is_empty() {
+                ui.label(egui::RichText::new(&node.label).color(theme.text_primary()));
+            } else if ui
+                .selectable_label(
+                    selected == node.id,
+                    egui::RichText::new(&node.label).color(theme.text_primary()),
+                )
+                .clicked()
+            {
+                *clicked = Some(node.id.clone());
+            }
+            tree_detail(ui, theme, &node.detail);
+        });
+    } else {
+        let id = ui.make_persistent_id("tree_node");
+        egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, true)
+            .show_header(ui, |ui| {
+                ui.label(egui::RichText::new(&node.label).color(theme.text_primary()).strong());
+                tree_detail(ui, theme, &node.detail);
+            })
+            .body(|ui| {
+                for (j, child) in node.children.iter().enumerate() {
+                    ui.push_id(j, |ui| container_node(ui, theme, child, selected, clicked));
+                }
+            });
+    }
+}
+
+/// Render a list of [`TreeNode`] roots as an expand/collapse tree — the reusable
+/// nested container/inventory view. Branches use egui's persistent collapsing state
+/// (open by default, child indentation handled for us); leaves are rows, clickable if
+/// they carry an `id`. Returns the id of a leaf clicked this frame. The SAME widget
+/// renders a real inventory or any sim entity's — the caller just hands it a different
+/// root, which is how Real and Sim stay structurally separate (different pages, same
+/// widget). `selected` highlights the current selection.
+pub fn tree_list(ui: &mut Ui, theme: &Theme, roots: &[TreeNode], selected: &str) -> Option<String> {
+    let mut clicked = None;
+    for (i, node) in roots.iter().enumerate() {
+        ui.push_id(i, |ui| container_node(ui, theme, node, selected, &mut clicked));
+    }
+    clicked
+}
+
 /// Tab bar. Updates active index, returns true if changed.
 ///
 /// Uses the universal `Button` builder under the hood — every tab/nav button

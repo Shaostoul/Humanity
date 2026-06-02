@@ -545,84 +545,42 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.label(RichText::new("Backpack").size(theme.font_size_heading).color(theme.text_primary()));
                 ui.add_space(theme.spacing_xs);
 
-                let slot_size = 52.0;
-                egui::Grid::new("inv_grid")
-                    .spacing(Vec2::splat(4.0))
-                    .show(ui, |ui| {
-                        for i in 0..total_slots {
-                            let selected = state.selected_slot == Some(i);
-                            let stroke = if selected {
-                                Stroke::new(2.0, theme.accent())
+                // Backpack as a tree (the uniform container-node view). Items are
+                // clickable → they select the slot → the detail panel (right) shows
+                // the item + its actions. Nested containers (a pouch inside the bag)
+                // slot in here once the ECS models container nesting.
+                let backpack: Vec<widgets::TreeNode> = state
+                    .inventory_items
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, slot)| {
+                        slot.as_ref().map(|item| {
+                            widgets::TreeNode::selectable(
+                                i.to_string(),
+                                item.name.clone(),
+                                format!("x{}", item.quantity),
+                            )
+                        })
+                    })
+                    .collect();
+                if backpack.is_empty() {
+                    ui.label(
+                        RichText::new("Empty — mine, craft, or dev-stock to fill it.")
+                            .color(theme.text_muted()),
+                    );
+                } else {
+                    let selected_str =
+                        state.selected_slot.map(|i| i.to_string()).unwrap_or_default();
+                    if let Some(clicked) = widgets::tree_list(ui, theme, &backpack, &selected_str) {
+                        if let Ok(idx) = clicked.parse::<usize>() {
+                            state.selected_slot = if state.selected_slot == Some(idx) {
+                                None
                             } else {
-                                Stroke::new(1.0, theme.border())
+                                Some(idx)
                             };
-
-                            let (rect, response) = ui.allocate_exact_size(
-                                Vec2::splat(slot_size),
-                                egui::Sense::click(),
-                            );
-
-                            if response.clicked() {
-                                state.selected_slot = if selected { None } else { Some(i) };
-                            }
-
-                            // Slot background with category-colored border if item present
-                            let fill = if selected { theme.bg_card() } else { theme.bg_secondary() };
-                            ui.painter().rect_filled(rect, Rounding::same(4), fill);
-                            ui.painter().rect_stroke(rect, Rounding::same(4), stroke, egui::StrokeKind::Outside);
-
-                            // Draw item if slot is occupied
-                            if let Some(Some(item)) = state.inventory_items.get(i) {
-                                // Category-colored square icon
-                                let details = lookup_item_details(&item.item_id);
-                                let cat_color = details.as_ref()
-                                    .map(|d| category_color(&d.category))
-                                    .unwrap_or(Color32::from_rgb(120, 120, 120));
-
-                                let icon_size = 22.0;
-                                let icon_rect = egui::Rect::from_center_size(
-                                    rect.center() - Vec2::new(0.0, 4.0),
-                                    Vec2::splat(icon_size),
-                                );
-                                ui.painter().rect_filled(icon_rect, Rounding::same(3), cat_color);
-
-                                // Item initial on top of colored square
-                                let icon = item.name.chars().next().unwrap_or('?').to_string();
-                                ui.painter().text(
-                                    icon_rect.center(),
-                                    egui::Align2::CENTER_CENTER,
-                                    &icon,
-                                    egui::FontId::proportional(12.0),
-                                    Color32::WHITE,
-                                );
-
-                                // Item name below
-                                let name_preview: String = item.name.chars().take(6).collect();
-                                ui.painter().text(
-                                    rect.center() + Vec2::new(0.0, 14.0),
-                                    egui::Align2::CENTER_CENTER,
-                                    &name_preview,
-                                    egui::FontId::proportional(8.0),
-                                    theme.text_muted(),
-                                );
-
-                                // Stack count in bottom-right
-                                if item.quantity > 1 {
-                                    ui.painter().text(
-                                        rect.right_bottom() + Vec2::new(-4.0, -2.0),
-                                        egui::Align2::RIGHT_BOTTOM,
-                                        item.quantity.to_string(),
-                                        egui::FontId::proportional(10.0),
-                                        theme.text_primary(),
-                                    );
-                                }
-                            }
-
-                            if (i + 1) % COLS == 0 {
-                                ui.end_row();
-                            }
                         }
-                    });
+                    }
+                }
 
                 // ── Garden: crops growing in the world (plant via a seed's "Plant"
                 //    action; FarmingSystem advances growth from game time + water). ──
