@@ -504,6 +504,48 @@ pub fn stat_row(
     });
 }
 
+/// A square +/- stepper button with state-driven colours: an enabled "+" gets a
+/// green border + very-dark-green fill + white glyph; an enabled "-" the same in
+/// red; a DISABLED button is flat dark gray (glyph included). Width = height (a
+/// square). Returns true on a click while enabled.
+pub fn stepper_button(
+    ui: &mut Ui,
+    theme: &Theme,
+    symbol: &str,
+    enabled: bool,
+    positive: bool,
+) -> bool {
+    let s = theme.font_size_body + 8.0;
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(s, s), egui::Sense::click());
+    let (border, fill, fg) = if !enabled {
+        (theme.text_muted(), theme.bg_secondary(), theme.text_muted())
+    } else if positive {
+        let g = theme.success();
+        let dark = egui::Color32::from_rgb(g.r() / 5, g.g() / 5, g.b() / 5); // theme-exempt: very-dark fill derived from the success token, not a literal
+        (g, dark, theme.text_primary())
+    } else {
+        let r = theme.danger();
+        let dark = egui::Color32::from_rgb(r.r() / 5, r.g() / 5, r.b() / 5); // theme-exempt: very-dark fill derived from the danger token, not a literal
+        (r, dark, theme.text_primary())
+    };
+    let painter = ui.painter();
+    painter.rect(
+        rect,
+        egui::Rounding::same(3),
+        fill,
+        egui::Stroke::new(1.5, border),
+        egui::StrokeKind::Inside,
+    );
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        symbol,
+        egui::FontId::proportional(theme.font_size_body),
+        fg,
+    );
+    enabled && resp.clicked()
+}
+
 /// Tab bar. Updates active index, returns true if changed.
 ///
 /// Uses the universal `Button` builder under the hood — every tab/nav button

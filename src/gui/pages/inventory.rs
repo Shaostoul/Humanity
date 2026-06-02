@@ -778,37 +778,47 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .map(|(_, u)| *u)
                                 .unwrap_or(0);
                             ui.horizontal(|ui| {
-                                let h = theme.font_size_body + 2.0;
-                                // Fixed-width ore column so the steppers line up + stay
-                                // LEFT — flush-right hid the "+" under the page scrollbar.
+                                let h = theme.font_size_body + 8.0;
+                                // Clean aligned columns: ore | available | [-] value [+].
                                 ui.allocate_ui_with_layout(
-                                    egui::vec2(150.0, h),
+                                    egui::vec2(90.0, h),
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
                                         ui.label(
-                                            RichText::new(format!(
-                                                "{} · {:.0} left",
-                                                ore_short(id),
-                                                avail
-                                            ))
-                                            .size(theme.font_size_small)
-                                            .color(theme.text_secondary()),
+                                            RichText::new(ore_short(id))
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_secondary()),
                                         );
                                     },
                                 );
-                                if ui
-                                    .add_enabled(cur > 0, egui::Button::new("-").small())
-                                    .clicked()
-                                {
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(74.0, h),
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        ui.label(
+                                            RichText::new(format!("{:.0} left", avail))
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_muted()),
+                                        );
+                                    },
+                                );
+                                ui.add_space(8.0);
+                                if widgets::stepper_button(ui, theme, "-", cur > 0, false) {
                                     action_manifest_delta = Some((id.clone(), -1));
                                 }
-                                ui.label(
-                                    RichText::new(format!("{cur}")).color(theme.text_primary()),
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(28.0, h),
+                                    egui::Layout::centered_and_justified(
+                                        egui::Direction::LeftToRight,
+                                    ),
+                                    |ui| {
+                                        ui.label(
+                                            RichText::new(format!("{cur}"))
+                                                .color(theme.text_primary()),
+                                        );
+                                    },
                                 );
-                                if ui
-                                    .add_enabled(total < cap, egui::Button::new("+").small())
-                                    .clicked()
-                                {
+                                if widgets::stepper_button(ui, theme, "+", total < cap, true) {
                                     action_manifest_delta = Some((id.clone(), 1));
                                 }
                             });
