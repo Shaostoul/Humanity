@@ -2269,7 +2269,22 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Input height grows by 22 px when a reply context is active so the
     // "Replying to … [X]" banner has its own row above the text field.
     let reply_banner_h: f32 = if state.chat_reply_to.is_some() { 22.0 } else { 0.0 };
-    let input_height = 52.0 + reply_banner_h;
+    // The "… is typing" indicator renders as its OWN row above the text field
+    // too, so reserve its height the same way. Without this, an incoming typing
+    // event grew the input bar's CONTENT but not its allocated rect, sliding the
+    // composer down past the window's bottom edge — and behind the taskbar in
+    // snapped-fullscreen (the operator's bug report). Mirror the freshness check
+    // the renderer uses below (entries within TYPING_TTL = 3 s) so the reserved
+    // height matches whether the row is actually drawn this frame.
+    let typing_active = {
+        let now = std::time::Instant::now();
+        state
+            .chat_typing_users
+            .values()
+            .any(|(_, t)| now.duration_since(*t) < std::time::Duration::from_secs(3))
+    };
+    let typing_h: f32 = if typing_active { 22.0 } else { 0.0 };
+    let input_height = 52.0 + reply_banner_h + typing_h;
 
     let available = ui.available_rect_before_wrap();
     let messages_rect = egui::Rect::from_min_size(
