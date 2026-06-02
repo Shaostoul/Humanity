@@ -329,14 +329,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
-            // Header with slot count
-            let used = state.inventory_items.iter().filter(|s| s.is_some()).count();
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Inventory").size(theme.font_size_title).color(theme.text_primary()));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(RichText::new(format!("{}/{} slots", used, total_slots)).color(theme.text_muted()));
-                });
-            });
+            // (The "N/36 slots" counter was removed — the grid is being replaced by
+            // the nested-list inventory, so a fixed slot count is going away.)
+            ui.label(RichText::new("Inventory").size(theme.font_size_title).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
 
             // Weight indicator
@@ -783,32 +778,39 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .map(|(_, u)| *u)
                                 .unwrap_or(0);
                             ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new(format!("{} · {:.0} left", ore_short(id), avail))
-                                        .size(theme.font_size_small)
-                                        .color(theme.text_secondary()),
-                                );
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
+                                let h = theme.font_size_body + 2.0;
+                                // Fixed-width ore column so the steppers line up + stay
+                                // LEFT — flush-right hid the "+" under the page scrollbar.
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(150.0, h),
+                                    egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
-                                        if ui
-                                            .add_enabled(total < cap, egui::Button::new("+").small())
-                                            .clicked()
-                                        {
-                                            action_manifest_delta = Some((id.clone(), 1));
-                                        }
                                         ui.label(
-                                            RichText::new(format!("{cur}"))
-                                                .color(theme.text_primary()),
+                                            RichText::new(format!(
+                                                "{} · {:.0} left",
+                                                ore_short(id),
+                                                avail
+                                            ))
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_secondary()),
                                         );
-                                        if ui
-                                            .add_enabled(cur > 0, egui::Button::new("-").small())
-                                            .clicked()
-                                        {
-                                            action_manifest_delta = Some((id.clone(), -1));
-                                        }
                                     },
                                 );
+                                if ui
+                                    .add_enabled(cur > 0, egui::Button::new("-").small())
+                                    .clicked()
+                                {
+                                    action_manifest_delta = Some((id.clone(), -1));
+                                }
+                                ui.label(
+                                    RichText::new(format!("{cur}")).color(theme.text_primary()),
+                                );
+                                if ui
+                                    .add_enabled(total < cap, egui::Button::new("+").small())
+                                    .clicked()
+                                {
+                                    action_manifest_delta = Some((id.clone(), 1));
+                                }
                             });
                         }
                         ui.add_space(theme.spacing_xs);
