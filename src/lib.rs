@@ -629,6 +629,25 @@ mod native_app {
         // DataStore stayed empty and CraftingSystem (no recipes), item
         // name/stack/mass lookups, and FarmingSystem species data all silently
         // no-op'd — the central finding of the 2026-05-29 game-code audit.
+        // The registries are loaded EAGERLY at startup (load_data_registries, called
+        // from resumed) — see that fn for why. This call re-loads them when the 3D
+        // world opens (idempotent), so editing a data file + re-entering picks it up.
+        load_data_registries(&mut state.data_store, state.asset_manager.data_dir());
+
+        state.world_loaded = true;
+        log::info!("3D world loaded in {:.0}ms", load_start.elapsed().as_millis());
+    }
+
+    /// Load the small, runtime-critical data registries (items, recipes, plants,
+    /// status effects, skills, quests, containers) into the DataStore.
+    ///
+    /// These are cheap CSV/RON parses the GAME SYSTEMS read every tick, so they MUST
+    /// load EAGERLY at startup — not lazily in `load_world` (which only runs when you
+    /// switch to the 3D world view). The menu-driven loops (inventory / crafting /
+    /// skills / quests) otherwise run against empty registries: raw item ids, no
+    /// recipes to craft, no skill names, the quest shown by its raw id. (The heavy 3D
+    /// mesh generation stays lazy in `load_world`.) Idempotent — safe to call twice.
+    fn load_data_registries(store: &mut DataStore, data_dir: &std::path::Path) {
         fn load_csv_registry<T: Send + Sync + 'static>(
             store: &mut DataStore,
             path: std::path::PathBuf,
@@ -649,61 +668,45 @@ mod native_app {
                 ),
             }
         }
-        {
-            let dir = state.asset_manager.data_dir();
-            load_csv_registry(
-                &mut state.data_store,
-                dir.join("items.csv"),
-                "item_registry",
-                crate::systems::inventory::ItemRegistry::from_csv,
-            );
-            load_csv_registry(
-                &mut state.data_store,
-                dir.join("recipes.csv"),
-                "recipe_registry",
-                crate::systems::crafting::RecipeRegistry::from_csv,
-            );
-            load_csv_registry(
-                &mut state.data_store,
-                dir.join("plants.csv"),
-                "plant_registry",
-                crate::systems::farming::PlantRegistry::from_csv,
-            );
-            load_csv_registry(
-                &mut state.data_store,
-                dir.join("status_effects.csv"),
-                "status_effect_registry",
-                crate::systems::status_effects::StatusEffectRegistry::from_csv,
-            );
-            // Skill definitions (data/skills/skills.csv — a subdirectory). Drives
-            // SkillSystem's level-up curve + names; without it every XP award no-ops.
-            load_csv_registry(
-                &mut state.data_store,
-                dir.join("skills").join("skills.csv"),
-                "skill_registry",
-                SkillRegistry::from_csv,
-            );
-            // Quest definitions (data/quests/*.ron — each a Vec<QuestDef>). RON, not
-            // CSV, so loaded directly (not via load_csv_registry). Data-driven: drop
-            // a new .ron in to add quests. Drives QuestSystem.
-            state.data_store.insert(
-                "quest_registry",
-                QuestRegistry::from_ron_dir(&dir.join("quests")),
-            );
-        }
-
-        // ── Container types + content-class compatibility rules ──
-        // Build the ContainerRegistry from data/containers/{types.csv,
-        // content_classes.ron} and stash it in the DataStore under
-        // "container_registry" so ContainerCompatibilitySystem can enforce the
-        // "wrong material breaks the container" rule. Graceful: on missing or
-        // malformed files we log a warning and skip (the system then no-ops),
-        // never panicking — same degradation policy as the rest of the loaders.
+        load_csv_registry(
+            store,
+            data_dir.join("items.csv"),
+            "item_registry",
+            crate::systems::inventory::ItemRegistry::from_csv,
+        );
+        load_csv_registry(
+            store,
+            data_dir.join("recipes.csv"),
+            "recipe_registry",
+            crate::systems::crafting::RecipeRegistry::from_csv,
+        );
+        load_csv_registry(
+            store,
+            data_dir.join("plants.csv"),
+            "plant_registry",
+            crate::systems::farming::PlantRegistry::from_csv,
+        );
+        load_csv_registry(
+            store,
+            data_dir.join("status_effects.csv"),
+            "status_effect_registry",
+            crate::systems::status_effects::StatusEffectRegistry::from_csv,
+        );
+        load_csv_registry(
+            store,
+            data_dir.join("skills").join("skills.csv"),
+            "skill_registry",
+            SkillRegistry::from_csv,
+        );
+        store.insert(
+            "quest_registry",
+            QuestRegistry::from_ron_dir(&data_dir.join("quests")),
+        );
+        // Container types + content-class compatibility (graceful on missing files).
         {
             use crate::systems::inventory::containers::ContainerRegistry;
-            let dir = state.asset_manager.data_dir();
-            let types_path = dir.join("containers").join("types.csv");
-            let classes_path = dir.join("containers").join("content_classes.ron");
+            let types_path = data_dir.join("containers").join("types.csv");
+            let classes_path = data_dir.join("containers").join("content_classes.ron");
             match (std::fs::read(&types_path), std::fs::read(&classes_path)) {
                 (Ok(types_bytes), Ok(classes_bytes)) => {
                     match ContainerRegistry::from_bytes(&types_bytes, &classes_bytes) {
@@ -713,7 +716,7 @@ mod native_app {
                                 reg.types.len(),
                                 reg.content_classes.len()
                             );
-                            state.data_store.insert("container_registry", reg);
+                            store.insert("container_registry", reg);
                         }
                         Err(e) => log::warn!("ContainerRegistry parse failed: {e}"),
                     }
@@ -725,9 +728,6 @@ mod native_app {
                 ),
             }
         }
-
-        state.world_loaded = true;
-        log::info!("3D world loaded in {:.0}ms", load_start.elapsed().as_millis());
     }
 
     struct App {
@@ -1059,6 +1059,14 @@ mod native_app {
             // CraftingSystem; this is the GUI-facing projection so the page lists
             // recipes instead of showing the empty "No recipes match" state.)
             gui_state.craft_recipes = crate::gui::load_crafting_recipes(&data_dir);
+            // Load the runtime ECS registries (items / recipes / plants / status
+            // effects / skills / quests / containers) into the DataStore EAGERLY at
+            // startup — so the menu-driven loops (inventory / crafting / skills /
+            // quests) work WITHOUT first opening the 3D world. This was the bug: they
+            // used to load only in lazy load_world (3D-world view), leaving raw item
+            // ids, no recipes, empty skills + the quest shown by id. (load_world
+            // re-loads them; idempotent.)
+            load_data_registries(&mut data_store, &data_dir);
             gui_state.market_categories = crate::gui::load_market_categories(&data_dir);
             gui_state.resource_categories = crate::gui::load_resource_categories(&data_dir);
             gui_state.studio_scene_presets = crate::gui::load_studio_scenes(&data_dir);
