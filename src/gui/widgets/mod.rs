@@ -556,21 +556,29 @@ pub struct TreeNode {
     /// is its slot index; clicking it is how the caller drives the item detail panel.
     pub id: String,
     pub label: String,
-    /// Right-aligned secondary text (quantity, weight, …). Empty = none.
+    /// Right-aligned secondary text (quantity, weight, location, …). Empty = none.
     pub detail: String,
+    /// Optional colour swatch painted before the label — caller-resolved (e.g. by
+    /// entity/kind) so the tree is scannable at a glance. `None` = no swatch.
+    pub color: Option<Color32>,
     pub children: Vec<TreeNode>,
 }
 
 impl TreeNode {
     pub fn leaf(label: impl Into<String>, detail: impl Into<String>) -> Self {
-        Self { id: String::new(), label: label.into(), detail: detail.into(), children: Vec::new() }
+        Self { id: String::new(), label: label.into(), detail: detail.into(), color: None, children: Vec::new() }
     }
     /// A clickable leaf — clicking it makes [`tree_list`] return `id`.
     pub fn selectable(id: impl Into<String>, label: impl Into<String>, detail: impl Into<String>) -> Self {
-        Self { id: id.into(), label: label.into(), detail: detail.into(), children: Vec::new() }
+        Self { id: id.into(), label: label.into(), detail: detail.into(), color: None, children: Vec::new() }
     }
     pub fn branch(label: impl Into<String>, detail: impl Into<String>, children: Vec<TreeNode>) -> Self {
-        Self { id: String::new(), label: label.into(), detail: detail.into(), children }
+        Self { id: String::new(), label: label.into(), detail: detail.into(), color: None, children }
+    }
+    /// Attach a colour swatch (builder).
+    pub fn with_color(mut self, color: Color32) -> Self {
+        self.color = Some(color);
+        self
     }
 }
 
@@ -589,6 +597,7 @@ fn tree_detail(ui: &mut Ui, theme: &Theme, detail: &str) {
 fn container_node(ui: &mut Ui, theme: &Theme, node: &TreeNode, selected: &str, clicked: &mut Option<String>) {
     if node.children.is_empty() {
         ui.horizontal(|ui| {
+            paint_swatch(ui, node.color);
             if node.id.is_empty() {
                 ui.label(egui::RichText::new(&node.label).color(theme.text_primary()));
             } else if ui
@@ -606,6 +615,7 @@ fn container_node(ui: &mut Ui, theme: &Theme, node: &TreeNode, selected: &str, c
         let id = ui.make_persistent_id("tree_node");
         egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, true)
             .show_header(ui, |ui| {
+                paint_swatch(ui, node.color);
                 ui.label(egui::RichText::new(&node.label).color(theme.text_primary()).strong());
                 tree_detail(ui, theme, &node.detail);
             })
@@ -614,6 +624,16 @@ fn container_node(ui: &mut Ui, theme: &Theme, node: &TreeNode, selected: &str, c
                     ui.push_id(j, |ui| container_node(ui, theme, child, selected, clicked));
                 }
             });
+    }
+}
+
+/// Paint a small colour swatch before a tree row's label (skipped when `None`).
+/// Vertically centred with the row by the horizontal layout's default align.
+fn paint_swatch(ui: &mut Ui, color: Option<Color32>) {
+    if let Some(c) = color {
+        let (rect, _) = ui.allocate_exact_size(Vec2::splat(10.0), Sense::hover());
+        ui.painter().rect_filled(rect, Rounding::same(2), c);
+        ui.add_space(4.0);
     }
 }
 

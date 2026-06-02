@@ -133,23 +133,43 @@ struct ItemDetails {
 /// Convert a [`crate::gui::Place`] hierarchy into renderable [`widgets::TreeNode`]s,
 /// injecting the live backpack `items` at the node marked `kind: "backpack"`.
 /// Place nodes are non-selectable (empty id); only the injected item leaves are
-/// clickable. A geographic node's coordinate shows as right-aligned detail — the
-/// same data that will key real-terrain world-gen.
-fn place_to_tree(place: &crate::gui::Place, items: &[widgets::TreeNode]) -> widgets::TreeNode {
+/// clickable. Each node gets a colour swatch by kind (so You / your home / a
+/// vehicle / containers / items read at a glance) and shows its location and/or
+/// coordinate as right-aligned detail.
+fn place_to_tree(theme: &Theme, place: &crate::gui::Place, items: &[widgets::TreeNode]) -> widgets::TreeNode {
     let mut children: Vec<widgets::TreeNode> =
-        place.children.iter().map(|c| place_to_tree(c, items)).collect();
+        place.children.iter().map(|c| place_to_tree(theme, c, items)).collect();
     if place.kind == "backpack" {
         children.extend(items.iter().cloned());
     }
-    let detail = match place.coordinate {
-        Some([lat, lon]) => format!("{:.4}°, {:.4}°", lat, lon),
-        None => String::new(),
-    };
+    let mut detail = String::new();
+    if let Some(loc) = &place.location {
+        detail = format!("@ {loc}");
+    }
+    if let Some([lat, lon]) = place.coordinate {
+        let coord = format!("{lat:.4}°, {lon:.4}°");
+        detail = if detail.is_empty() { coord } else { format!("{detail}  ·  {coord}") };
+    }
     widgets::TreeNode {
         id: String::new(),
         label: place.label.clone(),
         detail,
+        color: Some(kind_color(theme, &place.kind)),
         children,
+    }
+}
+
+/// Colour for a place/entity node by its `kind` — drives the tree swatches so the
+/// structure is scannable ("what is where"). All theme tokens, no literals.
+fn kind_color(theme: &Theme, kind: &str) -> egui::Color32 {
+    match kind {
+        "person" => theme.success(),
+        "vehicle" => theme.warning(),
+        "building" | "property" => theme.accent(),
+        "planet" | "region" | "locale" => theme.info(),
+        "item" => theme.text_muted(),
+        // rooms, floors, packs, duffels, bags, pouches, generic containers
+        _ => theme.text_secondary(),
     }
 }
 
@@ -564,19 +584,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.separator();
                 ui.add_space(theme.spacing_sm);
 
-                // The container tree — your inventory shown INSIDE its real-world
-                // container context: Earth → … → your home → You → Backpack → items
-                // (the operator's "mark Earth as my container"). The place spine is
-                // data-driven (data/places/seed.json → state.place_root); the live
-                // backpack contents inject at the node marked kind:"backpack". With
-                // no place data we fall back to a flat backpack list.
-                let header = if state.place_root.is_some() { "Your places" } else { "Backpack" };
+                // Your entity / container tree — top-level entities (You, your
+                // home, a vehicle, …), each a container with its own contents,
+                // colour-coded by kind so "what is where" reads at a glance. The
+                // spine is data-driven (data/places/seed.json → state.places); the
+                // live backpack contents inject at the node marked kind:"backpack".
+                // No place data → flat backpack fallback.
+                let header = if state.places.is_empty() { "Backpack" } else { "You & your places" };
                 ui.label(RichText::new(header).size(theme.font_size_heading).color(theme.text_primary()));
                 ui.add_space(theme.spacing_xs);
 
                 // Live backpack contents as selectable leaves (id = slot index → the
-                // right detail panel shows the item + its actions). Nested containers
-                // (a pouch inside the bag) slot in once the ECS models nesting.
+                // right detail panel shows the item + its actions).
+                let item_color = kind_color(theme, "item");
                 let item_nodes: Vec<widgets::TreeNode> = state
                     .inventory_items
                     .iter()
@@ -588,6 +608,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 item.name.clone(),
                                 format!("x{}", item.quantity),
                             )
+                            .with_color(item_color)
                         })
                     })
                     .collect();
@@ -595,10 +616,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 let selected_str =
                     state.selected_slot.map(|i| i.to_string()).unwrap_or_default();
 
-                // Earth-rooted tree when we have the place spine; else flat backpack.
-                let clicked = if let Some(root) = state.place_root.clone() {
-                    let tree = place_to_tree(&root, &item_nodes);
-                    widgets::tree_list(ui, theme, &[tree], &selected_str)
+                // Entity tree when we have the spine; else flat backpack.
+                let clicked = if !state.places.is_empty() {
+                    let entities = state.places.clone();
+                    let trees: Vec<widgets::TreeNode> = entities
+                        .iter()
+                        .map(|e| place_to_tree(theme, e, &item_nodes))
+                        .collect();
+                    widgets::tree_list(ui, theme, &trees, &selected_str)
                 } else if item_nodes.is_empty() {
                     ui.label(
                         RichText::new("Empty — mine, craft, or dev-stock to fill it.")

@@ -1050,7 +1050,7 @@ mod native_app {
             gui_state.help_registry = help_modal::load_help_registry(&data_dir);
             gui_state.onboarding_quest_chains = onboarding::load_quest_chains(&data_dir);
             gui_state.map_planets = crate::gui::load_planets(&data_dir);
-            gui_state.place_root = crate::gui::load_places(&data_dir);
+            gui_state.places = crate::gui::load_places(&data_dir);
             gui_state.equipment_slots = crate::gui::load_equipment_slots(&data_dir);
             let (sevs, cats) = crate::gui::load_bug_taxonomy(&data_dir);
             gui_state.bug_severities = sevs;

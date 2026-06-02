@@ -1,59 +1,128 @@
 {
-  "id": "earth",
-  "label": "Earth",
-  "kind": "planet",
-  "children": [
+  "_comment": "Top-level entries are ENTITIES (You, your home, a vehicle). Each is a container holding rooms / sub-containers / items, any depth. `location` is a soft reference (a label) shown as detail; `coordinate` is [lat, lon] and bridges to real-terrain world-gen. Live backpack contents inject at the node with kind:'backpack'. This is seeded with a realistic Mt. Rainier (14,411 ft, glaciated) 3-day / 2-night summit kit.",
+  "entities": [
     {
-      "id": "washington",
-      "label": "Washington",
-      "kind": "region",
+      "id": "you",
+      "label": "You",
+      "kind": "person",
+      "location": "Home",
+      "children": [
+        { "id": "you_backpack", "label": "Backpack", "kind": "backpack", "children": [] }
+      ]
+    },
+    {
+      "id": "home",
+      "label": "Home",
+      "kind": "building",
+      "location": "Silverdale, WA",
+      "coordinate": [47.6448, -122.6952],
       "children": [
         {
-          "id": "silverdale",
-          "label": "Silverdale, WA",
-          "kind": "locale",
-          "coordinate": [47.6448, -122.6952],
+          "id": "garage",
+          "label": "Garage",
+          "kind": "room",
           "children": [
             {
-              "id": "property",
-              "label": "Home property (~1 acre)",
-              "kind": "property",
+              "id": "climb_pack",
+              "label": "Mountaineering pack (65 L)",
+              "kind": "pack",
               "children": [
-                {
-                  "id": "home",
-                  "label": "Home (2 stories)",
-                  "kind": "building",
-                  "children": [
-                    {
-                      "id": "floor1",
-                      "label": "Floor 1",
-                      "kind": "floor",
-                      "children": [
-                        {
-                          "id": "you",
-                          "label": "You",
-                          "kind": "person",
-                          "children": [
-                            {
-                              "id": "backpack",
-                              "label": "Backpack",
-                              "kind": "backpack",
-                              "children": []
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "id": "floor2",
-                      "label": "Floor 2",
-                      "kind": "floor",
-                      "children": []
-                    }
-                  ]
-                }
+                { "label": "Mountaineering boots (insulated, crampon-compatible)", "kind": "item" },
+                { "label": "Crampons (steel, 12-point)", "kind": "item" },
+                { "label": "Ice axe (65 cm)", "kind": "item" },
+                { "label": "Climbing harness", "kind": "item" },
+                { "label": "Climbing helmet", "kind": "item" },
+                { "label": "Glacier rope (30 m, 8.5 mm)", "kind": "item" },
+                { "label": "Crevasse rescue kit (prusiks, pulley, 4 lockers)", "kind": "item" },
+                { "label": "Belay/rappel device + locking carabiner", "kind": "item" },
+                { "label": "Trekking poles (pair, adjustable)", "kind": "item" },
+                { "label": "Glacier glasses (full UV, side shields)", "kind": "item" },
+                { "label": "Ski goggles (storm/summit)", "kind": "item" }
+              ]
+            },
+            {
+              "id": "camp_duffel",
+              "label": "Camp duffel",
+              "kind": "duffel",
+              "children": [
+                { "label": "4-season tent (2-person)", "kind": "item" },
+                { "label": "Sleeping bag (rated 0°F / -18°C)", "kind": "item" },
+                { "label": "Insulated sleeping pad (R-5)", "kind": "item" },
+                { "label": "Closed-cell foam pad", "kind": "item" },
+                { "label": "Canister stove", "kind": "item" },
+                { "label": "Fuel canisters ×3", "kind": "item" },
+                { "label": "Titanium pot (1 L) + lid", "kind": "item" },
+                { "label": "Lighter + waterproof matches", "kind": "item" },
+                { "label": "Insulated water bottle (1 L) ×2", "kind": "item" },
+                { "label": "Insulated thermos (0.5 L)", "kind": "item" },
+                { "label": "3-day food (~12,000 kcal)", "kind": "item" },
+                { "label": "Electrolyte drink mix", "kind": "item" },
+                { "label": "Snow pickets / deadman anchors ×3", "kind": "item" },
+                { "label": "Snow shovel", "kind": "item" },
+                { "label": "WAG bags (pack-out waste) ×4", "kind": "item" }
+              ]
+            },
+            {
+              "id": "clothing_bag",
+              "label": "Clothing bag",
+              "kind": "bag",
+              "children": [
+                { "label": "Merino base layer — top", "kind": "item" },
+                { "label": "Merino base layer — bottom", "kind": "item" },
+                { "label": "Fleece mid-layer", "kind": "item" },
+                { "label": "Synthetic insulated parka (belay jacket)", "kind": "item" },
+                { "label": "Softshell pants", "kind": "item" },
+                { "label": "Hardshell jacket (Gore-Tex)", "kind": "item" },
+                { "label": "Hardshell bib pants", "kind": "item" },
+                { "label": "Warm beanie", "kind": "item" },
+                { "label": "Sun cap", "kind": "item" },
+                { "label": "Buff / neck gaiter", "kind": "item" },
+                { "label": "Balaclava", "kind": "item" },
+                { "label": "Liner gloves", "kind": "item" },
+                { "label": "Insulated gloves", "kind": "item" },
+                { "label": "Expedition mittens", "kind": "item" },
+                { "label": "Wool socks ×3", "kind": "item" },
+                { "label": "Gaiters", "kind": "item" }
+              ]
+            },
+            {
+              "id": "safety_pouch",
+              "label": "Safety & nav pouch",
+              "kind": "pouch",
+              "children": [
+                { "label": "Headlamp + spare batteries", "kind": "item" },
+                { "label": "Map (Mt. Rainier) + compass", "kind": "item" },
+                { "label": "Garmin inReach (satellite communicator)", "kind": "item" },
+                { "label": "Sunscreen (SPF 50)", "kind": "item" },
+                { "label": "SPF lip balm", "kind": "item" },
+                { "label": "First-aid kit", "kind": "item" },
+                { "label": "Repair kit (duct tape, multi-tool)", "kind": "item" },
+                { "label": "Emergency bivy sack", "kind": "item" },
+                { "label": "Whistle", "kind": "item" },
+                { "label": "Hand & toe warmers ×6", "kind": "item" },
+                { "label": "Phone + power bank", "kind": "item" },
+                { "label": "Climbing permit + Cascade Volcano Pass", "kind": "item" }
               ]
             }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nova",
+      "label": "1975 Chevy Nova",
+      "kind": "vehicle",
+      "location": "Home",
+      "children": [
+        {
+          "id": "nova_trunk",
+          "label": "Trunk",
+          "kind": "container",
+          "children": [
+            { "label": "Tire chains", "kind": "item" },
+            { "label": "Jumper cables", "kind": "item" },
+            { "label": "Ice scraper", "kind": "item" },
+            { "label": "Road flares ×3", "kind": "item" }
           ]
         }
       ]

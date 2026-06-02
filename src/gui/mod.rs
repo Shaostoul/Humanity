@@ -915,10 +915,11 @@ pub struct GuiState {
 
     // ── Map state ──
     pub map_planets: Vec<GuiPlanet>,
-    /// Seeded place/container hierarchy (Earth → … → home → You → Backpack).
-    /// `None` until loaded at startup; the inventory view roots the backpack
-    /// under it when present. See [`Place`].
-    pub place_root: Option<Place>,
+    /// Seeded entities (You, your home, a vehicle, …) — each a container with its
+    /// own contents + optional location. Loaded at startup; the inventory view
+    /// renders them as top-level nodes, injecting live items at kind:"backpack".
+    /// Empty until loaded. See [`Place`].
+    pub places: Vec<Place>,
     pub map_selected_planet: Option<usize>,
     pub map_zoom: f32,
 
@@ -1771,7 +1772,7 @@ impl Default for GuiState {
             // Map defaults: populated from data/solar_system/bodies.json at
             // startup in lib.rs (see `load_planets`). Empty at construction.
             map_planets: Vec::new(),
-            place_root: None,
+            places: Vec::new(),
             map_selected_planet: None,
             map_zoom: 1.0,
 
@@ -2379,32 +2380,49 @@ pub fn load_equipment_slots(data_dir: &std::path::Path) -> Vec<(String, String)>
         .unwrap_or_default()
 }
 
-/// A node in the uniform place/container hierarchy — the operator's "mark Earth
-/// as my container" model. ONE recursive shape spans the whole scale: a planet,
-/// a region, a building, a room, a container, a person, an item — every level is
-/// just a `Place` with children. This is the data spine the Real-self view roots
-/// at your Earth location; the same nesting that holds a toothbrush holds a
-/// planet. `coordinate` (lat, long) on geographic nodes is the bridge to
-/// real-terrain world-gen — the point that says "render THIS hillside here".
+/// A node in the uniform entity/place/container model — the operator's "mark
+/// Earth as my container" idea, generalised: ONE recursive shape spans the whole
+/// scale. Top-level entries are ENTITIES (you, your home, a vehicle); each is a
+/// container holding rooms / sub-containers / items, any depth. A planet, a
+/// building, a backpack, and a toothbrush are all just a `Place` with children —
+/// the same nesting top to bottom.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct Place {
+    /// Stable id (optional — items can omit it). Used by future in-app editing
+    /// and `location` references.
+    #[serde(default)]
     pub id: String,
     pub label: String,
-    /// planet | region | locale | property | building | floor | room |
-    /// container | backpack | person | … — free-form so the data leads, not code.
+    /// person | vehicle | building | property | floor | room | container |
+    /// backpack | pack | duffel | bag | pouch | planet | region | locale | item
+    /// | … — free-form so the DATA leads, not code (drives the node colour too).
     #[serde(default)]
     pub kind: String,
-    /// `[latitude, longitude]` for geographic nodes; feeds future terrain gen.
+    /// Soft location reference (a label or another node's id) — e.g. a vehicle
+    /// "@ Home". Shown as detail, NOT a hard tree edge, so an entity can sit at
+    /// the top level yet still say where it is without deep nesting.
+    #[serde(default)]
+    pub location: Option<String>,
+    /// `[latitude, longitude]` for geographic nodes; the bridge to real-terrain
+    /// world-gen — the point that says "render THIS hillside here".
     #[serde(default)]
     pub coordinate: Option<[f64; 2]>,
     #[serde(default)]
     pub children: Vec<Place>,
 }
 
-/// Load the seeded place/container hierarchy from `data/places/seed.json`.
-/// Returns `None` if absent — callers fall back to a flat view.
-pub fn load_places(data_dir: &std::path::Path) -> Option<Place> {
-    read_data_json::<Place>(data_dir, "places/seed.json")
+/// Load the seeded entities from `data/places/seed.json` — top-level entries
+/// (You, your home, a vehicle, …), each a container with its own contents and an
+/// optional `location`. Empty vec if absent (callers fall back to a flat view).
+pub fn load_places(data_dir: &std::path::Path) -> Vec<Place> {
+    #[derive(serde::Deserialize)]
+    struct File {
+        #[serde(default)]
+        entities: Vec<Place>,
+    }
+    read_data_json::<File>(data_dir, "places/seed.json")
+        .map(|f| f.entities)
+        .unwrap_or_default()
 }
 
 /// Load `(severities, categories)` for the bug reporter from `data/bugs/taxonomy.json`.
