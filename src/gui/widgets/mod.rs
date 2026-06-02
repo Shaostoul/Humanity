@@ -632,6 +632,103 @@ pub fn tree_list(ui: &mut Ui, theme: &Theme, roots: &[TreeNode], selected: &str)
     clicked
 }
 
+/// One entry in a [`section_nav`] sidebar / table-of-contents. Carries a stable
+/// `id` (returned on click), a display `label`, an `accent` colour (used for the
+/// active-row tint and the optional group-header dot), and an optional `group`
+/// header rendered above this item when it opens a new group.
+#[derive(Debug, Clone)]
+pub struct SectionNavItem {
+    pub id: String,
+    pub label: String,
+    pub accent: Color32,
+    /// `Some(header)` renders an uppercase group header (with an `accent` dot)
+    /// above this item — set it on the FIRST item of each group.
+    pub group: Option<String>,
+}
+
+impl SectionNavItem {
+    pub fn new(id: impl Into<String>, label: impl Into<String>, accent: Color32) -> Self {
+        Self { id: id.into(), label: label.into(), accent, group: None }
+    }
+    /// Open a new group, with `header` shown above this item.
+    pub fn group(mut self, header: impl Into<String>) -> Self {
+        self.group = Some(header.into());
+        self
+    }
+}
+
+/// Universal section-nav sidebar / table-of-contents — the generalisation of the
+/// Profile page's grouped section list, usable on ANY page. Renders an optional
+/// `title`, then each item (with a group header where one opens), highlighting the
+/// row whose id == `active`. Returns `Some(id)` when a row is clicked. The CALLER
+/// owns the active-id state and decides what a click does — switch the shown
+/// section, or scroll a long page to that section's anchor — so the same widget
+/// drives a switcher page and an infinite-scroll TOC alike.
+pub fn section_nav(
+    ui: &mut Ui,
+    theme: &Theme,
+    title: Option<&str>,
+    items: &[SectionNavItem],
+    active: &str,
+) -> Option<String> {
+    let mut clicked = None;
+
+    if let Some(t) = title {
+        ui.label(RichText::new(t).size(theme.font_size_heading).color(theme.text_primary()));
+        ui.add_space(theme.spacing_md);
+    }
+
+    let mut first_group = true;
+    for item in items {
+        // Group header — rendered when this item opens a new group.
+        if let Some(header) = &item.group {
+            if !first_group {
+                ui.add_space(theme.spacing_sm);
+            }
+            first_group = false;
+            ui.horizontal(|ui| {
+                let (dot_rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
+                ui.painter().circle_filled(dot_rect.center(), 4.0, item.accent);
+                ui.label(
+                    RichText::new(header)
+                        .size(theme.font_size_small)
+                        .color(item.accent)
+                        .strong(),
+                );
+            });
+            ui.add_space(theme.row_gap);
+        }
+
+        // Section row — the active row gets a tinted fill + stroke from the accent
+        // (alpha-derived from the caller's colour, so no hardcoded palette here).
+        let is_active = item.id == active;
+        let text_color = if is_active { Color32::WHITE } else { theme.text_muted() };
+        let a = item.accent;
+        let fill = if is_active {
+            Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 30)
+        } else {
+            Color32::TRANSPARENT
+        };
+        let stroke = if is_active {
+            Stroke::new(1.0, Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 100))
+        } else {
+            Stroke::NONE
+        };
+        let btn = egui::Button::new(
+            RichText::new(&item.label).size(theme.font_size_body).color(text_color),
+        )
+        .fill(fill)
+        .stroke(stroke)
+        .rounding(Rounding::same(4))
+        .min_size(Vec2::new(ui.available_width(), 28.0));
+        if ui.add(btn).clicked() {
+            clicked = Some(item.id.clone());
+        }
+    }
+
+    clicked
+}
+
 /// Tab bar. Updates active index, returns true if changed.
 ///
 /// Uses the universal `Button` builder under the hood — every tab/nav button

@@ -25,30 +25,25 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             .inner_margin(egui::Margin::symmetric(8, 12))
             .stroke(Stroke::new(1.0, theme.border())))
         .show(ctx, |ui| {
-            ui.label(RichText::new("Profile").size(theme.font_size_heading).color(theme.text_primary()));
-            ui.add_space(theme.spacing_md);
-
-            // PRIVATE section header
-            section_header(ui, theme, "PRIVATE", PRIVATE_DOT);
-            sidebar_item(ui, theme, "Body & Measurements", ProfileSection::BodyMeasurements, PRIVATE_DOT, state);
-            sidebar_item(ui, theme, "Identity", ProfileSection::Identity, PRIVATE_DOT, state);
-            sidebar_item(ui, theme, "Private Notes", ProfileSection::PrivateNotes, PRIVATE_DOT, state);
-
-            ui.add_space(theme.spacing_sm);
-
-            // PERSONAL section header
-            section_header(ui, theme, "PERSONAL", PERSONAL_DOT);
-            sidebar_item(ui, theme, "Network Profile", ProfileSection::NetworkProfile, PERSONAL_DOT, state);
-            sidebar_item(ui, theme, "Interests", ProfileSection::Interests, PERSONAL_DOT, state);
-            sidebar_item(ui, theme, "Skills", ProfileSection::Skills, PERSONAL_DOT, state);
-            sidebar_item(ui, theme, "Quests", ProfileSection::Quests, PERSONAL_DOT, state);
-
-            ui.add_space(theme.spacing_sm);
-
-            // PUBLIC section header
-            section_header(ui, theme, "PUBLIC", PUBLIC_DOT);
-            sidebar_item(ui, theme, "Social Links", ProfileSection::SocialLinks, PUBLIC_DOT, state);
-            sidebar_item(ui, theme, "Streaming", ProfileSection::Streaming, PUBLIC_DOT, state);
+            // Universal section-nav widget (replaces the old local section_header +
+            // sidebar_item helpers). Same grouped, dot-coded, switcher behaviour —
+            // now reusable by every page in the coming Real/Play consolidation.
+            let items = [
+                widgets::SectionNavItem::new("body", "Body & Measurements", PRIVATE_DOT).group("PRIVATE"),
+                widgets::SectionNavItem::new("identity", "Identity", PRIVATE_DOT),
+                widgets::SectionNavItem::new("notes", "Private Notes", PRIVATE_DOT),
+                widgets::SectionNavItem::new("network", "Network Profile", PERSONAL_DOT).group("PERSONAL"),
+                widgets::SectionNavItem::new("interests", "Interests", PERSONAL_DOT),
+                widgets::SectionNavItem::new("skills", "Skills", PERSONAL_DOT),
+                widgets::SectionNavItem::new("quests", "Quests", PERSONAL_DOT),
+                widgets::SectionNavItem::new("social", "Social Links", PUBLIC_DOT).group("PUBLIC"),
+                widgets::SectionNavItem::new("streaming", "Streaming", PUBLIC_DOT),
+            ];
+            if let Some(clicked) =
+                widgets::section_nav(ui, theme, Some("Profile"), &items, section_id(state.profile_section))
+            {
+                state.profile_section = section_from_id(&clicked);
+            }
         });
 
     // Right content area
@@ -71,43 +66,33 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         });
 }
 
-fn section_header(ui: &mut egui::Ui, theme: &Theme, label: &str, color: Color32) {
-    ui.horizontal(|ui| {
-        let (dot_rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
-        ui.painter().circle_filled(dot_rect.center(), 4.0, color);
-        ui.label(RichText::new(label).size(theme.font_size_small).color(color).strong());
-    });
-    ui.add_space(theme.row_gap);
+/// Map a `ProfileSection` to the stable string id the section-nav widget uses.
+fn section_id(section: ProfileSection) -> &'static str {
+    match section {
+        ProfileSection::BodyMeasurements => "body",
+        ProfileSection::Identity => "identity",
+        ProfileSection::PrivateNotes => "notes",
+        ProfileSection::NetworkProfile => "network",
+        ProfileSection::Interests => "interests",
+        ProfileSection::Skills => "skills",
+        ProfileSection::Quests => "quests",
+        ProfileSection::SocialLinks => "social",
+        ProfileSection::Streaming => "streaming",
+    }
 }
 
-fn sidebar_item(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    label: &str,
-    section: ProfileSection,
-    dot_color: Color32,
-    state: &mut GuiState,
-) {
-    let is_active = state.profile_section == section;
-    let text_color = if is_active { Color32::WHITE } else { theme.text_muted() };
-    let bg = if is_active {
-        Color32::from_rgba_unmultiplied(dot_color.r(), dot_color.g(), dot_color.b(), 30)
-    } else {
-        Color32::TRANSPARENT
-    };
-
-    let btn = egui::Button::new(RichText::new(label).size(theme.font_size_body).color(text_color))
-        .fill(bg)
-        .stroke(if is_active {
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(dot_color.r(), dot_color.g(), dot_color.b(), 100))
-        } else {
-            Stroke::NONE
-        })
-        .rounding(Rounding::same(4))
-        .min_size(Vec2::new(ui.available_width(), 28.0));
-
-    if ui.add(btn).clicked() {
-        state.profile_section = section;
+/// Inverse of [`section_id`] — unknown ids fall back to BodyMeasurements.
+fn section_from_id(id: &str) -> ProfileSection {
+    match id {
+        "identity" => ProfileSection::Identity,
+        "notes" => ProfileSection::PrivateNotes,
+        "network" => ProfileSection::NetworkProfile,
+        "interests" => ProfileSection::Interests,
+        "skills" => ProfileSection::Skills,
+        "quests" => ProfileSection::Quests,
+        "social" => ProfileSection::SocialLinks,
+        "streaming" => ProfileSection::Streaming,
+        _ => ProfileSection::BodyMeasurements,
     }
 }
 
