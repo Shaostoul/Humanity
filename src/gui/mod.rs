@@ -1536,6 +1536,8 @@ pub struct GuiState {
     pub chat_connected_server_collapsed: bool,
     pub chat_friends_collapsed: bool,
     pub chat_members_collapsed: bool,
+    /// Collapse state of the Studio quick-access section in the chat right rail.
+    pub chat_studio_collapsed: bool,
     /// Set by the winit layer (src/lib.rs window_event) when Ctrl+V is
     /// pressed on the Chat page. The chat page reads + clears this each
     /// frame and, if an image is on the clipboard, uploads it. Needed
@@ -2048,6 +2050,7 @@ impl Default for GuiState {
             chat_connected_server_collapsed: false,
             chat_friends_collapsed: false,
             chat_members_collapsed: false,
+            chat_studio_collapsed: false,
             chat_open_popup_ts: None,
             pending_clipboard_paste: false,
             chat_mention_index: 0,

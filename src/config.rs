@@ -136,6 +136,11 @@ pub struct AppConfig {
     pub chat_friends_collapsed: bool,
     #[serde(default)]
     pub chat_members_collapsed: bool,
+    /// Collapse state of the Studio quick-access section (chat right rail,
+    /// above Friends). Defaults expanded so livestream access survives the
+    /// main-menu consolidation that folds away the top-nav Studio button.
+    #[serde(default)]
+    pub chat_studio_collapsed: bool,
 
     // Chat panel resize/lock state
     #[serde(default)]
@@ -429,6 +434,7 @@ impl AppConfig {
             chat_connected_server_collapsed: state.chat_connected_server_collapsed,
             chat_friends_collapsed: state.chat_friends_collapsed,
             chat_members_collapsed: state.chat_members_collapsed,
+            chat_studio_collapsed: state.chat_studio_collapsed,
             chat_left_panel_locked: state.chat_left_panel_locked,
             chat_right_panel_locked: state.chat_right_panel_locked,
             chat_left_panel_width: state.chat_left_panel_width,
@@ -482,6 +488,7 @@ impl AppConfig {
         state.chat_connected_server_collapsed = self.chat_connected_server_collapsed;
         state.chat_friends_collapsed = self.chat_friends_collapsed;
         state.chat_members_collapsed = self.chat_members_collapsed;
+        state.chat_studio_collapsed = self.chat_studio_collapsed;
         state.chat_left_panel_locked = self.chat_left_panel_locked;
         state.chat_right_panel_locked = self.chat_right_panel_locked;
         state.chat_left_panel_width = self.chat_left_panel_width;

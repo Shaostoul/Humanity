@@ -1824,6 +1824,14 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .id_salt("chat_right_scroll")
         .auto_shrink([false, false])
         .show(ui, |ui| {
+            // ── Studio Section (broadcast / livestream quick-access) ──
+            // Mirrors the website's studio widget placement at the top of the
+            // right rail. Keeps Go Live + the full Studio page reachable even
+            // after the main-menu consolidation folds away the top-nav button.
+            draw_studio_section(ui, theme, state);
+
+            ui.add_space(4.0);
+
             // ── Friends Section ──
             draw_friends_section(ui, theme, state);
 
@@ -1832,6 +1840,69 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // ── Server Members Section ──
             draw_members_section(ui, theme, state);
         });
+}
+
+/// Studio (broadcast/livestream) quick-access section at the very top of the
+/// chat right rail — a native mirror of the website's studio widget. The point
+/// is durability: when the top nav condenses into Real/Play pages, the current
+/// nav-bar Studio button disappears, so streamers reach Go Live and the full
+/// Studio page from here instead. Collapse state persists via AppConfig.
+fn draw_studio_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let collapsed = state.chat_studio_collapsed;
+    let live = state.studio.is_live;
+
+    // Header carries a LIVE badge at a glance (em-dash + text — both render
+    // reliably in the bundled font; no risky glyphs).
+    let title = if live { "Studio — LIVE" } else { "Studio" };
+    if section_header(ui, title, collapsed, theme.bg_tertiary()) {
+        state.chat_studio_collapsed = !state.chat_studio_collapsed;
+        crate::config::AppConfig::from_gui_state(state).save();
+    }
+
+    if collapsed {
+        return;
+    }
+
+    ui.spacing_mut().item_spacing.y = theme.row_gap;
+    ui.add_space(4.0);
+
+    // One-line status / purpose caption.
+    ui.horizontal(|ui| {
+        ui.add_space(12.0);
+        let (caption, color) = if live {
+            ("Broadcasting now", theme.success())
+        } else {
+            ("Broadcast & livestream", theme.text_muted())
+        };
+        ui.label(
+            RichText::new(caption)
+                .size(theme.font_size_small)
+                .color(color),
+        );
+    });
+
+    // Action row: Go Live / End Stream toggle + Open Studio (full page).
+    ui.horizontal(|ui| {
+        ui.add_space(12.0);
+        ui.spacing_mut().item_spacing.x = 6.0;
+
+        if live {
+            if widgets::Button::danger("End Stream").show(ui, theme) {
+                state.studio.is_live = false;
+                state.studio.is_paused = false;
+            }
+        } else if widgets::Button::primary("Go Live").show(ui, theme) {
+            state.studio.is_live = true;
+            state.studio.is_paused = false;
+            state.studio.live_start_time = ui.ctx().input(|i| i.time);
+        }
+
+        // push_nav_to so Esc on the Studio page returns to Chat.
+        if widgets::Button::secondary("Open Studio").show(ui, theme) {
+            state.push_nav_to(crate::gui::GuiPage::Studio);
+        }
+    });
+    ui.add_space(4.0);
 }
 
 /// Shared user row renderer for both friends and members lists.
