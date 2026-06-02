@@ -652,6 +652,87 @@ pub fn tree_list(ui: &mut Ui, theme: &Theme, roots: &[TreeNode], selected: &str)
     clicked
 }
 
+/// State for a [`lockable_gate`] — kept per-section in GuiState, IN MEMORY ONLY
+/// (never persisted), so an app restart re-locks everything.
+#[derive(Debug, Default, Clone)]
+pub struct LockState {
+    /// Currently unlocked (body shown). Cleared on Lock / restart.
+    pub unlocked: bool,
+    /// Passphrase entry buffer (cleared on successful unlock / on Lock).
+    pub input: String,
+    /// Reveal the passphrase characters — the header's Show/Hide toggle.
+    pub show: bool,
+    /// The last unlock attempt failed (shows a hint until the next attempt).
+    pub error: bool,
+}
+
+/// A private-section gate: collapsed + **locked** by default, with the body
+/// rendered by the caller ONLY when this returns `true`. The locked header is
+/// `[Title]  [Show/Hide]  [Unlock]  [passphrase entry — fills the rest]`; once
+/// unlocked it shows the title + a `[Lock]` button (Lock = collapse = re-lock,
+/// the "locked when not actively in use" model). `verify` is the caller's
+/// passphrase check (e.g. decrypt the vault) — the widget never handles the
+/// secret beyond the typed input, and nothing is persisted, so this is safe for
+/// crypto keys / identity / recovery data. All labels are plain text (no glyphs
+/// that could render as tofu in the bundled font).
+pub fn lockable_gate(
+    ui: &mut Ui,
+    theme: &Theme,
+    lock: &mut LockState,
+    title: &str,
+    verify: impl Fn(&str) -> bool,
+) -> bool {
+    if lock.unlocked {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(title).strong().color(theme.text_primary()));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button("Lock").clicked() {
+                    lock.unlocked = false;
+                    lock.input.clear();
+                    lock.error = false;
+                }
+            });
+        });
+        ui.separator();
+        return true;
+    }
+
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(title).strong().color(theme.text_primary()));
+        ui.add_space(8.0);
+        let show_label = if lock.show { "Hide" } else { "Show" };
+        if ui.button(show_label).clicked() {
+            lock.show = !lock.show;
+        }
+        let unlock_clicked = ui.button("Unlock").clicked();
+        let resp = ui.add(
+            egui::TextEdit::singleline(&mut lock.input)
+                .password(!lock.show)
+                .hint_text("passphrase")
+                .desired_width(ui.available_width()),
+        );
+        let submit = unlock_clicked
+            || (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+        if submit {
+            if verify(&lock.input) {
+                lock.unlocked = true;
+                lock.input.clear();
+                lock.error = false;
+            } else {
+                lock.error = true;
+            }
+        }
+    });
+    if lock.error {
+        ui.label(
+            RichText::new("Wrong passphrase")
+                .size(theme.font_size_small)
+                .color(theme.danger()),
+        );
+    }
+    false
+}
+
 /// One entry in a [`section_nav`] sidebar / table-of-contents. Carries a stable
 /// `id` (returned on click), a display `label`, an `accent` colour (used for the
 /// active-row tint and the optional group-header dot), and an optional `group`

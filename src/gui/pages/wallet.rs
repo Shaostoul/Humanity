@@ -39,6 +39,29 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             ui.add_space(theme.spacing_md);
 
+            // Private-section lock — the wallet (crypto keys + balance) stays
+            // collapsed + LOCKED until the vault passphrase is entered (the
+            // operator's "crypto coin always locked when not actively in use").
+            // Re-lock with the Lock button. Verification re-decrypts the seed
+            // vault with the typed passphrase (decrypt_private_key → AES-GCM
+            // auth); nothing is persisted, so a restart re-locks. No vault on
+            // file (fresh / imported key) → nothing to gate against → shows open.
+            let enc = state.encrypted_private_key.clone();
+            let salt = state.key_salt.clone();
+            let iters = state.key_iterations;
+            let has_vault = !enc.is_empty() && !salt.is_empty();
+            let unlocked = if has_vault {
+                let lock = state.section_locks.entry("wallet".to_string()).or_default();
+                widgets::lockable_gate(ui, theme, lock, "Private wallet data", |pass| {
+                    crate::config::decrypt_private_key(&enc, &salt, pass, iters).is_ok()
+                })
+            } else {
+                true
+            };
+            if !unlocked {
+                return;
+            }
+
             ScrollArea::vertical().show(ui, |ui| {
                 // Balance card
                 widgets::card(ui, theme, |ui| {

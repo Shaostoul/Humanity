@@ -1099,6 +1099,9 @@ pub struct GuiState {
     /// (600_000). The Unlock site re-encrypts to the new count on the
     /// next successful unlock — silent one-time migration per vault.
     pub key_iterations: u32,
+    /// Per-section unlock state for `lockable_gate` (private sections like the
+    /// Wallet). In memory only — never persisted, so a restart re-locks all.
+    pub section_locks: std::collections::HashMap<String, crate::gui::widgets::LockState>,
 
     // ── v0.278.0 auto-unlock state ──
     /// User's chosen unlock mode: AlwaysPrompt / Keychain / KeychainPin.
@@ -1888,6 +1891,7 @@ impl Default for GuiState {
             // A loaded legacy config overwrites this with its stored value
             // (defaults to 100_000 via serde for pre-v0.277.0 configs).
             key_iterations: crate::config::PBKDF2_ITERATIONS_NEW,
+            section_locks: std::collections::HashMap::new(),
             // v0.278.0 auto-unlock — default is opt-out (always prompt).
             // A loaded config overwrites this with the user's stored choice.
             auto_unlock_mode: crate::auto_unlock::AutoUnlockMode::AlwaysPrompt,
