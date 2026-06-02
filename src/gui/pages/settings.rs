@@ -316,10 +316,28 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         } else {
             ui.label(RichText::new("Your 24-word seed phrase backs up your identity and wallet. Anyone with it controls your account — never share it.").color(theme.text_muted()).size(theme.font_size_small));
             ui.add_space(theme.spacing_xs);
-            if widgets::secondary_button(ui, theme, if state.settings.seed_phrase_visible { "Hide Seed Phrase" } else { "Show Seed Phrase" }) {
-                state.settings.seed_phrase_visible = !state.settings.seed_phrase_visible;
-            }
-            if state.settings.seed_phrase_visible {
+
+            // Passphrase-gated reveal (v0.356). The seed is your account's master
+            // key, so showing it now requires RE-ENTERING the vault passphrase —
+            // it can no longer be revealed from an unlocked-but-unattended screen
+            // with one click. Re-locks on Lock / restart. If no passphrase vault
+            // exists yet (a just-generated seed not encrypted yet), fall back to
+            // the plain show/hide so the user can still write down their words.
+            let enc = state.encrypted_private_key.clone();
+            let salt = state.key_salt.clone();
+            let iters = state.key_iterations;
+            let reveal = if !enc.is_empty() && !salt.is_empty() {
+                let lock = state.section_locks.entry("seed_phrase".to_string()).or_default();
+                widgets::lockable_gate(ui, theme, lock, "Reveal seed phrase", |pass| {
+                    crate::config::decrypt_private_key(&enc, &salt, pass, iters).is_ok()
+                })
+            } else {
+                if widgets::secondary_button(ui, theme, if state.settings.seed_phrase_visible { "Hide Seed Phrase" } else { "Show Seed Phrase" }) {
+                    state.settings.seed_phrase_visible = !state.settings.seed_phrase_visible;
+                }
+                state.settings.seed_phrase_visible
+            };
+            if reveal {
                 ui.add_space(theme.spacing_xs);
                 // Render the REAL phrase from the in-memory seed (this was
                 // previously a stub that always said "not generated yet").
