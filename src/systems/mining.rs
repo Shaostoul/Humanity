@@ -15,8 +15,9 @@ use crate::systems::inventory::{Inventory, ItemRegistry};
 const OUTBOUND_SECS: f32 = 5.0;
 const MINING_SECS: f32 = 5.0;
 const RETURNING_SECS: f32 = 5.0;
-/// Ore units a drone hauls per trip.
-const DRONE_CAPACITY: f32 = 10.0;
+/// Total ore units a drone's hold carries per trip (a manifest's units sum to this).
+/// Exposed so the Mining UI can cap the allocation.
+pub const DRONE_CAPACITY: u32 = 10;
 
 /// Real seconds the given mission phase lasts — exposed so the Mining UI can draw
 /// a per-stage progress bar (the operator's "show the drone is working" cue).
@@ -33,18 +34,17 @@ pub fn phase_secs(phase: &DronePhase) -> f32 {
 /// drones (a `&mut Drone` query) and applied afterwards, so the cross-entity
 /// `&mut World` borrows never overlap the drone query.
 enum DroneIntent {
-    /// Extract up to `DRONE_CAPACITY` of `ore_id` from `asteroid` into `drone`'s cargo.
+    /// Fill the drone's hold per its `manifest`, pulling each ore from any asteroid(s)
+    /// that hold it.
     Mine {
         drone: hecs::Entity,
-        asteroid: u64,
-        ore_id: String,
+        manifest: Vec<(String, u32)>,
     },
-    /// Deliver `qty` of `ore_id` into `home`'s inventory, then despawn `drone`.
+    /// Deliver the drone's whole `cargo` into `home`'s inventory, then despawn it.
     Deliver {
         drone: hecs::Entity,
         home: u64,
-        ore_id: String,
-        qty: u32,
+        cargo: Vec<(String, u32)>,
     },
 }
 
@@ -72,34 +72,34 @@ impl System for DroneSystem {
 
         // ── COMMISSION: drain the channel (the Mining panel writes an ore id) and
         //    launch a drone — home = the player, target = an asteroid holding that ore.
-        let commissioned = data
-            .get::<std::sync::Mutex<Option<String>>>("commission_drone")
+        let manifest: Option<Vec<(String, u32)>> = data
+            .get::<std::sync::Mutex<Option<Vec<(String, u32)>>>>("commission_drone")
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
-        if let Some(ore_id) = commissioned {
-            // Each query's borrow is released at its statement boundary (home/target
-            // are plain u64), so the following spawn() can take &mut World.
-            let home: Option<u64> = world
-                .query::<(&Inventory, &Controllable)>()
-                .iter()
-                .next()
-                .map(|(e, _)| e.to_bits().into());
-            let target: Option<u64> = world
-                .query::<&AsteroidBody>()
-                .iter()
-                .find(|(_, a)| a.has_ore(&ore_id))
-                .map(|(e, _)| e.to_bits().into());
-            if let (Some(home), Some(target)) = (home, target) {
-                world.spawn((Drone {
-                    home,
-                    target,
-                    ore_id: ore_id.clone(),
-                    phase: DronePhase::Outbound,
-                    phase_time: 0.0,
-                    cargo: 0,
-                },));
-                log::info!("[Mining] commissioned a drone for {ore_id}");
+        if let Some(manifest) = manifest {
+            // ONE drone per player: skip a new launch if one is already in flight.
+            let already_flying = world.query::<&Drone>().iter().next().is_some();
+            let manifest: Vec<(String, u32)> =
+                manifest.into_iter().filter(|(_, u)| *u > 0).collect();
+            if already_flying {
+                log::info!("[Mining] a drone is already in flight (one per player)");
+            } else if manifest.is_empty() {
+                log::info!("[Mining] empty manifest; drone not launched");
             } else {
-                log::info!("[Mining] no asteroid with {ore_id} available; drone not launched");
+                let home: Option<u64> = world
+                    .query::<(&Inventory, &Controllable)>()
+                    .iter()
+                    .next()
+                    .map(|(e, _)| e.to_bits().into());
+                if let Some(home) = home {
+                    world.spawn((Drone {
+                        home,
+                        manifest: manifest.clone(),
+                        phase: DronePhase::Outbound,
+                        phase_time: 0.0,
+                        cargo: Vec::new(),
+                    },));
+                    log::info!("[Mining] commissioned a drone: {manifest:?}");
+                }
             }
         }
 
@@ -113,8 +113,7 @@ impl System for DroneSystem {
                     drone.phase_time = 0.0;
                     intents.push(DroneIntent::Mine {
                         drone: entity,
-                        asteroid: drone.target,
-                        ore_id: drone.ore_id.clone(),
+                        manifest: drone.manifest.clone(),
                     });
                 }
                 DronePhase::Mining if drone.phase_time >= MINING_SECS => {
@@ -127,8 +126,7 @@ impl System for DroneSystem {
                     intents.push(DroneIntent::Deliver {
                         drone: entity,
                         home: drone.home,
-                        ore_id: drone.ore_id.clone(),
-                        qty: drone.cargo,
+                        cargo: drone.cargo.clone(),
                     });
                 }
                 _ => {}
@@ -139,40 +137,56 @@ impl System for DroneSystem {
         //    query borrow is released now, so these &mut World gets are conflict-free).
         for intent in intents {
             match intent {
-                DroneIntent::Mine {
-                    drone,
-                    asteroid,
-                    ore_id,
-                } => {
-                    let mined = hecs::Entity::from_bits(asteroid)
-                        .and_then(|a| {
-                            world
-                                .get::<&mut AsteroidBody>(a)
-                                .ok()
-                                .map(|mut body| body.take(&ore_id, DRONE_CAPACITY))
-                        })
-                        .unwrap_or(0);
-                    if let Ok(mut d) = world.get::<&mut Drone>(drone) {
-                        d.cargo = mined;
-                    }
-                    log::info!("[Mining] drone extracted {mined}x {ore_id}");
-                }
-                DroneIntent::Deliver {
-                    drone,
-                    home,
-                    ore_id,
-                    qty,
-                } => {
-                    if qty > 0 {
-                        if let Some(home_e) = hecs::Entity::from_bits(home) {
-                            let max_stack =
-                                item_registry.map(|r| r.max_stack_for(&ore_id)).unwrap_or(99);
-                            if let Ok(mut inv) = world.get::<&mut Inventory>(home_e) {
-                                inv.add_item(&ore_id, qty, max_stack);
-                                log::info!("[Mining] drone delivered {qty}x {ore_id} home");
-                                // A delivered haul trains Mining (1 XP per ore unit).
-                                crate::systems::skills::award_skill_xp(data, "mining", qty);
+                DroneIntent::Mine { drone, manifest } => {
+                    // Pull each requested ore from whatever asteroid(s) hold it, up to
+                    // the manifest's units for that ore.
+                    let mut collected: Vec<(String, u32)> = Vec::new();
+                    for (ore, units) in &manifest {
+                        let mut remaining = *units as f32;
+                        let asteroids: Vec<hecs::Entity> = world
+                            .query::<&AsteroidBody>()
+                            .iter()
+                            .filter(|(_, a)| a.has_ore(ore))
+                            .map(|(e, _)| e)
+                            .collect();
+                        let mut got = 0u32;
+                        for aid in asteroids {
+                            if remaining < 1.0 {
+                                break;
                             }
+                            if let Ok(mut body) = world.get::<&mut AsteroidBody>(aid) {
+                                let took = body.take(ore, remaining);
+                                got += took;
+                                remaining -= took as f32;
+                            }
+                        }
+                        if got > 0 {
+                            collected.push((ore.clone(), got));
+                        }
+                    }
+                    log::info!("[Mining] drone extracted {collected:?}");
+                    if let Ok(mut d) = world.get::<&mut Drone>(drone) {
+                        d.cargo = collected;
+                    }
+                }
+                DroneIntent::Deliver { drone, home, cargo } => {
+                    if let Some(home_e) = hecs::Entity::from_bits(home) {
+                        let mut total = 0u32;
+                        for (ore, qty) in &cargo {
+                            if *qty == 0 {
+                                continue;
+                            }
+                            let max_stack =
+                                item_registry.map(|r| r.max_stack_for(ore)).unwrap_or(99);
+                            if let Ok(mut inv) = world.get::<&mut Inventory>(home_e) {
+                                inv.add_item(ore, *qty, max_stack);
+                                total += *qty;
+                            }
+                        }
+                        if total > 0 {
+                            log::info!("[Mining] drone delivered {total} units home");
+                            // A delivered haul trains Mining (1 XP per ore unit).
+                            crate::systems::skills::award_skill_xp(data, "mining", total);
                         }
                     }
                     let _ = world.despawn(drone);
@@ -208,15 +222,28 @@ mod drone_tests {
         data.insert("item_registry", items);
         data.insert(
             "commission_drone",
-            std::sync::Mutex::new(Option::<String>::None),
+            std::sync::Mutex::new(Option::<Vec<(String, u32)>>::None),
         );
         data
     }
 
-    /// Full mining loop: commission a drone for iron ore → it flies out, mines, returns
-    /// → ore delivered into the player inventory; an asteroid mined empty is deleted.
+    fn commission(data: &DataStore, manifest: Vec<(&str, u32)>) {
+        *data
+            .get::<std::sync::Mutex<Option<Vec<(String, u32)>>>>("commission_drone")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(
+            manifest
+                .into_iter()
+                .map(|(o, u)| (o.to_string(), u))
+                .collect(),
+        );
+    }
+
+    /// Full loop: commission a manifest → the drone flies out, fills its hold per the
+    /// manifest, returns → ore delivered; a fully-mined asteroid is deleted.
     #[test]
-    fn commission_drone_mines_asteroid_and_delivers() {
+    fn commission_manifest_mines_and_delivers() {
         let data = make_store();
         let mut sys = DroneSystem::new();
         let mut world = hecs::World::new();
@@ -227,18 +254,10 @@ mod drone_tests {
             ores: vec![("iron_ore_0".to_string(), 8.0)],
         },));
 
-        // Commission a drone for iron ore (the channel the Mining panel writes).
-        *data
-            .get::<std::sync::Mutex<Option<String>>>("commission_drone")
-            .unwrap()
-            .lock()
-            .unwrap() = Some("iron_ore_0".to_string());
-        sys.tick(&mut world, 1.0, &data); // launches the drone (Outbound)
+        commission(&data, vec![("iron_ore_0", 8)]);
+        sys.tick(&mut world, 1.0, &data); // launch (Outbound)
+        assert_eq!(world.query::<&Drone>().iter().count(), 1, "drone launched");
 
-        let drones: Vec<hecs::Entity> = world.query::<&Drone>().iter().map(|(e, _)| e).collect();
-        assert_eq!(drones.len(), 1, "drone launched");
-
-        // Drive the full mission (5 outbound + 5 mining + 5 returning = 15s, + slack).
         for _ in 0..18 {
             sys.tick(&mut world, 1.0, &data);
         }
@@ -247,43 +266,67 @@ mod drone_tests {
             .get::<&Inventory>(player)
             .unwrap()
             .count_item("iron_ore_0");
-        assert!(iron >= 8, "drone delivered the mined iron ore (got {iron})");
+        assert!(iron >= 8, "manifest ore delivered (got {iron})");
         assert_eq!(
             world.query::<&Drone>().iter().count(),
             0,
-            "the completed drone despawned"
+            "completed drone despawned"
         );
-        // The asteroid had 8 ore and capacity is 10 → fully mined → deleted.
         assert!(
             world.get::<&AsteroidBody>(asteroid).is_err(),
-            "the depleted asteroid was removed"
+            "depleted asteroid removed"
         );
     }
 
-    /// A commission for an ore no asteroid has launches no drone (no crash).
+    /// A multi-ore manifest pulls EACH ore (here from two different asteroids) into the
+    /// hold and delivers all of it — the core of the manifest model.
     #[test]
-    fn commission_for_absent_ore_launches_nothing() {
+    fn multi_ore_manifest_collects_each_ore() {
+        let data = make_store();
+        let mut sys = DroneSystem::new();
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        world.spawn((AsteroidBody {
+            name: "M".into(),
+            classification: "M".into(),
+            ores: vec![("iron_ore_0".to_string(), 50.0)],
+        },));
+        world.spawn((AsteroidBody {
+            name: "S".into(),
+            classification: "S".into(),
+            ores: vec![("copper_ore_0".to_string(), 50.0)],
+        },));
+
+        commission(&data, vec![("iron_ore_0", 6), ("copper_ore_0", 4)]);
+        for _ in 0..20 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.count_item("iron_ore_0"), 6, "6 iron delivered");
+        assert_eq!(inv.count_item("copper_ore_0"), 4, "4 copper delivered");
+    }
+
+    /// One drone per player: a second commission while one is in flight is ignored.
+    #[test]
+    fn one_drone_per_player() {
         let data = make_store();
         let mut sys = DroneSystem::new();
         let mut world = hecs::World::new();
         world.spawn((Inventory::new(16), Controllable));
         world.spawn((AsteroidBody {
-            name: "Iron Rock".into(),
+            name: "Iron".into(),
             classification: "M".into(),
             ores: vec![("iron_ore_0".to_string(), 50.0)],
         },));
 
-        *data
-            .get::<std::sync::Mutex<Option<String>>>("commission_drone")
-            .unwrap()
-            .lock()
-            .unwrap() = Some("platinum_ore_0".to_string());
+        commission(&data, vec![("iron_ore_0", 5)]);
+        sys.tick(&mut world, 1.0, &data); // one drone now Outbound
+        commission(&data, vec![("iron_ore_0", 5)]); // try to launch a second
         sys.tick(&mut world, 1.0, &data);
-
         assert_eq!(
             world.query::<&Drone>().iter().count(),
-            0,
-            "no drone launched for an unavailable ore"
+            1,
+            "still exactly one drone (one per player)"
         );
     }
 }

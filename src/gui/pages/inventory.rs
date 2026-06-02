@@ -70,6 +70,30 @@ fn ore_short(item_id: &str) -> String {
     }
 }
 
+/// A segmented capacity bar for the drone manifest: a track sized to `cap`, with one
+/// coloured segment per ore in the draft (width ∝ its allocated units). Lets the
+/// player see the allocation fill the hold as they build it.
+fn manifest_bar(ui: &mut egui::Ui, theme: &Theme, draft: &[(String, u32)], cap: u32) {
+    let w = ui.available_width().max(80.0);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, 12.0), egui::Sense::hover());
+    let painter = ui.painter();
+    painter.rect_filled(rect, egui::Rounding::same(2), theme.border());
+    let palette = [
+        theme.accent(),
+        theme.warning(),
+        theme.danger(),
+        theme.text_secondary(),
+    ];
+    let capf = cap.max(1) as f32;
+    let mut x = rect.left();
+    for (i, (_ore, units)) in draft.iter().enumerate() {
+        let seg_w = (*units as f32 / capf) * w;
+        let seg = egui::Rect::from_min_size(egui::pos2(x, rect.top()), egui::vec2(seg_w, 12.0));
+        painter.rect_filled(seg, egui::Rounding::same(2), palette[i % palette.len()]);
+        x += seg_w;
+    }
+}
+
 /// Parse item data from embedded CSV to get details for a given item_id.
 fn lookup_item_details(item_id: &str) -> Option<ItemDetails> {
     let csv = crate::embedded_data::ITEMS_CSV;
@@ -144,7 +168,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut action_water_crop: Option<u64> = None;
     let mut action_harvest_crop: Option<u64> = None;
     let mut action_dev_grow = false;
-    let mut action_commission_ore: Option<String> = None;
+    // Drone manifest builder: a stepper click (ore, +1/-1), launch, or clear.
+    let mut action_manifest_delta: Option<(String, i32)> = None;
+    let mut action_launch_manifest = false;
+    let mut action_clear_manifest = false;
     let mut action_rest = false;
     let mut action_compost = false;
     let mut action_fertilize_crop: Option<u64> = None;
@@ -736,46 +763,90 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         );
                     }
                     ui.add_space(theme.spacing_xs);
-                    // The number after each ore is how much is LEFT in the field; a
-                    // drone hauls only up to 10 per round trip (say so, since the
-                    // big number was misread as the per-trip amount).
-                    ui.horizontal_wrapped(|ui| {
+                    // ── Drone manifest builder: allocate the fixed hold across ores
+                    //    (+/- per ore; the segmented bar shows the split). One drone per
+                    //    player, so this is hidden while a drone is already out.
+                    if !state.drone_active {
+                        let cap = crate::systems::mining::DRONE_CAPACITY;
+                        let total: u32 = state.drone_manifest_draft.iter().map(|(_, u)| u).sum();
                         ui.label(
-                            RichText::new("Commission drone (hauls up to 10 per trip):")
+                            RichText::new(format!("Drone manifest — {total}/{cap} units"))
                                 .color(theme.text_secondary()),
                         );
-                        for (id, total) in &ores {
-                            let label = format!("{} · {:.0} left", ore_short(id), total);
-                            if widgets::secondary_button(ui, theme, &label) {
-                                action_commission_ore = Some(id.clone());
-                            }
+                        manifest_bar(ui, theme, &state.drone_manifest_draft, cap);
+                        ui.add_space(theme.spacing_xs);
+                        for (id, avail) in &ores {
+                            let cur = state
+                                .drone_manifest_draft
+                                .iter()
+                                .find(|(o, _)| o == id)
+                                .map(|(_, u)| *u)
+                                .unwrap_or(0);
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(format!("{} · {:.0} left", ore_short(id), avail))
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_secondary()),
+                                );
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui
+                                            .add_enabled(total < cap, egui::Button::new("+").small())
+                                            .clicked()
+                                        {
+                                            action_manifest_delta = Some((id.clone(), 1));
+                                        }
+                                        ui.label(
+                                            RichText::new(format!("{cur}"))
+                                                .color(theme.text_primary()),
+                                        );
+                                        if ui
+                                            .add_enabled(cur > 0, egui::Button::new("-").small())
+                                            .clicked()
+                                        {
+                                            action_manifest_delta = Some((id.clone(), -1));
+                                        }
+                                    },
+                                );
+                            });
                         }
-                    });
+                        ui.add_space(theme.spacing_xs);
+                        ui.horizontal(|ui| {
+                            ui.add_enabled_ui(total >= 1, |ui| {
+                                if widgets::primary_button(ui, theme, "Launch drone") {
+                                    action_launch_manifest = true;
+                                }
+                            });
+                            if total > 0 && widgets::secondary_button(ui, theme, "Clear") {
+                                action_clear_manifest = true;
+                            }
+                        });
+                    }
                 }
                 ui.add_space(theme.spacing_xs);
-                if state.drones.is_empty() {
-                    ui.label(
-                        RichText::new("No drones in flight.")
-                            .size(theme.font_size_small)
-                            .color(theme.text_muted()),
-                    );
-                } else {
-                    // A drone runs a 3-stage round trip; show which stage it's in +
-                    // a bar of how far through that stage it is (the "ship is out" cue).
+                if !state.drones.is_empty() {
+                    // The active drone (one per player): its manifest + which of the 3
+                    // round-trip stages it's in + a bar of progress through that stage.
                     for drone in &state.drones {
                         let (stage, desc) = match drone.phase.as_str() {
-                            "Outbound" => ("Stage 1/3", "outbound to the asteroid"),
+                            "Outbound" => ("Stage 1/3", "outbound to the asteroids"),
                             "Mining" => ("Stage 2/3", "mining"),
                             "Returning" => ("Stage 3/3", "returning home"),
                             _ => ("Done", "delivering cargo"),
                         };
+                        let fetching: Vec<String> = drone
+                            .manifest
+                            .iter()
+                            .map(|(o, u)| format!("{}x {}", u, ore_short(o)))
+                            .collect();
                         ui.label(
                             RichText::new(format!(
-                                "Drone ({}) — {} · {} · cargo {}",
-                                ore_short(&drone.ore_id),
+                                "Drone — {} · {} · fetching {} · cargo {}",
                                 stage,
                                 desc,
-                                drone.cargo
+                                fetching.join(", "),
+                                drone.cargo_total
                             ))
                             .size(theme.font_size_small)
                             .color(theme.text_primary()),
@@ -797,9 +868,35 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if action_dev_grow {
         state.dev_grow_crops = true;
     }
-    // Bridge a commissioned drone to DroneSystem (via the main loop).
-    if let Some(ore_id) = action_commission_ore {
-        state.pending_commission_ore = Some(ore_id);
+    // Apply the drone-manifest builder's actions (the panel only reads state).
+    if let Some((ore, delta)) = action_manifest_delta {
+        let cap = crate::systems::mining::DRONE_CAPACITY;
+        let total: u32 = state.drone_manifest_draft.iter().map(|(_, u)| u).sum();
+        if let Some(slot) = state.drone_manifest_draft.iter_mut().find(|(o, _)| *o == ore) {
+            if delta > 0 && total < cap {
+                slot.1 += 1;
+            } else if delta < 0 && slot.1 > 0 {
+                slot.1 -= 1;
+            }
+        } else if delta > 0 && total < cap {
+            state.drone_manifest_draft.push((ore, 1));
+        }
+        state.drone_manifest_draft.retain(|(_, u)| *u > 0);
+    }
+    if action_clear_manifest {
+        state.drone_manifest_draft.clear();
+    }
+    if action_launch_manifest {
+        let manifest: Vec<(String, u32)> = state
+            .drone_manifest_draft
+            .iter()
+            .filter(|(_, u)| *u > 0)
+            .cloned()
+            .collect();
+        if !manifest.is_empty() {
+            state.pending_drone_manifest = Some(manifest);
+            state.drone_manifest_draft.clear();
+        }
     }
     // Bridge the Rest button to FoodSystem (refills energy).
     if action_rest {

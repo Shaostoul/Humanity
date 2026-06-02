@@ -926,10 +926,11 @@ mod native_app {
             data_store.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("dev_grow_crops", std::sync::Mutex::new(false));
-            // Mining: commission a drone to fetch an ore (DroneSystem picks an asteroid).
+            // Mining: commission the player's drone with a MANIFEST (ores + units to
+            // fetch); DroneSystem launches one drone per player.
             data_store.insert(
                 "commission_drone",
-                std::sync::Mutex::new(Option::<String>::None),
+                std::sync::Mutex::new(Option::<Vec<(String, u32)>>::None),
             );
             // Survival: rest to refill energy (FoodSystem drains it).
             data_store.insert("rest_request", std::sync::Mutex::new(false));
@@ -1501,14 +1502,14 @@ mod native_app {
                             }
                         }
                     }
-                    // Mining: bridge a commissioned drone (ore id) to DroneSystem.
-                    if let Some(ore_id) = state.gui_state.pending_commission_ore.take() {
+                    // Mining: bridge a commissioned drone MANIFEST to DroneSystem.
+                    if let Some(manifest) = state.gui_state.pending_drone_manifest.take() {
                         if let Some(slot) = state
                             .data_store
-                            .get::<std::sync::Mutex<Option<String>>>("commission_drone")
+                            .get::<std::sync::Mutex<Option<Vec<(String, u32)>>>>("commission_drone")
                         {
                             if let Ok(mut s) = slot.lock() {
-                                *s = Some(ore_id);
+                                *s = Some(manifest);
                             }
                         }
                     }
@@ -2076,12 +2077,15 @@ mod native_app {
                                 1.0
                             };
                             state.gui_state.drones.push(crate::gui::GuiDrone {
-                                ore_id: drone.ore_id.clone(),
+                                manifest: drone.manifest.clone(),
                                 phase: format!("{:?}", drone.phase),
-                                cargo: drone.cargo,
+                                cargo_total: drone.cargo_total(),
                                 phase_progress,
                             });
                         }
+                        // One drone per player: the panel shows the active drone +
+                        // disables Launch while one is in flight.
+                        state.gui_state.drone_active = !state.gui_state.drones.is_empty();
                     }
 
                     // Bridge game time from DataStore (if TimeSystem writes it)

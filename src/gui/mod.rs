@@ -425,9 +425,11 @@ pub struct GuiAsteroid {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
 pub struct GuiDrone {
-    pub ore_id: String,
+    /// The fetch order — `(ore_id, units)` — shown as the drone's manifest.
+    pub manifest: Vec<(String, u32)>,
     pub phase: String,
-    pub cargo: u32,
+    /// Total units currently in the hold.
+    pub cargo_total: u32,
     /// Progress 0..1 through the current mission phase (for the panel's bar).
     pub phase_progress: f32,
 }
@@ -1008,8 +1010,16 @@ pub struct GuiState {
     pub crops: Vec<GuiCrop>,
 
     // ── Mining / drones state ──
-    /// Ore id the player clicked "Commission drone" for this frame → DroneSystem.
-    pub pending_commission_ore: Option<String>,
+    /// The draft mining manifest the player is building — (ore_id, units) the drone
+    /// should fetch, summing to ≤ drone capacity. Adjusted by the Mining panel's
+    /// steppers; consumed into pending_drone_manifest on Launch.
+    pub drone_manifest_draft: Vec<(String, u32)>,
+    /// Set the frame the player clicks "Launch drone" → bridged to DroneSystem's
+    /// commission channel (the whole manifest).
+    pub pending_drone_manifest: Option<Vec<(String, u32)>>,
+    /// True while a drone is in flight (synced) — one drone per player, so the panel
+    /// shows the active drone instead of the builder + disables Launch.
+    pub drone_active: bool,
     /// Asteroids (name + remaining ore), synced from the ECS for the Mining panel.
     pub asteroids: Vec<GuiAsteroid>,
     /// Active mining drones (ore / phase / cargo), synced from the ECS.
@@ -1827,7 +1837,9 @@ impl Default for GuiState {
             pending_harvest_crop: None,
             dev_grow_crops: false,
             crops: Vec::new(),
-            pending_commission_ore: None,
+            drone_manifest_draft: Vec::new(),
+            pending_drone_manifest: None,
+            drone_active: false,
             asteroids: Vec::new(),
             drones: Vec::new(),
             skills: Vec::new(),

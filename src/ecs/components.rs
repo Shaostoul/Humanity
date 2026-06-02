@@ -647,23 +647,30 @@ pub enum DronePhase {
     Done,
 }
 
-/// An autonomous mining drone. Commissioned for one ore, it flies to an asteroid,
-/// mines, returns, and drops its cargo into the home entity's inventory.
-/// `DroneSystem` drives this phase state machine.
+/// An autonomous mining drone — ONE per player. Commissioned with a MANIFEST (which
+/// ores + how many units of its fixed capacity to allocate to each), it flies out,
+/// fills its hold per the manifest from available asteroids, returns, and drops the
+/// cargo into the home entity's inventory. `DroneSystem` drives the phase machine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Drone {
     /// Entity bits of the home to deliver cargo to (the player's inventory).
     pub home: u64,
-    /// Entity bits of the target asteroid.
-    pub target: u64,
-    /// Requested ore item id (e.g. "platinum_ore_0").
-    pub ore_id: String,
+    /// The fetch order: `(ore_id, requested units)`. The units sum to ≤ the drone's
+    /// capacity. The drone pulls each ore from whatever asteroids hold it.
+    pub manifest: Vec<(String, u32)>,
     /// Current mission phase.
     pub phase: DronePhase,
     /// Seconds elapsed in the current phase.
     pub phase_time: f32,
-    /// Units of `ore_id` collected so far.
-    pub cargo: u32,
+    /// Ore collected so far: `(ore_id, units)`.
+    pub cargo: Vec<(String, u32)>,
+}
+
+impl Drone {
+    /// Total units currently in the hold (across all ores).
+    pub fn cargo_total(&self) -> u32 {
+        self.cargo.iter().map(|(_, q)| q).sum()
+    }
 }
 
 /// A soil patch — slowly accumulates nutrients from organic matter.
