@@ -451,6 +451,59 @@ pub fn progress_bar(ui: &mut Ui, theme: &Theme, progress: f32, label: Option<&st
     ui.add(bar);
 }
 
+/// Fixed column widths for [`stat_row`] — shared across every row so consecutive
+/// rows line up into a name / value / bar table. (Tweaking these here re-aligns
+/// every stat panel that uses the widget.)
+pub const STAT_NAME_W: f32 = 86.0;
+pub const STAT_VALUE_W: f32 = 82.0;
+
+/// One compact stat row: `name · value · thin bar`, all on ONE line (replacing the
+/// old two-row "label, then a tall ProgressBar below"). The name + value columns
+/// have fixed shared widths (so stacked rows align into columns); the value is
+/// right-aligned (numbers line up); the bar is a thin 6px fill taking the rest of
+/// the width. Call several in a vertical for an aligned "stat table". Reusable
+/// anywhere a 0..1 stat needs a compact row (vitals, later the inventory tree, …).
+pub fn stat_row(
+    ui: &mut Ui,
+    theme: &Theme,
+    name: &str,
+    value: &str,
+    value_color: egui::Color32,
+    frac: f32,
+    fill: egui::Color32,
+) {
+    ui.horizontal(|ui| {
+        let h = theme.font_size_body + 2.0;
+        ui.allocate_ui_with_layout(
+            egui::vec2(STAT_NAME_W, h),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.label(
+                    egui::RichText::new(name)
+                        .color(theme.text_secondary())
+                        .size(theme.font_size_small),
+                );
+            },
+        );
+        ui.allocate_ui_with_layout(
+            egui::vec2(STAT_VALUE_W, h),
+            egui::Layout::right_to_left(egui::Align::Center),
+            |ui| {
+                ui.label(
+                    egui::RichText::new(value)
+                        .color(value_color)
+                        .size(theme.font_size_small),
+                );
+            },
+        );
+        ui.add(
+            egui::ProgressBar::new(frac.clamp(0.0, 1.0))
+                .fill(fill)
+                .desired_height(6.0),
+        );
+    });
+}
+
 /// Tab bar. Updates active index, returns true if changed.
 ///
 /// Uses the universal `Button` builder under the hood — every tab/nav button
