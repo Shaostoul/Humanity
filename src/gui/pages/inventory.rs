@@ -130,6 +130,29 @@ struct ItemDetails {
     description: String,
 }
 
+/// Convert a [`crate::gui::Place`] hierarchy into renderable [`widgets::TreeNode`]s,
+/// injecting the live backpack `items` at the node marked `kind: "backpack"`.
+/// Place nodes are non-selectable (empty id); only the injected item leaves are
+/// clickable. A geographic node's coordinate shows as right-aligned detail — the
+/// same data that will key real-terrain world-gen.
+fn place_to_tree(place: &crate::gui::Place, items: &[widgets::TreeNode]) -> widgets::TreeNode {
+    let mut children: Vec<widgets::TreeNode> =
+        place.children.iter().map(|c| place_to_tree(c, items)).collect();
+    if place.kind == "backpack" {
+        children.extend(items.iter().cloned());
+    }
+    let detail = match place.coordinate {
+        Some([lat, lon]) => format!("{:.4}°, {:.4}°", lat, lon),
+        None => String::new(),
+    };
+    widgets::TreeNode {
+        id: String::new(),
+        label: place.label.clone(),
+        detail,
+        children,
+    }
+}
+
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let total_slots = state.inventory_max_slots.max(1);
 
@@ -541,15 +564,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.separator();
                 ui.add_space(theme.spacing_sm);
 
-                // Main inventory grid
-                ui.label(RichText::new("Backpack").size(theme.font_size_heading).color(theme.text_primary()));
+                // The container tree — your inventory shown INSIDE its real-world
+                // container context: Earth → … → your home → You → Backpack → items
+                // (the operator's "mark Earth as my container"). The place spine is
+                // data-driven (data/places/seed.json → state.place_root); the live
+                // backpack contents inject at the node marked kind:"backpack". With
+                // no place data we fall back to a flat backpack list.
+                let header = if state.place_root.is_some() { "Your places" } else { "Backpack" };
+                ui.label(RichText::new(header).size(theme.font_size_heading).color(theme.text_primary()));
                 ui.add_space(theme.spacing_xs);
 
-                // Backpack as a tree (the uniform container-node view). Items are
-                // clickable → they select the slot → the detail panel (right) shows
-                // the item + its actions. Nested containers (a pouch inside the bag)
-                // slot in here once the ECS models container nesting.
-                let backpack: Vec<widgets::TreeNode> = state
+                // Live backpack contents as selectable leaves (id = slot index → the
+                // right detail panel shows the item + its actions). Nested containers
+                // (a pouch inside the bag) slot in once the ECS models nesting.
+                let item_nodes: Vec<widgets::TreeNode> = state
                     .inventory_items
                     .iter()
                     .enumerate()
@@ -563,22 +591,31 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         })
                     })
                     .collect();
-                if backpack.is_empty() {
+
+                let selected_str =
+                    state.selected_slot.map(|i| i.to_string()).unwrap_or_default();
+
+                // Earth-rooted tree when we have the place spine; else flat backpack.
+                let clicked = if let Some(root) = state.place_root.clone() {
+                    let tree = place_to_tree(&root, &item_nodes);
+                    widgets::tree_list(ui, theme, &[tree], &selected_str)
+                } else if item_nodes.is_empty() {
                     ui.label(
                         RichText::new("Empty — mine, craft, or dev-stock to fill it.")
                             .color(theme.text_muted()),
                     );
+                    None
                 } else {
-                    let selected_str =
-                        state.selected_slot.map(|i| i.to_string()).unwrap_or_default();
-                    if let Some(clicked) = widgets::tree_list(ui, theme, &backpack, &selected_str) {
-                        if let Ok(idx) = clicked.parse::<usize>() {
-                            state.selected_slot = if state.selected_slot == Some(idx) {
-                                None
-                            } else {
-                                Some(idx)
-                            };
-                        }
+                    widgets::tree_list(ui, theme, &item_nodes, &selected_str)
+                };
+
+                if let Some(clicked) = clicked {
+                    if let Ok(idx) = clicked.parse::<usize>() {
+                        state.selected_slot = if state.selected_slot == Some(idx) {
+                            None
+                        } else {
+                            Some(idx)
+                        };
                     }
                 }
 

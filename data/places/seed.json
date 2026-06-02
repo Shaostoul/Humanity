@@ -1,0 +1,62 @@
+{
+  "id": "earth",
+  "label": "Earth",
+  "kind": "planet",
+  "children": [
+    {
+      "id": "washington",
+      "label": "Washington",
+      "kind": "region",
+      "children": [
+        {
+          "id": "silverdale",
+          "label": "Silverdale, WA",
+          "kind": "locale",
+          "coordinate": [47.6448, -122.6952],
+          "children": [
+            {
+              "id": "property",
+              "label": "Home property (~1 acre)",
+              "kind": "property",
+              "children": [
+                {
+                  "id": "home",
+                  "label": "Home (2 stories)",
+                  "kind": "building",
+                  "children": [
+                    {
+                      "id": "floor1",
+                      "label": "Floor 1",
+                      "kind": "floor",
+                      "children": [
+                        {
+                          "id": "you",
+                          "label": "You",
+                          "kind": "person",
+                          "children": [
+                            {
+                              "id": "backpack",
+                              "label": "Backpack",
+                              "kind": "backpack",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "floor2",
+                      "label": "Floor 2",
+                      "kind": "floor",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
