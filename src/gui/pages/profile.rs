@@ -290,19 +290,31 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // Live skills from the running game: level + XP toward the next level.
             // Earned by doing actions — craft → recipe's skill, harvest → farming,
             // mine → mining (SkillSystem applies the XP, the ECS syncs it here).
-            for sk in state.skills.iter() {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(&sk.name).color(theme.text_secondary()).size(theme.font_size_body));
-                    ui.label(RichText::new(format!("Lv {}", sk.level)).color(theme.text_primary()).size(theme.font_size_small));
+            // One row per skill in a Grid so the columns auto-align cleanly
+            // (name | Lv | progress | XP) — was two rows each with a near-empty
+            // bar that read as a stray dot. Operator: "one row, not two ...
+            // cleanly stacked columns."
+            egui::Grid::new("skills_grid")
+                .num_columns(4)
+                .spacing([16.0, theme.row_gap])
+                .show(ui, |ui| {
+                    for sk in state.skills.iter() {
+                        ui.label(RichText::new(&sk.name).color(theme.text_secondary()).size(theme.font_size_body));
+                        ui.label(RichText::new(format!("Lv {}", sk.level)).color(theme.text_primary()).size(theme.font_size_small));
+                        let frac = if sk.xp_needed > 0 {
+                            (sk.xp as f32 / sk.xp_needed as f32).clamp(0.0, 1.0)
+                        } else {
+                            1.0
+                        };
+                        ui.add(egui::ProgressBar::new(frac).desired_width(180.0).desired_height(8.0));
+                        ui.label(
+                            RichText::new(format!("{} / {} XP", sk.xp, sk.xp_needed))
+                                .color(theme.text_muted())
+                                .size(theme.font_size_small),
+                        );
+                        ui.end_row();
+                    }
                 });
-                let frac = if sk.xp_needed > 0 {
-                    (sk.xp as f32 / sk.xp_needed as f32).clamp(0.0, 1.0)
-                } else {
-                    1.0
-                };
-                widgets::progress_bar(ui, theme, frac, Some(&format!("{} / {} XP", sk.xp, sk.xp_needed)));
-                ui.add_space(theme.section_gap);
-            }
         } else {
             // No live skill data (not in-world yet). The old static placeholder
             // list was misleading (wrong skill names, %s) — show a clear hint instead.

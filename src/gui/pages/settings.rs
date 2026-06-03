@@ -51,8 +51,13 @@ fn styled_slider(
     let max = *range.end();
     let mut changed = false;
     ui.horizontal(|ui| {
+        // Fixed-width label column so every slider track starts at the SAME x.
+        // The old 120px was too narrow for labels like "Settings Label Width" or
+        // "Button Padding H" — they overflowed and pushed their slider right (the
+        // "stepping" the operator flagged). 170px fits the longest, so all the
+        // tracks align into one clean column.
         ui.allocate_ui_with_layout(
-            Vec2::new(120.0, ui.spacing().interact_size.y),
+            Vec2::new(170.0, ui.spacing().interact_size.y),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| { ui.label(RichText::new(label).color(label_color)); },
         );
