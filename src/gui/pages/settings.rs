@@ -1556,10 +1556,21 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             ("Map", "M"),
             ("Escape Menu", "Esc"),
         ];
-        for (action, key) in &keybinds {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(*action).color(theme.text_secondary()));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        // Three LEFT-aligned columns [Action | Primary | Secondary] in a Grid so
+        // each key sits right next to its action — was label-left / key-far-right
+        // (right_to_left layout), which the operator flagged as hard to match up.
+        // Secondary is a placeholder ("—") until per-action secondary bindings
+        // are wired through the input map.
+        egui::Grid::new("keybinds_grid")
+            .num_columns(3)
+            .spacing([24.0, theme.row_gap])
+            .show(ui, |ui| {
+                ui.label(RichText::new("Action").color(theme.text_muted()).size(theme.font_size_small));
+                ui.label(RichText::new("Primary").color(theme.text_muted()).size(theme.font_size_small));
+                ui.label(RichText::new("Secondary").color(theme.text_muted()).size(theme.font_size_small));
+                ui.end_row();
+                for (action, key) in &keybinds {
+                    ui.label(RichText::new(*action).color(theme.text_secondary()));
                     egui::Frame::none()
                         .fill(Color32::from_rgb(40, 40, 50))
                         .rounding(Rounding::same(3))
@@ -1567,9 +1578,10 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                         .show(ui, |ui| {
                             ui.label(RichText::new(*key).color(theme.text_primary()).size(theme.font_size_small).strong());
                         });
-                });
+                    ui.label(RichText::new("—").color(theme.text_muted()).size(theme.font_size_small));
+                    ui.end_row();
+                }
             });
-        }
     });
 }
 

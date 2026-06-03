@@ -143,6 +143,15 @@ pub enum GuiPage {
     /// section_nav sidebar folding in Profile's sections + Inventory, Wallet,
     /// Tasks, Map, Market. Replaces six separate nav buttons. See pages/real.rs.
     Real,
+    /// Play — the simulation tab (v0.360): section_nav folds Crafting + Studio.
+    Play,
+    /// Platform — the software-itself tab (v0.360): section_nav folds Settings,
+    /// Recovery, Tools, Bugs, Testing, Browser.
+    Platform,
+    /// Humanity — the collective / mission tab (v0.360): section_nav folds the
+    /// Community/Mission Dashboard (Civilization) + Governance, Directory
+    /// (Identity), Onboarding, Donate, Resources. What the H button opens.
+    Humanity,
     /// Top-category overview / landing pages (v0.181.0). Each top-tier
     /// nav button (Reality / Sim / Tools / Settings / Dev) lands on the
     /// matching overview, which renders a card grid of every sub-page
@@ -928,6 +937,14 @@ pub struct GuiState {
     /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
     pub active_real_section: String,
+    /// Selected section for the folded Play tab ("crafting"/"studio").
+    pub active_play_section: String,
+    /// Selected section for the folded Platform tab ("settings"/"recovery"/
+    /// "tools"/"bugs"/"testing"/"browser").
+    pub active_platform_section: String,
+    /// Selected section for the folded Humanity tab ("civilization"/
+    /// "governance"/"identity"/"onboarding"/"donate"/"resources").
+    pub active_humanity_section: String,
     pub map_selected_planet: Option<usize>,
     pub map_zoom: f32,
 
@@ -1785,6 +1802,9 @@ impl Default for GuiState {
             map_planets: Vec::new(),
             places: Vec::new(),
             active_real_section: "inventory".to_string(),
+            active_play_section: "crafting".to_string(),
+            active_platform_section: "settings".to_string(),
+            active_humanity_section: "civilization".to_string(),
             map_selected_planet: None,
             map_zoom: 1.0,
 

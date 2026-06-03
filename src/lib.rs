@@ -75,6 +75,7 @@ mod native_app {
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
         browser, category_overview, settings_pages, cosmos, real,
+        play, platform, humanity,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -3672,6 +3673,9 @@ mod native_app {
                                     GuiPage::Market => market::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Profile => profile::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Real => real::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Play => play::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Platform => platform::draw(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::Humanity => humanity::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Civilization => civilization::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Calculator => calculator::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Notes => notes::draw(ctx, &state.theme, &mut state.gui_state),

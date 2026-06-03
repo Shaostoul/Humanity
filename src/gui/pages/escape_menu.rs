@@ -73,7 +73,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 ).on_hover_text("Humanity — the mission + community");
                 if brand.clicked() {
                     state.clear_nav_back();
-                    state.active_page = GuiPage::Civilization;
+                    state.active_page = GuiPage::Humanity;
                 }
 
                 ui.add_space(6.0);
@@ -91,13 +91,12 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // public directory lookup, not private); Civilization → the
                 // Humanity Community Dashboard (what H now opens).
 
-                // Humanity — the collective + the mission.
+                // Humanity — the collective + the mission, FOLDED into one tab.
+                // Its sections (Mission Dashboard/Governance/Directory/Onboarding/
+                // Donate/Resources) live in the Humanity page's section_nav. This
+                // is what the H button opens.
                 let humanity_items = [
-                    NavItem { label: "Civilization", page: GuiPage::Civilization, description: "" },
-                    NavItem { label: "Governance",   page: GuiPage::Governance,   description: "" },
-                    NavItem { label: "Identity",     page: GuiPage::Identity,     description: "" },
-                    NavItem { label: "Onboarding",   page: GuiPage::Onboarding,   description: "" },
-                    NavItem { label: "Donate",       page: GuiPage::Donate,       description: "" },
+                    NavItem { label: "Humanity", page: GuiPage::Humanity, description: "" },
                 ];
                 nav_group(ui, &humanity_items, theme.nav_reality(), text_muted, theme, state);
 
@@ -128,10 +127,9 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Play — the simulation.
+                // Play — the simulation, FOLDED (Crafting/Studio in its sidebar).
                 let play_items = [
-                    NavItem { label: "Crafting", page: GuiPage::Crafting, description: "" },
-                    NavItem { label: "Studio",   page: GuiPage::Studio,   description: "" },
+                    NavItem { label: "Play", page: GuiPage::Play, description: "" },
                 ];
                 nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -139,14 +137,10 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Platform — the software itself.
+                // Platform — the software itself, FOLDED (Settings/Recovery/Tools/
+                // Bugs/Testing/Browser in its sidebar).
                 let platform_items = [
-                    NavItem { label: "Recovery", page: GuiPage::Recovery,  description: "" },
-                    NavItem { label: "Settings", page: GuiPage::Settings,  description: "" },
-                    NavItem { label: "Tools",    page: GuiPage::Tools,     description: "" },
-                    NavItem { label: "Bugs",     page: GuiPage::BugReport, description: "" },
-                    NavItem { label: "Testing",  page: GuiPage::Testing,   description: "" },
-                    NavItem { label: "Browser",  page: GuiPage::Browser,   description: "" },
+                    NavItem { label: "Platform", page: GuiPage::Platform, description: "" },
                 ];
                 nav_group(ui, &platform_items, theme.nav_settings(), text_muted, theme, state);
             });
