@@ -60,83 +60,97 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
 
-                // Brand H — navigates to Chat. Operator 2026-05-08:
-                // "the H stands for Humanity... If we make the H button
-                // on the main header menu chat then it's kinda fitting."
-                // Chat IS the cooperative platform's primary value prop;
-                // dashboard would be a maintenance burden for low payoff.
+                // Brand H — navigates to the Humanity landing (the Community
+                // Dashboard). Operator 2026-06-03 (page carve): "the H stands
+                // for Humanity"; it now opens the collective/mission view, NOT
+                // chat ("Right now it takes us to chat ... I don't think we
+                // should do that any more ... we obviously want a Humanity
+                // tab"). Chat is its own tab.
                 let brand = ui.add(
                     egui::Button::new(RichText::new("H").size(14.0).strong().color(accent))
                         .min_size(Vec2::new(28.0, 28.0))
                         .rounding(Rounding::same(6)),
-                ).on_hover_text("Home — Chat (the cooperative platform)");
+                ).on_hover_text("Humanity — the mission + community");
                 if brand.clicked() {
                     state.clear_nav_back();
-                    state.active_page = GuiPage::Chat;
+                    state.active_page = GuiPage::Civilization;
                 }
 
                 ui.add_space(6.0);
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Red group: identity (unchanged by context)
-                let red_items = [
-                    NavItem { label: "Chat", page: GuiPage::Chat, description: "" },
-                    NavItem { label: "Wallet", page: GuiPage::Wallet, description: "" },
-                    NavItem { label: "Donate", page: GuiPage::Donate, description: "" },
-                ];
-                nav_group(ui, &red_items, theme.nav_legacy_red(), text_muted, theme, state);
+                // ── Page carve (operator 2026-06-03): five top-level tabs —
+                // Humanity (the collective / mission), Chat (comms), Real (your
+                // actual life), Play (the sim), Platform (the software). This
+                // first step REGROUPS the existing pages under the five; the
+                // next steps fold each group into one scrollable section_nav
+                // page so the top row truly condenses. Decisions baked in: Maps
+                // lives once under Real (toggleable Humanity layers come with
+                // the merge); Recovery → Platform; Identity → Humanity (it's a
+                // public directory lookup, not private); Civilization → the
+                // Humanity Community Dashboard (what H now opens).
 
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Green group: context-sensitive
-                let green_items = [
-                    NavItem { label: "Profile", page: GuiPage::Profile, description: "" },
-                    NavItem { label: "Identity", page: GuiPage::Identity, description: "" },
-                    NavItem { label: "Governance", page: GuiPage::Governance, description: "" },
-                    NavItem { label: "Recovery", page: GuiPage::Recovery, description: "" },
-                    NavItem { label: "Tasks", page: GuiPage::Tasks, description: "" },
-                    NavItem { label: "Inventory", page: GuiPage::Inventory, description: "" },
-                    NavItem { label: "Maps", page: GuiPage::Maps, description: "" },
-                    NavItem { label: "Market", page: GuiPage::Market, description: "" },
-                    NavItem { label: "Crafting", page: GuiPage::Crafting, description: "" },
+                // Humanity — the collective + the mission.
+                let humanity_items = [
                     NavItem { label: "Civilization", page: GuiPage::Civilization, description: "" },
-                    NavItem { label: "Studio", page: GuiPage::Studio, description: "" },
+                    NavItem { label: "Governance",   page: GuiPage::Governance,   description: "" },
+                    NavItem { label: "Identity",     page: GuiPage::Identity,     description: "" },
+                    NavItem { label: "Onboarding",   page: GuiPage::Onboarding,   description: "" },
+                    NavItem { label: "Donate",       page: GuiPage::Donate,       description: "" },
                 ];
-                nav_group(ui, &green_items, theme.nav_legacy_green(), text_muted, theme, state);
+                nav_group(ui, &humanity_items, theme.nav_reality(), text_muted, theme, state);
 
                 ui.add_space(6.0);
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Blue group: system. v0.197.0: removed Agents and AI
-                // Usage — operator: "That AI Agents page also seems
-                // useless. As well as the AI usage." Multi-AI orchestration
-                // is handled via data/coordination/* + relay-side
-                // agent_sessions storage; the UI page wasn't pulling its
-                // weight. Quota tracking moves out of the app.
-                let blue_items = [
-                    NavItem { label: "Onboarding", page: GuiPage::Onboarding, description: "" },
-                    NavItem { label: "Settings", page: GuiPage::Settings, description: "" },
-                    NavItem { label: "Tools", page: GuiPage::Tools, description: "" },
-                    NavItem { label: "Bugs", page: GuiPage::BugReport, description: "" },
-                    NavItem { label: "Testing", page: GuiPage::Testing, description: "" },
-                    NavItem { label: "Browser", page: GuiPage::Browser, description: "" },
+                // Chat — communication.
+                let chat_items = [
+                    NavItem { label: "Chat", page: GuiPage::Chat, description: "" },
                 ];
-                nav_group(ui, &blue_items, theme.nav_legacy_blue(), text_muted, theme, state);
+                nav_group(ui, &chat_items, theme.nav_legacy_red(), text_muted, theme, state);
 
-                // v0.197.0: removed the Real/Sim toggle entirely along
-                // with the help "?" button that explained it. Operator
-                // 2026-05-08: "Let's remove the real/sim button too and
-                // that functionality. We'll keep the pages separate.
-                // Real inventory page should be different than game
-                // inventory page as to avoid confusion." Pages that
-                // previously branched on `state.context_real` now commit
-                // to their Real-mode rendering. Game-mode equivalents
-                // (e.g. inventory in FPS gameplay) are accessed from
-                // within the game loop via Tab, not from this nav bar.
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
+                // Real — your actual life.
+                let real_items = [
+                    NavItem { label: "Profile",   page: GuiPage::Profile,   description: "" },
+                    NavItem { label: "Wallet",    page: GuiPage::Wallet,    description: "" },
+                    NavItem { label: "Inventory", page: GuiPage::Inventory, description: "" },
+                    NavItem { label: "Tasks",     page: GuiPage::Tasks,     description: "" },
+                    NavItem { label: "Maps",      page: GuiPage::Maps,      description: "" },
+                    NavItem { label: "Market",    page: GuiPage::Market,    description: "" },
+                ];
+                nav_group(ui, &real_items, theme.nav_legacy_green(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
+                // Play — the simulation.
+                let play_items = [
+                    NavItem { label: "Crafting", page: GuiPage::Crafting, description: "" },
+                    NavItem { label: "Studio",   page: GuiPage::Studio,   description: "" },
+                ];
+                nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
+                // Platform — the software itself.
+                let platform_items = [
+                    NavItem { label: "Recovery", page: GuiPage::Recovery,  description: "" },
+                    NavItem { label: "Settings", page: GuiPage::Settings,  description: "" },
+                    NavItem { label: "Tools",    page: GuiPage::Tools,     description: "" },
+                    NavItem { label: "Bugs",     page: GuiPage::BugReport, description: "" },
+                    NavItem { label: "Testing",  page: GuiPage::Testing,   description: "" },
+                    NavItem { label: "Browser",  page: GuiPage::Browser,   description: "" },
+                ];
+                nav_group(ui, &platform_items, theme.nav_settings(), text_muted, theme, state);
             });
         });
 
