@@ -10,9 +10,9 @@ use crate::gui::{GuiState, ProfileSection};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
-const PRIVATE_DOT: Color32 = Color32::from_rgb(231, 76, 60);
-const PERSONAL_DOT: Color32 = Color32::from_rgb(237, 140, 36);
-const PUBLIC_DOT: Color32 = Color32::from_rgb(46, 204, 113);
+pub const PRIVATE_DOT: Color32 = Color32::from_rgb(231, 76, 60);
+pub const PERSONAL_DOT: Color32 = Color32::from_rgb(237, 140, 36);
+pub const PUBLIC_DOT: Color32 = Color32::from_rgb(46, 204, 113);
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Left sidebar with section list
@@ -51,23 +51,31 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ScrollArea::vertical().show(ui, |ui| {
-                match state.profile_section {
-                    ProfileSection::BodyMeasurements => draw_body_measurements(ui, theme, state),
-                    ProfileSection::Identity => draw_identity(ui, theme, state),
-                    ProfileSection::PrivateNotes => draw_private_notes(ui, theme, state),
-                    ProfileSection::NetworkProfile => draw_network_profile(ui, theme, state),
-                    ProfileSection::Interests => draw_interests(ui, theme, state),
-                    ProfileSection::Skills => draw_skills(ui, theme, state),
-                    ProfileSection::Quests => draw_quests(ui, theme, state),
-                    ProfileSection::SocialLinks => draw_social_links(ui, theme, state),
-                    ProfileSection::Streaming => draw_streaming(ui, theme, state),
-                }
+                draw_section_content(ui, theme, state);
             });
         });
 }
 
+/// Render the currently-selected Profile section's content into `ui` — extracted
+/// from `draw` so the merged **Real** tab can compose Profile's sections
+/// alongside Inventory / Wallet / Tasks / Map / Market in ONE unified
+/// section_nav page. The caller supplies the panel + scroll area.
+pub fn draw_section_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    match state.profile_section {
+        ProfileSection::BodyMeasurements => draw_body_measurements(ui, theme, state),
+        ProfileSection::Identity => draw_identity(ui, theme, state),
+        ProfileSection::PrivateNotes => draw_private_notes(ui, theme, state),
+        ProfileSection::NetworkProfile => draw_network_profile(ui, theme, state),
+        ProfileSection::Interests => draw_interests(ui, theme, state),
+        ProfileSection::Skills => draw_skills(ui, theme, state),
+        ProfileSection::Quests => draw_quests(ui, theme, state),
+        ProfileSection::SocialLinks => draw_social_links(ui, theme, state),
+        ProfileSection::Streaming => draw_streaming(ui, theme, state),
+    }
+}
+
 /// Map a `ProfileSection` to the stable string id the section-nav widget uses.
-fn section_id(section: ProfileSection) -> &'static str {
+pub fn section_id(section: ProfileSection) -> &'static str {
     match section {
         ProfileSection::BodyMeasurements => "body",
         ProfileSection::Identity => "identity",
@@ -82,7 +90,7 @@ fn section_id(section: ProfileSection) -> &'static str {
 }
 
 /// Inverse of [`section_id`] — unknown ids fall back to BodyMeasurements.
-fn section_from_id(id: &str) -> ProfileSection {
+pub fn section_from_id(id: &str) -> ProfileSection {
     match id {
         "identity" => ProfileSection::Identity,
         "notes" => ProfileSection::PrivateNotes,

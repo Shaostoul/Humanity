@@ -115,14 +115,12 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Real — your actual life.
+                // Real — your actual life, FOLDED into one tab. Its sections
+                // (Profile's Body/Identity/Notes/… + Possessions/Wallet/Tasks/
+                // Map/Market) now live in the Real page's section_nav sidebar,
+                // so this is the first group to truly condense: 6 buttons → 1.
                 let real_items = [
-                    NavItem { label: "Profile",   page: GuiPage::Profile,   description: "" },
-                    NavItem { label: "Wallet",    page: GuiPage::Wallet,    description: "" },
-                    NavItem { label: "Inventory", page: GuiPage::Inventory, description: "" },
-                    NavItem { label: "Tasks",     page: GuiPage::Tasks,     description: "" },
-                    NavItem { label: "Maps",      page: GuiPage::Maps,      description: "" },
-                    NavItem { label: "Market",    page: GuiPage::Market,    description: "" },
+                    NavItem { label: "Real", page: GuiPage::Real, description: "" },
                 ];
                 nav_group(ui, &real_items, theme.nav_legacy_green(), text_muted, theme, state);
 

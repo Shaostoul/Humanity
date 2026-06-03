@@ -9,6 +9,7 @@ pub mod hud;
 pub mod placeholder;
 pub mod tasks;
 pub mod profile;
+pub mod real;
 pub mod maps;
 pub mod market;
 pub mod calculator;

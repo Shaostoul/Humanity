@@ -139,6 +139,10 @@ pub enum GuiPage {
     /// now each card opens its URL in the OS default browser via egui's
     /// open_url. Data lives in `data/browser/bookmarks.json`.
     Browser,
+    /// Real — the merged "your actual life" tab (v0.358): one page with a
+    /// section_nav sidebar folding in Profile's sections + Inventory, Wallet,
+    /// Tasks, Map, Market. Replaces six separate nav buttons. See pages/real.rs.
+    Real,
     /// Top-category overview / landing pages (v0.181.0). Each top-tier
     /// nav button (Reality / Sim / Tools / Settings / Dev) lands on the
     /// matching overview, which renders a card grid of every sub-page
@@ -920,6 +924,10 @@ pub struct GuiState {
     /// renders them as top-level nodes, injecting live items at kind:"backpack".
     /// Empty until loaded. See [`Place`].
     pub places: Vec<Place>,
+    /// Which section the merged Real tab shows — either a Profile section id
+    /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
+    /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
+    pub active_real_section: String,
     pub map_selected_planet: Option<usize>,
     pub map_zoom: f32,
 
@@ -1776,6 +1784,7 @@ impl Default for GuiState {
             // startup in lib.rs (see `load_planets`). Empty at construction.
             map_planets: Vec::new(),
             places: Vec::new(),
+            active_real_section: "inventory".to_string(),
             map_selected_planet: None,
             map_zoom: 1.0,
 

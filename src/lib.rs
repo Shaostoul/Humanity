@@ -74,7 +74,7 @@ mod native_app {
         tasks, profile, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
-        browser, category_overview, settings_pages, cosmos,
+        browser, category_overview, settings_pages, cosmos, real,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -3671,6 +3671,7 @@ mod native_app {
                                     // v0.203.2: GuiPage::Maps routed below to the new Cosmos page.
                                     GuiPage::Market => market::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Profile => profile::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Real => real::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Civilization => civilization::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Calculator => calculator::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Notes => notes::draw(ctx, &state.theme, &mut state.gui_state),
