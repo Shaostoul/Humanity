@@ -137,12 +137,27 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Platform — the software itself, FOLDED (Settings/Recovery/Tools/
-                // Bugs/Testing/Browser in its sidebar).
+                // Platform — system + dev, FOLDED (Recovery/Tools/Bugs/Testing/
+                // Browser in its sidebar). Settings was pulled OUT to its own tab
+                // (below) so it's never buried.
                 let platform_items = [
                     NavItem { label: "Platform", page: GuiPage::Platform, description: "" },
                 ];
-                nav_group(ui, &platform_items, theme.nav_settings(), text_muted, theme, state);
+                nav_group(ui, &platform_items, theme.nav_tools(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
+                // Settings — its OWN top-level tab (operator 2026-06-04: "have
+                // settings as its own top level page ... always easily accessible,
+                // never buried in another menu"). Big enough to warrant its own
+                // page (section sidebar + long scroll), but it stays ONE click
+                // away here, not nested inside Platform.
+                let settings_items = [
+                    NavItem { label: "Settings", page: GuiPage::Settings, description: "" },
+                ];
+                nav_group(ui, &settings_items, theme.nav_settings(), text_muted, theme, state);
             });
         });
 

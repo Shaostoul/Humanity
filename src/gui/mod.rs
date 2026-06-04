@@ -1803,7 +1803,7 @@ impl Default for GuiState {
             places: Vec::new(),
             active_real_section: "inventory".to_string(),
             active_play_section: "crafting".to_string(),
-            active_platform_section: "settings".to_string(),
+            active_platform_section: "recovery".to_string(),
             active_humanity_section: "civilization".to_string(),
             map_selected_planet: None,
             map_zoom: 1.0,

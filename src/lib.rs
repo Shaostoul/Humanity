@@ -3674,7 +3674,7 @@ mod native_app {
                                     GuiPage::Profile => profile::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Real => real::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Play => play::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Platform => platform::draw(ctx, &mut state.theme, &mut state.gui_state),
+                                    GuiPage::Platform => platform::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Humanity => humanity::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Civilization => civilization::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Calculator => calculator::draw(ctx, &state.theme, &mut state.gui_state),
