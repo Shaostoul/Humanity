@@ -1075,25 +1075,25 @@
     "baryon_acoustic_oscillations": {
       "term": "Baryon Acoustic Oscillations (BAO)",
       "category": "cosmology",
-      "definition": "Frozen sound waves from the early universe. In the first ~380,000 years after the Big Bang, pressure waves propagated through the hot dense plasma. When atoms formed, the waves froze in place, leaving a slight statistical preference (~1%) for galaxies to be about 150 megaparsecs apart. Used as a \"standard ruler\" to measure cosmic expansion. Not bubbles you can fly into — a global statistical correlation pattern across the entire galaxy distribution.",
+      "definition": "Frozen sound waves from the early universe. In the first ~380,000 years after the Big Bang, pressure waves propagated through the hot dense plasma. When atoms formed, the waves froze in place, leaving a slight statistical preference (~1%) for galaxies to be about 150 megaparsecs apart. Used as a \"standard ruler\" to measure cosmic expansion. Not bubbles you can fly into, a global statistical correlation pattern across the entire galaxy distribution.",
       "link": "https://en.wikipedia.org/wiki/Baryon_acoustic_oscillations"
     },
     "comoving_coordinates": {
       "term": "Comoving Coordinates",
       "category": "cosmology",
-      "definition": "A reference frame that stretches with the universe’s expansion. Galaxies at fixed comoving positions don’t change coordinate value over time, even though the physical distance between them grows. Standard cosmology choice for intergalactic positioning — handles \"expanding universe = more space\" naturally without forcing a fixed grid.",
+      "definition": "A reference frame that stretches with the universe’s expansion. Galaxies at fixed comoving positions don’t change coordinate value over time, even though the physical distance between them grows. Standard cosmology choice for intergalactic positioning, handles \"expanding universe = more space\" naturally without forcing a fixed grid.",
       "link": "https://en.wikipedia.org/wiki/Comoving_and_proper_distances"
     },
     "cmb_rest_frame": {
       "term": "CMB Rest Frame",
       "category": "cosmology",
-      "definition": "The unique reference frame in which the cosmic microwave background appears isotropic — the same in every direction. The closest thing the universe has to an \"absolute rest frame.\" Earth moves at about 370 km/s relative to it, which we measure from the CMB’s dipole anisotropy.",
+      "definition": "The unique reference frame in which the cosmic microwave background appears isotropic, the same in every direction. The closest thing the universe has to an \"absolute rest frame.\" Earth moves at about 370 km/s relative to it, which we measure from the CMB’s dipole anisotropy.",
       "link": "https://en.wikipedia.org/wiki/Cosmic_microwave_background"
     },
     "cosmic_microwave_background": {
       "term": "Cosmic Microwave Background (CMB)",
       "category": "cosmology",
-      "definition": "Faint microwave radiation filling the universe in every direction — the relic light from when atoms first formed about 380,000 years after the Big Bang. The strongest evidence for the Big Bang model. Slightly warmer in the direction of Earth’s motion (the dipole anisotropy).",
+      "definition": "Faint microwave radiation filling the universe in every direction, the relic light from when atoms first formed about 380,000 years after the Big Bang. The strongest evidence for the Big Bang model. Slightly warmer in the direction of Earth’s motion (the dipole anisotropy).",
       "link": "https://en.wikipedia.org/wiki/Cosmic_microwave_background"
     },
     "cosmic_void": {
@@ -1105,13 +1105,13 @@
     "cosmic_web": {
       "term": "Cosmic Web",
       "category": "cosmology",
-      "definition": "The largest visible structure in the universe — galaxies organize into filaments and walls surrounding vast voids, forming a foam-like or web-like 3D pattern. Driven by gravity acting on small density variations imprinted at the Big Bang.",
+      "definition": "The largest visible structure in the universe, galaxies organize into filaments and walls surrounding vast voids, forming a foam-like or web-like 3D pattern. Driven by gravity acting on small density variations imprinted at the Big Bang.",
       "link": "https://en.wikipedia.org/wiki/Observable_universe#Large-scale_structure"
     },
     "recombination": {
       "term": "Recombination",
       "category": "cosmology",
-      "definition": "The moment about 380,000 years after the Big Bang when the universe cooled enough for electrons and nuclei to bind into neutral atoms. Photons stopped scattering off free electrons and started flying freely — that light is what we now see as the cosmic microwave background.",
+      "definition": "The moment about 380,000 years after the Big Bang when the universe cooled enough for electrons and nuclei to bind into neutral atoms. Photons stopped scattering off free electrons and started flying freely, that light is what we now see as the cosmic microwave background.",
       "link": "https://en.wikipedia.org/wiki/Recombination_(cosmology)"
     },
     "redshift": {
@@ -1123,13 +1123,13 @@
     "hubble_constant": {
       "term": "Hubble Constant (H₀)",
       "category": "cosmology",
-      "definition": "The current expansion rate of the universe — about 70 km/s per megaparsec. A galaxy 1 Mpc away recedes from us at about 70 km/s; one 10 Mpc away recedes at about 700 km/s. The exact value (67–74 depending on measurement method) is one of cosmology’s ongoing puzzles.",
+      "definition": "The current expansion rate of the universe, about 70 km/s per megaparsec. A galaxy 1 Mpc away recedes from us at about 70 km/s; one 10 Mpc away recedes at about 700 km/s. The exact value (67–74 depending on measurement method) is one of cosmology’s ongoing puzzles.",
       "link": "https://en.wikipedia.org/wiki/Hubble%27s_law"
     },
     "local_group": {
       "term": "Local Group",
       "category": "cosmology",
-      "definition": "The cluster of about 80 galaxies that includes the Milky Way, Andromeda, and many smaller satellites — gravitationally bound together within about 10 million light-years. The Local Group itself sits inside the larger Virgo Supercluster, which sits inside the Laniakea Supercluster.",
+      "definition": "The cluster of about 80 galaxies that includes the Milky Way, Andromeda, and many smaller satellites, gravitationally bound together within about 10 million light-years. The Local Group itself sits inside the larger Virgo Supercluster, which sits inside the Laniakea Supercluster.",
       "link": "https://en.wikipedia.org/wiki/Local_Group"
     },
     "laniakea_supercluster": {

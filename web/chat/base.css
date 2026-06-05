@@ -1,8 +1,8 @@
-/* base.css — CSS custom properties, resets, and typography */
+/* base.css, CSS custom properties, resets, and typography */
 
 :root {
   /* Theme tokens (--accent, --bg, --text, radii, spacing, …) come from
-     theme.css, generated from data/gui/theme.ron — the ONE source. Do NOT
+     theme.css, generated from data/gui/theme.ron, the ONE source. Do NOT
      redefine them here: a hard `--accent: #e07020` used to load after
      theme.css and shadow it, making the web a different orange than native.
      --bg-primary is a web-only alias for theme's --bg. */

@@ -7,7 +7,7 @@
       "version": "0.325.0",
       "feature": "Crafting page recipe browser populated (engine-wiring 1 + 1b)",
       "what_to_test": "Open the Crafting page. Before v0.325 it showed 'No recipes match your filter' (the page's recipe list was never populated, even after the recipe registry started loading into the runtime in v0.323). Browse the category sidebar + recipe list; click a recipe to see its ingredients, outputs, station, and craft time.",
-      "expected": "The Crafting page now LISTS the real recipes (300+) with categories, ingredients, and outputs — a working recipe browser. HONEST NOTE: the 'Craft' button is still a visual preview only. Actually consuming inputs + producing outputs (the full crafting LOOP) needs an item source (gathering/mining) + a GUI->ECS bridge — a later gameplay increment. The crafting SYSTEM itself (consume/produce) is already proven by an automated end-to-end test against the real data.",
+      "expected": "The Crafting page now LISTS the real recipes (300+) with categories, ingredients, and outputs, a working recipe browser. HONEST NOTE: the 'Craft' button is still a visual preview only. Actually consuming inputs + producing outputs (the full crafting LOOP) needs an item source (gathering/mining) + a GUI->ECS bridge, a later gameplay increment. The crafting SYSTEM itself (consume/produce) is already proven by an automated end-to-end test against the real data.",
       "category": "crafting"
     },
     {
@@ -30,7 +30,7 @@
       "id": "v0321-containers",
       "version": "0.321.0",
       "feature": "Typed containers + content-class compatibility (engine/data level)",
-      "what_to_test": "NOTE: this currently has NO in-app container UI yet, so it is not directly clickable — it's proven by automated tests (cement breaks a dairy/liquid tank; liquid N2 needs the cryo tank; a pressure tank accepts liquid N2 OR liquid CO2). Listed here for visibility; an in-app container interaction is a later increment.",
+      "what_to_test": "NOTE: this currently has NO in-app container UI yet, so it is not directly clickable, it's proven by automated tests (cement breaks a dairy/liquid tank; liquid N2 needs the cryo tank; a pressure tank accepts liquid N2 OR liquid CO2). Listed here for visibility; an in-app container interaction is a later increment.",
       "expected": "When container interaction is wired into the UI: compatible content is accepted; incompatible content damages and eventually breaks the container with a spill.",
       "category": "crafting"
     },
@@ -38,24 +38,24 @@
       "id": "v0320-native-turn",
       "version": "0.320.0",
       "feature": "Native P2P over TURN relay (symmetric-NAT fallback, increment 3b)",
-      "what_to_test": "Run two native instances on networks where direct + STUN hole-punching fails (symmetric NAT — e.g. some mobile carriers / strict corporate NATs). Both join the same P2P group, open it, send a message. Press F12 for the debug console.",
-      "expected": "The message still arrives near-instantly even when direct P2P can't connect — it's relayed through turn:united-humanity.us:3478. The debug console shows 'TURN relayed = ...' lines. (Last NAT-traversal fallback; if even TURN fails it drops to the relay poll.)",
+      "what_to_test": "Run two native instances on networks where direct + STUN hole-punching fails (symmetric NAT, e.g. some mobile carriers / strict corporate NATs). Both join the same P2P group, open it, send a message. Press F12 for the debug console.",
+      "expected": "The message still arrives near-instantly even when direct P2P can't connect, it's relayed through turn:united-humanity.us:3478. The debug console shows 'TURN relayed = ...' lines. (Last NAT-traversal fallback; if even TURN fails it drops to the relay poll.)",
       "category": "p2p-groups"
     },
     {
       "id": "v0318-native-p2p-group-mesh",
       "version": "0.318.0",
-      "feature": "Native P2P push — group messages over the WebRTC mesh (increment 2)",
+      "feature": "Native P2P push, group messages over the WebRTC mesh (increment 2)",
       "what_to_test": "Run TWO native instances with separate identities: launch the 2nd from a cmd window after `set HUMANITY_DATA_DIR=%TEMP%\\hum2`. On A: create a P2P group, copy the invite ticket. On B: join with the ticket. Open the group on A (this issues/rotates the epoch key), then open it on B. Send a message from A.",
-      "expected": "The message appears on B near-INSTANTLY — visibly faster than the ~2s poll. Send one back from B → instant on A. (Increment 2 uses host ICE candidates only, so both instances must be on the same machine / LAN.)",
+      "expected": "The message appears on B near-INSTANTLY, visibly faster than the ~2s poll. Send one back from B → instant on A. (Increment 2 uses host ICE candidates only, so both instances must be on the same machine / LAN.)",
       "category": "p2p-groups"
     },
     {
       "id": "v0319-native-p2p-cross-nat",
       "version": "0.319.0",
       "feature": "Native P2P across different networks (STUN srflx, increment 3a)",
-      "what_to_test": "Run two native instances on TWO DIFFERENT networks (e.g. one on home wifi, one on a phone hotspot / a different ISP — NOT the same LAN). Both join the same P2P group, both open it. Send a message.",
-      "expected": "The message still arrives near-instantly (P2P), now that each side discovers its public address via STUN and trickles it. If it only updates on the poll cadence, the cross-NAT hole-punch failed — that's the symmetric-NAT case TURN (increment 3b) will cover; report the F12 / debug-console srflx lines either way.",
+      "what_to_test": "Run two native instances on TWO DIFFERENT networks (e.g. one on home wifi, one on a phone hotspot / a different ISP, NOT the same LAN). Both join the same P2P group, both open it. Send a message.",
+      "expected": "The message still arrives near-instantly (P2P), now that each side discovers its public address via STUN and trickles it. If it only updates on the poll cadence, the cross-NAT hole-punch failed, that's the symmetric-NAT case TURN (increment 3b) will cover; report the F12 / debug-console srflx lines either way.",
       "category": "p2p-groups"
     },
     {
@@ -63,15 +63,15 @@
       "version": "0.318.0",
       "feature": "Native ↔ web P2P group interop (same machine / LAN)",
       "what_to_test": "Have a NATIVE instance and a WEB browser identity both join the same P2P group (same machine or LAN). Open the group in both. Send a message from native.",
-      "expected": "It appears in the browser near-instantly (the native str0m DataChannel ↔ the browser's WebRTC — the SDP is byte-compatible, so they should connect with host candidates). And web→native arrives instantly too. If it only updates on the poll cadence, the native↔browser ICE/DataChannel didn't connect — report the F12 / debug-console output.",
+      "expected": "It appears in the browser near-instantly (the native str0m DataChannel ↔ the browser's WebRTC, the SDP is byte-compatible, so they should connect with host candidates). And web→native arrives instantly too. If it only updates on the poll cadence, the native↔browser ICE/DataChannel didn't connect, report the F12 / debug-console output.",
       "category": "p2p-groups"
     },
     {
       "id": "v0316-native-p2p-datachannel",
       "version": "0.316.0",
-      "feature": "Native P2P push — WebRTC DataChannel transport (increment 1)",
+      "feature": "Native P2P push, WebRTC DataChannel transport (increment 1)",
       "what_to_test": "Two native instances (separate identities via HUMANITY_DATA_DIR), both connected. On A, click B's name in the members list, then the 'P2P test → B' button (bottom of the members panel). Press F12 (Debug Console) on both.",
-      "expected": "Both consoles show 'WebRTC: channel OPEN with …'; the receiver shows 'WebRTC: frame from …: native p2p test'. (Operator reported this working 2026-05-29 — re-confirm after any WebRTC change.)",
+      "expected": "Both consoles show 'WebRTC: channel OPEN with …'; the receiver shows 'WebRTC: frame from …: native p2p test'. (Operator reported this working 2026-05-29, re-confirm after any WebRTC change.)",
       "category": "p2p-groups"
     },
     {
@@ -79,7 +79,7 @@
       "version": "0.314.0",
       "feature": "Web P2P group delivery (relay signaling fix)",
       "what_to_test": "Hard-refresh the web chat (Ctrl+Shift+R). Open the same P2P group in two browser tabs/identities. Send a message in one; open the browser console (F12) on the other.",
-      "expected": "The message arrives noticeably faster than the ~4s poll, and the console logs 'P2P channel open with …'. (Before v0.314.0 the relay silently dropped the WebRTC signaling — `target` vs `to` — so the web mesh never actually connected and everything fell back to the poll.)",
+      "expected": "The message arrives noticeably faster than the ~4s poll, and the console logs 'P2P channel open with …'. (Before v0.314.0 the relay silently dropped the WebRTC signaling, `target` vs `to`, so the web mesh never actually connected and everything fell back to the poll.)",
       "category": "p2p-groups"
     },
     {
@@ -95,7 +95,7 @@
       "version": "0.315.0",
       "feature": "System/deploy notices no longer leak into a P2P group / DM",
       "what_to_test": "Open a P2P group (native or web). Trigger or await a server/deploy notice (a deploy-bot announcement, a rate-limit message, or any [System] line).",
-      "expected": "The notice does NOT appear inside the group/DM view (previously it showed there and then vanished on the next refresh — the 'deploy bot post in the group that disappeared' bug). On native it's filed under #general instead.",
+      "expected": "The notice does NOT appear inside the group/DM view (previously it showed there and then vanished on the next refresh, the 'deploy bot post in the group that disappeared' bug). On native it's filed under #general instead.",
       "category": "p2p-groups"
     },
     {
@@ -103,21 +103,21 @@
       "version": "0.311.0",
       "feature": "Group history survives a re-key (multi-epoch decrypt)",
       "what_to_test": "In a P2P group, send a few messages. Then invite a NEW member and have them join (this triggers an epoch key rotation). As an EXISTING member, look back at the message history.",
-      "expected": "Your earlier (pre-rotation) messages stay visible — they don't vanish after the join. A brand-new member sees only messages from after they joined, UNLESS the group was created with the Shared-history toggle.",
+      "expected": "Your earlier (pre-rotation) messages stay visible, they don't vanish after the join. A brand-new member sees only messages from after they joined, UNLESS the group was created with the Shared-history toggle.",
       "category": "p2p-groups"
     },
     {
       "id": "v0148-reactions-pills",
       "version": "0.148.0",
-      "feature": "Chat reactions — pill display",
+      "feature": "Chat reactions, pill display",
       "what_to_test": "Open #general. Find any message. Click the + pill to its right. Pick an emoji.",
-      "expected": "A pill appears with the emoji + count 1, accent-tinted because you reacted. Click the same pill again — it should disappear (toggle off).",
+      "expected": "A pill appears with the emoji + count 1, accent-tinted because you reacted. Click the same pill again, it should disappear (toggle off).",
       "category": "chat-parity"
     },
     {
       "id": "v0148-reactions-multi",
       "version": "0.148.0",
-      "feature": "Chat reactions — multiple users",
+      "feature": "Chat reactions, multiple users",
       "what_to_test": "From a second device or web client, react to the same message with the same emoji. On native, watch the count.",
       "expected": "Pill count increments to 2 without you doing anything. The pill is no longer accent-tinted unless you also reacted.",
       "category": "chat-parity"
@@ -125,7 +125,7 @@
     {
       "id": "v0149-threads-reply",
       "version": "0.149.0",
-      "feature": "Chat threads — reply",
+      "feature": "Chat threads, reply",
       "what_to_test": "Click the ↩ button on someone else's message. Type a response. Press Enter.",
       "expected": "Banner above input shows 'Replying to <name>: <preview>' with X to cancel. After send, your message renders with a muted '↩ <name>: <preview>' line above its content.",
       "category": "chat-parity"
@@ -135,13 +135,13 @@
       "version": "0.150.0",
       "feature": "Chat search",
       "what_to_test": "Click the 🔍 button on the input bar. Type 'hello' (or any 2+ char query). Press Enter or click Search.",
-      "expected": "Modal opens. Results render as cards with sender, channel, snippet. Click Jump on a result — it switches to that channel and closes the modal.",
+      "expected": "Modal opens. Results render as cards with sender, channel, snippet. Click Jump on a result, it switches to that channel and closes the modal.",
       "category": "chat-parity"
     },
     {
       "id": "v0151-pin-message",
       "version": "0.151.0",
-      "feature": "Chat pins — pin a message",
+      "feature": "Chat pins, pin a message",
       "what_to_test": "Click the 📌 button on any message. Then click the 📌 N button on the input bar.",
       "expected": "Pin count appears next to the input-bar 📌. Modal opens with the pinned message as a card showing sender, original timestamp, who pinned it, and content.",
       "category": "chat-parity"
@@ -149,7 +149,7 @@
     {
       "id": "v0152-edit-own",
       "version": "0.152.0",
-      "feature": "Chat edit — own messages only",
+      "feature": "Chat edit, own messages only",
       "what_to_test": "Send a message. Click the ✎ pencil button on YOUR message. Edit the text. Click Save.",
       "expected": "Inline editor replaces the text with a multiline TextEdit + Save/Cancel. Save updates the message immediately. The ✎ button should NOT appear on other people's messages.",
       "category": "chat-parity"
@@ -159,7 +159,7 @@
       "version": "0.153.0",
       "feature": "@ mentions autocomplete",
       "what_to_test": "Click in the input. Type '@' then start typing a username from the right sidebar.",
-      "expected": "A popup appears above the input with up to 5 matching usernames. Click one — it replaces '@partial' with '@FullName ' (with trailing space).",
+      "expected": "A popup appears above the input with up to 5 matching usernames. Click one, it replaces '@partial' with '@FullName ' (with trailing space).",
       "category": "chat-parity"
     },
     {
@@ -173,9 +173,9 @@
     {
       "id": "v0137-server-settings-tiers",
       "version": "0.137.0",
-      "feature": "Server Settings — color-coded role tiers",
+      "feature": "Server Settings, color-coded role tiers",
       "what_to_test": "Click the cog menu on the server row in chat. Confirm the page renders.",
-      "expected": "Three sections: 🔴 USER (always shown — identity, role, invite link, disconnect), 🟢 MODERATOR (shown if you're mod/admin — kick/mute/ban target field), 🔵 ADMIN (shown if admin — lockdown, generate invite, channel CRUD, verify, promote, ban). Each section has a colored top-border accent.",
+      "expected": "Three sections: 🔴 USER (always shown, identity, role, invite link, disconnect), 🟢 MODERATOR (shown if you're mod/admin, kick/mute/ban target field), 🔵 ADMIN (shown if admin, lockdown, generate invite, channel CRUD, verify, promote, ban). Each section has a colored top-border accent.",
       "category": "ui"
     },
     {
@@ -189,16 +189,16 @@
     {
       "id": "v0141-aging-stages",
       "version": "0.141.0",
-      "feature": "Aging system — life stage transitions",
+      "feature": "Aging system, life stage transitions",
       "what_to_test": "If your character has an Age component, watch its life_stage field over time (or fast-forward). Check Profile or any system that displays age.",
       "expected": "At thresholds (12, 18, 30, 50, 70 game-years) the life_stage transitions from child → teen → young_adult → adult → senior → elder. Log line fires on each transition.",
       "category": "game-systems",
-      "note": "Hard to test interactively without a long play session. Mainly here for completeness — log inspection counts."
+      "note": "Hard to test interactively without a long play session. Mainly here for completeness, log inspection counts."
     },
     {
       "id": "v0143-combat-armor",
       "version": "0.143.0",
-      "feature": "Combat — armor mitigates damage",
+      "feature": "Combat, armor mitigates damage",
       "what_to_test": "If a creature with Armor takes damage, observe the Health drop.",
       "expected": "Armor.resistance per damage type reduces incoming damage proportionally (e.g. 0.4 kinetic resistance = 40% reduction on kinetic hits). Log line shows '(N% mitigated by armor)'.",
       "category": "game-systems",
@@ -239,7 +239,7 @@
     {
       "id": "v0160-ambient-crew",
       "version": "0.160.0",
-      "feature": "Ambient NPC crew per room — role-tagged characters",
+      "feature": "Ambient NPC crew per room, role-tagged characters",
       "what_to_test": "Run `node scripts/ai-sample-client.js`. Modify it (or perceive multiple rooms) to peek at: bridge, medbay, engineering, cargo, hydroponics, crew_quarters.",
       "expected": "Each room has a unique role-named NPC: Helm Officer Vex (bridge), Dr. Kel (medbay), Chief Tan (engineering), CB-7 (cargo, replaces old maintenance_bot), Botanist Yara (hydroponics), Crewmate Nia (crew_quarters). All wander Brownian-style within their room bounds.",
       "category": "perception-api"
@@ -247,7 +247,7 @@
     {
       "id": "v0161-perception-per-action-rate-limit",
       "version": "0.161.0",
-      "feature": "Perception rate limit — per-action buckets",
+      "feature": "Perception rate limit, per-action buckets",
       "what_to_test": "Run `node scripts/ai-sample-client.js` to completion. Watch the perceive→interact→perceive flow.",
       "expected": "All three calls succeed without rate_limited error. Before v0.161 the second perceive was blocked by the shared 200ms bucket. Now each action (perceive / interact / query_inventory / query_entity) has its own 5/sec bucket.",
       "category": "perception-api"
@@ -255,15 +255,15 @@
     {
       "id": "v0162-npc-dialog",
       "version": "0.162.0",
-      "feature": "NPC dialog — crew talks back",
+      "feature": "NPC dialog, crew talks back",
       "what_to_test": "Run `node scripts/ai-sample-client.js`. Watch the interact response. (Or in-game: walk up to Helm Officer Vex, Dr. Kel, Chief Tan, CB-7, Botanist Yara, Crewmate Nia and interact.)",
-      "expected": "The interact result includes 'speaker' (NPC name) and 'dialog_line' (a random one of 4 personality lines per NPC). Bot prints e.g.: NPC dialog — Helm Officer Vex: \"Course laid in. We're holding orbit at 412 km.\" Other nearby clients see the dialog in the broadcast too.",
+      "expected": "The interact result includes 'speaker' (NPC name) and 'dialog_line' (a random one of 4 personality lines per NPC). Bot prints e.g.: NPC dialog, Helm Officer Vex: \"Course laid in. We're holding orbit at 412 km.\" Other nearby clients see the dialog in the broadcast too.",
       "category": "perception-api"
     },
     {
       "id": "v0163-browser-page",
       "version": "0.163.0",
-      "feature": "Browser page — curated bookmarks",
+      "feature": "Browser page, curated bookmarks",
       "what_to_test": "Open the Browser page (top nav, blue group, between Testing and Bugs). Try the All / category filter chips. Click any card.",
       "expected": "Page renders with 5 categories (HumanityOS / Open knowledge / Real-world skills / Sovereign software / Spaceflight). Each card shows icon + title + description + host. Click opens the URL in your default OS browser. Hover tints the card and brightens the border.",
       "category": "ui",
@@ -272,18 +272,18 @@
     {
       "id": "v0164-two-tier-nav",
       "version": "0.164.0",
-      "feature": "Two-tier nav preview — Reality / Sim / Tools / Settings",
+      "feature": "Two-tier nav preview, Reality / Sim / Tools / Settings",
       "what_to_test": "On any tool page, look at the right-most icon in the nav bar. Click `▤` to switch to the two-tier preview layout. Click each top category (Reality / Sim / Tools / Settings) and confirm the sub-tier shows the right pages. Click `≡` to switch back.",
       "expected": "Top tier shows 4 wide colored category tabs (red / purple / blue / gray). Sub tier renders the pages for the selected category. Reality has 14 pages including Profile/Chat/Wallet/Donate/Tasks/Market. Sim has Inventory/Crafting/Studio/Guilds/Trade. Tools has Calculator/Calendar/Notes/Files/Tools/Resources/Browser. Settings has Settings/Onboarding/ServerSettings/Testing.",
       "category": "design",
-      "note": "PREVIEW. Reply via chat with: which 4 categories you actually want, sub-page reassignments, anything missing. Default still loads single-row nav each launch — flip via the [▤] toggle."
+      "note": "PREVIEW. Reply via chat with: which 4 categories you actually want, sub-page reassignments, anything missing. Default still loads single-row nav each launch, flip via the [▤] toggle."
     },
     {
       "id": "v0165-ambient-chatter",
       "version": "0.165.0",
-      "feature": "Ambient NPC chatter — world talks to itself",
-      "what_to_test": "Run `node scripts/ai-sample-client.js` and let it idle for 60+ seconds after the demo completes (before the 20s safety-net timeout) — actually update the timeout in the script to 120s for this test. Watch the WebSocket for game_ambient_chatter events.",
-      "expected": "Roughly every 45 seconds a random NPC broadcasts one of their dialog lines. Bot prints e.g.: Ambient chatter — Botanist Yara (hydroponics): \"Lettuce harvest in three days. Tell the galley.\" Event includes entity_id, speaker, room_id, position, line.",
+      "feature": "Ambient NPC chatter, world talks to itself",
+      "what_to_test": "Run `node scripts/ai-sample-client.js` and let it idle for 60+ seconds after the demo completes (before the 20s safety-net timeout), actually update the timeout in the script to 120s for this test. Watch the WebSocket for game_ambient_chatter events.",
+      "expected": "Roughly every 45 seconds a random NPC broadcasts one of their dialog lines. Bot prints e.g.: Ambient chatter, Botanist Yara (hydroponics): \"Lettuce harvest in three days. Tell the galley.\" Event includes entity_id, speaker, room_id, position, line.",
       "category": "perception-api",
       "note": "Chatter only fires when at least one NPC has a non-empty `dialog` array. Skipped if relay is fresh and entities not yet populated."
     },
@@ -292,13 +292,13 @@
       "version": "0.166.0",
       "feature": "Nav layout preference persists across launches",
       "what_to_test": "Switch to the two-tier nav via [▤]. Pick a top category like Sim. Close the app fully (don't just reload). Relaunch.",
-      "expected": "App reopens with the two-tier nav active and Sim still selected. Switch back via [≡], close, relaunch — opens on legacy single-row nav. Preference saved to config.json next to the exe.",
+      "expected": "App reopens with the two-tier nav active and Sim still selected. Switch back via [≡], close, relaunch, opens on legacy single-row nav. Preference saved to config.json next to the exe.",
       "category": "ui"
     },
     {
       "id": "v0167-explore-ship-quest",
       "version": "0.167.0",
-      "feature": "Starter quest — Explore Ship",
+      "feature": "Starter quest, Explore Ship",
       "what_to_test": "Run `node scripts/ai-sample-client.js`. Look for the Quest line in the game_welcome log. Then in-game: walk into each room aboard the Pioneer (bridge, medbay, engineering, cargo, hydroponics, crew quarters).",
       "expected": "Welcome shows: 'Quest: Find your bearings (1/N)' (1 because spawn room is pre-marked visited). Each new room entered triggers a private game_quest_progress event with visited_count + total. Visiting all rooms triggers public game_quest_completed broadcast.",
       "category": "game-systems",
@@ -317,14 +317,14 @@
       "version": "0.169.0",
       "feature": "NPC greets player on first room entry",
       "what_to_test": "Run `node scripts/ai-sample-client.js` and watch for NPC greeting lines during the room tour.",
-      "expected": "Each new room entry fires a private game_npc_greeting event with the resident NPC's speaker + a random greeting line (e.g., 'Dr. Kel: \"Welcome to medical. State your symptom, briefly.\"'). Greetings only fire on FIRST entry per room per player — re-entering doesn't re-trigger.",
+      "expected": "Each new room entry fires a private game_npc_greeting event with the resident NPC's speaker + a random greeting line (e.g., 'Dr. Kel: \"Welcome to medical. State your symptom, briefly.\"'). Greetings only fire on FIRST entry per room per player, re-entering doesn't re-trigger.",
       "category": "perception-api",
       "note": "PERSIST_KEY bumped to v5 since NPC component schema added 'greetings' field."
     },
     {
       "id": "v0170-quest-chain",
       "version": "0.170.0",
-      "feature": "Quest chain — Meet the Crew unlocks after Explore Ship",
+      "feature": "Quest chain, Meet the Crew unlocks after Explore Ship",
       "what_to_test": "Run `node scripts/ai-sample-client.js`. After explore_ship completes, watch for game_quest_unlocked event then the new meeting_crew phase that talks to each NPC.",
       "expected": "Bot finishes the room tour, sees explore_ship complete, gets game_quest_unlocked for meet_the_crew, then revisits each room and talks to each NPC. Each talk fires game_quest_progress for meet_the_crew. After all 6 NPCs, meet_the_crew completes and bot disconnects.",
       "category": "game-systems",
@@ -333,7 +333,7 @@
     {
       "id": "v0171-quest-rewards",
       "version": "0.171.0",
-      "feature": "Quest rewards — XP + reputation",
+      "feature": "Quest rewards, XP + reputation",
       "what_to_test": "Run `node scripts/ai-sample-client.js`. Watch for game_quest_reward events when each quest completes.",
       "expected": "On explore_ship complete: '+100 XP, +5 rep (totals: 100/5)' with message 'You're getting your bearings...'. On meet_the_crew complete: '+200 XP, +10 rep (totals: 300/15)' with 'You know the crew now. They know you.' Player components.xp/reputation accumulate across the session.",
       "category": "game-systems",
@@ -342,7 +342,7 @@
     {
       "id": "v0172-survey-storage-quest",
       "version": "0.172.0",
-      "feature": "Third quest — Survey the Storage",
+      "feature": "Third quest, Survey the Storage",
       "what_to_test": "Run `node scripts/ai-sample-client.js`. After meet_the_crew completes, watch for survey_storage chained quest. Bot tours each room and scans every storage entity (locker / cabinet / bin).",
       "expected": "Quest unlocked with goal = total storage entities (locker in quarters, medicine_cabinet in medbay, tool_cabinet + spare_parts_bin in engineering, harvest_bin in hydroponics, inventory_terminal in cargo = 6 storage). Each scan fires game_quest_progress. After all scanned, quest completes with +300 XP +15 rep, totals: 600 XP / 30 rep.",
       "category": "game-systems",
@@ -352,7 +352,7 @@
       "id": "v0173-rgb-nav-separator",
       "version": "0.173.0",
       "feature": "Nav RGB channeling separator + active button consistency",
-      "what_to_test": "Switch to two-tier nav via [▤]. Watch the thin colored line under the top tier and under the sub tier — it should slowly cycle through the RGB spectrum. Click each top category — the active one's border should also be the same channeling RGB. Switch back to legacy via [≡] — should now ALSO have the channeling line under the single-row nav.",
+      "what_to_test": "Switch to two-tier nav via [▤]. Watch the thin colored line under the top tier and under the sub tier, it should slowly cycle through the RGB spectrum. Click each top category, the active one's border should also be the same channeling RGB. Switch back to legacy via [≡], should now ALSO have the channeling line under the single-row nav.",
       "expected": "Both nav layouts have a 3px-tall RGB separator line directly below them, slowly shifting through the hue spectrum. In two-tier: a separator under both the top tier AND the sub tier. Active top-category button (Reality/Sim/Tools/Settings) has an animated RGB border matching the active sub-page button. The channeling color stays in lockstep across all attention-grabbing UI elements.",
       "category": "ui",
       "note": "Future: when player is being attacked the channeling color flips from cyclic RGB to a pulsing red. The state field exists (state.attack_pulse_active) but no combat system sets it yet. Hand-test with a debug toggle once added."
@@ -361,7 +361,7 @@
       "id": "v0174-two-tier-default",
       "version": "0.174.0",
       "feature": "Two-tier nav is the default layout",
-      "what_to_test": "Delete (or rename) `config.json` next to the exe and relaunch — fresh install sims a new user. App should open on the two-tier nav (Reality / Sim / Tools / Settings + sub tier). If you've previously toggled to legacy and saved it, your choice is respected — flip via the [▤] button to revisit two-tier.",
+      "what_to_test": "Delete (or rename) `config.json` next to the exe and relaunch, fresh install sims a new user. App should open on the two-tier nav (Reality / Sim / Tools / Settings + sub tier). If you've previously toggled to legacy and saved it, your choice is respected, flip via the [▤] button to revisit two-tier.",
       "expected": "Fresh install: two-tier nav active out of the gate. Existing config: previous nav_two_tier value honored. Toggle button still works in both directions.",
       "category": "ui"
     },
@@ -369,10 +369,10 @@
       "id": "v0175-nav-theme-tokens",
       "version": "0.175.0",
       "feature": "Nav colors editable from Settings page",
-      "what_to_test": "Open Settings → scroll to color editors. Look for nav_reality, nav_sim, nav_tools, nav_settings, nav_legacy_red, nav_legacy_green, nav_legacy_blue. Tweak one — e.g. change nav_sim from purple to neon green. Save. Switch to two-tier nav and click the Sim category.",
+      "what_to_test": "Open Settings → scroll to color editors. Look for nav_reality, nav_sim, nav_tools, nav_settings, nav_legacy_red, nav_legacy_green, nav_legacy_blue. Tweak one, e.g. change nav_sim from purple to neon green. Save. Switch to two-tier nav and click the Sim category.",
       "expected": "Sim button + sub-tier color reflects your edit immediately. Same for the other nav category colors. Sizes (nav_separator_height, nav_active_border_width) are also editable as numeric tokens.",
       "category": "ui",
-      "note": "Backstop: cargo test --test theme_token_lint will fail any future PR that adds a new Color32::from_rgb(N, N, N) literal in src/gui/ or src/renderer/. 168 pre-existing literals in 22 legacy files are allowlisted with audit notes — those get migrated one release at a time."
+      "note": "Backstop: cargo test --test theme_token_lint will fail any future PR that adds a new Color32::from_rgb(N, N, N) literal in src/gui/ or src/renderer/. 168 pre-existing literals in 22 legacy files are allowlisted with audit notes, those get migrated one release at a time."
     },
     {
       "id": "v0176-fov-slider-fix",
@@ -387,7 +387,7 @@
       "version": "0.176.0",
       "feature": "Nav color + size tokens visible in Settings",
       "what_to_test": "Settings → Appearance → scroll to 'Nav category colors' section. Settings → Widgets → scroll to 'Nav' card.",
-      "expected": "Appearance shows 7 nav color rows (Reality, Sim, Tools, Settings, plus 3 legacy group colors). Widgets shows a Nav card with Separator Height, Active Border Width, Hover Border Width sliders. Editing any of them updates the nav immediately. Also: Background (modal overlay) is now editable — was missing.",
+      "expected": "Appearance shows 7 nav color rows (Reality, Sim, Tools, Settings, plus 3 legacy group colors). Widgets shows a Nav card with Separator Height, Active Border Width, Hover Border Width sliders. Editing any of them updates the nav immediately. Also: Background (modal overlay) is now editable, was missing.",
       "category": "ui"
     },
     {
@@ -401,8 +401,8 @@
     {
       "id": "v0177-animations-section",
       "version": "0.177.0",
-      "feature": "Animations settings section — pick your own RGB style + attack indicator",
-      "what_to_test": "Settings → Animations. Try: (1) flip the master switch off — RGB cycling on the nav separator + active borders should freeze. Flip back on. (2) Change Nav Separator → Style to Solid; the bar should hold a single color. Try Pulse; it should breathe brightness. (3) Speed slider on each — tweak and watch the rate change. (4) Attack Indicator → click 'Test attack pulse for 3s'. Watch the nav. Then change style to Pulse Yellow / Flash White / Solid and re-test.",
+      "feature": "Animations settings section, pick your own RGB style + attack indicator",
+      "what_to_test": "Settings → Animations. Try: (1) flip the master switch off, RGB cycling on the nav separator + active borders should freeze. Flip back on. (2) Change Nav Separator → Style to Solid; the bar should hold a single color. Try Pulse; it should breathe brightness. (3) Speed slider on each, tweak and watch the rate change. (4) Attack Indicator → click 'Test attack pulse for 3s'. Watch the nav. Then change style to Pulse Yellow / Flash White / Solid and re-test.",
       "expected": "Master switch freezes everything. Each style picker visibly changes the animation in real time. Attack test button triggers the configured indicator for 3s then auto-clears. Speeds at 0.0 = static, 1.0 = default, 3.0 = fast. All settings persist via Save Animations.",
       "category": "ui",
       "note": "All animation behavior previously hardcoded in escape_menu.rs is now token-driven. Reduced-motion users can disable everything; action gamers can pick yellow-pulse over red. Five attack styles: None / Pulse Red / Pulse Yellow / Flash White / Solid Danger Color."
@@ -410,25 +410,25 @@
     {
       "id": "v0178-doc-audit",
       "version": "0.178.0",
-      "feature": "Doc audit — CLAUDE.md / MEMORY.md / new docs/PAGES.md",
-      "what_to_test": "(Developer-facing.) Open CLAUDE.md and look for the 'Cryptography (canonical, audited 2026-05-03)' table. Open docs/PAGES.md — should list 32 native + 38 web pages. Open MEMORY.md (`C:\\Users\\Shaos\\.claude\\projects\\C--Humanity\\memory\\MEMORY.md`) — should reference single-crate `src/` layout, NOT the old `server/` `native/` `crates/` split.",
+      "feature": "Doc audit, CLAUDE.md / MEMORY.md / new docs/PAGES.md",
+      "what_to_test": "(Developer-facing.) Open CLAUDE.md and look for the 'Cryptography (canonical, audited 2026-05-03)' table. Open docs/PAGES.md, should list 32 native + 38 web pages. Open MEMORY.md (`C:\\Users\\Shaos\\.claude\\projects\\C--Humanity\\memory\\MEMORY.md`), should reference single-crate `src/` layout, NOT the old `server/` `native/` `crates/` split.",
       "expected": "All three docs accurately reflect current state. Crypto table shows dual-stack (Ed25519 chat + Dilithium3 federation). Page registry has 32 native pages with file paths + audience. MEMORY.md anti-context-rot rules section explains how to prevent recurrence.",
       "category": "design"
     },
     {
       "id": "v0178-security-fixes",
       "version": "0.178.0",
-      "feature": "Security fixes — H1 SQL pattern + H2 timestamp freshness + H3 federated chat sig",
-      "what_to_test": "Operationally invisible — these are defensive fixes. Verify by: (1) cargo test --features relay --no-default-features (should show 201 tests pass, including 5 new freshness_tests). (2) On the live VPS, sending a federated_chat with no signature or stale timestamp should now be rejected with 'invalid or missing signature' / 'timestamp outside ±5 min window' in the relay log.",
-      "expected": "H1: trading.rs no longer uses format!() for column names — match into static SQL strings instead. H2: federation_hello + federated_chat reject any timestamp outside ±5 min skew window. H3: federated_chat now requires a signature, verifies it against the source server's stored Ed25519 pubkey, rejects unsigned or invalid messages.",
+      "feature": "Security fixes, H1 SQL pattern + H2 timestamp freshness + H3 federated chat sig",
+      "what_to_test": "Operationally invisible, these are defensive fixes. Verify by: (1) cargo test --features relay --no-default-features (should show 201 tests pass, including 5 new freshness_tests). (2) On the live VPS, sending a federated_chat with no signature or stale timestamp should now be rejected with 'invalid or missing signature' / 'timestamp outside ±5 min window' in the relay log.",
+      "expected": "H1: trading.rs no longer uses format!() for column names, match into static SQL strings instead. H2: federation_hello + federated_chat reject any timestamp outside ±5 min skew window. H3: federated_chat now requires a signature, verifies it against the source server's stored Ed25519 pubkey, rejects unsigned or invalid messages.",
       "category": "design",
-      "note": "From 2026-05-03 security audit. H4 (DM crypto silent downgrade to plaintext) deferred — needs UI work for the user-warning modal. M1-M3 + L1-L2 from the audit also deferred."
+      "note": "From 2026-05-03 security audit. H4 (DM crypto silent downgrade to plaintext) deferred, needs UI work for the user-warning modal. M1-M3 + L1-L2 from the audit also deferred."
     },
     {
       "id": "v0179-dev-top-category",
       "version": "0.179.0",
       "feature": "Dev top-tier nav category + page regrouping per audit",
-      "what_to_test": "Switch to two-tier nav. You should now see FIVE top categories — Reality / Sim / Tools / Settings / Dev (amber). Click Dev: sub-tier shows Testing / Bugs / Agents / AI Usage / Files. Click Reality: should NOT show Bugs / AI Usage / Agents anymore (they moved). Tools: should NOT show Files anymore.",
+      "what_to_test": "Switch to two-tier nav. You should now see FIVE top categories, Reality / Sim / Tools / Settings / Dev (amber). Click Dev: sub-tier shows Testing / Bugs / Agents / AI Usage / Files. Click Reality: should NOT show Bugs / AI Usage / Agents anymore (they moved). Tools: should NOT show Files anymore.",
       "expected": "Five categories visible, dev pages cleanly grouped under amber Dev category. Settings → Animations → Developer mode → Show Dev menu toggle hides/shows the Dev category. Color is editable in Settings → Appearance → Nav category colors → Nav: Dev (amber).",
       "category": "ui",
       "note": "Dev visibility default-on during development period; flips to default-off at v1.0. Operator decision per CLAUDE.md."
@@ -437,7 +437,7 @@
       "id": "v0180-chat-buttons-hover",
       "version": "0.180.0",
       "feature": "Chat reaction/reply/pin/edit buttons gated to hover",
-      "what_to_test": "Open Chat. Scroll through messages. Confirm: messages WITHOUT reactions show no button row. Hover a message — buttons appear (reactions +, ↩ reply, 📌 pin, ✎ edit on your own). Move cursor away — buttons disappear. Right-click any message — context menu still works as fallback.",
+      "what_to_test": "Open Chat. Scroll through messages. Confirm: messages WITHOUT reactions show no button row. Hover a message, buttons appear (reactions +, ↩ reply, 📌 pin, ✎ edit on your own). Move cursor away, buttons disappear. Right-click any message, context menu still works as fallback.",
       "expected": "Cleaner chat surface; the row of buttons only renders when (a) a message has at least one reaction (so the count stays visible) or (b) the cursor is over the message row. Discord/Slack pattern.",
       "category": "chat-parity"
     },
@@ -461,7 +461,7 @@
       "id": "v0181-category-overviews",
       "version": "0.181.0",
       "feature": "Top-tier nav buttons land on category overview pages (Reality/Sim/Tools/Settings/Dev)",
-      "what_to_test": "Switch to two-tier nav. Click each top category button (Reality / Sim / Tools / Settings / Dev). Each should now load its own LANDING page — header in the category color, summary line, then a grid of cards (one per sub-page) with a label and a one-line description. Click any card to jump straight to that page. Sub-tier buttons still work for direct navigation as before.",
+      "what_to_test": "Switch to two-tier nav. Click each top category button (Reality / Sim / Tools / Settings / Dev). Each should now load its own LANDING page, header in the category color, summary line, then a grid of cards (one per sub-page) with a label and a one-line description. Click any card to jump straight to that page. Sub-tier buttons still work for direct navigation as before.",
       "expected": "Reality landing: 11 cards (Profile/Chat/Wallet/Donate/Tasks/Market/Civilization/Governance/Maps/Recovery/Identity). Sim: 5 cards. Tools: 6 cards. Settings: 14 cards (after v0.182 settings split). Dev: 5 cards. Click any card → navigates. Hover → card border becomes the category color.",
       "category": "ui"
     },
@@ -472,16 +472,16 @@
       "what_to_test": "Click Settings (top-tier). Settings landing now shows 14 cards (12 categories + Onboarding + Server Admin). Click Account → opens its own page (no sidebar TOC, no infinite scroll). Same for Appearance, Animations, Widgets, Notifications, Wallet, Audio, Graphics, Controls, Privacy, Data, Updates. Each page has a styled header (label + summary) followed by the same content the old single-page Settings had in that section.",
       "expected": "No more 1300-line scroll page. Each settings category is a real GuiPage variant with a real URL-shaped destination. Sub-tier nav lists all 14 (no parent/sub-button redundancy). Edits in Appearance/Animations/Widgets persist to theme.ron via Save buttons same as before. Legacy GuiPage::Settings still renders the all-in-one view for any code path that explicitly targets it (back-compat).",
       "category": "ui",
-      "note": "Existing draw_X_content fns in settings.rs were only made pub(crate) — no logic moved. Each new page is a 6-line wrapper in settings_pages.rs that calls into the shared content fn under a styled header frame. If a content fn needs new behavior, edit settings.rs once and every wrapper picks it up."
+      "note": "Existing draw_X_content fns in settings.rs were only made pub(crate), no logic moved. Each new page is a 6-line wrapper in settings_pages.rs that calls into the shared content fn under a styled header frame. If a content fn needs new behavior, edit settings.rs once and every wrapper picks it up."
     },
     {
       "id": "v0183-chat-action-overlay",
       "version": "0.183.0",
       "feature": "Chat action buttons (+, ↩, 📌, ✎) float as a popup, no layout shift on hover",
-      "what_to_test": "Open Chat. Hover any message. Action buttons should now appear as a small floating popup at the message's top-right with a shadow/border. Move cursor away — popup disappears. Crucially: HOVERING DIFFERENT MESSAGES SHOULD NOT MOVE THE TEXT. Previously hovering would push everything below down by 22px causing weird glitches. Reaction pills (when a message has reactions) STILL appear inline below the text — that's static info, not a hover state.",
+      "what_to_test": "Open Chat. Hover any message. Action buttons should now appear as a small floating popup at the message's top-right with a shadow/border. Move cursor away, popup disappears. Crucially: HOVERING DIFFERENT MESSAGES SHOULD NOT MOVE THE TEXT. Previously hovering would push everything below down by 22px causing weird glitches. Reaction pills (when a message has reactions) STILL appear inline below the text, that's static info, not a hover state.",
       "expected": "Hover-trigger UI no longer changes layout. Cursor sliding from message text right into the popup buttons keeps the popup visible (slight overlap by design). Click + to open emoji picker; ↩ to set reply target; 📌 to pin; ✎ to edit your own messages. Right-click context menu still works as the always-available fallback.",
       "category": "chat-parity",
-      "note": "egui::Area with order Foreground + RIGHT_TOP pivot anchored to row.right_top minus a small offset. Shadow + bg_card frame so it reads as a discrete popup. Reaction pills kept inline since they're static content (this message has 3 thumbs-up — known, doesn't change on hover)."
+      "note": "egui::Area with order Foreground + RIGHT_TOP pivot anchored to row.right_top minus a small offset. Shadow + bg_card frame so it reads as a discrete popup. Reaction pills kept inline since they're static content (this message has 3 thumbs-up, known, doesn't change on hover)."
     },
     {
       "id": "v0183-icon-uniform",
@@ -493,8 +493,8 @@
     {
       "id": "v0184-timestamp-pill",
       "version": "0.184.0",
-      "feature": "Timestamp pill — replaces inline timestamp + reactions row + popup",
-      "what_to_test": "Open Chat. Each message header now shows a small pill: [timestamp Þ existing-reactions]. Click an existing reaction badge to toggle yours. Hover the message row — an expanded panel opens BELOW the pill with: ↩ reply, 📌 pin, ✎ edit (own only), then a Þ separator, then 10 default reactions, then ∞ for the full emoji picker. Click ∞ → 40-emoji picker.",
+      "feature": "Timestamp pill, replaces inline timestamp + reactions row + popup",
+      "what_to_test": "Open Chat. Each message header now shows a small pill: [timestamp Þ existing-reactions]. Click an existing reaction badge to toggle yours. Hover the message row, an expanded panel opens BELOW the pill with: ↩ reply, 📌 pin, ✎ edit (own only), then a Þ separator, then 10 default reactions, then ∞ for the full emoji picker. Click ∞ → 40-emoji picker.",
       "expected": "No more separate inline pills row below messages and no more top-right popup. One unified pill that lives where the timestamp used to be. Hovering messages doesn't shift layout. Clicking reactions in the expanded panel adds them. Right-click context menu still works as fallback.",
       "category": "chat-parity",
       "note": "Phase 1 of the operator's pill design. Top-10 reactions are static defaults today; v0.185+ will add per-user frequency tracking + server-configurable defaults + custom emoji."
@@ -502,8 +502,8 @@
     {
       "id": "v0185-pill-polish",
       "version": "0.185.0",
-      "feature": "Timestamp pill polish — opaque bg + sticky hover + right-of-pill popup + header row breathing room",
-      "what_to_test": "Open Chat. (1) Pill is fully opaque now — no message text visible behind it. (2) Hover a pill — expanded panel opens to the RIGHT (not below). (3) Move cursor from pill INTO the panel buttons — popup stays open (sticky combined hover region). Click a top-10 emoji or a function button. (4) Header rows are now tall enough to comfortably fit the avatar circle — sender groups have visible breathing room between them. Continuation rows from the same sender stay tight together as before. (5) Click an existing reaction badge in the pill → toggles your reaction (popup may still be open from hover but doesn't interfere).",
+      "feature": "Timestamp pill polish, opaque bg + sticky hover + right-of-pill popup + header row breathing room",
+      "what_to_test": "Open Chat. (1) Pill is fully opaque now, no message text visible behind it. (2) Hover a pill, expanded panel opens to the RIGHT (not below). (3) Move cursor from pill INTO the panel buttons, popup stays open (sticky combined hover region). Click a top-10 emoji or a function button. (4) Header rows are now tall enough to comfortably fit the avatar circle, sender groups have visible breathing room between them. Continuation rows from the same sender stay tight together as before. (5) Click an existing reaction badge in the pill → toggles your reaction (popup may still be open from hover but doesn't interfere).",
       "expected": "Pill text never overlaps message text. Popup extends rightward from the pill, mouse can move into it without dismissing. Header rows are at least theme.icon_size + 6px tall (38px default) so avatars don't crowd the text below. Popup width estimated correctly so the sticky hover region encompasses both pill + popup.",
       "category": "chat-parity",
       "note": "Combined hover region = pill_rect.union(estimated_popup_rect). Cursor inside that union region keeps popup visible. Once cursor leaves both, popup disappears."
@@ -512,16 +512,16 @@
       "id": "v0186-icons-and-onboarding",
       "version": "0.186.0",
       "feature": "Pill icons RGB-animated + broken glyphs replaced + onboarding cards no longer overflow off-screen",
-      "what_to_test": "(A) Open Chat, hover a message. The function button glyphs (↩ reply, ⊠ pin, ✎ edit) and the Þ separator and the ∞ all-emoji button should now slowly cycle through RGB hues like the active-page nav border. Reaction emoji that previously rendered as squares (❤️ → ❤, 📌 → ⊠) now show clean. (B) Open Settings → Onboarding. Resize the window narrower then wider. The 'Where to go next' card row should fit within the centered 1024px column — no card cut off at the right edge anymore.",
+      "what_to_test": "(A) Open Chat, hover a message. The function button glyphs (↩ reply, ⊠ pin, ✎ edit) and the Þ separator and the ∞ all-emoji button should now slowly cycle through RGB hues like the active-page nav border. Reaction emoji that previously rendered as squares (❤️ → ❤, 📌 → ⊠) now show clean. (B) Open Settings → Onboarding. Resize the window narrower then wider. The 'Where to go next' card row should fit within the centered 1024px column, no card cut off at the right edge anymore.",
       "expected": "Function icons in chat popup pulse RGB matching the global animation tokens (Settings → Animations → Active button border). Onboarding 'Four core concepts' and 'Where to go next' card rows wrap correctly when content would exceed the centered column width.",
       "category": "ui",
-      "note": "Root cause for onboarding overflow — ui.available_width() inside a horizontal-wrapped child can exceed the parent's set_max_width constraint. Fix: clamp avail.min(CONTENT_MAX_W) before computing per-card width. Root cause for icons — emoji like 📌 and ✎ aren't in egui's default font; replaced with ⊠ and kept ✎ (with caveat). Variation selector U+FE0F stripped from ❤️ and other emoji to avoid the trailing-square rendering bug."
+      "note": "Root cause for onboarding overflow, ui.available_width() inside a horizontal-wrapped child can exceed the parent's set_max_width constraint. Fix: clamp avail.min(CONTENT_MAX_W) before computing per-card width. Root cause for icons, emoji like 📌 and ✎ aren't in egui's default font; replaced with ⊠ and kept ✎ (with caveat). Variation selector U+FE0F stripped from ❤️ and other emoji to avoid the trailing-square rendering bug."
     },
     {
       "id": "design-nav-redesign",
       "version": "next",
-      "feature": "Nav redesign proposal — Reality / Sim / Tools / Settings",
-      "what_to_test": "Read this proposal and react in chat: replace the current single-row nav (chat, wallet, donate, profile, identity, ...) with a TWO-TIER nav. Top tier: Reality (red), Sim (purple), Tools (blue), Settings (gray). Sub tier changes with selection. Reality sub: Profile, Chat, Wallet, Donate, Tasks, Market, Civilization, Governance, Maps, Recovery, Identity, Agents, AI Usage, Bugs. Sim sub: Character, Inventory, Crafting, Sim Market, Sim Maps, Quests, Studio, World. Tools sub: Calculator, Calendar, Notes, Files, Tools Catalog. Settings sub: Account, Appearance, Audio, Notifications, Data, Updates, Onboarding. Real/Sim toggle goes away — separate Wallet/Market/etc per category prevents accidental real-money mistakes.",
+      "feature": "Nav redesign proposal, Reality / Sim / Tools / Settings",
+      "what_to_test": "Read this proposal and react in chat: replace the current single-row nav (chat, wallet, donate, profile, identity, ...) with a TWO-TIER nav. Top tier: Reality (red), Sim (purple), Tools (blue), Settings (gray). Sub tier changes with selection. Reality sub: Profile, Chat, Wallet, Donate, Tasks, Market, Civilization, Governance, Maps, Recovery, Identity, Agents, AI Usage, Bugs. Sim sub: Character, Inventory, Crafting, Sim Market, Sim Maps, Quests, Studio, World. Tools sub: Calculator, Calendar, Notes, Files, Tools Catalog. Settings sub: Account, Appearance, Audio, Notifications, Data, Updates, Onboarding. Real/Sim toggle goes away, separate Wallet/Market/etc per category prevents accidental real-money mistakes.",
       "expected": "Reply in chat with: (1) which 4 categories you want, (2) any sub-page reassignments, (3) anything missing.",
       "category": "design"
     }

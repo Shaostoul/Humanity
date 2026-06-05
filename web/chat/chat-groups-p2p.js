@@ -1,8 +1,8 @@
-// chat-groups-p2p.js — P2P groups create / invite / join (Phase 1).
+// chat-groups-p2p.js, P2P groups create / invite / join (Phase 1).
 //
 // Wires the chat UI to the sovereign signed-object group model
 // (docs/design/p2p-groups.md): create a group_v1, mint a creator-signed invite
-// (a copyable ticket carrying a secret), and join by revealing that secret — no
+// (a copyable ticket carrying a secret), and join by revealing that secret, no
 // creator/relay-owner online required for the join to be authorized.
 //
 // Crypto is the KAT-locked web object layer (web/shared/{canonical-cbor,pq-object}.js)
@@ -40,7 +40,7 @@
   function authorPub() { return hexToBytes(myKey); }
   function signer() { return async (bytes) => window.pqSignMessage(myDilithiumSecret, bytes); }
   function notReady() {
-    if (typeof addNotice === 'function') addNotice('Connect first — your post-quantum identity isn’t ready yet.', 'red', 6);
+    if (typeof addNotice === 'function') addNotice('Connect first, your post-quantum identity isn’t ready yet.', 'red', 6);
     return false;
   }
 
@@ -87,7 +87,7 @@
    *  spans multiple epochs after a re-key (each message is encrypted under the
    *  epoch current WHEN SENT), so the latest key alone can't open older history.
    *  An existing member is sealed into every epoch (full history); a member who
-   *  joined later is only sealed from their join epoch on (forward secrecy — they
+   *  joined later is only sealed from their join epoch on (forward secrecy, they
    *  simply can't open pre-join epochs, which is the intended default). */
   async function fetchAllEpochKeys(groupId) {
     if (!pqReady() || typeof window.pqDmOpen !== 'function' || !myKyberSecret) return null;
@@ -109,7 +109,7 @@
       return { map, latestEpoch, latestKey };
     } catch (e) { console.warn('fetchAllEpochKeys:', e); return null; }
   }
-  /** GET the group's raw (still-encrypted) message log — NO decryption. Kept
+  /** GET the group's raw (still-encrypted) message log, NO decryption. Kept
    *  separate from decryption so the network fetch can run CONCURRENTLY with the
    *  roster + epoch-key fetches on open (decryption only needs the epoch key,
    *  which is resolved locally afterward). Returns the raw `messages` array. */
@@ -122,7 +122,7 @@
     } catch (e) { console.warn('fetchGroupMessagesRaw:', e); return []; }
   }
   /** Decrypt a raw message array (from `_fetchGroupMessagesRaw`). `keyForEpoch`
-   *  is `(epoch) => Uint8Array|null` — each message is opened under the key for
+   *  is `(epoch) => Uint8Array|null`, each message is opened under the key for
    *  ITS OWN epoch, because the log spans multiple epochs after a re-key (a
    *  message is encrypted under the epoch key current when it was sent). */
   async function _decryptGroupMessages(rawMessages, keyForEpoch) {
@@ -150,7 +150,7 @@
    * their WebRTC DataChannels (low-latency P2P delivery). The relay POST stays
    * as the durable cache + the backfill for offline members ("relay = optional
    * accelerator"). A `group_msg_v1` is self-validating, so the peer-pushed copy
-   * and the relay-polled copy dedup by object_id — pushing it is safe. */
+   * and the relay-polled copy dedup by object_id, pushing it is safe. */
   async function sendGroupMessage(groupId, epoch, epochKey, plaintext) {
     const { obj, blake3 } = await mods();
     const built = await obj.buildGroupMsgV1({
@@ -171,13 +171,13 @@
   // existing webrtc_signal routing. No new relay handler: the relay is
   // signaling-only for this. group_msg_v1 is a self-validating signed object,
   // so a peer-pushed copy is verified locally + deduped by object_id against
-  // the relay-polled copy — pushing it carries zero trust risk.
+  // the relay-polled copy, pushing it carries zero trust risk.
 
   // object_ids already handled (sent or received over P2P) so a push + the 4s
   // relay poll don't double-render the same message. Reset on group switch.
   const _p2pGroupSeenObjIds = new Set();
 
-  /** fp = first 16 bytes of BLAKE3(pubkey), hex — matches author_fingerprint. */
+  /** fp = first 16 bytes of BLAKE3(pubkey), hex, matches author_fingerprint. */
   function fpFromPubHex(pubHex, blake3) {
     try {
       const h = blake3(hexToBytes(pubHex));
@@ -190,7 +190,7 @@
   /** Open/maintain DataChannels to the active group's roster members.
    * Glare-free: only the LARGER-pubkey side calls initDataChannel (offers); the
    * smaller side waits and chat-p2p.js's handleDCOffer answers. Offline members
-   * simply never connect (their offer goes nowhere) — the relay poll covers
+   * simply never connect (their offer goes nowhere), the relay poll covers
    * them. Reuses any channel already open for DMs (multiplexed by msg.type). */
   function ensureGroupMesh(ag) {
     if (!ag || !ag.fpToKey) return;
@@ -290,7 +290,7 @@
       if (!r.ok) return null;
       groupObj = await r.json();
     } catch (e) { return null; }
-    // btoa of the raw bytes of myKey (hex pubkey) — same encoding the relay used.
+    // btoa of the raw bytes of myKey (hex pubkey), same encoding the relay used.
     const myPubB64 = (function() {
       const bytes = hexToBytes(myKey);
       let s = ''; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
@@ -323,7 +323,7 @@
           }
         }
       }
-    } catch (e) { /* no epoch yet — treat as currentEpoch=0, empty set */ }
+    } catch (e) { /* no epoch yet, treat as currentEpoch=0, empty set */ }
 
     // (3) Current roster with each member's Kyber public key.
     let allMembers = [];
@@ -354,7 +354,7 @@
 
     // (5) Cover the new member(s).
     if (shareHistory && currentEpoch >= 1 && currentEpochPayloadBytes) {
-      // SHARED: do NOT rotate — re-seal the SAME (current) epoch key to the
+      // SHARED: do NOT rotate, re-seal the SAME (current) epoch key to the
       // expanded roster so the new member decrypts the existing single-epoch
       // history. Unseal our own copy of the current key to re-seal it.
       try {
@@ -372,7 +372,7 @@
       } catch (e) { console.warn('share-history re-seal:', e); /* fall through to mint */ }
     }
 
-    // PRIVATE (default): mint a NEW epoch sealed to the full roster — members who
+    // PRIVATE (default): mint a NEW epoch sealed to the full roster, members who
     // joined since the last epoch read from here forward only (forward secrecy).
     const newEpoch = currentEpoch + 1;
     const newEpochKey = obj.randomEpochKey();
@@ -394,9 +394,9 @@
     const { objectId: groupId, submission } = await obj.buildGroupV1({ name, shareHistory: !!shareHistory, authorPublicKey: authorPub(), sign: signer(), blake3 });
     await postObject(submission);
     // Auto-issue an initial epoch key sealed to the creator so chat works
-    // immediately — without this the group is identity+membership only and
+    // immediately, without this the group is identity+membership only and
     // you cannot send anything. Sealed to ourselves (and any future joiners
-    // get re-keyed via a manual "rotate" — Phase-2 follow-up).
+    // get re-keyed via a manual "rotate", Phase-2 follow-up).
     if (typeof window.pqDmSeal === 'function' && typeof myKyberPublicBase64 !== 'undefined' && myKyberPublicBase64) {
       try {
         const fp = await myFingerprint();
@@ -410,7 +410,7 @@
         await postObject(ek.submission);
       } catch (e) {
         console.warn('initial epoch key failed:', e);
-        if (typeof addNotice === 'function') addNotice('Group created but epoch key failed — messaging may not work.', 'orange', 8);
+        if (typeof addNotice === 'function') addNotice('Group created but epoch key failed, messaging may not work.', 'orange', 8);
       }
     }
     if (typeof addSystemMessage === 'function') addSystemMessage('✅ Created group "' + name + '".');
@@ -484,7 +484,7 @@
 
   // Fetch my P2P groups + rosters from the relay projection and re-render.
   // Sets `_p2pGroupsFetched` only once a real fetch is attempted (myKey ready)
-  // — otherwise the lazy trigger in renderGroupList would burn the flag before
+  //, otherwise the lazy trigger in renderGroupList would burn the flag before
   // identity loads and the groups would never appear until the user interacted
   // (the "no groups on first load" bug).
   async function loadP2pGroups() {
@@ -507,7 +507,7 @@
   // the group via the per-epoch AES-GCM key. No popup, no parallel UI; the
   // chat reuses everything (renderer, styling, scroll, identicons, theme).
   //
-  // The modal version (openP2pGroupDialog) is removed — it duplicated the chat
+  // The modal version (openP2pGroupDialog) is removed, it duplicated the chat
   // UI inside a constrained window AND was hitting an egui-like z-order bug
   // where the backdrop kept landing in front of the modal. Inline is the
   // correct mental model: switching from "#general" to "My Group" is one
@@ -546,7 +546,7 @@
       Object.keys(messageReactions).forEach((k) => delete messageReactions[k]);
     }
     if (msgs.length === 0) {
-      msgsEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:var(--space-xl);font-size:0.8rem;">No messages yet. Be the first to chat — your messages are end-to-end encrypted under the group epoch key.</div>';
+      msgsEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:var(--space-xl);font-size:0.8rem;">No messages yet. Be the first to chat, your messages are end-to-end encrypted under the group epoch key.</div>';
       return;
     }
     for (const m of msgs) {
@@ -578,7 +578,7 @@
         let fp = '';
         for (let i = 0; i < 16; i++) fp += h[i].toString(16).padStart(2, '0');
         ag.fpToKey[fp] = m.pubkey;
-        // For now we don't have a name lookup here — peerData might have one
+        // For now we don't have a name lookup here, peerData might have one
         // if they've been seen on the relay. Fall back to short pubkey.
         const peer = (typeof peerData !== 'undefined' && peerData) ? peerData[m.pubkey] : null;
         ag.fpToName[fp] = (peer && peer.display_name) || (m.pubkey.slice(0, 8) + '…');
@@ -593,7 +593,7 @@
     try {
       // === Fire every independent load CONCURRENTLY ===
       // Previously this ran as 3–4 sequential relay round-trips (roster → key →
-      // messages, + a creator's group_v1 + rekey check) — that serial chain is
+      // messages, + a creator's group_v1 + rekey check), that serial chain is
       // the 1–3s "Loading…" stall on first open. They have NO fetch-layer
       // dependency; only *decryption* needs the epoch key, and that's local.
       if (!ag.myFp) ag.myFp = (await myFingerprint().catch(() => '')) || '';
@@ -615,7 +615,7 @@
 
       // Creator-only re-key (seals the epoch to members who joined since the last
       // rotation). Rare churn event + only the creator acts, so run it as a
-      // NON-BLOCKING follow-up — it must never delay the first paint. The
+      // NON-BLOCKING follow-up, it must never delay the first paint. The
       // creator's OWN key always exists from group creation, so deferring this
       // can't blank the creator's own view; it only (re)issues the key so new
       // joiners can read. Self-gates via ag.rekeyChecked (once per open).
@@ -642,7 +642,7 @@
         return;
       }
       // Phase 3: open/maintain DataChannels to roster members so messages
-      // arrive P2P (low-latency) — the fetch below stays as offline backfill.
+      // arrive P2P (low-latency), the fetch below stays as offline backfill.
       ensureGroupMesh(ag);
       // (3) Decrypt + render (the log was fetched concurrently above; skip the
       //     repaint if nothing changed). Each message opens under the key for its
@@ -661,7 +661,7 @@
 
   /**
    * Switch the main chat to the given P2P group as if it were a channel.
-   * Returns immediately (no awaits before view changes) — the data load
+   * Returns immediately (no awaits before view changes), the data load
    * runs in the background and populates the panel when it arrives.
    */
   function openP2pGroup(groupId, name) {
@@ -685,7 +685,7 @@
     const pinList = document.getElementById('pin-list');
     if (pinList) pinList.classList.remove('open');
 
-    // (d) Header — name + invite link (no parallel modal, just a tiny inline link).
+    // (d) Header, name + invite link (no parallel modal, just a tiny inline link).
     const header = document.getElementById('channel-header');
     if (header) {
       const displayName = name || groupId.slice(0, 8);
@@ -803,7 +803,7 @@
         input.value = '';
         input.style.height = 'auto';
         // Optimistic local echo so the user sees their message land
-        // immediately — the next poll-refresh reconciles with what the relay
+        // immediately, the next poll-refresh reconciles with what the relay
         // stored (dedup by author_fp + created_at).
         addChatMessage(window.myName || 'You', text, Date.now(), myKey, false, false, null, null);
         _p2pRefresh();
@@ -828,7 +828,7 @@
   // Phase 3: chat-p2p.js's onDCMessage dispatches `p2p_group_obj` frames here.
   window.handleP2pGroupObj = handleP2pGroupObj;
   // Back-compat alias: anything still calling the old name gets routed into
-  // the inline flow (no modal). Members arg ignored — roster is fetched
+  // the inline flow (no modal). Members arg ignored, roster is fetched
   // server-side now.
   window.openP2pGroupDialog = function (groupId, name) { return openP2pGroup(groupId, name); };
 })();

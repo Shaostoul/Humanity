@@ -5,7 +5,7 @@
 //! that hardcode colors and bypass the theme system.
 //!
 //! ```ignore
-//! widgets::alert(ui, theme, AlertKind::Warning, "Unsaved changes — save before leaving");
+//! widgets::alert(ui, theme, AlertKind::Warning, "Unsaved changes, save before leaving");
 //! widgets::alert(ui, theme, AlertKind::Error, "Failed to load profile data");
 //! ```
 

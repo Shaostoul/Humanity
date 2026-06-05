@@ -2,7 +2,7 @@
   --accent: #e07020;
   --accent-hover: #ff8c40;
   --accent-dim: rgba(224,112,32,0.15);
-  /* Alias for unified-section default background — theme.css defines --bg */
+  /* Alias for unified-section default background, theme.css defines --bg */
   --bg-primary: var(--bg, #0d0d0d);
 }
 
@@ -192,17 +192,17 @@ header h1 {
 /* Each context gets a clearly-tinted background so the user           */
 /* immediately knows which chat type they're reading.                  */
 #messages[data-ctx="channel"] {
-  background: #132244; /* rgb(19,34,68) — dark navy blue */
+  background: #132244; /* rgb(19,34,68), dark navy blue */
   --stripe-a: rgba(50, 110, 220, 0.28);
   --stripe-b: rgba(35, 80, 170, 0.13);
 }
 #messages[data-ctx="dm"] {
-  background: #3a1020; /* rgb(58,16,32) — dark crimson */
+  background: #3a1020; /* rgb(58,16,32), dark crimson */
   --stripe-a: rgba(210, 50, 80, 0.28);
   --stripe-b: rgba(165, 35, 60, 0.13);
 }
 #messages[data-ctx="group"] {
-  background: #133218; /* rgb(19,50,24) — dark forest green */
+  background: #133218; /* rgb(19,50,24), dark forest green */
   --stripe-a: rgba(50, 180, 85, 0.28);
   --stripe-b: rgba(35, 140, 65, 0.13);
 }
@@ -305,7 +305,7 @@ header h1 {
   border-radius: 0;
 }
 
-/* Ephemeral notices — color-coded, auto-dismiss */
+/* Ephemeral notices, color-coded, auto-dismiss */
 .notice {
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius);
@@ -2033,7 +2033,7 @@ select.studio-pill-select {
   user-select: none;
   overflow: hidden; /* clip long server names behind pinned buttons */
 }
-/* Server name text — clips with ellipsis when too long */
+/* Server name text, clips with ellipsis when too long */
 .server-group-header .srv-name {
   flex: 1;
   overflow: hidden;
@@ -2049,7 +2049,7 @@ select.studio-pill-select {
   margin-left: auto;
   align-items: center;
 }
-/* Monochromatic icon buttons — styled like header nav tabs */
+/* Monochromatic icon buttons, styled like header nav tabs */
 .server-pinned-btns button {
   position: relative;
   background: none;

@@ -3,7 +3,7 @@
 // All units are SI: kg, m, Pa, W, S.
 
 (
-    // Structural Materials — load-bearing framing and supports
+    // Structural Materials, load-bearing framing and supports
     structural: [
         (
             id: "steel_frame",
@@ -63,7 +63,7 @@
         ),
     ],
 
-    // Shell Materials — exterior and interior wall panels
+    // Shell Materials, exterior and interior wall panels
     shell: [
         (
             id: "drywall_interior",
@@ -115,7 +115,7 @@
         ),
     ],
 
-    // Floor Materials — walking surfaces
+    // Floor Materials, walking surfaces
     flooring: [
         (
             id: "concrete_floor",
@@ -171,7 +171,7 @@
         ),
     ],
 
-    // Insulation Materials — thermal and acoustic barriers
+    // Insulation Materials, thermal and acoustic barriers
     insulation: [
         (
             id: "foam_insulation",
@@ -195,7 +195,7 @@
         ),
     ],
 
-    // Utility Materials — pipes, wires, conduits
+    // Utility Materials, pipes, wires, conduits
     utilities: [
         (
             id: "copper_pipe",
@@ -232,7 +232,7 @@
         ),
     ],
 
-    // Raw Materials — base resources for crafting
+    // Raw Materials, base resources for crafting
     raw: [
         (
             id: "iron_ore",

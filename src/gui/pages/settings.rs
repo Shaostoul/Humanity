@@ -300,7 +300,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             // No identity on this device — let the user CREATE one. This
             // is the primitive native was missing entirely (web had it):
             // without it a first-time native user can never get a seed.
-            ui.label(RichText::new("No identity on this device yet. Generate one (creates a fresh 24-word seed — your only backup), or recover an existing seed below.").color(theme.text_muted()).size(theme.font_size_small));
+            ui.label(RichText::new("No identity on this device yet. Generate one (creates a fresh 24-word seed, your only backup), or recover an existing seed below.").color(theme.text_muted()).size(theme.font_size_small));
             ui.add_space(theme.spacing_xs);
             if widgets::primary_button(ui, theme, "  Generate New Identity  ") {
                 let seed = crate::net::identity::generate_new_seed();
@@ -309,7 +309,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 state.apply_pq_identity();
                 state.settings.seed_phrase_visible = true;
                 state.settings.seed_phrase_recovery_status =
-                    "New identity generated. WRITE DOWN the 24 words below — they are the ONLY way to recover this account.".to_string();
+                    "New identity generated. WRITE DOWN the 24 words below, they are the ONLY way to recover this account.".to_string();
                 // Prompt to encrypt the new seed with a passphrase.
                 state.passphrase_needed = true;
                 state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
@@ -319,7 +319,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 ui.label(RichText::new(&state.settings.seed_phrase_recovery_status).color(theme.success()).size(theme.font_size_small));
             }
         } else {
-            ui.label(RichText::new("Your 24-word seed phrase backs up your identity and wallet. Anyone with it controls your account — never share it.").color(theme.text_muted()).size(theme.font_size_small));
+            ui.label(RichText::new("Your 24-word seed phrase backs up your identity and wallet. Anyone with it controls your account, never share it.").color(theme.text_muted()).size(theme.font_size_small));
             ui.add_space(theme.spacing_xs);
 
             // Passphrase-gated reveal (v0.356). The seed is your account's master
@@ -348,7 +348,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 // previously a stub that always said "not generated yet").
                 let phrase = state.private_key_bytes.as_ref()
                     .and_then(|s| crate::net::identity::mnemonic_from_seed(s))
-                    .unwrap_or_else(|| "(cannot render — key is not a 32-byte BIP39 seed)".to_string());
+                    .unwrap_or_else(|| "(cannot render, key is not a 32-byte BIP39 seed)".to_string());
                 egui::Frame::none()
                     .fill(Color32::from_rgb(40, 30, 20))
                     .rounding(Rounding::same(4))
@@ -483,7 +483,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         ui.label(RichText::new("Unlock on App Launch").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new(
-            "Skip typing your passphrase every launch. Your passphrase remains the recovery option in all modes — these are just shortcuts.")
+            "Skip typing your passphrase every launch. Your passphrase remains the recovery option in all modes, these are just shortcuts.")
             .color(theme.text_muted()).size(theme.font_size_small));
         ui.add_space(theme.spacing_sm);
 
@@ -1049,7 +1049,7 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
     frame().show(ui, |ui| {
         ui.label(RichText::new("Master switch").size(body_size).color(text_primary).strong());
         ui.label(RichText::new(
-            "Off freezes every animation — RGB cycles hold their last frame, \
+            "Off freezes every animation, RGB cycles hold their last frame, \
              attack pulses become a solid danger color. Use for reduced-motion \
              accessibility or to focus while you work."
         ).size(small_size).color(text_muted));
@@ -1086,7 +1086,7 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
             .size(body_size).color(text_primary).strong());
         ui.label(RichText::new(
             "Most games only play sound when you're hit while in menus. \
-             This gives you a visual too — pick a style."
+             This gives you a visual too, pick a style."
         ).size(small_size).color(text_muted));
         ui.add_space(xs);
         let attack_options = [
@@ -1559,7 +1559,7 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // Three LEFT-aligned columns [Action | Primary | Secondary] in a Grid so
         // each key sits right next to its action — was label-left / key-far-right
         // (right_to_left layout), which the operator flagged as hard to match up.
-        // Secondary is a placeholder ("—") until per-action secondary bindings
+        // Secondary is a placeholder (", ") until per-action secondary bindings
         // are wired through the input map.
         egui::Grid::new("keybinds_grid")
             .num_columns(3)

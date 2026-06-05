@@ -67,8 +67,8 @@
               "label": "Clothing bag",
               "kind": "bag",
               "children": [
-                { "label": "Merino base layer — top", "kind": "item" },
-                { "label": "Merino base layer — bottom", "kind": "item" },
+                { "label": "Merino base layer, top", "kind": "item" },
+                { "label": "Merino base layer, bottom", "kind": "item" },
                 { "label": "Fleece mid-layer", "kind": "item" },
                 { "label": "Synthetic insulated parka (belay jacket)", "kind": "item" },
                 { "label": "Softshell pants", "kind": "item" },

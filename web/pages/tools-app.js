@@ -1,4 +1,4 @@
-/* Tools catalog page — loads catalog.json and renders browsable tool listings */
+/* Tools catalog page, loads catalog.json and renders browsable tool listings */
 (function() {
   'use strict';
 

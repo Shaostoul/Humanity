@@ -166,7 +166,7 @@ let vrVideoActive = false;
 let vrScreenActive = false;
 
 window.toggleVoiceRoomVideo = async function() {
-  // No voice-room guard — camera preview works standalone; tracks are added to peers only if in a room.
+  // No voice-room guard, camera preview works standalone; tracks are added to peers only if in a room.
   if (vrVideoActive) {
     stopVrVideo();
   } else {
@@ -191,7 +191,7 @@ async function startVrVideo() {
       btn.classList.remove('vc-muted');
       // Show the active camera's label if known, otherwise just "On".
       const camLabel = localStorage.getItem('humanity-preferred-camera-label') || 'On';
-      btn.innerHTML = hosIcon('video', 16) + ' Camera — ' + camLabel;
+      btn.innerHTML = hosIcon('video', 16) + ' Camera, ' + camLabel;
     }
     showLocalVideo(vrVideoStream, 'vr-self');
   } catch (e) {
@@ -211,7 +211,7 @@ function stopVrVideo() {
   }
   vrVideoActive = false;
   const btn = document.getElementById('vc-video-btn');
-  if (btn) { btn.classList.remove('active', 'vc-muted'); btn.innerHTML = hosIcon('video', 16) + ' Camera — Off'; }
+  if (btn) { btn.classList.remove('active', 'vc-muted'); btn.innerHTML = hosIcon('video', 16) + ' Camera, Off'; }
   removeVideoElement('vr-self');
   updateStudioLayout();
   updateStudioPreviewPanel();
@@ -219,7 +219,7 @@ function stopVrVideo() {
 }
 
 window.toggleVoiceRoomScreenShare = async function() {
-  // No voice-room guard — screen share preview works standalone; tracks added to peers only if in a room.
+  // No voice-room guard, screen share preview works standalone; tracks added to peers only if in a room.
   if (vrScreenActive) {
     stopVrScreenShare();
   } else {
@@ -237,7 +237,7 @@ async function startVrScreenShare() {
     }
     vrScreenActive = true;
     const btn = document.getElementById('vc-screen-btn');
-    if (btn) { btn.classList.add('active'); btn.classList.remove('vc-muted'); btn.innerHTML = hosIcon('monitor', 16) + ' Screen — Active'; }
+    if (btn) { btn.classList.add('active'); btn.classList.remove('vc-muted'); btn.innerHTML = hosIcon('monitor', 16) + ' Screen, Active'; }
     showLocalVideo(vrScreenStream, 'vr-screen');
   } catch (e) {
     // User cancelled
@@ -256,7 +256,7 @@ function stopVrScreenShare() {
   }
   vrScreenActive = false;
   const btn = document.getElementById('vc-screen-btn');
-  if (btn) { btn.classList.remove('active', 'vc-muted'); btn.innerHTML = hosIcon('monitor', 16) + ' Screen — Off'; }
+  if (btn) { btn.classList.remove('active', 'vc-muted'); btn.innerHTML = hosIcon('monitor', 16) + ' Screen, Off'; }
   removeVideoElement('vr-screen');
   updateStudioLayout();
   updateStudioPreviewPanel();
@@ -461,10 +461,10 @@ window.toggleStreamChatOverlay = function() {
   if (btn) {
     if (streamChatOverlayEnabled) {
       btn.classList.add('active');
-      btn.innerHTML = hosIcon('chat', 16) + ' Overlay — #' + (streamChatOverlayChannel || 'general');
+      btn.innerHTML = hosIcon('chat', 16) + ' Overlay, #' + (streamChatOverlayChannel || 'general');
     } else {
       btn.classList.remove('active');
-      btn.innerHTML = hosIcon('chat', 16) + ' Overlay — Off';
+      btn.innerHTML = hosIcon('chat', 16) + ' Overlay, Off';
     }
   }
 };
@@ -477,7 +477,7 @@ window.selectStreamChatChannel = function() {
   ensureStreamChatOverlay();
   updateStudioPreviewPanel();
   const btn = document.getElementById('vc-chat-overlay-btn');
-  if (btn && streamChatOverlayEnabled) btn.innerHTML = hosIcon('chat', 16) + ' Overlay — #' + streamChatOverlayChannel;
+  if (btn && streamChatOverlayEnabled) btn.innerHTML = hosIcon('chat', 16) + ' Overlay, #' + streamChatOverlayChannel;
 };
 
 function showLocalVideo(stream, id) {

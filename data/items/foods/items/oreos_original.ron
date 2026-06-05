@@ -1,11 +1,11 @@
-// Oreo Original — pure ingredient list with version history.
+// Oreo Original, pure ingredient list with version history.
 // Toxicology is DERIVED from the current ingredient list at query time;
 // not stored on the item itself. Per-ingredient tox lives in
 // data/items/foods/ingredients/<id>.ron.
 //
 // History array is sorted oldest-first. The current formulation is the entry
 // with the latest `as_of` date. Older entries stay queryable for historical
-// exposure inquiries ("I ate Oreos as a kid in 1985 — what was in them?").
+// exposure inquiries ("I ate Oreos as a kid in 1985, what was in them?").
 
 (
     id: "oreos_original",
@@ -73,7 +73,7 @@
                 ( id: "sugar",                       note: "primary sweetener; ~14g per 3-cookie serving" ),
                 ( id: "wheat_flour_unbleached",      note: "primary structural ingredient" ),
                 ( id: "palm_and_canola_oil",         note: "shortening blend" ),
-                ( id: "cocoa_alkalized",             note: "Dutch process; source of theobromine — toxic to dogs/cats" ),
+                ( id: "cocoa_alkalized",             note: "Dutch process; source of theobromine, toxic to dogs/cats" ),
                 ( id: "high_fructose_corn_syrup",    note: "" ),
                 ( id: "leavening_baking_soda",       note: "" ),
                 ( id: "salt",                        note: "" ),

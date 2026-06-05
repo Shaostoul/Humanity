@@ -3,7 +3,7 @@
 // Sizes in meters (width, depth, height). Mass in kg. Time in seconds.
 
 (
-    // Structural Elements — walls, floors, ceilings
+    // Structural Elements, walls, floors, ceilings
     structural: [
         (
             id: "wall_segment",

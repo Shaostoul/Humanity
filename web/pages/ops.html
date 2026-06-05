@@ -3,7 +3,7 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content=width=device-width, initial-scale=1.0>
-  <title>Ops — HumanityOS</title>
+  <title>Ops, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
 
@@ -58,17 +58,17 @@
    <p>Version, connection status, and system diagnostics.</p>
    <dl class="debug-info">
     <dt>Client Version</dt>
-    <dd id="debug-version">—</dd>
+    <dd id="debug-version">-</dd>
     <dt>Server</dt>
-    <dd id="debug-server">—</dd>
+    <dd id="debug-server">-</dd>
     <dt>Connection</dt>
     <dd id="debug-connection">Checking…</dd>
     <dt>User Agent</dt>
-    <dd id="debug-ua">—</dd>
+    <dd id="debug-ua">-</dd>
     <dt>Screen</dt>
-    <dd id="debug-screen">—</dd>
+    <dd id="debug-screen">-</dd>
     <dt>Page Loaded</dt>
-    <dd id="debug-loaded">—</dd>
+    <dd id="debug-loaded">-</dd>
    </dl>
   </div>
 
@@ -104,7 +104,7 @@
     </div>
    </div>
 
-   <h3>Interactive Test — Hover &amp; Click</h3>
+   <h3>Interactive Test, Hover &amp; Click</h3>
    <p>Hover to see the blue border. Click and hold to see the red activated state.</p>
    <div class="btn-grid">
     <button class="btn" onclick="testBtnClick(this)">Hover / Click Me</button>
@@ -112,7 +112,7 @@
     <button class="btn" onclick="testBtnClick(this)">And Another</button>
    </div>
 
-   <h3>Toggle Test — Click to Cycle States</h3>
+   <h3>Toggle Test, Click to Cycle States</h3>
    <p>Click to cycle: clickable → channeling → activated → cooldown → clickable</p>
    <div class="btn-grid">
     <button class="btn btn-clickable" onclick="cycleState(this)">Cycle Me</button>
@@ -120,14 +120,14 @@
     <button class="btn btn-clickable" onclick="cycleState(this)">And Me</button>
    </div>
 
-   <h3>Cooldown Test — Click to Start Cooldown</h3>
+   <h3>Cooldown Test, Click to Start Cooldown</h3>
    <div class="btn-grid">
     <button class="btn btn-clickable" onclick="startCooldown(this, 5)">5s Cooldown</button>
     <button class="btn btn-clickable" onclick="startCooldown(this, 10)">10s Cooldown</button>
     <button class="btn btn-clickable" onclick="startCooldown(this, 3)">3s Cooldown</button>
    </div>
 
-   <h3>Channeling Test — Click to Start/Stop</h3>
+   <h3>Channeling Test, Click to Start/Stop</h3>
    <div class="btn-grid">
     <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel Me</button>
     <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel This</button>
@@ -139,22 +139,22 @@
    <p>The visual language for button borders:</p>
    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-xl); margin-top: var(--space-md);">
     <div style="padding:var(--space-md);border-left:3px solid #44cc66;background:rgba(68,204,102,0.05);border-radius:4px;font-size:0.8rem;">
-     <strong style="color:#44cc66;">Green 1px</strong> — Clickable / ready
+     <strong style="color:#44cc66;">Green 1px</strong>, Clickable / ready
     </div>
     <div style="padding:var(--space-md);border-left:3px solid #4488ff;background:rgba(68,136,255,0.05);border-radius:4px;font-size:0.8rem;">
-     <strong style="color:#4488ff;">Blue 3px</strong> — Hovered / focused
+     <strong style="color:#4488ff;">Blue 3px</strong>, Hovered / focused
     </div>
     <div style="padding:var(--space-md);border-left:3px solid #ee3333;background:rgba(238,51,51,0.05);border-radius:4px;font-size:0.8rem;">
-     <strong style="color:#ee3333;">Red 5px</strong> — Activated / pressed
+     <strong style="color:#ee3333;">Red 5px</strong>, Activated / pressed
     </div>
     <div style="padding:var(--space-md);border-left:3px solid #222;background:rgba(0,0,0,0.1);border-radius:4px;font-size:0.8rem;">
-     <strong style="color:#666;">Black 2px</strong> — Disabled / locked
+     <strong style="color:#666;">Black 2px</strong>, Disabled / locked
     </div>
     <div style="padding:var(--space-md);border-left:3px solid #8844cc;background:rgba(136,68,204,0.05);border-radius:4px;font-size:0.8rem;">
-     <strong style="color:#8844cc;">Purple 7px</strong> — Cooldown + timer
+     <strong style="color:#8844cc;">Purple 7px</strong>, Cooldown + timer
     </div>
     <div style="padding:var(--space-md);border-left:3px solid;border-image:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00) 1;background:rgba(255,255,255,0.03);border-radius:0 4px 4px 0;font-size:0.8rem;">
-     <strong style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Rainbow 1px</strong> — Channeling / active
+     <strong style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Rainbow 1px</strong>, Channeling / active
     </div>
    </div>
   </div>
@@ -165,65 +165,65 @@
  <!-- ══════════════════════════════════════ -->
  <div class="panel" style="margin-top:var(--space-xl);">
   <h2>⚡ Dev Command Runner (just)</h2>
-  <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:var(--space-lg);">Install: <code style="background:var(--bg);padding:2px 6px;border-radius:3px;">winget install Casey.Just</code> — then run from the repo root.</p>
+  <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:var(--space-lg);">Install: <code style="background:var(--bg);padding:2px 6px;border-radius:3px;">winget install Casey.Just</code>, then run from the repo root.</p>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md) var(--space-2xl);">
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Daily workflow</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#4af;">just ship "message"</span> &nbsp;— commit + push + sync VPS<br>
-     <span style="color:#4af;">just sync</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— force-sync VPS (no commit)<br>
-     <span style="color:#4af;">just sync-web</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— HTML/JS/CSS only (fast)<br>
-     <span style="color:#4af;">just deploy "msg"</span> &nbsp;&nbsp;— push only, wait for CI<br>
+     <span style="color:#4af;">just ship "message"</span> &nbsp;- commit + push + sync VPS<br>
+     <span style="color:#4af;">just sync</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- force-sync VPS (no commit)<br>
+     <span style="color:#4af;">just sync-web</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- HTML/JS/CSS only (fast)<br>
+     <span style="color:#4af;">just deploy "msg"</span> &nbsp;&nbsp;- push only, wait for CI<br>
     </div>
    </div>
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Status &amp; monitoring</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#4af;">just status</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— git + CI + API health<br>
-     <span style="color:#4af;">just ci</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— recent CI deploy runs<br>
-     <span style="color:#4af;">just ping</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— is the site alive?<br>
-     <span style="color:#4af;">just logs</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— tail live server logs<br>
+     <span style="color:#4af;">just status</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- git + CI + API health<br>
+     <span style="color:#4af;">just ci</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- recent CI deploy runs<br>
+     <span style="color:#4af;">just ping</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- is the site alive?<br>
+     <span style="color:#4af;">just logs</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- tail live server logs<br>
     </div>
    </div>
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Server &amp; database</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#4af;">just server</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— SSH into VPS<br>
-     <span style="color:#4af;">just restart</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— restart relay (instant)<br>
-     <span style="color:#4af;">just db</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— SQLite shell on live DB<br>
-     <span style="color:#4af;">just sql "SELECT…"</span> — run query on live DB<br>
+     <span style="color:#4af;">just server</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- SSH into VPS<br>
+     <span style="color:#4af;">just restart</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- restart relay (instant)<br>
+     <span style="color:#4af;">just db</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- SQLite shell on live DB<br>
+     <span style="color:#4af;">just sql "SELECT…"</span>, run query on live DB<br>
     </div>
    </div>
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Rust &amp; desktop</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#4af;">just check</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— catch Rust errors fast<br>
-     <span style="color:#4af;">just build</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— build relay binary<br>
-     <span style="color:#4af;">just dev-desktop</span> &nbsp;&nbsp;&nbsp;— run Tauri app (dev)<br>
-     <span style="color:#4af;">just build-desktop</span> &nbsp;— build .exe installer<br>
+     <span style="color:#4af;">just check</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- catch Rust errors fast<br>
+     <span style="color:#4af;">just build</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- build relay binary<br>
+     <span style="color:#4af;">just dev-desktop</span> &nbsp;&nbsp;&nbsp;- run Tauri app (dev)<br>
+     <span style="color:#4af;">just build-desktop</span> &nbsp;- build .exe installer<br>
     </div>
    </div>
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Shortcuts</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#4af;">just tasks</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— list tasks from API<br>
-     <span style="color:#4af;">just loc</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— lines of code breakdown<br>
-     <span style="color:#4af;">just grep "pattern"</span>— search all JS/RS/HTML<br>
-     <span style="color:#4af;">just open</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— open site in browser<br>
+     <span style="color:#4af;">just tasks</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- list tasks from API<br>
+     <span style="color:#4af;">just loc</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- lines of code breakdown<br>
+     <span style="color:#4af;">just grep "pattern"</span>- search all JS/RS/HTML<br>
+     <span style="color:#4af;">just open</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- open site in browser<br>
     </div>
    </div>
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">App cache (if UI looks wrong)</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#fa0;">Ctrl+Shift+Delete</span> — clear cache &amp; reload<br>
-     <span style="color:#fa0;">F12</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— open DevTools<br>
-     <span style="color:#fa0;">Settings → Advanced</span>— Clear Cache button<br>
+     <span style="color:#fa0;">Ctrl+Shift+Delete</span>, clear cache &amp; reload<br>
+     <span style="color:#fa0;">F12</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- open DevTools<br>
+     <span style="color:#fa0;">Settings → Advanced</span>- Clear Cache button<br>
      Manual: delete <code style="font-size:0.75rem;background:var(--bg);padding:1px 4px;border-radius:3px;">%LOCALAPPDATA%\HumanityOS\EBWebView\Default\Cache</code><br>
     </div>
    </div>
@@ -240,14 +240,14 @@
 (function() {
   // Populate system info
   const el = id => document.getElementById(id);
-  if (el('debug-version')) el('debug-version').textContent = 'v0.363.0';
+  if (el('debug-version')) el('debug-version').textContent = 'v0.364.0';
   if (el('debug-server'))  el('debug-server').textContent  = window.location.origin;
   if (el('debug-ua'))      el('debug-ua').textContent      = navigator.userAgent.slice(0, 120);
   if (el('debug-screen'))  el('debug-screen').textContent  = screen.width + '×' + screen.height + ' · ' + (window.devicePixelRatio||1) + 'x DPR';
   if (el('debug-loaded'))  el('debug-loaded').textContent  = new Date().toISOString();
   fetch('/api/stats').then(r => r.ok ? r.json() : null).then(data => {
     if (!data) { if(el('debug-connection')) el('debug-connection').textContent = '⚠️ Server unreachable'; return; }
-    if(el('debug-connection')) el('debug-connection').textContent = '✅ Connected — ' + (data.online_users||0) + ' online';
+    if(el('debug-connection')) el('debug-connection').textContent = '✅ Connected, ' + (data.online_users||0) + ' online';
     if(el('debug-version') && data.version) el('debug-version').textContent = data.version;
   }).catch(() => { if(el('debug-connection')) el('debug-connection').textContent = '❌ Cannot reach server'; });
 })();

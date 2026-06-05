@@ -1,7 +1,7 @@
-/* messages.css — Message bubbles, replies, reactions, threads, attachments */
+/* messages.css, Message bubbles, replies, reactions, threads, attachments */
 
 .message {
-  /* Native parity (step 3): flat grouped rows — [avatar gutter | content].
+  /* Native parity (step 3): flat grouped rows, [avatar gutter | content].
      Avatar + name show once per sender group; continuations show just the
      timestamp pill. Flat (bg on hover only), not nested bubbles. */
   display: flex;
@@ -23,7 +23,7 @@
 .msg-gutter { flex-shrink: 0; width: var(--avatar-size); }
 .msg-main { flex: 1; min-width: 0; display: flow-root; }
 
-/* Timestamp pill — compact HH:MM + Þ (the add-reaction affordance). Floats
+/* Timestamp pill, compact HH:MM + Þ (the add-reaction affordance). Floats
    left so body text wraps to its right on line 1 and below it after, the
    way native lays it out. */
 .ts-pill {
@@ -46,7 +46,7 @@
 
 .message .meta {
   /* Header rows only (continuations omit it). Float so the name sits inline
-     with the timestamp pill — native shows "Name  HH:MM Þ  content" on one
+     with the timestamp pill, native shows "Name  HH:MM Þ  content" on one
      line, then content wraps below. */
   float: left;
   display: inline-flex;
@@ -111,7 +111,7 @@
   color: var(--text-muted);
   background: rgba(128,128,128,0.12);
 }
-/* Signature present but verification failed — possible tampering */
+/* Signature present but verification failed, possible tampering */
 .sig-badge.invalid {
   color: #e55;
   background: rgba(220,60,60,0.15);
@@ -124,7 +124,7 @@
 }
 
 .message .body {
-  /* Flat: no nested bubble bg/padding, no 1.6rem indent — content flows
+  /* Flat: no nested bubble bg/padding, no 1.6rem indent, content flows
      directly under the meta line like native. (step 3a) */
   font-size: var(--text-base);
   margin-top: 2px;
@@ -142,7 +142,7 @@
   border-radius: 0;
 }
 
-/* Ephemeral notices — color-coded, auto-dismiss */
+/* Ephemeral notices, color-coded, auto-dismiss */
 .notice {
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius);

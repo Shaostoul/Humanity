@@ -394,7 +394,7 @@
         // Toggle done state when a step is clicked (in addition to navigating)
         root.querySelectorAll('.quest-step').forEach(function (el) {
           el.addEventListener('click', function (e) {
-            // Only toggle if the checkbox itself was clicked — otherwise the
+            // Only toggle if the checkbox itself was clicked, otherwise the
             // click navigates (for <a>) or does nothing (for <button>).
             var cb = e.target.closest('.quest-checkbox');
             if (cb) {

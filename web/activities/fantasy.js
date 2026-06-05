@@ -140,23 +140,23 @@
   const LORE_ENTRIES = [
    {
     title: '🌅 The Awakening',
-    text: 'Before the Network, humanity existed in silos — each mind an island, separated by distance, language, and power structures designed to keep them apart. The first spark came not from technology, but from a simple idea: what if we actually cooperated?'
+    text: 'Before the Network, humanity existed in silos, each mind an island, separated by distance, language, and power structures designed to keep them apart. The first spark came not from technology, but from a simple idea: what if we actually cooperated?'
    },
    {
     title: '🔗 The Accord',
-    text: 'The Humanity Accord is not a contract — it\'s a promise. Every node in the network agrees to three principles: Transparency in governance, equity in access, and cooperation over competition. Those who sign the Accord don\'t just join a network — they join a movement.'
+    text: 'The Humanity Accord is not a contract, it\'s a promise. Every node in the network agrees to three principles: Transparency in governance, equity in access, and cooperation over competition. Those who sign the Accord don\'t just join a network, they join a movement.'
    },
    {
     title: '🌌 The Long Road',
-    text: 'The destination was always the stars. But first, humanity had to learn to talk to itself. The Humanity Network is the foundation — a mesh of minds, resources, and purpose. From chat rooms to space stations, every great journey begins with "hello."'
+    text: 'The destination was always the stars. But first, humanity had to learn to talk to itself. The Humanity Network is the foundation, a mesh of minds, resources, and purpose. From chat rooms to space stations, every great journey begins with "hello."'
    },
    {
     title: '🛡️ The Guardians',
-    text: 'Not every force in the world welcomes cooperation. The Guardians are those who protect the network — not with weapons, but with code, with vigilance, with the simple act of refusing to let the dream die. They moderate, they build, they hold the line.'
+    text: 'Not every force in the world welcomes cooperation. The Guardians are those who protect the network, not with weapons, but with code, with vigilance, with the simple act of refusing to let the dream die. They moderate, they build, they hold the line.'
    },
    {
     title: '📡 The Relay',
-    text: 'Messages travel through the Relay — a decentralized web of servers that carry humanity\'s voice. No single point of failure, no single point of control. When one relay falls, others rise. The network remembers, even when individuals forget.'
+    text: 'Messages travel through the Relay, a decentralized web of servers that carry humanity\'s voice. No single point of failure, no single point of control. When one relay falls, others rise. The network remembers, even when individuals forget.'
    }
   ];
 

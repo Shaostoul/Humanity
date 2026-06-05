@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Profile — HumanityOS</title>
+  <title>Profile, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     /* ── Layout ── */
@@ -358,7 +358,7 @@
     <div class="eli5-simple">This is you! Set your name, picture, bio, and show off your skills.</div>
     <div class="eli5-expert">Ed25519 identity with profile data synced via WebSocket. Skills tab has 9 domains with 49 skills tracked by XP/level (10 pips per level, 50 max). Endorsements from other users. Profile data broadcasts to connected peers on save.</div>
   </div>
-  <p class="page-hint">Your profile. Tell the world about yourself — your name, bio, skills, and how to reach you. Choose what's public and what stays private.</p>
+  <p class="page-hint">Your profile. Tell the world about yourself, your name, bio, skills, and how to reach you. Choose what's public and what stays private.</p>
   <div id="profile-app">
     <!-- ── Left sidebar ── -->
     <div id="profile-sidebar">
@@ -409,7 +409,7 @@
         <div class="section-header private">
           <div>
             <h2><span data-icon="dot-red" data-size="16"></span> Body &amp; Measurements</h2>
-            <p>Stored locally only — never transmitted without your explicit consent.</p>
+            <p>Stored locally only, never transmitted without your explicit consent.</p>
           </div>
         </div>
 
@@ -451,7 +451,7 @@
             <div class="field-group private-field">
               <label>Length</label>
               <select id="f-hair-length">
-                <option value="">— select —</option>
+                <option value="">- select -</option>
                 <option>Buzz / Shaved</option>
                 <option>Very Short (&lt;2 in)</option>
                 <option>Short (2–4 in)</option>
@@ -467,7 +467,7 @@
             <div class="field-group private-field">
               <label>Texture</label>
               <select id="f-hair-texture">
-                <option value="">— select —</option>
+                <option value="">- select -</option>
                 <option>Straight</option>
                 <option>Wavy</option>
                 <option>Curly</option>
@@ -515,7 +515,7 @@
             <div class="field-group private-field">
               <label>Shirt Size</label>
               <select id="f-shirt-size">
-                <option value="">— select —</option>
+                <option value="">- select -</option>
                 <option>XS</option><option>S</option><option>M</option>
                 <option>L</option><option>XL</option><option>2XL</option><option>3XL+</option>
               </select>
@@ -595,7 +595,7 @@
           </div>
           <div class="field-group private-field" style="margin-top:var(--space-md);">
             <label>Medications / Conditions</label>
-            <textarea id="f-medical" rows="3" placeholder="Personal notes only — never transmitted"></textarea>
+            <textarea id="f-medical" rows="3" placeholder="Personal notes only, never transmitted"></textarea>
           </div>
         </div>
       </div>
@@ -752,7 +752,7 @@
         <div class="section-header public">
           <div>
             <h2>🔵 Social Links</h2>
-            <p>Visible to everyone — links to your public social media profiles.</p>
+            <p>Visible to everyone, links to your public social media profiles.</p>
           </div>
         </div>
 
@@ -789,7 +789,7 @@
         <div class="prof-card">
           <h3>OBS / Multistream Setup</h3>
           <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:var(--space-lg);">
-            Enter your RTMP stream keys for each platform. Stored locally only — never synced to the relay.
+            Enter your RTMP stream keys for each platform. Stored locally only, never synced to the relay.
             Enable the toggle to include a platform in your multistream output.
           </p>
 
@@ -905,7 +905,7 @@
                 <input type="text" id="f-tiktok-rtmp" placeholder="rtmp:// (varies by region)" autocomplete="off">
               </div>
             </div>
-            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:var(--space-sm);">TikTok RTMP server varies — get it from TikTok LIVE Studio.</p>
+            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:var(--space-sm);">TikTok RTMP server varies, get it from TikTok LIVE Studio.</p>
           </div>
 
           <div class="stream-platform">
@@ -1064,7 +1064,7 @@
         avatar_url: data['avatar-url'],
         banner_url: data['banner-url'],
       }));
-      status.textContent = '✓ Queued — open Network to sync';
+      status.textContent = '✓ Queued, open Network to sync';
       setTimeout(function() { status.textContent = ''; }, 4000);
     }
 
@@ -1111,7 +1111,7 @@
     loadProfile();
 
     // ═══════════════════════════════════════════════════════
-    // Skills tab — domains, XP, endorsements
+    // Skills tab, domains, XP, endorsements
     // ═══════════════════════════════════════════════════════
 
     var SKILL_DOMAINS = [
@@ -1119,10 +1119,10 @@
         id: 'life', icon: '🧬', label: 'Life Sciences', color: '#2ecc71',
         desc: 'Biology, health, medicine, ecology, and agriculture',
         skills: [
-          { id: 'health',      name: 'Health & Wellness',  tags: 'anatomy, physiology, first aid',     desc: 'Understanding and maintaining the human body — nutrition basics, first aid, physical wellness habits.' },
+          { id: 'health',      name: 'Health & Wellness',  tags: 'anatomy, physiology, first aid',     desc: 'Understanding and maintaining the human body, nutrition basics, first aid, physical wellness habits.' },
           { id: 'medicine',    name: 'Medicine',            tags: 'diagnosis, pharmacology, surgery',   desc: 'Clinical knowledge: identifying illness, medications, procedures, and patient care.' },
           { id: 'biology',     name: 'Biology',             tags: 'cells, genetics, evolution',         desc: 'Living systems from cellular biology and genetics to evolution and ecological relationships.' },
-          { id: 'agriculture', name: 'Agriculture',         tags: 'farming, horticulture, soil',        desc: 'Growing food and managing land — soil science, crop cycles, livestock, and permaculture.' },
+          { id: 'agriculture', name: 'Agriculture',         tags: 'farming, horticulture, soil',        desc: 'Growing food and managing land, soil science, crop cycles, livestock, and permaculture.' },
           { id: 'ecology',     name: 'Ecology',             tags: 'ecosystems, conservation, climate',  desc: 'Interactions between organisms and environments, biodiversity, and conservation practice.' },
         ]
       },
@@ -1130,7 +1130,7 @@
         id: 'science', icon: '🔭', label: 'Physical Science', color: '#3498db',
         desc: 'Physics, chemistry, earth science, and astronomy',
         skills: [
-          { id: 'physics',    name: 'Physics',        tags: 'mechanics, energy, electromagnetism',  desc: 'Laws governing motion, forces, energy, waves, and electromagnetism — from Newtonian to quantum.' },
+          { id: 'physics',    name: 'Physics',        tags: 'mechanics, energy, electromagnetism',  desc: 'Laws governing motion, forces, energy, waves, and electromagnetism, from Newtonian to quantum.' },
           { id: 'chemistry',  name: 'Chemistry',      tags: 'reactions, materials, thermodynamics', desc: 'Atomic structure, chemical reactions, bonding, and materials science.' },
           { id: 'earth',      name: 'Earth Science',  tags: 'geology, meteorology, hydrology',      desc: 'Geologic processes, weather systems, oceans, and the dynamic Earth.' },
           { id: 'astronomy',  name: 'Astronomy',      tags: 'cosmology, astrophysics, navigation',  desc: 'Stars, galaxies, celestial mechanics, cosmology, and observational astronomy.' },
@@ -1142,9 +1142,9 @@
         desc: 'From arithmetic to calculus and statistics',
         skills: [
           { id: 'arithmetic',  name: 'Arithmetic',    tags: 'numbers, fractions, percentages',     desc: 'Foundational number sense: operations, fractions, ratios, percentages, and mental math.' },
-          { id: 'algebra',     name: 'Algebra',       tags: 'equations, functions, variables',     desc: 'Symbolic reasoning — solving equations, graphing functions, and working with variables.' },
+          { id: 'algebra',     name: 'Algebra',       tags: 'equations, functions, variables',     desc: 'Symbolic reasoning, solving equations, graphing functions, and working with variables.' },
           { id: 'geometry',    name: 'Geometry',      tags: 'shapes, proofs, trigonometry',        desc: 'Spatial reasoning, coordinate geometry, trigonometry, and geometric proofs.' },
-          { id: 'calculus',    name: 'Calculus',      tags: 'derivatives, integrals, limits',      desc: 'Rates of change and accumulation — differentiation, integration, and their applications.' },
+          { id: 'calculus',    name: 'Calculus',      tags: 'derivatives, integrals, limits',      desc: 'Rates of change and accumulation, differentiation, integration, and their applications.' },
           { id: 'statistics',  name: 'Statistics',    tags: 'probability, data analysis, models',  desc: 'Probability theory, statistical inference, distributions, and data-driven decision making.' },
         ]
       },
@@ -1152,7 +1152,7 @@
         id: 'technology', icon: '💻', label: 'Technology', color: '#1abc9c',
         desc: 'Computing, programming, networks, and AI',
         skills: [
-          { id: 'computing',     name: 'Computing',      tags: 'OS, hardware, security',           desc: 'How computers work — hardware, operating systems, file systems, and cybersecurity basics.' },
+          { id: 'computing',     name: 'Computing',      tags: 'OS, hardware, security',           desc: 'How computers work, hardware, operating systems, file systems, and cybersecurity basics.' },
           { id: 'programming',   name: 'Programming',    tags: 'code, algorithms, data structures', desc: 'Writing software: logic, algorithms, data structures, debugging, and multiple languages.' },
           { id: 'electronics',   name: 'Electronics',    tags: 'circuits, sensors, microcontrollers', desc: 'Electronic circuits, component reading, microcontrollers (Arduino/Pi), and PCB basics.' },
           { id: 'networks',      name: 'Networks',       tags: 'TCP/IP, protocols, infrastructure',  desc: 'How data moves: protocols, routing, wireless, and building/maintaining networks.' },
@@ -1165,9 +1165,9 @@
         skills: [
           { id: 'mechanical',   name: 'Mechanical Eng.',  tags: 'machines, thermodynamics, CAD',    desc: 'Designing mechanical systems: statics, dynamics, thermodynamics, and CAD modeling.' },
           { id: 'electrical',   name: 'Electrical Eng.',  tags: 'power, control, signals',          desc: 'Power systems, control engineering, signal processing, and electrical design.' },
-          { id: 'civil',        name: 'Civil Eng.',        tags: 'structures, infrastructure, GIS',  desc: 'Bridges, buildings, roads, water systems — load analysis and structural design.' },
+          { id: 'civil',        name: 'Civil Eng.',        tags: 'structures, infrastructure, GIS',  desc: 'Bridges, buildings, roads, water systems, load analysis and structural design.' },
           { id: 'chemical',     name: 'Chemical Eng.',     tags: 'processes, materials, reactions',  desc: 'Industrial chemical processes, reactor design, separation techniques, and safety.' },
-          { id: 'systems',      name: 'Systems Eng.',      tags: 'design, integration, lifecycle',   desc: 'Holistic design thinking — requirements, architecture, integration, and lifecycle management.' },
+          { id: 'systems',      name: 'Systems Eng.',      tags: 'design, integration, lifecycle',   desc: 'Holistic design thinking, requirements, architecture, integration, and lifecycle management.' },
         ]
       },
       {
@@ -1186,9 +1186,9 @@
         id: 'arts', icon: '🎨', label: 'Arts & Expression', color: '#e91e8c',
         desc: 'Visual arts, music, writing, design, and performance',
         skills: [
-          { id: 'visual_art',  name: 'Visual Art',    tags: 'drawing, painting, sculpture',         desc: 'Drawing, painting, printmaking, and sculpture — form, color, composition, and technique.' },
+          { id: 'visual_art',  name: 'Visual Art',    tags: 'drawing, painting, sculpture',         desc: 'Drawing, painting, printmaking, and sculpture, form, color, composition, and technique.' },
           { id: 'music',       name: 'Music',         tags: 'theory, instruments, production',      desc: 'Music theory, playing instruments, ear training, composition, and audio production.' },
-          { id: 'writing',     name: 'Writing',       tags: 'prose, poetry, journalism, storytelling', desc: 'Crafting clear, compelling text — fiction, non-fiction, poetry, and technical writing.' },
+          { id: 'writing',     name: 'Writing',       tags: 'prose, poetry, journalism, storytelling', desc: 'Crafting clear, compelling text, fiction, non-fiction, poetry, and technical writing.' },
           { id: 'design',      name: 'Design',        tags: 'UX, graphic, typography, branding',    desc: 'Visual communication: graphic design, UI/UX, typography, and branding principles.' },
           { id: 'photo_video', name: 'Photo & Video', tags: 'composition, lighting, editing',       desc: 'Photography composition, camera settings, lighting, and video production/editing.' },
           { id: 'performance', name: 'Performance',   tags: 'acting, dance, public speaking',       desc: 'Expressing through the body and voice: acting, dance, comedy, and public speaking.' },
@@ -1203,7 +1203,7 @@
           { id: 'teaching',    name: 'Teaching',            tags: 'pedagogy, curriculum, coaching',   desc: 'Designing learning experiences, explaining concepts clearly, and mentoring others.' },
           { id: 'leadership',  name: 'Leadership',          tags: 'management, strategy, teams',      desc: 'Guiding groups toward goals: decision-making, delegation, conflict resolution, and strategy.' },
           { id: 'economics',   name: 'Economics',           tags: 'markets, finance, policy',         desc: 'How resources are allocated: micro/macroeconomics, personal finance, and economic policy.' },
-          { id: 'philosophy',  name: 'Philosophy',          tags: 'ethics, epistemology, logic',      desc: 'Big questions about existence, knowledge, values, and ethics — both Western and non-Western.' },
+          { id: 'philosophy',  name: 'Philosophy',          tags: 'ethics, epistemology, logic',      desc: 'Big questions about existence, knowledge, values, and ethics, both Western and non-Western.' },
         ]
       },
       {
@@ -1211,7 +1211,7 @@
         desc: 'Physical capability, nutrition, and survival',
         skills: [
           { id: 'strength',    name: 'Strength',      tags: 'weightlifting, calisthenics, power',    desc: 'Building muscular strength and power through resistance training and progressive overload.' },
-          { id: 'endurance',   name: 'Endurance',     tags: 'cardio, running, cycling, stamina',     desc: 'Cardiovascular fitness — running, cycling, swimming, and sustained effort over time.' },
+          { id: 'endurance',   name: 'Endurance',     tags: 'cardio, running, cycling, stamina',     desc: 'Cardiovascular fitness, running, cycling, swimming, and sustained effort over time.' },
           { id: 'agility',     name: 'Agility',       tags: 'flexibility, balance, coordination',    desc: 'Mobility, flexibility, balance, reaction speed, and body coordination.' },
           { id: 'nutrition',   name: 'Nutrition',     tags: 'macros, diet, cooking',                 desc: 'Food science, macronutrients, meal planning, cooking skills, and dietary strategy.' },
           { id: 'survival',    name: 'Survival',      tags: 'wilderness, navigation, preparedness',  desc: 'Wilderness skills, navigation, shelter, fire-making, first aid, and emergency preparedness.' },
@@ -1472,7 +1472,7 @@
       }
     }
 
-    // ── Relay sync — push skill levels to server when user is signed in ──
+    // ── Relay sync, push skill levels to server when user is signed in ──
     (function initSkillRelaySync() {
       var raw = localStorage.getItem('humanity_key_backup');
       if (!raw) return;

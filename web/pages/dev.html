@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HumanityOS — Dev</title>
+  <title>HumanityOS, Dev</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="/shared/theme.css">
@@ -532,7 +532,7 @@
     });
 
     // ═══════════════════════════════════════════════════════════════════════
-    // ICONS TAB — All hosIcon icons
+    // ICONS TAB, All hosIcon icons
     // ═══════════════════════════════════════════════════════════════════════
     (function() {
       var names = typeof hosIconNames === 'function' ? hosIconNames() : [];
@@ -608,7 +608,7 @@
     renderWeightRows();
 
     // ═══════════════════════════════════════════════════════════════════════
-    // ASSETS TAB — Dynamic asset browser (fetches from /api/asset-manifest)
+    // ASSETS TAB, Dynamic asset browser (fetches from /api/asset-manifest)
     // ═══════════════════════════════════════════════════════════════════════
     (function() {
       /* Assets loaded dynamically from GET /api/asset-manifest.
@@ -1116,7 +1116,7 @@
     })();
 
     // ═══════════════════════════════════════════════════════════════════════
-    // COMPONENTS TAB — Spacing, radius, typography demos
+    // COMPONENTS TAB, Spacing, radius, typography demos
     // ═══════════════════════════════════════════════════════════════════════
     (function() {
       var cs = getComputedStyle(document.documentElement);
@@ -1166,7 +1166,7 @@
     })();
 
     // ═══════════════════════════════════════════════════════════════════════
-    // THEME TAB — Color palette + variable coverage
+    // THEME TAB, Color palette + variable coverage
     // ═══════════════════════════════════════════════════════════════════════
     (function() {
       var cs = getComputedStyle(document.documentElement);
@@ -1224,7 +1224,7 @@
         var swatchColor = val && (val.startsWith('#') || val.startsWith('rgb')) ?
           '<span class="swatch-inline" style="background:' + val + '"></span>' : '';
         tbodyHTML += '<tr><td><code>' + v.name + '</code></td>' +
-          '<td>' + swatchColor + (val || '—') + '</td>' +
+          '<td>' + swatchColor + (val || '-') + '</td>' +
           '<td class="' + (v.has ? 'has-widget' : 'no-widget') + '">' + (v.has ? '✓ ' : '') + v.widget + '</td></tr>';
       });
       tbody.innerHTML = tbodyHTML;

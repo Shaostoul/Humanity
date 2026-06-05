@@ -1,5 +1,5 @@
 {
-  "_comment": "Equipment slot definitions for the inventory page. Add or reorder slots here — no code change required. id is the stable storage key; label is the user-visible string.",
+  "_comment": "Equipment slot definitions for the inventory page. Add or reorder slots here, no code change required. id is the stable storage key; label is the user-visible string.",
   "slots": [
     { "id": "head",  "label": "Head" },
     { "id": "chest", "label": "Chest" },

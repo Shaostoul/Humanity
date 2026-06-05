@@ -7,7 +7,7 @@ height_cm = 175                        # Default height in centimeters
 mass_kg = 75                           # Default mass in kilograms
 
 [spawn]
-# Initial spawn position — reference frame defines coordinate origin
+# Initial spawn position, reference frame defines coordinate origin
 reference_frame = "Earth_L1_Lagrange"
 position = [0.0, 2.0, 0.0]            # 2 meters above floor center
 velocity = [0.0, 0.0, 0.0]
@@ -20,7 +20,7 @@ thirst = 50                            # Hydration level (0 = dehydrated, 100 = 
 fatigue = 0                            # Tiredness (0 = rested, 100 = exhausted)
 
 [equipment]
-# Default equipment slots — None or item ID
+# Default equipment slots, None or item ID
 head = ""
 chest = ""
 legs = ""

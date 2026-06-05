@@ -1,11 +1,11 @@
 /**
  * HumanityOS Admin Dashboard
- * Requires admin role — authenticates via Dilithium3 signature (was Ed25519
+ * Requires admin role, authenticates via Dilithium3 signature (was Ed25519
  * pre-v0.266.0; the relay's identity-keyed endpoints all verify Dilithium
  * now, so an Ed25519 sig here silently fails). Inc5c-tail (v0.277.2).
  *
  * Requires `/chat/pq.js` and `/shared/pq-relay-auth.js` to be loaded
- * before this script — they install the `window.getPqSignedAuth` and
+ * before this script, they install the `window.getPqSignedAuth` and
  * `window.pqDeriveIdentity` globals we delegate to.
  */
 (function() {

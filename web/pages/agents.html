@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HumanityOS — Agent Dashboard</title>
+  <title>HumanityOS, Agent Dashboard</title>
   <meta name="description" content="Live spreadsheet of every AI agent scope: status, recommendation, last audit, runtime claim, user override.">
   <link rel="manifest" href="/shared/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -113,7 +113,7 @@
     </header>
 
     <div class="stats-row" id="stats-row">
-      <div class="stat"><strong>—</strong> total scopes</div>
+      <div class="stat"><strong>-</strong> total scopes</div>
     </div>
 
     <div class="toolbar">
@@ -251,7 +251,7 @@
         const currentOverride = overrideMap[s.id] || '';
         const overrideSelect =
           '<select class="override-select" data-scope="' + escapeHtml(s.id) + '">' +
-            '<option value="">' + (currentOverride ? '— clear —' : 'no override') + '</option>' +
+            '<option value="">' + (currentOverride ? '- clear -' : 'no override') + '</option>' +
             ['active', 'passive', 'blocked', 'off'].map(opt =>
               '<option value="' + opt + '"' + (currentOverride === opt ? ' selected' : '') + '>' + opt + '</option>'
             ).join('') +
@@ -263,7 +263,7 @@
           '<td>' + recBadge + '</td>' +
           '<td><span class="files" title="' + escapeHtml((s.owns || []).join('\n')) + '">' + escapeHtml(owns) + '</span></td>' +
           '<td>' + runtimePill + '</td>' +
-          '<td>' + (sess.audited_at || '—') + '</td>' +
+          '<td>' + (sess.audited_at || '-') + '</td>' +
           '<td>' + overrideSelect + '</td>' +
           '<td><span class="summary">' + escapeHtml((sess.summary || '').slice(0, 200)) + '</span></td>' +
         '</tr>';

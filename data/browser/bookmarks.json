@@ -1,5 +1,5 @@
 {
-  "_purpose": "Curated bookmarks rendered on the Browser page. First step toward an in-app browser — for now each card opens the URL in the OS default browser via egui's hyperlink_to. Categories let the operator filter; descriptions explain why each link is here so the page also acts as a reference.",
+  "_purpose": "Curated bookmarks rendered on the Browser page. First step toward an in-app browser, for now each card opens the URL in the OS default browser via egui's hyperlink_to. Categories let the operator filter; descriptions explain why each link is here so the page also acts as a reference.",
   "_workflow": "Operator opens Browser page → reads category headers → clicks a card → URL opens in their default browser. Future: when in-app browser ships, these same bookmarks load inside an isolated tab with vault-stored credentials.",
   "categories": [
     {
@@ -11,7 +11,7 @@
           "id": "live-site",
           "title": "Live site",
           "url": "https://united-humanity.us",
-          "description": "Production HumanityOS — chat, profiles, vault, marketplace.",
+          "description": "Production HumanityOS, chat, profiles, vault, marketplace.",
           "icon": "🌍"
         },
         {
@@ -25,7 +25,7 @@
           "id": "forge",
           "title": "Forgejo mirror",
           "url": "https://git.united-humanity.us/shaostoul/humanity",
-          "description": "Self-hosted Forgejo mirror — same code, sovereign infrastructure.",
+          "description": "Self-hosted Forgejo mirror, same code, sovereign infrastructure.",
           "icon": "🛠"
         },
         {
@@ -158,14 +158,14 @@
           "id": "iss-tracker",
           "title": "ISS live tracker",
           "url": "https://spotthestation.nasa.gov/tracking_map.cfm",
-          "description": "Where the International Space Station is right now. The mothership is fictional — this is real.",
+          "description": "Where the International Space Station is right now. The mothership is fictional, this is real.",
           "icon": "🛰"
         },
         {
           "id": "skymap",
           "title": "Stellarium web",
           "url": "https://stellarium-web.org",
-          "description": "Browser planetarium — see what's overhead tonight.",
+          "description": "Browser planetarium, see what's overhead tonight.",
           "icon": "🌠"
         },
         {

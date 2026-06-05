@@ -195,7 +195,7 @@
     drawStar(solSx, solSy, '#FFF5E0', 4, 'Sol');
     sectorStarPositions.push({name:'SOL',sx:solSx,sy:solSy,star:SUN,distPc:0});
 
-    // Catalog stars (project x,z onto screen — top-down galactic plane)
+    // Catalog stars (project x,z onto screen, top-down galactic plane)
     for (const s of STAR_CATALOG) {
      const sx = cx + s[1] * scale;
      const sy = cy - s[3] * scale; // z → up
@@ -250,7 +250,7 @@
    function celRenderSystem(cw, ch) {
     systemPlanetPositions = [];
     if (celTarget !== 'SOL') {
-     // Non-Sol stars — just show info, no planets
+     // Non-Sol stars, just show info, no planets
      ctx.fillStyle = 'rgba(200,210,255,0.5)';
      ctx.font = '14px sans-serif';
      ctx.textAlign = 'center';
@@ -265,7 +265,7 @@
     const cx = cw / 2 + celPan.x;
     const cy = ch / 2 + celPan.y;
 
-    // Scale: AU to pixels — logarithmic for visibility
+    // Scale: AU to pixels, logarithmic for visibility
     function auToR(au) {
      return (30 + Math.log2(au + 0.1) * 35) * celZoom;
     }
@@ -370,7 +370,7 @@
      ctx.fill();
     }
 
-    // Icosphere grid overlay (level 0 — 20 triangles projected)
+    // Icosphere grid overlay (level 0, 20 triangles projected)
     ctx.strokeStyle = 'rgba(100,150,255,0.15)';
     ctx.lineWidth = 0.5;
     // Draw latitude/longitude lines as approximation
@@ -506,7 +506,7 @@
         <div style="color:var(--text-muted);">📦 Resources: <span style="color:var(--text);">${planet.resources.join(', ')}</span></div>
        </div>
        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.6rem;font-style:italic;">
-        Icosphere address: F0.A0 — Surface detail coming soon
+        Icosphere address: F0.A0, Surface detail coming soon
        </p>`;
       return;
      }

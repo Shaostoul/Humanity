@@ -59,8 +59,8 @@ if (fs.existsSync(swPath)) {
   }
 }
 
-// 4. web/pages/settings-app.js
-replaceInFile('web/pages/settings-app.js', `HumanityOS — v${oldVersion}`, `HumanityOS — v${newVersion}`);
+// 4. web/pages/settings-app.js (comma separator; the em-dash here was removed in the v0.364 app-wide sweep)
+replaceInFile('web/pages/settings-app.js', `HumanityOS, v${oldVersion}`, `HumanityOS, v${newVersion}`);
 
 // 5. web/pages/ops.html
 replaceInFile('web/pages/ops.html', `'v${oldVersion}'`, `'v${newVersion}'`);

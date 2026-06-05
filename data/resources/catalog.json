@@ -1,5 +1,5 @@
 {
-  "_comment": "Curated resource directory shown on the Resources page (native + web). Each category has parallel real_resources (Real mode) and sim_resources (Sim mode) lists. Extend by appending categories — no code change required. URLs starting with '#' are in-app anchors, not external links.",
+  "_comment": "Curated resource directory shown on the Resources page (native + web). Each category has parallel real_resources (Real mode) and sim_resources (Sim mode) lists. Extend by appending categories, no code change required. URLs starting with '#' are in-app anchors, not external links.",
   "categories": [
     {
       "name": "Education",
@@ -11,7 +11,7 @@
       "sim_resources": [
         { "title": "Farming Guide",       "description": "Learn crop rotation, soil types, and seasonal planting.",      "url": "#farming" },
         { "title": "Crafting Handbook",   "description": "Recipes, materials, and crafting station requirements.",       "url": "#crafting" },
-        { "title": "Survival Basics",     "description": "Water, shelter, food — the essentials for new players.",       "url": "#survival" }
+        { "title": "Survival Basics",     "description": "Water, shelter, food, the essentials for new players.",       "url": "#survival" }
       ]
     },
     {

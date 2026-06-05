@@ -9,10 +9,10 @@
 //
 // The older tutorial/farming/construction/exploration chains lean on Build
 // objectives that need ConstructionSystem (still deferred), so they can't complete
-// yet — this is the playable/testable chain for #8c. gs_first_steps is auto-accepted
+// yet, this is the playable/testable chain for #8c. gs_first_steps is auto-accepted
 // on spawn; completing it auto-accepts gs_toolsmith (prerequisite chaining).
 //
-// Format: Vec<QuestDef> — see src/systems/quests/mod.rs
+// Format: Vec<QuestDef>, see src/systems/quests/mod.rs
 [
     (
         id: "gs_first_steps",
@@ -36,7 +36,7 @@
     (
         id: "gs_toolsmith",
         name: "Toolsmith",
-        description: "Put your metal to work — forge your first hand tool.",
+        description: "Put your metal to work, forge your first hand tool.",
         steps: [
             (
                 description: "Forge a hammer",

@@ -1,5 +1,5 @@
 /**
- * HumanityOS — Solana Wallet Module
+ * HumanityOS, Solana Wallet Module
  *
  * Pure vanilla JS, zero npm dependencies. Uses Web Crypto API + fetch().
  * The user's existing Ed25519 identity key IS their Solana wallet.
@@ -23,7 +23,7 @@
   function base58Encode(bytes) {
     if (!bytes || bytes.length === 0) return '';
 
-    // Count leading zeros — each becomes a '1' in base58
+    // Count leading zeros, each becomes a '1' in base58
     var leadingZeros = 0;
     while (leadingZeros < bytes.length && bytes[leadingZeros] === 0) leadingZeros++;
 
@@ -51,7 +51,7 @@
   function base58Decode(str) {
     if (!str || str.length === 0) return new Uint8Array(0);
 
-    // Count leading '1's — each becomes a 0x00 byte
+    // Count leading '1's, each becomes a 0x00 byte
     var leadingOnes = 0;
     while (leadingOnes < str.length && str[leadingOnes] === '1') leadingOnes++;
 
@@ -495,7 +495,7 @@
       // Simplified check: if the high bit of the last byte is set, it's likely off-curve.
       // For production correctness, a full curve check would be needed, but the bump seed
       // mechanism means 255 almost always works for standard ATAs.
-      // We accept the first result — Solana's convention starts at bump=255.
+      // We accept the first result, Solana's convention starts at bump=255.
       return {
         address: base58Encode(candidate),
         bump: bump
@@ -506,7 +506,7 @@
 
   /**
    * Send an SPL token (e.g., USDC) from the signer's ATA to the recipient's ATA.
-   * If the recipient's ATA doesn't exist, this will fail — the UI layer should check first.
+   * If the recipient's ATA doesn't exist, this will fail, the UI layer should check first.
    *
    * NOTE: Full SPL token transfer requires serializing Token Program instructions.
    * This is a complex operation involving ATA derivation and multiple possible instructions
@@ -549,9 +549,9 @@
     var recipientATABytes = base58Decode(recipientATA.address);
 
     // Account ordering for Token Transfer:
-    //   0: sender (signer, writable) — fee payer
-    //   1: sender ATA (writable) — source token account
-    //   2: recipient ATA (writable) — destination token account
+    //   0: sender (signer, writable), fee payer
+    //   1: sender ATA (writable), source token account
+    //   2: recipient ATA (writable), destination token account
     //   3: Token Program (readonly)
 
     var parts = [];
@@ -602,7 +602,7 @@
 
   // ── Jupiter Swap Integration ────────────────────────────────────────────────
   // Jupiter aggregator finds the best swap route across all Solana DEXes.
-  // API returns a ready-to-sign transaction — we just need to deserialize, sign, and send.
+  // API returns a ready-to-sign transaction, we just need to deserialize, sign, and send.
 
   var JUPITER_API = 'https://quote-api.jup.ag/v6';
 
@@ -715,7 +715,7 @@
    *
    * NOTE: Creating a stake account requires generating a new keypair for the stake account.
    * The transaction needs two signers: the funding account and the new stake account.
-   * This is complex — for v1, we provide the building blocks and document the flow.
+   * This is complex, for v1, we provide the building blocks and document the flow.
    */
   async function stakeSOL(amountSOL, validatorVotePubkey, identity) {
     if (!identity || !identity.privateKey || !identity.publicKeyHex) {
@@ -949,7 +949,7 @@
     // This is essentially fixed, but we query for accuracy
     try {
       var result = await solanaRPC('getFeeForMessage', [
-        // A minimal base64 message — fee is per-signature regardless of message
+        // A minimal base64 message, fee is per-signature regardless of message
         btoa(String.fromCharCode.apply(null, new Uint8Array(64))),
         { commitment: 'confirmed' }
       ]);

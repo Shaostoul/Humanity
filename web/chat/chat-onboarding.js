@@ -1,6 +1,6 @@
 // ── First-Time Onboarding Wizard ──
 // Goal: walk brand-new users through what just happened (a cryptographic identity
-// was created for them), why they need to back it up, and what this platform is —
+// was created for them), why they need to back it up, and what this platform is -
 // all in plain language a non-technical person can follow.
 // Called once from app.js when myIdentity.isNew is true, never shown again.
 
@@ -102,25 +102,25 @@ function step0() {
   return `
     <h2 style="font-size:1.4rem;font-weight:800;color:var(--accent);margin:0 0 var(--space-md)">👋 Welcome to Humanity!</h2>
     <p style="font-size:.9rem;line-height:1.65;color:#ccc;margin:0 0 var(--space-xl)">
-      We just created a <strong style="color:var(--text)">unique digital identity</strong> for you — and we want to explain what that means
+      We just created a <strong style="color:var(--text)">unique digital identity</strong> for you, and we want to explain what that means
       in plain language before you dive in.
     </p>
 
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-xl) var(--space-2xl);margin-bottom:var(--space-xl)">
-      <p style="font-size:.85rem;color:#ccc;margin:0 0 var(--space-lg);font-weight:600">🤔 Wait — no account? No password?</p>
+      <p style="font-size:.85rem;color:#ccc;margin:0 0 var(--space-lg);font-weight:600">🤔 Wait, no account? No password?</p>
       <p style="font-size:.82rem;color:var(--text-muted);line-height:1.6;margin:0">
         That's right. Instead of a username and password stored on a server somewhere, we generated a
         <strong style="color:var(--text)">secret key</strong> that lives right here in your browser.
-        It's like getting a house key cut — it's yours, it's unique, and nobody else has one like it.
+        It's like getting a house key cut, it's yours, it's unique, and nobody else has one like it.
       </p>
     </div>
 
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-xl) var(--space-2xl)">
       <p style="font-size:.85rem;color:#ccc;margin:0 0 var(--space-lg);font-weight:600">✅ What this means for you</p>
       <ul style="font-size:.82rem;color:var(--text-muted);line-height:1.8;margin:0;padding-left:var(--space-2xl)">
-        <li>No company holds your account — not us, not anyone.</li>
+        <li>No company holds your account, not us, not anyone.</li>
         <li>You can't be banned, shadowbanned, or deplatformed.</li>
-        <li>Nobody reads your messages — they're encrypted.</li>
+        <li>Nobody reads your messages, they're encrypted.</li>
         <li>Your identity is the same on every device, as long as you back it up (we'll show you how).</li>
       </ul>
     </div>
@@ -147,7 +147,7 @@ function step1(mnemonic) {
   return `
     <h2 style="font-size:1.15rem;font-weight:800;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Your 24-Word Recovery Phrase</h2>
     <p style="font-size:.8rem;line-height:1.5;color:var(--text-muted);margin:0 0 var(--space-md)">
-      These 24 words <em>are</em> your identity — they can recreate your account on any device, forever.
+      These 24 words <em>are</em> your identity, they can recreate your account on any device, forever.
       Think of them as a master key. <strong style="color:#ccc">Anyone who has them is you.</strong>
     </p>
 
@@ -159,7 +159,7 @@ function step1(mnemonic) {
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-xl) var(--space-xl);margin-bottom:var(--space-md)">
       <p style="font-size:.82rem;color:var(--text);font-weight:700;margin:0 0 var(--space-sm)">📝 Paper (most secure)</p>
       <p style="font-size:.76rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-md)">
-        Write the 24 words by hand. Store the paper somewhere safe — a fireproof box, a safe, a trusted person's home.
+        Write the 24 words by hand. Store the paper somewhere safe, a fireproof box, a safe, a trusted person's home.
         Paper can't be hacked. Just don't lose it or get it wet.
       </p>
       <div style="display:flex;align-items:center;gap:var(--space-lg)">
@@ -175,7 +175,7 @@ function step1(mnemonic) {
       <p style="font-size:.82rem;color:var(--text);font-weight:700;margin:0 0 var(--space-sm)">💾 Encrypted file (easiest digital)</p>
       <p style="font-size:.76rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-md)">
         We lock the 24 words with a passphrase you choose, then download a tiny file (~1 KB).
-        Store that file in your cloud (Google Drive, Dropbox, iCloud) — it's useless without the passphrase,
+        Store that file in your cloud (Google Drive, Dropbox, iCloud), it's useless without the passphrase,
         so keep the passphrase in your head or a password manager. <strong style="color:var(--text-muted)">Never store the file and passphrase in the same place.</strong>
       </p>
       <div style="display:flex;gap:var(--space-md);align-items:center;flex-wrap:wrap">
@@ -216,9 +216,9 @@ function wireStep1(overlay, mnemonic) {
   if (copyBtn && mnemonic) {
     copyBtn.addEventListener('click', () => {
       navigator.clipboard.writeText(mnemonic).then(() => {
-        copyMsg.textContent = '✓ Copied — write them down, then clear your clipboard.';
+        copyMsg.textContent = '✓ Copied, write them down, then clear your clipboard.';
         copyBtn.textContent = 'Copied!';
-      }).catch(() => { copyMsg.textContent = 'Copy failed — select the words manually.'; });
+      }).catch(() => { copyMsg.textContent = 'Copy failed, select the words manually.'; });
     });
   }
 
@@ -233,7 +233,7 @@ function wireStep1(overlay, mnemonic) {
       encBtn.disabled = true; encBtn.textContent = 'Encrypting…'; encMsg.textContent = '';
       try {
         await downloadEncryptedMnemonic(mnemonic, pass);
-        encMsg.textContent = '✓ File downloaded — store it in your cloud, keep the passphrase separate.';
+        encMsg.textContent = '✓ File downloaded, store it in your cloud, keep the passphrase separate.';
         encBtn.textContent = 'Downloaded!';
       } catch(e) {
         encMsg.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
@@ -248,9 +248,9 @@ function wireStep1(overlay, mnemonic) {
   if (pmBtn && mnemonic) {
     pmBtn.addEventListener('click', () => {
       navigator.clipboard.writeText(mnemonic).then(() => {
-        pmMsg.textContent = '✓ Copied — paste into a Secure Note in your password manager.';
+        pmMsg.textContent = '✓ Copied, paste into a Secure Note in your password manager.';
         pmBtn.textContent = 'Copied!';
-      }).catch(() => { pmMsg.textContent = 'Copy failed — select the words manually.'; });
+      }).catch(() => { pmMsg.textContent = 'Copy failed, select the words manually.'; });
     });
   }
 }
@@ -260,14 +260,14 @@ function step2() {
   return `
     <h2 style="font-size:1.2rem;font-weight:800;color:var(--accent);margin:0 0 var(--space-md)">🌍 What is Humanity?</h2>
     <p style="font-size:.83rem;line-height:1.6;color:var(--text-muted);margin:0 0 var(--space-xl)">
-      Humanity is a cooperative platform — not owned by any company, not funded by ads, and not watching you.
+      Humanity is a cooperative platform, not owned by any company, not funded by ads, and not watching you.
     </p>
 
     <div style="display:grid;gap:var(--space-lg)">
       <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-xl) var(--space-xl)">
         <p style="font-size:.85rem;color:var(--text);font-weight:600;margin:0 0 var(--space-sm)">💬 Chat that's actually private</p>
         <p style="font-size:.8rem;color:var(--text-muted);line-height:1.5;margin:0">
-          Messages between you and another person are encrypted end-to-end — meaning only you two can read them.
+          Messages between you and another person are encrypted end-to-end, meaning only you two can read them.
           Not us, not the server, not your ISP. It's like passing a note in an envelope no one else can open.
         </p>
       </div>
@@ -296,7 +296,7 @@ function step3() {
   return `
     <h2 style="font-size:1.2rem;font-weight:800;color:var(--accent);margin:0 0 var(--space-md)">🤝 Meeting People</h2>
     <p style="font-size:.83rem;line-height:1.6;color:var(--text-muted);margin:0 0 var(--space-xl)">
-      Unlike social media, you build your network intentionally — no followers game, no public follower counts.
+      Unlike social media, you build your network intentionally, no followers game, no public follower counts.
     </p>
 
     <div style="display:grid;gap:var(--space-lg)">
@@ -305,7 +305,7 @@ function step3() {
         <div>
           <p style="font-size:.85rem;color:var(--text);font-weight:600;margin:0 0 var(--space-sm)">Jump into a channel</p>
           <p style="font-size:.79rem;color:var(--text-muted);line-height:1.5;margin:0">
-            Channels on the left sidebar are open rooms — like a coffee shop with a topic.
+            Channels on the left sidebar are open rooms, like a coffee shop with a topic.
             Just start talking. Nobody requires an introduction.
           </p>
         </div>
@@ -357,7 +357,7 @@ function step4() {
 
     ${pubKey ? `<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-lg) var(--space-xl);margin-bottom:var(--space-xl);font-size:.75rem;color:#555">
       Your public ID: <code style="color:var(--text-muted)">${pubKey}…</code>
-      <br><span style="font-size:.68rem;color:#3a3a3a">This is your address — share it freely. Your private key never leaves your device.</span>
+      <br><span style="font-size:.68rem;color:#3a3a3a">This is your address, share it freely. Your private key never leaves your device.</span>
     </div>` : ''}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md);margin-bottom:var(--space-xl)">

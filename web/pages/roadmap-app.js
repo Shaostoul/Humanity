@@ -1,5 +1,5 @@
 /**
- * Roadmap page — fetches tasks from /api/tasks, groups them by tier based on labels,
+ * Roadmap page, fetches tasks from /api/tasks, groups them by tier based on labels,
  * and renders progress bars + expandable cards.
  */
 (function () {

@@ -6,7 +6,7 @@ HabitatDefinition(
     total_area_m2: 3600.0,             // 60m x 60m total footprint
 
     rooms: [
-        // F1: Computer Room (1x1x3m) — personal terminal, settings access
+        // F1: Computer Room (1x1x3m), personal terminal, settings access
         RoomDefinition(
             id: "computer",
             name: "Computer Room",
@@ -26,7 +26,7 @@ HabitatDefinition(
             functionality: ["Settings", "Steam_Integration"],
         ),
 
-        // F2: Network Room (1x1x3m) — multiplayer and comms hub
+        // F2: Network Room (1x1x3m), multiplayer and comms hub
         RoomDefinition(
             id: "network",
             name: "Network Room",
@@ -46,7 +46,7 @@ HabitatDefinition(
             functionality: ["Multiplayer", "Communications"],
         ),
 
-        // F3: Bathroom (2x2x3m) — hygiene and medical
+        // F3: Bathroom (2x2x3m), hygiene and medical
         RoomDefinition(
             id: "bathroom",
             name: "Bathroom",
@@ -66,7 +66,7 @@ HabitatDefinition(
             functionality: ["Hygiene", "Medical"],
         ),
 
-        // F4: Bedroom (3x3x3m) — sleep and personal storage
+        // F4: Bedroom (3x3x3m), sleep and personal storage
         RoomDefinition(
             id: "bedroom",
             name: "Bedroom",
@@ -86,7 +86,7 @@ HabitatDefinition(
             functionality: ["Sleep", "Storage"],
         ),
 
-        // F5: Kitchen (5x5x3m) — food preparation
+        // F5: Kitchen (5x5x3m), food preparation
         RoomDefinition(
             id: "kitchen",
             name: "Kitchen",
@@ -106,7 +106,7 @@ HabitatDefinition(
             functionality: ["Cooking"],
         ),
 
-        // F6: Living Room (8x8x3m) — recreation and socializing
+        // F6: Living Room (8x8x3m), recreation and socializing
         RoomDefinition(
             id: "living_room",
             name: "Living Room",
@@ -126,7 +126,7 @@ HabitatDefinition(
             functionality: ["Recreation"],
         ),
 
-        // F7: Laboratory (13x13x3m) — research
+        // F7: Laboratory (13x13x3m), research
         RoomDefinition(
             id: "laboratory",
             name: "Laboratory",
@@ -146,7 +146,7 @@ HabitatDefinition(
             functionality: ["Research"],
         ),
 
-        // F8: Workshop (21x21x6m) — crafting and fabrication
+        // F8: Workshop (21x21x6m), crafting and fabrication
         RoomDefinition(
             id: "workshop",
             name: "Workshop",
@@ -166,7 +166,7 @@ HabitatDefinition(
             functionality: ["Crafting", "Fabrication"],
         ),
 
-        // F9: Garden (34x34x6m) — core farming area
+        // F9: Garden (34x34x6m), core farming area
         RoomDefinition(
             id: "garden",
             name: "Garden",
@@ -186,7 +186,7 @@ HabitatDefinition(
             functionality: ["Farming", "Food_Production"],
         ),
 
-        // F10: Garage (55x55x9m) — vehicles and heavy industry
+        // F10: Garage (55x55x9m), vehicles and heavy industry
         RoomDefinition(
             id: "garage",
             name: "Garage",

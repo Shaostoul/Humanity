@@ -187,11 +187,11 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
     audio.className = 'room-remote-audio';
     audio.dataset.peerKey = peerKey;
     document.body.appendChild(audio);
-    // Mobile browsers block autoplay — explicitly play with user gesture fallback
+    // Mobile browsers block autoplay, explicitly play with user gesture fallback
     const playPromise = audio.play();
     if (playPromise) {
       playPromise.catch(() => {
-        console.warn('Autoplay blocked for peer', peerKey, '— waiting for user interaction');
+        console.warn('Autoplay blocked for peer', peerKey, '- waiting for user interaction');
         const resumeAudio = () => {
           audio.play().catch(() => {});
           document.removeEventListener('click', resumeAudio);
@@ -222,13 +222,13 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
     if (pc.connectionState === 'connected') {
       addSystemMessage(`🔊 Voice connected to peer`);
     } else if (pc.connectionState === 'failed') {
-      addSystemMessage(`⚠️ Voice connection failed — may need TURN server for NAT traversal`);
+      addSystemMessage(`⚠️ Voice connection failed, may need TURN server for NAT traversal`);
       pc.close();
       delete window._roomPeerConnections[peerKey];
       const audioEl = document.querySelector(`.room-remote-audio[data-peer-key="${peerKey}"]`);
       if (audioEl) audioEl.remove();
     } else if (pc.connectionState === 'disconnected') {
-      // Give it a moment — might recover
+      // Give it a moment, might recover
       setTimeout(() => {
         if (pc.connectionState === 'disconnected') {
           pc.close();
@@ -296,7 +296,7 @@ handleMessage = function(msg) {
         console.log('Auto-rejoining voice room after reload:', rejoinId);
         setTimeout(() => joinVoiceRoom(rejoinId), 500); // brief delay so WS is fully settled
       } else {
-        // Room no longer exists — clear the pending rejoin
+        // Room no longer exists, clear the pending rejoin
         sessionStorage.removeItem('_rejoin_room');
       }
     }
@@ -315,7 +315,7 @@ handleMessage = function(msg) {
     }
     return;
   }
-  // Legacy voice_room_update — convert to voice_channel_list format
+  // Legacy voice_room_update, convert to voice_channel_list format
   if (msg.type === 'voice_room_update') {
     // Handled by voice_channel_list now; ignore.
     return;
@@ -333,17 +333,17 @@ async function handleVoiceRoomSignal(msg) {
   const roomId = msg.room_id;
 
   if (msg.signal_type === 'new_participant') {
-    // New person joined — they'll send us an offer, just wait
+    // New person joined, they'll send us an offer, just wait
     return;
   }
 
   if (msg.signal_type === 'offer') {
-    // Ensure our mic stream exists before answering — if not set up yet the
+    // Ensure our mic stream exists before answering, if not set up yet the
     // RTCPeerConnection will have no audio tracks and createAnswer() produces
     // a=recvonly SDP, meaning the remote peer never receives our audio.
     if (!window._roomLocalStream) await setupRoomAudio();
-    if (!window._roomLocalStream) return; // mic denied — can't send audio
-    // Someone is sending us an offer — create connection and answer
+    if (!window._roomLocalStream) return; // mic denied, can't send audio
+    // Someone is sending us an offer, create connection and answer
     await connectToRoomPeer(peerKey, '', roomId, false);
     const pc = window._roomPeerConnections[peerKey];
     if (pc) {
@@ -463,33 +463,33 @@ async function handleVoiceRoomSignal(msg) {
       const MODE_INFO = {
         open: {
           label: '🗣️ Open',
-          desc: 'Open Mic — your mic transmits continuously whenever you are unmuted.',
+          desc: 'Open Mic, your mic transmits continuously whenever you are unmuted.',
           detail: `Best for: quiet rooms, casual chat · Next: PTT [${pttKeyLabel()}]`
         },
         ptt: {
           label: hosIcon('mic', 14) + ` PTT [${pttKeyLabel()}]`,
-          desc: `Push-to-Talk — hold ${pttKeyLabel()} to transmit. Mic is silent when the key is released.`,
+          desc: `Push-to-Talk, hold ${pttKeyLabel()} to transmit. Mic is silent when the key is released.`,
           detail: 'Best for: noisy rooms, background audio, gaming · Next: VAD'
         },
         vad: {
           label: '🗣️ VAD',
-          desc: 'Voice Activated — mic gates open automatically when your voice exceeds the noise threshold.',
+          desc: 'Voice Activated, mic gates open automatically when your voice exceeds the noise threshold.',
           detail: 'Best for: hands-free use · Adjust threshold with Noise Gate · Next: Open'
         }
       };
       const mi = MODE_INFO[vcInputMode] || MODE_INFO.open;
       modeBtn.innerHTML = mi.label;
-      modeBtn.setAttribute('data-tip-title', 'Input Mode — ' + mi.label.replace(/<svg[^>]*>.*?<\/svg>\s*/g, '').replace(/[🗣️🎙️]\s*/, ''));
+      modeBtn.setAttribute('data-tip-title', 'Input Mode, ' + mi.label.replace(/<svg[^>]*>.*?<\/svg>\s*/g, '').replace(/[🗣️🎙️]\s*/, ''));
       modeBtn.setAttribute('data-tip-desc', mi.desc);
       modeBtn.setAttribute('data-tip-detail', mi.detail);
     }
     if (sqBtn) {
       const gateOn = vcSquelch;
       sqBtn.innerHTML = gateOn ? hosIcon('block', 14) + ' Gate On' : hosIcon('block', 14) + ' Gate Off';
-      sqBtn.setAttribute('data-tip-title', gateOn ? 'Noise Gate — On' : 'Noise Gate — Off');
+      sqBtn.setAttribute('data-tip-title', gateOn ? 'Noise Gate, On' : 'Noise Gate, Off');
       sqBtn.setAttribute('data-tip-desc', gateOn
-        ? 'Gate is active — audio below the volume threshold is muted before it reaches others.'
-        : 'Gate is off — all audio above the mic floor passes through (use with PTT or a quiet room).');
+        ? 'Gate is active, audio below the volume threshold is muted before it reaches others.'
+        : 'Gate is off, all audio above the mic floor passes through (use with PTT or a quiet room).');
       sqBtn.setAttribute('data-tip-detail', 'Best for: suppressing keyboard clicks, mouse noise, breathing · Works alongside VAD mode');
     }
     if (presetBtn) {
@@ -497,7 +497,7 @@ async function handleVoiceRoomSignal(msg) {
       const PRESET_INFO = {
         clarity: {
           label: '🎚️ Clarity',
-          desc: 'Best for most calls. Removes background noise while keeping your volume natural — no pumping or over-compression.',
+          desc: 'Best for most calls. Removes background noise while keeping your volume natural, no pumping or over-compression.',
           detail: 'Echo cancel ✓ · Noise suppress ✓ · Auto-gain off · Next: Noise Block'
         },
         noise_block: {
@@ -507,13 +507,13 @@ async function handleVoiceRoomSignal(msg) {
         },
         natural: {
           label: '🎚️ Natural',
-          desc: 'Minimal processing — ideal for music, podcasting, or a quality mic in a quiet room. Captures your voice exactly as the mic hears it.',
+          desc: 'Minimal processing, ideal for music, podcasting, or a quality mic in a quiet room. Captures your voice exactly as the mic hears it.',
           detail: 'Echo cancel ✓ · Noise suppress off · Auto-gain off · Use headphones to avoid echo · Next: Clarity'
         }
       };
       const info = PRESET_INFO[p] || PRESET_INFO.clarity;
       presetBtn.innerHTML = info.label;
-      presetBtn.setAttribute('data-tip-title', 'Mic Preset — ' + info.label.replace(/<svg[^>]*>.*?<\/svg>\s*/g, '').replace('🎚️ ', ''));
+      presetBtn.setAttribute('data-tip-title', 'Mic Preset, ' + info.label.replace(/<svg[^>]*>.*?<\/svg>\s*/g, '').replace('🎚️ ', ''));
       presetBtn.setAttribute('data-tip-desc', info.desc);
       presetBtn.setAttribute('data-tip-detail', info.detail);
     }
@@ -1107,7 +1107,7 @@ function handleVoiceCallMessage(msg) {
   switch (msg.action) {
     case 'ring':
       if (callState !== 'idle') {
-        // Already busy — auto-reject
+        // Already busy, auto-reject
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'voice_call', from: myKey, to: msg.from, action: 'reject' }));
         }
@@ -1330,12 +1330,12 @@ function renderUnifiedRightSidebar() {
   const sections = [];
   const friendKeys = new Set();
 
-  // ── Friends (mutual follows) — shown once, never repeated below ──────────
+  // ── Friends (mutual follows), shown once, never repeated below ──────────
   const friendUsers = users.filter(u => u.public_key !== myKey && isFriend(u.public_key));
   friendUsers.forEach(u => friendKeys.add(u.public_key));
   sections.push(section('friends', 'Friends', friendUsers, true));
 
-  // ── Groups — exclude friends and self to avoid duplicates ────────────────
+  // ── Groups, exclude friends and self to avoid duplicates ────────────────
   const groups = myGroups || [];
   if (groups.length === 0) {
     sections.push(section('group-none', 'Groups', [], false));
@@ -1348,7 +1348,7 @@ function renderUnifiedRightSidebar() {
     });
   }
 
-  // ── Server — exclude self, friends, and group members already shown ──────
+  // ── Server, exclude self, friends, and group members already shown ──────
   const shownKeys = new Set([...friendKeys, myKey]);
   groups.forEach(g => {
     (groupMembersByGroup[g.id] || []).forEach(m => shownKeys.add(m.key));
@@ -1672,7 +1672,7 @@ return result;
   let vrScreenActive = false;
 
   window.toggleVoiceRoomVideo = async function() {
-// No voice-room guard — camera preview works standalone; tracks are added to peers only if in a room.
+// No voice-room guard, camera preview works standalone; tracks are added to peers only if in a room.
 if (vrVideoActive) {
   stopVrVideo();
 } else {
@@ -1697,7 +1697,7 @@ try {
     btn.classList.remove('vc-muted');
     // Show the active camera's label if known, otherwise just "On".
     const camLabel = localStorage.getItem('humanity-preferred-camera-label') || 'On';
-    btn.innerHTML = hosIcon('video', 16) + ' Camera — ' + camLabel;
+    btn.innerHTML = hosIcon('video', 16) + ' Camera, ' + camLabel;
   }
   showLocalVideo(vrVideoStream, 'vr-self');
 } catch (e) {
@@ -1717,7 +1717,7 @@ if (vrVideoStream) {
 }
 vrVideoActive = false;
 const btn = document.getElementById('vc-video-btn');
-if (btn) { btn.classList.remove('active', 'vc-muted'); btn.innerHTML = hosIcon('video', 16) + ' Camera — Off'; }
+if (btn) { btn.classList.remove('active', 'vc-muted'); btn.innerHTML = hosIcon('video', 16) + ' Camera, Off'; }
 removeVideoElement('vr-self');
 updateStudioLayout();
 updateStudioPreviewPanel();
@@ -1725,7 +1725,7 @@ updateVideoPanel();
   }
 
   window.toggleVoiceRoomScreenShare = async function() {
-// No voice-room guard — screen share preview works standalone; tracks added to peers only if in a room.
+// No voice-room guard, screen share preview works standalone; tracks added to peers only if in a room.
 if (vrScreenActive) {
   stopVrScreenShare();
 } else {
@@ -1743,7 +1743,7 @@ try {
   }
   vrScreenActive = true;
   const btn = document.getElementById('vc-screen-btn');
-  if (btn) { btn.classList.add('active'); btn.classList.remove('vc-muted'); btn.innerHTML = hosIcon('monitor', 16) + ' Screen — Active'; }
+  if (btn) { btn.classList.add('active'); btn.classList.remove('vc-muted'); btn.innerHTML = hosIcon('monitor', 16) + ' Screen, Active'; }
   showLocalVideo(vrScreenStream, 'vr-screen');
 } catch (e) {
   // User cancelled
@@ -1762,7 +1762,7 @@ if (vrScreenStream) {
 }
 vrScreenActive = false;
 const btn = document.getElementById('vc-screen-btn');
-if (btn) { btn.classList.remove('active', 'vc-muted'); btn.innerHTML = hosIcon('monitor', 16) + ' Screen — Off'; }
+if (btn) { btn.classList.remove('active', 'vc-muted'); btn.innerHTML = hosIcon('monitor', 16) + ' Screen, Off'; }
 removeVideoElement('vr-screen');
 updateStudioLayout();
 updateStudioPreviewPanel();
@@ -1967,10 +1967,10 @@ const btn = document.getElementById('vc-chat-overlay-btn');
 if (btn) {
   if (streamChatOverlayEnabled) {
     btn.classList.add('active');
-    btn.innerHTML = hosIcon('chat', 16) + ' Overlay — #' + (streamChatOverlayChannel || 'general');
+    btn.innerHTML = hosIcon('chat', 16) + ' Overlay, #' + (streamChatOverlayChannel || 'general');
   } else {
     btn.classList.remove('active');
-    btn.innerHTML = hosIcon('chat', 16) + ' Overlay — Off';
+    btn.innerHTML = hosIcon('chat', 16) + ' Overlay, Off';
   }
 }
   };
@@ -1983,7 +1983,7 @@ localStorage.setItem('humanity-stream-chat-channel', streamChatOverlayChannel);
 ensureStreamChatOverlay();
 updateStudioPreviewPanel();
 const btn = document.getElementById('vc-chat-overlay-btn');
-if (btn && streamChatOverlayEnabled) btn.innerHTML = hosIcon('chat', 16) + ' Overlay — #' + streamChatOverlayChannel;
+if (btn && streamChatOverlayEnabled) btn.innerHTML = hosIcon('chat', 16) + ' Overlay, #' + streamChatOverlayChannel;
   };
 
   function showLocalVideo(stream, id) {
@@ -2386,7 +2386,7 @@ _origHandleMessage4(msg);
 
   /**
    * Toggles an AFK overlay on the stream preview, showing elapsed away time.
-   * Intended as a courtesy indicator for viewers — press when stepping away.
+   * Intended as a courtesy indicator for viewers, press when stepping away.
    */
   window.toggleStudioAfk = function() {
     const btn = document.getElementById('studio-afk-btn');
@@ -2394,7 +2394,7 @@ _origHandleMessage4(msg);
     studioAfkActive = !studioAfkActive;
     if (studioAfkActive) {
       studioAfkStartTime = Date.now();
-      if (btn) { btn.textContent = '🌙 AFK — On'; btn.classList.add('active'); btn.classList.remove('vc-muted'); }
+      if (btn) { btn.textContent = '🌙 AFK, On'; btn.classList.add('active'); btn.classList.remove('vc-muted'); }
       if (preview) {
         let ov = preview.querySelector('.studio-afk-overlay');
         if (!ov) {
@@ -2402,18 +2402,18 @@ _origHandleMessage4(msg);
           ov.className = 'studio-afk-overlay';
           preview.appendChild(ov);
         }
-        ov.textContent = '💤 AFK — 0:00';
+        ov.textContent = '💤 AFK, 0:00';
         studioAfkTimer = setInterval(() => {
           const elapsed = Math.floor((Date.now() - studioAfkStartTime) / 1000);
           const m = Math.floor(elapsed / 60);
           const s = String(elapsed % 60).padStart(2, '0');
-          ov.textContent = `💤 AFK — ${m}:${s}`;
+          ov.textContent = `💤 AFK, ${m}:${s}`;
         }, 1000);
       }
     } else {
       studioAfkStartTime = null;
       if (studioAfkTimer) { clearInterval(studioAfkTimer); studioAfkTimer = null; }
-      if (btn) { btn.textContent = '🌙 AFK — Off'; btn.classList.remove('active', 'vc-muted'); }
+      if (btn) { btn.textContent = '🌙 AFK, Off'; btn.classList.remove('active', 'vc-muted'); }
       if (preview) { const ov = preview.querySelector('.studio-afk-overlay'); if (ov) ov.remove(); }
     }
   };
@@ -2446,7 +2446,7 @@ _origHandleMessage4(msg);
     if (!pcList.length) {
       ['studio-m-bitrate','studio-m-fps','studio-m-res','studio-m-rtt','studio-m-loss'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.textContent = '—';
+        if (el) el.textContent = '-';
       });
       return;
     }
@@ -2485,9 +2485,9 @@ _origHandleMessage4(msg);
     }
     studioMetricsPrev = { bytesSent: totalBytes, timestamp: now };
 
-    document.getElementById('studio-m-fps').textContent = fps ? Math.round(fps) + ' fps' : '—';
-    document.getElementById('studio-m-res').textContent = width ? width + 'x' + height : '—';
-    document.getElementById('studio-m-rtt').textContent = rtt ? Math.round(rtt * 1000) + ' ms' : '—';
+    document.getElementById('studio-m-fps').textContent = fps ? Math.round(fps) + ' fps' : '-';
+    document.getElementById('studio-m-res').textContent = width ? width + 'x' + height : '-';
+    document.getElementById('studio-m-rtt').textContent = rtt ? Math.round(rtt * 1000) + ' ms' : '-';
 
     const lossPercent = sentTotal > 0 ? ((lostTotal / sentTotal) * 100).toFixed(1) : '0.0';
     document.getElementById('studio-m-loss').textContent = lossPercent + '%';
@@ -2526,7 +2526,7 @@ _origHandleMessage4(msg);
       // Turn off AFK if it's on
       if (studioAfkActive) window.toggleStudioAfk();
       studioBrbStartTime = Date.now();
-      if (btn) { btn.textContent = '⏸️ BRB — On'; btn.classList.add('active'); }
+      if (btn) { btn.textContent = '⏸️ BRB, On'; btn.classList.add('active'); }
       if (preview) {
         let ov = preview.querySelector('.studio-brb-overlay');
         if (!ov) {
@@ -2534,18 +2534,18 @@ _origHandleMessage4(msg);
           ov.className = 'studio-brb-overlay';
           preview.appendChild(ov);
         }
-        ov.textContent = '⏸️ BRB — 0:00';
+        ov.textContent = '⏸️ BRB, 0:00';
         studioBrbTimer = setInterval(() => {
           const elapsed = Math.floor((Date.now() - studioBrbStartTime) / 1000);
           const m = Math.floor(elapsed / 60);
           const s = String(elapsed % 60).padStart(2, '0');
-          ov.textContent = `⏸️ BRB — ${m}:${s}`;
+          ov.textContent = `⏸️ BRB, ${m}:${s}`;
         }, 1000);
       }
     } else {
       studioBrbStartTime = null;
       if (studioBrbTimer) { clearInterval(studioBrbTimer); studioBrbTimer = null; }
-      if (btn) { btn.textContent = '⏸️ BRB — Off'; btn.classList.remove('active'); }
+      if (btn) { btn.textContent = '⏸️ BRB, Off'; btn.classList.remove('active'); }
       if (preview) { const ov = preview.querySelector('.studio-brb-overlay'); if (ov) ov.remove(); }
     }
   };

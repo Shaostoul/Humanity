@@ -1,4 +1,4 @@
-/* Resources page — context-aware curated links (Real = real-world help, Sim = in-game guides) */
+/* Resources page, context-aware curated links (Real = real-world help, Sim = in-game guides) */
 (function() {
   'use strict';
 

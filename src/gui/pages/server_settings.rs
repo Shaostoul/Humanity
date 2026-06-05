@@ -317,7 +317,7 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.horizontal(|ui| {
                 if widgets::Button::secondary("Mute")
                     .tooltip("Prevent this user from sending messages. They can still read. \
-                              Reversible — click Unmute to restore.")
+                              Reversible, click Unmute to restore.")
                     .show(ui, theme)
                 {
                     let cmd = format!("/mute {}", state.server_settings_target_user.trim());
@@ -336,7 +336,7 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.spacing_sm);
                 if widgets::Button::danger("Kick")
                     .tooltip("Disconnect the user immediately. They can rejoin (use Ban for a \
-                              persistent block — admin-only).")
+                              persistent block, admin-only).")
                     .show(ui, theme)
                 {
                     let cmd = format!("/kick {}", state.server_settings_target_user.trim());
@@ -398,11 +398,11 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.horizontal(|ui| {
             if widgets::Button::secondary("View reports")
                 .tooltip("Open the report queue in chat (current implementation uses the \
-                          /reports slash command — UI surface lands in v0.194+).")
+                          /reports slash command, UI surface lands in v0.194+).")
                 .show(ui, theme)
             {
                 send_slash(state, "/reports");
-                state.server_settings_status = "Sent: /reports — check the active channel for results.".into();
+                state.server_settings_status = "Sent: /reports, check the active channel for results.".into();
             }
         });
     });
@@ -424,7 +424,7 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         widgets::body_hint(
             ui, theme,
             "Lockdown blocks NEW registrations server-wide. Existing members keep full \
-             access — useful during a spam wave or when switching to invite-only mode. \
+             access, useful during a spam wave or when switching to invite-only mode. \
              Generate Invite produces a one-time code that bypasses lockdown for one new user.",
         );
         ui.add_space(theme.spacing_xs);
@@ -435,16 +435,16 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .show(ui, theme)
             {
                 send_slash(state, "/lockdown");
-                state.server_settings_status = "Sent: /lockdown — registration toggle requested.".into();
+                state.server_settings_status = "Sent: /lockdown, registration toggle requested.".into();
             }
             ui.add_space(theme.spacing_sm);
             if widgets::Button::primary("Generate invite code")
                 .tooltip("Create a single-use invite code. Code appears in the chat channel. \
-                          Share it with one person — they can register even during lockdown.")
+                          Share it with one person, they can register even during lockdown.")
                 .show(ui, theme)
             {
                 send_slash(state, "/invite");
-                state.server_settings_status = "Sent: /invite — code will appear in the active channel.".into();
+                state.server_settings_status = "Sent: /invite, code will appear in the active channel.".into();
             }
         });
 
@@ -487,7 +487,7 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             &format!(
                 "Acts on the username typed in the Moderator section above (currently: {}). \
                  Verify gives a green check next to their name. Promote to mod grants \
-                 moderator-tier permissions. Ban is permanent — they can't rejoin without \
+                 moderator-tier permissions. Ban is permanent, they can't rejoin without \
                  admin reversal.",
                 if state.server_settings_target_user.trim().is_empty() {
                     "(empty)".to_string()
@@ -512,7 +512,7 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.spacing_sm);
                 if widgets::Button::secondary("Promote to mod")
                     .tooltip("Grant moderator role: the user can now mute, kick, pin messages, \
-                              and view the report queue. Reversible — promote to admin to allow \
+                              and view the report queue. Reversible, promote to admin to allow \
                               them to demote others.")
                     .show(ui, theme)
                 {
@@ -555,7 +555,7 @@ fn draw_banned_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui, theme,
         "Everyone currently blocked from this server. A ban removes them from the \
          member list and rejects the key at connect, so the only record of who they \
-         were is captured here. Click Unban to restore access — the change takes \
+         were is captured here. Click Unban to restore access, the change takes \
          effect on their next connection attempt.",
     );
     ui.add_space(theme.spacing_xs);
@@ -597,7 +597,7 @@ fn draw_banned_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.spacing_mut().item_spacing.x = 8.0;
             // Name (or a placeholder for pre-v0.245 bans with no name).
             let shown_name = if b.name.trim().is_empty() {
-                "(unknown — banned before name capture)".to_string()
+                "(unknown, banned before name capture)".to_string()
             } else {
                 b.name.clone()
             };
@@ -646,7 +646,7 @@ fn draw_banned_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     if let Some(key) = unban_key {
         send_unban(state, &key);
-        state.server_settings_status = "Sent unban — the ban list will refresh.".into();
+        state.server_settings_status = "Sent unban, the ban list will refresh.".into();
     }
 }
 
@@ -676,7 +676,7 @@ fn send_unban(state: &GuiState, public_key: &str) {
 /// so we don't add a dependency.
 fn format_ban_date(ms: i64) -> String {
     if ms <= 0 {
-        return "—".to_string();
+        return ", ".to_string();
     }
     let secs = ms / 1000;
     let days = secs.div_euclid(86_400);
@@ -708,7 +708,7 @@ fn draw_muted_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         "Everyone currently muted. A muted user can still read every channel but \
          can't post until unmuted. Mute keeps their role intact (it does NOT demote \
          them), so unmute restores them exactly as they were. Click Unmute to lift \
-         it — effective on their next message attempt.",
+         it, effective on their next message attempt.",
     );
     ui.add_space(theme.spacing_xs);
 
@@ -791,7 +791,7 @@ fn draw_muted_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     if let Some(key) = unmute_key {
         send_unmute(state, &key);
-        state.server_settings_status = "Sent unmute — the mute list will refresh.".into();
+        state.server_settings_status = "Sent unmute, the mute list will refresh.".into();
     }
 }
 
@@ -826,13 +826,13 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui, theme,
         "Each row is a channel. Edit a cell then click Save. Hover any column header for \
          what that flag does. Use the bottom row to create a new channel. Delete is \
-         permanent — messages are kept but the channel goes away.",
+         permanent, messages are kept but the channel goes away.",
     );
     ui.add_space(theme.spacing_xs);
     widgets::body_hint(
         ui, theme,
         "Read-only (eye icon): only mods + admins can post; everyone can read. \
-         Voice: enables the voice-call icon next to the channel — disable to make \
+         Voice: enables the voice-call icon next to the channel, disable to make \
          it text-only.",
     );
     ui.add_space(theme.spacing_xs);
@@ -840,12 +840,12 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui, theme,
         "Federated (node icon): messages here gossip to peer servers in the \
          federation network. Beyond cross-server read/reply, this gives you: \
-         (1) Reach — your community's posts are visible to people who never \
-         joined THIS server; (2) Resilience — the conversation + history is \
+         (1) Reach, your community's posts are visible to people who never \
+         joined THIS server; (2) Resilience, the conversation + history is \
          mirrored on peer servers, so if this VPS goes down or is seized the \
-         thread survives; (3) Censorship-resistance — no single operator (not \
+         thread survives; (3) Censorship-resistance, no single operator (not \
          even you) can silently erase a federated channel everywhere; \
-         (4) Discovery — members on other servers can find and join the \
+         (4) Discovery, members on other servers can find and join the \
          discussion. Off = local-only: faster, fully private to this server, \
          but a single point of failure. Choose per-channel: keep #private-ops \
          local, federate #general.",
@@ -1041,7 +1041,7 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         "True server-wide settings: the post-quantum-signature requirement, \
          the total upload disk cap, and the allowed file extensions. The \
          master sharing / voice / streaming kill-switches now live as the \
-         'Server master' row at the top of the Roles table below — same \
+         'Server master' row at the top of the Roles table below, same \
          columns as every role, so it's one cohesive table instead of a \
          second detached set of toggles. Per-role limits (chars / upload \
          MB / uploads-kept) are per-role in that table too. Changes \
@@ -1071,7 +1071,7 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
     // Last-updated badge (informational).
     if let Some(ref s) = state.server_settings {
         let updated_text = if s.updated_at == 0 {
-            "Never modified — defaults active.".to_string()
+            "Never modified, defaults active.".to_string()
         } else {
             let by = if s.updated_by.is_empty() { "?".to_string() }
                      else if s.updated_by.len() > 16 { format!("{}…{}", &s.updated_by[..6], &s.updated_by[s.updated_by.len()-6..]) }
@@ -1123,7 +1123,7 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         // re-broadcast a no-op to every client).
         let dirty = draft != cached;
         if dirty {
-            widgets::body_hint(ui, theme, "Unsaved changes — click Save Changes to apply server-wide.");
+            widgets::body_hint(ui, theme, "Unsaved changes, click Save Changes to apply server-wide.");
         } else {
             widgets::body_hint(ui, theme, "No unsaved changes. Edit any field above; it applies on Save.");
         }
@@ -1175,12 +1175,12 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         "One cohesive table. The top 'Server master' row is the set of \
          server-wide kill-switches; every row below is a role. Effective \
          permission = the Server-master switch for that column AND the \
-         role's own checkbox — a user can do X only if BOTH are on. e.g. \
+         role's own checkbox, a user can do X only if BOTH are on. e.g. \
          to let family livestream WITHOUT making them moderators: tick \
          Stream on the Server-master row, tick Stream on a 'family' role, \
          then assign that role to them (click their name in chat → Role \
          dropdown). Turning a Server-master switch OFF instantly disables \
-         that capability for everyone regardless of role — your abuse / \
+         that capability for everyone regardless of role, your abuse / \
          emergency panic switch. Built-in roles can't be deleted and \
          their id / trust are locked, but every capability and numeric \
          limit (chars / upload MB / uploads kept) is editable per-role.",
@@ -1255,7 +1255,7 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .unwrap_or_else(|| ss_cached.clone());
                 let dash = |ui: &mut egui::Ui| {
                     ui.label(
-                        RichText::new("—")
+                        RichText::new(", ")
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );
@@ -1474,10 +1474,10 @@ fn draw_services_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::body_hint(
         ui, theme,
         "Each feature has a SOFT gate (the relay instantly stops offering \
-         it — no restart, persists) AND an optional backing OS daemon you \
+         it, no restart, persists) AND an optional backing OS daemon you \
          can Start/Stop here to reclaim RAM instead of SSHing the VPS. \
          Effective = soft gate ON. Stopping a daemon takes effect now but \
-         does NOT survive a server reboot (v1) — the soft gate is what \
+         does NOT survive a server reboot (v1), the soft gate is what \
          persists the decision (a stopped-then-rebooted daemon is harmless: \
          the soft gate keeps the feature off). The Voice soft gate is the \
          same setting as the Server-master Voice column.",
@@ -1497,7 +1497,7 @@ fn draw_services_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if services.is_empty() {
         widgets::body_hint(
             ui, theme,
-            "No daemon status yet — click \"Refresh status\" (admin only; \
+            "No daemon status yet, click \"Refresh status\" (admin only; \
              the relay replies privately).",
         );
     }
@@ -1537,7 +1537,7 @@ fn draw_services_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     "p2p" => { ui.checkbox(&mut draft.p2p_distribution_enabled, ""); }
                     _ => {
                         ui.label(
-                            RichText::new("—")
+                            RichText::new(", ")
                                 .size(theme.font_size_small)
                                 .color(theme.text_muted()),
                         );
@@ -1664,7 +1664,7 @@ fn send_server_settings_update(
             client.send(&msg.to_string());
             state.server_settings_status = "Server policy update sent.".into();
         } else {
-            state.server_settings_status = "Not connected — can't save.".into();
+            state.server_settings_status = "Not connected, can't save.".into();
         }
     }
 }
@@ -1774,17 +1774,17 @@ fn channel_grid_header(ui: &mut egui::Ui, theme: &Theme) {
     // headers since the buttons themselves carry their own tooltips.
     let cells: [(&str, &str); 7] = [
         ("Name",        "The channel id used in chat (#name). Renaming updates the display \
-                         label only — the underlying id stays the same so existing message \
+                         label only, the underlying id stays the same so existing message \
                          references keep working."),
         ("Description", "One-line summary shown next to the channel name in the chat header."),
         ("Read-only",   "On: only mods + admins can post here. Everyone can still read. \
                          Useful for #announcements style channels."),
         ("Voice",       "On: voice icon appears next to the channel so members can join a \
-                         voice call. Off: text-only — voice icon hidden."),
-        ("Federated",   "On: messages gossip to peer servers — reach beyond this server, \
+                         voice call. Off: text-only, voice icon hidden."),
+        ("Federated",   "On: messages gossip to peer servers, reach beyond this server, \
                          history mirrored on peers (survives this VPS going down), \
                          censorship-resistant, discoverable by other servers' members. \
-                         Off: local-only — faster + fully private, but a single point \
+                         Off: local-only, faster + fully private, but a single point \
                          of failure."),
         ("",            ""),
         ("",            ""),
@@ -1879,7 +1879,7 @@ fn draw_members_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_m
             if peers.is_empty() {
                 ui.add_space(theme.spacing_md);
                 ui.label(
-                    RichText::new("No members loaded yet — wait for the relay roster sync.")
+                    RichText::new("No members loaded yet, wait for the relay roster sync.")
                         .size(theme.font_size_small)
                         .color(theme.text_muted())
                         .italics(),
@@ -1905,7 +1905,7 @@ fn draw_members_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_m
                         );
                         ui.add_sized(
                             Vec2::new(110.0, CHANNEL_ROW_H),
-                            egui::Label::new(RichText::new("—").color(theme.text_muted()).size(theme.font_size_small)),
+                            egui::Label::new(RichText::new(", ").color(theme.text_muted()).size(theme.font_size_small)),
                         );
                         ui.add_sized(
                             Vec2::new(200.0, CHANNEL_ROW_H),

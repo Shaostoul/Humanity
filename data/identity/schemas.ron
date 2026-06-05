@@ -4,7 +4,7 @@
 // the network knows how to interpret. It is hot-reloadable and authoritative.
 //
 // Server-side schema enforcement is added in Phase 1 (DID/VC). Phase 0 only requires
-// that this file parses and the schemas listed here exist by name — actual payload
+// that this file parses and the schemas listed here exist by name, actual payload
 // validation comes when the schema registry loader is wired into put_signed_object.
 //
 // Conventions:
@@ -14,10 +14,10 @@
 //   required_payload_fields: list of field names that MUST appear in payload (CBOR)
 //   optional_payload_fields: list of field names that MAY appear in payload
 //   issuer_constraint: who is allowed to author this object_type
-//     "self" — only subject themselves (e.g. signed_profile)
-//     "any" — anyone with a valid Dilithium3 key
-//     "server" — only a server's identity key (its own DID)
-//     "vc_issuer" — any DID with a valid `issuer_v1` VC for this schema
+//     "self", only subject themselves (e.g. signed_profile)
+//     "any", anyone with a valid Dilithium3 key
+//     "server", only a server's identity key (its own DID)
+//     "vc_issuer", any DID with a valid `issuer_v1` VC for this schema
 //   subject_field: which payload field carries the DID this object is ABOUT
 //                  (for VCs this is `credential_subject.id`; for self-objects, the
 //                  author IS the subject)
@@ -70,28 +70,28 @@
             accord_constraints: ["consent", "transparency", "non_domination"],
         ),
     ],
-    // Schemas listed here but unimplemented are reserved names — Phase 1+ will populate them.
+    // Schemas listed here but unimplemented are reserved names, Phase 1+ will populate them.
     reserved_ids: [
         "vc",                       // generic VC envelope (Phase 1)
         "verified_human_v1",        // proof-of-personhood VC (Phase 1+)
-        "member_v1",                // server membership VC (Phase 1) — implemented
-        "role_v1",                  // moderator/admin role VC (Phase 1) — implemented
-        "account_age_v1",           // auto-issued account age VC (Phase 1) — implemented
-        "skill_endorsement_v1",     // VC projection of skill_verifications (Phase 1) — implemented
-        "graduation_v1",            // institutional credential example (Phase 1) — implemented
-        "employment_v1",            // institutional credential example (Phase 1) — implemented
-        "revocation_v1",            // issuer-initiated VC revocation (Phase 1) — implemented
-        "withdrawal_v1",            // subject-initiated VC withdrawal (Phase 1) — implemented
+        "member_v1",                // server membership VC (Phase 1), implemented
+        "role_v1",                  // moderator/admin role VC (Phase 1), implemented
+        "account_age_v1",           // auto-issued account age VC (Phase 1), implemented
+        "skill_endorsement_v1",     // VC projection of skill_verifications (Phase 1), implemented
+        "graduation_v1",            // institutional credential example (Phase 1), implemented
+        "employment_v1",            // institutional credential example (Phase 1), implemented
+        "revocation_v1",            // issuer-initiated VC revocation (Phase 1), implemented
+        "withdrawal_v1",            // subject-initiated VC withdrawal (Phase 1), implemented
         "controlled_by_v1",         // AI agent operator binding (Phase 8)
         "ai_introduction_v1",       // mandatory AI self-disclosure (Phase 8)
         "subject_class_v1",         // human/ai_agent/institution classifier (Phase 8)
         "dispute_v1",               // dispute against issuer or VC (Phase 3)
         "issuer_trust_update_v1",   // peer-observed issuer trust delta (Phase 3)
-        "trust_score_v1",           // signed multi-layer trust score (Phase 2) — implemented
+        "trust_score_v1",           // signed multi-layer trust score (Phase 2), implemented
         "recovery_share_v1",        // encrypted Shamir share to a guardian (Phase 4)
         "recovery_request_v1",      // request to use recovery shares (Phase 4)
-        "proposal_v1",              // governance proposal (Phase 5) — implemented
-        "vote_v1",                  // governance vote (Phase 5) — implemented
+        "proposal_v1",              // governance proposal (Phase 5), implemented
+        "vote_v1",                  // governance vote (Phase 5), implemented
         "juror_v1",                 // juror VC for dispute resolution (Phase 5)
         "stark_presentation_v1",    // zk-STARK selective disclosure (Phase 6)
         "attested_session_v1",      // WebRTC liveness watermark VC (Phase 6)

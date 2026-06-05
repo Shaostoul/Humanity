@@ -500,7 +500,7 @@
    }
 
    // ══════════════════════════════════════════════════════════════
-   // ██ SKY VIEW — Real night sky with 88 IAU constellations ██
+   // ██ SKY VIEW, Real night sky with 88 IAU constellations ██
    // ══════════════════════════════════════════════════════════════
 
    // ── Sky View State ──
@@ -1138,7 +1138,7 @@
      if (pins.length) {
       html += `<div style="margin-bottom:0.8rem;"><div style="font-weight:600;font-size:0.82rem;margin-bottom:0.3rem;">📌 Pins (${pins.length})</div>`;
       for (const pin of pins) {
-       html += `<div style="font-size:0.75rem;padding:0.2rem 0;cursor:pointer;color:var(--text-muted);" onclick="mapGoToPin(${pin.lat},${pin.lng},'${(pin.name||'').replace(/'/g,"\\'")}')">${pin.name||'Pin'} — ${pin.lat.toFixed(2)}°, ${pin.lng.toFixed(2)}°</div>`;
+       html += `<div style="font-size:0.75rem;padding:0.2rem 0;cursor:pointer;color:var(--text-muted);" onclick="mapGoToPin(${pin.lat},${pin.lng},'${(pin.name||'').replace(/'/g,"\\'")}')">${pin.name||'Pin'}, ${pin.lat.toFixed(2)}°, ${pin.lng.toFixed(2)}°</div>`;
       }
       html += '</div>';
      }
@@ -1212,7 +1212,7 @@
       if (con) {
        const isIdentified = sg.identified.includes(con.name);
        html += `<div style="background:rgba(100,180,255,0.08);border:1px solid rgba(100,180,255,0.2);border-radius:8px;padding:0.6rem;margin-bottom:0.8rem;">
-        <div style="font-weight:700;font-size:0.95rem;color:#6cf;">⭐ ${con.name} — ${con.myth ? con.myth.split('—')[0] : con.abbr}</div>
+        <div style="font-weight:700;font-size:0.95rem;color:#6cf;">⭐ ${con.name}, ${con.myth ? con.myth.split('-')[0] : con.abbr}</div>
         <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;line-height:1.5;">${con.myth || ''}</div>`;
        if (con.season) html += `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">Best viewing: ${con.season}</div>`;
        if (con.keyStars && con.keyStars.length) {

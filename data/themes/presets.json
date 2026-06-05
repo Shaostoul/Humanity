@@ -1,5 +1,5 @@
 {
-  "_comment": "Canonical theme presets consumed by web/shared/settings.js. After editing, run `just theme` (or `node scripts/gen-theme-presets-js.js`) to regenerate the AUTO-GENERATED block in settings.js. Native does not yet consume this file — see future_roadmap.md for the unification plan.",
+  "_comment": "Canonical theme presets consumed by web/shared/settings.js. After editing, run `just theme` (or `node scripts/gen-theme-presets-js.js`) to regenerate the AUTO-GENERATED block in settings.js. Native does not yet consume this file, see future_roadmap.md for the unification plan.",
   "accent_presets": [
     { "name": "Orange", "color": "#FF8811" },
     { "name": "Blue",   "color": "#4488ff" },

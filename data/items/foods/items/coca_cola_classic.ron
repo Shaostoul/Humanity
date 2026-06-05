@@ -1,4 +1,4 @@
-// Coca-Cola Classic — pure ingredient list with version history.
+// Coca-Cola Classic, pure ingredient list with version history.
 // Toxicology DERIVED from current ingredients via aggregator. Per-ingredient
 // tox lives in data/items/foods/ingredients/<id>.ron.
 

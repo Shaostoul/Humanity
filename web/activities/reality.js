@@ -1,5 +1,5 @@
   // ══════════════════════════════════════
-  // REALITY TAB — Todo, Notes, Garden, Catalogs
+  // REALITY TAB, Todo, Notes, Garden, Catalogs
   // ══════════════════════════════════════
 
   // ── Card collapse ──
@@ -162,7 +162,7 @@
     discovered:'1669', discoverer:'Hennig Brand',
     uses:['Fertilizers','Matches','Detergents','Steel production'],
     sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C7723140'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Phosphorus'}],
-    description:'Essential for life — key part of DNA, RNA, and ATP.' },
+    description:'Essential for life, key part of DNA, RNA, and ATP.' },
    { symbol:'S', name:'Sulfur', number:16, category:'nonmetal', mass:32.06, phase:'Solid',
     density:'2.067 g/cm³', meltingPoint:'115.21 °C', boilingPoint:'444.6 °C',
     discovered:'Ancient', discoverer:'Known since antiquity',
@@ -678,7 +678,7 @@
     discovered:'1974', discoverer:'Albert Ghiorso et al.',
     uses:['Research only'],
     sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C54038818'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Seaborgium'}],
-    description:'Named after Glenn T. Seaborg while he was still alive — a first.' },
+    description:'Named after Glenn T. Seaborg while he was still alive, a first.' },
    { symbol:'Bh', name:'Bohrium', number:107, category:'transition-metal', mass:270, phase:'Solid',
     density:'~37.1 g/cm³ (est.)', meltingPoint:'Unknown', boilingPoint:'Unknown',
     discovered:'1981', discoverer:'Peter Armbruster & Gottfried Münzenberg',
@@ -766,7 +766,7 @@
    N: { production:{annual:'150 million tonnes (as fertilizer N)',unit:'tonnes/yr'}, reserves:{amount:'Unlimited (78% of atmosphere)',yearsSupply:null}, topProducers:['China','India','USA','EU','Russia'], price:{amount:400,unit:'$/tonne (ammonia)',year:2024}, primaryUses:['Fertilizer (80%)','Explosives','Nylon/plastics','Cryogenics'] },
    O: { production:{annual:'360 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'Unlimited (atmosphere + water)',yearsSupply:null}, topProducers:['China','USA','EU','India','Japan'], price:{amount:100,unit:'$/tonne (liquid)',year:2024}, primaryUses:['Steel manufacturing (55%)','Medical','Welding','Chemical synthesis'] },
    F: { production:{annual:'8.3 million tonnes (fluorspar)',unit:'tonnes/yr'}, reserves:{amount:'310 million tonnes',yearsSupply:37}, topProducers:['China (64%)','Mexico','Mongolia','South Africa'], price:{amount:560,unit:'$/tonne (fluorspar)',year:2024}, primaryUses:['Aluminum smelting','Refrigerants/PTFE','Uranium enrichment','Toothpaste'] },
-   Ne: { production:{note:'Byproduct of air separation — ~70,000 tonnes/yr'}, topProducers:['Ukraine','China','USA','Japan'], price:{amount:120,unit:'$/m³',year:2024}, primaryUses:['Semiconductor lithography','Neon signs','Lasers','Cryogenics'] },
+   Ne: { production:{note:'Byproduct of air separation, ~70,000 tonnes/yr'}, topProducers:['Ukraine','China','USA','Japan'], price:{amount:120,unit:'$/m³',year:2024}, primaryUses:['Semiconductor lithography','Neon signs','Lasers','Cryogenics'] },
    Na: { production:{annual:'280 million tonnes (as NaCl salt)',unit:'tonnes/yr'}, reserves:{amount:'Virtually unlimited',yearsSupply:null}, topProducers:['China','USA','India','Germany','Australia'], price:{amount:40,unit:'$/tonne (salt)',year:2024}, primaryUses:['Food/seasoning (35%)','Chemical industry (35%)','De-icing','Water treatment'] },
    Mg: { production:{annual:'1.1 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'Virtually unlimited (seawater)',yearsSupply:null}, topProducers:['China (90%)','USA','Israel','Brazil','Turkey'], price:{amount:2800,unit:'$/tonne',year:2024}, primaryUses:['Aluminum alloys (42%)','Die casting','Steel desulfurization','Aerospace'] },
    Al: { production:{annual:'69 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'55-75 billion tonnes (bauxite)',yearsSupply:100}, topProducers:['China (57%)','India','Russia','Canada','UAE'], price:{amount:2400,unit:'$/tonne',year:2024}, primaryUses:['Transportation (27%)','Packaging (20%)','Construction (20%)','Electrical'] },
@@ -792,14 +792,14 @@
    As: { production:{annual:'35,000 tonnes (arsenic trioxide)',unit:'tonnes/yr'}, reserves:{amount:'Moderate',yearsSupply:null}, topProducers:['China (50%)','Morocco','Russia','Belgium'], price:{amount:1,unit:'$/kg (trioxide)',year:2024}, primaryUses:['Wood preservatives (50%)','Semiconductors (GaAs)','Lead alloys','Pesticides'] },
    Se: { production:{annual:'2,800 tonnes',unit:'tonnes/yr'}, reserves:{amount:'100,000 tonnes',yearsSupply:36}, topProducers:['China','Japan','Belgium','Germany','Russia'], price:{amount:55,unit:'$/kg',year:2024}, primaryUses:['Glass manufacturing (30%)','Electronics','Solar cells (CdTe)','Metallurgy'] },
    Br: { production:{annual:'500,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'Abundant (seawater)',yearsSupply:null}, topProducers:['China','USA','Israel','Jordan'], price:{amount:2,unit:'$/kg',year:2024}, primaryUses:['Flame retardants (50%)','Drilling fluids','Pesticides','Pharmaceuticals'] },
-   Kr: { production:{note:'Byproduct of air separation — ~10 tonnes/yr'}, topProducers:['USA','EU','Japan','China'], price:{amount:500,unit:'$/m³',year:2024}, primaryUses:['Insulated windows','Photography flash','Fluorescent lighting','Lasers'] },
-   Rb: { production:{note:'No dedicated mining — byproduct of lithium/cesium production'}, topProducers:['Canada','Namibia','Zambia'], price:{amount:12000,unit:'$/kg',year:2024}, primaryUses:['Atomic clocks','Photocells','Specialty glass','Medical imaging'] },
+   Kr: { production:{note:'Byproduct of air separation, ~10 tonnes/yr'}, topProducers:['USA','EU','Japan','China'], price:{amount:500,unit:'$/m³',year:2024}, primaryUses:['Insulated windows','Photography flash','Fluorescent lighting','Lasers'] },
+   Rb: { production:{note:'No dedicated mining, byproduct of lithium/cesium production'}, topProducers:['Canada','Namibia','Zambia'], price:{amount:12000,unit:'$/kg',year:2024}, primaryUses:['Atomic clocks','Photocells','Specialty glass','Medical imaging'] },
    Sr: { production:{annual:'210,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'6.8 million tonnes',yearsSupply:32}, topProducers:['Spain','Mexico','China','Iran','Turkey'], price:{amount:700,unit:'$/tonne (celestite)',year:2024}, primaryUses:['Ferrite magnets (55%)','Pyrotechnics','Zinc smelting','Drilling fluids'] },
    Y: { production:{annual:'8,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'540,000 tonnes',yearsSupply:68}, topProducers:['China (93%)','Australia','Myanmar','India'], price:{amount:12,unit:'$/kg (oxide)',year:2024}, primaryUses:['Ceramics/phosphors','Superconductors','Lasers','Alloy additive'] },
    Zr: { production:{annual:'1.4 million tonnes (zircon)',unit:'tonnes/yr'}, reserves:{amount:'67 million tonnes',yearsSupply:48}, topProducers:['Australia','South Africa','Mozambique','China','Indonesia'], price:{amount:2200,unit:'$/tonne (zircon)',year:2024}, primaryUses:['Ceramics (54%)','Nuclear fuel cladding','Refractories','Foundry sands'] },
    Nb: { production:{annual:'81,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'17 million tonnes',yearsSupply:210}, topProducers:['Brazil (90%)','Canada','Australia','DRC'], price:{amount:42,unit:'$/kg',year:2024}, primaryUses:['HSLA steel (85%)','Superconducting magnets','Superalloys','Jewelry'] },
    Mo: { production:{annual:'300,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'18 million tonnes',yearsSupply:60}, topProducers:['China (44%)','Chile','USA','Peru','Mexico'], price:{amount:45,unit:'$/kg',year:2024}, primaryUses:['Steel alloys (70%)','Catalysts','Lubricants','Chemicals'] },
-   Tc: { production:{note:'Synthetic — produced in nuclear reactors, ~150 kg/yr for medical use'}, primaryUses:['Medical imaging (Tc-99m)','Industrial radiography'] },
+   Tc: { production:{note:'Synthetic, produced in nuclear reactors, ~150 kg/yr for medical use'}, primaryUses:['Medical imaging (Tc-99m)','Industrial radiography'] },
    Ru: { production:{annual:'38 tonnes',unit:'tonnes/yr'}, reserves:{amount:'5,000 tonnes',yearsSupply:132}, topProducers:['South Africa (93%)','Zimbabwe','Russia','Canada'], price:{amount:14000,unit:'$/kg',year:2024}, primaryUses:['Electronics (42%)','Catalysts','Wear-resistant coatings','Electrochemistry'] },
    Rh: { production:{annual:'32 tonnes',unit:'tonnes/yr'}, reserves:{amount:'3,000 tonnes',yearsSupply:94}, topProducers:['South Africa (81%)','Russia','Zimbabwe','Canada'], price:{amount:145000,unit:'$/kg',year:2024}, primaryUses:['Catalytic converters (80%)','Chemical catalysts','Jewelry','Glass production'] },
    Pd: { production:{annual:'210 tonnes',unit:'tonnes/yr'}, reserves:{amount:'9,000 tonnes',yearsSupply:43}, topProducers:['Russia (40%)','South Africa (36%)','Canada','USA','Zimbabwe'], price:{amount:35000,unit:'$/kg',year:2024}, primaryUses:['Catalytic converters (80%)','Electronics','Dentistry','Hydrogen purification'] },
@@ -810,71 +810,71 @@
    Sb: { production:{annual:'160,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'1.8 million tonnes',yearsSupply:11}, topProducers:['China (55%)','Tajikistan','Russia','Myanmar','Bolivia'], price:{amount:12,unit:'$/kg',year:2024}, primaryUses:['Flame retardants (60%)','Lead-acid batteries','Plastics catalysts','Ammunition'] },
    Te: { production:{annual:'580 tonnes',unit:'tonnes/yr'}, reserves:{amount:'31,000 tonnes',yearsSupply:53}, topProducers:['China','Japan','Canada','Sweden','USA'], price:{amount:70,unit:'$/kg',year:2024}, primaryUses:['Solar cells CdTe (40%)','Thermoelectrics','Steel/copper alloys','Rubber vulcanization'] },
    I: { production:{annual:'32,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'6 million tonnes',yearsSupply:188}, topProducers:['Chile (57%)','Japan (25%)','USA','Russia','Turkmenistan'], price:{amount:35,unit:'$/kg',year:2024}, primaryUses:['X-ray contrast media','Biocides','Nylon production','Pharmaceuticals'] },
-   Xe: { production:{note:'Byproduct of air separation — ~40 tonnes/yr'}, topProducers:['USA','EU','Japan','China'], price:{amount:3000,unit:'$/m³',year:2024}, primaryUses:['Anesthesia','Ion propulsion','Lighting','Medical imaging'] },
+   Xe: { production:{note:'Byproduct of air separation, ~40 tonnes/yr'}, topProducers:['USA','EU','Japan','China'], price:{amount:3000,unit:'$/m³',year:2024}, primaryUses:['Anesthesia','Ion propulsion','Lighting','Medical imaging'] },
    Cs: { production:{annual:'30 tonnes',unit:'tonnes/yr'}, reserves:{amount:'170,000 tonnes',yearsSupply:5667}, topProducers:['Australia','Canada','Zimbabwe','Namibia'], price:{amount:78000,unit:'$/kg',year:2024}, primaryUses:['Drilling fluids (50%)','Atomic clocks','Photoelectric cells','Cancer treatment'] },
    Ba: { production:{annual:'7.5 million tonnes (barite)',unit:'tonnes/yr'}, reserves:{amount:'300 million tonnes',yearsSupply:40}, topProducers:['China (40%)','India','Morocco','Mexico','Turkey'], price:{amount:160,unit:'$/tonne (barite)',year:2024}, primaryUses:['Oil drilling fluids (80%)','Medical imaging','Rubber filler','Glass'] },
-   La: { production:{note:'Included in rare earth totals — ~60,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia','USA'], primaryUses:['Fluid catalytic cracking (30%)','Battery alloys','Optical glass','Hybrid car batteries'] },
-   Ce: { production:{note:'Most abundant rare earth — ~80,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia','USA'], primaryUses:['Catalytic converters','Glass polishing','Self-cleaning ovens','Metallurgy'] },
-   Pr: { production:{note:'Rare earth — ~10,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia'], primaryUses:['NdFeB magnets (co-constituent)','Aircraft engines','Ceramics','Glass colorant'] },
-   Nd: { production:{note:'Rare earth — ~40,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia','USA'], price:{amount:80,unit:'$/kg (oxide)',year:2024}, primaryUses:['NdFeB permanent magnets (87%)','Lasers','Glass colorant','Capacitors'] },
-   Pm: { production:{note:'Synthetic — trace amounts from nuclear reactors'}, primaryUses:['Nuclear batteries','Research','Luminous paint'] },
-   Sm: { production:{note:'Rare earth — ~2,000 tonnes/yr'}, topProducers:['China','Myanmar','Australia'], price:{amount:4,unit:'$/kg (oxide)',year:2024}, primaryUses:['Samarium-cobalt magnets','Cancer treatment','Nuclear control rods','Catalysts'] },
-   Eu: { production:{note:'Rare earth — ~400 tonnes/yr'}, topProducers:['China (90%)','Myanmar'], price:{amount:30,unit:'$/kg (oxide)',year:2024}, primaryUses:['Red phosphors/LEDs','Euro banknote security','Fluorescent lamps','Nuclear control rods'] },
-   Gd: { production:{note:'Rare earth — ~4,000 tonnes/yr'}, topProducers:['China','Myanmar','Australia'], price:{amount:35,unit:'$/kg (oxide)',year:2024}, primaryUses:['MRI contrast agents','Neutron shielding','Magnets','Phosphors'] },
-   Tb: { production:{note:'Rare earth — ~400 tonnes/yr'}, topProducers:['China (90%)','Myanmar'], price:{amount:1200,unit:'$/kg (oxide)',year:2024}, primaryUses:['NdFeB magnet additive','Green phosphors','Sonar','Fuel cells'] },
-   Dy: { production:{note:'Rare earth — ~2,500 tonnes/yr'}, topProducers:['China (85%)','Myanmar','Australia'], price:{amount:300,unit:'$/kg (oxide)',year:2024}, primaryUses:['NdFeB magnet additive (98%)','Lasers','Nuclear control rods','Lighting'] },
-   Ho: { production:{note:'Rare earth — ~50 tonnes/yr'}, topProducers:['China','Myanmar'], primaryUses:['Magnets','Medical lasers','Nuclear reactors','Spectrophotometry'] },
-   Er: { production:{note:'Rare earth — ~800 tonnes/yr'}, topProducers:['China','Myanmar','Australia'], primaryUses:['Fiber optic amplifiers','Lasers','Nuclear','Glass colorant (pink)'] },
-   Tm: { production:{note:'Rare earth — ~15 tonnes/yr (rarest commercial)'}, topProducers:['China'], primaryUses:['Portable X-ray machines','Lasers','Research'] },
-   Yb: { production:{note:'Rare earth — ~50 tonnes/yr'}, topProducers:['China','Myanmar'], primaryUses:['Fiber optic amplifiers','Atomic clocks','Lasers','Stress gauges'] },
-   Lu: { production:{note:'Rare earth — ~10 tonnes/yr'}, topProducers:['China'], price:{amount:900,unit:'$/kg (oxide)',year:2024}, primaryUses:['PET scan detectors','Oil refining catalysts','LED phosphors','Research'] },
+   La: { production:{note:'Included in rare earth totals, ~60,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia','USA'], primaryUses:['Fluid catalytic cracking (30%)','Battery alloys','Optical glass','Hybrid car batteries'] },
+   Ce: { production:{note:'Most abundant rare earth, ~80,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia','USA'], primaryUses:['Catalytic converters','Glass polishing','Self-cleaning ovens','Metallurgy'] },
+   Pr: { production:{note:'Rare earth, ~10,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia'], primaryUses:['NdFeB magnets (co-constituent)','Aircraft engines','Ceramics','Glass colorant'] },
+   Nd: { production:{note:'Rare earth, ~40,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia','USA'], price:{amount:80,unit:'$/kg (oxide)',year:2024}, primaryUses:['NdFeB permanent magnets (87%)','Lasers','Glass colorant','Capacitors'] },
+   Pm: { production:{note:'Synthetic, trace amounts from nuclear reactors'}, primaryUses:['Nuclear batteries','Research','Luminous paint'] },
+   Sm: { production:{note:'Rare earth, ~2,000 tonnes/yr'}, topProducers:['China','Myanmar','Australia'], price:{amount:4,unit:'$/kg (oxide)',year:2024}, primaryUses:['Samarium-cobalt magnets','Cancer treatment','Nuclear control rods','Catalysts'] },
+   Eu: { production:{note:'Rare earth, ~400 tonnes/yr'}, topProducers:['China (90%)','Myanmar'], price:{amount:30,unit:'$/kg (oxide)',year:2024}, primaryUses:['Red phosphors/LEDs','Euro banknote security','Fluorescent lamps','Nuclear control rods'] },
+   Gd: { production:{note:'Rare earth, ~4,000 tonnes/yr'}, topProducers:['China','Myanmar','Australia'], price:{amount:35,unit:'$/kg (oxide)',year:2024}, primaryUses:['MRI contrast agents','Neutron shielding','Magnets','Phosphors'] },
+   Tb: { production:{note:'Rare earth, ~400 tonnes/yr'}, topProducers:['China (90%)','Myanmar'], price:{amount:1200,unit:'$/kg (oxide)',year:2024}, primaryUses:['NdFeB magnet additive','Green phosphors','Sonar','Fuel cells'] },
+   Dy: { production:{note:'Rare earth, ~2,500 tonnes/yr'}, topProducers:['China (85%)','Myanmar','Australia'], price:{amount:300,unit:'$/kg (oxide)',year:2024}, primaryUses:['NdFeB magnet additive (98%)','Lasers','Nuclear control rods','Lighting'] },
+   Ho: { production:{note:'Rare earth, ~50 tonnes/yr'}, topProducers:['China','Myanmar'], primaryUses:['Magnets','Medical lasers','Nuclear reactors','Spectrophotometry'] },
+   Er: { production:{note:'Rare earth, ~800 tonnes/yr'}, topProducers:['China','Myanmar','Australia'], primaryUses:['Fiber optic amplifiers','Lasers','Nuclear','Glass colorant (pink)'] },
+   Tm: { production:{note:'Rare earth, ~15 tonnes/yr (rarest commercial)'}, topProducers:['China'], primaryUses:['Portable X-ray machines','Lasers','Research'] },
+   Yb: { production:{note:'Rare earth, ~50 tonnes/yr'}, topProducers:['China','Myanmar'], primaryUses:['Fiber optic amplifiers','Atomic clocks','Lasers','Stress gauges'] },
+   Lu: { production:{note:'Rare earth, ~10 tonnes/yr'}, topProducers:['China'], price:{amount:900,unit:'$/kg (oxide)',year:2024}, primaryUses:['PET scan detectors','Oil refining catalysts','LED phosphors','Research'] },
    Hf: { production:{annual:'70 tonnes',unit:'tonnes/yr'}, reserves:{amount:'Included with zirconium',yearsSupply:null}, topProducers:['France','USA','Ukraine','Russia'], price:{amount:1200,unit:'$/kg',year:2024}, primaryUses:['Nuclear reactor control rods (47%)','Superalloys','Plasma cutting','Microprocessors'] },
    Ta: { production:{annual:'1,800 tonnes',unit:'tonnes/yr'}, reserves:{amount:'140,000 tonnes',yearsSupply:78}, topProducers:['DRC (37%)','Brazil','Rwanda','Nigeria','China'], price:{amount:190,unit:'$/kg',year:2024}, primaryUses:['Capacitors (60%)','Superalloys','Surgical implants','Chemical equipment'] },
    W: { production:{annual:'84,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'3.7 million tonnes',yearsSupply:44}, topProducers:['China (82%)','Vietnam','Russia','Bolivia','Austria'], price:{amount:35,unit:'$/kg',year:2024}, primaryUses:['Cemented carbide tools (60%)','Steel alloys','Mill products','Chemicals'] },
    Re: { production:{annual:'56 tonnes',unit:'tonnes/yr'}, reserves:{amount:'2,500 tonnes',yearsSupply:45}, topProducers:['Chile','USA','Poland','Uzbekistan','Kazakhstan'], price:{amount:1600,unit:'$/kg',year:2024}, primaryUses:['Jet engine superalloys (80%)','Catalysts','Thermocouples','Filaments'] },
-   Os: { production:{note:'PGM byproduct — ~1 tonne/yr'}, topProducers:['South Africa','Russia'], price:{amount:12000,unit:'$/kg',year:2024}, primaryUses:['Fountain pen tips','Electrical contacts','Catalysts','Fingerprint detection'] },
+   Os: { production:{note:'PGM byproduct, ~1 tonne/yr'}, topProducers:['South Africa','Russia'], price:{amount:12000,unit:'$/kg',year:2024}, primaryUses:['Fountain pen tips','Electrical contacts','Catalysts','Fingerprint detection'] },
    Ir: { production:{annual:'7.5 tonnes',unit:'tonnes/yr'}, reserves:{amount:'Included with PGMs',yearsSupply:null}, topProducers:['South Africa (85%)','Russia','Zimbabwe'], price:{amount:160000,unit:'$/kg',year:2024}, primaryUses:['Spark plugs','Crucibles','Electrochemistry','Fountain pen nibs'] },
    Pt: { production:{annual:'190 tonnes',unit:'tonnes/yr'}, reserves:{amount:'13,000 tonnes',yearsSupply:68}, topProducers:['South Africa (72%)','Russia','Zimbabwe','Canada','USA'], price:{amount:30000,unit:'$/kg',year:2024}, primaryUses:['Catalytic converters (40%)','Jewelry (30%)','Industrial catalysts','Fuel cells'] },
    Au: { production:{annual:'3,300 tonnes',unit:'tonnes/yr'}, reserves:{amount:'59,000 tonnes',yearsSupply:18}, topProducers:['China','Australia','Russia','Canada','USA'], price:{amount:65000,unit:'$/kg',year:2024}, primaryUses:['Jewelry (50%)','Investment/central banks (25%)','Electronics (10%)','Dentistry'] },
    Hg: { production:{annual:'3,700 tonnes',unit:'tonnes/yr'}, reserves:{amount:'580,000 tonnes',yearsSupply:157}, topProducers:['China (80%)','Mexico','Tajikistan'], price:{amount:30,unit:'$/kg',year:2024}, primaryUses:['Small-scale gold mining (37%)','VCM production','Fluorescent lamps','Dental amalgam'] },
-   Tl: { production:{note:'Byproduct of zinc/lead smelting — ~10 tonnes/yr'}, topProducers:['China','Japan','Belgium'], primaryUses:['Semiconductors','Infrared optics','Superconductor research','Medical imaging'] },
+   Tl: { production:{note:'Byproduct of zinc/lead smelting, ~10 tonnes/yr'}, topProducers:['China','Japan','Belgium'], primaryUses:['Semiconductors','Infrared optics','Superconductor research','Medical imaging'] },
    Pb: { production:{annual:'4.6 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'85 million tonnes',yearsSupply:18}, topProducers:['China (43%)','Australia','USA','Peru','Mexico'], price:{amount:2100,unit:'$/tonne',year:2024}, primaryUses:['Lead-acid batteries (85%)','Ammunition','Cable sheathing','Radiation shielding'] },
    Bi: { production:{annual:'20,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'370,000 tonnes',yearsSupply:19}, topProducers:['China (80%)','Vietnam','Mexico','Japan','Bolivia'], price:{amount:6,unit:'$/kg',year:2024}, primaryUses:['Pharmaceuticals (Pepto-Bismol)','Cosmetics','Lead-free solder','Fire sprinkler alloys'] },
-   Po: { production:{note:'Produced in nuclear reactors — ~100 g/yr globally'}, primaryUses:['Static eliminators','Nuclear research','Satellite heat sources'] },
-   At: { production:{note:'Synthetic — total worldwide less than 1 μg at any time'}, primaryUses:['Cancer radiotherapy research'] },
-   Rn: { production:{note:'Naturally occurring radioactive decay product — not commercially produced'}, primaryUses:['Radon testing/mitigation','Earthquake prediction research'] },
-   Fr: { production:{note:'Synthetic — most unstable natural element, produced in accelerators'}, primaryUses:['Research only'] },
-   Ra: { production:{note:'Not commercially produced — extremely radioactive'}, primaryUses:['Cancer treatment (historic)','Research'] },
+   Po: { production:{note:'Produced in nuclear reactors, ~100 g/yr globally'}, primaryUses:['Static eliminators','Nuclear research','Satellite heat sources'] },
+   At: { production:{note:'Synthetic, total worldwide less than 1 μg at any time'}, primaryUses:['Cancer radiotherapy research'] },
+   Rn: { production:{note:'Naturally occurring radioactive decay product, not commercially produced'}, primaryUses:['Radon testing/mitigation','Earthquake prediction research'] },
+   Fr: { production:{note:'Synthetic, most unstable natural element, produced in accelerators'}, primaryUses:['Research only'] },
+   Ra: { production:{note:'Not commercially produced, extremely radioactive'}, primaryUses:['Cancer treatment (historic)','Research'] },
    Ac: { production:{note:'Trace amounts from nuclear reactors for research'}, primaryUses:['Targeted alpha therapy research','Neutron source'] },
    Th: { production:{annual:'~10,000 tonnes (byproduct)',unit:'tonnes/yr'}, reserves:{amount:'6.4 million tonnes',yearsSupply:640}, topProducers:['India','Brazil','Australia','USA','Egypt'], price:{amount:80,unit:'$/kg',year:2024}, primaryUses:['Potential nuclear fuel','Gas mantles','Welding electrodes','Optical coatings'] },
-   Pa: { production:{note:'Extremely rare — ~130 g total isolated historically'}, primaryUses:['Research','Ocean sediment dating'] },
+   Pa: { production:{note:'Extremely rare, ~130 g total isolated historically'}, primaryUses:['Research','Ocean sediment dating'] },
    U: { production:{annual:'58,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'6.1 million tonnes',yearsSupply:105}, topProducers:['Kazakhstan (43%)','Namibia','Canada','Australia','Uzbekistan'], price:{amount:130,unit:'$/kg (U₃O₈)',year:2024}, primaryUses:['Nuclear power (96%)','Research reactors','Nuclear weapons','Radiation shielding (depleted)'] },
-   Np: { production:{note:'Byproduct of nuclear reactors — a few kg/yr'}, primaryUses:['Neutron detection','Precursor to Pu-238','Research'] },
-   Pu: { production:{note:'Produced in nuclear reactors — ~70 tonnes/yr worldwide'}, primaryUses:['Nuclear weapons','MOX fuel','RTGs for space probes','Research'] },
-   Am: { production:{note:'Produced in nuclear reactors — ~10 g/yr for commercial use'}, primaryUses:['Smoke detectors','Neutron sources','Research'] },
-   Cm: { production:{note:'Produced in nuclear reactors — milligram quantities'}, primaryUses:['Space probe RTGs','Alpha particle source','Research'] },
-   Bk: { production:{note:'Synthetic — microgram quantities in nuclear reactors'}, primaryUses:['Research','Target for heavier element synthesis'] },
-   Cf: { production:{note:'Produced at ORNL and RIAR — ~0.5 g/yr globally'}, price:{amount:27000000,unit:'$/g',year:2024}, primaryUses:['Neutron source (oil well logging)','Nuclear reactor startup','Cancer treatment','Mineral analysis'] },
-   Es: { production:{note:'Synthetic — microgram quantities'}, primaryUses:['Research only'] },
-   Fm: { production:{note:'Synthetic — produced in nuclear reactors'}, primaryUses:['Research only'] },
-   Md: { production:{note:'Synthetic — only atoms at a time in particle accelerators'}, primaryUses:['Research only'] },
-   No: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Lr: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Rf: { production:{note:'Synthetic — atoms at a time in particle accelerators'}, primaryUses:['Research only'] },
-   Db: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Sg: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Bh: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Hs: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Mt: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Ds: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Rg: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Cn: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Nh: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Fl: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Mc: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Lv: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Ts: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
-   Og: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+   Np: { production:{note:'Byproduct of nuclear reactors, a few kg/yr'}, primaryUses:['Neutron detection','Precursor to Pu-238','Research'] },
+   Pu: { production:{note:'Produced in nuclear reactors, ~70 tonnes/yr worldwide'}, primaryUses:['Nuclear weapons','MOX fuel','RTGs for space probes','Research'] },
+   Am: { production:{note:'Produced in nuclear reactors, ~10 g/yr for commercial use'}, primaryUses:['Smoke detectors','Neutron sources','Research'] },
+   Cm: { production:{note:'Produced in nuclear reactors, milligram quantities'}, primaryUses:['Space probe RTGs','Alpha particle source','Research'] },
+   Bk: { production:{note:'Synthetic, microgram quantities in nuclear reactors'}, primaryUses:['Research','Target for heavier element synthesis'] },
+   Cf: { production:{note:'Produced at ORNL and RIAR, ~0.5 g/yr globally'}, price:{amount:27000000,unit:'$/g',year:2024}, primaryUses:['Neutron source (oil well logging)','Nuclear reactor startup','Cancer treatment','Mineral analysis'] },
+   Es: { production:{note:'Synthetic, microgram quantities'}, primaryUses:['Research only'] },
+   Fm: { production:{note:'Synthetic, produced in nuclear reactors'}, primaryUses:['Research only'] },
+   Md: { production:{note:'Synthetic, only atoms at a time in particle accelerators'}, primaryUses:['Research only'] },
+   No: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Lr: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Rf: { production:{note:'Synthetic, atoms at a time in particle accelerators'}, primaryUses:['Research only'] },
+   Db: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Sg: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Bh: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Hs: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Mt: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Ds: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Rg: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Cn: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Nh: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Fl: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Mc: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Lv: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Ts: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
+   Og: { production:{note:'Synthetic, atoms at a time'}, primaryUses:['Research only'] },
   };
 
   // Merge world data into ELEMENTS
@@ -1180,7 +1180,7 @@
     processing:'Bark stripping (every 9 years) → Boiling → Drying → Cutting → Finishing',
     references:[{name:'Wikipedia',url:'https://en.wikipedia.org/wiki/Cork_(material)'}] },
    { name:'Granite', type:'raw', category:'Mineral',
-    components:[], sources_natural:['Quarries worldwide — India, Brazil, Norway, USA'],
+    components:[], sources_natural:['Quarries worldwide, India, Brazil, Norway, USA'],
     properties:{ density:'2.63-2.75 g/cm³', compressive_strength:'100-250 MPa', hardness:'6-7 Mohs' },
     uses:['Countertops','Building facades','Monuments','Paving'],
     processing:'Quarrying → Diamond wire cutting → Polishing → Finishing',
@@ -1355,10 +1355,10 @@
   renderMaterials();
 
   // ══════════════════════════════════════
-  // WORLD DASHBOARD — Chart & Facts
+  // WORLD DASHBOARD, Chart & Facts
   // ══════════════════════════════════════
   (function initWorldDash() {
-   // Bar chart — top resources by production value
+   // Bar chart, top resources by production value
    const chartData = [
     {label:'Oil',value:3200,color:'#444'},
     {label:'Coal',value:900,color:'#666'},
@@ -1397,18 +1397,18 @@
    }
    // Rotating facts
    const facts = [
-    '💡 Earth produces enough food for 10+ billion people — waste is the problem, not production.',
+    '💡 Earth produces enough food for 10+ billion people, waste is the problem, not production.',
     '⛏️ Most "scarce" resources have 50-200+ years of known reserves at current consumption.',
     '☀️ Solar electricity is now cheaper than coal in most markets worldwide.',
     '📉 Global extreme poverty dropped from 36% to 9% in 25 years.',
     '📚 Global literacy has risen from 12% (1820) to 87% today.',
     '👶 Child mortality has dropped 60% since 1990.',
     '🔋 Global battery production tripled in 3 years (2021-2024).',
-    '🌊 Earth has 1.4 billion km³ of water — desalination costs have dropped 70% since 2000.',
-    '🏗️ Humanity produces 4.1 billion tonnes of cement every year — enough for 33B tonnes of concrete.',
+    '🌊 Earth has 1.4 billion km³ of water, desalination costs have dropped 70% since 2000.',
+    '🏗️ Humanity produces 4.1 billion tonnes of cement every year, enough for 33B tonnes of concrete.',
     'âš¡ A single uranium fuel pellet (7g) contains as much energy as 1 tonne of coal.',
     '🌍 The world\'s proven oil reserves today are larger than they were 40 years ago despite consumption.',
-    '🚀 Humanity launches 200+ rockets per year — double the rate of a decade ago.',
+    '🚀 Humanity launches 200+ rockets per year, double the rate of a decade ago.',
    ];
    const factEl = document.getElementById('world-dash-fact');
    if (factEl) {
@@ -1450,7 +1450,7 @@
    });
    const catIcon = (id) => (INV_CATEGORIES.find(c => c.id === id) || {icon:'📦'}).icon;
    document.getElementById('inventory-list').innerHTML = filtered.length === 0
-    ? '<div style="color:var(--text-muted);font-size:0.82rem;font-style:italic;padding:1rem;text-align:center;grid-column:1/-1;">No items yet — click "+ Add Item" to start</div>'
+    ? '<div style="color:var(--text-muted);font-size:0.82rem;font-style:italic;padding:1rem;text-align:center;grid-column:1/-1;">No items yet, click "+ Add Item" to start</div>'
     : filtered.map(item => `
      <div class="inv-item">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
@@ -1673,7 +1673,7 @@
      } catch (e) { console.warn('Failed to create server asset record:', e); }
     } catch (err) {
      console.error('Upload failed:', err);
-     status.textContent = `Failed: ${file.name} — ${err.message}`;
+     status.textContent = `Failed: ${file.name}, ${err.message}`;
      await new Promise(r => setTimeout(r, 2000));
     }
    }
@@ -2006,13 +2006,13 @@
      if (msg.type && msg.type.startsWith('stream_')) {
       streamHandleMessage(msg);
      }
-     // (stream_viewer_ready via Private/System removed — using direct stream_offer request instead)
+     // (stream_viewer_ready via Private/System removed, using direct stream_offer request instead)
      // Handle skill verification messages via Private/system
      if (msg.type === 'private' && msg.message) {
       if (msg.message.startsWith('__skill_verify_req__:')) {
        try {
         const payload = JSON.parse(msg.message.slice('__skill_verify_req__:'.length));
-        if (confirm(`${payload.from_name} claims ${payload.skill_id} Lv ${payload.level} — can you verify?\n\nClick OK to verify, Cancel to decline.`)) {
+        if (confirm(`${payload.from_name} claims ${payload.skill_id} Lv ${payload.level}, can you verify?\n\nClick OK to verify, Cancel to decline.`)) {
          const note = prompt('Add a note (optional):') || 'Verified';
          window._humanityWs.send(JSON.stringify({ type: 'skill_verify_response', skill_id: payload.skill_id, to_key: payload.from_key, approved: true, note }));
         }
@@ -2207,7 +2207,7 @@
   }
 
   function contactSeller(sellerKey, sellerName) {
-   // Navigate to chat and open DM — use chat's existing DM system
+   // Navigate to chat and open DM, use chat's existing DM system
    // We'll switch to chat tab and trigger a DM open via stored intent
    localStorage.setItem('dm_intent', JSON.stringify({ key: sellerKey, name: sellerName }));
    window.location.href = '/chat';
@@ -2352,7 +2352,7 @@
   }
 
   // Connect marketplace WS when market tab is shown
-  // Connect WS immediately — needed for streaming, skills, board, etc.
+  // Connect WS immediately, needed for streaming, skills, board, etc.
   marketConnect();
 
   // ══════════════════════════════════════
@@ -2365,7 +2365,7 @@
    const hits = [];
    // Elements
    ELEMENTS.filter(e => e.name.toLowerCase().includes(q) || e.symbol.toLowerCase().includes(q) || String(e.number).includes(q))
-    .forEach(e => hits.push({ label: `${e.symbol} — ${e.name} (#${e.number})`, badge: 'Element', color: '#4caf50', action: () => { showElementDetail(e.symbol); } }));
+    .forEach(e => hits.push({ label: `${e.symbol}, ${e.name} (#${e.number})`, badge: 'Element', color: '#4caf50', action: () => { showElementDetail(e.symbol); } }));
    // Materials
    MATERIALS.filter(m => m.name.toLowerCase().includes(q) || m.category.toLowerCase().includes(q))
     .forEach(m => hits.push({ label: m.name + ' (' + m.type + ')', badge: 'Material', color: '#42a5f5', action: () => { showMaterialDetail(m.name); } }));
@@ -2577,7 +2577,7 @@
    const sensor = g.sensors.find(s => s.zoneId === zone.id);
    const lastReading = sensor && sensor.readings.length > 0 ? sensor.readings[sensor.readings.length - 1].metrics : {};
    const ranges = gardenGetRanges(zone);
-   const dim = zone.dimensions ? `${zone.dimensions.length}×${zone.dimensions.width} ${zone.dimensions.unit}` : '—';
+   const dim = zone.dimensions ? `${zone.dimensions.length}×${zone.dimensions.width} ${zone.dimensions.unit}` : '-';
 
    // Dashboard cards
    const metricKeys = [
@@ -2605,7 +2605,7 @@
     const hCol = p.health === 'healthy' ? '#4a8' : (p.health === 'stressed' || p.health === 'nutrient_deficiency' ? '#eb4' : '#e55');
     plantHtml += `<div onclick="gardenShowPlant('${p.id}')" style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0.5rem;cursor:pointer;border-radius:4px;font-size:0.82rem;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
      <span>${STAGE_ICONS[p.stage]||'🌱'}</span>
-     <span style="flex:1;">${escHtml(p.species)}${p.variety?' — '+escHtml(p.variety):''}</span>
+     <span style="flex:1;">${escHtml(p.species)}${p.variety?', '+escHtml(p.variety):''}</span>
      <span style="font-size:0.7rem;color:var(--text-muted);">[${p.stage}]</span>
      <span style="color:${hCol};font-size:0.8rem;" title="${p.health}">${hIcon}</span>
     </div>`;
@@ -2655,12 +2655,12 @@
     const c = (k,v) => { const col = gardenRangeColor(v, ranges[k]); return col ? `color:${col}` : ''; };
     html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
      <td style="padding:0.2rem 0.4rem;">${d}</td>
-     <td style="text-align:center;${c('ph',m.ph)}">${m.ph??'—'}</td>
-     <td style="text-align:center;${c('ec',m.ec)}">${m.ec??'—'}</td>
-     <td style="text-align:center;${c('airTemp',m.airTemp)}">${m.airTemp??'—'}</td>
-     <td style="text-align:center;${c('humidity',m.humidity)}">${m.humidity??'—'}</td>
-     <td style="text-align:center;${c('soilMoisture',m.soilMoisture)}">${m.soilMoisture??'—'}</td>
-     <td style="text-align:center;${c('lightPar',m.lightPar)}">${m.lightPar??'—'}</td>
+     <td style="text-align:center;${c('ph',m.ph)}">${m.ph??'-'}</td>
+     <td style="text-align:center;${c('ec',m.ec)}">${m.ec??'-'}</td>
+     <td style="text-align:center;${c('airTemp',m.airTemp)}">${m.airTemp??'-'}</td>
+     <td style="text-align:center;${c('humidity',m.humidity)}">${m.humidity??'-'}</td>
+     <td style="text-align:center;${c('soilMoisture',m.soilMoisture)}">${m.soilMoisture??'-'}</td>
+     <td style="text-align:center;${c('lightPar',m.lightPar)}">${m.lightPar??'-'}</td>
     </tr>`;
    });
    html += '</table></div>';
@@ -2838,14 +2838,14 @@
    let yieldHtml = '';
    if (p.yields && p.yields.length > 0) {
     yieldHtml = '<div style="margin-top:0.6rem;"><strong style="font-size:0.78rem;">Yield History</strong>';
-    p.yields.forEach(y => { yieldHtml += `<div style="font-size:0.75rem;color:var(--text-muted);">${new Date(y.date).toLocaleDateString()} — ${y.amount} ${y.unit}</div>`; });
+    p.yields.forEach(y => { yieldHtml += `<div style="font-size:0.75rem;color:var(--text-muted);">${new Date(y.date).toLocaleDateString()}, ${y.amount} ${y.unit}</div>`; });
     yieldHtml += '</div>';
    }
 
    let waterHtml = '';
    if (p.waterings && p.waterings.length > 0) {
     waterHtml = '<div style="margin-top:0.6rem;"><strong style="font-size:0.78rem;">Watering Log</strong>';
-    p.waterings.slice(-5).forEach(w => { waterHtml += `<div style="font-size:0.75rem;color:var(--text-muted);">${new Date(w.date).toLocaleDateString()} — ${w.amount}${w.nutrientMix?' ('+w.nutrientMix+')':''}</div>`; });
+    p.waterings.slice(-5).forEach(w => { waterHtml += `<div style="font-size:0.75rem;color:var(--text-muted);">${new Date(w.date).toLocaleDateString()}, ${w.amount}${w.nutrientMix?' ('+w.nutrientMix+')':''}</div>`; });
     waterHtml += '</div>';
    }
 
@@ -2853,16 +2853,16 @@
     <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem;">
      <span style="font-size:1.5rem;">${STAGE_ICONS[p.stage]||'🌱'}</span>
      <div>
-      <div style="font-size:1.1rem;font-weight:700;color:var(--text);">${escHtml(p.species)}${p.variety?' — '+escHtml(p.variety):''}</div>
-      <div style="font-size:0.78rem;color:var(--text-muted);">Zone: ${zone?escHtml(zone.name):'—'} · Stage: ${p.stage} · Health: ${p.health}</div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text);">${escHtml(p.species)}${p.variety?', '+escHtml(p.variety):''}</div>
+      <div style="font-size:0.78rem;color:var(--text-muted);">Zone: ${zone?escHtml(zone.name):'-'} · Stage: ${p.stage} · Health: ${p.health}</div>
      </div>
     </div>
     <div style="font-size:0.78rem;color:var(--text-muted);">Growth Timeline</div>
     ${timelineHtml}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;font-size:0.8rem;">
-     <div><strong>Planted:</strong> ${p.plantedDate?new Date(p.plantedDate).toLocaleDateString():'—'}</div>
-     <div><strong>Expected Harvest:</strong> ${p.expectedHarvest?new Date(p.expectedHarvest).toLocaleDateString():'—'}</div>
-     ${p.position?.row?`<div><strong>Position:</strong> Row ${p.position.row}, Col ${p.position.col||'—'}</div>`:''}
+     <div><strong>Planted:</strong> ${p.plantedDate?new Date(p.plantedDate).toLocaleDateString():'-'}</div>
+     <div><strong>Expected Harvest:</strong> ${p.expectedHarvest?new Date(p.expectedHarvest).toLocaleDateString():'-'}</div>
+     ${p.position?.row?`<div><strong>Position:</strong> Row ${p.position.row}, Col ${p.position.col||'-'}</div>`:''}
      ${p.slot?`<div><strong>Slot:</strong> ${p.slot}</div>`:''}
     </div>
     ${yieldHtml}

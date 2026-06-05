@@ -1,9 +1,9 @@
 /**
- * pq.js — post-quantum (Dilithium3 / ML-DSA-65) identity for the chat
+ * pq.js, post-quantum (Dilithium3 / ML-DSA-65) identity for the chat
  * client. PQ migration Increment 1 (v0.251).
  *
  * The chat identity's master secret is the 32-byte BIP39 seed (today
- * also the Ed25519 scalar — see crypto.js). From that SAME seed we
+ * also the Ed25519 scalar, see crypto.js). From that SAME seed we
  * deterministically derive a Dilithium3 keypair, using the exact
  * derivation the relay expects:
  *
@@ -11,14 +11,14 @@
  *   keypair = ML-DSA-65.keygen(seed32)
  *
  * Verified byte-for-byte against the Rust relay
- * (src/relay/core/pq_crypto.rs::dilithium_cross_language_kat) — if the
+ * (src/relay/core/pq_crypto.rs::dilithium_cross_language_kat), if the
  * KAT in scripts/pq-kat.mjs / that Rust test ever fails, DO NOT ship:
  * a mismatch makes every client PQ pubkey unverifiable by the relay.
  *
  * Increment 1 is ADDITIVE: we derive + present the Dilithium public key
  * at identify so the relay can record it alongside the Ed25519 key.
  * Ed25519 stays the canonical identity for now. Every step here is
- * best-effort — ANY failure (no WASM-free env, module load error,
+ * best-effort, ANY failure (no WASM-free env, module load error,
  * etc.) must leave the caller on the exact pre-PQ Ed25519 path. Never
  * throw out of the public helpers.
  *
@@ -51,7 +51,7 @@ async function _pqLoad() {
     return _pqMod;
   } catch (e) {
     _pqLoadFailed = true;
-    console.warn('PQ disabled — vendored bundle failed to load:', e && e.message);
+    console.warn('PQ disabled, vendored bundle failed to load:', e && e.message);
     return null;
   }
 }
@@ -68,7 +68,7 @@ async function pqDeriveIdentity(seed32) {
     const m = await _pqLoad();
     if (!m) return null;
     const ctx = new TextEncoder().encode(_PQ_DOMAIN_DILITHIUM);
-    // BLAKE3 derive_key mode — context MUST be the UTF-8 bytes of the
+    // BLAKE3 derive_key mode, context MUST be the UTF-8 bytes of the
     // domain string (noble@2.x rejects a JS string here; the relay uses
     // blake3::Hasher::new_derive_key(<same string>)).
     const dilSeed = m.blake3.create({ context: ctx, dkLen: 32 })
@@ -122,9 +122,9 @@ async function pqVerifyMessage(publicKey, messageBytes, signature) {
 
 /**
  * Derive the Kyber768 (ML-KEM-768) DM keypair from the 32-byte master
- * seed — the SAME seed the Dilithium identity uses. Byte-identical to
+ * seed, the SAME seed the Dilithium identity uses. Byte-identical to
  * the Rust relay (pq_crypto::derive_kyber_seed → KyberKeypair::from_seed)
- * and the native client (net::dm_pq) — locked by the cross-language KAT
+ * and the native client (net::dm_pq), locked by the cross-language KAT
  * in scripts/pq-kat.mjs + pq_crypto.rs::kyber_cross_language_kat.
  *
  *   kseed64 = BLAKE3.derive_key("hum/kyber768/v1", masterSeed)[..64]
@@ -158,7 +158,7 @@ const _b64 = {
 };
 
 /** BLAKE3.derive_key("hum/dm-aes/v1", sharedSecret) → 32-byte AES key.
- *  Identical KDF to net::dm_pq.rs (operator chose BLAKE3 over HKDF —
+ *  Identical KDF to net::dm_pq.rs (operator chose BLAKE3 over HKDF -
  *  already vendored both sides). */
 async function _dmAesKey(m, sharedSecret) {
   const ctx = new TextEncoder().encode(_PQ_DOMAIN_DM_AES);

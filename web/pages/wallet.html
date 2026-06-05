@@ -3,7 +3,7 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content="width=device-width, initial-scale=1.0">
-  <title>Wallet — HumanityOS</title>
+  <title>Wallet, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
@@ -189,7 +189,7 @@
   <div id="wallet-no-identity" class="wallet-no-identity" style="display:none;">
     <h2>Connect to the network first</h2>
     <p>Visit the <a href="/chat">Network</a> page to create or import your identity.<br>
-    Your identity key doubles as your Solana wallet — no extra setup needed.</p>
+    Your identity key doubles as your Solana wallet, no extra setup needed.</p>
   </div>
 
   <!-- Main wallet UI (hidden until identity confirmed) -->
@@ -203,7 +203,7 @@
     <!-- Tabs -->
     <div class="wallet-tabs" id="wallet-tabs">
       <button class="wallet-tab active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
-      <a href="/wallet-guide" class="wallet-help-link" title="Wallet Guide — learn how to use your wallet" style="margin-left:auto;display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);font-size:0.8rem;text-decoration:none;padding:var(--space-sm) var(--space-md);border-radius:6px;transition:color 0.2s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1.5px solid currentColor;border-radius:50%;font-weight:700;font-size:0.75rem">?</span> Guide</a>
+      <a href="/wallet-guide" class="wallet-help-link" title="Wallet Guide, learn how to use your wallet" style="margin-left:auto;display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);font-size:0.8rem;text-decoration:none;padding:var(--space-sm) var(--space-md);border-radius:6px;transition:color 0.2s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1.5px solid currentColor;border-radius:50%;font-weight:700;font-size:0.75rem">?</span> Guide</a>
       <button class="wallet-tab" data-tab="send" onclick="switchTab('send')">Send</button>
       <button class="wallet-tab" data-tab="swap" onclick="switchTab('swap')">Swap</button>
       <button class="wallet-tab" data-tab="stake" onclick="switchTab('stake')">Stake</button>
@@ -215,7 +215,7 @@
       <div class="panel">
         <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:var(--space-sm)">Solana Address</div>
         <div class="address-row">
-          <span id="sol-address">—</span>
+          <span id="sol-address">-</span>
           <button class="copy-btn" onclick="copyAddress()">Copy</button>
         </div>
         <div id="address-qr" class="qr-container" style="margin-top:var(--space-lg)"></div>
@@ -224,18 +224,18 @@
       <div class="panel">
         <div style="display:flex;align-items:baseline;gap:var(--space-md);flex-wrap:wrap">
           <div>
-            <div class="balance-main" id="balance-sol">— SOL</div>
+            <div class="balance-main" id="balance-sol">- SOL</div>
             <div class="balance-usd" id="balance-sol-usd"></div>
           </div>
           <div style="margin-left:auto;text-align:right">
             <div style="font-size:0.75rem;color:var(--text-muted)">Total Value</div>
-            <div style="font-size:1.3rem;font-weight:700" id="portfolio-total">—</div>
+            <div style="font-size:1.3rem;font-weight:700" id="portfolio-total">-</div>
           </div>
         </div>
         <div style="margin-top:var(--space-lg);border-top:1px solid var(--border);padding-top:var(--space-md)">
           <div class="balance-row" id="balance-usdc-row">
             <span class="balance-token">USDC</span>
-            <span class="balance-amount"><span class="amt" id="balance-usdc">—</span></span>
+            <span class="balance-amount"><span class="amt" id="balance-usdc">-</span></span>
           </div>
           <div id="other-tokens"></div>
         </div>
@@ -342,11 +342,11 @@
       <div class="stake-summary">
         <div class="stake-stat">
           <div class="label">Staked SOL</div>
-          <div class="value" id="staked-amount">—</div>
+          <div class="value" id="staked-amount">-</div>
         </div>
         <div class="stake-stat">
           <div class="label">Rewards Earned</div>
-          <div class="value" id="staked-rewards">—</div>
+          <div class="value" id="staked-rewards">-</div>
         </div>
         <div class="stake-stat">
           <div class="label">Estimated APY</div>
@@ -411,7 +411,7 @@
     <h3>Receive</h3>
     <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:var(--space-lg)">Share your Solana address to receive SOL, USDC, or other tokens.</p>
     <div class="address-row" style="margin-bottom:var(--space-lg)">
-      <span id="receive-address">—</span>
+      <span id="receive-address">-</span>
       <button class="copy-btn" onclick="copyAddress()">Copy</button>
     </div>
     <div id="receive-qr" class="qr-container"></div>
@@ -425,11 +425,11 @@
 <div class="wallet-modal-overlay" id="send-confirm-modal" onclick="if(event.target===this)closeSendModal()">
   <div class="wallet-modal">
     <h3>Confirm Send</h3>
-    <div class="modal-row"><span class="label">From</span><span class="value" id="confirm-from">—</span></div>
-    <div class="modal-row"><span class="label">To</span><span class="value" id="confirm-to">—</span></div>
-    <div class="modal-row"><span class="label">Amount</span><span class="value" id="confirm-amount">—</span></div>
+    <div class="modal-row"><span class="label">From</span><span class="value" id="confirm-from">-</span></div>
+    <div class="modal-row"><span class="label">To</span><span class="value" id="confirm-to">-</span></div>
+    <div class="modal-row"><span class="label">Amount</span><span class="value" id="confirm-amount">-</span></div>
     <div class="modal-row"><span class="label">Fee</span><span class="value" id="confirm-fee">~0.000005 SOL</span></div>
-    <div class="modal-row"><span class="label">USD Value</span><span class="value" id="confirm-usd">—</span></div>
+    <div class="modal-row"><span class="label">USD Value</span><span class="value" id="confirm-usd">-</span></div>
     <div id="send-high-value-warn" style="display:none;color:var(--warning);font-size:0.8rem;margin-top:var(--space-md);text-align:center">
       &#9888; Large transaction. Please double-check the recipient address.
     </div>
@@ -444,10 +444,10 @@
 <div class="wallet-modal-overlay" id="swap-confirm-modal" onclick="if(event.target===this)closeSwapModal()">
   <div class="wallet-modal">
     <h3>Confirm Swap</h3>
-    <div class="modal-row"><span class="label">You pay</span><span class="value" id="confirm-swap-input">—</span></div>
-    <div class="modal-row"><span class="label">You receive</span><span class="value" id="confirm-swap-output">—</span></div>
-    <div class="modal-row"><span class="label">Rate</span><span class="value" id="confirm-swap-rate">—</span></div>
-    <div class="modal-row"><span class="label">Slippage</span><span class="value" id="confirm-swap-slippage">—</span></div>
+    <div class="modal-row"><span class="label">You pay</span><span class="value" id="confirm-swap-input">-</span></div>
+    <div class="modal-row"><span class="label">You receive</span><span class="value" id="confirm-swap-output">-</span></div>
+    <div class="modal-row"><span class="label">Rate</span><span class="value" id="confirm-swap-rate">-</span></div>
+    <div class="modal-row"><span class="label">Slippage</span><span class="value" id="confirm-swap-slippage">-</span></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeSwapModal()">Cancel</button>
       <button class="btn-confirm" onclick="confirmSwap()" style="margin-top:0;width:auto;flex:1">Confirm Swap</button>

@@ -45,7 +45,7 @@ fn draw_header(ui: &mut egui::Ui, theme: &Theme) {
     );
     ui.add_space(theme.spacing_sm);
     ui.label(
-        RichText::new("Curated links — opens in your default browser")
+        RichText::new("Curated links, opens in your default browser")
             .size(theme.font_size_title)
             .color(theme.text_primary())
             .strong(),
@@ -55,7 +55,7 @@ fn draw_header(ui: &mut egui::Ui, theme: &Theme) {
         RichText::new(
             "These bookmarks are a stepping stone toward the in-app browser. \
              When that ships, the same list will load inside HumanityOS in an \
-             isolated tab with credentials stored in your encrypted vault — \
+             isolated tab with credentials stored in your encrypted vault, \
              so each site sees a clean profile and can't track you across \
              others. Until then, clicks hand off to your OS browser.",
         )

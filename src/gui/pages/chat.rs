@@ -308,7 +308,7 @@ fn draw_pins_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         }
 
         ui.label(
-            RichText::new(format!("{} pin(s) — pin/unpin via the 📌 button on each message.", pins.len()))
+            RichText::new(format!("{} pin(s), pin/unpin via the 📌 button on each message.", pins.len()))
                 .size(theme.font_size_small)
                 .color(theme.text_muted()),
         );
@@ -389,7 +389,7 @@ fn draw_search_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
         if state.chat_search_results.is_empty() {
             ui.label(
-                RichText::new("No results yet — type a query and hit Search.")
+                RichText::new("No results yet, type a query and hit Search.")
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
@@ -1853,7 +1853,7 @@ fn draw_studio_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // Header carries a LIVE badge at a glance (em-dash + text — both render
     // reliably in the bundled font; no risky glyphs).
-    let title = if live { "Studio — LIVE" } else { "Studio" };
+    let title = if live { "Studio, LIVE" } else { "Studio" };
     if section_header(ui, title, collapsed, theme.bg_tertiary()) {
         state.chat_studio_collapsed = !state.chat_studio_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
@@ -2326,7 +2326,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             let hint = if state.p2p_group_loading {
                                 "Loading…"
                             } else if state.p2p_group_chat_epoch_key.is_none() {
-                                "No epoch key yet. The group creator must open this group once to issue the first key — after that, everyone with an invite can read and write."
+                                "No epoch key yet. The group creator must open this group once to issue the first key, after that, everyone with an invite can read and write."
                             } else {
                                 "No messages yet. Your messages here are end-to-end encrypted under the group key."
                             };
@@ -2768,7 +2768,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // (past Þ, across timestamp text + existing reaction
                         // badges) on its way to the popup without falling
                         // into a "dead zone" that closes the popup.
-                        // Operator feedback 2026-05-12 — "the problem now
+                        // Operator feedback 2026-05-12, "the problem now
                         // is that I can't move the mouse off of the Þ
                         // without the reaction pill disappearing."
                         let popup_already_open_for_msg = state.chat_open_popup_ts == Some(target_ts);
@@ -4256,7 +4256,7 @@ fn draw_add_server_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
             ui.add(
                 egui::TextEdit::singleline(&mut state.add_server_name_draft)
                     .desired_width(280.0)
-                    .hint_text("(optional — derived from URL if blank)"),
+                    .hint_text("(optional, derived from URL if blank)"),
             );
         });
 
@@ -4437,7 +4437,7 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
             ui.label(RichText::new("✅ Group created").strong());
             ui.add_space(theme.spacing_xs);
             ui.label(
-                RichText::new("Share this invite ticket (valid 7 days). It's signed by you, so members can join even when you're offline. Anyone with this string can join — keep it private to the people you mean to invite.")
+                RichText::new("Share this invite ticket (valid 7 days). It's signed by you, so members can join even when you're offline. Anyone with this string can join, keep it private to the people you mean to invite.")
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
@@ -4495,7 +4495,7 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                 RichText::new(
                     "New members only see messages sent after they join.\n\
                      + Past conversations stay between who was there\n\
-                     + Stronger forward secrecy — re-keys on each join\n\
+                     + Stronger forward secrecy, re-keys on each join\n\
                      - Newcomers start with no context",
                 )
                 .size(theme.font_size_small)
@@ -4506,9 +4506,9 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
             ui.label(
                 RichText::new(
                     "New members can read the full history from before they joined.\n\
-                     + Newcomers get full context — good for onboarding\n\
+                     + Newcomers get full context, good for onboarding\n\
                      - Anyone invited later can read earlier messages\n\
-                     - Weaker forward secrecy — the key is not rotated on join",
+                     - Weaker forward secrecy, the key is not rotated on join",
                 )
                 .size(theme.font_size_small)
                 .color(theme.text_muted()),
@@ -4556,7 +4556,7 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                             Ok((group_id, ticket)) => {
                                 state.create_group_ticket = Some(ticket);
                                 state.create_group_status.clear();
-                                log::info!("P2P group created ({}) — first invite minted", group_id);
+                                log::info!("P2P group created ({}), first invite minted", group_id);
                                 crate::debug::push_debug(format!("P2P group create: {} ({})", name, group_id));
                                 // Refresh the projection cache so the new group
                                 // appears in the left panel when the modal closes.
@@ -4618,7 +4618,7 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
             }
         } else {
             ui.label(
-                RichText::new("Paste an invite ticket — the long base64 string from a group creator. The creator's signature inside lets you join even when they're offline.")
+                RichText::new("Paste an invite ticket, the long base64 string from a group creator. The creator's signature inside lets you join even when they're offline.")
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
@@ -4854,7 +4854,7 @@ pub(crate) fn spawn_group_load(state: &mut GuiState, group_id: &str, fresh: bool
     let seed = match state.private_key_bytes.clone() {
         Some(s) if !s.is_empty() => s,
         _ => {
-            state.p2p_group_invite_status = "Connect first — no identity loaded.".to_string();
+            state.p2p_group_invite_status = "Connect first, no identity loaded.".to_string();
             return;
         }
     };
@@ -5001,7 +5001,7 @@ fn mint_and_copy_p2p_invite(
     let seed = match state.private_key_bytes.clone() {
         Some(s) if !s.is_empty() => s,
         _ => {
-            state.p2p_group_invite_status = "Connect first — no identity loaded.".to_string();
+            state.p2p_group_invite_status = "Connect first, no identity loaded.".to_string();
             return;
         }
     };
@@ -5018,7 +5018,7 @@ fn mint_and_copy_p2p_invite(
         Ok(invite_id) => {
             let ticket = crate::net::api_v2::encode_invite_ticket(group_id, group_name, &invite_id, &secret);
             ctx.copy_text(ticket);
-            state.p2p_group_invite_status = "Invite ticket copied — share within 7 days.".to_string();
+            state.p2p_group_invite_status = "Invite ticket copied, share within 7 days.".to_string();
         }
         Err(e) => {
             state.p2p_group_invite_status = format!("Invite failed: {e}");
@@ -5034,7 +5034,7 @@ fn leave_p2p_group(state: &mut GuiState, group_id: &str) {
     let seed = match state.private_key_bytes.clone() {
         Some(s) if !s.is_empty() => s,
         _ => {
-            state.p2p_group_invite_status = "Connect first — no identity loaded.".to_string();
+            state.p2p_group_invite_status = "Connect first, no identity loaded.".to_string();
             return;
         }
     };
@@ -5064,7 +5064,7 @@ fn disband_p2p_group(state: &mut GuiState, group_id: &str) {
     let seed = match state.private_key_bytes.clone() {
         Some(s) if !s.is_empty() => s,
         _ => {
-            state.p2p_group_invite_status = "Connect first — no identity loaded.".to_string();
+            state.p2p_group_invite_status = "Connect first, no identity loaded.".to_string();
             return;
         }
     };
@@ -5106,7 +5106,7 @@ fn send_p2p_group_message(state: &mut GuiState, channel: &str, content: &str) ->
     let seed = match state.private_key_bytes.clone() {
         Some(s) if !s.is_empty() => s,
         _ => {
-            state.p2p_group_invite_status = "Connect first — no identity loaded.".to_string();
+            state.p2p_group_invite_status = "Connect first, no identity loaded.".to_string();
             return false;
         }
     };
@@ -5114,7 +5114,7 @@ fn send_p2p_group_message(state: &mut GuiState, channel: &str, content: &str) ->
         Some(k) => k,
         None => {
             state.p2p_group_invite_status =
-                "No epoch key yet — the creator must open the group once first.".to_string();
+                "No epoch key yet, the creator must open the group once first.".to_string();
             return false;
         }
     };
@@ -5252,7 +5252,7 @@ pub(crate) fn handle_p2p_group_obj(state: &mut GuiState, _peer: &str, frame_text
     let verified = match crate::net::api_v2::verify_submission_json(&submission_json) {
         Some(v) => v,
         None => {
-            log::debug!("p2p_group_obj: signature verify FAILED — dropping");
+            log::debug!("p2p_group_obj: signature verify FAILED, dropping");
             return true;
         }
     };
@@ -5276,7 +5276,7 @@ pub(crate) fn handle_p2p_group_obj(state: &mut GuiState, _peer: &str, frame_text
     // (5) Membership gate: the author must be in the active roster. fp_to_key's
     //     keys are author fingerprints; its values are the roster pubkey hexes.
     if !state.p2p_group_fp_to_key.contains_key(&verified.author_fp) {
-        log::debug!("p2p_group_obj: author not in roster — dropping");
+        log::debug!("p2p_group_obj: author not in roster, dropping");
         return true;
     }
 
@@ -5293,7 +5293,7 @@ pub(crate) fn handle_p2p_group_obj(state: &mut GuiState, _peer: &str, frame_text
         Ok(t) => t,
         Err(e) => {
             // Wrong epoch key (e.g. a re-key the poll hasn't applied) → drop.
-            log::debug!("p2p_group_obj: decrypt failed (epoch mismatch?) — dropping: {e}");
+            log::debug!("p2p_group_obj: decrypt failed (epoch mismatch?), dropping: {e}");
             return true;
         }
     };
@@ -6040,11 +6040,11 @@ impl TimestampFormat {
     /// Human label for the settings dropdown (with a live example).
     pub fn label(self) -> &'static str {
         match self {
-            TimestampFormat::HourMin => "Time — 17:42",
-            TimestampFormat::HourMinSec => "Time + seconds — 17:42:09",
-            TimestampFormat::DateHourMin => "Date + time — 2026-05-29 17:42",
-            TimestampFormat::DateHourMinSec => "Date + time + seconds — 2026-05-29 17:42:09",
-            TimestampFormat::Full => "Full + milliseconds — 2026-05-29 17:42:09.123",
+            TimestampFormat::HourMin => "Time, 17:42",
+            TimestampFormat::HourMinSec => "Time + seconds, 17:42:09",
+            TimestampFormat::DateHourMin => "Date + time, 2026-05-29 17:42",
+            TimestampFormat::DateHourMinSec => "Date + time + seconds, 2026-05-29 17:42:09",
+            TimestampFormat::Full => "Full + milliseconds, 2026-05-29 17:42:09.123",
         }
     }
     pub const ALL: [TimestampFormat; 5] = [
@@ -6309,8 +6309,8 @@ pub(crate) fn draw_unencrypted_dm_modal(ctx: &egui::Context, theme: &Theme, stat
     };
 
     let reason_human = match pending.reason.as_str() {
-        "no_own_key" => "Your identity isn't unlocked on this device — recover from your seed phrase to send encrypted DMs.",
-        "missing_peer_key" => "We don't have the recipient's post-quantum key yet — they may not have come online with a current client, or their key broadcast hasn't reached us.",
+        "no_own_key" => "Your identity isn't unlocked on this device, recover from your seed phrase to send encrypted DMs.",
+        "missing_peer_key" => "We don't have the recipient's post-quantum key yet, they may not have come online with a current client, or their key broadcast hasn't reached us.",
         "bad_own_key" =>
             "Your post-quantum key could not be derived on this device. Try Identity → Recover.",
         "encryption_failed" => "Encryption failed unexpectedly.",
@@ -6384,7 +6384,7 @@ pub(crate) fn draw_unencrypted_dm_modal(ctx: &egui::Context, theme: &Theme, stat
                 });
             ui.add_space(theme.spacing_md);
             ui.horizontal(|ui| {
-                if widgets::Button::secondary("Cancel — keep it private")
+                if widgets::Button::secondary("Cancel, keep it private")
                     .tooltip("Don't send. The message is restored to your input box so you can wait for the recipient's encryption key, edit, or copy it elsewhere.")
                     .show(ui, theme)
                 {

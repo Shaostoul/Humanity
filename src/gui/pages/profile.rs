@@ -344,7 +344,7 @@ fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if !has_active && !has_completed {
         widgets::card(ui, theme, |ui| {
             ui.label(
-                RichText::new("No quests yet — start a game session to receive your first quest.")
+                RichText::new("No quests yet, start a game session to receive your first quest.")
                     .size(theme.font_size_body)
                     .color(theme.text_muted()),
             );

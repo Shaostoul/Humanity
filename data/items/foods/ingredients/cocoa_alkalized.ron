@@ -10,7 +10,7 @@
     sources: [
         "https://www.fda.gov/",
         "https://en.wikipedia.org/wiki/Theobromine",
-        "Veterinary Toxicology — Theobromine in dogs",
+        "Veterinary Toxicology, Theobromine in dogs",
     ],
     last_verified: "2026-04-25",
 
@@ -18,7 +18,7 @@
         "human_adult": {
             "ingested": (
                 verdict: "safe_in_moderation",
-                details: "Methylxanthines in cocoa are mood-altering at high dose. 1g/kg of pure theobromine can cause headaches, insomnia, sweating; cocoa powder is ~1-2% theobromine so equivalent dose is ~50g/kg of pure cocoa — never reached in food.",
+                details: "Methylxanthines in cocoa are mood-altering at high dose. 1g/kg of pure theobromine can cause headaches, insomnia, sweating; cocoa powder is ~1-2% theobromine so equivalent dose is ~50g/kg of pure cocoa, never reached in food.",
                 lethal_dose_mg_kg: Some(1000.0),
                 notes: ["acute lethality requires kilogram-scale ingestion"],
             ),

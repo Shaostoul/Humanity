@@ -40,7 +40,7 @@
         available_sizes: ["1x1", "2x2", "3x3", "5x5", "8x8", "13x13", "21x21"],
     ),
 
-    // Fibonacci room presets — each room follows the golden ratio spiral
+    // Fibonacci room presets, each room follows the golden ratio spiral
     rooms: (
         fibonacci_rooms: [
             (name: "F1_Computer",   size_m: (1.0, 1.0, 3.0),   purpose: "Computer"),

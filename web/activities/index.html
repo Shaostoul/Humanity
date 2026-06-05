@@ -865,7 +865,7 @@
 
   <div class="panel" style="margin-bottom:1rem;">
    <h2>🟢 Reality</h2>
-   <p>Your real-world dashboard. Knowledge base, catalogs, and personal tools — all local-first.</p>
+   <p>Your real-world dashboard. Knowledge base, catalogs, and personal tools, all local-first.</p>
   </div>
 
   <!-- ── Skill DNA ── -->
@@ -929,17 +929,17 @@
     <details style="margin-top:1rem;">
      <summary style="cursor:pointer;font-size:0.85rem;font-weight:600;color:var(--accent);padding:0.4rem 0;">📡 Recommended Monitoring Hardware</summary>
      <div style="font-size:0.78rem;color:var(--text-muted);line-height:1.8;padding:0.5rem 0;">
-      <strong>pH Meters:</strong> Apera PH20, Bluelab pH Pen (~$50-100) — manual dip readings<br>
-      <strong>EC/TDS Meters:</strong> Apera EC20, HM Digital (~$20-50) — nutrient concentration<br>
-      <strong>Temp/Humidity:</strong> Govee H5075 (Bluetooth, ~$12) — ambient monitoring<br>
+      <strong>pH Meters:</strong> Apera PH20, Bluelab pH Pen (~$50-100), manual dip readings<br>
+      <strong>EC/TDS Meters:</strong> Apera EC20, HM Digital (~$20-50), nutrient concentration<br>
+      <strong>Temp/Humidity:</strong> Govee H5075 (Bluetooth, ~$12), ambient monitoring<br>
       <strong>Soil Moisture:</strong> Xiaomi Flora (~$15) or capacitive probes<br>
       <strong>Light Meter (PAR):</strong> Photone app (free) or Apogee MQ-500 (~$500)<br>
       <strong>Water Level:</strong> Ultrasonic HC-SR04 (~$3) with Arduino/ESP32<br>
-      <strong>DO Meter:</strong> Milwaukee MW600 (~$80) — dissolved oxygen for hydro/aqua<br>
+      <strong>DO Meter:</strong> Milwaukee MW600 (~$80), dissolved oxygen for hydro/aqua<br>
       <strong>CO2 Sensor:</strong> SCD30/SCD40 (~$30-50) with ESP32<br>
-      <strong>All-in-one:</strong> Ecowitt weather station (~$80) — temp, humidity, soil moisture, rainfall<br>
+      <strong>All-in-one:</strong> Ecowitt weather station (~$80), temp, humidity, soil moisture, rainfall<br>
       <strong>Camera:</strong> ESP32-CAM (~$5) for timelapse/visual monitoring<br>
-      <strong>Smart Plugs:</strong> Kasa/Wemo (~$10) — automate pumps, lights, fans
+      <strong>Smart Plugs:</strong> Kasa/Wemo (~$10), automate pumps, lights, fans
      </div>
     </details>
    </div>
@@ -962,9 +962,9 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
      <div><label>Type</label><select id="gz-type">
       <option value="field">Field</option><option value="raised_bed">Raised Bed</option>
-      <option value="container">Container/Pot</option><option value="hydro_dwc">Hydro — DWC</option>
-      <option value="hydro_nft">Hydro — NFT</option><option value="hydro_drip">Hydro — Drip</option>
-      <option value="hydro_ebb_flow">Hydro — Ebb &amp; Flow</option>
+      <option value="container">Container/Pot</option><option value="hydro_dwc">Hydro, DWC</option>
+      <option value="hydro_nft">Hydro, NFT</option><option value="hydro_drip">Hydro, Drip</option>
+      <option value="hydro_ebb_flow">Hydro, Ebb &amp; Flow</option>
       <option value="aeroponic">Aeroponic</option><option value="aquaponic">Aquaponic</option>
      </select></div>
      <div><label>Location</label><select id="gz-location">
@@ -1076,7 +1076,7 @@
   <div class="panel reality-card" id="reality-worlddash">
    <h2 class="reality-card-header" onclick="toggleRealityCard('worlddash')"><span class="pg-ico" data-icon="globe" data-size="18"></span> World Dashboard <span class="collapse-icon" id="worlddash-collapse">▼</span></h2>
    <div class="reality-card-body" id="worlddash-body">
-    <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;">Humanity's aggregate resource status — real data from USGS 2024, World Bank, FAO.</div>
+    <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;">Humanity's aggregate resource status, real data from USGS 2024, World Bank, FAO.</div>
     <div id="world-dash-content" style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
      <div style="background:var(--bg-input);border-radius:8px;padding:0.6rem;">
       <div style="font-weight:700;font-size:0.8rem;margin-bottom:0.3rem;">⛏️ Mining Output</div>
@@ -1152,7 +1152,7 @@
   <div class="panel reality-card" id="reality-inventory">
    <h2 class="reality-card-header" onclick="toggleRealityCard('inventory')">📦 Personal Inventory <span class="collapse-icon" id="inventory-collapse">▼</span></h2>
    <div class="reality-card-body" id="inventory-body">
-    <div class="inv-privacy-banner"><span class="pg-ico" data-icon="lock" data-size="14"></span> Private — stored only on this device, never uploaded</div>
+    <div class="inv-privacy-banner"><span class="pg-ico" data-icon="lock" data-size="14"></span> Private, stored only on this device, never uploaded</div>
     <div class="inv-toolbar">
      <button onclick="openInventoryModal()" style="background:var(--accent);color:var(--text);border:none;padding:0.35rem 0.8rem;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">+ Add Item</button>
      <select id="inv-category-filter" onchange="renderInventory()" style="min-width:100px;">
@@ -1275,7 +1275,7 @@
  <div id="tab-fantasy" class="tab-content">
   <div class="panel" style="border-color:rgba(120,80,200,0.3);">
    <h2 style="color:var(--fantasy-accent,#9966ff);">✨ Fantasy</h2>
-   <p>The game side of Humanity. Your character, the world lore, and achievements — all stored locally. The adventure begins here.</p>
+   <p>The game side of Humanity. Your character, the world lore, and achievements, all stored locally. The adventure begins here.</p>
   </div>
   <div class="card-grid">
 
@@ -1288,7 +1288,7 @@
       "The world is being built…"
      </p>
      <p style="font-size:0.8rem;color:var(--text-muted);text-align:center;line-height:1.6;">
-      In the age before networks, humanity was scattered — isolated villages of thought, unable to share their fire.<br>
+      In the age before networks, humanity was scattered, isolated villages of thought, unable to share their fire.<br>
       Now the map fills itself, one connection at a time.
      </p>
     </div>
@@ -1378,7 +1378,7 @@
     <!-- Nearby stars (shown in system view) -->
     <div id="cel-nearby" style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-muted);"></div>
     <p style="text-align:center;margin-top:0.6rem;font-size:0.7rem;color:var(--text-muted);">Click stars/planets to inspect · Scroll to zoom · Drag to pan · Double-click to enter system</p>
-    <p style="text-align:center;margin-top:0.3rem;font-size:0.75rem;color:#6cc;">🧘 For the full astral projection experience with Earth maps, weather, and GPS — open the <a href="/map" onclick="if(typeof switchTab==='function'){switchTab('map');return false;}" style="color:var(--accent);text-decoration:underline;cursor:pointer;"><span class="pg-ico" data-icon="map" data-size="14"></span> Map tab</a></p>
+    <p style="text-align:center;margin-top:0.3rem;font-size:0.75rem;color:#6cc;">🧘 For the full astral projection experience with Earth maps, weather, and GPS, open the <a href="/map" onclick="if(typeof switchTab==='function'){switchTab('map');return false;}" style="color:var(--accent);text-decoration:underline;cursor:pointer;"><span class="pg-ico" data-icon="map" data-size="14"></span> Map tab</a></p>
    </div>
   </div>
 
@@ -1817,10 +1817,10 @@
    <h2>🖥️ Server Info</h2>
    <div class="info-body">
     <div class="stat-grid" id="info-stats">
-     <div class="stat-card"><div class="stat-val" id="info-online">—</div><div class="stat-label">Online</div></div>
-     <div class="stat-card"><div class="stat-val" id="info-registered">—</div><div class="stat-label">Registered</div></div>
-     <div class="stat-card"><div class="stat-val" id="info-uptime">—</div><div class="stat-label">Uptime</div></div>
-     <div class="stat-card"><div class="stat-val" id="info-version">—</div><div class="stat-label">Version</div></div>
+     <div class="stat-card"><div class="stat-val" id="info-online">-</div><div class="stat-label">Online</div></div>
+     <div class="stat-card"><div class="stat-val" id="info-registered">-</div><div class="stat-label">Registered</div></div>
+     <div class="stat-card"><div class="stat-val" id="info-uptime">-</div><div class="stat-label">Uptime</div></div>
+     <div class="stat-card"><div class="stat-val" id="info-version">-</div><div class="stat-label">Version</div></div>
     </div>
    </div>
   </div>
@@ -1869,7 +1869,7 @@
    <div class="info-body">
     <div class="role-card">
      <h3>Viewers️ Follow</h3>
-     <div class="perms">One-way — shows you care. Use <code>/follow &lt;name&gt;</code>. Right-click a user for quick follow.</div>
+     <div class="perms">One-way, shows you care. Use <code>/follow &lt;name&gt;</code>. Right-click a user for quick follow.</div>
     </div>
     <div class="role-card">
      <h3>🤝 Friends (Mutual Follow)</h3>
@@ -1877,7 +1877,7 @@
     </div>
     <div class="role-card">
      <h3>🚫 Block</h3>
-     <div class="perms">Client-side — hides their messages from your view. Use <code>/block &lt;name&gt;</code>.</div>
+     <div class="perms">Client-side, hides their messages from your view. Use <code>/block &lt;name&gt;</code>.</div>
     </div>
    </div>
   </div>
@@ -1890,7 +1890,7 @@
      <div class="perms">
       <strong>Messages:</strong> Fibonacci rate limiting (1,1,2,3,5,8… second delays on rapid posting)<br>
       <strong>New accounts:</strong> 5s minimum delay for first 10 minutes<br>
-      <strong>Uploads:</strong> 2/minute, 4 image max per user (FIFO — oldest replaced)<br>
+      <strong>Uploads:</strong> 2/minute, 4 image max per user (FIFO, oldest replaced)<br>
       <strong>API:</strong> 10 req/s general, 5 req/s for read endpoints
      </div>
     </div>
@@ -1903,73 +1903,73 @@
    <div class="info-body">
     <div class="cmd-group">
      <h4>👥 Social</h4>
-     <div class="cmd-row"><code>/follow &lt;name&gt;</code> — Follow a user</div>
-     <div class="cmd-row"><code>/unfollow &lt;name&gt;</code> — Unfollow a user</div>
-     <div class="cmd-row"><code>/block &lt;name&gt;</code> — Block a user</div>
-     <div class="cmd-row"><code>/unblock &lt;name&gt;</code> — Unblock a user</div>
-     <div class="cmd-row"><code>/blocklist</code> — Show blocked users</div>
+     <div class="cmd-row"><code>/follow &lt;name&gt;</code>, Follow a user</div>
+     <div class="cmd-row"><code>/unfollow &lt;name&gt;</code>, Unfollow a user</div>
+     <div class="cmd-row"><code>/block &lt;name&gt;</code>, Block a user</div>
+     <div class="cmd-row"><code>/unblock &lt;name&gt;</code>, Unblock a user</div>
+     <div class="cmd-row"><code>/blocklist</code>, Show blocked users</div>
     </div>
     <div class="cmd-group">
      <h4><span class="pg-ico" data-icon="chat" data-size="16"></span> DMs & Groups</h4>
-     <div class="cmd-row"><code>/dm &lt;name&gt; &lt;msg&gt;</code> — Send a direct message</div>
-     <div class="cmd-row"><code>/dms</code> — List DM conversations</div>
-     <div class="cmd-row"><code>/group-create &lt;name&gt;</code> — Create a group chat</div>
-     <div class="cmd-row"><code>/group-join &lt;code&gt;</code> — Join group by invite code</div>
-     <div class="cmd-row"><code>/group-invite</code> — Copy current group's invite code</div>
-     <div class="cmd-row"><code>/group-leave</code> — Leave current group</div>
+     <div class="cmd-row"><code>/dm &lt;name&gt; &lt;msg&gt;</code>, Send a direct message</div>
+     <div class="cmd-row"><code>/dms</code>, List DM conversations</div>
+     <div class="cmd-row"><code>/group-create &lt;name&gt;</code>, Create a group chat</div>
+     <div class="cmd-row"><code>/group-join &lt;code&gt;</code>, Join group by invite code</div>
+     <div class="cmd-row"><code>/group-invite</code>, Copy current group's invite code</div>
+     <div class="cmd-row"><code>/group-leave</code>, Leave current group</div>
     </div>
     <div class="cmd-group">
      <h4>✏️ Profile</h4>
-     <div class="cmd-row"><code>/bio &lt;text&gt;</code> — Set your bio</div>
-     <div class="cmd-row"><code>/social &lt;platform&gt; &lt;handle&gt;</code> — Set social link</div>
-     <div class="cmd-row"><code>/profile</code> — Edit profile</div>
-     <div class="cmd-row"><code>/name &lt;name&gt;</code> — Change display name</div>
+     <div class="cmd-row"><code>/bio &lt;text&gt;</code>, Set your bio</div>
+     <div class="cmd-row"><code>/social &lt;platform&gt; &lt;handle&gt;</code>, Set social link</div>
+     <div class="cmd-row"><code>/profile</code>, Edit profile</div>
+     <div class="cmd-row"><code>/name &lt;name&gt;</code>, Change display name</div>
     </div>
     <div class="cmd-group">
      <h4>📌 Pins</h4>
-     <div class="cmd-row"><code>/pin</code> — Pin the last message (mod/admin)</div>
-     <div class="cmd-row"><code>/unpin &lt;N&gt;</code> — Unpin by index (mod/admin)</div>
-     <div class="cmd-row"><code>/mypin</code> — Pin your last message (for yourself)</div>
-     <div class="cmd-row"><code>/unmypin &lt;N&gt;</code> — Unpin your pin by index</div>
-     <div class="cmd-row"><code>/pins</code> — View pins</div>
+     <div class="cmd-row"><code>/pin</code>, Pin the last message (mod/admin)</div>
+     <div class="cmd-row"><code>/unpin &lt;N&gt;</code>, Unpin by index (mod/admin)</div>
+     <div class="cmd-row"><code>/mypin</code>, Pin your last message (for yourself)</div>
+     <div class="cmd-row"><code>/unmypin &lt;N&gt;</code>, Unpin your pin by index</div>
+     <div class="cmd-row"><code>/pins</code>, View pins</div>
     </div>
     <div class="cmd-group">
      <h4>📞 Voice</h4>
-     <div class="cmd-row"><code>/call</code> — Start a voice call (or use 📞 button)</div>
+     <div class="cmd-row"><code>/call</code>, Start a voice call (or use 📞 button)</div>
     </div>
     <div class="cmd-group">
      <h4>🛡️ Moderation</h4>
-     <div class="cmd-row"><code>/kick &lt;name&gt;</code> — Disconnect a user</div>
-     <div class="cmd-row"><code>/mute &lt;name&gt;</code> — Mute a user</div>
-     <div class="cmd-row"><code>/ban &lt;name&gt;</code> — Ban a user</div>
-     <div class="cmd-row"><code>/report &lt;name&gt; [reason]</code> — Report a user</div>
+     <div class="cmd-row"><code>/kick &lt;name&gt;</code>, Disconnect a user</div>
+     <div class="cmd-row"><code>/mute &lt;name&gt;</code>, Mute a user</div>
+     <div class="cmd-row"><code>/ban &lt;name&gt;</code>, Ban a user</div>
+     <div class="cmd-row"><code>/report &lt;name&gt; [reason]</code>, Report a user</div>
     </div>
     <div class="cmd-group">
      <h4>👑 Admin</h4>
-     <div class="cmd-row"><code>/verify &lt;name&gt;</code> — Verify a user</div>
-     <div class="cmd-row"><code>/unverify &lt;name&gt;</code> — Remove verified</div>
-     <div class="cmd-row"><code>/mod &lt;name&gt;</code> — Promote to moderator</div>
-     <div class="cmd-row"><code>/unmod &lt;name&gt;</code> — Remove moderator</div>
-     <div class="cmd-row"><code>/donor &lt;name&gt;</code> — Set donor role</div>
-     <div class="cmd-row"><code>/lockdown</code> — Toggle registration lock</div>
-     <div class="cmd-row"><code>/channel-create &lt;name&gt; [desc]</code> — Create channel</div>
-     <div class="cmd-row"><code>/channel-delete &lt;name&gt;</code> — Delete channel</div>
-     <div class="cmd-row"><code>/wipe</code> — Delete all chat history</div>
+     <div class="cmd-row"><code>/verify &lt;name&gt;</code>, Verify a user</div>
+     <div class="cmd-row"><code>/unverify &lt;name&gt;</code>, Remove verified</div>
+     <div class="cmd-row"><code>/mod &lt;name&gt;</code>, Promote to moderator</div>
+     <div class="cmd-row"><code>/unmod &lt;name&gt;</code>, Remove moderator</div>
+     <div class="cmd-row"><code>/donor &lt;name&gt;</code>, Set donor role</div>
+     <div class="cmd-row"><code>/lockdown</code>, Toggle registration lock</div>
+     <div class="cmd-row"><code>/channel-create &lt;name&gt; [desc]</code>, Create channel</div>
+     <div class="cmd-row"><code>/channel-delete &lt;name&gt;</code>, Delete channel</div>
+     <div class="cmd-row"><code>/wipe</code>, Delete all chat history</div>
     </div>
     <div class="cmd-group">
      <h4>🔧 Utility</h4>
-     <div class="cmd-row"><code>/help</code> — Show help</div>
-     <div class="cmd-row"><code>/export</code> — Download identity backup</div>
-     <div class="cmd-row"><code>/link</code> — Link another device</div>
-     <div class="cmd-row"><code>/revoke &lt;key&gt;</code> — Remove a device</div>
-     <div class="cmd-row"><code>/users</code> — List all users</div>
+     <div class="cmd-row"><code>/help</code>, Show help</div>
+     <div class="cmd-row"><code>/export</code>, Download identity backup</div>
+     <div class="cmd-row"><code>/link</code>, Link another device</div>
+     <div class="cmd-row"><code>/revoke &lt;key&gt;</code>, Remove a device</div>
+     <div class="cmd-row"><code>/users</code>, List all users</div>
     </div>
    </div>
   </div>
 
  </div>
 
- <!-- Source Tab — NOTE: add /source to nginx hub regex for routing -->
+ <!-- Source Tab, NOTE: add /source to nginx hub regex for routing -->
  <div id="tab-source" class="tab-content" style="padding:1.5rem;">
   <style>
    #tab-source .info-section { margin-bottom:1.5rem; }
@@ -2009,7 +2009,7 @@
      <div class="big-statement">Humanity is 100% open source and public domain (CC0-1.0)</div>
      <div class="sub-statement">Anyone can use, modify, and distribute this code for any purpose.<br>No permission needed. No strings attached.</div>
      <div class="btn-row">
-      <a href="https://github.com/Shaostoul/Humanity" target="_blank" class="src-btn gh">⭐ GitHub — Shaostoul/Humanity</a>
+      <a href="https://github.com/Shaostoul/Humanity" target="_blank" class="src-btn gh">⭐ GitHub, Shaostoul/Humanity</a>
       <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" class="src-btn" style="background:var(--text-muted);">📄 CC0 1.0 License</a>
      </div>
     </div>
@@ -2023,11 +2023,11 @@
     <div class="src-card">
      <div class="big-statement" style="font-size:1rem;">Wholesomely aiding humanity's betterment</div>
      <ul>
-      <li><span class="pg-ico" data-icon="lock" data-size="14"></span> <strong>Privacy first</strong> — No tracking, no accounts. Your identity is your keys.</li>
-      <li>🗣️ <strong>Free speech</strong> — No censorship. Line drawn at genuine threats and predatory harassment.</li>
-      <li>🔞 <strong>18+ community</strong> — Mature, responsible communication.</li>
-      <li>💛 <strong>Unconditional love</strong> — For all life.</li>
-      <li>✨ <strong>The 7 heavenly virtues</strong> — Chastity, temperance, charity, diligence, patience, kindness, humility.</li>
+      <li><span class="pg-ico" data-icon="lock" data-size="14"></span> <strong>Privacy first</strong>, No tracking, no accounts. Your identity is your keys.</li>
+      <li>🗣️ <strong>Free speech</strong>, No censorship. Line drawn at genuine threats and predatory harassment.</li>
+      <li>🔞 <strong>18+ community</strong>, Mature, responsible communication.</li>
+      <li>💛 <strong>Unconditional love</strong>, For all life.</li>
+      <li>✨ <strong>The 7 heavenly virtues</strong>, Chastity, temperance, charity, diligence, patience, kindness, humility.</li>
      </ul>
      <div class="btn-row">
       <a href="https://shaostoul.github.io/Humanity" target="_blank" class="src-btn" style="background:var(--text-muted);">📖 Read the Full Accord</a>
@@ -2042,11 +2042,11 @@
    <div class="info-body">
     <div class="src-card">
      <div class="arch-grid">
-      <div class="arch-box"><h4>🔑 Identity</h4><p>Ed25519 key pairs stored in your browser — no accounts, no passwords</p></div>
-      <div class="arch-box"><h4>🔏 Encryption</h4><p>Messages signed cryptographically — tamper-proof</p></div>
+      <div class="arch-box"><h4>🔑 Identity</h4><p>Ed25519 key pairs stored in your browser, no accounts, no passwords</p></div>
+      <div class="arch-box"><h4>🔏 Encryption</h4><p>Messages signed cryptographically, tamper-proof</p></div>
       <div class="arch-box"><h4>📡 Communication</h4><p>WebSocket relay for group chat, WebRTC P2P for voice/video</p></div>
       <div class="arch-box"><h4>💾 Storage</h4><p>SQLite on server, localStorage + IndexedDB on client</p></div>
-      <div class="arch-box"><h4>🌐 Federation</h4><p>Servers can link together — your identity works everywhere</p></div>
+      <div class="arch-box"><h4>🌐 Federation</h4><p>Servers can link together, your identity works everywhere</p></div>
      </div>
      <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.8rem;"><strong>Tech stack:</strong></p>
      <div class="tech-tags">
@@ -2066,12 +2066,12 @@
     <div class="src-card">
      <p style="font-size:0.95rem;color:var(--text);font-weight:600;">Everyone can help, not just programmers</p>
      <ul>
-      <li>🐛 <strong>Report bugs</strong> — Use <code style="background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:3px;color:var(--accent);">/report</code> in chat or <a href="https://github.com/Shaostoul/Humanity/issues" target="_blank" style="color:var(--accent);">GitHub Issues</a></li>
-      <li>💡 <strong>Suggest features</strong> — Chat in #dev or <a href="https://github.com/Shaostoul/Humanity/discussions" target="_blank" style="color:var(--accent);">GitHub Discussions</a></li>
-      <li>🔧 <strong>Write code</strong> — Fork, hack, PR — it's CC0, go wild</li>
-      <li>📖 <strong>Improve docs</strong> — Website at <a href="https://shaostoul.github.io/Humanity" target="_blank" style="color:var(--accent);">shaostoul.github.io/Humanity</a></li>
-      <li>🧪 <strong>Test features</strong> — Just use the app and tell us what breaks</li>
-      <li>💰 <strong>Donate</strong> — Support development directly</li>
+      <li>🐛 <strong>Report bugs</strong>, Use <code style="background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:3px;color:var(--accent);">/report</code> in chat or <a href="https://github.com/Shaostoul/Humanity/issues" target="_blank" style="color:var(--accent);">GitHub Issues</a></li>
+      <li>💡 <strong>Suggest features</strong>, Chat in #dev or <a href="https://github.com/Shaostoul/Humanity/discussions" target="_blank" style="color:var(--accent);">GitHub Discussions</a></li>
+      <li>🔧 <strong>Write code</strong>, Fork, hack, PR, it's CC0, go wild</li>
+      <li>📖 <strong>Improve docs</strong>, Website at <a href="https://shaostoul.github.io/Humanity" target="_blank" style="color:var(--accent);">shaostoul.github.io/Humanity</a></li>
+      <li>🧪 <strong>Test features</strong>, Just use the app and tell us what breaks</li>
+      <li>💰 <strong>Donate</strong>, Support development directly</li>
      </ul>
      <div class="btn-row">
       <a href="https://github.com/sponsors/Shaostoul" target="_blank" class="src-btn donate">❤️ GitHub Sponsors</a>
@@ -2087,10 +2087,10 @@
    <h2>Quality Project Stats</h2>
    <div class="info-body">
     <div class="stat-grid">
-     <div class="stat-card"><div class="stat-val" id="src-online">—</div><div class="stat-label">Online Now</div></div>
-     <div class="stat-card"><div class="stat-val" id="src-registered">—</div><div class="stat-label">Registered</div></div>
-     <div class="stat-card"><div class="stat-val" id="src-version">—</div><div class="stat-label">Version</div></div>
-     <div class="stat-card"><div class="stat-val" id="src-uptime">—</div><div class="stat-label">Uptime</div></div>
+     <div class="stat-card"><div class="stat-val" id="src-online">-</div><div class="stat-label">Online Now</div></div>
+     <div class="stat-card"><div class="stat-val" id="src-registered">-</div><div class="stat-label">Registered</div></div>
+     <div class="stat-card"><div class="stat-val" id="src-version">-</div><div class="stat-label">Version</div></div>
+     <div class="stat-card"><div class="stat-val" id="src-uptime">-</div><div class="stat-label">Uptime</div></div>
      <div class="stat-card"><div class="stat-val">Rust</div><div class="stat-label">Language</div></div>
      <div class="stat-card"><div class="stat-val">CC0-1.0</div><div class="stat-label">License</div></div>
      <div class="stat-card"><div class="stat-val">Jan 2019</div><div class="stat-label">Started</div></div>
@@ -2136,17 +2136,17 @@
    <p>Version, connection status, and system diagnostics.</p>
    <dl class="debug-info">
     <dt>Client Version</dt>
-    <dd id="debug-version">—</dd>
+    <dd id="debug-version">-</dd>
     <dt>Server</dt>
-    <dd id="debug-server">—</dd>
+    <dd id="debug-server">-</dd>
     <dt>Connection</dt>
     <dd id="debug-connection">Checking…</dd>
     <dt>User Agent</dt>
-    <dd id="debug-ua">—</dd>
+    <dd id="debug-ua">-</dd>
     <dt>Screen</dt>
-    <dd id="debug-screen">—</dd>
+    <dd id="debug-screen">-</dd>
     <dt>Page Loaded</dt>
-    <dd id="debug-loaded">—</dd>
+    <dd id="debug-loaded">-</dd>
    </dl>
   </div>
 
@@ -2182,7 +2182,7 @@
     </div>
    </div>
 
-   <h3>Interactive Test — Hover &amp; Click</h3>
+   <h3>Interactive Test, Hover &amp; Click</h3>
    <p>Hover to see the blue border. Click and hold to see the red activated state.</p>
    <div class="btn-grid">
     <button class="btn" onclick="testBtnClick(this)">Hover / Click Me</button>
@@ -2190,7 +2190,7 @@
     <button class="btn" onclick="testBtnClick(this)">And Another</button>
    </div>
 
-   <h3>Toggle Test — Click to Cycle States</h3>
+   <h3>Toggle Test, Click to Cycle States</h3>
    <p>Click to cycle: clickable → channeling → activated → cooldown → clickable</p>
    <div class="btn-grid">
     <button class="btn btn-clickable" onclick="cycleState(this)">Cycle Me</button>
@@ -2198,14 +2198,14 @@
     <button class="btn btn-clickable" onclick="cycleState(this)">And Me</button>
    </div>
 
-   <h3>Cooldown Test — Click to Start Cooldown</h3>
+   <h3>Cooldown Test, Click to Start Cooldown</h3>
    <div class="btn-grid">
     <button class="btn btn-clickable" onclick="startCooldown(this, 5)">5s Cooldown</button>
     <button class="btn btn-clickable" onclick="startCooldown(this, 10)">10s Cooldown</button>
     <button class="btn btn-clickable" onclick="startCooldown(this, 3)">3s Cooldown</button>
    </div>
 
-   <h3>Channeling Test — Click to Start/Stop</h3>
+   <h3>Channeling Test, Click to Start/Stop</h3>
    <div class="btn-grid">
     <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel Me</button>
     <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel This</button>
@@ -2217,22 +2217,22 @@
    <p>The visual language for button borders:</p>
    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.8rem; margin-top: 0.5rem;">
     <div style="padding:0.5rem;border-left:3px solid #44cc66;background:rgba(68,204,102,0.05);border-radius:4px;font-size:0.8rem;">
-     <strong style="color:#44cc66;">Green 1px</strong> — Clickable / ready
+     <strong style="color:#44cc66;">Green 1px</strong>, Clickable / ready
     </div>
     <div style="padding:0.5rem;border-left:3px solid #4488ff;background:rgba(68,136,255,0.05);border-radius:4px;font-size:0.8rem;">
-     <strong style="color:#4488ff;">Blue 3px</strong> — Hovered / focused
+     <strong style="color:#4488ff;">Blue 3px</strong>, Hovered / focused
     </div>
     <div style="padding:0.5rem;border-left:3px solid #ee3333;background:rgba(238,51,51,0.05);border-radius:4px;font-size:0.8rem;">
-     <strong style="color:#ee3333;">Red 5px</strong> — Activated / pressed
+     <strong style="color:#ee3333;">Red 5px</strong>, Activated / pressed
     </div>
     <div style="padding:0.5rem;border-left:3px solid var(--bg-input);background:rgba(0,0,0,0.1);border-radius:4px;font-size:0.8rem;">
-     <strong style="color:var(--text-muted);">Black 2px</strong> — Disabled / locked
+     <strong style="color:var(--text-muted);">Black 2px</strong>, Disabled / locked
     </div>
     <div style="padding:0.5rem;border-left:3px solid #8844cc;background:rgba(136,68,204,0.05);border-radius:4px;font-size:0.8rem;">
-     <strong style="color:#8844cc;">Purple 7px</strong> — Cooldown + timer
+     <strong style="color:#8844cc;">Purple 7px</strong>, Cooldown + timer
     </div>
     <div style="padding:0.5rem;border-left:3px solid;border-image:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00) 1;background:rgba(255,255,255,0.03);border-radius:0 4px 4px 0;font-size:0.8rem;">
-     <strong style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Rainbow 1px</strong> — Channeling / active
+     <strong style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Rainbow 1px</strong>, Channeling / active
     </div>
    </div>
   </div>

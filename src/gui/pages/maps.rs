@@ -342,7 +342,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_lg);
             ui.vertical_centered(|ui| {
                 widgets::card(ui, theme, |ui| {
-                    ui.label(RichText::new("Earth — Real World").size(theme.font_size_heading).color(theme.accent()));
+                    ui.label(RichText::new("Earth, Real World").size(theme.font_size_heading).color(theme.accent()));
                     ui.add_space(theme.spacing_xs);
                     ui.label(RichText::new("Interactive map integration (OpenStreetMap) is planned for the native app.").color(theme.text_secondary()));
                     ui.label(RichText::new("Use the web version for real-world mapping features.").color(theme.text_muted()));

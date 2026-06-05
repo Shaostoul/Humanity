@@ -413,7 +413,7 @@ fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 /// Common helper: load the device_key from the OS keychain for the
 /// current identity. Returns None when the entry is genuinely absent
-/// (caller's UI surface should display "PIN setup gone — re-run setup
+/// (caller's UI surface should display "PIN setup gone, re-run setup
 /// or use passphrase"); Err on platform failure (logged + None).
 fn load_device_key(state: &GuiState) -> Option<[u8; 32]> {
     if state.profile_public_key.is_empty() {
@@ -492,7 +492,7 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             };
             if state.profile_public_key.is_empty() {
-                state.pin_status = "No identity loaded — generate or recover first.".to_string();
+                state.pin_status = "No identity loaded, generate or recover first.".to_string();
                 return;
             }
 
@@ -690,7 +690,7 @@ fn draw_pin_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             let device_key = match load_device_key(state) {
                 Some(k) => k,
                 None => {
-                    state.pin_status = "PIN setup gone — set up a new PIN from Settings.".to_string();
+                    state.pin_status = "PIN setup gone, set up a new PIN from Settings.".to_string();
                     return;
                 }
             };

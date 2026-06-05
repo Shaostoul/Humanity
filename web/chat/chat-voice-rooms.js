@@ -140,11 +140,11 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
     audio.className = 'room-remote-audio';
     audio.dataset.peerKey = peerKey;
     document.body.appendChild(audio);
-    // Mobile browsers block autoplay — explicitly play with user gesture fallback
+    // Mobile browsers block autoplay, explicitly play with user gesture fallback
     const playPromise = audio.play();
     if (playPromise) {
       playPromise.catch(() => {
-        console.warn('Autoplay blocked for peer', peerKey, '— waiting for user interaction');
+        console.warn('Autoplay blocked for peer', peerKey, '- waiting for user interaction');
         const resumeAudio = () => {
           audio.play().catch(() => {});
           document.removeEventListener('click', resumeAudio);
@@ -175,13 +175,13 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
     if (pc.connectionState === 'connected') {
       addSystemMessage(`🔊 Voice connected to peer`);
     } else if (pc.connectionState === 'failed') {
-      addSystemMessage(`⚠️ Voice connection failed — may need TURN server for NAT traversal`);
+      addSystemMessage(`⚠️ Voice connection failed, may need TURN server for NAT traversal`);
       pc.close();
       delete window._roomPeerConnections[peerKey];
       const audioEl = document.querySelector(`.room-remote-audio[data-peer-key="${peerKey}"]`);
       if (audioEl) audioEl.remove();
     } else if (pc.connectionState === 'disconnected') {
-      // Give it a moment — might recover
+      // Give it a moment, might recover
       setTimeout(() => {
         if (pc.connectionState === 'disconnected') {
           pc.close();
@@ -233,7 +233,7 @@ handleMessage = function(msg) {
         console.log('Auto-rejoining voice room after reload:', rejoinId);
         setTimeout(() => joinVoiceRoom(rejoinId), 500); // brief delay so WS is fully settled
       } else {
-        // Room no longer exists — clear the pending rejoin
+        // Room no longer exists, clear the pending rejoin
         sessionStorage.removeItem('_rejoin_room');
       }
     }
@@ -252,7 +252,7 @@ handleMessage = function(msg) {
     }
     return;
   }
-  // Legacy voice_room_update — convert to voice_channel_list format
+  // Legacy voice_room_update, convert to voice_channel_list format
   if (msg.type === 'voice_room_update') {
     // Handled by voice_channel_list now; ignore.
     return;
@@ -270,17 +270,17 @@ async function handleVoiceRoomSignal(msg) {
   const roomId = msg.room_id;
 
   if (msg.signal_type === 'new_participant') {
-    // New person joined — they'll send us an offer, just wait
+    // New person joined, they'll send us an offer, just wait
     return;
   }
 
   if (msg.signal_type === 'offer') {
-    // Ensure our mic stream exists before answering — if not set up yet the
+    // Ensure our mic stream exists before answering, if not set up yet the
     // RTCPeerConnection will have no audio tracks and createAnswer() produces
     // a=recvonly SDP, meaning the remote peer never receives our audio.
     if (!window._roomLocalStream) await setupRoomAudio();
-    if (!window._roomLocalStream) return; // mic denied — can't send audio
-    // Someone is sending us an offer — create connection and answer
+    if (!window._roomLocalStream) return; // mic denied, can't send audio
+    // Someone is sending us an offer, create connection and answer
     await connectToRoomPeer(peerKey, '', roomId, false);
     const pc = window._roomPeerConnections[peerKey];
     if (pc) {
@@ -400,33 +400,33 @@ async function handleVoiceRoomSignal(msg) {
       const MODE_INFO = {
         open: {
           label: '🗣️ Open',
-          desc: 'Open Mic — your mic transmits continuously whenever you are unmuted.',
+          desc: 'Open Mic, your mic transmits continuously whenever you are unmuted.',
           detail: `Best for: quiet rooms, casual chat · Next: PTT [${pttKeyLabel()}]`
         },
         ptt: {
           label: hosIcon('mic', 14) + ` PTT [${pttKeyLabel()}]`,
-          desc: `Push-to-Talk — hold ${pttKeyLabel()} to transmit. Mic is silent when the key is released.`,
+          desc: `Push-to-Talk, hold ${pttKeyLabel()} to transmit. Mic is silent when the key is released.`,
           detail: 'Best for: noisy rooms, background audio, gaming · Next: VAD'
         },
         vad: {
           label: '🗣️ VAD',
-          desc: 'Voice Activated — mic gates open automatically when your voice exceeds the noise threshold.',
+          desc: 'Voice Activated, mic gates open automatically when your voice exceeds the noise threshold.',
           detail: 'Best for: hands-free use · Adjust threshold with Noise Gate · Next: Open'
         }
       };
       const mi = MODE_INFO[vcInputMode] || MODE_INFO.open;
       modeBtn.innerHTML = mi.label;
-      modeBtn.setAttribute('data-tip-title', 'Input Mode — ' + mi.label.replace(/<svg[^>]*>.*?<\/svg>\s*/g, '').replace(/[🗣️🎙️]\s*/, ''));
+      modeBtn.setAttribute('data-tip-title', 'Input Mode, ' + mi.label.replace(/<svg[^>]*>.*?<\/svg>\s*/g, '').replace(/[🗣️🎙️]\s*/, ''));
       modeBtn.setAttribute('data-tip-desc', mi.desc);
       modeBtn.setAttribute('data-tip-detail', mi.detail);
     }
     if (sqBtn) {
       const gateOn = vcSquelch;
       sqBtn.innerHTML = gateOn ? hosIcon('block', 14) + ' Gate On' : hosIcon('block', 14) + ' Gate Off';
-      sqBtn.setAttribute('data-tip-title', gateOn ? 'Noise Gate — On' : 'Noise Gate — Off');
+      sqBtn.setAttribute('data-tip-title', gateOn ? 'Noise Gate, On' : 'Noise Gate, Off');
       sqBtn.setAttribute('data-tip-desc', gateOn
-        ? 'Gate is active — audio below the volume threshold is muted before it reaches others.'
-        : 'Gate is off — all audio above the mic floor passes through (use with PTT or a quiet room).');
+        ? 'Gate is active, audio below the volume threshold is muted before it reaches others.'
+        : 'Gate is off, all audio above the mic floor passes through (use with PTT or a quiet room).');
       sqBtn.setAttribute('data-tip-detail', 'Best for: suppressing keyboard clicks, mouse noise, breathing · Works alongside VAD mode');
     }
     if (presetBtn) {
@@ -434,7 +434,7 @@ async function handleVoiceRoomSignal(msg) {
       const PRESET_INFO = {
         clarity: {
           label: '🎚️ Clarity',
-          desc: 'Best for most calls. Removes background noise while keeping your volume natural — no pumping or over-compression.',
+          desc: 'Best for most calls. Removes background noise while keeping your volume natural, no pumping or over-compression.',
           detail: 'Echo cancel ✓ · Noise suppress ✓ · Auto-gain off · Next: Noise Block'
         },
         noise_block: {
@@ -444,13 +444,13 @@ async function handleVoiceRoomSignal(msg) {
         },
         natural: {
           label: '🎚️ Natural',
-          desc: 'Minimal processing — ideal for music, podcasting, or a quality mic in a quiet room. Captures your voice exactly as the mic hears it.',
+          desc: 'Minimal processing, ideal for music, podcasting, or a quality mic in a quiet room. Captures your voice exactly as the mic hears it.',
           detail: 'Echo cancel ✓ · Noise suppress off · Auto-gain off · Use headphones to avoid echo · Next: Clarity'
         }
       };
       const info = PRESET_INFO[p] || PRESET_INFO.clarity;
       presetBtn.innerHTML = info.label;
-      presetBtn.setAttribute('data-tip-title', 'Mic Preset — ' + info.label.replace(/<svg[^>]*>.*?<\/svg>\s*/g, '').replace('🎚️ ', ''));
+      presetBtn.setAttribute('data-tip-title', 'Mic Preset, ' + info.label.replace(/<svg[^>]*>.*?<\/svg>\s*/g, '').replace('🎚️ ', ''));
       presetBtn.setAttribute('data-tip-desc', info.desc);
       presetBtn.setAttribute('data-tip-detail', info.detail);
     }
@@ -918,7 +918,7 @@ function renderUnifiedRightSidebar() {
 
   const sections = [];
 
-  // Web-native parity (Track W): match native's right rail exactly —
+  // Web-native parity (Track W): match native's right rail exactly -
   //   • a Friends section (mutual follows), AND
   //   • a full server-member section listing EVERY connected member
   //     (native repeats friends here too; its count is the true total),
@@ -931,7 +931,7 @@ function renderUnifiedRightSidebar() {
   const friendUsers = users.filter(u => u.public_key !== myKey && isFriend(u.public_key));
   sections.push(section('friends', 'Friends', friendUsers, true));
 
-  // ── Server members — the full connected list (matches native's count) ─────
+  // ── Server members, the full connected list (matches native's count) ─────
   sections.push(section('server-main', 'United-Humanity', users, false));
 
   peerList.innerHTML = sections.join('');

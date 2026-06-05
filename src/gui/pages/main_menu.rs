@@ -194,7 +194,7 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.apply_pq_identity(); // derive Dilithium+Kyber + connect
                 state.identity_recovered = true;
                 state.settings.seed_phrase_recovery_status =
-                    "Identity created. Back up your 24-word seed phrase in Settings → Identity now — it is the ONLY way to restore this account.".to_string();
+                    "Identity created. Back up your 24-word seed phrase in Settings → Identity now, it is the ONLY way to restore this account.".to_string();
                 state.passphrase_needed = true;
                 state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
             }

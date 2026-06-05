@@ -489,7 +489,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     if state.vitals.sealed {
                         ui.label(RichText::new("Sealed").size(theme.font_size_small).color(theme.accent()));
                     } else {
-                        ui.label(RichText::new("EXPOSED — no air!").size(theme.font_size_small).color(theme.danger()));
+                        ui.label(RichText::new("EXPOSED, no air!").size(theme.font_size_small).color(theme.danger()));
                     }
                 });
                 // Survival actions (decoupled from the bars so each bar reads cleanly).
@@ -626,7 +626,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     widgets::tree_list(ui, theme, &trees, &selected_str)
                 } else if item_nodes.is_empty() {
                     ui.label(
-                        RichText::new("Empty — mine, craft, or dev-stock to fill it.")
+                        RichText::new("Empty, mine, craft, or dev-stock to fill it.")
                             .color(theme.text_muted()),
                     );
                     None
@@ -665,7 +665,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.spacing_xs);
                 if state.crops.is_empty() {
                     ui.label(
-                        RichText::new("No crops yet — plant a seed from your inventory.")
+                        RichText::new("No crops yet, plant a seed from your inventory.")
                             .color(theme.text_muted()),
                     );
                 } else {
@@ -675,9 +675,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 let (title, title_col) = if crop.dead {
                                     (format!("{} (dead)", crop.name), theme.danger())
                                 } else if crop.mature {
-                                    (format!("{} — ready to harvest", crop.name), theme.accent())
+                                    (format!("{}, ready to harvest", crop.name), theme.accent())
                                 } else {
-                                    (format!("{} — {}", crop.name, crop.stage), theme.text_primary())
+                                    (format!("{}, {}", crop.name, crop.stage), theme.text_primary())
                                 };
                                 ui.label(RichText::new(title).color(title_col));
                                 ui.with_layout(
@@ -764,7 +764,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .collect();
                         ui.label(
                             RichText::new(format!(
-                                "{} [{}] — {}",
+                                "{} [{}], {}",
                                 ast.name,
                                 ast.classification,
                                 if summary.is_empty() {
@@ -785,7 +785,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let cap = crate::systems::mining::DRONE_CAPACITY;
                         let total: u32 = state.drone_manifest_draft.iter().map(|(_, u)| u).sum();
                         ui.label(
-                            RichText::new(format!("Drone manifest — {total}/{cap} units"))
+                            RichText::new(format!("Drone manifest, {total}/{cap} units"))
                                 .color(theme.text_secondary()),
                         );
                         manifest_bar(ui, theme, &state.drone_manifest_draft, cap);
@@ -874,7 +874,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .collect();
                         ui.label(
                             RichText::new(format!(
-                                "Drone — {} · {} · fetching {} · cargo {}",
+                                "Drone, {} · {} · fetching {} · cargo {}",
                                 stage,
                                 desc,
                                 fetching.join(", "),

@@ -16,7 +16,7 @@
                 verdict: "safe_in_moderation",
                 details: "Caloric sweetener. Long-term overconsumption contributes to dental caries, obesity, type-2 diabetes. WHO recommends free sugars under 10% of daily energy intake.",
                 lethal_dose_mg_kg: Some(29700.0),
-                notes: ["LD50 oral rat ~29.7 g/kg — practically harmless acutely"],
+                notes: ["LD50 oral rat ~29.7 g/kg, practically harmless acutely"],
             ),
             "topical": ( verdict: "safe", details: "", lethal_dose_mg_kg: None, notes: [] ),
         },

@@ -141,7 +141,7 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
 }
 
 // DM previews loaded from the zero-knowledge relay arrive as the raw E2EE
-// envelope ({"v":1,"r":{...}}) — the relay can't decrypt them. Never show that
+// envelope ({"v":1,"r":{...}}), the relay can't decrypt them. Never show that
 // ciphertext; collapse it to a lock placeholder (matches the incoming-DM
 // handler in app.js and native's clean DM list).
 function dmSafePreview(raw) {
@@ -165,7 +165,7 @@ function renderDmList() {
     const unread = c.unread_count > 0 ? '<span class="dm-unread"></span>' : '';
     const timeStr = formatTime(c.last_timestamp);
     // Native parity: the left-panel DM row shows only the name (+ unread dot)
-    // and a right-aligned time — NO message preview. The relay-stored DM body
+    // and a right-aligned time, NO message preview. The relay-stored DM body
     // is an opaque E2EE envelope anyway; any preview belongs in the open
     // conversation, not the sidebar (operator, 2026-05-27).
     return `<div class="dm-item${isActive ? ' active' : ''}" onclick="openDmConversation('${esc(c.partner_key)}', '${esc(c.partner_name)}')">

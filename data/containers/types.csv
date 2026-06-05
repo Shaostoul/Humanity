@@ -9,7 +9,7 @@
 # and damages the vessel on each store attempt until it breaks.
 #
 # This is the infinite-of-X data file for container archetypes. To add a new
-# container type, append a row here — NEVER hardcode container lists in Rust.
+# container type, append a row here - NEVER hardcode container lists in Rust.
 # Loaded by ContainerRegistry (see src/systems/inventory/containers.rs).
 # Hot-reloadable.
 #

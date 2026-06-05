@@ -8,7 +8,7 @@
 # Spatial sounds use inverse-distance falloff between falloff_min and falloff_max.
 
 # =============================================================================
-#  AMBIENT (15) — looping environmental soundscapes
+#  AMBIENT (15), looping environmental soundscapes
 # =============================================================================
 
 [ambient.forest_day]
@@ -136,7 +136,7 @@ bus = "ambient"
 tags = ["water", "outdoor", "flowing"]
 
 # =============================================================================
-#  MUSIC (10) — background tracks, non-spatial
+#  MUSIC (10), background tracks, non-spatial
 # =============================================================================
 
 [music.menu_theme]
@@ -220,7 +220,7 @@ bus = "music"
 tags = ["market", "social"]
 
 # =============================================================================
-#  SFX: FOOTSTEPS (8) — surface-dependent, spatial, with variations
+#  SFX: FOOTSTEPS (8), surface-dependent, spatial, with variations
 # =============================================================================
 
 [sfx.footstep_grass]
@@ -312,7 +312,7 @@ variations = ["sfx/footstep_dirt_01.ogg", "sfx/footstep_dirt_02.ogg", "sfx/foots
 tags = ["movement", "surface"]
 
 # =============================================================================
-#  SFX: COMBAT (12) — weapon impacts, ranged fire, magic
+#  SFX: COMBAT (12), weapon impacts, ranged fire, magic
 # =============================================================================
 
 [sfx.sword_swing]
@@ -438,7 +438,7 @@ bus = "sfx"
 tags = ["combat", "magic", "positive"]
 
 # =============================================================================
-#  SFX: UI (10) — non-spatial interface feedback
+#  SFX: UI (10), non-spatial interface feedback
 # =============================================================================
 
 [sfx.button_click]
@@ -522,7 +522,7 @@ bus = "ui"
 tags = ["interface", "inventory"]
 
 # =============================================================================
-#  SFX: BUILDING (8) — construction and interaction
+#  SFX: BUILDING (8), construction and interaction
 # =============================================================================
 
 [sfx.hammer]
@@ -607,7 +607,7 @@ bus = "sfx"
 tags = ["building", "interaction", "electrical"]
 
 # =============================================================================
-#  SFX: CREATURES (10) — animal and NPC vocalizations
+#  SFX: CREATURES (10), animal and NPC vocalizations
 # =============================================================================
 
 [sfx.wolf_howl]
@@ -715,7 +715,7 @@ variations = ["sfx/cat_meow_01.ogg", "sfx/cat_meow_02.ogg"]
 tags = ["creature", "passive", "pet"]
 
 # =============================================================================
-#  SFX: VEHICLES (8) — engines, thrusters, mechanical
+#  SFX: VEHICLES (8), engines, thrusters, mechanical
 # =============================================================================
 
 [sfx.engine_start]
@@ -799,7 +799,7 @@ bus = "sfx"
 tags = ["vehicle", "destruction", "impact"]
 
 # =============================================================================
-#  SFX: WEATHER (6) — environmental weather events
+#  SFX: WEATHER (6), environmental weather events
 # =============================================================================
 
 [sfx.thunder]
@@ -855,7 +855,7 @@ bus = "sfx"
 tags = ["weather", "disaster", "ground"]
 
 # =============================================================================
-#  SFX: SPELLS (10) — magical ability effects
+#  SFX: SPELLS (10), magical ability effects
 # =============================================================================
 
 [sfx.fireball_cast]
@@ -959,7 +959,7 @@ bus = "sfx"
 tags = ["spell", "buff", "crafting"]
 
 # =============================================================================
-#  VOICE (5) — character vocalizations
+#  VOICE (5), character vocalizations
 # =============================================================================
 
 [voice.npc_greeting]

@@ -216,7 +216,7 @@ function renderGroupList() {
   if (!container) return;
   // Lazily fetch P2P (sovereign signed-object) groups once identity is ready;
   // create/join re-fetch via window.loadP2pGroups(). These render above the
-  // legacy relay-mediated ones. NOTE: gate on myKey — loadP2pGroups bails
+  // legacy relay-mediated ones. NOTE: gate on myKey, loadP2pGroups bails
   // without it, and it sets _p2pGroupsFetched itself only on a real attempt,
   // so we retry on the next render once identity loads (connect() also kicks
   // a proactive load). Without the myKey gate here the flag burned before
@@ -242,7 +242,7 @@ function renderGroupList() {
       <span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${(g.members || []).length}</span>
     </div>`;
   }
-  // Legacy relay-mediated groups (shown until migrated — Phase 1 step e).
+  // Legacy relay-mediated groups (shown until migrated, Phase 1 step e).
   for (const g of myGroups) {
     const isActive = activeGroupId === g.id;
     const unread = groupUnread[g.id] || 0;
@@ -262,7 +262,7 @@ function renderGroupList() {
   container.innerHTML = html;
   // P2P group rows → switch the main chat to this group (channel-style).
   // Right-click → context menu with "Copy invite ticket" (no modal, no z-order
-  // bugs — the menu is a tiny absolutely-positioned div that dismisses on
+  // bugs, the menu is a tiny absolutely-positioned div that dismisses on
   // outside click, same pattern the legacy group menu uses below).
   container.querySelectorAll('[data-p2p-group-id]').forEach(el => {
     el.onclick = () => {
@@ -297,7 +297,7 @@ function renderGroupList() {
             if (typeof addNotice === 'function') addNotice('Invite failed: ' + err.message, 'red', 6);
           }
         }},
-        // Leave — available to anyone. Removes me from the roster (self-leave).
+        // Leave, available to anyone. Removes me from the roster (self-leave).
         { label: '🚪 Leave group', action: () => {
           if (!confirm('Leave group "' + g.name + '"? You can rejoin with a new invite ticket.')) return;
           if (typeof window.leaveP2pGroup !== 'function') return;
@@ -306,7 +306,7 @@ function renderGroupList() {
           });
         }},
       ];
-      // Disband — creator only (relay enforces; we hide it for non-creators to
+      // Disband, creator only (relay enforces; we hide it for non-creators to
       // avoid a confusing silent no-op). is_creator comes from /api/v2/groups.
       if (g.is_creator) {
         items.push({ label: hosIcon('trash', 14) + ' Disband group (for everyone)', html: true, action: () => {
@@ -371,7 +371,7 @@ function renderGroupList() {
 // a group is a sovereign signed object, and joining uses a creator-signed invite
 // ticket (works even when the creator is offline). The old relay-mediated
 // group_create/group_join WS path is retired here (legacy groups still render
-// until migrated — Phase 1 step e).
+// until migrated, Phase 1 step e).
 // One radio option (with pros/cons) for the create-group history choice.
 function _p2pgHistoryOption(value, checked, title, desc, pros, cons) {
   const list = (items, sym, color) => items.map((t) =>
@@ -409,12 +409,12 @@ function promptCreateGroup() {
     '<div style="font-weight:600;margin-bottom:8px;font-size:0.85rem;">Message history for people who join later</div>' +
     _p2pgHistoryOption('private', true, 'Private (default)',
       'New members only see messages sent after they join.',
-      ['Past conversations stay between who was there', 'Stronger forward secrecy — the group re-keys on each join'],
+      ['Past conversations stay between who was there', 'Stronger forward secrecy, the group re-keys on each join'],
       ['Newcomers start with no context']) +
     _p2pgHistoryOption('shared', false, 'Shared history',
       'New members can read the full history from before they joined.',
-      ['Newcomers get full context — good for onboarding'],
-      ['Anyone invited later can read everything said earlier', 'Weaker forward secrecy — the key is not rotated on join']) +
+      ['Newcomers get full context, good for onboarding'],
+      ['Anyone invited later can read everything said earlier', 'Weaker forward secrecy, the key is not rotated on join']) +
     '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">' +
       '<button id="p2pg-cancel" class="vr-btn" style="font-size:0.85rem;">Cancel</button>' +
       '<button id="p2pg-create" class="vr-btn" style="font-size:0.85rem;background:var(--accent,#4a9);color:#fff;">Create group</button>' +
@@ -459,10 +459,10 @@ function openGroup(groupId) {
   activeGroupId = groupId;
   activeGroupName = group.name;
   groupUnread[groupId] = 0; // Clear unread on enter
-  activeDmPartner = null; // Exit DM view — also deselect server channel + DM highlights
+  activeDmPartner = null; // Exit DM view, also deselect server channel + DM highlights
   renderChannelList();
   if (typeof renderDmList === 'function') renderDmList();
-  // Update channel header — replace innerHTML fully so leftover DM spans don't linger.
+  // Update channel header, replace innerHTML fully so leftover DM spans don't linger.
   const header = document.getElementById('channel-header');
   if (header) {
     header.style.display = 'flex';

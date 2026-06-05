@@ -75,7 +75,7 @@ let studioAfkStartTime = null;
 
 /**
  * Toggles an AFK overlay on the stream preview, showing elapsed away time.
- * Intended as a courtesy indicator for viewers — press when stepping away.
+ * Intended as a courtesy indicator for viewers, press when stepping away.
  */
 window.toggleStudioAfk = function() {
   const btn = document.getElementById('studio-afk-btn');
@@ -83,7 +83,7 @@ window.toggleStudioAfk = function() {
   studioAfkActive = !studioAfkActive;
   if (studioAfkActive) {
     studioAfkStartTime = Date.now();
-    if (btn) { btn.textContent = '🌙 AFK — On'; btn.classList.add('active'); btn.classList.remove('vc-muted'); }
+    if (btn) { btn.textContent = '🌙 AFK, On'; btn.classList.add('active'); btn.classList.remove('vc-muted'); }
     if (preview) {
       let ov = preview.querySelector('.studio-afk-overlay');
       if (!ov) {
@@ -91,18 +91,18 @@ window.toggleStudioAfk = function() {
         ov.className = 'studio-afk-overlay';
         preview.appendChild(ov);
       }
-      ov.textContent = '💤 AFK — 0:00';
+      ov.textContent = '💤 AFK, 0:00';
       studioAfkTimer = setInterval(() => {
         const elapsed = Math.floor((Date.now() - studioAfkStartTime) / 1000);
         const m = Math.floor(elapsed / 60);
         const s = String(elapsed % 60).padStart(2, '0');
-        ov.textContent = `💤 AFK — ${m}:${s}`;
+        ov.textContent = `💤 AFK, ${m}:${s}`;
       }, 1000);
     }
   } else {
     studioAfkStartTime = null;
     if (studioAfkTimer) { clearInterval(studioAfkTimer); studioAfkTimer = null; }
-    if (btn) { btn.textContent = '🌙 AFK — Off'; btn.classList.remove('active', 'vc-muted'); }
+    if (btn) { btn.textContent = '🌙 AFK, Off'; btn.classList.remove('active', 'vc-muted'); }
     if (preview) { const ov = preview.querySelector('.studio-afk-overlay'); if (ov) ov.remove(); }
   }
 };
@@ -135,7 +135,7 @@ async function collectStudioMetrics() {
   if (!pcList.length) {
     ['studio-m-bitrate','studio-m-fps','studio-m-res','studio-m-rtt','studio-m-loss'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.textContent = '—';
+      if (el) el.textContent = '-';
     });
     return;
   }
@@ -174,9 +174,9 @@ async function collectStudioMetrics() {
   }
   studioMetricsPrev = { bytesSent: totalBytes, timestamp: now };
 
-  document.getElementById('studio-m-fps').textContent = fps ? Math.round(fps) + ' fps' : '—';
-  document.getElementById('studio-m-res').textContent = width ? width + 'x' + height : '—';
-  document.getElementById('studio-m-rtt').textContent = rtt ? Math.round(rtt * 1000) + ' ms' : '—';
+  document.getElementById('studio-m-fps').textContent = fps ? Math.round(fps) + ' fps' : '-';
+  document.getElementById('studio-m-res').textContent = width ? width + 'x' + height : '-';
+  document.getElementById('studio-m-rtt').textContent = rtt ? Math.round(rtt * 1000) + ' ms' : '-';
 
   const lossPercent = sentTotal > 0 ? ((lostTotal / sentTotal) * 100).toFixed(1) : '0.0';
   document.getElementById('studio-m-loss').textContent = lossPercent + '%';
@@ -215,7 +215,7 @@ window.toggleStudioBrb = function() {
     // Turn off AFK if it's on
     if (studioAfkActive) window.toggleStudioAfk();
     studioBrbStartTime = Date.now();
-    if (btn) { btn.textContent = '⏸️ BRB — On'; btn.classList.add('active'); }
+    if (btn) { btn.textContent = '⏸️ BRB, On'; btn.classList.add('active'); }
     if (preview) {
       let ov = preview.querySelector('.studio-brb-overlay');
       if (!ov) {
@@ -223,18 +223,18 @@ window.toggleStudioBrb = function() {
         ov.className = 'studio-brb-overlay';
         preview.appendChild(ov);
       }
-      ov.textContent = '⏸️ BRB — 0:00';
+      ov.textContent = '⏸️ BRB, 0:00';
       studioBrbTimer = setInterval(() => {
         const elapsed = Math.floor((Date.now() - studioBrbStartTime) / 1000);
         const m = Math.floor(elapsed / 60);
         const s = String(elapsed % 60).padStart(2, '0');
-        ov.textContent = `⏸️ BRB — ${m}:${s}`;
+        ov.textContent = `⏸️ BRB, ${m}:${s}`;
       }, 1000);
     }
   } else {
     studioBrbStartTime = null;
     if (studioBrbTimer) { clearInterval(studioBrbTimer); studioBrbTimer = null; }
-    if (btn) { btn.textContent = '⏸️ BRB — Off'; btn.classList.remove('active'); }
+    if (btn) { btn.textContent = '⏸️ BRB, Off'; btn.classList.remove('active'); }
     if (preview) { const ov = preview.querySelector('.studio-brb-overlay'); if (ov) ov.remove(); }
   }
 };

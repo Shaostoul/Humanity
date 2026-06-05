@@ -4396,7 +4396,7 @@
      for (const s of allSkills.slice(0, 8)) {
       const meta = SKILL_META[s.id] || { name: s.id, icon: '❓' };
       html += `<div style="display:flex;align-items:center;gap:0.4rem;margin:0.15rem 0;font-size:0.8rem;">`;
-      html += `${meta.icon} ${meta.name} — <span style="color:${LEVEL_COLORS[s.lv]};font-weight:700;">Lv ${s.lv} ${LEVEL_NAMES[s.lv]}</span> (${Math.round(s.total)}h)</div>`;
+      html += `${meta.icon} ${meta.name}, <span style="color:${LEVEL_COLORS[s.lv]};font-weight:700;">Lv ${s.lv} ${LEVEL_NAMES[s.lv]}</span> (${Math.round(s.total)}h)</div>`;
      }
     }
 
@@ -4412,7 +4412,7 @@
      { name: '5 Verified', desc: '5 skills peer-verified', check: new Set((data.verifications||[]).map(v=>v.skill)).size >= 5 },
     ];
     for (const m of milestones) {
-     html += `<div style="font-size:0.78rem;margin:0.15rem 0;opacity:${m.check?1:0.4};">${m.check?'✅':'⬜'} <strong>${m.name}</strong> — ${m.desc}</div>`;
+     html += `<div style="font-size:0.78rem;margin:0.15rem 0;opacity:${m.check?1:0.4};">${m.check?'✅':'⬜'} <strong>${m.name}</strong>, ${m.desc}</div>`;
     }
 
     // Radar chart (canvas)
@@ -4516,7 +4516,7 @@
     if (verifs.length) {
      html += `<div class="sd-verifications"><strong style="font-size:0.8rem;">Verifications (${verifs.length}):</strong>`;
      for (const v of verifs) {
-      html += `<div style="margin:0.15rem 0;">✓ <strong>${v.from||'Anonymous'}</strong> — "${v.note||'Verified'}" <span style="color:var(--text-muted);font-size:0.7rem;">${v.date ? new Date(v.date).toLocaleDateString() : ''}</span></div>`;
+      html += `<div style="margin:0.15rem 0;">✓ <strong>${v.from||'Anonymous'}</strong>, "${v.note||'Verified'}" <span style="color:var(--text-muted);font-size:0.7rem;">${v.date ? new Date(v.date).toLocaleDateString() : ''}</span></div>`;
      }
      html += '</div>';
     }
@@ -4528,7 +4528,7 @@
      for (const log of logs) {
       const d = log.date ? new Date(log.date).toLocaleDateString() : '?';
       const sub = log.subskill ? ` ${log.subskill.replace(/_/g,' ')}` : '';
-      html += `<div style="margin:0.15rem 0;">${d} — ${log.hours||0}h${sub} (${log.type||'reality'}) ${log.note?'— '+log.note:''}</div>`;
+      html += `<div style="margin:0.15rem 0;">${d}, ${log.hours||0}h${sub} (${log.type||'reality'}) ${log.note?'- '+log.note:''}</div>`;
      }
      html += '</div>';
     }
@@ -4574,7 +4574,7 @@
     }
     html += '</select>';
     html += '<label>Skill</label><select id="sd-log-skill" onchange="window._sdLogSkillChange()"></select>';
-    html += '<label>Subskill (optional)</label><select id="sd-log-sub"><option value="">— None —</option></select>';
+    html += '<label>Subskill (optional)</label><select id="sd-log-sub"><option value="">- None -</option></select>';
     html += '<label>Hours</label><input type="number" id="sd-log-hours" min="0.25" step="0.25" value="1">';
     html += '<label>Notes</label><textarea id="sd-log-notes" rows="2" placeholder="What did you do?"></textarea>';
     html += `<label>Date</label><input type="date" id="sd-log-date" value="${new Date().toISOString().slice(0,10)}">`;
@@ -4604,7 +4604,7 @@
     const skillId = document.getElementById('sd-log-skill').value;
     const meta = SKILL_META[skillId];
     const sel = document.getElementById('sd-log-sub');
-    sel.innerHTML = '<option value="">— None —</option>';
+    sel.innerHTML = '<option value="">- None -</option>';
     if (meta && meta.subskills) {
      for (const sub of meta.subskills) {
       sel.innerHTML += `<option value="${sub}">${sub.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`;
@@ -4747,7 +4747,7 @@
       const meta = SKILL_META[skill];
       rHtml += `<div class="sd-find-result">`;
       rHtml += `<div><strong>${u.display_name || u.public_key.slice(0,8)+'...'}</strong>`;
-      rHtml += `<div class="sd-fr-skills">${meta?meta.icon:''} ${meta?meta.name:skill} — <span style="color:${LEVEL_COLORS[u.level]||'#aaa'};font-weight:700;">Lv ${u.level} ${LEVEL_NAMES[u.level]||''}</span> (${Math.round(u.reality_xp||0)}h reality, ${Math.round(u.fantasy_xp||0)}h fantasy)</div>`;
+      rHtml += `<div class="sd-fr-skills">${meta?meta.icon:''} ${meta?meta.name:skill}, <span style="color:${LEVEL_COLORS[u.level]||'#aaa'};font-weight:700;">Lv ${u.level} ${LEVEL_NAMES[u.level]||''}</span> (${Math.round(u.reality_xp||0)}h reality, ${Math.round(u.fantasy_xp||0)}h fantasy)</div>`;
       rHtml += `</div></div>`;
      }
      resultsDiv.innerHTML = rHtml;

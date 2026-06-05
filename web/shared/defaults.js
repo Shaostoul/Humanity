@@ -1,4 +1,4 @@
-/* shared/defaults.js — Single source of truth for all settings defaults.
+/* shared/defaults.js, Single source of truth for all settings defaults.
    Loaded before settings.js and settings-app.js via <script> tag. */
 (function () {
   'use strict';

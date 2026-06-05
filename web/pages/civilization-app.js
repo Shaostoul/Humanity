@@ -1,4 +1,4 @@
-/* Civilization page logic — fetches /api/civilization stats and renders dashboards */
+/* Civilization page logic, fetches /api/civilization stats and renders dashboards */
 (function() {
   'use strict';
 

@@ -471,7 +471,7 @@ pub fn category_pages(category: &str) -> Vec<(&'static str, GuiPage, &'static st
 /// Top category metadata for overview pages: id, label, color, description.
 pub fn category_meta(category: &str, theme: &Theme) -> Option<(&'static str, Color32, &'static str)> {
     match category {
-        "reality"  => Some(("Reality",  theme.nav_reality(),  "Identity, communication, civic life — the real you, your real money, your real community.")),
+        "reality"  => Some(("Reality",  theme.nav_reality(),  "Identity, communication, civic life, the real you, your real money, your real community.")),
         "sim"      => Some(("Sim",      theme.nav_sim(),      "In-game / character-bound activities. Simulated economies, crafted items, ship interiors.")),
         "tools"    => Some(("Tools",    theme.nav_tools(),    "Utility apps that aren't bound to game state. Calculator, calendar, notes, browser.")),
         "settings" => Some(("Settings", theme.nav_settings(), "Personal preferences and server administration.")),
@@ -490,7 +490,7 @@ fn sub_pages_for(category: &str) -> Vec<NavItem> {
             NavItem { label: "Tasks",        page: GuiPage::Tasks,        description: "Personal + shared kanban with project grouping." },
             NavItem { label: "Market",       page: GuiPage::Market,       description: "P2P marketplace: browse, list, message sellers." },
             NavItem { label: "Civilization", page: GuiPage::Civilization, description: "Community / colony stats, charts, timeline." },
-            NavItem { label: "Governance",   page: GuiPage::Governance,   description: "Proposals, votes, tally — local + civilization scope." },
+            NavItem { label: "Governance",   page: GuiPage::Governance,   description: "Proposals, votes, tally, local + civilization scope." },
             NavItem { label: "Maps",         page: GuiPage::Maps,         description: "Solar system + planet detail browser." },
             NavItem { label: "Recovery",     page: GuiPage::Recovery,     description: "Social key recovery (Shamir M-of-N guardians)." },
             NavItem { label: "Identity",     page: GuiPage::Identity,     description: "DID, Verifiable Credentials, trust score, AI status." },

@@ -1,6 +1,6 @@
 // Bump version whenever cached assets change.
 // HTML pages are intentionally NEVER cached (they change every deploy).
-const CACHE_NAME = 'humanity-v707';
+const CACHE_NAME = 'humanity-v708';
 const SHELL_URLS = [
   '/shared/shell.js',
   '/shared/theme.css',
@@ -39,7 +39,7 @@ self.addEventListener('message', event => {
   }
 });
 
-// ── WebPush handler — shows notification when relay sends a push ──
+// ── WebPush handler, shows notification when relay sends a push ──
 self.addEventListener('push', event => {
   const data = event.data ? event.data.json() : {};
   event.waitUntil(
@@ -102,7 +102,7 @@ self.addEventListener('notificationclick', event => {
 self.addEventListener('fetch', event => {
   const url = event.request.url;
 
-  // ── Never intercept these — always go to network ──────────────────────────
+  // ── Never intercept these, always go to network ──────────────────────────
   // HTML pages (document navigations): these change with every deploy,
   // stale HTML = broken JS. The browser's HTTP cache handles them via ETag.
   if (event.request.destination === 'document') return;

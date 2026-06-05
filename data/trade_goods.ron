@@ -1,4 +1,4 @@
-// HumanityOS Trade Goods — Base Values
+// HumanityOS Trade Goods, Base Values
 // Defines the base credit value for every tradeable item in the economy.
 // Loaded by AssetManager, hot-reloadable.
 //
@@ -21,7 +21,7 @@
 
 [
     // =========================================================================
-    // RAW MATERIALS — Natural resources, unprocessed
+    // RAW MATERIALS, Natural resources, unprocessed
     // =========================================================================
 
     (id: "stone_raw_0",       name: "Stone",              category: "raw_material",    base_value: 1,    weight_kg: 2.0,   description: "Common rock, foundation of construction"),
@@ -57,7 +57,7 @@
     (id: "ice_block_0",       name: "Ice Block",          category: "raw_material",    base_value: 2,    weight_kg: 5.0,   description: "Frozen water block, melts outside cold biomes"),
 
     // =========================================================================
-    // ORGANIC RAW MATERIALS — Plant and animal products
+    // ORGANIC RAW MATERIALS, Plant and animal products
     // =========================================================================
 
     (id: "cotton_raw_0",      name: "Raw Cotton",         category: "raw_organic",     base_value: 2,    weight_kg: 0.3,   description: "Unprocessed cotton bolls for textile production"),
@@ -74,7 +74,7 @@
     (id: "herb_medicinal_0",  name: "Medicinal Herb",     category: "raw_organic",     base_value: 5,    weight_kg: 0.1,   description: "Wild herb with healing properties"),
 
     // =========================================================================
-    // PROCESSED MATERIALS — Refined from raw resources
+    // PROCESSED MATERIALS, Refined from raw resources
     // =========================================================================
 
     (id: "lumber_0",          name: "Lumber",             category: "processed",       base_value: 5,    weight_kg: 4.0,   description: "Milled planks ready for construction"),
@@ -112,7 +112,7 @@
     (id: "diamond_cut_0",     name: "Cut Diamond",        category: "processed",       base_value: 350,  weight_kg: 0.01,  description: "Precision-cut gemstone for tools and optics"),
 
     // =========================================================================
-    // FOOD — Consumables that restore hunger and provide buffs
+    // FOOD, Consumables that restore hunger and provide buffs
     // =========================================================================
 
     (id: "wheat_0",           name: "Wheat",              category: "food_raw",        base_value: 1,    weight_kg: 0.2,   description: "Harvested grain, needs milling"),
@@ -148,7 +148,7 @@
     (id: "oil_cooking_0",     name: "Cooking Oil",        category: "food_processed",  base_value: 4,    weight_kg: 0.5,   description: "Pressed seed oil for frying"),
 
     // =========================================================================
-    // TOOLS — Equipment for gathering, crafting, and building
+    // TOOLS, Equipment for gathering, crafting, and building
     // =========================================================================
 
     (id: "hoe_0",             name: "Hoe",                category: "tool",            base_value: 10,   weight_kg: 1.5,   description: "Farming tool for tilling soil"),
@@ -175,7 +175,7 @@
     (id: "flashlight_0",      name: "Flashlight",         category: "tool",            base_value: 15,   weight_kg: 0.3,   description: "Battery-powered directional light"),
 
     // =========================================================================
-    // WEAPONS — Combat and defense equipment
+    // WEAPONS, Combat and defense equipment
     // =========================================================================
 
     (id: "knife_combat_0",    name: "Combat Knife",       category: "weapon",          base_value: 10,   weight_kg: 0.3,   description: "Short blade for close-quarters combat"),
@@ -203,7 +203,7 @@
     (id: "shield_round_0",    name: "Round Shield",       category: "weapon",          base_value: 25,   weight_kg: 3.0,   description: "Medium defensive buckler"),
 
     // =========================================================================
-    // ARMOR — Wearable protection
+    // ARMOR, Wearable protection
     // =========================================================================
 
     (id: "leather_armor_0",   name: "Leather Armor",      category: "armor",           base_value: 30,   weight_kg: 5.0,   description: "Light flexible armor from tanned hide"),
@@ -218,7 +218,7 @@
     (id: "diving_suit_0",     name: "Diving Suit",        category: "armor",           base_value: 120,  weight_kg: 8.0,   description: "Pressurized underwater suit with air supply"),
 
     // =========================================================================
-    // VEHICLES — Conveyances for land, sea, air, and space
+    // VEHICLES, Conveyances for land, sea, air, and space
     // =========================================================================
 
     (id: "bicycle_0",         name: "Bicycle",            category: "vehicle",         base_value: 50,    weight_kg: 12.0,  description: "Human-powered two-wheel transport"),
@@ -241,7 +241,7 @@
     (id: "submarine_0",       name: "Submarine",          category: "vehicle",         base_value: 12000, weight_kg: 8000.0,description: "Underwater vessel for deep-sea exploration"),
 
     // =========================================================================
-    // MEDICAL — Health restoration and treatment
+    // MEDICAL, Health restoration and treatment
     // =========================================================================
 
     (id: "bandage_0",         name: "Bandage",            category: "medical",         base_value: 2,    weight_kg: 0.05,  description: "Basic wound dressing, stops bleeding"),
@@ -260,7 +260,7 @@
     (id: "cybernetic_implant_advanced_0", name: "Advanced Implant", category: "medical", base_value: 2000, weight_kg: 0.1, description: "High-end cybernetic with neural interface"),
 
     // =========================================================================
-    // ELECTRONICS — Components and devices
+    // ELECTRONICS, Components and devices
     // =========================================================================
 
     (id: "battery_small_0",   name: "Small Battery",      category: "electronics",     base_value: 8,    weight_kg: 0.2,   description: "Rechargeable lithium cell"),
@@ -282,7 +282,7 @@
     (id: "reactor_fusion_0",  name: "Fusion Reactor",     category: "electronics",     base_value: 5000, weight_kg: 500.0, description: "Compact fusion power plant for ships and bases"),
 
     // =========================================================================
-    // MACHINES — Crafting stations and production equipment
+    // MACHINES, Crafting stations and production equipment
     // =========================================================================
 
     (id: "workbench_0",       name: "Workbench",          category: "machine",         base_value: 30,   weight_kg: 20.0,  description: "Basic crafting station for hand assembly"),
@@ -299,7 +299,7 @@
     (id: "water_purifier_0",  name: "Water Purifier",     category: "machine",         base_value: 80,   weight_kg: 15.0,  description: "Filters and sterilizes water for safe drinking"),
 
     // =========================================================================
-    // FURNITURE — Placeable base items
+    // FURNITURE, Placeable base items
     // =========================================================================
 
     (id: "bed_basic_0",       name: "Basic Bed",          category: "furniture",       base_value: 20,   weight_kg: 25.0,  description: "Simple sleeping surface, sets respawn point"),
@@ -312,7 +312,7 @@
     (id: "flag_0",            name: "Flag",               category: "furniture",       base_value: 5,    weight_kg: 0.5,   description: "Customizable banner for territory marking"),
 
     // =========================================================================
-    // CONSTRUCTION MATERIALS — Building blocks
+    // CONSTRUCTION MATERIALS, Building blocks
     // =========================================================================
 
     (id: "wall_wood_0",       name: "Wooden Wall Panel",  category: "construction",    base_value: 8,    weight_kg: 15.0,  description: "Standard wooden wall section 2x3m"),
@@ -327,7 +327,7 @@
     (id: "foundation_0",      name: "Foundation Block",   category: "construction",    base_value: 10,   weight_kg: 50.0,  description: "Concrete foundation for building base"),
 
     // =========================================================================
-    // MISCELLANEOUS — Books, maps, rare items, quest objects
+    // MISCELLANEOUS, Books, maps, rare items, quest objects
     // =========================================================================
 
     (id: "book_blank_0",      name: "Blank Book",         category: "misc",            base_value: 5,    weight_kg: 0.3,   description: "Empty journal for notes and records"),

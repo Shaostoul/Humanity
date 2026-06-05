@@ -1,6 +1,6 @@
 // HumanityOS Quest Chain: Tutorial
 // These quests guide new players through core mechanics.
-// Format: Vec<QuestDef> — see engine/src/systems/quests/mod.rs
+// Format: Vec<QuestDef>, see engine/src/systems/quests/mod.rs
 
 [
     (

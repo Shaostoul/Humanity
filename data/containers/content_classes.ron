@@ -1,4 +1,4 @@
-// HumanityOS Content Classes — container compatibility rule table.
+// HumanityOS Content Classes, container compatibility rule table.
 // ---------------------------------------------------------------------------
 // Each entry defines a CLASS OF CONTENT (what an item *is*, physically) and the
 // requirements a container must satisfy to hold it safely. This is the rule
@@ -12,7 +12,7 @@
 //   A store is ACCEPTED when the item's content_class appears in BOTH:
 //     1. the container's accepted_content_classes whitelist, AND
 //     2. (implicitly) this class's `accepted_by` list contains the container's
-//        own content-class tags — they are two views of the same relation, so
+//        own content-class tags, they are two views of the same relation, so
 //        the loader cross-checks them and the runtime uses the container
 //        whitelist as the authoritative gate.
 //
@@ -45,7 +45,7 @@
 // To add a new content class, append an entry here AND add the tag to the
 // relevant container rows in types.csv. NEVER hardcode this list in Rust.
 [
-    // Generic dry solid — packaged goods, tools, blocks, anything not loose powder.
+    // Generic dry solid, packaged goods, tools, blocks, anything not loose powder.
     (
         id: "solid",
         name: "Solid",
@@ -56,9 +56,9 @@
         min_temp_c: -50.0,
         max_temp_c: 60.0,
         accepted_by: ["solid", "dry_goods"],
-        description: "Generic dry solid item — packaged goods, blocks, hardware",
+        description: "Generic dry solid item, packaged goods, blocks, hardware",
     ),
-    // Loose dry bulk — grain, powder, sand, cement (when stored dry as a powder).
+    // Loose dry bulk, grain, powder, sand, cement (when stored dry as a powder).
     (
         id: "dry_goods",
         name: "Dry Goods",
@@ -69,9 +69,9 @@
         min_temp_c: -50.0,
         max_temp_c: 60.0,
         accepted_by: ["solid", "dry_goods"],
-        description: "Loose dry bulk material — grain, powder, sand, dry cement",
+        description: "Loose dry bulk material, grain, powder, sand, dry cement",
     ),
-    // Generic non-cryogenic liquid — water, oil, chemicals at ambient pressure.
+    // Generic non-cryogenic liquid, water, oil, chemicals at ambient pressure.
     (
         id: "liquid",
         name: "Liquid",
@@ -84,7 +84,7 @@
         accepted_by: ["liquid", "water", "food", "flammable"],
         description: "Generic non-cryogenic liquid at ambient pressure",
     ),
-    // Potable water specifically — needs a food-safe, sealed, liquid container.
+    // Potable water specifically, needs a food-safe, sealed, liquid container.
     (
         id: "water",
         name: "Water",
@@ -95,9 +95,9 @@
         min_temp_c: 0.0,
         max_temp_c: 90.0,
         accepted_by: ["liquid", "water", "food"],
-        description: "Potable water — requires a food-safe sealed liquid container",
+        description: "Potable water, requires a food-safe sealed liquid container",
     ),
-    // Cryogenic liquid — liquid nitrogen, liquid CO2. Needs pressure + insulation.
+    // Cryogenic liquid, liquid nitrogen, liquid CO2. Needs pressure + insulation.
     (
         id: "liquid_cryogenic",
         name: "Cryogenic Liquid",
@@ -108,9 +108,9 @@
         min_temp_c: -200.0,
         max_temp_c: 20.0,
         accepted_by: ["liquid_cryogenic"],
-        description: "Cryogenic liquid (liquid N2, liquid CO2) — needs an insulated pressure tank",
+        description: "Cryogenic liquid (liquid N2, liquid CO2), needs an insulated pressure tank",
     ),
-    // Compressed / ambient gas — oxygen, propane, CO2 gas. Needs a pressure vessel.
+    // Compressed / ambient gas, oxygen, propane, CO2 gas. Needs a pressure vessel.
     (
         id: "gas",
         name: "Gas",
@@ -121,9 +121,9 @@
         min_temp_c: -50.0,
         max_temp_c: 60.0,
         accepted_by: ["gas", "compressed"],
-        description: "Gas — requires a sealed pressure cylinder",
+        description: "Gas, requires a sealed pressure cylinder",
     ),
-    // Compressed gas tag — alias used by gas cylinders; same physical needs as gas.
+    // Compressed gas tag, alias used by gas cylinders; same physical needs as gas.
     (
         id: "compressed",
         name: "Compressed Gas",
@@ -134,9 +134,9 @@
         min_temp_c: -50.0,
         max_temp_c: 60.0,
         accepted_by: ["gas", "compressed"],
-        description: "Compressed gas — high-pressure cylinder only",
+        description: "Compressed gas, high-pressure cylinder only",
     ),
-    // Food / consumable — milk, juice, preserved food. Must be food-safe + sealed.
+    // Food / consumable, milk, juice, preserved food. Must be food-safe + sealed.
     (
         id: "food",
         name: "Food",
@@ -147,9 +147,9 @@
         min_temp_c: -20.0,
         max_temp_c: 80.0,
         accepted_by: ["food", "liquid", "water"],
-        description: "Food or consumable liquid — requires a food-safe container",
+        description: "Food or consumable liquid, requires a food-safe container",
     ),
-    // Flammable liquid — fuel, oil, solvents. Needs a sealed non-reactive vessel.
+    // Flammable liquid, fuel, oil, solvents. Needs a sealed non-reactive vessel.
     (
         id: "flammable",
         name: "Flammable",
@@ -160,9 +160,9 @@
         min_temp_c: -30.0,
         max_temp_c: 80.0,
         accepted_by: ["flammable", "liquid"],
-        description: "Flammable liquid — fuel, oil, solvent; sealed non-reactive vessel",
+        description: "Flammable liquid, fuel, oil, solvent; sealed non-reactive vessel",
     ),
-    // Corrosive — strong acids/bases. Needs a chemical-resistant sealed container.
+    // Corrosive, strong acids/bases. Needs a chemical-resistant sealed container.
     (
         id: "corrosive",
         name: "Corrosive",
@@ -173,9 +173,9 @@
         min_temp_c: -30.0,
         max_temp_c: 80.0,
         accepted_by: ["corrosive", "hazmat"],
-        description: "Corrosive acid or base — chemical-resistant sealed containment only",
+        description: "Corrosive acid or base, chemical-resistant sealed containment only",
     ),
-    // Hazmat — toxic or hazardous solids/liquids requiring containment.
+    // Hazmat, toxic or hazardous solids/liquids requiring containment.
     (
         id: "hazmat",
         name: "Hazardous Material",
@@ -186,9 +186,9 @@
         min_temp_c: -30.0,
         max_temp_c: 80.0,
         accepted_by: ["hazmat", "toxic", "corrosive"],
-        description: "Hazardous material — requires sealed hazmat containment",
+        description: "Hazardous material, requires sealed hazmat containment",
     ),
-    // Toxic — poisonous content; subset of hazmat handling.
+    // Toxic, poisonous content; subset of hazmat handling.
     (
         id: "toxic",
         name: "Toxic",
@@ -199,6 +199,6 @@
         min_temp_c: -30.0,
         max_temp_c: 80.0,
         accepted_by: ["hazmat", "toxic"],
-        description: "Toxic material — sealed hazmat containment only",
+        description: "Toxic material, sealed hazmat containment only",
     ),
 ]

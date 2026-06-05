@@ -1,5 +1,5 @@
 {
-  "_purpose": "Picker options for the AI Usage Tracker page (which provider was used and which time-window the quota covers). Edit to add new providers or windows without recompiling. Names are matched as-is in the persisted store, so renaming an existing entry will orphan old records — prefer adding new entries over renaming.",
+  "_purpose": "Picker options for the AI Usage Tracker page (which provider was used and which time-window the quota covers). Edit to add new providers or windows without recompiling. Names are matched as-is in the persisted store, so renaming an existing entry will orphan old records, prefer adding new entries over renaming.",
   "providers": ["claude", "claude-code", "gpt", "gemini", "grok", "other"],
   "windows":   ["hourly", "5h", "daily", "weekly", "monthly"]
 }

@@ -44,7 +44,7 @@ pub fn install_system_emoji_fallback(ctx: &egui::Context) {
         }
     }
     log::warn!(
-        "No system emoji font found — full emoji set may render as tofu. \
+        "No system emoji font found, full emoji set may render as tofu. \
          Tried: Windows Segoe UI Emoji / macOS Apple Color Emoji / Linux Noto Color Emoji."
     );
 }

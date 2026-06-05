@@ -362,7 +362,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .strong(),
                 );
                 ui.add_space(theme.spacing_lg);
-                view_tab(ui, theme, state, CosmosView::System,    "System",          "Sol — Sun + planets + moons in 3D. Drag to rotate, scroll to zoom, shift+drag to pan.");
+                view_tab(ui, theme, state, CosmosView::System,    "System",          "Sol, Sun + planets + moons in 3D. Drag to rotate, scroll to zoom, shift+drag to pan.");
                 view_tab(ui, theme, state, CosmosView::Galactic,  "Galactic",        "Sol-centered map of nearby stars, light-year scale (2D top-down).");
                 view_tab(ui, theme, state, CosmosView::NightSky,  "Night Sky",       "Earth-centered celestial sphere with constellation lines (2D RA/Dec projection).");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -549,7 +549,7 @@ fn draw_body_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .color(theme.text_secondary()),
             );
             ui.label(
-                RichText::new("Click any planet, moon, or dwarf planet in the left-side browser — its details appear here.")
+                RichText::new("Click any planet, moon, or dwarf planet in the left-side browser, its details appear here.")
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
@@ -579,7 +579,7 @@ fn draw_body_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
     ui.label(
         RichText::new(format!("{} · {}", titlecase(&body.body_type),
-            body.parent.as_deref().map(|p| format!("orbits {}", titlecase(p))).unwrap_or_else(|| "—".to_string())))
+            body.parent.as_deref().map(|p| format!("orbits {}", titlecase(p))).unwrap_or_else(|| "-".to_string())))
             .size(theme.font_size_small)
             .color(theme.accent()),
     );
@@ -1043,11 +1043,11 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     );
                                 }
                                 let blurb = match lname {
-                                    "L1" => "Between the two bodies — unstable, needs station-keeping. Good for solar wind observatories looking 'between' the parent and child.",
-                                    "L2" => "Past the child along the parent-child line — unstable but a low-station-keeping shadow zone. Telescope heaven.",
-                                    "L3" => "On the opposite side of the parent from the child — too far + occluded to be very useful.",
-                                    "L4" => "60° ahead of the child in its orbit — stable for μ < 0.0385. Trojan asteroids accumulate here.",
-                                    "L5" => "60° behind the child in its orbit — stable for μ < 0.0385. Mirror of L4.",
+                                    "L1" => "Between the two bodies, unstable, needs station-keeping. Good for solar wind observatories looking 'between' the parent and child.",
+                                    "L2" => "Past the child along the parent-child line, unstable but a low-station-keeping shadow zone. Telescope heaven.",
+                                    "L3" => "On the opposite side of the parent from the child, too far + occluded to be very useful.",
+                                    "L4" => "60° ahead of the child in its orbit, stable for μ < 0.0385. Trojan asteroids accumulate here.",
+                                    "L5" => "60° behind the child in its orbit, stable for μ < 0.0385. Mirror of L4.",
                                     _ => "",
                                 };
                                 ui.label(
@@ -1488,7 +1488,7 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // ── Upcoming (Phase 4d-quad): next predicted events from the cached
     // forward scan. Always shown (independent of the instant readout).
     if !state.cosmos_upcoming_events.is_empty() {
-        sky_lines.push(("— upcoming —".to_string(), theme.text_muted()));
+        sky_lines.push(("Upcoming".to_string(), theme.text_muted()));
         for ue in state.cosmos_upcoming_events.iter().take(5) {
             let delta = (ue.when_sim_seconds - sim_time).max(0.0);
             let when = if delta < 86_400.0 {
@@ -1791,24 +1791,24 @@ struct ReferenceOrbit {
 fn reference_orbits_for(body_id: &str) -> &'static [ReferenceOrbit] {
     match body_id {
         "earth" => &[
-            ReferenceOrbit { name: "LEO (low)",  altitude_km: 400.0,    blurb: "ISS altitude — 90 min period" },
-            ReferenceOrbit { name: "LEO (high)", altitude_km: 2_000.0,  blurb: "Top of LEO band — 130 min period" },
-            ReferenceOrbit { name: "MEO",        altitude_km: 20_200.0, blurb: "GPS / GNSS satellite belt — 12 h period" },
-            ReferenceOrbit { name: "GEO",        altitude_km: 35_786.0, blurb: "Geostationary — 24 h period, fixed over equator" },
-            ReferenceOrbit { name: "HEO",        altitude_km: 50_000.0, blurb: "High Earth orbit — >24 h period" },
+            ReferenceOrbit { name: "LEO (low)",  altitude_km: 400.0,    blurb: "ISS altitude, 90 min period" },
+            ReferenceOrbit { name: "LEO (high)", altitude_km: 2_000.0,  blurb: "Top of LEO band, 130 min period" },
+            ReferenceOrbit { name: "MEO",        altitude_km: 20_200.0, blurb: "GPS / GNSS satellite belt, 12 h period" },
+            ReferenceOrbit { name: "GEO",        altitude_km: 35_786.0, blurb: "Geostationary, 24 h period, fixed over equator" },
+            ReferenceOrbit { name: "HEO",        altitude_km: 50_000.0, blurb: "High Earth orbit, >24 h period" },
             ReferenceOrbit { name: "Lunar TLI",  altitude_km: 384_400.0, blurb: "Trans-lunar injection apoapsis (Moon's orbit)" },
         ],
         "mars" => &[
             ReferenceOrbit { name: "LMO (low)", altitude_km: 200.0,    blurb: "Low Mars orbit (Mars Reconnaissance Orbiter, etc.)" },
-            ReferenceOrbit { name: "areostationary", altitude_km: 17_032.0, blurb: "Mars-stationary — 24.6 h period (sol)" },
+            ReferenceOrbit { name: "areostationary", altitude_km: 17_032.0, blurb: "Mars-stationary, 24.6 h period (sol)" },
         ],
         "jupiter" => &[
-            ReferenceOrbit { name: "Low Jovian orbit", altitude_km: 5_000.0, blurb: "Inside the radiation belts — punishing" },
-            ReferenceOrbit { name: "Jovo-stationary",  altitude_km: 88_500.0, blurb: "Jupiter-stationary — 9.93 h period" },
+            ReferenceOrbit { name: "Low Jovian orbit", altitude_km: 5_000.0, blurb: "Inside the radiation belts, punishing" },
+            ReferenceOrbit { name: "Jovo-stationary",  altitude_km: 88_500.0, blurb: "Jupiter-stationary, 9.93 h period" },
         ],
         "moon" => &[
-            ReferenceOrbit { name: "Low lunar orbit", altitude_km: 100.0, blurb: "100 km — Apollo command module altitude" },
-            ReferenceOrbit { name: "NRHO apoapsis",   altitude_km: 70_000.0, blurb: "Near-rectilinear halo orbit — Gateway target" },
+            ReferenceOrbit { name: "Low lunar orbit", altitude_km: 100.0, blurb: "100 km, Apollo command module altitude" },
+            ReferenceOrbit { name: "NRHO apoapsis",   altitude_km: 70_000.0, blurb: "Near-rectilinear halo orbit, Gateway target" },
         ],
         _ => &[],
     }
@@ -2842,12 +2842,12 @@ mod tests {
         assert!(
             (max_lat - 23.44).abs() < 2.0,
             "sub-solar max latitude {max_lat:.2}° should peak near +23.44° \
-             (Tropic of Cancer) — obliquity sign/magnitude wrong?"
+             (Tropic of Cancer), obliquity sign/magnitude wrong?"
         );
         assert!(
             (min_lat + 23.44).abs() < 2.0,
             "sub-solar min latitude {min_lat:.2}° should bottom near −23.44° \
-             (Tropic of Capricorn) — obliquity sign/magnitude wrong?"
+             (Tropic of Capricorn), obliquity sign/magnitude wrong?"
         );
     }
 

@@ -74,14 +74,14 @@ pub fn install() -> &'static Glossary {
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(e) => {
-                log::warn!("Glossary not loaded ({}): {} — definition tooltips will be blank.", path.display(), e);
+                log::warn!("Glossary not loaded ({}): {}, definition tooltips will be blank.", path.display(), e);
                 return Glossary { terms: HashMap::new(), categories: HashMap::new() };
             }
         };
         let parsed: GlossaryFile = match serde_json::from_slice(&bytes) {
             Ok(g) => g,
             Err(e) => {
-                log::warn!("Glossary parse failed: {} — definition tooltips will be blank.", e);
+                log::warn!("Glossary parse failed: {}, definition tooltips will be blank.", e);
                 return Glossary { terms: HashMap::new(), categories: HashMap::new() };
             }
         };
