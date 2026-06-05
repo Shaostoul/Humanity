@@ -661,6 +661,22 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         P::BugReport   => { paint_bug(painter, rect, color); true }
         P::Testing     => { paint_clipboard(painter, rect, color); true }
         P::Browser     => { paint_globe(painter, rect, color); true }
+        // Folded carve tabs (v0.363). Humanity's icon IS the brand "H" — the H
+        // is the icon, "Humanity" is the label, so the old separate brand button
+        // is retired (operator: "only have a single H/Humanity page").
+        P::Humanity => {
+            painter.text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "H",
+                egui::FontId::proportional(rect.height()),
+                color,
+            );
+            true
+        }
+        P::Real     => { paint_person(painter, rect, color); true }
+        P::Play     => { paint_hammer(painter, rect, color); true }
+        P::Platform => { paint_wrench(painter, rect, color); true }
         _ => false,
     }
 }

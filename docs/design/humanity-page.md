@@ -4,6 +4,23 @@
 > tab (the tab the **H** button opens). The Civilization page is being repurposed
 > into its Community/Mission Dashboard. Capture-first; build follows.
 
+> **Copy rule (v0.363):** NO em-dashes in user-facing copy. They read as
+> machine-written and cost trust on a landing page (operator: "people see em
+> dashes and immediately leave"). Use periods, commas, or parentheses. The
+> native page (`src/gui/pages/humanity.rs`) is the canonical copy; the web
+> landing mirrors it verbatim.
+
+## Why this exists (the personal "why", the heart of the pitch)
+
+HumanityOS started as a video game that teaches homesteading, and grew into much
+more. The motive underneath is personal: software that helps the operator, his
+family, and his friends survive and thrive, and depend far less on fragile supply
+chains and corrupt corporations. The side-effect IS the point: the same tools that
+lift one family out of poverty lift any family, which is exactly **why it is free,
+open source, and CC0 public domain**. "Ending my own poverty and ending yours
+turned out to be the same project." Lead the page with the grand mission, but
+ground it here, or it reads as utopian instead of real.
+
 The Humanity tab is the **why** of the whole platform — the collective/mission
 layer, distinct from Chat (each other), Real (me), Play (the sim), Platform (the
 machine). It states what we're doing, **how**, **why**, and **why this way**, at

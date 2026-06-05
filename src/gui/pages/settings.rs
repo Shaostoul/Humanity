@@ -1578,7 +1578,7 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                         .show(ui, |ui| {
                             ui.label(RichText::new(*key).color(theme.text_primary()).size(theme.font_size_small).strong());
                         });
-                    ui.label(RichText::new("—").color(theme.text_muted()).size(theme.font_size_small));
+                    ui.label(RichText::new("(none)").color(theme.text_muted()).size(theme.font_size_small));
                     ui.end_row();
                 }
             });

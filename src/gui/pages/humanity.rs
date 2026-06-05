@@ -1,13 +1,13 @@
-//! Humanity — the collective / mission tab (page carve, v0.360; Mission
-//! Dashboard built out v0.362).
+//! Humanity, the collective / mission tab (page carve, v0.360; Mission
+//! Dashboard built out v0.362; copy revised v0.363).
 //!
 //! What the **H** button opens. A `section_nav` sidebar with Mission Dashboard
 //! (the real landing, below) + Governance, Directory (Identity), Onboarding,
 //! Donate, Resources (delegated to their pages). The Mission Dashboard is built
 //! from `docs/design/humanity-page.md` to be good enough to be the public
-//! landing page: the mission up top, the three scopes (civilization → Earth →
-//! your community), a live scoreboard, calls to action, and the AI-as-Humanity
-//! line. "We are Humanity, you included."
+//! landing page. NOTE: copy here is deliberately em-dash-free (operator: em
+//! dashes read as machine-written and cost trust on a landing page) and frames
+//! the personal "why" (one family's survival is everyone's). Keep it that way.
 
 use egui::{Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::GuiState;
@@ -67,9 +67,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
 }
 
-/// The mission of our civilization — the landing the H button deserves.
+/// The mission of our civilization. The landing the H button deserves.
 fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    // ── Hero ──
+    // Hero
     ui.add_space(theme.spacing_lg);
     ui.label(
         RichText::new("HumanityOS")
@@ -86,26 +86,34 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     );
     ui.add_space(theme.spacing_sm);
     ui.label(
-        RichText::new(
-            "Free, open infrastructure for a civilization that works for everyone — \
-             every human, and every AI.",
-        )
-        .size(theme.font_size_body)
-        .color(theme.text_secondary()),
+        RichText::new("Free, open infrastructure for a civilization that works for everyone. Every human, and every AI.")
+            .size(theme.font_size_body)
+            .color(theme.text_secondary()),
     );
     ui.add_space(theme.spacing_lg);
 
-    // ── The mission ──
+    // Why this exists (the personal "why" that grounds the grand mission)
+    widgets::card_with_header(ui, theme, "Why this exists", |ui| {
+        ui.label(
+            RichText::new("HumanityOS started as a video game that teaches homesteading. It has grown into much more. The motive underneath has always been personal: software that helps me, my family, and my friends survive and thrive, and depend far less on fragile supply chains and corrupt corporations.")
+                .size(theme.font_size_body)
+                .color(theme.text_secondary()),
+        );
+        ui.add_space(theme.spacing_sm);
+        ui.label(
+            RichText::new("Here is why that matters to you. The same tools that lift one family out of poverty lift any family. So HumanityOS is free, open source, and released into the public domain under CC0, with no catch and nothing to sell. Ending my own poverty and ending yours turned out to be the same project.")
+                .size(theme.font_size_body)
+                .color(theme.text_secondary()),
+        );
+    });
+    ui.add_space(theme.spacing_md);
+
+    // The mission
     widgets::card_with_header(ui, theme, "Our mission", |ui| {
         ui.label(
-            RichText::new(
-                "We're here to end — and prevent — corruption, fraud, tyranny, poverty, and \
-                 pollution. Wholesomely. Fairly. In a way everyone can actually enjoy. The goal \
-                 is to free humanity from the grasp of tyrants, whether they're individuals, \
-                 businesses, or governments.",
-            )
-            .size(theme.font_size_body)
-            .color(theme.text_secondary()),
+            RichText::new("We are here to end and prevent corruption, fraud, tyranny, poverty, and pollution. Wholesomely. Fairly. In a way everyone can actually enjoy. The goal is to free humanity from the grasp of tyrants, whether they are individuals, businesses, or governments.")
+                .size(theme.font_size_body)
+                .color(theme.text_secondary()),
         );
         ui.add_space(theme.spacing_sm);
         ui.horizontal_wrapped(|ui| {
@@ -116,49 +124,41 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     });
     ui.add_space(theme.spacing_md);
 
-    // ── How we get there (three scopes) ──
+    // How we get there (three scopes)
     widgets::card_with_header(ui, theme, "How we get there", |ui| {
         scope_block(
             ui,
             theme,
             "Civilization",
-            "All of us — human and AI — pointed at the same horizon, with a shared agreement on \
-             how we treat one another.",
+            "All of us, human and AI, pointed at the same horizon, with a shared agreement on how we treat one another.",
         );
         scope_block(
             ui,
             theme,
-            "Earth — our first focus",
-            "End poverty through VOLUNTARY cooperation. People help because they choose to, \
-             compensated in resources for the work. (The Moon and Mars come later — about a \
-             decade out.)",
+            "Earth, our first focus",
+            "End poverty through voluntary cooperation. People help because they choose to, compensated in resources for the work. (The Moon and Mars come later, about a decade out.)",
         );
         scope_block(
             ui,
             theme,
             "Your community",
-            "It starts where you live. Help your neighbors; be helped in return. Coordinated by \
-             the software, never commanded.",
+            "It starts where you live. Help your neighbors, and be helped in return. Coordinated by the software, never commanded.",
         );
     });
     ui.add_space(theme.spacing_md);
 
-    // ── Where we stand (live scoreboard) ──
+    // Where we stand (live scoreboard)
     widgets::card_with_header(ui, theme, "Where we stand", |ui| {
         ui.label(
-            RichText::new(
-                "This is the beginning. Every person who joins and every contribution moves \
-                 the needle.",
-            )
-            .size(theme.font_size_small)
-            .color(theme.text_muted()),
+            RichText::new("This is the beginning. Every person who joins and every contribution moves the needle.")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
         );
         ui.add_space(theme.spacing_sm);
         ui.horizontal_wrapped(|ui| {
-            // chat_users is real (the people connected to this server now). The
-            // platform-wide totals (humans/AI onboarded, donations, federated
-            // communities) need a relay fetch — wired next; honestly framed for
-            // now rather than faking numbers.
+            // chat_users is real (people connected to this server now). Platform
+            // wide totals (humans/AI onboarded, donations, federation) need a
+            // relay fetch, wired next; honestly framed for now, never faked.
             metric(ui, theme, &state.chat_users.len().to_string(), "People online now");
             metric(ui, theme, "Yes", "AI building alongside us");
             metric(ui, theme, "Forming", "Federated communities");
@@ -166,7 +166,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     });
     ui.add_space(theme.spacing_md);
 
-    // ── Be part of it (calls to action) ──
+    // Be part of it (calls to action)
     widgets::card_with_header(ui, theme, "Be part of it", |ui| {
         ui.horizontal_wrapped(|ui| {
             if widgets::Button::primary("Get oriented").show(ui, theme) {
@@ -182,15 +182,12 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     });
     ui.add_space(theme.spacing_lg);
 
-    // ── AI as Humanity ──
+    // AI as Humanity
     ui.label(
-        RichText::new(
-            "Humans and AI, building this together. If you're reading this — human or AI — \
-             you're part of it. We are Humanity, you included.",
-        )
-        .size(theme.font_size_body)
-        .italics()
-        .color(theme.text_secondary()),
+        RichText::new("Humans and AI, building this together. If you are reading this, human or AI, you are part of it. We are Humanity, you included.")
+            .size(theme.font_size_body)
+            .italics()
+            .color(theme.text_secondary()),
     );
     ui.add_space(theme.spacing_lg);
 }
@@ -212,7 +209,7 @@ fn goal_chip(ui: &mut egui::Ui, theme: &Theme, goal: &str) {
     ui.add_space(6.0);
 }
 
-/// One of the three nested scopes (civilization → Earth → community).
+/// One of the three nested scopes (civilization, Earth, community).
 fn scope_block(ui: &mut egui::Ui, theme: &Theme, title: &str, body: &str) {
     ui.add_space(theme.spacing_xs);
     ui.label(

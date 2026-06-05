@@ -43,7 +43,6 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
     // Keep repainting so the RGB channeling animation stays smooth
     ctx.request_repaint();
 
-    let accent = theme.accent();
     let text_muted = theme.text_muted();
     let border = theme.border();
     let attack_pulse = state.attack_pulse_active;
@@ -60,27 +59,15 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
 
-                // Brand H — navigates to the Humanity landing (the Community
-                // Dashboard). Operator 2026-06-03 (page carve): "the H stands
-                // for Humanity"; it now opens the collective/mission view, NOT
-                // chat ("Right now it takes us to chat ... I don't think we
-                // should do that any more ... we obviously want a Humanity
-                // tab"). Chat is its own tab.
-                let brand = ui.add(
-                    egui::Button::new(RichText::new("H").size(14.0).strong().color(accent))
-                        .min_size(Vec2::new(28.0, 28.0))
-                        .rounding(Rounding::same(6)),
-                ).on_hover_text("Humanity — the mission + community");
-                if brand.clicked() {
-                    state.clear_nav_back();
-                    state.active_page = GuiPage::Humanity;
-                }
+                // (v0.363) The separate brand "H" button was REMOVED — it
+                // duplicated the Humanity tab (both opened GuiPage::Humanity) and
+                // never got the active-tab RGB border the real tabs have. Humanity
+                // is now a single NORMAL tab whose ICON is the "H"
+                // (widgets::icons::paint_nav_icon) and whose label is "Humanity".
+                // Operator 2026-06-04: "only have a single H/Humanity page ... the
+                // icon can be the H and the text can be Humanity."
 
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // ── Page carve (operator 2026-06-03): five top-level tabs —
+                // Page carve: six top-level tabs —
                 // Humanity (the collective / mission), Chat (comms), Real (your
                 // actual life), Play (the sim), Platform (the software). This
                 // first step REGROUPS the existing pages under the five; the
