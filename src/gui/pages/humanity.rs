@@ -9,11 +9,127 @@
 //! dashes read as machine-written and cost trust on a landing page) and frames
 //! the personal "why" (one family's survival is everyone's). Keep it that way.
 
-use egui::{Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
+use egui::{Align2, Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
 use super::{governance, identity, onboarding, donate, resources};
+
+/// The Humanity Accord, embedded at compile time from the canonical repo copy so
+/// it is readable in-app with no network and no separate data file to ship or let
+/// drift. A stable CC0 document; editing docs/accord/humanity_accord.md and
+/// rebuilding updates the in-app copy. (Operator 2026-06-06: "a button that takes
+/// users directly to the Humanity Accord inside the app.")
+const ACCORD_TEXT: &str = include_str!("../../../docs/accord/humanity_accord.md");
+
+/// In-app document viewer state (a simple modal). Lives in a thread_local like
+/// the other page-local UI state, so it needs no GuiState plumbing. The planned
+/// Library will reuse this same viewer to open any doc.
+struct DocViewer {
+    open: bool,
+    title: String,
+    body: String,
+}
+
+fn doc_viewer<R>(f: impl FnOnce(&mut DocViewer) -> R) -> R {
+    use std::cell::RefCell;
+    thread_local! {
+        static DV: RefCell<DocViewer> = RefCell::new(DocViewer {
+            open: false,
+            title: String::new(),
+            body: String::new(),
+        });
+    }
+    DV.with(|d| f(&mut d.borrow_mut()))
+}
+
+/// Open the in-app doc viewer with the given title and raw markdown body.
+fn open_doc(title: &str, body: &str) {
+    doc_viewer(|d| {
+        d.open = true;
+        d.title = title.to_string();
+        d.body = body.to_string();
+    });
+}
+
+/// Render the doc-viewer modal if it is open. Drawn from `draw` so it floats over
+/// whichever section is showing. The window's close button drives `open` back to
+/// false.
+fn render_doc_modal(ctx: &egui::Context, theme: &Theme) {
+    if !doc_viewer(|d| d.open) {
+        return;
+    }
+    let mut still_open = true;
+    doc_viewer(|d| {
+        egui::Window::new(
+            RichText::new(d.title.as_str())
+                .size(theme.font_size_heading)
+                .strong()
+                .color(theme.text_primary()),
+        )
+        .open(&mut still_open)
+        .collapsible(false)
+        .resizable(true)
+        .default_width(720.0)
+        .default_height(560.0)
+        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .frame(
+            Frame::none()
+                .fill(theme.bg_panel())
+                .inner_margin(theme.card_padding)
+                .stroke(Stroke::new(1.0, theme.border()))
+                .rounding(Rounding::same(8)),
+        )
+        .show(ctx, |ui| {
+            ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                render_markdown(ui, theme, d.body.as_str());
+            });
+        });
+    });
+    if !still_open {
+        doc_viewer(|d| d.open = false);
+    }
+}
+
+/// Minimal markdown reader: headings (#, ##, ###), bullets (-, *), horizontal
+/// rules (---), and paragraphs. Inline emphasis markers are stripped for plain,
+/// readable text. Not a full parser, just enough to read a document cleanly.
+fn render_markdown(ui: &mut egui::Ui, theme: &Theme, md: &str) {
+    for raw in md.lines() {
+        let trimmed = raw.trim_start();
+        if trimmed.is_empty() {
+            ui.add_space(theme.spacing_sm);
+            continue;
+        }
+        if trimmed.starts_with("---") && trimmed.chars().all(|c| c == '-') {
+            ui.separator();
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("### ") {
+            ui.add_space(theme.spacing_xs);
+            ui.label(RichText::new(strip_md(rest)).size(theme.font_size_body).strong().color(theme.accent()));
+        } else if let Some(rest) = trimmed.strip_prefix("## ") {
+            ui.add_space(theme.spacing_sm);
+            ui.label(RichText::new(strip_md(rest)).size(theme.font_size_heading).strong().color(theme.text_primary()));
+        } else if let Some(rest) = trimmed.strip_prefix("# ") {
+            ui.add_space(theme.spacing_sm);
+            ui.label(RichText::new(strip_md(rest)).size(theme.font_size_title).strong().color(theme.text_primary()));
+        } else if let Some(rest) = trimmed.strip_prefix("- ").or_else(|| trimmed.strip_prefix("* ")) {
+            ui.horizontal_top(|ui| {
+                ui.add_space(theme.spacing_sm);
+                ui.label(RichText::new("\u{00b7}").color(theme.accent()));
+                ui.label(RichText::new(strip_md(rest)).size(theme.font_size_small).color(theme.text_secondary()));
+            });
+        } else {
+            ui.label(RichText::new(strip_md(trimmed)).size(theme.font_size_small).color(theme.text_secondary()));
+        }
+    }
+}
+
+/// Strip the common inline markdown markers so text reads cleanly as plain text.
+fn strip_md(s: &str) -> String {
+    s.replace("**", "").replace('`', "").replace('*', "")
+}
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("humanity_section_nav")
@@ -65,6 +181,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 });
         }
     }
+
+    // In-app document viewer overlay (e.g. the Humanity Accord). Drawn last so it
+    // floats over whichever section is showing.
+    render_doc_modal(ctx, theme);
 }
 
 /// The mission of our civilization. The landing the H button deserves.
@@ -113,6 +233,26 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         ui.add_space(theme.spacing_sm);
         ui.label(
             RichText::new("Here is why that matters to you. The same tools that lift one family out of poverty lift any family. So HumanityOS is free, open source, and released into the public domain under CC0, with no catch and nothing to sell. Ending my own poverty and ending yours turned out to be the same project.")
+                .size(theme.font_size_body)
+                .color(theme.text_secondary()),
+        );
+    });
+    ui.add_space(theme.spacing_md);
+
+    // Early access, building in public (operator 2026-06-06: state plainly that
+    // the app is early, not everything works, and that building in the open with
+    // real users is how it gets fixed; no small team can test everything). Sits
+    // high, right after the personal why, so it frames the capability claims that
+    // follow (which themselves flag anything not ready as "in progress").
+    widgets::card_with_header(ui, theme, "Early days, built in the open", |ui| {
+        ui.label(
+            RichText::new("HumanityOS is early, and we build it in public on purpose. A lot already works. Some of it is half-built, some is rough, and some will break. Where a feature is not ready, we say so plainly (you will see 'in progress'), because hiding it would betray the whole reason this exists.")
+                .size(theme.font_size_body)
+                .color(theme.text_secondary()),
+        );
+        ui.add_space(theme.spacing_sm);
+        ui.label(
+            RichText::new("No team, ours included, can test everything. Real people, in every kind of place, on every kind of device and connection, find what we never could. So a bug you hit or a gap you notice is not the project failing. It is the project working: building in the open is how it gets better. Tell us what breaks, and you are already helping build it.")
                 .size(theme.font_size_body)
                 .color(theme.text_secondary()),
         );
@@ -191,6 +331,10 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
             "The community sets its own rules through transparent voting, weighted by trust and capped so that no single person, however trusted, can dominate. AI take part openly but do not vote, because consent belongs to the people whose lives the rules govern.");
         scope_block(ui, theme, "Bound by a constitution, not a promise",
             "None of this rests on trusting us. It rests on the Humanity Accord, a public-domain constitution that places dignity, consent, transparency, and freedom from domination above any operator, company, or government. Anyone can read it, adopt it for their own community, or hold us to it.");
+        ui.add_space(theme.spacing_xs);
+        if widgets::Button::secondary("Read the Humanity Accord").show(ui, theme) {
+            open_doc("The Humanity Accord", ACCORD_TEXT);
+        }
     });
     ui.add_space(theme.spacing_md);
 
