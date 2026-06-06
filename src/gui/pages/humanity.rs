@@ -85,8 +85,19 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
             .color(theme.accent()),
     );
     ui.add_space(theme.spacing_sm);
+    // The two scopes the whole project lives at, named plainly so anyone, at any
+    // age or state of mind, instantly identifies BOTH: what this does for YOU,
+    // and what we are doing together as a civilization. (Operator 2026-06-05:
+    // the individual AND the civilization must stay easily identifiable, and the
+    // experience must stay consistent app to web. This is the spine of the page.)
     ui.label(
-        RichText::new("Free, open infrastructure for a civilization that works for everyone. Every human, and every AI.")
+        RichText::new("For you: the tools to feed, power, and provide for yourself and the people you love.")
+            .size(theme.font_size_body)
+            .color(theme.text_secondary()),
+    );
+    ui.add_space(theme.spacing_xs);
+    ui.label(
+        RichText::new("For all of us: a fair way to end poverty together. No tyrants, no corporations, no catch. Free and public domain, for every human and every AI.")
             .size(theme.font_size_body)
             .color(theme.text_secondary()),
     );
