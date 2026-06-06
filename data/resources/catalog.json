@@ -1,73 +1,120 @@
 {
-  "_comment": "Curated resource directory shown on the Resources page (native + web). Each category has parallel real_resources (Real mode) and sim_resources (Sim mode) lists. Extend by appending categories, no code change required. URLs starting with '#' are in-app anchors, not external links.",
+  "_comment": "Curated resource directory shown on the Resources page (native + web). Each category has parallel real_resources (Real mode) and sim_resources (Sim mode) lists. The page shows real_resources; an 'All' view lists every category at once. Extend by appending categories or links, no code change required. URLs starting with '#' are in-app anchors, not external links. Ordered to lead with the self-sufficiency essentials (water, energy, food, shelter) the mission is built on.",
   "categories": [
     {
-      "name": "Education",
+      "name": "Water",
       "real_resources": [
-        { "title": "Khan Academy",        "description": "Free courses in math, science, computing, and more.",          "url": "https://khanacademy.org" },
-        { "title": "MIT OpenCourseWare",  "description": "Free lecture notes, exams, and videos from MIT.",              "url": "https://ocw.mit.edu" },
-        { "title": "Coursera",            "description": "Online courses from top universities worldwide.",              "url": "https://coursera.org" }
+        { "title": "EPA Drinking Water",     "description": "Water safety, testing, and private-well guidance from the EPA.",   "url": "https://www.epa.gov/ground-water-and-drinking-water" },
+        { "title": "CDC Healthy Water",       "description": "Safe water, storage, and emergency disinfection from the CDC.",    "url": "https://www.cdc.gov/healthywater" },
+        { "title": "Appropedia",              "description": "Open wiki of appropriate tech: rainwater harvesting and filtration.","url": "https://www.appropedia.org" }
       ],
-      "sim_resources": [
-        { "title": "Farming Guide",       "description": "Learn crop rotation, soil types, and seasonal planting.",      "url": "#farming" },
-        { "title": "Crafting Handbook",   "description": "Recipes, materials, and crafting station requirements.",       "url": "#crafting" },
-        { "title": "Survival Basics",     "description": "Water, shelter, food, the essentials for new players.",       "url": "#survival" }
-      ]
+      "sim_resources": []
     },
     {
-      "name": "Health",
+      "name": "Energy",
       "real_resources": [
-        { "title": "WHO Resources",       "description": "World Health Organization health topics and data.",            "url": "https://who.int" },
-        { "title": "Medline Plus",        "description": "Health information from the National Library of Medicine.",    "url": "https://medlineplus.gov" },
-        { "title": "Crisis Text Line",    "description": "Text HOME to 741741 for free crisis counseling.",              "url": "https://crisistextline.org" }
+        { "title": "DOE Energy Saver",        "description": "US Dept of Energy guide to saving energy and going solar at home.","url": "https://www.energy.gov/energysaver" },
+        { "title": "EnergySage",              "description": "Independent guides to solar panels, batteries, and home energy.",  "url": "https://www.energysage.com" },
+        { "title": "Open Source Ecology",     "description": "Open blueprints for the machines a self-sufficient community needs.","url": "https://www.opensourceecology.org" }
       ],
-      "sim_resources": [
-        { "title": "Health System",       "description": "How hunger, thirst, and injury affect your character.",        "url": "#health" },
-        { "title": "Medicine Crafting",   "description": "Recipes for bandages, potions, and medical supplies.",         "url": "#medicine" }
-      ]
+      "sim_resources": []
     },
     {
-      "name": "Legal",
+      "name": "Food",
       "real_resources": [
-        { "title": "Legal Aid",           "description": "Find free legal help in your area.",                            "url": "https://lawhelp.org" },
-        { "title": "Know Your Rights",    "description": "ACLU guide to your constitutional rights.",                     "url": "https://aclu.org/know-your-rights" }
+        { "title": "Feeding America",         "description": "Find local food banks and meal programs near you.",               "url": "https://www.feedingamerica.org" },
+        { "title": "SNAP Benefits",           "description": "Apply for food assistance (SNAP/EBT).",                           "url": "https://www.fns.usda.gov/snap" },
+        { "title": "USDA Plant Hardiness",    "description": "Find your growing zone before you plant.",                        "url": "https://planthardiness.ars.usda.gov" },
+        { "title": "National Gardening Assoc.","description": "Free guides to growing your own food at home.",                  "url": "https://garden.org" }
       ],
       "sim_resources": [
-        { "title": "Guild Laws",          "description": "Rules and governance within player guilds.",                    "url": "#guilds" },
-        { "title": "Trade Regulations",   "description": "Fair trading rules and dispute resolution.",                    "url": "#trade-rules" }
+        { "title": "Farming System",          "description": "Crop growth, irrigation, and harvest mechanics.",                 "url": "#farming-sys" },
+        { "title": "Cooking Recipes",         "description": "Food recipes with buff effects and nutrition values.",            "url": "#cooking" }
       ]
     },
     {
       "name": "Housing",
       "real_resources": [
-        { "title": "HUD Resources",       "description": "US Dept of Housing: rental assistance, fair housing.",         "url": "https://hud.gov" },
-        { "title": "Habitat for Humanity","description": "Affordable housing and home repair assistance.",                "url": "https://habitat.org" }
+        { "title": "HUD Resources",           "description": "US Dept of Housing: rental assistance and fair housing.",         "url": "https://www.hud.gov" },
+        { "title": "Habitat for Humanity",    "description": "Affordable housing and home-repair assistance.",                  "url": "https://www.habitat.org" },
+        { "title": "Ready.gov",               "description": "Prepare your home for emergencies and disasters.",                "url": "https://www.ready.gov" },
+        { "title": "211",                     "description": "Dial 2-1-1 for local housing, utility, and crisis help.",         "url": "https://www.211.org" }
       ],
       "sim_resources": [
-        { "title": "Building Guide",      "description": "How to construct shelters, bases, and advanced structures.",   "url": "#building" },
-        { "title": "Base Defense",        "description": "Fortification and perimeter security for your base.",           "url": "#defense" }
+        { "title": "Building Guide",          "description": "How to construct shelters, bases, and advanced structures.",      "url": "#building" },
+        { "title": "Base Defense",            "description": "Fortification and perimeter security for your base.",             "url": "#defense" }
       ]
     },
     {
-      "name": "Food",
+      "name": "Health",
       "real_resources": [
-        { "title": "Feeding America",     "description": "Find local food banks and meal programs.",                     "url": "https://feedingamerica.org" },
-        { "title": "SNAP Benefits",       "description": "Apply for food assistance (SNAP/EBT).",                         "url": "https://fns.usda.gov/snap" }
+        { "title": "WHO Resources",           "description": "World Health Organization health topics and data.",               "url": "https://www.who.int" },
+        { "title": "MedlinePlus",             "description": "Health information from the National Library of Medicine.",        "url": "https://medlineplus.gov" },
+        { "title": "988 Lifeline",            "description": "Call or text 988 for free, confidential crisis support.",          "url": "https://988lifeline.org" },
+        { "title": "American Red Cross",      "description": "First aid, CPR, and disaster preparedness.",                      "url": "https://www.redcross.org" }
       ],
       "sim_resources": [
-        { "title": "Farming System",      "description": "Crop growth, irrigation, and harvest mechanics.",               "url": "#farming-sys" },
-        { "title": "Cooking Recipes",     "description": "Food recipes with buff effects and nutrition values.",          "url": "#cooking" }
+        { "title": "Health System",           "description": "How hunger, thirst, and injury affect your character.",           "url": "#health" },
+        { "title": "Medicine Crafting",       "description": "Recipes for bandages, potions, and medical supplies.",            "url": "#medicine" }
+      ]
+    },
+    {
+      "name": "Money & Benefits",
+      "real_resources": [
+        { "title": "Benefits.gov",            "description": "Find government assistance programs you may qualify for.",         "url": "https://www.benefits.gov" },
+        { "title": "Consumer Finance (CFPB)", "description": "Free, unbiased help with money, debt, and avoiding scams.",        "url": "https://www.consumerfinance.gov" },
+        { "title": "MyMoney.gov",             "description": "Federal hub for budgeting, saving, and financial basics.",         "url": "https://www.mymoney.gov" }
+      ],
+      "sim_resources": []
+    },
+    {
+      "name": "Skills & Repair",
+      "real_resources": [
+        { "title": "iFixit",                  "description": "Free repair guides for almost everything, so you fix not replace.","url": "https://www.ifixit.com" },
+        { "title": "Instructables",           "description": "Step-by-step DIY projects shared by makers worldwide.",           "url": "https://www.instructables.com" },
+        { "title": "Appropedia",              "description": "Practical, sustainable how-to for self-reliant living.",           "url": "https://www.appropedia.org" }
+      ],
+      "sim_resources": []
+    },
+    {
+      "name": "Education",
+      "real_resources": [
+        { "title": "Khan Academy",            "description": "Free courses in math, science, computing, and more.",             "url": "https://khanacademy.org" },
+        { "title": "MIT OpenCourseWare",      "description": "Free lecture notes, exams, and videos from MIT.",                 "url": "https://ocw.mit.edu" },
+        { "title": "Coursera",                "description": "Online courses from top universities worldwide.",                 "url": "https://coursera.org" },
+        { "title": "Project Gutenberg",       "description": "Over 70,000 free public-domain books.",                           "url": "https://www.gutenberg.org" },
+        { "title": "Internet Archive",        "description": "Free books, audio, video, and the web's library.",                "url": "https://archive.org" },
+        { "title": "OpenStax",                "description": "Free, peer-reviewed college textbooks.",                          "url": "https://openstax.org" }
+      ],
+      "sim_resources": [
+        { "title": "Farming Guide",           "description": "Learn crop rotation, soil types, and seasonal planting.",         "url": "#farming" },
+        { "title": "Crafting Handbook",       "description": "Recipes, materials, and crafting station requirements.",          "url": "#crafting" },
+        { "title": "Survival Basics",         "description": "Water, shelter, food, the essentials for new players.",           "url": "#survival" }
+      ]
+    },
+    {
+      "name": "Legal",
+      "real_resources": [
+        { "title": "Legal Aid",               "description": "Find free legal help in your area.",                              "url": "https://www.lawhelp.org" },
+        { "title": "Know Your Rights",        "description": "ACLU guide to your constitutional rights.",                       "url": "https://www.aclu.org/know-your-rights" },
+        { "title": "Nolo",                    "description": "Plain-English legal information and DIY legal forms.",             "url": "https://www.nolo.com" }
+      ],
+      "sim_resources": [
+        { "title": "Guild Laws",              "description": "Rules and governance within player guilds.",                      "url": "#guilds" },
+        { "title": "Trade Regulations",       "description": "Fair trading rules and dispute resolution.",                      "url": "#trade-rules" }
       ]
     },
     {
       "name": "Technology",
       "real_resources": [
-        { "title": "FreeCodeCamp",        "description": "Learn to code for free with interactive lessons.",              "url": "https://freecodecamp.org" },
-        { "title": "Open Source Guides",  "description": "How to contribute to and maintain open source projects.",       "url": "https://opensource.guide" }
+        { "title": "freeCodeCamp",            "description": "Learn to code for free with interactive lessons.",                "url": "https://freecodecamp.org" },
+        { "title": "Open Source Guides",      "description": "How to contribute to and maintain open source projects.",         "url": "https://opensource.guide" },
+        { "title": "MDN Web Docs",            "description": "The reference for building on the open web.",                     "url": "https://developer.mozilla.org" },
+        { "title": "Electronic Frontier Fdn.","description": "Defends your digital privacy and free expression.",               "url": "https://www.eff.org" }
       ],
       "sim_resources": [
-        { "title": "Tech Tree",           "description": "Research progression and technology unlocks.",                   "url": "#tech-tree" },
-        { "title": "Automation",          "description": "Setting up conveyor belts, sorters, and auto-crafters.",       "url": "#automation" }
+        { "title": "Tech Tree",               "description": "Research progression and technology unlocks.",                    "url": "#tech-tree" },
+        { "title": "Automation",              "description": "Setting up conveyor belts, sorters, and auto-crafters.",          "url": "#automation" }
       ]
     }
   ]

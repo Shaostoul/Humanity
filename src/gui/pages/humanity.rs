@@ -135,6 +135,35 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     });
     ui.add_space(theme.spacing_md);
 
+    // Why it's built this way: each system's design mapped to the poverty-ending
+    // job it does. Operator 2026-06-05: lean into HOW HumanityOS actually ends
+    // poverty and WHY each system, by its design and intended use, serves that,
+    // the way the Onboarding page is concrete about it. This is the mechanism,
+    // the heart of the pitch, not just the aspiration.
+    widgets::card_with_header(ui, theme, "Why it's built this way", |ui| {
+        ui.label(
+            RichText::new("Poverty is forced dependence. When you cannot provide your own water, food, or power, someone else sets the price of your survival. Every part of HumanityOS is built to remove that dependence: teach the skills, connect the people, and cut out the middlemen. Here is how each part pulls its weight.")
+                .size(theme.font_size_body)
+                .color(theme.text_secondary()),
+        );
+        ui.add_space(theme.spacing_sm);
+        scope_block(ui, theme, "Guided quests and a free-to-fail simulation",
+            "Learn to collect water, grow food, and generate power by doing it in the simulation first, where a mistake costs nothing. The skills carry straight into real life, so a lack of know-how is never what keeps you poor.");
+        scope_block(ui, theme, "Encrypted chat, no account needed",
+            "Find people already doing it and learn from them directly. No signup, no gatekeeper, and nothing harvested, so no company can lock you out, sell your attention, or decide who is allowed to take part.");
+        scope_block(ui, theme, "Tasks and a private notebook",
+            "Turn a vague hope (get off the water bill) into a plan you actually finish, and keep a private record of what works, so your hard-won experience compounds instead of evaporating.");
+        scope_block(ui, theme, "Maps of what is near you",
+            "See the gardens, tools, workshops, and people around you. Providing for yourself is easier together, and cooperation is easiest when it is local.");
+        scope_block(ui, theme, "A marketplace with trust scores",
+            "Trade your surplus straight with your neighbors. No middleman takes a cut, so the value you create stays with you and your community instead of leaking away to a distant corporation.");
+        scope_block(ui, theme, "An identity you own, on a network no one owns",
+            "Your identity is a key on your device, not an account a company can suspend. The network is federated, with no single owner and no single point of failure, so it cannot be bought, censored, or switched off.");
+        scope_block(ui, theme, "Public domain, forever",
+            "The whole thing belongs to everyone and can never be fenced off or sold back to you. The tools that end one family's poverty stay free for every family, on this world and the next.");
+    });
+    ui.add_space(theme.spacing_md);
+
     // How we get there (three scopes)
     widgets::card_with_header(ui, theme, "How we get there", |ui| {
         scope_block(
