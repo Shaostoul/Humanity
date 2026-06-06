@@ -9,7 +9,7 @@ use egui::{Frame, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
-use super::{crafting, studio};
+use super::crafting;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("play_section_nav")
@@ -26,7 +26,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let c = theme.nav_sim();
             let items = [
                 SectionNavItem::new("crafting", "Crafting", c),
-                SectionNavItem::new("studio", "Studio", c),
             ];
             if let Some(clicked) =
                 widgets::section_nav(ui, theme, Some("Play"), &items, &state.active_play_section)
@@ -35,9 +34,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             }
         });
 
-    let section = state.active_play_section.clone();
-    match section.as_str() {
-        "studio" => studio::draw(ctx, theme, state),
-        _ => crafting::draw(ctx, theme, state),
-    }
+    // Play currently folds in only Crafting (Studio is now its own top-level tab,
+    // to the right of Chat). The sim launcher / boot-into-character flow grows here
+    // later, which is why the section_nav scaffold stays.
+    let _ = state.active_play_section.clone();
+    crafting::draw(ctx, theme, state);
 }

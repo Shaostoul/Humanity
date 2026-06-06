@@ -101,6 +101,18 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
+                // Studio — livestreaming, promoted to its own top-level tab right of
+                // Chat (operator 2026-06-06: "move the studio page to the top level
+                // main menu to the right of the chat button").
+                let studio_items = [
+                    NavItem { label: "Studio", page: GuiPage::Studio, description: "" },
+                ];
+                nav_group(ui, &studio_items, theme.nav_legacy_red(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
                 // Real — your actual life, FOLDED into one tab. Its sections
                 // (Profile's Body/Identity/Notes/… + Possessions/Wallet/Tasks/
                 // Map/Market) now live in the Real page's section_nav sidebar,
@@ -114,7 +126,20 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Play — the simulation, FOLDED (Crafting/Studio in its sidebar).
+                // Quests — the learn-by-doing self-sufficiency path, its own
+                // top-level tab (operator 2026-06-06: "add a top level quests page
+                // for now").
+                let quests_items = [
+                    NavItem { label: "Quests", page: GuiPage::Quests, description: "" },
+                ];
+                nav_group(ui, &quests_items, theme.nav_sim(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
+                // Play — the simulation, FOLDED (Crafting in its sidebar; Studio is
+                // now its own top-level tab).
                 let play_items = [
                     NavItem { label: "Play", page: GuiPage::Play, description: "" },
                 ];

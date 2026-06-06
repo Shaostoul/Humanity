@@ -107,6 +107,7 @@ pub enum GuiPage {
     Donate,
     Tools,
     Studio,
+    Quests,
     /// First-run orientation plus permanent reference page.
     /// Mirrors the web `/onboarding` page.
     Onboarding,

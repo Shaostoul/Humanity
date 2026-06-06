@@ -75,7 +75,7 @@ mod native_app {
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
         browser, category_overview, settings_pages, cosmos, real,
-        play, platform, humanity, library,
+        play, platform, humanity, library, quests,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -3692,6 +3692,7 @@ mod native_app {
                                     GuiPage::Donate => donate::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Tools => tools::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Studio => studio::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Quests => quests::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Onboarding => onboarding::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::ServerSettings => server_settings::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Identity => identity::draw(ctx, &state.theme, &mut state.gui_state),

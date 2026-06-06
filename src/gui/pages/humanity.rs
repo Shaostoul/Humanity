@@ -109,7 +109,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 SectionNavItem::new("governance", "Governance", c),
                 SectionNavItem::new("identity", "Directory", c),
                 SectionNavItem::new("donate", "Donate", c),
-                SectionNavItem::new("resources", "Resources", c),
             ];
             if let Some(clicked) = widgets::section_nav(
                 ui,
