@@ -159,6 +159,8 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
             "Trade your surplus straight with your neighbors. No middleman takes a cut, so the value you create stays with you and your community instead of leaking away to a distant corporation.");
         scope_block(ui, theme, "An identity you own, on a network no one owns",
             "Your identity is a key on your device, not an account a company can suspend. The network is federated, with no single owner and no single point of failure, so it cannot be bought, censored, or switched off.");
+        scope_block(ui, theme, "Built to be remade by anyone",
+            "Every plant, recipe, quest, and price is a plain data file, not locked-up code. A teacher in a remote village can add the crops that grow in their soil and the lessons their people need, with no programming, and pass it on as a single file. The tool bends to fit the place, instead of forcing every place to fit the tool.");
         scope_block(ui, theme, "Public domain, forever",
             "The whole thing belongs to everyone and can never be fenced off or sold back to you. The tools that end one family's poverty stay free for every family, on this world and the next.");
     });
@@ -179,12 +181,44 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         ui.add_space(theme.spacing_sm);
         scope_block(ui, theme, "Free speech",
             "A people who cannot speak freely cannot defend anything else they have. Losing that voice is a death sentence for a free and independent people, so it comes first. There is no central censor and no off switch: messages are encrypted, your identity lives on your device, and once two people connect they can speak directly with no server in the middle. No company, government, or mob can quietly erase what you said or forbid you from saying it.");
-        scope_block(ui, theme, "Privacy",
-            "Surveillance is how control begins. We collect nothing to sell and keep as little as we can. Your private messages are sealed on your device before they ever leave it, so there is no central pile of your life for anyone to mine, leak, or seize.");
+        scope_block(ui, theme, "Privacy, even from us",
+            "Surveillance is how control begins. We collect nothing to sell and keep as little as we can. Your private messages are sealed on your device with post-quantum encryption, the kind built to resist even tomorrow's computers, and the server holds nothing but unreadable ciphertext. Even we cannot read them, and a warrant cannot force us to hand over what does not exist.");
         scope_block(ui, theme, "What is yours stays yours",
             "Your identity, your keys, your words, and your tools belong to you, not to a platform that can revoke them. The whole system is public domain, so it can never be bought, locked down, or rented back to you.");
+        scope_block(ui, theme, "You can never be locked out",
+            "There is no account to suspend and no password to lose. Your identity is a key on your own device, recoverable from your seed phrase or from trusted friends who each hold an encrypted piece of it. No company, and no fee, stands between you and your own name.");
         scope_block(ui, theme, "Rules made by the people they bind",
-            "The community sets its own rules through transparent voting, weighted by trust and capped so no single power can dominate. AI take part openly but do not vote, because consent belongs to the people whose lives the rules govern.");
+            "The community sets its own rules through transparent voting, weighted by trust and capped so that no single person, however trusted, can dominate. AI take part openly but do not vote, because consent belongs to the people whose lives the rules govern.");
+        scope_block(ui, theme, "Bound by a constitution, not a promise",
+            "None of this rests on trusting us. It rests on the Humanity Accord, a public-domain constitution that places dignity, consent, transparency, and freedom from domination above any operator, company, or government. Anyone can read it, adopt it for their own community, or hold us to it.");
+    });
+    ui.add_space(theme.spacing_md);
+
+    // Built for every situation: the resilience / universality angle the operator
+    // asked for (2026-06-05: "make sure what we have or are planning actually helps
+    // them in ALL scenarios"). Mined from the docs (offline-first, federation +
+    // no-home-server identity, social recovery, no-accounts + VCs/reputation,
+    // accessibility + i18n, off-site backups; radio mesh flagged in-progress so the
+    // pitch stays honest, shipped vs planned).
+    widgets::card_with_header(ui, theme, "Built for every situation", |ui| {
+        ui.label(
+            RichText::new("A tool that only works when everything is going well is not much help. HumanityOS is built to keep working when things go wrong, wherever you are and whatever you have.")
+                .size(theme.font_size_body)
+                .color(theme.text_secondary()),
+        );
+        ui.add_space(theme.spacing_sm);
+        scope_block(ui, theme, "When there is no internet",
+            "The app, your data, your saved work, and your skills all live on your device. You can learn, plan, and build completely offline, and sync only when, and if, a connection comes back. A mountain village, a boat, or a blackout does not stop you.");
+        scope_block(ui, theme, "When the server goes down",
+            "No one owns the network. Anyone can run their own in minutes, and your identity moves with you to any of them, because it is yours, not an account on someone else's machine. Take one server down and the rest carry on.");
+        scope_block(ui, theme, "When you lose your device",
+            "Recover everything from your 24-word seed phrase, or from trusted friends who each hold an encrypted piece of it. No email, no phone number, no recovery fee, and no company that can refuse you.");
+        scope_block(ui, theme, "When you have no money, papers, or bank",
+            "No accounts, no subscriptions, no fees. Reputation you earn and credentials your neighbors sign stand in for credit scores and ID, so a refugee, a young person, or anyone starting over can build a real, verifiable history from zero.");
+        scope_block(ui, theme, "Whatever your language or ability",
+            "It speaks several languages, with high-contrast, colorblind, and reduced-motion modes, keyboard-only navigation, and a plain-language glossary for every term. It runs on cheap, old, low-power hardware, not just new machines.");
+        scope_block(ui, theme, "When disaster strikes",
+            "Off-site backups survive a fire, a flood, or a seizure, so a community can rebuild from nothing. Radio links that need no internet (in progress) aim to carry the essentials, calls for help, recovery, coordination, even when the grid and the network are down.");
     });
     ui.add_space(theme.spacing_md);
 
