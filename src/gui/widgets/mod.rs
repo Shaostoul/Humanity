@@ -22,6 +22,7 @@ pub mod alert;
 pub mod dialog;
 pub mod tree;
 pub mod body_pill;
+pub mod markdown;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;

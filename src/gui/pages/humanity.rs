@@ -82,53 +82,13 @@ fn render_doc_modal(ctx: &egui::Context, theme: &Theme) {
         )
         .show(ctx, |ui| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                render_markdown(ui, theme, d.body.as_str());
+                widgets::markdown::render_markdown(ui, theme, d.body.as_str());
             });
         });
     });
     if !still_open {
         doc_viewer(|d| d.open = false);
     }
-}
-
-/// Minimal markdown reader: headings (#, ##, ###), bullets (-, *), horizontal
-/// rules (---), and paragraphs. Inline emphasis markers are stripped for plain,
-/// readable text. Not a full parser, just enough to read a document cleanly.
-fn render_markdown(ui: &mut egui::Ui, theme: &Theme, md: &str) {
-    for raw in md.lines() {
-        let trimmed = raw.trim_start();
-        if trimmed.is_empty() {
-            ui.add_space(theme.spacing_sm);
-            continue;
-        }
-        if trimmed.starts_with("---") && trimmed.chars().all(|c| c == '-') {
-            ui.separator();
-            continue;
-        }
-        if let Some(rest) = trimmed.strip_prefix("### ") {
-            ui.add_space(theme.spacing_xs);
-            ui.label(RichText::new(strip_md(rest)).size(theme.font_size_body).strong().color(theme.accent()));
-        } else if let Some(rest) = trimmed.strip_prefix("## ") {
-            ui.add_space(theme.spacing_sm);
-            ui.label(RichText::new(strip_md(rest)).size(theme.font_size_heading).strong().color(theme.text_primary()));
-        } else if let Some(rest) = trimmed.strip_prefix("# ") {
-            ui.add_space(theme.spacing_sm);
-            ui.label(RichText::new(strip_md(rest)).size(theme.font_size_title).strong().color(theme.text_primary()));
-        } else if let Some(rest) = trimmed.strip_prefix("- ").or_else(|| trimmed.strip_prefix("* ")) {
-            ui.horizontal_top(|ui| {
-                ui.add_space(theme.spacing_sm);
-                ui.label(RichText::new("\u{00b7}").color(theme.accent()));
-                ui.label(RichText::new(strip_md(rest)).size(theme.font_size_small).color(theme.text_secondary()));
-            });
-        } else {
-            ui.label(RichText::new(strip_md(trimmed)).size(theme.font_size_small).color(theme.text_secondary()));
-        }
-    }
-}
-
-/// Strip the common inline markdown markers so text reads cleanly as plain text.
-fn strip_md(s: &str) -> String {
-    s.replace("**", "").replace('`', "").replace('*', "")
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
