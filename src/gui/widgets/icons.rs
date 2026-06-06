@@ -677,6 +677,7 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         P::Real     => { paint_person(painter, rect, color); true }
         P::Play     => { paint_hammer(painter, rect, color); true }
         P::Platform => { paint_wrench(painter, rect, color); true }
+        P::Library  => { paint_scroll(painter, rect, color); true }
         _ => false,
     }
 }

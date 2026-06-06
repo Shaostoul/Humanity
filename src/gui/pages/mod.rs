@@ -13,6 +13,7 @@ pub mod real;
 pub mod play;
 pub mod platform;
 pub mod humanity;
+pub mod library;
 pub mod maps;
 pub mod market;
 pub mod calculator;

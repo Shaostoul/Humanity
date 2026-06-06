@@ -141,6 +141,18 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // never buried in another menu"). Big enough to warrant its own
                 // page (section sidebar + long scroll), but it stays ONE click
                 // away here, not nested inside Platform.
+                // Library — the Humanity Accord and its reference companions, in a
+                // nested tree (operator 2026-06-06: "a top level Library button that
+                // contains all the docs sorted into nested categories").
+                let library_items = [
+                    NavItem { label: "Library", page: GuiPage::Library, description: "" },
+                ];
+                nav_group(ui, &library_items, theme.nav_reality(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
                 let settings_items = [
                     NavItem { label: "Settings", page: GuiPage::Settings, description: "" },
                 ];

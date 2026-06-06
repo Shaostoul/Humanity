@@ -75,7 +75,7 @@ mod native_app {
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
         browser, category_overview, settings_pages, cosmos, real,
-        play, platform, humanity,
+        play, platform, humanity, library,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -1052,6 +1052,7 @@ mod native_app {
             gui_state.onboarding_quest_chains = onboarding::load_quest_chains(&data_dir);
             gui_state.map_planets = crate::gui::load_planets(&data_dir);
             gui_state.places = crate::gui::load_places(&data_dir);
+            gui_state.library = crate::gui::load_library(&data_dir);
             gui_state.equipment_slots = crate::gui::load_equipment_slots(&data_dir);
             let (sevs, cats) = crate::gui::load_bug_taxonomy(&data_dir);
             gui_state.bug_severities = sevs;
@@ -3676,6 +3677,7 @@ mod native_app {
                                     GuiPage::Play => play::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Platform => platform::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Humanity => humanity::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Library => library::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Civilization => civilization::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Calculator => calculator::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Notes => notes::draw(ctx, &state.theme, &mut state.gui_state),
