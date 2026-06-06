@@ -108,7 +108,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 SectionNavItem::new("civilization", "Mission Dashboard", c),
                 SectionNavItem::new("governance", "Governance", c),
                 SectionNavItem::new("identity", "Directory", c),
-                SectionNavItem::new("onboarding", "Onboarding", c),
                 SectionNavItem::new("donate", "Donate", c),
                 SectionNavItem::new("resources", "Resources", c),
             ];
@@ -372,7 +371,10 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     widgets::card_with_header(ui, theme, "Be part of it", |ui| {
         ui.horizontal_wrapped(|ui| {
             if widgets::Button::primary("Get oriented").show(ui, theme) {
-                state.active_humanity_section = "onboarding".to_string();
+                // Onboarding was retired into the unified Quests (Real tab) on
+                // 2026-06-06; "Get oriented" now jumps straight to the quests.
+                state.active_page = crate::gui::GuiPage::Real;
+                state.active_real_section = "quests".to_string();
             }
             if widgets::Button::secondary("Fund the work").show(ui, theme) {
                 state.active_humanity_section = "donate".to_string();

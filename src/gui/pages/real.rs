@@ -16,7 +16,7 @@ use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
 use super::profile::{self, PRIVATE_DOT, PERSONAL_DOT, PUBLIC_DOT};
-use super::{inventory, wallet, tasks, market, cosmos};
+use super::{inventory, wallet, tasks, market, cosmos, onboarding};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // ── Unified left section-nav sidebar (the TOC) ──
@@ -41,13 +41,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 SectionNavItem::new("network", "Network Profile", PERSONAL_DOT).group("PERSONAL"),
                 SectionNavItem::new("interests", "Interests", PERSONAL_DOT),
                 SectionNavItem::new("skills", "Skills", PERSONAL_DOT),
-                SectionNavItem::new("quests", "Quests", PERSONAL_DOT),
                 SectionNavItem::new("social", "Social Links", PUBLIC_DOT).group("PUBLIC"),
                 SectionNavItem::new("streaming", "Streaming", PUBLIC_DOT),
                 // The former standalone pages, folded in.
                 SectionNavItem::new("inventory", "Possessions", belongings).group("BELONGINGS"),
                 SectionNavItem::new("wallet", "Wallet", belongings),
-                SectionNavItem::new("tasks", "Tasks", life).group("LIFE"),
+                SectionNavItem::new("quests", "Quests", life).group("LIFE"),
+                SectionNavItem::new("tasks", "Tasks", life),
                 SectionNavItem::new("maps", "Map", life),
                 SectionNavItem::new("market", "Market", life),
             ];
@@ -68,6 +68,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         "tasks" => tasks::draw(ctx, theme, state),
         "maps" => cosmos::draw(ctx, theme, state), // Maps routes to the universal Cosmos map
         "market" => market::draw(ctx, theme, state),
+        "quests" => {
+            // The single, unified learn-by-doing quest list (operator 2026-06-06):
+            // the self-sufficiency chains with the onboarding chain (First Steps)
+            // pinned at the top. The in-game Quests profile panel and the
+            // standalone onboarding page are retired in favor of this one surface,
+            // so there is no "game vs real" duplication.
+            egui::CentralPanel::default()
+                .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+                .show(ctx, |ui| {
+                    ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                        onboarding::draw_quests(ui, theme, state);
+                    });
+                });
+        }
         // Anything else is a Profile section — point Profile at it + render.
         other => {
             state.profile_section = profile::section_from_id(other);

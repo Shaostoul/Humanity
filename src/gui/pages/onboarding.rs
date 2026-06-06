@@ -261,7 +261,11 @@ fn draw_core_pages(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 }
 
-fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+/// Render the learn-by-doing quest chains. Reused by the Real tab's Quests
+/// section (the single, unified quest surface as of 2026-06-06), not just this
+/// page. The chains come from `state.onboarding_quest_chains` (data/onboarding/
+/// quests.json); First Steps (onboarding) is the first chain, so it sits at top.
+pub fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let avail = ui.available_width();
     section_header(ui, theme, "QUEST CHAINS", "Learn by doing");
     ui.label(
