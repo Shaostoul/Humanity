@@ -164,6 +164,30 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     });
     ui.add_space(theme.spacing_md);
 
+    // What it protects: the freedoms a free people needs, and how the design
+    // defends each one. Operator 2026-06-05: lean into the per-feature detail,
+    // especially free speech ("key to a healthy civilization; loss of free
+    // speech is a death sentence for a free and independent people"). Ending
+    // poverty is not enough if the result is a cage, so this sits beside the
+    // poverty mechanism above, the liberty half of the same promise.
+    widgets::card_with_header(ui, theme, "What it protects", |ui| {
+        ui.label(
+            RichText::new("Ending poverty is not enough if the result is a cage. A free people needs more than full bellies. It needs the freedoms that keep power honest, and those have to be built into the tools, not promised on top of them.")
+                .size(theme.font_size_body)
+                .color(theme.text_secondary()),
+        );
+        ui.add_space(theme.spacing_sm);
+        scope_block(ui, theme, "Free speech",
+            "A people who cannot speak freely cannot defend anything else they have. Losing that voice is a death sentence for a free and independent people, so it comes first. There is no central censor and no off switch: messages are encrypted, your identity lives on your device, and once two people connect they can speak directly with no server in the middle. No company, government, or mob can quietly erase what you said or forbid you from saying it.");
+        scope_block(ui, theme, "Privacy",
+            "Surveillance is how control begins. We collect nothing to sell and keep as little as we can. Your private messages are sealed on your device before they ever leave it, so there is no central pile of your life for anyone to mine, leak, or seize.");
+        scope_block(ui, theme, "What is yours stays yours",
+            "Your identity, your keys, your words, and your tools belong to you, not to a platform that can revoke them. The whole system is public domain, so it can never be bought, locked down, or rented back to you.");
+        scope_block(ui, theme, "Rules made by the people they bind",
+            "The community sets its own rules through transparent voting, weighted by trust and capped so no single power can dominate. AI take part openly but do not vote, because consent belongs to the people whose lives the rules govern.");
+    });
+    ui.add_space(theme.spacing_md);
+
     // How we get there (three scopes)
     widgets::card_with_header(ui, theme, "How we get there", |ui| {
         scope_block(

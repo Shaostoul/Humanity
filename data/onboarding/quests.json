@@ -1,6 +1,6 @@
 {
-  "version": 3,
-  "description": "Quest chains shown on the /onboarding page. Data-driven so new quests can be added without touching the page code. Progress is tracked per step in the user's localStorage under the key 'humanity_quest_progress'. Rewritten for v0.220+ to lead with self-sufficiency skills.",
+  "version": 4,
+  "description": "Quest chains shown on the /onboarding page (native + web both load this file). Data-driven so new quests can be added without touching page code. Progress is tracked per step in the user's localStorage under 'humanity_quest_progress'. v0.367: reworded to be UNIVERSAL, each quest must read as something that applies everywhere on Earth, in any climate or economy, with no place-specific or unverifiable claims and no single-nation stats or currency.",
   "chains": [
     {
       "id": "first-steps",
@@ -28,7 +28,7 @@
         {
           "id": "first-task",
           "title": "Create your first task",
-          "description": "Open the Tasks page and add something you want to accomplish this week. Could be as simple as 'research rain barrels' or 'price solar panels.'",
+          "description": "Open the Tasks page and add something you want to accomplish this week. It can be as simple as 'research rainwater' or 'learn what grows in my climate.'",
           "link": "/tasks"
         }
       ]
@@ -36,30 +36,30 @@
     {
       "id": "water",
       "title": "Water Independence",
-      "description": "50,000 people in Lake Tahoe lost water access in 2025 because of wildfires. Learn to collect, filter, and store your own clean water so you never depend on a single point of failure.",
+      "description": "Wherever you live, the safest water is water you can collect, filter, and store yourself. Wells run dry, pipes freeze or break, droughts and storms hit, and supplies get cut off or priced out of reach. Learn to never depend on a single source you do not control.",
       "steps": [
         {
           "id": "understand-consumption",
-          "title": "Calculate your water usage",
-          "description": "The average American uses 80-100 gallons per day. Write down what you actually use: drinking, cooking, cleaning, garden. Knowing your baseline is step one.",
+          "title": "Know how much water you use",
+          "description": "Most people use far more water than they realize, and the amount varies hugely by place and habit. For a few days, track what you actually use for drinking, cooking, cleaning, and growing. Your own baseline is step one.",
           "link": "/notes"
         },
         {
           "id": "rainwater-basics",
-          "title": "Learn rainwater collection basics",
-          "description": "A 1,000 sq ft roof in an area with 30 inches of annual rainfall collects about 18,000 gallons per year. Check the Resources page for guides on collection systems.",
+          "title": "Learn to harvest water where you are",
+          "description": "Any roof is a catchment, and even modest rainfall adds up over a year. Where rain is scarce, the same instinct applies to dew, fog nets, morning condensation, and protecting every drop that does fall. Check the Resources page for collection guides.",
           "link": null
         },
         {
           "id": "filtration",
-          "title": "Understand filtration options",
-          "description": "From simple carbon filters ($20) to gravity-fed ceramic systems ($200) to full reverse osmosis ($300+). Match the system to your water source and budget.",
+          "title": "Make any water safe to drink",
+          "description": "From boiling and simple sand-and-charcoal filters you can build by hand, to ceramic gravity filters, to reverse osmosis. Match the method to your water source and what you can afford. The goal is the same everywhere: water you can trust.",
           "link": null
         },
         {
           "id": "storage",
-          "title": "Plan your water storage",
-          "description": "Two weeks of emergency water for one person is about 14 gallons. A family of four needs 56 gallons minimum. IBC totes (275 gallons) are cheap and stackable.",
+          "title": "Store a reserve you can rely on",
+          "description": "Store at least two weeks of drinking water for everyone in your home, then build toward more. Any clean, food-safe container works, from jugs to large tanks. In freezing climates, store it where it will not burst; in hot ones, store it out of the sun and sealed against pests.",
           "link": null
         }
       ]
@@ -67,36 +67,36 @@
     {
       "id": "food",
       "title": "Food Independence",
-      "description": "Indoor aeroponic towers use 90% less water than soil farming, grow food year-round, and need no yard. The simulation teaches you the skills before you build the real thing.",
+      "description": "However much space you have, from a single windowsill to open land, you can grow part of what you eat. Soil beds, containers, and soil-free towers each suit different climates and spaces. Practice in the simulation first, where a failed crop costs nothing, then grow the real thing.",
       "steps": [
         {
           "id": "understand-needs",
-          "title": "Calculate your food needs",
-          "description": "One person needs roughly 2,000 calories per day. A single aeroponic tower can produce 30+ heads of lettuce per month, plus herbs and small vegetables. Start with what you eat most.",
+          "title": "Start with what you already eat",
+          "description": "Greens and herbs grow fast in small spaces and almost any climate. Staples like potatoes, beans, squash, and grains store well and feed you longer. Grow a little of what you love and eat most before you scale up.",
           "link": "/notes"
         },
         {
           "id": "try-simulation",
           "title": "Try the farming simulation",
-          "description": "The in-app simulation lets you experiment with tower placement, lighting, nutrient schedules, and crop rotation without spending a dollar. Make your mistakes here first.",
+          "description": "The in-app simulation lets you experiment with what to plant, where, and how to water and feed it, all without spending a thing. Make your mistakes here first, then take what works outside.",
           "link": null
         },
         {
           "id": "first-tower",
-          "title": "Plan your first tower",
-          "description": "A basic DIY aeroponic tower costs $50-150 in materials. PVC pipe, net cups, a small pump, timer, and nutrients. Check the Resources page for build guides and parts lists.",
+          "title": "Plan your first growing setup",
+          "description": "Your first setup can be nearly free: repurposed containers and local soil, or a simple soil-free tower built from common parts. Start with what is cheap and available where you live. The Resources page has build guides for many climates.",
           "link": null
         },
         {
           "id": "closed-loop",
           "title": "Learn about closed-loop systems",
-          "description": "Aquaponics combines fish farming with hydroponics. Fish waste feeds plants, plants clean the water. One system produces both protein and vegetables with minimal external inputs.",
+          "description": "Aquaponics pairs fish with plants: fish waste feeds the plants, the plants clean the water. One loop yields both protein and vegetables with very little brought in from outside. The same closed-loop thinking scales from a barrel to a greenhouse.",
           "link": null
         },
         {
           "id": "share-surplus",
           "title": "Share your surplus",
-          "description": "Once your tower is producing more than you eat, post surplus on the Market page. Trade with neighbors. Build the local food network that makes everyone more resilient.",
+          "description": "Once you grow more than you eat, post the surplus on the Market page and trade with neighbors. A web of growers who share is far harder to starve than any one of them alone.",
           "link": "/market"
         }
       ]
@@ -104,30 +104,30 @@
     {
       "id": "energy",
       "title": "Energy Independence",
-      "description": "When the grid goes down, everything else follows. Water pumps, refrigeration, communication, heating, cooling. Learn to generate and store your own power.",
+      "description": "When power fails, much of the rest follows: water pumps, keeping food cold, communication, heating, cooling. Whether you are off the grid by choice, by circumstance, or because there is no grid where you live, learn to generate and store your own power.",
       "steps": [
         {
           "id": "audit-usage",
-          "title": "Audit your energy consumption",
-          "description": "Check your electric bill. The average US household uses about 30 kWh per day. A kill-a-watt meter ($20) shows exactly where your power goes. Cut waste before you generate.",
+          "title": "Cut waste before you generate",
+          "description": "Find what draws the most power in your home, usually heating, cooling, and refrigeration, and reduce it first. Every unit of energy you do not use is one you never have to produce, store, or pay for.",
           "link": "/notes"
         },
         {
           "id": "solar-basics",
-          "title": "Learn solar panel basics",
-          "description": "A single 400W panel costs $150-300 and produces about 1.6 kWh per day (assuming 4 peak sun hours). That is enough to run LED lights, charge devices, and power a small fridge.",
+          "title": "Match generation to your climate",
+          "description": "Sunlight reaches everywhere, though some places get far more than others. Even a single small solar panel can run lights, charge phones, and keep critical devices alive. Where sun is scarce, wind, flowing water, or human-powered options can carry the load.",
           "link": null
         },
         {
           "id": "battery-storage",
-          "title": "Understand battery storage",
-          "description": "Lithium iron phosphate (LiFePO4) batteries last 10+ years and handle thousands of charge cycles. A 5 kWh battery ($300-600) covers most essential overnight needs.",
+          "title": "Understand storage",
+          "description": "Power is only useful when you need it, so storage matters as much as generation. Modern batteries last for years and thousands of cycles. Size your storage to carry you through the night and the quiet days with no sun or wind.",
           "link": null
         },
         {
           "id": "essential-circuits",
-          "title": "Identify your essential circuits",
-          "description": "What absolutely must stay on? Fridge, water pump, lights, communication. Size your system for essentials first, then expand. A 2 kW system covers most critical needs.",
+          "title": "Power your essentials first",
+          "description": "Decide what absolutely must stay on: keeping food and medicine cold, pumping water, light, communication. Power those first, then expand as you can. Riding out the outage matters more than running everything at once.",
           "link": null
         }
       ]
@@ -135,30 +135,30 @@
     {
       "id": "community",
       "title": "Build Your Network",
-      "description": "Self-sufficiency does not mean doing everything alone. The strongest communities are networks of people who each bring different skills and share freely.",
+      "description": "Self-sufficiency does not mean doing everything alone. The strongest communities are networks of people who each bring different skills and share freely. No one is good at everything, and no one has to be.",
       "steps": [
         {
           "id": "find-local",
           "title": "Find people near you",
-          "description": "Use the Maps page to find community gardens, maker spaces, tool libraries, and other people on HumanityOS in your area. Introduce yourself.",
+          "description": "Use the Maps page to find community gardens, workshops, tool libraries, and other people on HumanityOS in your area. Introduce yourself.",
           "link": "/maps"
         },
         {
           "id": "share-skills",
           "title": "Share what you know",
-          "description": "Everyone has something to teach. Plumbing, electrical, cooking, childcare, car repair, first aid. Add your skills to your profile so people can find you.",
+          "description": "Everyone has something to teach: plumbing, electrical, cooking, childcare, repair, first aid, language, growing. Add your skills to your profile so people can find you.",
           "link": "/profile"
         },
         {
           "id": "start-project",
           "title": "Start a group project",
-          "description": "A community garden, a tool-sharing co-op, a neighborhood solar install, a bulk food buy. Use Tasks to coordinate, Chat to communicate, Maps to plan.",
+          "description": "A shared garden, a tool co-op, a neighborhood power install, a bulk food buy. Use Tasks to coordinate, Chat to communicate, and Maps to plan it together.",
           "link": "/tasks"
         },
         {
           "id": "vouch",
           "title": "Vouch for someone you trust",
-          "description": "When you vouch for someone, you are telling the network that this person is real and trustworthy. It helps everyone distinguish genuine people from fake accounts.",
+          "description": "When you vouch for someone, you tell the network that this person is real and trustworthy. It helps everyone tell genuine people from fake accounts, without anyone in charge deciding for them.",
           "link": "/chat"
         }
       ]
@@ -166,24 +166,24 @@
     {
       "id": "advanced",
       "title": "Going Deeper",
-      "description": "When you are ready to do more, or help build the platform itself.",
+      "description": "When you are ready to do more, or to help build the platform itself.",
       "steps": [
         {
           "id": "desktop-app",
           "title": "Install the desktop app",
-          "description": "Native app that works offline. Same identity as the web version. Includes the 3D simulation engine for farming, building, and planning.",
+          "description": "A native app that works offline. Same identity as the web version. It includes the 3D simulation engine for growing, building, and planning.",
           "link": "/download"
         },
         {
           "id": "3d-printing",
           "title": "3D print real tools",
-          "description": "Models from the simulation are exportable for 3D printing. Design a hydroponics fitting in the sim, print it, install it. The game teaches skills for the real world.",
+          "description": "Models from the simulation can be exported for 3D printing. Design a part in the sim, print it, install it. What you learn in the game builds real tools for the real world.",
           "link": null
         },
         {
           "id": "host-server",
           "title": "Run your own server",
-          "description": "One binary, under ten minutes from zero to live. Your community gets its own space. Users keep their identity when they move between servers.",
+          "description": "One program, under ten minutes from nothing to live. Your community gets its own space, and people keep their identity when they move between servers.",
           "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md"
         },
         {
@@ -195,7 +195,7 @@
         {
           "id": "read-accord",
           "title": "Read the Humanity Accord",
-          "description": "The philosophical foundation. Defines the constraints every system must respect: dignity, consent, transparency, non-domination. Short and plain-language.",
+          "description": "The foundation everything else rests on. It defines the constraints every system must respect: dignity, consent, transparency, and non-domination. Short and plain-language.",
           "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/accord/humanity_accord.md"
         }
       ]
