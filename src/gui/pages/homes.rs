@@ -103,6 +103,22 @@ fn draw_design(ui: &mut egui::Ui, theme: &Theme, design: &HomesteadDesign) {
     ui.label(RichText::new("Your Home").size(theme.font_size_title).color(theme.text_primary()));
     ui.label(RichText::new(&design.name).size(theme.font_size_heading).color(theme.accent()));
     ui.label(RichText::new(&design.description).size(theme.font_size_small).color(theme.text_muted()));
+    ui.add_space(theme.spacing_xs);
+
+    // "Your Home" identity (the save-wrapper model, v0.380): this design IS your
+    // offline home. Progressive disclosure -- one home, no manager, until there is
+    // a reason for more. Play-loads-this-home + progress persistence is next.
+    widgets::card(ui, theme, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Offline home").size(theme.font_size_small).strong().color(theme.accent()));
+            ui.label(RichText::new("you own the save").size(theme.font_size_small).color(theme.text_muted()));
+        });
+        ui.label(
+            RichText::new("This homestead is now a save profile (kind: offline, design: fibonacci). Saving your progress here and entering it from Play is the next step.")
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+        );
+    });
     ui.add_space(theme.spacing_sm);
 
     // Scale selector.

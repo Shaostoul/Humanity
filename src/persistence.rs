@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// Complete world save state.
+/// Complete world save state. A "home" (the homes-as-save-profiles model, v0.380)
+/// IS a WorldSave that knows its `kind` + `design`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorldSave {
     pub name: String,
@@ -22,6 +23,46 @@ pub struct WorldSave {
     pub skills: HashMap<String, (u32, u32)>,
     pub constructions: Vec<ConstructionSave>,
     pub weather_state: String,
+    /// What this home IS (the "who owns the truth" axis): "offline" (you own the
+    /// local save), "server" (a relay owns it), or "real" (physical sensors own
+    /// it). Defaults to "offline" so pre-v0.380 saves load unchanged. Server + Real
+    /// are deferred; offline is the only live kind today.
+    #[serde(default = "default_kind")]
+    pub kind: String,
+    /// The Design (blueprint) this home is built from, e.g. "fibonacci". Defaults
+    /// to "fibonacci" (the first + only design today).
+    #[serde(default = "default_design")]
+    pub design: String,
+}
+
+fn default_kind() -> String {
+    "offline".to_string()
+}
+fn default_design() -> String {
+    "fibonacci".to_string()
+}
+
+impl WorldSave {
+    /// A fresh OFFLINE home built from the given design, with empty progress. The
+    /// "save wrapper" entry point: a home is a WorldSave that knows its kind +
+    /// design. `timestamp` is left 0; the save flow stamps it when the file is
+    /// written.
+    pub fn new_offline(name: impl Into<String>, design: impl Into<String>) -> Self {
+        WorldSave {
+            name: name.into(),
+            timestamp: 0,
+            game_time: 0.0,
+            player_position: [0.0, 0.0, 0.0],
+            player_rotation: [0.0, 0.0, 0.0, 1.0],
+            player_health: 100.0,
+            inventory: Vec::new(),
+            skills: HashMap::new(),
+            constructions: Vec::new(),
+            weather_state: "clear".to_string(),
+            kind: "offline".to_string(),
+            design: design.into(),
+        }
+    }
 }
 
 /// A saved construction/building in the world.
@@ -180,7 +221,18 @@ mod tests {
                 },
             ],
             weather_state: "clear".to_string(),
+            kind: "offline".to_string(),
+            design: "fibonacci".to_string(),
         }
+    }
+
+    #[test]
+    fn new_offline_has_defaults() {
+        let h = WorldSave::new_offline("My Homestead", "fibonacci");
+        assert_eq!(h.kind, "offline");
+        assert_eq!(h.design, "fibonacci");
+        assert_eq!(h.name, "My Homestead");
+        assert!(h.inventory.is_empty());
     }
 
     #[test]
@@ -198,8 +250,26 @@ mod tests {
         assert!((loaded.game_time - save.game_time).abs() < f64::EPSILON);
         assert_eq!(loaded.inventory.len(), save.inventory.len());
         assert_eq!(loaded.constructions.len(), save.constructions.len());
+        assert_eq!(loaded.kind, save.kind);
+        assert_eq!(loaded.design, save.design);
 
         // Clean up
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn legacy_save_without_kind_design_defaults() {
+        // A pre-v0.380 save has no kind/design fields; serde defaults must fill them
+        // (kind=offline, design=fibonacci) so old saves load unchanged.
+        let dir = std::env::temp_dir().join("humanity_test_legacy_save");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("legacy.json");
+        let legacy = r#"{"name":"Old","timestamp":1,"game_time":0.0,"player_position":[0.0,0.0,0.0],"player_rotation":[0.0,0.0,0.0,1.0],"player_health":100.0,"inventory":[],"skills":{},"constructions":[],"weather_state":"clear"}"#;
+        std::fs::write(&path, legacy).unwrap();
+        let loaded = load_world(&path).expect("legacy load should succeed");
+        assert_eq!(loaded.kind, "offline");
+        assert_eq!(loaded.design, "fibonacci");
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_dir(&dir);
     }
