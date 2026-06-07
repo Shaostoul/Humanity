@@ -4,11 +4,11 @@
 //! Two faces (operator 2026-06-06):
 //! - DOCUMENTS: the Humanity Accord + companions (data/library/), a collapsible
 //!   nested tree on the left, rendered in the right pane via widgets::markdown.
-//! - EXTERNAL RESOURCES: every website as a full-width card in a single scrolling
-//!   column, with a search box + tag filter (built to scale to thousands). The
-//!   tags are the catalog's categories. Clicking a card opens an in-app DETAIL
-//!   page (title / tags / description / url) with a "Load website" button, so a
-//!   click never launches the browser immediately, the person chooses to.
+//! - EXTERNAL RESOURCES: every website as a full-width, self-contained card in a
+//!   single scrolling column, with a search box + tag filter (built to scale to
+//!   thousands). The tags are the catalog's categories. Each card carries a "Load
+//!   website" button at the TOP, then all of its data (title / tag / description /
+//!   url), so a click never launches the browser on its own, the person chooses to.
 
 use egui::{Align, CursorIcon, Frame, Label, Layout, RichText, ScrollArea, Sense, Stroke, TextEdit, Vec2};
 use crate::gui::{GuiState, LibraryEntryKind};
@@ -20,10 +20,8 @@ use crate::gui::widgets::markdown;
 enum Sel {
     /// A document (section, category, entry) rendered as markdown.
     Doc(usize, usize, usize),
-    /// The External Resources card list.
+    /// The External Resources card list (each card is self-contained).
     Resources,
-    /// One website's in-app detail page (index into the flattened website list).
-    Detail(usize),
 }
 
 struct LibState {
@@ -170,7 +168,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
 
                             ui.add_space(theme.spacing_sm);
-                            let res_active = matches!(s.sel, Sel::Resources | Sel::Detail(_));
+                            let res_active = s.sel == Sel::Resources;
                             let color = if res_active { theme.accent() } else { theme.text_primary() };
                             if ui
                                 .selectable_label(res_active, RichText::new("External Resources").strong().color(color))
@@ -234,7 +232,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             let q = s.query.trim().to_lowercase();
                             ScrollArea::vertical().id_salt("library_cards").auto_shrink([false, false]).show(ui, |ui| {
                                 let mut shown = 0usize;
-                                for (idx, w) in websites.iter().enumerate() {
+                                for w in websites.iter() {
                                     if let Some(t) = &s.tag {
                                         if w.tag != t {
                                             continue;
@@ -248,53 +246,32 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         continue;
                                     }
                                     shown += 1;
-                                    let card = Frame::none()
+                                    Frame::none()
                                         .fill(theme.bg_card())
                                         .rounding(egui::Rounding::same(theme.border_radius as u8))
                                         .stroke(Stroke::new(1.0, theme.border()))
                                         .inner_margin(egui::Margin::symmetric(14, 10))
                                         .show(ui, |ui| {
                                             ui.set_width(ui.available_width());
+                                            // Load website at the TOP of the card (operator
+                                            // 2026-06-07: "move the load website to the top of
+                                            // each card"). A click on the card never launches;
+                                            // only this explicit button does.
+                                            if widgets_button_load(ui, theme) {
+                                                ui.ctx().open_url(egui::OpenUrl::new_tab(w.url.to_string()));
+                                            }
+                                            ui.add_space(6.0);
+                                            // All the data, crammed into the card.
                                             ui.label(RichText::new(w.title).size(theme.font_size_body).strong().color(theme.text_primary()));
                                             ui.label(RichText::new(w.tag).size(theme.font_size_small).color(theme.accent()));
                                             ui.label(RichText::new(w.desc).size(theme.font_size_small).color(theme.text_secondary()));
+                                            ui.label(RichText::new(w.url).size(theme.font_size_small).color(link_color));
                                         });
-                                    if card.response.interact(Sense::click()).on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                                        s.sel = Sel::Detail(idx);
-                                    }
                                     ui.add_space(8.0);
                                 }
                                 if shown == 0 {
                                     ui.label(RichText::new("No matches.").size(theme.font_size_small).color(theme.text_muted()));
                                 }
-                            });
-                        }
-                        Sel::Detail(idx) => {
-                            let Some(w) = websites.get(idx) else {
-                                s.sel = Sel::Resources;
-                                return;
-                            };
-                            if ui.button("Back to resources").clicked() {
-                                s.sel = Sel::Resources;
-                            }
-                            ui.add_space(theme.spacing_sm);
-                            ScrollArea::vertical().id_salt("library_detail").auto_shrink([false, false]).show(ui, |ui| {
-                                ui.label(RichText::new(w.title).size(theme.font_size_heading).strong().color(theme.text_primary()));
-                                ui.label(RichText::new(w.tag).size(theme.font_size_small).color(theme.accent()));
-                                ui.add_space(theme.spacing_sm);
-                                ui.label(RichText::new(w.desc).size(theme.font_size_body).color(theme.text_secondary()));
-                                ui.add_space(theme.spacing_sm);
-                                ui.label(RichText::new(w.url).size(theme.font_size_small).color(link_color));
-                                ui.add_space(theme.spacing_md);
-                                if widgets_button_load(ui, theme) {
-                                    ui.ctx().open_url(egui::OpenUrl::new_tab(w.url.to_string()));
-                                }
-                                ui.add_space(theme.spacing_xs);
-                                ui.label(
-                                    RichText::new("Opens in your browser. (An in-app browser is planned.)")
-                                        .size(theme.font_size_small)
-                                        .color(theme.text_muted()),
-                                );
                             });
                         }
                     });

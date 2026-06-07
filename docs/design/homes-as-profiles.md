@@ -120,6 +120,40 @@ designed as a real buildable system with a parts list).
 6. **Real homes (LAST)** — bind a home to real monitoring/automation devices; the
    homestead UI becomes the live control/monitoring dashboard.
 
+## Characters (the other profile axis)
+
+A **home** is a place/world (above). A **character** is *you* -- your identity,
+biography, and look. The operator wants exactly **one base character** and never
+to re-enter a biography per server (2026-06-07):
+
+- **One base character = your real self.** Identity and biography are typed
+  **once** and owned by you. The Profile page's selector (added v0.378) is where
+  you pick which character view you are looking at; today it has a single entry,
+  "Base".
+- **Servers store an augmented version.** Joining an MMO server saves *that
+  server's* augmented copy of you (look, and whatever that world adds), but your
+  **base is always preserved and shared**, so you keep the same identity/look
+  across servers unless a server deliberately augments it.
+- **Shared vs. locked inventory (Diablo II model).** A *set* of characters can
+  share one inventory/stash (the "offline / open Battle.net" feel). A character
+  can also be toggled to a **locked** inventory, isolated both locally and on
+  servers (the "closed / ladder" feel). A server may require you to start a fresh
+  character with only **its** starter gear.
+
+So the two axes compose: a **character** (who you are: a shared base + per-server
+augmentation) enters a **home** (offline / server / real). The character carries
+your identity in; the home/server decides what it augments and which inventory
+rules apply.
+
+### Open questions (characters)
+
+1. **What exactly does a server augment?** Look only, or gear/stats too? (Leaning:
+   cosmetic + server-granted gear; base appearance is the fallback.)
+2. **Inventory-sharing scope.** Is the shared stash per-account, per-character-set,
+   or per-home? (Leaning: an explicit "character set" the player groups.)
+3. **Who can lock an inventory?** The player (self-imposed challenge) and/or the
+   server (enforced ruleset)? (Leaning: both; the server rule wins.)
+
 ## Relationship to other docs
 
 - North star (real-world bridge): recorded in `data/coordination/orchestrator_state.json`

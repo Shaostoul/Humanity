@@ -2,6 +2,17 @@
 //!
 //! Layout: left panel (scenes + sources), center (preview + controls), right panel (properties + settings).
 //! UI only; no actual WebRTC/streaming implementation yet.
+//!
+//! PERSISTENCE (operator 2026-06-07: "chat and studio should always persist load
+//! ... even if I switch away from studio my stream doesn't die so I can keep playing
+//! the game"): all stream state lives in `GuiState.studio` (is_live, sources,
+//! settings), NOT in this draw fn, so navigating to another page or into the FPS
+//! world does NOT reset or stop it — the page simply stops being drawn and resumes
+//! from the same state when reopened. When real streaming/capture lands, its pump
+//! MUST run in the engine loop every frame (like the chat WS client thread), never
+//! gated on this page being the active one, so the broadcast keeps running while you
+//! play. Chat already works this way (the WS client is a background thread that fills
+//! GuiState regardless of the active page).
 
 use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::GuiState;
@@ -471,6 +482,29 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ScrollArea::vertical().id_salt("studio_right_scroll").show(ui, |ui| {
+        // ── Your public channel ──
+        // Moved from the Profile page (operator 2026-06-07: "streaming should be
+        // part of studio"). These are PUBLIC profile fields: the channel link people
+        // follow + a manual LIVE flag shown on your public profile. Distinct from the
+        // broadcast controls in the center panel (which drive is_live).
+        ui.label(
+            RichText::new("Your Public Channel")
+                .size(theme.font_size_heading)
+                .color(theme.text_primary()),
+        );
+        ui.add_space(theme.section_gap);
+        ui.label(RichText::new("Channel URL").size(theme.font_size_small).color(theme.text_secondary()));
+        ui.add(
+            egui::TextEdit::singleline(&mut state.profile_streaming_url)
+                .desired_width(190.0)
+                .hint_text("https://..."),
+        );
+        ui.add_space(theme.section_gap);
+        widgets::toggle(ui, theme, "Show LIVE on profile", &mut state.profile_streaming_live);
+        ui.add_space(theme.card_padding);
+        ui.separator();
+        ui.add_space(theme.panel_margin);
+
         // ── Source Properties ──
         ui.label(
             RichText::new("Source Properties")

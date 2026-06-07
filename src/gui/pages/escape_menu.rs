@@ -78,6 +78,22 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // public directory lookup, not private); Civilization → the
                 // Humanity Community Dashboard (what H now opens).
 
+                // Play — the dedicated button that drops into the 3D first-person
+                // game world (operator 2026-06-07: "add a dedicated button for the FPS
+                // game part ... Click Play to start FPS game mode" + "move Play all the
+                // way to the left"). Entering FPS mode = setting the page to None: the
+                // nav bar + pages hide and the cursor is grabbed for mouse-look (the
+                // post-egui reconcile in lib.rs); Esc brings the menu back. Leftmost,
+                // so the way into the world is the very first thing in the nav.
+                let play_items = [
+                    NavItem { label: "Play", page: GuiPage::None, description: "" },
+                ];
+                nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
                 // Humanity — the collective + the mission, FOLDED into one tab.
                 // Its sections (Mission Dashboard/Governance/Directory/Onboarding/
                 // Donate/Resources) live in the Humanity page's section_nav. This
@@ -113,35 +129,17 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Real — your actual life, FOLDED into one tab. Its sections
-                // (Profile's Body/Identity/Notes/… + Possessions/Wallet/Tasks/
-                // Map/Market) now live in the Real page's section_nav sidebar,
-                // so this is the first group to truly condense: 6 buttons → 1.
-                let real_items = [
-                    NavItem { label: "Real", page: GuiPage::Real, description: "" },
+                // Profile — your character / identity (operator 2026-06-07: "rename
+                // real to profile"). Renamed from "Real"; still GuiPage::Real (the
+                // folded page). After this batch its sidebar holds the Profile sections
+                // + Wallet + Market only — Possessions/Tasks/Map became their own
+                // top-level tabs and Streaming moved into Studio. A profile selector
+                // sits at the top (one base character for now; servers store augmented
+                // versions — see docs/design/homes-as-profiles.md).
+                let profile_items = [
+                    NavItem { label: "Profile", page: GuiPage::Real, description: "" },
                 ];
-                nav_group(ui, &real_items, theme.nav_legacy_green(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
-
-                // Play — the dedicated button that drops into the 3D first-person
-                // game world (operator 2026-06-07: "add a dedicated button for the
-                // FPS game part ... Click Play to start FPS game mode"). Previously
-                // the ONLY way into the world was pressing Esc, with no on-screen
-                // indicator. This enters FPS mode by setting the page to None: the
-                // nav bar + pages hide and the cursor is grabbed for mouse-look (the
-                // post-egui reconcile in lib.rs), and Esc brings the menu back. Leads
-                // the game-colored cluster (Quests / Inventory / Crafting).
-                let play_items = [
-                    NavItem { label: "Play", page: GuiPage::None, description: "" },
-                ];
-                nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
+                nav_group(ui, &profile_items, theme.nav_legacy_green(), text_muted, theme, state);
 
                 // Quests — the learn-by-doing self-sufficiency path, its own
                 // top-level tab (operator 2026-06-06: "add a top level quests page
@@ -150,6 +148,18 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     NavItem { label: "Quests", page: GuiPage::Quests, description: "" },
                 ];
                 nav_group(ui, &quests_items, theme.nav_sim(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
+                // Tasks — promoted to its OWN top-level tab, to the right of Quests
+                // (operator 2026-06-07: "move tasks to the right of quests"). Was a
+                // section inside the old Real tab.
+                let tasks_items = [
+                    NavItem { label: "Tasks", page: GuiPage::Tasks, description: "" },
+                ];
+                nav_group(ui, &tasks_items, theme.nav_sim(), text_muted, theme, state);
 
                 ui.add_space(6.0);
                 separator_dot(ui, border);
@@ -177,6 +187,19 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     NavItem { label: "Crafting", page: GuiPage::Crafting, description: "" },
                 ];
                 nav_group(ui, &crafting_items, theme.nav_sim(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
+                // Map — the universal Cosmos map, promoted to its OWN top-level tab
+                // (operator 2026-06-07: "move Map to the top menu as well"). Was a
+                // section inside the old Real tab; GuiPage::Maps forwards to the Cosmos
+                // page (the real map). Closes the game-colored cluster.
+                let map_items = [
+                    NavItem { label: "Map", page: GuiPage::Maps, description: "" },
+                ];
+                nav_group(ui, &map_items, theme.nav_sim(), text_muted, theme, state);
 
                 ui.add_space(6.0);
                 separator_dot(ui, border);

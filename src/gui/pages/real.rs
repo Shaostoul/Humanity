@@ -1,4 +1,4 @@
-//! Real — the merged "your actual life" tab (page carve, v0.358).
+//! Profile — your character / identity tab (renamed from "Real" v0.378; page carve v0.358).
 //!
 //! ONE page with a `section_nav` sidebar that folds in Profile's sections
 //! (Body / Identity / Notes / Network / Interests / Skills / Quests / Social /
@@ -11,12 +11,12 @@
 //! needed). Replaces six separate top-nav buttons with a single "Real" tab —
 //! the sidebar IS the operator's section_nav table-of-contents.
 
-use egui::{Frame, ScrollArea, Stroke};
+use egui::{Frame, RichText, ScrollArea, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
 use super::profile::{self, PRIVATE_DOT, PERSONAL_DOT, PUBLIC_DOT};
-use super::{inventory, wallet, tasks, market, cosmos};
+use super::{wallet, market};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // ── Unified left section-nav sidebar (the TOC) ──
@@ -34,7 +34,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let belongings = theme.warning(); // your stuff
             let life = theme.info(); // your activities
             let items = [
-                // Profile — flattened in (its old standalone sidebar is gone).
+                // Profile sections (flattened in; the old standalone sidebar is gone).
                 SectionNavItem::new("body", "Body & Measurements", PRIVATE_DOT).group("PRIVATE"),
                 SectionNavItem::new("identity", "Identity", PRIVATE_DOT),
                 SectionNavItem::new("notes", "Private Notes", PRIVATE_DOT),
@@ -42,16 +42,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 SectionNavItem::new("interests", "Interests", PERSONAL_DOT),
                 SectionNavItem::new("skills", "Skills", PERSONAL_DOT),
                 SectionNavItem::new("social", "Social Links", PUBLIC_DOT).group("PUBLIC"),
-                SectionNavItem::new("streaming", "Streaming", PUBLIC_DOT),
-                // The former standalone pages, folded in.
-                SectionNavItem::new("inventory", "Possessions", belongings).group("BELONGINGS"),
-                SectionNavItem::new("wallet", "Wallet", belongings),
-                SectionNavItem::new("tasks", "Tasks", life).group("LIFE"),
-                SectionNavItem::new("maps", "Map", life),
-                SectionNavItem::new("market", "Market", life),
+                // Wallet + Market stay here; Possessions/Tasks/Map became their own
+                // top-level tabs (operator 2026-06-07) and Streaming moved into Studio.
+                SectionNavItem::new("wallet", "Wallet", belongings).group("BELONGINGS"),
+                SectionNavItem::new("market", "Market", life).group("LIFE"),
             ];
+            // Profile selector at the top (operator 2026-06-07: "add a profile
+            // selector. I only want one profile"). One base character today; the
+            // per-server augmented versions slot in here later (homes-as-profiles.md).
+            draw_profile_selector(ui, theme);
+            ui.add_space(theme.spacing_sm);
+
             if let Some(clicked) =
-                widgets::section_nav(ui, theme, Some("Real"), &items, &state.active_real_section)
+                widgets::section_nav(ui, theme, Some("Profile"), &items, &state.active_real_section)
             {
                 state.active_real_section = clicked;
             }
@@ -62,10 +65,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // delegate mutates it.
     let section = state.active_real_section.clone();
     match section.as_str() {
-        "inventory" => inventory::draw(ctx, theme, state),
         "wallet" => wallet::draw(ctx, theme, state),
-        "tasks" => tasks::draw(ctx, theme, state),
-        "maps" => cosmos::draw(ctx, theme, state), // Maps routes to the universal Cosmos map
         "market" => market::draw(ctx, theme, state),
         // Anything else is a Profile section — point Profile at it + render.
         other => {
@@ -79,4 +79,44 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 });
         }
     }
+}
+
+/// The profile/character selector at the top of the Profile sidebar. One base
+/// character today (the operator wants exactly one identity, typed once); when the
+/// home/character model lands, per-server AUGMENTED versions appear here as extra
+/// options while the base stays shared, so your look/biography carry across
+/// servers. See docs/design/homes-as-profiles.md (Characters section).
+fn draw_profile_selector(ui: &mut egui::Ui, theme: &Theme) {
+    use std::cell::RefCell;
+    thread_local! {
+        static SELECTED: RefCell<usize> = RefCell::new(0);
+    }
+    // One option for now; this slice is the seam the per-server versions slot into.
+    let options = ["Base (your real self)"];
+    Frame::none()
+        .fill(theme.bg_card())
+        .rounding(egui::Rounding::same(theme.border_radius as u8))
+        .stroke(Stroke::new(1.0, theme.border()))
+        .inner_margin(egui::Margin::symmetric(8, 6))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new("CHARACTER").size(theme.font_size_small).color(theme.text_muted()));
+            SELECTED.with(|sel| {
+                let mut idx = *sel.borrow();
+                egui::ComboBox::from_id_salt("profile_character_selector")
+                    .selected_text(options[idx])
+                    .width(ui.available_width())
+                    .show_ui(ui, |ui| {
+                        for (i, opt) in options.iter().enumerate() {
+                            ui.selectable_value(&mut idx, i, *opt);
+                        }
+                    });
+                *sel.borrow_mut() = idx;
+            });
+            ui.label(
+                RichText::new("One base character, typed once. Servers save augmented versions of you.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        });
 }
