@@ -393,6 +393,24 @@ pub fn paint_box(painter: &egui::Painter, rect: Rect, color: Color32) {
     );
 }
 
+/// Play — a right-pointing filled triangle (the universal "play / start"
+/// glyph). Marks the dedicated nav button that drops into the 3D first-person
+/// game world (operator 2026-06-07: "add a dedicated button for the FPS game
+/// part ... Click Play to start FPS game mode"). FPS mode is GuiPage::None, so
+/// paint_nav_icon routes that variant here.
+pub fn paint_play(painter: &egui::Painter, rect: Rect, color: Color32) {
+    use egui::epaint::PathShape;
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let s = w * 0.5;
+    let pts = vec![
+        Pos2::new(c.x - s * 0.55, c.y - s * 0.7),
+        Pos2::new(c.x - s * 0.55, c.y + s * 0.7),
+        Pos2::new(c.x + s * 0.75, c.y),
+    ];
+    painter.add(PathShape::convex_polygon(pts, color, Stroke::NONE));
+}
+
 /// Crown — marks a P2P group the current user created/owns (vs joined).
 /// Built from a filled band rect + three convex triangle spikes so the fill
 /// is correct (a single concave crown polygon wouldn't tessellate cleanly).
@@ -679,6 +697,9 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         P::Platform => { paint_wrench(painter, rect, color); true }
         P::Library  => { paint_scroll(painter, rect, color); true }
         P::Quests   => { paint_compass(painter, rect, color); true }
+        // None = FPS game mode; the "Play" nav button carries this page and gets
+        // the play-triangle glyph.
+        P::None     => { paint_play(painter, rect, color); true }
         _ => false,
     }
 }

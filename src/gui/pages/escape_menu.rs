@@ -126,6 +126,23 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
+                // Play — the dedicated button that drops into the 3D first-person
+                // game world (operator 2026-06-07: "add a dedicated button for the
+                // FPS game part ... Click Play to start FPS game mode"). Previously
+                // the ONLY way into the world was pressing Esc, with no on-screen
+                // indicator. This enters FPS mode by setting the page to None: the
+                // nav bar + pages hide and the cursor is grabbed for mouse-look (the
+                // post-egui reconcile in lib.rs), and Esc brings the menu back. Leads
+                // the game-colored cluster (Quests / Inventory / Crafting).
+                let play_items = [
+                    NavItem { label: "Play", page: GuiPage::None, description: "" },
+                ];
+                nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
                 // Quests — the learn-by-doing self-sufficiency path, its own
                 // top-level tab (operator 2026-06-06: "add a top level quests page
                 // for now").
@@ -452,6 +469,12 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
             // so Esc on the new page goes straight to FPS instead of
             // through stale contextual flow entries.
             state.clear_nav_back();
+            // The "Play" button enters FPS mode (page = None). Remember the page
+            // we came from so Esc out of the world returns HERE, not to a stale
+            // last_page from an earlier toggle.
+            if item.page == GuiPage::None && state.active_page != GuiPage::None {
+                state.last_page = state.active_page;
+            }
             state.active_page = item.page.clone();
         }
     }
