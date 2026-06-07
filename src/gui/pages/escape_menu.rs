@@ -138,12 +138,28 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Play — the simulation, FOLDED (Crafting in its sidebar; Studio is
-                // now its own top-level tab).
-                let play_items = [
-                    NavItem { label: "Play", page: GuiPage::Play, description: "" },
+                // Inventory — your possessions, promoted to its OWN top-level tab
+                // (operator 2026-06-07: "the inventory page definitely need to become
+                // a top level page"). Previously reachable only as Real's "Possessions"
+                // section; now one click from the nav like every other core surface.
+                let inventory_items = [
+                    NavItem { label: "Inventory", page: GuiPage::Inventory, description: "" },
                 ];
-                nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
+                nav_group(ui, &inventory_items, theme.nav_sim(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
+                // Crafting — its OWN top-level tab (operator 2026-06-07: "let's have
+                // the crafting page its own page for now at least" + "add crafting to
+                // the main menu"). This replaces the retired "Play" fold, which held
+                // only Crafting after Studio was promoted — so Play collapses into
+                // this direct tab rather than a one-item sidebar.
+                let crafting_items = [
+                    NavItem { label: "Crafting", page: GuiPage::Crafting, description: "" },
+                ];
+                nav_group(ui, &crafting_items, theme.nav_sim(), text_muted, theme, state);
 
                 ui.add_space(6.0);
                 separator_dot(ui, border);
