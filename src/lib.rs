@@ -33,6 +33,7 @@ pub mod systems;
 
 #[cfg(feature = "native")]
 pub mod persistence;
+pub mod save_load;
 
 #[cfg(feature = "native")]
 pub mod gui;
@@ -994,6 +995,20 @@ mod native_app {
                 PlayerSkills::new(),
                 player_quests,
             ));
+            // Restore the active offline home's progress (inventory + skills) onto
+            // the freshly-spawned player, if a save exists (v0.381, homes inc 3).
+            // The ECS player is authoritative (systems tick every frame), so we apply
+            // HERE at startup, not on 3D-enter; this also makes the exit-save safe
+            // (the player carries the loaded state, so a no-play session round-trips
+            // it instead of overwriting with empty).
+            if let Some(save) = crate::save_load::load_active_home() {
+                crate::save_load::apply_save_to_world(&mut game_world.world, &save);
+                log::info!(
+                    "Loaded offline home: {} item stacks, {} skills",
+                    save.inventory.len(),
+                    save.skills.len()
+                );
+            }
             // Test asteroids for the mining loop (finite ore; DroneSystem deletes one
             // when fully consumed). Dev/testing content — MMO asteroids are server-side.
             game_world.world.spawn((crate::ecs::components::AsteroidBody {
@@ -1190,6 +1205,10 @@ mod native_app {
 
             match event {
                 WindowEvent::CloseRequested => {
+                    // Persist the active offline home before quitting (v0.381). The
+                    // player entity exists from startup, so this captures the loaded
+                    // or modified inventory + skills, round-tripping the save.
+                    crate::save_load::save_active_home(&state.game_world.world);
                     event_loop.exit();
                 }
                 WindowEvent::Resized(size) => {
@@ -1556,6 +1575,11 @@ mod native_app {
                         dt,
                         &state.data_store,
                     );
+
+                    // Periodic auto-save of the offline home (v0.381). Self-throttles
+                    // to every 2 minutes; robust to any exit path (in-app quit, crash)
+                    // where the graceful close-save would not fire.
+                    crate::save_load::maybe_periodic_save(&state.game_world.world, 120);
 
                     // Build render objects from homestead meshes
                     let mut all_objects: Vec<RenderObject> = Vec::new();

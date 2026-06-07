@@ -137,9 +137,13 @@ designed as a real buildable system with a parts list). Multiplayer/server/Real 
 
 1. **Play button** — dedicated FPS-mode entry. **DONE v0.377.** (Was: Esc only,
    no on-screen indicator.)
-2. **Home model + home-select** — saves gain `kind` + `design`; a place to
-   create/pick a home; default first home so single-home users are unaffected.
-   **NEXT (offline increment 2).**
+2. **Home model + save/load** — **MODEL DONE v0.380** (`WorldSave` gained `kind` +
+   `design`, backward-compatible via serde defaults) and the **save/load lifecycle
+   DONE v0.381** (`src/save_load.rs`: player inventory + skills persist to a single
+   `offline_home.json`, applied at startup, saved on window-close + periodically;
+   the game persisted nothing between sessions before). One offline home for now
+   (progressive disclosure). Remaining: persist health/position/game_time/vitals/
+   crops/quests; multi-home select comes with multiplayer.
 3. **Offline Fibonacci design** — **browsable Design view DONE v0.379**: the existing
    `data/blueprints/fibonacci_homestead.ron` is surfaced on the Home page
    (`pages/homes.rs`) with its bill of materials, power/water demand, and a
