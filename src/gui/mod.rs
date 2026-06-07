@@ -154,6 +154,11 @@ pub enum GuiPage {
     /// Community/Mission Dashboard (Civilization) + Governance, Directory
     /// (Identity), Onboarding, Donate, Resources. What the H button opens.
     Humanity,
+    /// Home — your offline homestead (v0.379): the Fibonacci homestead Design
+    /// browsed as rooms + bill-of-materials + power/water demand + a self-
+    /// sufficiency summary. The "homes as save profiles" surface, offline-first
+    /// (server/real homes come later). See pages/homes.rs + homes-as-profiles.md.
+    Homes,
     /// Top-category overview / landing pages (v0.181.0). Each top-tier
     /// nav button (Reality / Sim / Tools / Settings / Dev) lands on the
     /// matching overview, which renders a card grid of every sub-page
@@ -935,6 +940,9 @@ pub struct GuiState {
     /// renders them as top-level nodes, injecting live items at kind:"backpack".
     /// Empty until loaded. See [`Place`].
     pub places: Vec<Place>,
+    /// The loaded Fibonacci homestead blueprint (the first offline "Design"),
+    /// browsed on the Home page. None if the blueprint file is absent.
+    pub homestead_design: Option<HomesteadDesign>,
     /// Which section the merged Real tab shows — either a Profile section id
     /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
@@ -1806,6 +1814,7 @@ impl Default for GuiState {
             // startup in lib.rs (see `load_planets`). Empty at construction.
             map_planets: Vec::new(),
             places: Vec::new(),
+            homestead_design: None,
             active_real_section: "inventory".to_string(),
             active_play_section: "crafting".to_string(),
             active_platform_section: "recovery".to_string(),
@@ -2462,6 +2471,105 @@ pub fn load_places(data_dir: &std::path::Path) -> Vec<Place> {
     read_data_json::<File>(data_dir, "places/seed.json")
         .map(|f| f.entities)
         .unwrap_or_default()
+}
+
+// ── Homestead Design (the "homes" feature, offline-first; v0.379) ──
+// The Fibonacci homestead blueprint (data/blueprints/fibonacci_homestead.ron),
+// surfaced read-only as a browsable Design: rooms carry their materials (the bill
+// of materials / parts list), power, and water needs, so the Home page can total
+// the demand + parts and show how self-sufficient the build is. More designs can
+// drop in as data later. See pages/homes.rs + docs/design/homes-as-profiles.md.
+
+/// A whole homestead blueprint (one "Design").
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct HomesteadDesign {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub version: u32,
+    #[serde(default)]
+    pub rooms: Vec<DesignRoom>,
+    #[serde(default)]
+    pub tiers: Vec<DesignTier>,
+    #[serde(default)]
+    pub build_order: Vec<String>,
+    #[serde(default)]
+    pub scaling_notes: String,
+}
+
+/// One room in a homestead Design, with its build requirements.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct DesignRoom {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub size: Size3,
+    #[serde(default)]
+    pub fibonacci_index: u32,
+    #[serde(default)]
+    pub purpose: String,
+    #[serde(default)]
+    pub tier: String,
+    #[serde(default)]
+    pub requirements: RoomRequirements,
+    #[serde(default)]
+    pub environment_notes: String,
+}
+
+/// Room dimensions in metres.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct Size3 {
+    #[serde(default)]
+    pub x: f32,
+    #[serde(default)]
+    pub y: f32,
+    #[serde(default)]
+    pub z: f32,
+}
+
+/// What a room needs to build + run: a bill of materials, plus power + water draw.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct RoomRequirements {
+    /// (item_id, quantity) pairs — the proto bill-of-materials.
+    #[serde(default)]
+    pub materials: Vec<(String, u32)>,
+    #[serde(default)]
+    pub power_watts: u32,
+    #[serde(default)]
+    pub water_liters_per_day: u32,
+}
+
+/// A construction tier (core / residential / industrial / exterior).
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct DesignTier {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub wall_thickness_cm: u32,
+    #[serde(default)]
+    pub radiation_shielding: bool,
+}
+
+/// Load the Fibonacci homestead blueprint. None if absent/unparseable (the Home
+/// page then shows an empty state). Reads RON directly, like src/ship/fibonacci.rs.
+pub fn load_homestead_design(data_dir: &std::path::Path) -> Option<HomesteadDesign> {
+    let path = data_dir.join("blueprints/fibonacci_homestead.ron");
+    let text = std::fs::read_to_string(&path).ok()?;
+    match ron::from_str::<HomesteadDesign>(&text) {
+        Ok(d) => Some(d),
+        Err(e) => {
+            eprintln!("load_homestead_design: failed to parse {}: {e}", path.display());
+            None
+        }
+    }
 }
 
 /// What a Library entry points to: an embedded document (markdown body) or an

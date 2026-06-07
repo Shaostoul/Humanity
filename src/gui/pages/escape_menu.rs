@@ -141,6 +141,19 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 ];
                 nav_group(ui, &profile_items, theme.nav_legacy_green(), text_muted, theme, state);
 
+                // Home — your offline homestead (operator 2026-06-07: "let's do the
+                // homes thing ... keep developing offline"). Surfaces the Fibonacci
+                // homestead Design (rooms + bill-of-materials + power/water demand +
+                // a self-sufficiency summary). Sits by Profile (you -> your home).
+                let home_items = [
+                    NavItem { label: "Home", page: GuiPage::Homes, description: "" },
+                ];
+                nav_group(ui, &home_items, theme.nav_legacy_green(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
                 // Quests — the learn-by-doing self-sufficiency path, its own
                 // top-level tab (operator 2026-06-06: "add a top level quests page
                 // for now").

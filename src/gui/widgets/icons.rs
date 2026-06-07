@@ -411,6 +411,29 @@ pub fn paint_play(painter: &egui::Painter, rect: Rect, color: Color32) {
     painter.add(PathShape::convex_polygon(pts, color, Stroke::NONE));
 }
 
+/// House — the Home tab (your homestead). An outlined square body with a
+/// triangular roof.
+pub fn paint_house(painter: &egui::Painter, rect: Rect, color: Color32) {
+    use egui::epaint::PathShape;
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let s = w * 0.42;
+    let stroke = Stroke::new((w * 0.1).max(1.0), color);
+    // Body (lower square).
+    let body = Rect::from_min_max(
+        Pos2::new(c.x - s * 0.7, c.y - s * 0.1),
+        Pos2::new(c.x + s * 0.7, c.y + s * 0.8),
+    );
+    painter.rect_stroke(body, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+    // Roof (triangle outline on top).
+    let roof = vec![
+        Pos2::new(c.x - s * 0.9, c.y - s * 0.1),
+        Pos2::new(c.x + s * 0.9, c.y - s * 0.1),
+        Pos2::new(c.x, c.y - s * 0.9),
+    ];
+    painter.add(PathShape::closed_line(roof, stroke));
+}
+
 /// Crown — marks a P2P group the current user created/owns (vs joined).
 /// Built from a filled band rect + three convex triangle spikes so the fill
 /// is correct (a single concave crown polygon wouldn't tessellate cleanly).
@@ -700,6 +723,7 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         // None = FPS game mode; the "Play" nav button carries this page and gets
         // the play-triangle glyph.
         P::None     => { paint_play(painter, rect, color); true }
+        P::Homes    => { paint_house(painter, rect, color); true }
         _ => false,
     }
 }

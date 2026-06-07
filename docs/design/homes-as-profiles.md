@@ -101,18 +101,50 @@ accident:
    values on the relevant container nodes (tank levels, power, temps) plus
    controls, instead of simulated values. This is the in-app-ops dashboard.
 
-## Sequenced path (proposal, refine with operator)
+## Improvements adopted (operator-approved 2026-06-07)
+
+The operator approved these refinements ("I like your suggestions") and chose to
+build **offline single-player first**, deferring all multiplayer/server/Real work
+until offline is solid.
+
+1. **Base character = the existing cryptographic identity.** Don't invent a second
+   "you": your Dilithium key / DID / signed profile (name, bio, avatar) IS your base
+   character. Servers reference it; they can't forge or overwrite it without your
+   signature.
+2. **A home's "kind" is *who owns the truth*** -- Offline = you (local save), Server
+   = the server, Real = physical sensors (reality, mirrored). Conflicts resolve
+   toward whoever is authoritative; promotion (offline -> real) is natural.
+3. **The blueprint carries its bill of materials from day one** (not a later step).
+   Systems -> components -> {3D-print / buy / trade}. The sim spawns from it; the
+   real build list comes from the same tree. **Realized v0.379** (the Home page
+   aggregates the BOM).
+4. **Closure / self-sufficiency score** -- turn "100% self-sustaining" into a number
+   per loop (water in >= out, energy made >= used, food grown >= eaten). Same metric
+   sim or real. **Started v0.379** (demand totals + self-sufficiency kit); the exact
+   output-vs-demand score needs per-component generation-capacity data (next layer).
+5. **Designs are forkable, signed, CC0** -- publish a homestead design, others fork /
+   improve / share back. The blueprint becomes a commons (= the mission).
+6. **A Real home is a digital twin**, not just a dashboard -- the sim runs
+   predictively on live sensor data ("battery dies in 6h", "tank dry in 3 days").
+7. **Progressive disclosure** -- one base character + one offline home with zero
+   selector friction until you create a second. Protects "I only want one profile".
+
+## Sequenced path (offline-first; refine with operator)
 
 Real-life integration stays **last** but shapes every step (each game system is
-designed as a real buildable system with a parts list).
+designed as a real buildable system with a parts list). Multiplayer/server/Real are
+**deferred** (operator 2026-06-07) until offline single-player is solid.
 
 1. **Play button** — dedicated FPS-mode entry. **DONE v0.377.** (Was: Esc only,
    no on-screen indicator.)
 2. **Home model + home-select** — saves gain `kind` + `design`; a place to
    create/pick a home; default first home so single-home users are unaffected.
-3. **Offline-first Fibonacci design** — the first blueprint as data
-   (`data/designs/…`), the 100%-self-sustaining reference homestead, playable
-   single-player.
+   **NEXT (offline increment 2).**
+3. **Offline Fibonacci design** — **browsable Design view DONE v0.379**: the existing
+   `data/blueprints/fibonacci_homestead.ron` is surfaced on the Home page
+   (`pages/homes.rs`) with its bill of materials, power/water demand, and a
+   self-sufficiency summary, by build scale (Solo/Family/Community/Colony).
+   Remaining: spawn the world from the design (playable) + the closure-score layer.
 4. **Server homes** — bind a home to a relay; reuse the server-authoritative
    multiplayer already in place.
 5. **Parts list from design** — each design's systems enumerate the real parts
