@@ -11,8 +11,13 @@
 // "They all grow together": in AEROPONICS the plants share one nutrient reservoir
 // and the room's air, NOT soil, so soil-based companion/adverse rules relax (no
 // allelopathy or soil-pest sharing). The real compatibility constraint is a shared
-// reservoir pH and a shared temperature/humidity window. A compatibility check
-// (computing that shared window from plants.csv) is the next feature.
+// reservoir pH and a shared temperature/humidity window. The compatibility check
+// (v0.392) computes that shared window from plants.csv and flags conflicts on the
+// Home page.
+//
+// `parts` (v0.393) is each tower's real-world bill of materials: the game->real
+// bridge (north star: every in-game system maps to a real buildable thing). It is
+// a STARTING list to refine for your own build, not a fixed spec.
 //
 // The medicinal notes are CULINARY and TRADITIONAL/folk uses, not medical advice.
 // No em-dashes (the strings render in-app, where em-dashes are banned).
@@ -84,6 +89,17 @@
                 (plant: "dill", slots: 1, role: "Herb", note: "Pickling; digestion."),
                 (plant: "mint", slots: 1, role: "Herb", note: "Tea; digestion."),
             ],
+            parts: [
+                (name: "Tower column (stacking pots or a 0.6 m food-safe pipe with 50 net-cup ports)", qty: "1", source: "3d_print", note: "The vertical body. 3D-print stacking sections, or cut ports into HDPE/PVC pipe."),
+                (name: "Net cups, 3 inch", qty: "50", source: "3d_print", note: "One per plant slot. Reusable; printable in PETG."),
+                (name: "Reservoir tank, food-grade (~80 L)", qty: "1", source: "scavenge", note: "A clean food barrel or tote. A bigger reservoir holds nutrients steadier."),
+                (name: "Submersible pump (lift over 2.5 m)", qty: "1", source: "buy", note: "Must raise water to the top of this tall, wide tower."),
+                (name: "Riser tube + top distribution cap", qty: "1 set", source: "3d_print", note: "Carries water up; the cap cascades it down over the roots."),
+                (name: "Repeat cycle timer", qty: "1", source: "buy", note: "Pulses the pump (for example 15 min on / 15 off) to aerate the roots."),
+                (name: "Net-cup medium, clay pebbles", qty: "~12 L", source: "buy", note: "Cradles the seedlings; rinse and reuse between crops."),
+                (name: "Hydroponic nutrients (A + B)", qty: "per reservoir", source: "diy", note: "Mineral salts. Mix from bulk salts once you learn the recipe."),
+                (name: "pH test kit + pH up/down", qty: "1", source: "buy", note: "Keep the shared reservoir inside the plants' common pH window."),
+            ],
         ),
         (
             id: "apothecary",
@@ -130,6 +146,17 @@
                 (plant: "st_johns_wort", slots: 1, role: "Medicinal (mood)", note: "Traditionally for mood. Caution: interactions."),
                 (plant: "comfrey", slots: 1, role: "Medicinal (topical)", note: "Bruise poultice. Topical only."),
                 (plant: "aloe_vera", slots: 1, role: "Medicinal (succulent)", note: "Skin gel. Partial fit."),
+            ],
+            parts: [
+                (name: "Tower column (stacking pots or a 0.32 m food-safe pipe with 50 net-cup ports)", qty: "1", source: "3d_print", note: "A slimmer body than the nutrition tower."),
+                (name: "Net cups, 3 inch", qty: "50", source: "3d_print", note: "One per herb slot. Reusable."),
+                (name: "Reservoir tank, food-grade (~40 L)", qty: "1", source: "scavenge", note: "The slim column needs less reservoir."),
+                (name: "Submersible pump (lift over 2 m)", qty: "1", source: "buy", note: "Raises water to the top of this shorter tower."),
+                (name: "Riser tube + top distribution cap", qty: "1 set", source: "3d_print", note: "Water up, cascade down over the roots."),
+                (name: "Repeat cycle timer", qty: "1", source: "buy", note: "Pulses the pump to aerate the roots."),
+                (name: "Net-cup medium, clay pebbles", qty: "~10 L", source: "buy", note: "Rinse and reuse between crops."),
+                (name: "Hydroponic nutrients (A + B)", qty: "per reservoir", source: "diy", note: "Many herbs prefer a slightly leaner mix than heavy feeders."),
+                (name: "pH test kit + pH up/down", qty: "1", source: "buy", note: "Hold the shared reservoir inside the herbs' common pH window."),
             ],
         ),
     ],

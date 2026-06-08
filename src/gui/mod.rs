@@ -2637,6 +2637,11 @@ pub struct TowerConfig {
     pub helix_turns: f32,
     #[serde(default)]
     pub plantings: Vec<TowerPlanting>,
+    /// Real-world parts to BUILD this tower (the game->real bridge / north star:
+    /// every in-game system maps to a real buildable thing). Optional starting
+    /// bill of materials; refine the parts, quantities, and sources for your build.
+    #[serde(default)]
+    pub parts: Vec<TowerPart>,
 }
 
 fn default_diameter_m() -> f32 {
@@ -2658,6 +2663,21 @@ pub struct TowerPlanting {
     pub slots: u32,
     #[serde(default)]
     pub role: String,
+    #[serde(default)]
+    pub note: String,
+}
+
+/// One real-world component needed to BUILD a tower (the game->real bridge).
+/// `source` is how you would obtain it: "buy" / "3d_print" / "diy" / "trade" /
+/// "scavenge". A starting list; refine for your build.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct TowerPart {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub qty: String,
+    #[serde(default)]
+    pub source: String,
     #[serde(default)]
     pub note: String,
 }
@@ -2803,6 +2823,7 @@ mod tower_compat_tests {
             height_m: 2.0,
             helix_turns: 4.0,
             plantings: vec![],
+            parts: vec![],
         };
         for id in ids {
             t.plantings.push(TowerPlanting {

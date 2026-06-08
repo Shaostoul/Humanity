@@ -378,8 +378,56 @@ fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig, compat: Opt
             }
             ui.add_space(2.0);
         }
+        // ── Parts list: what to actually BUILD the tower from (the game->real
+        //    bridge / north star). Data-driven (the RON's `parts`); a starting
+        //    bill of materials the operator + community refine. ──
+        if !tower.parts.is_empty() {
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new("Parts list (real-world build)")
+                    .size(theme.font_size_body)
+                    .strong()
+                    .color(theme.text_primary()),
+            );
+            ui.label(
+                RichText::new(
+                    "What to 3D-print, buy, trade, or scavenge to build it. A starting list, refine for your setup.",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
+            ui.add_space(2.0);
+            for part in &tower.parts {
+                ui.horizontal(|ui| {
+                    if !part.qty.is_empty() {
+                        ui.label(RichText::new(&part.qty).size(theme.font_size_small).strong().color(theme.accent()));
+                    }
+                    ui.label(RichText::new(&part.name).size(theme.font_size_small).color(theme.text_primary()));
+                    if !part.source.is_empty() {
+                        ui.label(
+                            RichText::new(format!("· {}", part_source_label(&part.source)))
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                    }
+                });
+                if !part.note.is_empty() {
+                    ui.label(RichText::new(&part.note).size(theme.font_size_small).color(theme.text_secondary()));
+                }
+                ui.add_space(2.0);
+            }
+        }
     });
     ui.add_space(theme.spacing_xs);
+}
+
+/// Humanize a part `source` tag for display ("3d_print" -> "3D-print").
+fn part_source_label(source: &str) -> &str {
+    match source {
+        "3d_print" => "3D-print",
+        "diy" => "DIY",
+        other => other,
+    }
 }
 
 fn draw_room(ui: &mut egui::Ui, theme: &Theme, r: &DesignRoom) {
@@ -455,6 +503,17 @@ mod tests {
                 t.id
             );
             assert!(n >= 20, "tower '{}' should showcase variety (>=20 distinct), has {}", t.id, n);
+            // Each tower carries a real-world parts list (the game->real bridge),
+            // and every part names something with a source.
+            assert!(
+                t.parts.len() >= 5,
+                "tower '{}' should have a starter parts list (>=5), has {}",
+                t.id, t.parts.len()
+            );
+            for part in &t.parts {
+                assert!(!part.name.is_empty(), "tower '{}' has a part with no name", t.id);
+                assert!(!part.source.is_empty(), "part '{}' in '{}' has no source", part.name, t.id);
+            }
         }
     }
 }
