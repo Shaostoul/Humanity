@@ -174,8 +174,6 @@ fn kind_color(theme: &Theme, kind: &str) -> egui::Color32 {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let total_slots = state.inventory_max_slots.max(1);
-
     // Calculate carry weight from inventory items + populate equipped slots from
     // the loaded `data/inventory/equipment_slots.json` (lazily — guards against
     // the GUI rendering before lib.rs has wired the loaded data into GuiState).
@@ -372,11 +370,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         state.pending_plant_seed = Some(seed_id);
     }
 
-    egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+    // ── LEFT PANEL: you + your stuff — survival status, equipment, and the nested
+    //    container tree (the navigation). Operator 2026-06-07: upgrade the inventory
+    //    to at least a left + right panel so the horizontal space is used (the page
+    //    was one cramped vertical column). Resizable; picking an item in the tree
+    //    drives the right-hand detail panel. The central panel (Garden + Mining) is
+    //    where you act.
+    egui::SidePanel::left("inv_nav")
+        .resizable(true)
+        .default_width(330.0)
+        .min_width(250.0)
+        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
-            // (The "N/36 slots" counter was removed — the grid is being replaced by
-            // the nested-list inventory, so a fixed slot count is going away.)
+        ScrollArea::vertical().show(ui, |ui| {
             ui.label(RichText::new("Inventory").size(theme.font_size_title).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
 
@@ -533,7 +539,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             ui.add_space(theme.spacing_sm);
 
-            ScrollArea::vertical().show(ui, |ui| {
                 // Equipment section
                 ui.label(RichText::new("Equipment").size(theme.font_size_heading).color(theme.text_primary()));
                 ui.add_space(theme.spacing_xs);
@@ -656,12 +661,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         };
                     }
                 }
+        }); // close left-nav ScrollArea
+        }); // close LEFT panel
 
+    // ── CENTRAL PANEL: the activity workspaces (Garden, Mining). The left tree is
+    //    the navigation; these are where you act on what you have. ──
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .show(ctx, |ui| {
+            ScrollArea::vertical().show(ui, |ui| {
                 // ── Garden: crops growing in the world (plant via a seed's "Plant"
                 //    action; FarmingSystem advances growth from game time + water). ──
-                ui.add_space(theme.spacing_md);
-                ui.separator();
-                ui.add_space(theme.spacing_sm);
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new("Garden")
