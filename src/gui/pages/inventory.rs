@@ -727,6 +727,25 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.separator();
                 ui.add_space(theme.spacing_sm);
 
+                // Tree controls (operator 2026-06-08): collapse/expand ALL branches +
+                // a "Start collapsed" default, driving BOTH the places tree and the
+                // Garden tree below (one control set for the inventory's nested lists).
+                let mut tree_force: Option<bool> = None;
+                ui.horizontal(|ui| {
+                    if widgets::secondary_button(ui, theme, "Collapse all") {
+                        tree_force = Some(false);
+                    }
+                    if widgets::secondary_button(ui, theme, "Expand all") {
+                        tree_force = Some(true);
+                    }
+                    if widgets::toggle(ui, theme, "Start collapsed", &mut state.trees_start_collapsed) {
+                        // Apply the new default to the already-rendered trees this frame.
+                        tree_force = Some(!state.trees_start_collapsed);
+                    }
+                });
+                let tree_default_open = !state.trees_start_collapsed;
+                ui.add_space(theme.spacing_xs);
+
                 // Your entity / container tree — top-level entities (You, your
                 // home, a vehicle, …), each a container with its own contents,
                 // colour-coded by kind so "what is where" reads at a glance. The
@@ -766,7 +785,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .iter()
                         .map(|e| place_to_tree(theme, e, &item_nodes))
                         .collect();
-                    widgets::tree_list(ui, theme, &trees, &selected_str)
+                    widgets::tree_list_ex(ui, theme, &trees, &selected_str, tree_default_open, tree_force)
                 } else if item_nodes.is_empty() {
                     ui.label(
                         RichText::new("Empty, mine, craft, or dev-stock to fill it.")
@@ -774,7 +793,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     );
                     None
                 } else {
-                    widgets::tree_list(ui, theme, &item_nodes, &selected_str)
+                    widgets::tree_list_ex(ui, theme, &item_nodes, &selected_str, tree_default_open, tree_force)
                 };
 
                 if let Some(clicked) = clicked {
@@ -812,7 +831,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         RichText::new("No garden plots yet. Add an aeroponic tower design at Home.")
                             .color(theme.text_muted()),
                     );
-                } else if let Some(gclicked) = widgets::tree_list(ui, theme, &garden_nodes, &garden_sel_str) {
+                } else if let Some(gclicked) =
+                    widgets::tree_list_ex(ui, theme, &garden_nodes, &garden_sel_str, tree_default_open, tree_force)
+                {
                     // Toggle the garden selection; clear the item selection (exclusive).
                     state.garden_selection =
                         if state.garden_selection.as_deref() == Some(gclicked.as_str()) {

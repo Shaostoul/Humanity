@@ -856,6 +856,11 @@ pub struct GuiState {
     /// "tower:<id>". Drives the right detail panel for garden objects; mutually
     /// exclusive with selected_slot (selecting one clears the other).
     pub garden_selection: Option<String>,
+    /// Start the inventory + garden trees COLLAPSED (operator 2026-06-08: "so when
+    /// I first load the lists will start collapsed instead of expanded"). Default
+    /// true; toggled by the "Start collapsed" checkbox. The Collapse/Expand-all
+    /// buttons force every branch for the current frame.
+    pub trees_start_collapsed: bool,
     pub fps: f32,
     pub updater: crate::updater::Updater,
     /// Set true when an update notification toast should show.
@@ -1779,6 +1784,7 @@ impl Default for GuiState {
             ws_reconnect_attempts: 0,
             selected_slot: None,
             garden_selection: None,
+            trees_start_collapsed: true,
             fps: 0.0,
             updater: crate::updater::Updater::new(VERSION),
             update_toast_visible: false,

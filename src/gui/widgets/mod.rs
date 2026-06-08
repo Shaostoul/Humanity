@@ -595,7 +595,15 @@ fn tree_detail(ui: &mut Ui, theme: &Theme, detail: &str) {
     }
 }
 
-fn container_node(ui: &mut Ui, theme: &Theme, node: &TreeNode, selected: &str, clicked: &mut Option<String>) {
+fn container_node(
+    ui: &mut Ui,
+    theme: &Theme,
+    node: &TreeNode,
+    selected: &str,
+    clicked: &mut Option<String>,
+    default_open: bool,
+    force: Option<bool>,
+) {
     if node.children.is_empty() {
         ui.horizontal(|ui| {
             paint_swatch(ui, node.color);
@@ -614,8 +622,14 @@ fn container_node(ui: &mut Ui, theme: &Theme, node: &TreeNode, selected: &str, c
         });
     } else {
         let id = ui.make_persistent_id("tree_node");
-        egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, true)
-            .show_header(ui, |ui| {
+        let mut cs =
+            egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, default_open);
+        // Collapse-all / Expand-all force every branch open/closed for this frame
+        // (then the state persists until the next manual toggle).
+        if let Some(open) = force {
+            cs.set_open(open);
+        }
+        cs.show_header(ui, |ui| {
                 paint_swatch(ui, node.color);
                 // A container header is itself SELECTABLE when it carries an id (so a
                 // garden plot / tower can be picked, not only expanded); plain label
@@ -635,7 +649,9 @@ fn container_node(ui: &mut Ui, theme: &Theme, node: &TreeNode, selected: &str, c
             })
             .body(|ui| {
                 for (j, child) in node.children.iter().enumerate() {
-                    ui.push_id(j, |ui| container_node(ui, theme, child, selected, clicked));
+                    ui.push_id(j, |ui| {
+                        container_node(ui, theme, child, selected, clicked, default_open, force)
+                    });
                 }
             });
     }
@@ -659,9 +675,27 @@ fn paint_swatch(ui: &mut Ui, color: Option<Color32>) {
 /// root, which is how Real and Sim stay structurally separate (different pages, same
 /// widget). `selected` highlights the current selection.
 pub fn tree_list(ui: &mut Ui, theme: &Theme, roots: &[TreeNode], selected: &str) -> Option<String> {
+    tree_list_ex(ui, theme, roots, selected, true, None)
+}
+
+/// [`tree_list`] with explicit collapse control: `default_open` sets the initial
+/// state of branches that have no stored state yet (the "Start collapsed"
+/// preference passes `false`); `force` overrides EVERY branch open/closed for this
+/// frame (the Collapse-all / Expand-all buttons), after which the state persists
+/// until the next manual toggle.
+pub fn tree_list_ex(
+    ui: &mut Ui,
+    theme: &Theme,
+    roots: &[TreeNode],
+    selected: &str,
+    default_open: bool,
+    force: Option<bool>,
+) -> Option<String> {
     let mut clicked = None;
     for (i, node) in roots.iter().enumerate() {
-        ui.push_id(i, |ui| container_node(ui, theme, node, selected, &mut clicked));
+        ui.push_id(i, |ui| {
+            container_node(ui, theme, node, selected, &mut clicked, default_open, force)
+        });
     }
     clicked
 }
