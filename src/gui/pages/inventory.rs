@@ -752,7 +752,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .striped(true)
                                 .spacing([12.0, 4.0])
                                 .show(ui, |ui| {
-                                    for h in ["Plant", "Stage", "Growth", "Water / Health", "Actions"] {
+                                    for h in ["Plant", "Stage", "Growth", "N·P·K", "Water/day", "Temp", "State", "Actions"] {
                                         ui.label(RichText::new(h).size(theme.font_size_small).strong().color(theme.text_secondary()));
                                     }
                                     ui.end_row();
@@ -777,6 +777,24 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             egui::ProgressBar::new(crop.progress.clamp(0.0, 1.0))
                                                 .fill(theme.accent())
                                                 .desired_width(200.0),
+                                        );
+                                        // Plant-def reference columns (operator: "add columns
+                                        // for npk and other nutrients, water, temp"): relative
+                                        // N-P-K demand, daily water need, temperature window.
+                                        ui.label(
+                                            RichText::new(format!("{:.2}·{:.2}·{:.2}", crop.n, crop.p, crop.k))
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_secondary()),
+                                        );
+                                        ui.label(
+                                            RichText::new(format!("{:.1} L", crop.water_per_day))
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_secondary()),
+                                        );
+                                        ui.label(
+                                            RichText::new(format!("{:.0}-{:.0}°C", crop.temp_min, crop.temp_max))
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_secondary()),
                                         );
                                         let wcol = if crop.water < 0.2 {
                                             theme.danger()

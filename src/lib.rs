@@ -2164,6 +2164,12 @@ mod native_app {
                                 mature,
                                 dead,
                                 tower_id: crop.tower_id.clone(),
+                                n: def.map(|d| d.nutrient_n).unwrap_or(0.0),
+                                p: def.map(|d| d.nutrient_p).unwrap_or(0.0),
+                                k: def.map(|d| d.nutrient_k).unwrap_or(0.0),
+                                water_per_day: def.map(|d| d.water_per_day).unwrap_or(0.0),
+                                temp_min: def.map(|d| d.temp_min_c).unwrap_or(0.0),
+                                temp_max: def.map(|d| d.temp_max_c).unwrap_or(0.0),
                             });
                         }
                     }

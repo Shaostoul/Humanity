@@ -36,6 +36,20 @@ pub struct PlantDef {
     /// Harvest yield range (units of produce per fully-grown plant).
     pub yield_min: u32,
     pub yield_max: u32,
+    /// Relative nutrient demand fractions (N, P, K) from plants.csv. Shown per
+    /// crop in the Garden table; feed the future shared-reservoir mix math.
+    pub nutrient_n: f32,
+    pub nutrient_p: f32,
+    pub nutrient_k: f32,
+    /// Preferred reservoir pH window (for the future tower compatibility check).
+    pub ph_min: f32,
+    pub ph_max: f32,
+    /// Tolerated air/water temperature window, Celsius.
+    pub temp_min_c: f32,
+    pub temp_max_c: f32,
+    /// Preferred relative-humidity window, 0..1.
+    pub humidity_min: f32,
+    pub humidity_max: f32,
 }
 
 impl PlantDef {
@@ -101,6 +115,15 @@ impl PlantRegistry {
                     growth_stages: split_colon_list(&row.growth_stages),
                     yield_min: row.yield_min,
                     yield_max: row.yield_max,
+                    nutrient_n: row.nutrient_n,
+                    nutrient_p: row.nutrient_p,
+                    nutrient_k: row.nutrient_k,
+                    ph_min: row.ph_min,
+                    ph_max: row.ph_max,
+                    temp_min_c: row.temp_min_c,
+                    temp_max_c: row.temp_max_c,
+                    humidity_min: row.humidity_min,
+                    humidity_max: row.humidity_max,
                 },
             );
         }
@@ -108,8 +131,13 @@ impl PlantRegistry {
     }
 }
 
-/// One row of `plants.csv` — only the columns `PlantRegistry` consumes (the
-/// nutrient/ph/temp/humidity/yield/value columns are ignored for now).
+/// One row of `plants.csv`. The columns `PlantRegistry` consumes; extra CSV
+/// columns (value/skill/companions/adverse) are still ignored. Nutrient demand
+/// (N/P/K), the pH window, the temperature window, and the humidity window are
+/// now parsed so the Garden table can show per-crop needs and a future tower
+/// compatibility check can compute the shared-reservoir window. Every numeric
+/// field is `#[serde(default)]`, so older/leaner CSVs (and the test fixture)
+/// that omit these columns simply default them to 0.
 #[derive(Debug, Deserialize)]
 struct PlantRow {
     id: String,
@@ -118,6 +146,24 @@ struct PlantRow {
     growth_days: f32,
     #[serde(default)]
     water_liters_per_day: f32,
+    #[serde(default)]
+    nutrient_n: f32,
+    #[serde(default)]
+    nutrient_p: f32,
+    #[serde(default)]
+    nutrient_k: f32,
+    #[serde(default)]
+    ph_min: f32,
+    #[serde(default)]
+    ph_max: f32,
+    #[serde(default)]
+    temp_min_c: f32,
+    #[serde(default)]
+    temp_max_c: f32,
+    #[serde(default)]
+    humidity_min: f32,
+    #[serde(default)]
+    humidity_max: f32,
     #[serde(default)]
     growth_stages: String,
     #[serde(default)]
@@ -153,6 +199,28 @@ mod plant_registry_csv_tests {
         assert_eq!(t.seasons, vec!["spring", "summer"]);
         assert_eq!(t.first_stage(), "seed");
         assert_eq!(t.last_stage(), "mature");
+    }
+
+    #[test]
+    fn from_csv_parses_nutrient_temp_and_humidity_columns() {
+        // A full-width row (mirroring data/plants.csv) must populate the N/P/K,
+        // pH, temperature, and humidity fields the Garden table shows and the
+        // future tower compatibility check will read. Locks the column names.
+        let csv = b"id,name,description,type,growth_days,water_liters_per_day,nutrient_n,nutrient_p,nutrient_k,ph_min,ph_max,temp_min_c,temp_max_c,humidity_min,humidity_max,yield_min,yield_max,growth_stages,seasons\n\
+                    tomato,Tomato,desc,fruit,70,1.5,0.15,0.05,0.20,6.0,6.8,18,30,0.50,0.80,2,8,seed:sprout:mature,spring:summer\n";
+        let reg = PlantRegistry::from_csv(csv).expect("parse");
+        let t = reg.get("tomato").expect("tomato present");
+        assert!((t.nutrient_n - 0.15).abs() < 1e-6, "N");
+        assert!((t.nutrient_p - 0.05).abs() < 1e-6, "P");
+        assert!((t.nutrient_k - 0.20).abs() < 1e-6, "K");
+        assert!((t.water_per_day - 1.5).abs() < 1e-6, "water/day");
+        assert!((t.temp_min_c - 18.0).abs() < 1e-6, "temp_min");
+        assert!((t.temp_max_c - 30.0).abs() < 1e-6, "temp_max");
+        assert!((t.ph_min - 6.0).abs() < 1e-6, "ph_min");
+        assert!((t.ph_max - 6.8).abs() < 1e-6, "ph_max");
+        assert!((t.humidity_min - 0.50).abs() < 1e-6, "humidity_min");
+        assert!((t.humidity_max - 0.80).abs() < 1e-6, "humidity_max");
+        assert_eq!(t.yield_max, 8, "yield still parses past the new columns");
     }
 }
 

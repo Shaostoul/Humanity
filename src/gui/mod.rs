@@ -431,6 +431,15 @@ pub struct GuiCrop {
     pub dead: bool,
     /// The tower this crop belongs to (its config id), if planted via a tower.
     pub tower_id: Option<String>,
+    /// Plant-def reference data (from plants.csv) shown as Garden-table columns:
+    /// relative nutrient demand (N, P, K), daily water need (L), and the
+    /// tolerated temperature window (Celsius). 0 when the species is unknown.
+    pub n: f32,
+    pub p: f32,
+    pub k: f32,
+    pub water_per_day: f32,
+    pub temp_min: f32,
+    pub temp_max: f32,
 }
 
 /// An asteroid (with remaining ore) for GUI display.
