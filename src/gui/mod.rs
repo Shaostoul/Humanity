@@ -2603,8 +2603,29 @@ pub struct TowerConfig {
     pub disclaimer: String,
     #[serde(default)]
     pub slots: u32,
+    /// 3D geometry for the placeholder (and the eventual real design; operator
+    /// 2026-06-07: design + plant amount should be dynamic + scale infinitely). The
+    /// column DIAMETER + HEIGHT in metres, and how many times the plant HELIX wraps
+    /// the column: low helix_turns = coarse / spread out, high = fine / dense, like
+    /// thread pitch on a bolt. A wide diameter + fine helix packs more plants.
+    #[serde(default = "default_diameter_m")]
+    pub diameter_m: f32,
+    #[serde(default = "default_height_m")]
+    pub height_m: f32,
+    #[serde(default = "default_helix_turns")]
+    pub helix_turns: f32,
     #[serde(default)]
     pub plantings: Vec<TowerPlanting>,
+}
+
+fn default_diameter_m() -> f32 {
+    0.4
+}
+fn default_height_m() -> f32 {
+    2.0
+}
+fn default_helix_turns() -> f32 {
+    4.0
 }
 
 /// One plant assigned to N slots of a tower, with its role + a nutrition/medicinal note.

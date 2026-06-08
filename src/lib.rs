@@ -375,29 +375,46 @@ mod native_app {
             let floor_y = garden.map(|r| r.center.y - r.dimensions.y * 0.5).unwrap_or(0.0);
             let gx = garden.map(|r| r.center.x).unwrap_or(0.0);
             let gz = garden.map(|r| r.center.z).unwrap_or(0.0);
-            let cyl_mesh = state.renderer.add_mesh(Mesh::cylinder(&state.renderer.device, 0.18, 2.0, 16));
+            // Snapshot each tower's geometry (diameter / height / helix turns / plant
+            // count) FIRST so the gui_state borrow is released before the renderer
+            // mutations below. Geometry is data-driven (operator: dynamic + scalable).
+            let towers: Vec<(f32, f32, f32, usize)> = state
+                .gui_state
+                .tower_configs
+                .iter()
+                .map(|t| (t.diameter_m, t.height_m, t.helix_turns, t.plantings.len()))
+                .collect();
+            let tower_count = towers.len().max(1) as f32;
             let tower_mat = state.renderer.add_material_typed([0.6, 0.62, 0.66, 1.0], 0.3, 0.6, 1.0);
             let sphere_mesh = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 0.09, 8, 10));
             let plant_mat = state.renderer.add_material_typed([0.15, 0.7, 0.2, 1.0], 0.0, 0.9, 0.0);
-            let tower_count = state.gui_state.tower_configs.len().max(1);
-            for (ti, tower) in state.gui_state.tower_configs.iter().enumerate() {
-                let tx = gx + (ti as f32 - (tower_count as f32 - 1.0) * 0.5) * 1.5;
+            for (ti, &(diam, height, turns, n_plants)) in towers.iter().enumerate() {
+                let radius = (diam * 0.5).max(0.05);
+                let h = height.max(0.5);
+                let t_turns = turns.max(0.5);
+                // Space towers by their width so wide ones do not overlap.
+                let tx = gx + (ti as f32 - (tower_count - 1.0) * 0.5) * (1.0 + diam.max(0.3));
+                // One cylinder per tower (per-tower diameter + height).
+                let cyl_mesh = state.renderer.add_mesh(Mesh::cylinder(&state.renderer.device, radius, h, 20));
                 state.placeholder_objects.push((cyl_mesh, tower_mat, Vec3::new(tx, floor_y, gz)));
-                let markers = tower.plantings.len().min(12).max(1);
-                for p in 0..markers {
-                    let frac = p as f32 / markers as f32;
-                    let a = frac * std::f32::consts::TAU * 3.0; // 3 turns up the column
-                    let y = floor_y + 0.25 + frac * 1.6;
-                    let r = 0.3;
+                // One plant marker per curated variety, up a helix of `t_turns` wraps
+                // (capped for the per-frame object budget; the full list is on Home).
+                let n = n_plants.min(40).max(1);
+                for p in 0..n {
+                    let frac = (p as f32 + 0.5) / n as f32;
+                    let a = frac * t_turns * std::f32::consts::TAU;
+                    let y = floor_y + 0.1 + frac * (h - 0.2);
+                    let mr = radius + 0.12; // markers sit just off the column
                     state.placeholder_objects.push((
                         sphere_mesh,
                         plant_mat,
-                        Vec3::new(tx + r * a.cos(), y, gz + r * a.sin()),
+                        Vec3::new(tx + mr * a.cos(), y, gz + mr * a.sin()),
                     ));
                 }
             }
-            if state.gui_state.tower_configs.is_empty() {
+            if towers.is_empty() {
                 // No configs: still drop one bare tower so the garden spot is visible.
+                let cyl_mesh = state.renderer.add_mesh(Mesh::cylinder(&state.renderer.device, 0.2, 2.0, 20));
                 state.placeholder_objects.push((cyl_mesh, tower_mat, Vec3::new(gx, floor_y, gz)));
             }
         }

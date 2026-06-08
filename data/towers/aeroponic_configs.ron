@@ -45,6 +45,10 @@
             gaps_note: "These come from field crops, the ranch tier, sunlight, or animals, not from a tower.",
             disclaimer: "",
             slots: 50,
+            // Wide + fine helix: a fat column packed with many plants.
+            diameter_m: 0.6,
+            height_m: 2.4,
+            helix_turns: 6.0,
             plantings: [
                 (plant: "lettuce", slots: 1, role: "Leafy green", note: "Salad base, vitamin A, folate."),
                 (plant: "spinach", slots: 1, role: "Leafy green", note: "Iron, folate, magnesium."),
@@ -97,6 +101,10 @@
             gaps_note: "",
             disclaimer: "Culinary and traditional / folk uses, not medical advice. Some plants carry cautions (topical only, sedative, drug interactions, not for pregnancy), noted per plant. Consult a professional before any medicinal use.",
             slots: 50,
+            // Narrow + coarse helix: a slim column with widely spaced plants.
+            diameter_m: 0.32,
+            height_m: 1.9,
+            helix_turns: 2.5,
             plantings: [
                 (plant: "basil", slots: 1, role: "Culinary", note: "Cooking staple."),
                 (plant: "mint", slots: 1, role: "Culinary and tea", note: "Digestive; refreshing."),

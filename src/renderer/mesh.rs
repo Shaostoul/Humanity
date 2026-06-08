@@ -162,38 +162,35 @@ impl Mesh {
         Self::from_vertices(device, vertices, indices)
     }
 
-    /// Cylinder along +Y: base ring at y=0, top ring at y=height, outward-normal
-    /// side wall + a top cap. Used as a placeholder aeroponic-tower column.
+    /// Open cylinder (solid wall, no caps) along +Y: base ring at y=0, top ring at
+    /// y=height, outward normals. A placeholder aeroponic-tower column. The two
+    /// rings are laid out ROW-MAJOR so the index winding is identical to
+    /// `Mesh::sphere` (which renders correctly), avoiding the inverted-normal bug.
     pub fn cylinder(device: &wgpu::Device, radius: f32, height: f32, segments: u32) -> Self {
         let seg = segments.max(3);
         let tau = std::f32::consts::TAU;
         let mut v: Vec<Vertex> = Vec::new();
         let mut idx: Vec<u32> = Vec::new();
-        // Side wall: per angle, a bottom + top vertex (outward normal).
-        for i in 0..=seg {
-            let t = i as f32 / seg as f32;
-            let a = t * tau;
-            let (ca, sa) = (a.cos(), a.sin());
-            v.push(Vertex { position: [radius * ca, 0.0, radius * sa], normal: [ca, 0.0, sa], uv: [t, 1.0] });
-            v.push(Vertex { position: [radius * ca, height, radius * sa], normal: [ca, 0.0, sa], uv: [t, 0.0] });
+        // Two rings (bottom y=0, top y=height), row-major: ring * (seg+1) + i.
+        for ring in 0..2u32 {
+            let y = if ring == 0 { 0.0 } else { height };
+            for i in 0..=seg {
+                let t = i as f32 / seg as f32;
+                let a = t * tau;
+                let (ca, sa) = (a.cos(), a.sin());
+                v.push(Vertex {
+                    position: [radius * ca, y, radius * sa],
+                    normal: [ca, 0.0, sa],
+                    uv: [t, 1.0 - ring as f32],
+                });
+            }
         }
+        let stride = seg + 1;
         for i in 0..seg {
-            let b0 = 2 * i;
-            let t0 = b0 + 1;
-            let b1 = 2 * (i + 1);
-            let t1 = b1 + 1;
-            idx.extend_from_slice(&[b0, b1, t1, t1, t0, b0]);
-        }
-        // Top cap (normal +Y), triangle fan.
-        let center = v.len() as u32;
-        v.push(Vertex { position: [0.0, height, 0.0], normal: [0.0, 1.0, 0.0], uv: [0.5, 0.5] });
-        let ring = v.len() as u32;
-        for i in 0..=seg {
-            let a = (i as f32 / seg as f32) * tau;
-            v.push(Vertex { position: [radius * a.cos(), height, radius * a.sin()], normal: [0.0, 1.0, 0.0], uv: [0.5 + 0.5 * a.cos(), 0.5 + 0.5 * a.sin()] });
-        }
-        for i in 0..seg {
-            idx.extend_from_slice(&[center, ring + i, ring + i + 1]);
+            let a = i;
+            let b = a + stride;
+            // Same winding as Mesh::sphere (verified outward-facing).
+            idx.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
         }
         Self::from_vertices(device, &v, &idx)
     }
