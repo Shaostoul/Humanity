@@ -386,6 +386,21 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.label(RichText::new("Inventory").size(theme.font_size_title).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
 
+            // Creative / survival mode (default Creative during early dev): in
+            // Creative, planting + crafting don't need or consume resources, so the
+            // seed/material economy can be built out before it actually bites.
+            widgets::toggle(ui, theme, "Creative mode", &mut state.creative_mode);
+            ui.label(
+                RichText::new(if state.creative_mode {
+                    "Creative: plant + craft freely, nothing consumed."
+                } else {
+                    "Survival: planting + crafting consume seeds + materials."
+                })
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_sm);
+
             // Weight indicator
             let (carry_weight, max_weight) = with_state(|ps| (ps.carry_weight, ps.max_carry_weight));
             let weight_frac = if max_weight > 0.0 { carry_weight / max_weight } else { 0.0 };

@@ -452,6 +452,12 @@ impl System for CraftingSystem {
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         let recipe_registry = data.get::<RecipeRegistry>("recipe_registry");
         let item_registry = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+        // Creative mode (default ON in early dev): crafting skips the input
+        // requirement + consumption. Absent flag (tests) = survival = consume.
+        let creative = data
+            .get::<std::sync::Mutex<bool>>("creative_mode")
+            .and_then(|m| m.lock().ok().map(|g| *g))
+            .unwrap_or(false);
 
         // ── GUI / dev command channels (written by the main loop from GuiState). ──
         // Drain the command flags first — these read `data`, never `world`, so they
@@ -548,12 +554,16 @@ impl System for CraftingSystem {
                     continue;
                 }
 
-                // Validate inventory has required inputs
-                let can_craft = match world.get::<&Inventory>(request.crafter) {
-                    Ok(inv) => Self::can_craft(&inv, &recipe),
-                    Err(_) => {
-                        log::warn!("Craft request on entity without Inventory");
-                        continue;
+                // Validate inventory has required inputs (creative mode bypasses).
+                let can_craft = if creative {
+                    true
+                } else {
+                    match world.get::<&Inventory>(request.crafter) {
+                        Ok(inv) => Self::can_craft(&inv, &recipe),
+                        Err(_) => {
+                            log::warn!("Craft request on entity without Inventory");
+                            continue;
+                        }
                     }
                 };
 
@@ -562,9 +572,11 @@ impl System for CraftingSystem {
                     continue;
                 }
 
-                // Consume inputs immediately
-                if let Ok(mut inv) = world.get::<&mut Inventory>(request.crafter) {
-                    Self::consume_inputs(&mut inv, &recipe);
+                // Consume inputs immediately (skipped in creative mode).
+                if !creative {
+                    if let Ok(mut inv) = world.get::<&mut Inventory>(request.crafter) {
+                        Self::consume_inputs(&mut inv, &recipe);
+                    }
                 }
 
                 // If instant craft (time <= 0), produce outputs immediately

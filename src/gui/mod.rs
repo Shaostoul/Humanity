@@ -961,6 +961,13 @@ pub struct GuiState {
     /// computed once from the plant registry in the crop sync. The "make sure
     /// they grow together" check shown on the Home page.
     pub tower_compat: Vec<TowerCompat>,
+    /// Creative mode (default ON during early dev): resource-consuming actions
+    /// (planting seeds, fertilizing, crafting) skip the inventory requirement and
+    /// consumption, so the seed/material economy can be built out before it bites.
+    /// OFF = survival (consume normally). Bridged to the DataStore each frame so the
+    /// farming + crafting systems read it. Not persisted yet: defaults Creative on
+    /// every launch, which is exactly the early-dev default the operator wants.
+    pub creative_mode: bool,
     /// Which section the merged Real tab shows — either a Profile section id
     /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
@@ -1839,6 +1846,7 @@ impl Default for GuiState {
             homestead_design: None,
             tower_configs: Vec::new(),
             tower_compat: Vec::new(),
+            creative_mode: true,
             active_real_section: "inventory".to_string(),
             active_play_section: "crafting".to_string(),
             active_platform_section: "recovery".to_string(),

@@ -320,6 +320,14 @@ impl System for FarmingSystem {
 
         let item_registry = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
 
+        // Creative mode (default ON in early dev): planting + fertilizing skip the
+        // inventory requirement + consumption. Absent flag (tests) = survival =
+        // consume, so the existing gardening tests still hold.
+        let creative = data
+            .get::<std::sync::Mutex<bool>>("creative_mode")
+            .and_then(|m| m.lock().ok().map(|g| *g))
+            .unwrap_or(false);
+
         // ── GUI / dev gardening commands (the inventory page writes these via the
         //    main-loop bridge): plant a seed, water a crop, dev-grow all, harvest. ──
         // PLANT: consume one matching seed from the player, spawn a CropInstance.
@@ -339,8 +347,10 @@ impl System for FarmingSystem {
                         &mut crate::systems::inventory::Inventory,
                         &crate::ecs::components::Controllable,
                     )>() {
-                        if inv.has_item(&seed_id, 1) {
-                            inv.remove_item(&seed_id, 1);
+                        if creative || inv.has_item(&seed_id, 1) {
+                            if !creative {
+                                inv.remove_item(&seed_id, 1);
+                            }
                             planted = true;
                             break;
                         }
@@ -417,8 +427,10 @@ impl System for FarmingSystem {
                     &mut crate::systems::inventory::Inventory,
                     &crate::ecs::components::Controllable,
                 )>() {
-                    if inv.has_item("fertilizer_0", 1) {
-                        inv.remove_item("fertilizer_0", 1);
+                    if creative || inv.has_item("fertilizer_0", 1) {
+                        if !creative {
+                            inv.remove_item("fertilizer_0", 1);
+                        }
                         had_fertilizer = true;
                     }
                     break;
@@ -711,6 +723,40 @@ mod gardening_tests {
         assert!(
             tomatoes >= 2,
             "harvest yielded produce (>= yield_min 2 tomatoes), got {tomatoes}"
+        );
+    }
+
+    /// Creative mode: planting spawns a crop WITHOUT needing or consuming a seed,
+    /// so the seed economy can be built out before it bites. (Survival mode, the
+    /// absent-flag default, still consumes — proven by plant_grow_harvest_full_loop.)
+    #[test]
+    fn creative_mode_plants_without_consuming_seed() {
+        let mut data = make_store();
+        data.insert("creative_mode", std::sync::Mutex::new(true));
+        let mut sys = FarmingSystem::new();
+
+        // Player holds NO seeds — creative mode plants anyway.
+        let mut world = hecs::World::new();
+        let _player = world.spawn((Inventory::new(16), Controllable));
+        set_string(&data, "plant_request", "seed_tomato_0");
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.query::<&CropInstance>().iter().count(),
+            1,
+            "creative mode planted a crop with no seed in inventory"
+        );
+
+        // And a held seed is NOT consumed in creative mode.
+        let mut world2 = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("seed_tomato_0", 1, 99);
+        let p2 = world2.spawn((inv, Controllable));
+        set_string(&data, "plant_request", "seed_tomato_0");
+        sys.tick(&mut world2, 1.0, &data);
+        assert_eq!(
+            world2.get::<&Inventory>(p2).unwrap().count_item("seed_tomato_0"),
+            1,
+            "creative mode did not consume the held seed"
         );
     }
 

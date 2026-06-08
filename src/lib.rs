@@ -993,6 +993,11 @@ mod native_app {
             data_store.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("dev_grow_crops", std::sync::Mutex::new(false));
+            // Creative mode (default ON during early dev): the resource-consuming
+            // systems (farming seeds/fertilizer, crafting materials) skip the
+            // inventory requirement + consumption when this is true. Mirrored from
+            // GuiState.creative_mode each frame by the bridge below.
+            data_store.insert("creative_mode", std::sync::Mutex::new(true));
             // Mining: commission the player's drone with a MANIFEST (ores + units to
             // fetch); DroneSystem launches one drone per player.
             data_store.insert(
@@ -1590,6 +1595,16 @@ mod native_app {
                             if let Ok(mut s) = slot.lock() {
                                 *s = true;
                             }
+                        }
+                    }
+                    // Creative/survival mode: mirror the flag EVERY frame (not
+                    // one-shot) so the farming + crafting systems see the current
+                    // mode. Creative = skip resource requirements + consumption.
+                    if let Some(slot) =
+                        state.data_store.get::<std::sync::Mutex<bool>>("creative_mode")
+                    {
+                        if let Ok(mut s) = slot.lock() {
+                            *s = state.gui_state.creative_mode;
                         }
                     }
                     // Skills: bridge the "Dev: max skills" button to SkillSystem.
