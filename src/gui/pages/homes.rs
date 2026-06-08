@@ -379,18 +379,28 @@ fn self_sufficiency_kit(bom: &[(String, u32)]) -> Vec<(&'static str, u32)> {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn tower_configs_parse_and_sum_to_50() {
+    fn tower_configs_parse_max_variety() {
         // Loads the real data/towers/aeroponic_configs.ron from the crate root.
         let towers = crate::gui::load_tower_configs(std::path::Path::new("data"));
         assert_eq!(towers.len(), 2, "expected 2 towers, got {}", towers.len());
         for t in &towers {
             let total: u32 = t.plantings.iter().map(|p| p.slots).sum();
-            assert_eq!(
-                total, t.slots,
-                "tower '{}' plantings sum {} != declared slots {}",
+            assert!(
+                total <= t.slots,
+                "tower '{}' plantings {} exceed capacity {}",
                 t.id, total, t.slots
             );
-            assert_eq!(t.slots, 50, "tower '{}' should be 50 slots", t.id);
+            // Max variety: one of each type, no duplicate plants.
+            let mut ids: Vec<&str> = t.plantings.iter().map(|p| p.plant.as_str()).collect();
+            let n = ids.len();
+            ids.sort();
+            ids.dedup();
+            assert_eq!(
+                ids.len(), n,
+                "tower '{}' has duplicate plants (max-variety expects distinct)",
+                t.id
+            );
+            assert!(n >= 20, "tower '{}' should showcase variety (>=20 distinct), has {}", t.id, n);
         }
     }
 }

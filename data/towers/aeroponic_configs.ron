@@ -1,13 +1,18 @@
-// Aeroponic tower configurations (v0.382).
+// Aeroponic tower configurations (v0.383: reframed to MAXIMUM VARIETY).
 //
-// Two curated 50-slot vertical aeroponic towers, the homestead's FOOD loop made
-// concrete (see docs/design/self-sufficiency.md). Every plant references an
-// existing id in data/plants.csv (no new plant data). Slot counts sum to 50.
+// Two curated vertical aeroponic towers, the homestead's FOOD loop made concrete
+// (see docs/design/self-sufficiency.md). Philosophy (operator 2026-06-07): "as
+// many variety as possible" -- ONE of each plant rather than ten of one, to show
+// how wide a range a person can easily grow. Every plant is an existing id in
+// data/plants.csv (no new plant data). `slots` is the tower's net-cup CAPACITY
+// (50); the plantings use as many DISTINCT varieties as plants.csv currently
+// offers for that tower, leaving room for the community to add more.
 //
-// Honest constraint: aeroponic towers excel at leafy greens, fruiting vegetables,
-// legumes, and herbs, and are poor at bulk calories (grains, tubers), oils/fats,
-// and anything woody. So "covers nutrition" means the micronutrient + protein +
-// fresh-vegetable side; the calorie/fat/grain staples are a field-crop / ranch job.
+// "They all grow together": in AEROPONICS the plants share one nutrient reservoir
+// and the room's air, NOT soil, so soil-based companion/adverse rules relax (no
+// allelopathy or soil-pest sharing). The real compatibility constraint is a shared
+// reservoir pH and a shared temperature/humidity window. A compatibility check
+// (computing that shared window from plants.csv) is the next feature.
 //
 // The medicinal notes are CULINARY and TRADITIONAL/folk uses, not medical advice.
 // No em-dashes (the strings render in-app, where em-dashes are banned).
@@ -16,9 +21,9 @@
     towers: [
         (
             id: "nutrition",
-            name: "Daily Greens and Beans",
-            purpose: "Maximum nutritional coverage in 50 aeroponic slots",
-            description: "An ideal minimalistic vegetable garden for a vertical aeroponic tower: leafy greens, legumes, fruiting vegetables, and roots chosen to cover as much of human nutrition as a tower realistically can.",
+            name: "Variety Greens and Beans",
+            purpose: "Maximum variety of food crops in one aeroponic tower",
+            description: "An ideal minimalistic vegetable garden showing how many different things you can easily grow in one vertical tower: one of each leafy green, brassica, root, allium, fruiting vegetable, legume, and kitchen herb. Swap or add freely; the community will tune the perfect mix.",
             covers: [
                 "Vitamin A",
                 "Vitamin C",
@@ -41,30 +46,46 @@
             disclaimer: "",
             slots: 50,
             plantings: [
-                (plant: "kale", slots: 4, role: "Leafy green", note: "Vitamin A, C, K, calcium, iron."),
-                (plant: "spinach", slots: 4, role: "Leafy green", note: "Folate, iron, magnesium, vitamin K."),
-                (plant: "lettuce", slots: 4, role: "Leafy green", note: "Salad volume, vitamin A, folate, hydration."),
-                (plant: "beet", slots: 3, role: "Root and greens", note: "Root and edible greens: folate, manganese, vitamin K, iron."),
-                (plant: "cabbage", slots: 2, role: "Brassica", note: "Vitamin C, K, fiber."),
-                (plant: "broccoli", slots: 3, role: "Brassica", note: "Vitamin C, K, folate, sulforaphane."),
-                (plant: "cauliflower", slots: 2, role: "Brassica", note: "Vitamin C, K, choline."),
-                (plant: "bean", slots: 5, role: "Legume", note: "Plant protein, fiber, folate, iron."),
-                (plant: "pea", slots: 4, role: "Legume", note: "Protein, vitamin C, K, thiamine."),
-                (plant: "soybean", slots: 3, role: "Legume (protein)", note: "Complete plant protein, iron, isoflavones."),
-                (plant: "tomato", slots: 4, role: "Fruiting", note: "Vitamin C, potassium, lycopene."),
-                (plant: "pepper", slots: 3, role: "Fruiting", note: "Very high vitamin C, plus A and B6."),
-                (plant: "cucumber", slots: 2, role: "Fruiting", note: "Hydration and low-calorie volume, vitamin K."),
-                (plant: "strawberry", slots: 2, role: "Fruiting", note: "Vitamin C, manganese, antioxidants, a little sweetness."),
-                (plant: "carrot", slots: 2, role: "Root", note: "Vitamin A (beta-carotene), fiber."),
-                (plant: "radish", slots: 2, role: "Root (fast)", note: "Fast turnover, vitamin C, edible peppery greens."),
-                (plant: "chive", slots: 1, role: "Allium", note: "Allium compounds, vitamin K, fresh flavor."),
+                (plant: "lettuce", slots: 1, role: "Leafy green", note: "Salad base, vitamin A, folate."),
+                (plant: "spinach", slots: 1, role: "Leafy green", note: "Iron, folate, magnesium."),
+                (plant: "kale", slots: 1, role: "Leafy green", note: "Vitamin A, C, K, calcium."),
+                (plant: "cabbage", slots: 1, role: "Brassica", note: "Vitamin C, K, fiber."),
+                (plant: "broccoli", slots: 1, role: "Brassica", note: "Vitamin C, K, sulforaphane."),
+                (plant: "cauliflower", slots: 1, role: "Brassica", note: "Vitamin C, choline."),
+                (plant: "beet", slots: 1, role: "Root and greens", note: "Folate; edible greens."),
+                (plant: "turnip", slots: 1, role: "Root and greens", note: "Vitamin C; edible tops."),
+                (plant: "radish", slots: 1, role: "Root (fast)", note: "Fast, vitamin C, peppery."),
+                (plant: "carrot", slots: 1, role: "Root", note: "Vitamin A (beta-carotene)."),
+                (plant: "parsnip", slots: 1, role: "Root", note: "Sweet, fiber, potassium."),
+                (plant: "celery", slots: 1, role: "Stalk", note: "Crunch, vitamin K, hydration."),
+                (plant: "leek", slots: 1, role: "Allium", note: "Mild onion, vitamin K."),
+                (plant: "onion", slots: 1, role: "Allium", note: "Flavor base, antioxidants."),
+                (plant: "garlic", slots: 1, role: "Allium", note: "Flavor, allicin."),
+                (plant: "chive", slots: 1, role: "Allium herb", note: "Mild onion, garnish."),
+                (plant: "cucumber", slots: 1, role: "Fruiting", note: "Hydration, vitamin K."),
+                (plant: "zucchini", slots: 1, role: "Fruiting", note: "Prolific, vitamin C, potassium."),
+                (plant: "tomato", slots: 1, role: "Fruiting", note: "Vitamin C, lycopene."),
+                (plant: "pepper", slots: 1, role: "Fruiting", note: "Very high vitamin C."),
+                (plant: "eggplant", slots: 1, role: "Fruiting", note: "Fiber, antioxidants."),
+                (plant: "okra", slots: 1, role: "Fruiting", note: "Fiber, vitamin C, folate."),
+                (plant: "strawberry", slots: 1, role: "Fruiting", note: "Vitamin C, a little sweetness."),
+                (plant: "bean", slots: 1, role: "Legume", note: "Protein, fiber, iron."),
+                (plant: "pea", slots: 1, role: "Legume", note: "Protein, vitamin C."),
+                (plant: "soybean", slots: 1, role: "Legume", note: "Complete plant protein."),
+                (plant: "lentil", slots: 1, role: "Legume", note: "Protein, iron, fast."),
+                (plant: "chickpea", slots: 1, role: "Legume", note: "Protein, fiber."),
+                (plant: "parsley", slots: 1, role: "Herb (nutrition)", note: "Vitamin C and K."),
+                (plant: "cilantro", slots: 1, role: "Herb", note: "Fresh flavor; digestion."),
+                (plant: "basil", slots: 1, role: "Herb", note: "Cooking; aromatic."),
+                (plant: "dill", slots: 1, role: "Herb", note: "Pickling; digestion."),
+                (plant: "mint", slots: 1, role: "Herb", note: "Tea; digestion."),
             ],
         ),
         (
             id: "apothecary",
-            name: "Remedy and Flavor",
-            purpose: "Culinary herbs and traditional medicinal plants in 50 aeroponic slots",
-            description: "A culinary and apothecary tower: the cooking-herb backbone plus calming, digestive, immune, and topical plants. Pair it with the nutrition tower for flavor and traditional home remedies.",
+            name: "Variety Herbs and Remedies",
+            purpose: "Maximum variety of culinary and medicinal herbs in one tower",
+            description: "One of each cooking herb, tea herb, and traditional remedy plant, to show the range an apothecary tower can hold. Pair it with the nutrition tower for flavor and home remedies.",
             covers: [
                 "Cooking herbs",
                 "Digestive aids",
@@ -77,27 +98,30 @@
             disclaimer: "Culinary and traditional / folk uses, not medical advice. Some plants carry cautions (topical only, sedative, drug interactions, not for pregnancy), noted per plant. Consult a professional before any medicinal use.",
             slots: 50,
             plantings: [
-                (plant: "basil", slots: 5, role: "Culinary", note: "Cooking staple. Traditionally anti-inflammatory and antibacterial."),
-                (plant: "mint", slots: 4, role: "Culinary and tea", note: "Cooking and tea. Traditionally a digestive aid and for headaches."),
-                (plant: "oregano", slots: 3, role: "Culinary", note: "Traditionally antimicrobial and antioxidant-rich."),
-                (plant: "thyme", slots: 3, role: "Culinary", note: "Traditionally antiseptic, used for coughs."),
-                (plant: "rosemary", slots: 3, role: "Culinary", note: "Traditionally an antioxidant, for circulation and focus."),
-                (plant: "sage", slots: 2, role: "Culinary", note: "Traditionally a sore-throat gargle, antimicrobial."),
-                (plant: "parsley", slots: 3, role: "Culinary and nutrition", note: "Vitamin C and K. Traditionally a diuretic and breath freshener."),
-                (plant: "cilantro", slots: 3, role: "Culinary", note: "Cooking and coriander seed. Traditionally a digestive aid."),
-                (plant: "dill", slots: 2, role: "Culinary", note: "Cooking and pickling. Traditionally for digestion and colic."),
-                (plant: "chive", slots: 2, role: "Culinary allium", note: "Mild onion flavor with allium compounds."),
-                (plant: "lemongrass", slots: 2, role: "Culinary and tea", note: "Citrus flavor and tea. Traditionally digestive and antimicrobial."),
-                (plant: "chamomile", slots: 3, role: "Calming tea", note: "Traditionally a sleep and digestive aid (tea)."),
-                (plant: "lavender", slots: 3, role: "Aromatic and calming", note: "Traditionally calming, for sleep and relaxation."),
-                (plant: "ginger", slots: 2, role: "Spice (rhizome)", note: "Rhizome, partial tower fit. Traditionally for nausea and digestion."),
-                (plant: "turmeric", slots: 2, role: "Spice (rhizome)", note: "Rhizome, partial tower fit. Traditionally anti-inflammatory."),
-                (plant: "echinacea", slots: 2, role: "Medicinal", note: "Coneflower. Traditionally used for immune support."),
-                (plant: "valerian", slots: 1, role: "Medicinal (sedative)", note: "Traditionally a sleep aid. Caution: sedative."),
-                (plant: "feverfew", slots: 1, role: "Medicinal", note: "Traditionally for migraines. Caution: avoid in pregnancy."),
-                (plant: "calendula", slots: 2, role: "Medicinal (topical)", note: "Traditionally a skin-healing salve. Mainly topical."),
-                (plant: "st_johns_wort", slots: 1, role: "Medicinal (mood)", note: "Traditionally for mood. Caution: interacts with many medications."),
-                (plant: "comfrey", slots: 1, role: "Medicinal (topical)", note: "Traditionally a poultice for bruises and sprains. Topical only, not ingested."),
+                (plant: "basil", slots: 1, role: "Culinary", note: "Cooking staple."),
+                (plant: "mint", slots: 1, role: "Culinary and tea", note: "Digestive; refreshing."),
+                (plant: "oregano", slots: 1, role: "Culinary", note: "Antimicrobial, antioxidant."),
+                (plant: "thyme", slots: 1, role: "Culinary", note: "Antiseptic; for coughs."),
+                (plant: "rosemary", slots: 1, role: "Culinary", note: "Antioxidant; focus."),
+                (plant: "sage", slots: 1, role: "Culinary", note: "Sore-throat; antimicrobial."),
+                (plant: "parsley", slots: 1, role: "Culinary", note: "Vitamin-rich; diuretic."),
+                (plant: "cilantro", slots: 1, role: "Culinary", note: "Coriander seed; digestive."),
+                (plant: "dill", slots: 1, role: "Culinary", note: "Pickling; digestion."),
+                (plant: "chive", slots: 1, role: "Culinary allium", note: "Mild onion flavor."),
+                (plant: "lemongrass", slots: 1, role: "Culinary and tea", note: "Citrus; antimicrobial."),
+                (plant: "chamomile", slots: 1, role: "Calming tea", note: "Sleep, digestion."),
+                (plant: "lavender", slots: 1, role: "Aromatic", note: "Calm, sleep."),
+                (plant: "ginger", slots: 1, role: "Spice (rhizome)", note: "Nausea, digestion. Partial fit."),
+                (plant: "turmeric", slots: 1, role: "Spice (rhizome)", note: "Anti-inflammatory. Partial fit."),
+                (plant: "saffron", slots: 1, role: "Spice (corm)", note: "Precious spice. Partial fit."),
+                (plant: "hop", slots: 1, role: "Brewing (vine)", note: "Bittering; calming. Partial fit."),
+                (plant: "echinacea", slots: 1, role: "Medicinal", note: "Traditionally immune support."),
+                (plant: "valerian", slots: 1, role: "Medicinal (sedative)", note: "Traditionally for sleep. Caution: sedative."),
+                (plant: "feverfew", slots: 1, role: "Medicinal", note: "Traditionally for migraines. Not in pregnancy."),
+                (plant: "calendula", slots: 1, role: "Medicinal (topical)", note: "Skin-healing salve. Topical."),
+                (plant: "st_johns_wort", slots: 1, role: "Medicinal (mood)", note: "Traditionally for mood. Caution: interactions."),
+                (plant: "comfrey", slots: 1, role: "Medicinal (topical)", note: "Bruise poultice. Topical only."),
+                (plant: "aloe_vera", slots: 1, role: "Medicinal (succulent)", note: "Skin gel. Partial fit."),
             ],
         ),
     ],

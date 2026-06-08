@@ -161,4 +161,74 @@ impl Mesh {
         let indices: &[u32] = &[0, 2, 1, 0, 3, 2];
         Self::from_vertices(device, vertices, indices)
     }
+
+    /// Cylinder along +Y: base ring at y=0, top ring at y=height, outward-normal
+    /// side wall + a top cap. Used as a placeholder aeroponic-tower column.
+    pub fn cylinder(device: &wgpu::Device, radius: f32, height: f32, segments: u32) -> Self {
+        let seg = segments.max(3);
+        let tau = std::f32::consts::TAU;
+        let mut v: Vec<Vertex> = Vec::new();
+        let mut idx: Vec<u32> = Vec::new();
+        // Side wall: per angle, a bottom + top vertex (outward normal).
+        for i in 0..=seg {
+            let t = i as f32 / seg as f32;
+            let a = t * tau;
+            let (ca, sa) = (a.cos(), a.sin());
+            v.push(Vertex { position: [radius * ca, 0.0, radius * sa], normal: [ca, 0.0, sa], uv: [t, 1.0] });
+            v.push(Vertex { position: [radius * ca, height, radius * sa], normal: [ca, 0.0, sa], uv: [t, 0.0] });
+        }
+        for i in 0..seg {
+            let b0 = 2 * i;
+            let t0 = b0 + 1;
+            let b1 = 2 * (i + 1);
+            let t1 = b1 + 1;
+            idx.extend_from_slice(&[b0, b1, t1, t1, t0, b0]);
+        }
+        // Top cap (normal +Y), triangle fan.
+        let center = v.len() as u32;
+        v.push(Vertex { position: [0.0, height, 0.0], normal: [0.0, 1.0, 0.0], uv: [0.5, 0.5] });
+        let ring = v.len() as u32;
+        for i in 0..=seg {
+            let a = (i as f32 / seg as f32) * tau;
+            v.push(Vertex { position: [radius * a.cos(), height, radius * a.sin()], normal: [0.0, 1.0, 0.0], uv: [0.5 + 0.5 * a.cos(), 0.5 + 0.5 * a.sin()] });
+        }
+        for i in 0..seg {
+            idx.extend_from_slice(&[center, ring + i, ring + i + 1]);
+        }
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// UV sphere centered at origin (outward normals). Used as a placeholder plant
+    /// marker.
+    pub fn sphere(device: &wgpu::Device, radius: f32, stacks: u32, slices: u32) -> Self {
+        let st = stacks.max(2);
+        let sl = slices.max(3);
+        let pi = std::f32::consts::PI;
+        let tau = std::f32::consts::TAU;
+        let mut v: Vec<Vertex> = Vec::new();
+        let mut idx: Vec<u32> = Vec::new();
+        for i in 0..=st {
+            let phi = pi * (i as f32 / st as f32);
+            let (sp, cp) = (phi.sin(), phi.cos());
+            for j in 0..=sl {
+                let theta = tau * (j as f32 / sl as f32);
+                let (stt, ct) = (theta.sin(), theta.cos());
+                let (nx, ny, nz) = (sp * ct, cp, sp * stt);
+                v.push(Vertex {
+                    position: [radius * nx, radius * ny, radius * nz],
+                    normal: [nx, ny, nz],
+                    uv: [j as f32 / sl as f32, i as f32 / st as f32],
+                });
+            }
+        }
+        let row = sl + 1;
+        for i in 0..st {
+            for j in 0..sl {
+                let a = i * row + j;
+                let b = a + row;
+                idx.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
+            }
+        }
+        Self::from_vertices(device, &v, &idx)
+    }
 }

@@ -363,6 +363,45 @@ mod native_app {
             homestead.room_info.len(), state.homestead_floors.len(),
             state.homestead_walls.is_some(), state.room_lights.len());
 
+        // ── Aeroponic tower placeholders (v0.383) ──
+        // Simple-shape stand-ins until real 3D models exist (operator: "use simple
+        // shapes as stand-ins"): one grey cylinder per loaded tower config + a green
+        // sphere per planted variety in a vertical helix, placed on the garden floor
+        // side by side. Marker count is capped (the full variety lives in the Home
+        // page list) to stay within the per-frame object budget.
+        state.placeholder_objects.clear();
+        {
+            let garden = homestead.room_info.iter().find(|r| r.id == "garden");
+            let floor_y = garden.map(|r| r.center.y - r.dimensions.y * 0.5).unwrap_or(0.0);
+            let gx = garden.map(|r| r.center.x).unwrap_or(0.0);
+            let gz = garden.map(|r| r.center.z).unwrap_or(0.0);
+            let cyl_mesh = state.renderer.add_mesh(Mesh::cylinder(&state.renderer.device, 0.18, 2.0, 16));
+            let tower_mat = state.renderer.add_material_typed([0.6, 0.62, 0.66, 1.0], 0.3, 0.6, 1.0);
+            let sphere_mesh = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 0.09, 8, 10));
+            let plant_mat = state.renderer.add_material_typed([0.15, 0.7, 0.2, 1.0], 0.0, 0.9, 0.0);
+            let tower_count = state.gui_state.tower_configs.len().max(1);
+            for (ti, tower) in state.gui_state.tower_configs.iter().enumerate() {
+                let tx = gx + (ti as f32 - (tower_count as f32 - 1.0) * 0.5) * 1.5;
+                state.placeholder_objects.push((cyl_mesh, tower_mat, Vec3::new(tx, floor_y, gz)));
+                let markers = tower.plantings.len().min(12).max(1);
+                for p in 0..markers {
+                    let frac = p as f32 / markers as f32;
+                    let a = frac * std::f32::consts::TAU * 3.0; // 3 turns up the column
+                    let y = floor_y + 0.25 + frac * 1.6;
+                    let r = 0.3;
+                    state.placeholder_objects.push((
+                        sphere_mesh,
+                        plant_mat,
+                        Vec3::new(tx + r * a.cos(), y, gz + r * a.sin()),
+                    ));
+                }
+            }
+            if state.gui_state.tower_configs.is_empty() {
+                // No configs: still drop one bare tower so the garden spot is visible.
+                state.placeholder_objects.push((cyl_mesh, tower_mat, Vec3::new(gx, floor_y, gz)));
+            }
+        }
+
         // ── Solar system hologram (map-sync increment C, v0.262.13) ──
         // Driven by the CANONICAL crate::cosmos model at the live date,
         // so the tabletop matches the Maps page + the FPS sky exactly.
@@ -778,6 +817,10 @@ mod native_app {
         solar_orbit_paths: Vec<(Vec<[f32; 3]>, String)>,
         /// Homestead floor meshes (mesh_idx, material_idx) per room.
         homestead_floors: Vec<(usize, usize)>,
+        /// Placeholder world objects (mesh_idx, material_idx, world position) drawn
+        /// alongside the homestead. Used for simple-shape stand-ins like the
+        /// aeroponic tower cylinders + plant-marker spheres (v0.383).
+        placeholder_objects: Vec<(usize, usize, Vec3)>,
         /// Homestead walls mesh + material.
         homestead_walls: Option<(usize, usize)>,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
@@ -1166,6 +1209,7 @@ mod native_app {
                 solar_body_materials: [0; 4],
                 solar_orbit_paths: Vec::new(),
                 homestead_floors: Vec::new(),
+                placeholder_objects: Vec::new(),
                 homestead_walls: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
@@ -1601,6 +1645,18 @@ mod native_app {
                     if let Some((mesh_idx, mat_idx)) = state.homestead_walls {
                         all_objects.push(RenderObject {
                             position: Vec3::ZERO,
+                            rotation: Quat::IDENTITY,
+                            scale: Vec3::ONE,
+                            mesh: mesh_idx,
+                            material: mat_idx,
+                        });
+                    }
+
+                    // Aeroponic tower placeholders (v0.383): grey cylinders + green
+                    // plant spheres, positioned in the garden via the model matrix.
+                    for &(mesh_idx, mat_idx, pos) in &state.placeholder_objects {
+                        all_objects.push(RenderObject {
+                            position: pos,
                             rotation: Quat::IDENTITY,
                             scale: Vec3::ONE,
                             mesh: mesh_idx,
