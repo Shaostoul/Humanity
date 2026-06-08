@@ -284,6 +284,7 @@ impl System for FarmingSystem {
                             planted_at: elapsed_seconds,
                             water_level: 1.0,
                             health: 100.0,
+                            tower_id: None,
                         },));
                         log::info!("[Farming] planted {plant_id} (from {seed_id})");
                     }
@@ -297,9 +298,9 @@ impl System for FarmingSystem {
         // GUI (dev-friendly: no seed consumption). A tower's curated varieties all
         // become growing crops at once; growth/water/harvest reuse the logic below.
         let plant_tower = data
-            .get::<std::sync::Mutex<Option<Vec<String>>>>("plant_tower_request")
+            .get::<std::sync::Mutex<Option<(String, Vec<String>)>>>("plant_tower_request")
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
-        if let Some(plant_ids) = plant_tower {
+        if let Some((tower_id, plant_ids)) = plant_tower {
             let mut planted = 0u32;
             for plant_id in plant_ids {
                 let first_stage = plant_registry
@@ -312,6 +313,7 @@ impl System for FarmingSystem {
                         planted_at: elapsed_seconds,
                         water_level: 1.0,
                         health: 100.0,
+                        tower_id: Some(tower_id.clone()),
                     },));
                     planted += 1;
                 }
@@ -565,7 +567,7 @@ mod gardening_tests {
         data.insert("plant_request", std::sync::Mutex::new(Option::<String>::None));
         data.insert(
             "plant_tower_request",
-            std::sync::Mutex::new(Option::<Vec<String>>::None),
+            std::sync::Mutex::new(Option::<(String, Vec<String>)>::None),
         );
         data.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
         data.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
@@ -679,6 +681,7 @@ mod gardening_tests {
             planted_at: 0.0,
             water_level: 0.5,
             health: 40.0,
+            tower_id: None,
         },));
 
         *data

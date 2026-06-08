@@ -292,6 +292,11 @@ pub struct CropInstance {
     pub water_level: f32,
     /// Current health (affected by disease, pests, weather).
     pub health: f32,
+    /// The aeroponic tower this crop was planted in (its config id), if any. Lets
+    /// the inventory group crops collapsibly by tower (v0.389). Seed-planted crops
+    /// are None; #[serde(default)] keeps pre-v0.389 saves loading.
+    #[serde(default)]
+    pub tower_id: Option<String>,
 }
 
 // ── Vehicles & Mechs ─────────────────────────────────────────

@@ -429,6 +429,8 @@ pub struct GuiCrop {
     pub health: f32,
     pub mature: bool,
     pub dead: bool,
+    /// The tower this crop belongs to (its config id), if planted via a tower.
+    pub tower_id: Option<String>,
 }
 
 /// An asteroid (with remaining ore) for GUI display.
@@ -1046,7 +1048,7 @@ pub struct GuiState {
     /// GUI -> ECS: plant a whole aeroponic tower. The Vec is the plant ids (one per
     /// slot) to spawn as CropInstances; drained into the "plant_tower_request"
     /// channel for FarmingSystem (v0.386). Dev-friendly: no seed consumption yet.
-    pub pending_plant_tower: Option<Vec<String>>,
+    pub pending_plant_tower: Option<(String, Vec<String>)>,
     /// Crop entity bits the player clicked "Water" on this frame.
     pub pending_water_crop: Option<u64>,
     /// Crop entity bits the player clicked "Harvest" on this frame.

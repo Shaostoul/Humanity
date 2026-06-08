@@ -985,10 +985,10 @@ mod native_app {
                 "plant_request",
                 std::sync::Mutex::new(Option::<String>::None),
             );
-            // Plant a whole aeroponic tower at once (v0.386): the plant ids to spawn.
+            // Plant a whole aeroponic tower at once (v0.386): (tower config id, plant ids).
             data_store.insert(
                 "plant_tower_request",
-                std::sync::Mutex::new(Option::<Vec<String>>::None),
+                std::sync::Mutex::new(Option::<(String, Vec<String>)>::None),
             );
             data_store.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
@@ -1551,14 +1551,14 @@ mod native_app {
                             }
                         }
                     }
-                    // Plant a whole tower (v0.386): the GUI sends the plant ids.
-                    if let Some(plant_ids) = state.gui_state.pending_plant_tower.take() {
+                    // Plant a whole tower (v0.386): the GUI sends (tower id, plant ids).
+                    if let Some(tower_planting) = state.gui_state.pending_plant_tower.take() {
                         if let Some(slot) = state
                             .data_store
-                            .get::<std::sync::Mutex<Option<Vec<String>>>>("plant_tower_request")
+                            .get::<std::sync::Mutex<Option<(String, Vec<String>)>>>("plant_tower_request")
                         {
                             if let Ok(mut s) = slot.lock() {
-                                *s = Some(plant_ids);
+                                *s = Some(tower_planting);
                             }
                         }
                     }
@@ -2163,6 +2163,7 @@ mod native_app {
                                 health: crop.health,
                                 mature,
                                 dead,
+                                tower_id: crop.tower_id.clone(),
                             });
                         }
                     }
