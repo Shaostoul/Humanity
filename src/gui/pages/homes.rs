@@ -16,7 +16,7 @@
 //! loop), are the next data layers. See docs/design/homes-as-profiles.md.
 
 use egui::{RichText, ScrollArea, Frame};
-use crate::gui::{GuiState, HomesteadDesign, DesignRoom};
+use crate::gui::{GuiState, HomesteadDesign, DesignRoom, TowerConfig};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use std::cell::RefCell;
@@ -95,11 +95,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 );
                 return;
             };
-            draw_design(ui, theme, &design);
+            draw_design(ui, theme, &design, &state.tower_configs);
         });
 }
 
-fn draw_design(ui: &mut egui::Ui, theme: &Theme, design: &HomesteadDesign) {
+fn draw_design(ui: &mut egui::Ui, theme: &Theme, design: &HomesteadDesign, towers: &[TowerConfig]) {
     ui.label(RichText::new("Your Home").size(theme.font_size_title).color(theme.text_primary()));
     ui.label(RichText::new(&design.name).size(theme.font_size_heading).color(theme.accent()));
     ui.label(RichText::new(&design.description).size(theme.font_size_small).color(theme.text_muted()));
@@ -250,7 +250,82 @@ fn draw_design(ui: &mut egui::Ui, theme: &Theme, design: &HomesteadDesign) {
                 }
             });
         }
+
+        // ── Aeroponic towers (the food loop; v0.382) ──
+        if !towers.is_empty() {
+            ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+            ui.label(RichText::new("Aeroponic towers").size(theme.font_size_heading).color(theme.text_primary()));
+            ui.label(
+                RichText::new("Your homestead's food loop: two curated 50-slot vertical towers.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_xs);
+            for tower in towers {
+                draw_tower(ui, theme, tower);
+            }
+        }
     });
+}
+
+/// One aeroponic tower, collapsible: purpose + what it covers / its gaps +
+/// disclaimer + the 50-slot planting list (count, plant, role, note).
+fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig) {
+    let planted: u32 = tower.plantings.iter().map(|p| p.slots).sum();
+    egui::CollapsingHeader::new(
+        RichText::new(format!("{}  ({}/{} slots)", tower.name, planted, tower.slots))
+            .size(theme.font_size_body)
+            .strong()
+            .color(theme.accent()),
+    )
+    .id_salt(("tower", tower.id.as_str()))
+    .show(ui, |ui| {
+        if !tower.purpose.is_empty() {
+            ui.label(RichText::new(&tower.purpose).size(theme.font_size_small).color(theme.text_secondary()));
+        }
+        if !tower.description.is_empty() {
+            ui.label(RichText::new(&tower.description).size(theme.font_size_small).color(theme.text_muted()));
+        }
+        ui.add_space(theme.spacing_xs);
+        if !tower.covers.is_empty() {
+            ui.label(
+                RichText::new(format!("Covers: {}", tower.covers.join(", ")))
+                    .size(theme.font_size_small)
+                    .color(theme.success()),
+            );
+        }
+        if !tower.gaps.is_empty() {
+            ui.label(
+                RichText::new(format!("Gaps: {}", tower.gaps.join(", ")))
+                    .size(theme.font_size_small)
+                    .color(theme.warning()),
+            );
+            if !tower.gaps_note.is_empty() {
+                ui.label(RichText::new(&tower.gaps_note).size(theme.font_size_small).color(theme.text_muted()));
+            }
+        }
+        if !tower.disclaimer.is_empty() {
+            ui.add_space(theme.spacing_xs);
+            ui.label(RichText::new(&tower.disclaimer).size(theme.font_size_small).color(theme.text_muted()).italics());
+        }
+        ui.add_space(theme.spacing_sm);
+        for p in &tower.plantings {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(format!("x{}", p.slots)).size(theme.font_size_small).strong().color(theme.accent()));
+                ui.label(RichText::new(humanize(&p.plant)).size(theme.font_size_small).color(theme.text_primary()));
+                if !p.role.is_empty() {
+                    ui.label(RichText::new(format!("· {}", p.role)).size(theme.font_size_small).color(theme.text_muted()));
+                }
+            });
+            if !p.note.is_empty() {
+                ui.label(RichText::new(&p.note).size(theme.font_size_small).color(theme.text_secondary()));
+            }
+            ui.add_space(2.0);
+        }
+    });
+    ui.add_space(theme.spacing_xs);
 }
 
 fn draw_room(ui: &mut egui::Ui, theme: &Theme, r: &DesignRoom) {
@@ -299,4 +374,23 @@ fn self_sufficiency_kit(bom: &[(String, u32)]) -> Vec<(&'static str, u32)> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn tower_configs_parse_and_sum_to_50() {
+        // Loads the real data/towers/aeroponic_configs.ron from the crate root.
+        let towers = crate::gui::load_tower_configs(std::path::Path::new("data"));
+        assert_eq!(towers.len(), 2, "expected 2 towers, got {}", towers.len());
+        for t in &towers {
+            let total: u32 = t.plantings.iter().map(|p| p.slots).sum();
+            assert_eq!(
+                total, t.slots,
+                "tower '{}' plantings sum {} != declared slots {}",
+                t.id, total, t.slots
+            );
+            assert_eq!(t.slots, 50, "tower '{}' should be 50 slots", t.id);
+        }
+    }
 }

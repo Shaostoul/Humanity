@@ -943,6 +943,9 @@ pub struct GuiState {
     /// The loaded Fibonacci homestead blueprint (the first offline "Design"),
     /// browsed on the Home page. None if the blueprint file is absent.
     pub homestead_design: Option<HomesteadDesign>,
+    /// The curated aeroponic tower configs (nutrition + apothecary), browsed on the
+    /// Home page. Empty if data/towers/aeroponic_configs.ron is absent.
+    pub tower_configs: Vec<TowerConfig>,
     /// Which section the merged Real tab shows — either a Profile section id
     /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
@@ -1815,6 +1818,7 @@ impl Default for GuiState {
             map_planets: Vec::new(),
             places: Vec::new(),
             homestead_design: None,
+            tower_configs: Vec::new(),
             active_real_section: "inventory".to_string(),
             active_play_section: "crafting".to_string(),
             active_platform_section: "recovery".to_string(),
@@ -2568,6 +2572,72 @@ pub fn load_homestead_design(data_dir: &std::path::Path) -> Option<HomesteadDesi
         Err(e) => {
             eprintln!("load_homestead_design: failed to parse {}: {e}", path.display());
             None
+        }
+    }
+}
+
+// ── Aeroponic tower configs (the homestead food loop; v0.382) ──
+// Two curated 50-slot vertical aeroponic towers (nutrition + apothecary), loaded
+// from data/towers/aeroponic_configs.ron. Each planting references an existing
+// plant id in plants.csv. Browsed on the Home page; the 3D placeholder + planting
+// integration come later. See docs/design/self-sufficiency.md.
+
+/// One aeroponic tower configuration (a curated 50-slot plant set).
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct TowerConfig {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub purpose: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub covers: Vec<String>,
+    #[serde(default)]
+    pub gaps: Vec<String>,
+    #[serde(default)]
+    pub gaps_note: String,
+    #[serde(default)]
+    pub disclaimer: String,
+    #[serde(default)]
+    pub slots: u32,
+    #[serde(default)]
+    pub plantings: Vec<TowerPlanting>,
+}
+
+/// One plant assigned to N slots of a tower, with its role + a nutrition/medicinal note.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct TowerPlanting {
+    #[serde(default)]
+    pub plant: String,
+    #[serde(default)]
+    pub slots: u32,
+    #[serde(default)]
+    pub role: String,
+    #[serde(default)]
+    pub note: String,
+}
+
+/// Load the aeroponic tower configs (data/towers/aeroponic_configs.ron). Empty on
+/// absence/parse error.
+pub fn load_tower_configs(data_dir: &std::path::Path) -> Vec<TowerConfig> {
+    #[derive(serde::Deserialize)]
+    struct File {
+        #[serde(default)]
+        towers: Vec<TowerConfig>,
+    }
+    let path = data_dir.join("towers/aeroponic_configs.ron");
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) => return Vec::new(),
+    };
+    match ron::from_str::<File>(&text) {
+        Ok(f) => f.towers,
+        Err(e) => {
+            eprintln!("load_tower_configs: failed to parse {}: {e}", path.display());
+            Vec::new()
         }
     }
 }

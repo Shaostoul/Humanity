@@ -1068,6 +1068,7 @@ mod native_app {
             gui_state.map_planets = crate::gui::load_planets(&data_dir);
             gui_state.places = crate::gui::load_places(&data_dir);
             gui_state.homestead_design = crate::gui::load_homestead_design(&data_dir);
+            gui_state.tower_configs = crate::gui::load_tower_configs(&data_dir);
             gui_state.library = crate::gui::load_library(&data_dir);
             gui_state.equipment_slots = crate::gui::load_equipment_slots(&data_dir);
             let (sevs, cats) = crate::gui::load_bug_taxonomy(&data_dir);
