@@ -363,6 +363,25 @@ fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig, compat: Opt
                     .color(theme.text_muted()),
                 );
             }
+            // Self-sufficiency numbers: total daily water draw + the harvest window
+            // (ties the tower into the homestead's water + food loops).
+            let mut stats: Vec<String> = Vec::new();
+            if c.water_per_day_total > 0.0 {
+                stats.push(format!("Water draw ~{:.1} L/day", c.water_per_day_total));
+            }
+            if c.full_harvest_days > 0.0 {
+                stats.push(format!(
+                    "Harvest ~{:.0}-{:.0} days",
+                    c.first_harvest_days, c.full_harvest_days
+                ));
+            }
+            if !stats.is_empty() {
+                ui.label(
+                    RichText::new(stats.join("  ·  "))
+                        .size(theme.font_size_small)
+                        .color(theme.text_secondary()),
+                );
+            }
         }
         ui.add_space(theme.spacing_sm);
         for p in &tower.plantings {

@@ -2725,6 +2725,12 @@ pub struct TowerCompat {
     /// One note per conflicting axis, naming the two binding plants, e.g.
     /// "Temp: Rosemary (warm) vs Lettuce (cool) have no overlap".
     pub conflicts: Vec<String>,
+    /// Total daily water draw across EVERY slot (L/day) — feeds the homestead's
+    /// self-sufficiency water loop. 0 if no plant water data.
+    pub water_per_day_total: f32,
+    /// Harvest window: soonest and latest species maturity in days (0 if unknown).
+    pub first_harvest_days: f32,
+    pub full_harvest_days: f32,
 }
 
 /// Intersect one window axis across a tower's plants. Degenerate windows
@@ -2790,12 +2796,37 @@ pub fn compute_tower_compat(
     let (temp, temp_c) = intersect_axis(&temp_w, "Temp");
     let (humidity, hum_c) = intersect_axis(&hum_w, "Humidity");
     let conflicts: Vec<String> = [ph_c, temp_c, hum_c].into_iter().flatten().collect();
+    // Total daily water draw across ALL slots (not distinct species), and the
+    // harvest window across the distinct species.
+    let mut water_per_day_total = 0.0f32;
+    for p in &tower.plantings {
+        if let Some(d) = reg.get(&p.plant) {
+            water_per_day_total += d.water_per_day * p.slots.max(1) as f32;
+        }
+    }
+    let growth: Vec<f32> = ids
+        .iter()
+        .filter_map(|id| reg.get(id))
+        .map(|d| d.growth_days)
+        .filter(|g| *g > 0.0)
+        .collect();
+    let (first_harvest_days, full_harvest_days) = if growth.is_empty() {
+        (0.0, 0.0)
+    } else {
+        (
+            growth.iter().cloned().fold(f32::MAX, f32::min),
+            growth.iter().cloned().fold(0.0_f32, f32::max),
+        )
+    };
     TowerCompat {
         species,
         ph,
         temp,
         humidity,
         conflicts,
+        water_per_day_total,
+        first_harvest_days,
+        full_harvest_days,
     }
 }
 
@@ -2840,14 +2871,18 @@ mod tower_compat_tests {
     fn compatible_plants_share_a_window() {
         // Two plants with overlapping pH/temp/humidity windows → one shared window,
         // no conflicts.
-        let csv = b"id,name,ph_min,ph_max,temp_min_c,temp_max_c,humidity_min,humidity_max\n\
-                    lettuce,Lettuce,6.0,7.0,10,22,0.5,0.8\n\
-                    spinach,Spinach,6.2,7.2,8,24,0.5,0.9\n";
+        let csv = b"id,name,growth_days,water_liters_per_day,ph_min,ph_max,temp_min_c,temp_max_c,humidity_min,humidity_max\n\
+                    lettuce,Lettuce,45,0.5,6.0,7.0,10,22,0.5,0.8\n\
+                    spinach,Spinach,40,0.6,6.2,7.2,8,24,0.5,0.9\n";
         let c = compute_tower_compat(&tower_of(&["lettuce", "spinach"]), &reg_from(csv));
         assert_eq!(c.species, 2);
         assert_eq!(c.ph, Some((6.2, 7.0)));
         assert_eq!(c.temp, Some((10.0, 22.0)));
         assert!(c.conflicts.is_empty(), "no conflict expected, got {:?}", c.conflicts);
+        // Water draw sums per slot; the harvest window spans soonest..latest.
+        assert!((c.water_per_day_total - 1.1).abs() < 1e-6, "water {}", c.water_per_day_total);
+        assert!((c.first_harvest_days - 40.0).abs() < 1e-6, "first {}", c.first_harvest_days);
+        assert!((c.full_harvest_days - 45.0).abs() < 1e-6, "full {}", c.full_harvest_days);
     }
 
     #[test]
