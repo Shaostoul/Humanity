@@ -550,6 +550,17 @@ impl System for FarmingSystem {
                             &crate::ecs::components::Controllable,
                         )>() {
                             inv.add_item(&yield_item, qty, max_stack);
+                            // Saved-seed loop (operator's "harvest yields seeds"):
+                            // a SURVIVAL harvest returns a few seeds of this plant, so
+                            // the garden is self-sustaining (plant 1 -> harvest -> get 2
+                            // back -> replant + surplus). Creative needs no seeds, so it
+                            // stays clean. Plot-agnostic: works for any plot type.
+                            if !creative {
+                                let seed_id = format!("seed_{plant_id}_0");
+                                let seed_stack =
+                                    item_registry.map(|r| r.max_stack_for(&seed_id)).unwrap_or(99);
+                                inv.add_item(&seed_id, 2, seed_stack);
+                            }
                             log::info!("[Farming] harvested {qty}x {yield_item} from {plant_id}");
                             // Harvesting trains Farming (scales lightly with yield).
                             crate::systems::skills::award_skill_xp(data, "farming", 10 + qty * 2);
@@ -775,6 +786,10 @@ mod gardening_tests {
             tomatoes >= 2,
             "harvest yielded produce (>= yield_min 2 tomatoes), got {tomatoes}"
         );
+        // Saved-seed loop: this survival harvest returned seeds (planted 1 -> 0, then
+        // the harvest granted 2 back), so the garden is self-sustaining.
+        let seeds = world.get::<&Inventory>(player).unwrap().count_item("seed_tomato_0");
+        assert_eq!(seeds, 2, "survival harvest yielded 2 seeds, got {seeds}");
     }
 
     /// Creative mode: planting spawns a crop WITHOUT needing or consuming a seed,
