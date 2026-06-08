@@ -209,6 +209,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut action_water_crop: Option<u64> = None;
     let mut action_harvest_crop: Option<u64> = None;
     let mut action_dev_grow = false;
+    // "Dev: stock seeds" — the seed item ids of the starter set to grant.
+    let mut action_stock_seeds: Option<Vec<String>> = None;
     // Plant a whole tower (v0.386): (tower id, plant ids) to spawn as crops, set by
     // the Garden "Plant a tower" buttons, applied to GuiState after the panel.
     let mut action_plant_tower: Option<(String, Vec<String>)> = None;
@@ -815,13 +817,27 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.spacing_md);
                 ui.separator();
                 ui.add_space(theme.spacing_sm);
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Garden").size(theme.font_size_heading).color(theme.text_primary()));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if !state.crops.is_empty() && widgets::secondary_button(ui, theme, "Dev: grow all") {
-                            action_dev_grow = true;
+                ui.label(RichText::new("Garden").size(theme.font_size_heading).color(theme.text_primary()));
+                ui.horizontal_wrapped(|ui| {
+                    // Dev: grant the starter seed set (one of each tower variety), so
+                    // survival-mode planting is testable now. Creative ignores seeds.
+                    if widgets::secondary_button(ui, theme, "Dev: stock seeds") {
+                        let mut seeds: Vec<String> = Vec::new();
+                        for t in &state.tower_configs {
+                            for p in &t.plantings {
+                                let sid = format!("seed_{}_0", p.plant);
+                                if !seeds.contains(&sid) {
+                                    seeds.push(sid);
+                                }
+                            }
                         }
-                    });
+                        if !seeds.is_empty() {
+                            action_stock_seeds = Some(seeds);
+                        }
+                    }
+                    if !state.crops.is_empty() && widgets::secondary_button(ui, theme, "Dev: grow all") {
+                        action_dev_grow = true;
+                    }
                 });
                 ui.add_space(theme.spacing_xs);
                 let garden_sel_str = state.garden_selection.clone().unwrap_or_default();
@@ -1015,6 +1031,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // loop bridges these into FarmingSystem's command channels before the next tick.
     if let Some(ids) = action_plant_tower {
         state.pending_plant_tower = Some(ids);
+    }
+    if let Some(seeds) = action_stock_seeds {
+        state.pending_stock_seeds = Some(seeds);
     }
     if let Some(bits) = action_water_crop {
         state.pending_water_crop = Some(bits);

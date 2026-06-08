@@ -1078,6 +1078,9 @@ pub struct GuiState {
     /// slot) to spawn as CropInstances; drained into the "plant_tower_request"
     /// channel for FarmingSystem (v0.386). Dev-friendly: no seed consumption yet.
     pub pending_plant_tower: Option<(String, Vec<String>)>,
+    /// Seed item ids to grant the player (the "Dev: stock seeds" starter set);
+    /// drained into "stock_seeds_request" for FarmingSystem.
+    pub pending_stock_seeds: Option<Vec<String>>,
     /// Crop entity bits the player clicked "Water" on this frame.
     pub pending_water_crop: Option<u64>,
     /// Crop entity bits the player clicked "Harvest" on this frame.
@@ -1931,6 +1934,7 @@ impl Default for GuiState {
             vitals: GuiVitals::default(),
             pending_plant_seed: None,
             pending_plant_tower: None,
+            pending_stock_seeds: None,
             pending_water_crop: None,
             pending_harvest_crop: None,
             dev_grow_crops: false,

@@ -998,6 +998,12 @@ mod native_app {
             // inventory requirement + consumption when this is true. Mirrored from
             // GuiState.creative_mode each frame by the bridge below.
             data_store.insert("creative_mode", std::sync::Mutex::new(true));
+            // Dev: stock the "one seed of each" starter set into the player inventory
+            // (FarmingSystem drains it). Lets survival mode be tested in early dev.
+            data_store.insert(
+                "stock_seeds_request",
+                std::sync::Mutex::new(Option::<Vec<String>>::None),
+            );
             // Mining: commission the player's drone with a MANIFEST (ores + units to
             // fetch); DroneSystem launches one drone per player.
             data_store.insert(
@@ -1658,6 +1664,17 @@ mod native_app {
                         {
                             if let Ok(mut s) = slot.lock() {
                                 *s = Some(bits);
+                            }
+                        }
+                    }
+                    // Dev: stock the starter seed set (one of each tower variety).
+                    if let Some(seeds) = state.gui_state.pending_stock_seeds.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<Vec<String>>>>("stock_seeds_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(seeds);
                             }
                         }
                     }

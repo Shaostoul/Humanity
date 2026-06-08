@@ -508,3 +508,53 @@ beeswax_0,Beeswax,material,raw,plant_fiber,0.3,20,0,Natural hive wax block,soli
 animal_fat_0,Animal Fat,material,raw,plant_fiber,0.5,20,0,Rendered tallow chunk,solid
 charcoal_lump_0,Charcoal Lump,material,fuel,charcoal,0.6,30,0,Pyrolyzed wood fuel,dry_goods
 salt_block_0,Salt Block,material,mineral,salt,2.0,10,0,Compressed mineral salt slab,solid
+# Garden plant seeds for the curated towers (v0.398): one seed item per
+# distinct tower variety so survival-mode planting has something to consume.
+# Plot-agnostic (a seed plants a crop in any plot type, not just aeroponics).
+seed_aloe_vera_0,Aloe Vera Seeds,material,seed,plant_fiber,0.05,50,0,Planting aloe vera seeds packet,dry_goods
+seed_basil_0,Basil Seeds,material,seed,plant_fiber,0.05,50,0,Planting basil seeds packet,dry_goods
+seed_beet_0,Beet Seeds,material,seed,plant_fiber,0.05,50,0,Planting beet seeds packet,dry_goods
+seed_broccoli_0,Broccoli Seeds,material,seed,plant_fiber,0.05,50,0,Planting broccoli seeds packet,dry_goods
+seed_cabbage_0,Cabbage Seeds,material,seed,plant_fiber,0.05,50,0,Planting cabbage seeds packet,dry_goods
+seed_calendula_0,Calendula Seeds,material,seed,plant_fiber,0.05,50,0,Planting calendula seeds packet,dry_goods
+seed_cauliflower_0,Cauliflower Seeds,material,seed,plant_fiber,0.05,50,0,Planting cauliflower seeds packet,dry_goods
+seed_celery_0,Celery Seeds,material,seed,plant_fiber,0.05,50,0,Planting celery seeds packet,dry_goods
+seed_chamomile_0,Chamomile Seeds,material,seed,plant_fiber,0.05,50,0,Planting chamomile seeds packet,dry_goods
+seed_chickpea_0,Chickpea Seeds,material,seed,plant_fiber,0.05,50,0,Planting chickpea seeds packet,dry_goods
+seed_chive_0,Chive Seeds,material,seed,plant_fiber,0.05,50,0,Planting chive seeds packet,dry_goods
+seed_cilantro_0,Cilantro Seeds,material,seed,plant_fiber,0.05,50,0,Planting cilantro seeds packet,dry_goods
+seed_comfrey_0,Comfrey Seeds,material,seed,plant_fiber,0.05,50,0,Planting comfrey seeds packet,dry_goods
+seed_cucumber_0,Cucumber Seeds,material,seed,plant_fiber,0.05,50,0,Planting cucumber seeds packet,dry_goods
+seed_dill_0,Dill Seeds,material,seed,plant_fiber,0.05,50,0,Planting dill seeds packet,dry_goods
+seed_echinacea_0,Echinacea Seeds,material,seed,plant_fiber,0.05,50,0,Planting echinacea seeds packet,dry_goods
+seed_eggplant_0,Eggplant Seeds,material,seed,plant_fiber,0.05,50,0,Planting eggplant seeds packet,dry_goods
+seed_feverfew_0,Feverfew Seeds,material,seed,plant_fiber,0.05,50,0,Planting feverfew seeds packet,dry_goods
+seed_garlic_0,Garlic Seeds,material,seed,plant_fiber,0.05,50,0,Planting garlic seeds packet,dry_goods
+seed_ginger_0,Ginger Seeds,material,seed,plant_fiber,0.05,50,0,Planting ginger seeds packet,dry_goods
+seed_hop_0,Hop Seeds,material,seed,plant_fiber,0.05,50,0,Planting hop seeds packet,dry_goods
+seed_kale_0,Kale Seeds,material,seed,plant_fiber,0.05,50,0,Planting kale seeds packet,dry_goods
+seed_lavender_0,Lavender Seeds,material,seed,plant_fiber,0.05,50,0,Planting lavender seeds packet,dry_goods
+seed_leek_0,Leek Seeds,material,seed,plant_fiber,0.05,50,0,Planting leek seeds packet,dry_goods
+seed_lemongrass_0,Lemongrass Seeds,material,seed,plant_fiber,0.05,50,0,Planting lemongrass seeds packet,dry_goods
+seed_lentil_0,Lentil Seeds,material,seed,plant_fiber,0.05,50,0,Planting lentil seeds packet,dry_goods
+seed_mint_0,Mint Seeds,material,seed,plant_fiber,0.05,50,0,Planting mint seeds packet,dry_goods
+seed_okra_0,Okra Seeds,material,seed,plant_fiber,0.05,50,0,Planting okra seeds packet,dry_goods
+seed_onion_0,Onion Seeds,material,seed,plant_fiber,0.05,50,0,Planting onion seeds packet,dry_goods
+seed_oregano_0,Oregano Seeds,material,seed,plant_fiber,0.05,50,0,Planting oregano seeds packet,dry_goods
+seed_parsley_0,Parsley Seeds,material,seed,plant_fiber,0.05,50,0,Planting parsley seeds packet,dry_goods
+seed_parsnip_0,Parsnip Seeds,material,seed,plant_fiber,0.05,50,0,Planting parsnip seeds packet,dry_goods
+seed_pea_0,Pea Seeds,material,seed,plant_fiber,0.05,50,0,Planting pea seeds packet,dry_goods
+seed_pepper_0,Bell Pepper Seeds,material,seed,plant_fiber,0.05,50,0,Planting bell pepper seeds packet,dry_goods
+seed_radish_0,Radish Seeds,material,seed,plant_fiber,0.05,50,0,Planting radish seeds packet,dry_goods
+seed_rosemary_0,Rosemary Seeds,material,seed,plant_fiber,0.05,50,0,Planting rosemary seeds packet,dry_goods
+seed_saffron_0,Saffron Seeds,material,seed,plant_fiber,0.05,50,0,Planting saffron seeds packet,dry_goods
+seed_sage_0,Sage Seeds,material,seed,plant_fiber,0.05,50,0,Planting sage seeds packet,dry_goods
+seed_soybean_0,Soybean Seeds,material,seed,plant_fiber,0.05,50,0,Planting soybean seeds packet,dry_goods
+seed_spinach_0,Spinach Seeds,material,seed,plant_fiber,0.05,50,0,Planting spinach seeds packet,dry_goods
+seed_st_johns_wort_0,St. Johns Wort Seeds,material,seed,plant_fiber,0.05,50,0,Planting st. johns wort seeds packet,dry_goods
+seed_strawberry_0,Strawberry Seeds,material,seed,plant_fiber,0.05,50,0,Planting strawberry seeds packet,dry_goods
+seed_thyme_0,Thyme Seeds,material,seed,plant_fiber,0.05,50,0,Planting thyme seeds packet,dry_goods
+seed_turmeric_0,Turmeric Seeds,material,seed,plant_fiber,0.05,50,0,Planting turmeric seeds packet,dry_goods
+seed_turnip_0,Turnip Seeds,material,seed,plant_fiber,0.05,50,0,Planting turnip seeds packet,dry_goods
+seed_valerian_0,Valerian Seeds,material,seed,plant_fiber,0.05,50,0,Planting valerian seeds packet,dry_goods
+seed_zucchini_0,Zucchini Seeds,material,seed,plant_fiber,0.05,50,0,Planting zucchini seeds packet,dry_goods

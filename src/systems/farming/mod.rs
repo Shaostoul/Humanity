@@ -373,32 +373,79 @@ impl System for FarmingSystem {
         }
 
         // PLANT TOWER (v0.386): spawn a CropInstance for each plant id sent by the
-        // GUI (dev-friendly: no seed consumption). A tower's curated varieties all
-        // become growing crops at once; growth/water/harvest reuse the logic below.
+        // GUI. A tower's curated varieties all become growing crops at once;
+        // growth/water/harvest reuse the logic below. v0.398: in SURVIVAL mode each
+        // variety consumes one seed_<plant>_0 from the player (a variety with no seed
+        // is skipped); CREATIVE mode plants every variety free. The seed is
+        // plot-agnostic — the same seed plants a crop in any plot type, so this
+        // generalizes when non-aeroponic gardens (soil / sand / pots) arrive.
         let plant_tower = data
             .get::<std::sync::Mutex<Option<(String, Vec<String>)>>>("plant_tower_request")
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
         if let Some((tower_id, plant_ids)) = plant_tower {
             let mut planted = 0u32;
+            let mut skipped = 0u32;
             for plant_id in plant_ids {
                 let first_stage = plant_registry
                     .and_then(|reg| reg.get(&plant_id))
                     .map(|d| d.first_stage().to_string());
-                if let Some(first_stage) = first_stage {
-                    world.spawn((CropInstance {
-                        crop_def_id: plant_id,
-                        growth_stage: first_stage,
-                        planted_at: elapsed_seconds,
-                        water_level: 1.0,
-                        health: 100.0,
-                        tower_id: Some(tower_id.clone()),
-                    },));
-                    planted += 1;
+                let first_stage = match first_stage {
+                    Some(s) => s,
+                    None => continue,
+                };
+                // Survival: consume one seed for this variety, skip if absent.
+                if !creative {
+                    let seed_id = format!("seed_{plant_id}_0");
+                    let mut had = false;
+                    for (_e, (inv, _ctrl)) in world.query_mut::<(
+                        &mut crate::systems::inventory::Inventory,
+                        &crate::ecs::components::Controllable,
+                    )>() {
+                        if inv.has_item(&seed_id, 1) {
+                            inv.remove_item(&seed_id, 1);
+                            had = true;
+                        }
+                        break;
+                    }
+                    if !had {
+                        skipped += 1;
+                        continue;
+                    }
                 }
+                world.spawn((CropInstance {
+                    crop_def_id: plant_id,
+                    growth_stage: first_stage,
+                    planted_at: elapsed_seconds,
+                    water_level: 1.0,
+                    health: 100.0,
+                    tower_id: Some(tower_id.clone()),
+                },));
+                planted += 1;
             }
-            if planted > 0 {
-                log::info!("[Farming] planted tower: {planted} crops");
+            if planted > 0 || skipped > 0 {
+                log::info!("[Farming] planted tower: {planted} crops, {skipped} skipped (no seed)");
             }
+        }
+
+        // DEV: stock one of each requested seed (the "one seed of each" starter set,
+        // granted on demand so survival mode is testable now; the on-new-game grant
+        // comes when the game is closer to ready). Grows the inventory to fit.
+        let stock_seeds = data
+            .get::<std::sync::Mutex<Option<Vec<String>>>>("stock_seeds_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+        if let Some(seed_ids) = stock_seeds {
+            for (_e, (inv, _ctrl)) in world.query_mut::<(
+                &mut crate::systems::inventory::Inventory,
+                &crate::ecs::components::Controllable,
+            )>() {
+                let want = inv.max_slots + seed_ids.len();
+                inv.ensure_slots(want);
+                for seed_id in &seed_ids {
+                    inv.add_item(seed_id, 1, 99);
+                }
+                break;
+            }
+            log::info!("[Farming] dev-stocked {} seed varieties", seed_ids.len());
         }
 
         // WATER: top up one crop's water + a little health.
@@ -656,6 +703,10 @@ mod gardening_tests {
             "fertilize_crop_request",
             std::sync::Mutex::new(Option::<u64>::None),
         );
+        data.insert(
+            "stock_seeds_request",
+            std::sync::Mutex::new(Option::<Vec<String>>::None),
+        );
         data
     }
 
@@ -757,6 +808,57 @@ mod gardening_tests {
             world2.get::<&Inventory>(p2).unwrap().count_item("seed_tomato_0"),
             1,
             "creative mode did not consume the held seed"
+        );
+    }
+
+    /// Survival mode: planting a tower consumes one seed per variety and skips
+    /// varieties the player has no seed for.
+    #[test]
+    fn survival_tower_planting_consumes_seeds() {
+        let data = make_store(); // no creative flag = survival = consume
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("seed_tomato_0", 1, 99); // has tomato, lacks lettuce
+        let player = world.spawn((inv, Controllable));
+
+        *data
+            .get::<std::sync::Mutex<Option<(String, Vec<String>)>>>("plant_tower_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(("nutrition".to_string(), vec!["tomato".to_string(), "lettuce".to_string()]));
+        sys.tick(&mut world, 1.0, &data);
+
+        assert_eq!(
+            world.query::<&CropInstance>().iter().count(),
+            1,
+            "only the seeded variety (tomato) was planted; lettuce skipped"
+        );
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("seed_tomato_0"),
+            0,
+            "the tomato seed was consumed"
+        );
+    }
+
+    /// Creative mode: planting a tower spawns every variety free, no seeds needed.
+    #[test]
+    fn creative_tower_planting_is_free() {
+        let mut data = make_store();
+        data.insert("creative_mode", std::sync::Mutex::new(true));
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let _player = world.spawn((Inventory::new(16), Controllable)); // no seeds
+        *data
+            .get::<std::sync::Mutex<Option<(String, Vec<String>)>>>("plant_tower_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(("nutrition".to_string(), vec!["tomato".to_string(), "lettuce".to_string()]));
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.query::<&CropInstance>().iter().count(),
+            2,
+            "creative planted both varieties free"
         );
     }
 
