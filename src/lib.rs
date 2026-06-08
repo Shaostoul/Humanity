@@ -2172,6 +2172,21 @@ mod native_app {
                                 temp_max: def.map(|d| d.temp_max_c).unwrap_or(0.0),
                             });
                         }
+                        // One-time tower compatibility (operator: "make sure they
+                        // grow together"): the shared reservoir pH / temperature /
+                        // humidity window per tower. Static (tower configs + the
+                        // plant registry), so compute once and cache in GuiState.
+                        if state.gui_state.tower_compat.is_empty()
+                            && !state.gui_state.tower_configs.is_empty()
+                        {
+                            if let Some(reg) = plant_reg {
+                                let towers = state.gui_state.tower_configs.clone();
+                                state.gui_state.tower_compat = towers
+                                    .iter()
+                                    .map(|t| crate::gui::compute_tower_compat(t, reg))
+                                    .collect();
+                            }
+                        }
                     }
                     // Bridge asteroids + active mining drones from ECS for the Mining panel.
                     {

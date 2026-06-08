@@ -957,6 +957,10 @@ pub struct GuiState {
     /// The curated aeroponic tower configs (nutrition + apothecary), browsed on the
     /// Home page. Empty if data/towers/aeroponic_configs.ron is absent.
     pub tower_configs: Vec<TowerConfig>,
+    /// Per-tower shared-reservoir compatibility (parallel to `tower_configs`),
+    /// computed once from the plant registry in the crop sync. The "make sure
+    /// they grow together" check shown on the Home page.
+    pub tower_compat: Vec<TowerCompat>,
     /// Which section the merged Real tab shows — either a Profile section id
     /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
@@ -1834,6 +1838,7 @@ impl Default for GuiState {
             places: Vec::new(),
             homestead_design: None,
             tower_configs: Vec::new(),
+            tower_compat: Vec::new(),
             active_real_section: "inventory".to_string(),
             active_play_section: "crafting".to_string(),
             active_platform_section: "recovery".to_string(),
@@ -2676,6 +2681,166 @@ pub fn load_tower_configs(data_dir: &std::path::Path) -> Vec<TowerConfig> {
             eprintln!("load_tower_configs: failed to parse {}: {e}", path.display());
             Vec::new()
         }
+    }
+}
+
+/// Whether the plants in one tower can share a single reservoir + air — the
+/// operator's "make sure they grow together". Aeroponics shares one nutrient
+/// reservoir and one air volume (NOT soil), so soil companion/adverse rules
+/// relax and the real constraint becomes a COMMON pH / temperature / humidity
+/// window every plant tolerates. Each axis here is the intersection of the
+/// per-plant windows (from plants.csv): `Some((lo, hi))` means all plants
+/// overlap and can share it; `None` means no shared window (a conflict), and
+/// `conflicts` names the binding extremes to reconsider.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct TowerCompat {
+    /// Distinct species considered (those found in the plant registry).
+    pub species: usize,
+    /// Shared reservoir pH window, °C temperature window, and 0..1 humidity
+    /// window. `None` on an axis = the plants have no common window there.
+    pub ph: Option<(f32, f32)>,
+    pub temp: Option<(f32, f32)>,
+    pub humidity: Option<(f32, f32)>,
+    /// One note per conflicting axis, naming the two binding plants, e.g.
+    /// "Temp: Rosemary (warm) vs Lettuce (cool) have no overlap".
+    pub conflicts: Vec<String>,
+}
+
+/// Intersect one window axis across a tower's plants. Degenerate windows
+/// (`hi <= lo`, i.e. an unset 0..0 column) are skipped so missing data can't
+/// fake a conflict. Returns the shared window if all valid windows overlap,
+/// else `None` plus a note naming the warmest-floor and coolest-ceiling plants.
+#[cfg(feature = "native")]
+fn intersect_axis(windows: &[(String, (f32, f32))], label: &str) -> (Option<(f32, f32)>, Option<String>) {
+    let valid: Vec<&(String, (f32, f32))> =
+        windows.iter().filter(|(_, (lo, hi))| hi > lo).collect();
+    if valid.is_empty() {
+        return (None, None);
+    }
+    let lo = valid.iter().map(|(_, (l, _))| *l).fold(f32::MIN, f32::max);
+    let hi = valid.iter().map(|(_, (_, h))| *h).fold(f32::MAX, f32::min);
+    if lo <= hi {
+        return (Some((lo, hi)), None);
+    }
+    // Conflict: the plant with the highest floor vs the one with the lowest ceiling.
+    let warm = valid
+        .iter()
+        .max_by(|a, b| a.1 .0.partial_cmp(&b.1 .0).unwrap_or(std::cmp::Ordering::Equal))
+        .unwrap();
+    let cool = valid
+        .iter()
+        .min_by(|a, b| a.1 .1.partial_cmp(&b.1 .1).unwrap_or(std::cmp::Ordering::Equal))
+        .unwrap();
+    (
+        None,
+        Some(format!("{}: {} vs {} have no overlap", label, warm.0, cool.0)),
+    )
+}
+
+/// Compute a tower's shared-reservoir compatibility from the plant registry.
+/// Plants not found in the registry are skipped (so a partial registry still
+/// gives a useful answer for the plants it knows).
+#[cfg(feature = "native")]
+pub fn compute_tower_compat(
+    tower: &TowerConfig,
+    reg: &crate::systems::farming::PlantRegistry,
+) -> TowerCompat {
+    // Distinct plant ids (a max-variety tower is mostly distinct already).
+    let mut ids: Vec<String> = Vec::new();
+    for p in &tower.plantings {
+        if !ids.contains(&p.plant) {
+            ids.push(p.plant.clone());
+        }
+    }
+    // (name, ph window, temp window, humidity window) for each known species.
+    let mut ph_w = Vec::new();
+    let mut temp_w = Vec::new();
+    let mut hum_w = Vec::new();
+    let mut species = 0usize;
+    for id in &ids {
+        if let Some(d) = reg.get(id) {
+            species += 1;
+            ph_w.push((d.name.clone(), (d.ph_min, d.ph_max)));
+            temp_w.push((d.name.clone(), (d.temp_min_c, d.temp_max_c)));
+            hum_w.push((d.name.clone(), (d.humidity_min, d.humidity_max)));
+        }
+    }
+    let (ph, ph_c) = intersect_axis(&ph_w, "pH");
+    let (temp, temp_c) = intersect_axis(&temp_w, "Temp");
+    let (humidity, hum_c) = intersect_axis(&hum_w, "Humidity");
+    let conflicts: Vec<String> = [ph_c, temp_c, hum_c].into_iter().flatten().collect();
+    TowerCompat {
+        species,
+        ph,
+        temp,
+        humidity,
+        conflicts,
+    }
+}
+
+#[cfg(all(test, feature = "native"))]
+mod tower_compat_tests {
+    use super::*;
+    use crate::systems::farming::PlantRegistry;
+
+    fn reg_from(csv: &[u8]) -> PlantRegistry {
+        PlantRegistry::from_csv(csv).expect("parse")
+    }
+
+    fn tower_of(ids: &[&str]) -> TowerConfig {
+        let mut t = TowerConfig {
+            id: "t".into(),
+            name: "T".into(),
+            purpose: String::new(),
+            description: String::new(),
+            covers: vec![],
+            gaps: vec![],
+            gaps_note: String::new(),
+            disclaimer: String::new(),
+            slots: 50,
+            diameter_m: 0.4,
+            height_m: 2.0,
+            helix_turns: 4.0,
+            plantings: vec![],
+        };
+        for id in ids {
+            t.plantings.push(TowerPlanting {
+                plant: (*id).into(),
+                slots: 1,
+                role: String::new(),
+                note: String::new(),
+            });
+        }
+        t
+    }
+
+    #[test]
+    fn compatible_plants_share_a_window() {
+        // Two plants with overlapping pH/temp/humidity windows → one shared window,
+        // no conflicts.
+        let csv = b"id,name,ph_min,ph_max,temp_min_c,temp_max_c,humidity_min,humidity_max\n\
+                    lettuce,Lettuce,6.0,7.0,10,22,0.5,0.8\n\
+                    spinach,Spinach,6.2,7.2,8,24,0.5,0.9\n";
+        let c = compute_tower_compat(&tower_of(&["lettuce", "spinach"]), &reg_from(csv));
+        assert_eq!(c.species, 2);
+        assert_eq!(c.ph, Some((6.2, 7.0)));
+        assert_eq!(c.temp, Some((10.0, 22.0)));
+        assert!(c.conflicts.is_empty(), "no conflict expected, got {:?}", c.conflicts);
+    }
+
+    #[test]
+    fn non_overlapping_temp_is_flagged() {
+        // A warm herb and a cool green that can't share an air temperature.
+        let csv = b"id,name,ph_min,ph_max,temp_min_c,temp_max_c,humidity_min,humidity_max\n\
+                    rosemary,Rosemary,6.0,7.0,20,30,0.3,0.6\n\
+                    lettuce,Lettuce,6.0,7.0,8,18,0.5,0.8\n";
+        let c = compute_tower_compat(&tower_of(&["rosemary", "lettuce"]), &reg_from(csv));
+        assert!(c.temp.is_none(), "temp should conflict");
+        assert_eq!(c.conflicts.len(), 1);
+        assert!(c.conflicts[0].contains("Temp"), "note: {}", c.conflicts[0]);
+        // pH still overlaps, so it is reported as a shared window.
+        assert_eq!(c.ph, Some((6.0, 7.0)));
     }
 }
 

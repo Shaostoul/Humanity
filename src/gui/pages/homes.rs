@@ -16,7 +16,7 @@
 //! loop), are the next data layers. See docs/design/homes-as-profiles.md.
 
 use egui::{RichText, ScrollArea, Frame};
-use crate::gui::{GuiState, HomesteadDesign, DesignRoom, TowerConfig};
+use crate::gui::{GuiState, HomesteadDesign, DesignRoom, TowerConfig, TowerCompat};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use std::cell::RefCell;
@@ -95,11 +95,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 );
                 return;
             };
-            draw_design(ui, theme, &design, &state.tower_configs);
+            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat);
         });
 }
 
-fn draw_design(ui: &mut egui::Ui, theme: &Theme, design: &HomesteadDesign, towers: &[TowerConfig]) {
+fn draw_design(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    design: &HomesteadDesign,
+    towers: &[TowerConfig],
+    compat: &[TowerCompat],
+) {
     ui.label(RichText::new("Your Home").size(theme.font_size_title).color(theme.text_primary()));
     ui.label(RichText::new(&design.name).size(theme.font_size_heading).color(theme.accent()));
     ui.label(RichText::new(&design.description).size(theme.font_size_small).color(theme.text_muted()));
@@ -263,8 +269,8 @@ fn draw_design(ui: &mut egui::Ui, theme: &Theme, design: &HomesteadDesign, tower
                     .color(theme.text_muted()),
             );
             ui.add_space(theme.spacing_xs);
-            for tower in towers {
-                draw_tower(ui, theme, tower);
+            for (i, tower) in towers.iter().enumerate() {
+                draw_tower(ui, theme, tower, compat.get(i));
             }
         }
     });
@@ -272,7 +278,7 @@ fn draw_design(ui: &mut egui::Ui, theme: &Theme, design: &HomesteadDesign, tower
 
 /// One aeroponic tower, collapsible: purpose + what it covers / its gaps +
 /// disclaimer + the 50-slot planting list (count, plant, role, note).
-fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig) {
+fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig, compat: Option<&TowerCompat>) {
     let planted: u32 = tower.plantings.iter().map(|p| p.slots).sum();
     egui::CollapsingHeader::new(
         RichText::new(format!("{}  ({}/{} slots)", tower.name, planted, tower.slots))
@@ -309,6 +315,54 @@ fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig) {
         if !tower.disclaimer.is_empty() {
             ui.add_space(theme.spacing_xs);
             ui.label(RichText::new(&tower.disclaimer).size(theme.font_size_small).color(theme.text_muted()).italics());
+        }
+        // ── Grow-together check: can these plants share one reservoir + air? ──
+        // (operator: "make sure they'd all grow together too"). Aeroponics shares a
+        // reservoir + air, not soil, so the constraint is a common pH/temp/humidity
+        // window. Green = one shared window; warnings name the plants that conflict.
+        if let Some(c) = compat {
+            ui.add_space(theme.spacing_xs);
+            let shared: Vec<String> = [
+                c.ph.map(|(a, b)| format!("pH {:.1}-{:.1}", a, b)),
+                c.temp.map(|(a, b)| format!("{:.0}-{:.0}°C", a, b)),
+                c.humidity.map(|(a, b)| format!("humidity {:.0}-{:.0}%", a * 100.0, b * 100.0)),
+            ]
+            .into_iter()
+            .flatten()
+            .collect();
+            if c.conflicts.is_empty() {
+                ui.label(
+                    RichText::new(format!(
+                        "✓ These {} plants share one reservoir: {}",
+                        c.species,
+                        shared.join(", ")
+                    ))
+                    .size(theme.font_size_small)
+                    .color(theme.success()),
+                );
+            } else {
+                if !shared.is_empty() {
+                    ui.label(
+                        RichText::new(format!("Shared where they can: {}", shared.join(", ")))
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    );
+                }
+                for note in &c.conflicts {
+                    ui.label(
+                        RichText::new(format!("⚠ {}", note))
+                            .size(theme.font_size_small)
+                            .color(theme.warning()),
+                    );
+                }
+                ui.label(
+                    RichText::new(
+                        "Split the flagged plants into a separate tower or climate zone.",
+                    )
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+                );
+            }
         }
         ui.add_space(theme.spacing_sm);
         for p in &tower.plantings {
