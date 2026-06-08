@@ -221,19 +221,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut action_rest = false;
     let mut action_compost = false;
     let mut action_fertilize_crop: Option<u64> = None;
-
-    // Right detail panel: shows details/actions for the selected garden object
-    // (a crop or a tower, picked in the left Garden tree) OR the selected inventory
-    // item. Operator 2026-06-08: "click an entry ... the right panel displays
-    // details/data about that selected object." Garden selection takes precedence
-    // (it's mutually exclusive with the item slot).
+    // ── ONE PANEL (operator 2026-06-08: back to a single panel; the 3-panel split
+    //    read as stair-stepped). Everything in one CentralPanel + a vertical scroll,
+    //    widgets aligned, the status bars capped at theme.status_bar_width. The
+    //    detail block shows only when something is selected. ──
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+        .show(ctx, |ui| {
+        ScrollArea::vertical().show(ui, |ui| {
     if state.garden_selection.is_some() || state.selected_slot.is_some() {
-        egui::SidePanel::right("inv_detail_panel")
-            .min_width(220.0)
-            .max_width(300.0)
-            .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(10.0))
-            .show(ctx, |ui| {
-                ScrollArea::vertical().show(ui, |ui| {
                     let garden_sel = state.garden_selection.clone();
                     if let Some(bits) = garden_sel
                         .as_deref()
@@ -445,8 +441,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.label(RichText::new("Select an item to view details.").color(theme.text_muted()));
                     }
                     }
-                });
-            });
     }
 
     // Handle drop action
@@ -491,20 +485,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if let Some(seed_id) = action_plant {
         state.pending_plant_seed = Some(seed_id);
     }
-
-    // ── LEFT PANEL: you + your stuff — survival status, equipment, and the nested
-    //    container tree (the navigation). Operator 2026-06-07: upgrade the inventory
-    //    to at least a left + right panel so the horizontal space is used (the page
-    //    was one cramped vertical column). Resizable; picking an item in the tree
-    //    drives the right-hand detail panel. The central panel (Garden + Mining) is
-    //    where you act.
-    egui::SidePanel::left("inv_nav")
-        .resizable(true)
-        .default_width(330.0)
-        .min_width(250.0)
-        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(theme.card_padding))
-        .show(ctx, |ui| {
-        ScrollArea::vertical().show(ui, |ui| {
             ui.label(RichText::new("Inventory").size(theme.font_size_title).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
 
@@ -859,16 +839,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         };
                     state.selected_slot = None;
                 }
-        }); // close left-nav ScrollArea
-        }); // close LEFT panel
-
-    // ── CENTRAL PANEL: the Mining workspace. The garden + the inventory navigation
-    //    now live in the LEFT tree; the right panel shows the selected object detail
-    //    (operator 2026-06-08: the garden belongs on the left). ──
-    egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
-        .show(ctx, |ui| {
-            ScrollArea::vertical().show(ui, |ui| {
                 // ── Mining: commission drones to fetch ore from finite asteroids. ──
                 ui.label(
                     RichText::new("Mining")
@@ -1024,8 +994,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         widgets::progress_bar(ui, theme, drone.phase_progress, None);
                     }
                 }
-            });
-        });
+        }); // close the single-panel ScrollArea
+        }); // close the single CentralPanel
 
     // Apply the Garden actions (set inside the central panel) to GuiState; the main
     // loop bridges these into FarmingSystem's command channels before the next tick.
