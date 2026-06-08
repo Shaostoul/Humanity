@@ -1234,6 +1234,9 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
             any_changed |= styled_slider(ui, &ss, "Input Height", &mut theme.input_height, 16.0..=48.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Status Dot", &mut theme.status_dot_size, 2.0..=16.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Checkbox Size", &mut theme.checkbox_size, 10.0..=28.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Stat Name Width", &mut theme.stat_name_width, 40.0..=160.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Stat Value Width", &mut theme.stat_value_width, 40.0..=160.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Status Bar Width", &mut theme.status_bar_width, 80.0..=400.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Sidebar Width", &mut theme.sidebar_width, 150.0..=400.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Settings Label Width", &mut theme.settings_label_width, 100.0..=300.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Modal Width", &mut theme.modal_width, 300.0..=800.0, label_color);

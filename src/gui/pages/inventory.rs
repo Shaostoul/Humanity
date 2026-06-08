@@ -619,14 +619,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.horizontal(|ui| {
                     let h = theme.font_size_body + 2.0;
                     ui.allocate_ui_with_layout(
-                        egui::vec2(widgets::STAT_NAME_W, h),
+                        egui::vec2(theme.stat_name_width, h),
                         egui::Layout::left_to_right(egui::Align::Center),
                         |ui| {
                             ui.label(RichText::new("Body temp").color(theme.text_secondary()).size(theme.font_size_small));
                         },
                     );
                     ui.allocate_ui_with_layout(
-                        egui::vec2(widgets::STAT_VALUE_W, h),
+                        egui::vec2(theme.stat_value_width, h),
                         egui::Layout::right_to_left(egui::Align::Center),
                         |ui| {
                             ui.label(RichText::new(format!("{:.1}°C", temp)).color(temp_col).size(theme.font_size_small));

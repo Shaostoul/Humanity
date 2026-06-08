@@ -452,12 +452,6 @@ pub fn progress_bar(ui: &mut Ui, theme: &Theme, progress: f32, label: Option<&st
     ui.add(bar);
 }
 
-/// Fixed column widths for [`stat_row`] — shared across every row so consecutive
-/// rows line up into a name / value / bar table. (Tweaking these here re-aligns
-/// every stat panel that uses the widget.)
-pub const STAT_NAME_W: f32 = 86.0;
-pub const STAT_VALUE_W: f32 = 82.0;
-
 /// One compact stat row: `name · value · thin bar`, all on ONE line (replacing the
 /// old two-row "label, then a tall ProgressBar below"). The name + value columns
 /// have fixed shared widths (so stacked rows align into columns); the value is
@@ -476,7 +470,7 @@ pub fn stat_row(
     ui.horizontal(|ui| {
         let h = theme.font_size_body + 2.0;
         ui.allocate_ui_with_layout(
-            egui::vec2(STAT_NAME_W, h),
+            egui::vec2(theme.stat_name_width, h),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
                 ui.label(
@@ -487,7 +481,7 @@ pub fn stat_row(
             },
         );
         ui.allocate_ui_with_layout(
-            egui::vec2(STAT_VALUE_W, h),
+            egui::vec2(theme.stat_value_width, h),
             egui::Layout::right_to_left(egui::Align::Center),
             |ui| {
                 ui.label(
@@ -497,10 +491,13 @@ pub fn stat_row(
                 );
             },
         );
+        // Capped width (theme.status_bar_width, default 200px) so the bars stay a
+        // tidy fixed column instead of spanning the panel (operator 2026-06-08).
         ui.add(
             egui::ProgressBar::new(frac.clamp(0.0, 1.0))
                 .fill(fill)
-                .desired_height(6.0),
+                .desired_height(6.0)
+                .desired_width(theme.status_bar_width),
         );
     });
 }

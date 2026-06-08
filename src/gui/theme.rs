@@ -116,6 +116,16 @@ pub struct Theme {
     #[serde(default = "default_checkbox_size")]
     pub checkbox_size: f32,
 
+    // Stat / status row layout (the vitals + any "name | value | bar" table). All
+    // themeable so the inventory's aligned columns and the capped status bars are
+    // not hardcoded (operator 2026-06-08: universal styling variables, editable).
+    #[serde(default = "default_stat_name_width")]
+    pub stat_name_width: f32,
+    #[serde(default = "default_stat_value_width")]
+    pub stat_value_width: f32,
+    #[serde(default = "default_status_bar_width")]
+    pub status_bar_width: f32,
+
     // Panel backgrounds (used across all pages, avoids hardcoded Color32::from_rgb)
     #[serde(default = "default_bg_panel")]
     pub bg_panel: C,
@@ -389,6 +399,9 @@ impl Theme {
         self.slider_track_height = 4.0;
         self.slider_thumb_radius = 7.0;
         self.checkbox_size = 18.0;
+        self.stat_name_width = 86.0;
+        self.stat_value_width = 82.0;
+        self.status_bar_width = 200.0;
     }
 
     /// Apply this theme to an egui Context (sets visuals, spacing).
@@ -488,6 +501,9 @@ fn default_slider_track_color() -> C { (0.2, 0.2, 0.25, 1.0) }
 fn default_slider_track_height() -> f32 { 4.0 }
 fn default_slider_thumb_radius() -> f32 { 7.0 }
 fn default_checkbox_size() -> f32 { 18.0 }
+fn default_stat_name_width() -> f32 { 86.0 }
+fn default_stat_value_width() -> f32 { 82.0 }
+fn default_status_bar_width() -> f32 { 200.0 }
 fn default_bg_panel() -> C { (0.078, 0.078, 0.098, 1.0) }      // rgb(20, 20, 25)
 fn default_bg_sidebar() -> C { (0.086, 0.086, 0.110, 1.0) }    // rgb(22, 22, 28)
 fn default_bg_sidebar_dark() -> C { (0.118, 0.118, 0.141, 1.0) } // rgb(30, 30, 36)
@@ -595,6 +611,9 @@ fn default_theme() -> Theme {
         slider_track_height: 4.0,
         slider_thumb_radius: 7.0,
         checkbox_size: 18.0,
+        stat_name_width: 86.0,
+        stat_value_width: 82.0,
+        status_bar_width: 200.0,
         // Panel backgrounds
         bg_panel: default_bg_panel(),
         bg_sidebar: default_bg_sidebar(),
