@@ -619,10 +619,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // Entity tree when we have the spine; else flat backpack.
                 let clicked = if !state.places.is_empty() {
                     let entities = state.places.clone();
-                    let trees: Vec<widgets::TreeNode> = entities
+                    let mut trees: Vec<widgets::TreeNode> = entities
                         .iter()
                         .map(|e| place_to_tree(theme, e, &item_nodes))
                         .collect();
+                    // Inject the home's aeroponic towers (structures that hold plants)
+                    // under the Home node, so they appear in the places hierarchy
+                    // (operator 2026-06-07: "not seeing the towers in the inventory").
+                    if let Some(towers_node) = towers_tree_node(theme, &state.tower_configs) {
+                        if let Some(home) = trees.iter_mut().find(|t| t.label == "Home") {
+                            home.children.push(towers_node);
+                        } else {
+                            trees.push(towers_node);
+                        }
+                    }
                     widgets::tree_list(ui, theme, &trees, &selected_str)
                 } else if item_nodes.is_empty() {
                     ui.label(
@@ -941,6 +951,62 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if let Some(bits) = action_fertilize_crop {
         state.pending_fertilize_crop = Some(bits);
     }
+}
+
+/// Build the home's aeroponic towers as a tree branch for the "You & your places"
+/// view: an "Aeroponic Towers" node whose children are the towers, each a container
+/// of its planted varieties. None if no towers are loaded. (v0.385)
+fn towers_tree_node(theme: &Theme, towers: &[crate::gui::TowerConfig]) -> Option<widgets::TreeNode> {
+    if towers.is_empty() {
+        return None;
+    }
+    let tower_color = kind_color(theme, "building");
+    let item_color = kind_color(theme, "item");
+    let children: Vec<widgets::TreeNode> = towers
+        .iter()
+        .map(|t| {
+            let plants: Vec<widgets::TreeNode> = t
+                .plantings
+                .iter()
+                .map(|p| widgets::TreeNode {
+                    id: String::new(),
+                    label: tower_humanize(&p.plant),
+                    detail: p.role.clone(),
+                    color: Some(item_color),
+                    children: Vec::new(),
+                })
+                .collect();
+            widgets::TreeNode {
+                id: String::new(),
+                label: format!("{} ({} plants)", t.name, t.plantings.len()),
+                detail: format!("{:.1}m", t.height_m),
+                color: Some(tower_color),
+                children: plants,
+            }
+        })
+        .collect();
+    Some(widgets::TreeNode {
+        id: String::new(),
+        label: "Aeroponic Towers".to_string(),
+        detail: String::new(),
+        color: Some(tower_color),
+        children,
+    })
+}
+
+/// "steel_ingot_0" -> "Steel Ingot" for display.
+fn tower_humanize(id: &str) -> String {
+    let base = id.strip_suffix("_0").unwrap_or(id);
+    base.split('_')
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 // detail_row moved to crate::gui::widgets::detail_row
