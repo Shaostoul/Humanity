@@ -985,6 +985,11 @@ mod native_app {
                 "plant_request",
                 std::sync::Mutex::new(Option::<String>::None),
             );
+            // Plant a whole aeroponic tower at once (v0.386): the plant ids to spawn.
+            data_store.insert(
+                "plant_tower_request",
+                std::sync::Mutex::new(Option::<Vec<String>>::None),
+            );
             data_store.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("dev_grow_crops", std::sync::Mutex::new(false));
