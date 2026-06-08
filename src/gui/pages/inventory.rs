@@ -708,63 +708,64 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .color(theme.text_muted()),
                     );
                 } else {
-                    for crop in &state.crops {
-                        widgets::card(ui, theme, |ui| {
-                            ui.horizontal(|ui| {
-                                let (title, title_col) = if crop.dead {
-                                    (format!("{} (dead)", crop.name), theme.danger())
+                    // Compact table: ONE row per crop with fixed, aligned columns
+                    // (operator 2026-06-07: a single row not three; fixed-size columns;
+                    // a 200px growth bar instead of the rough full page width). egui::Grid
+                    // auto-aligns the columns; striped rows keep it scannable.
+                    egui::Grid::new("garden_crops")
+                        .striped(true)
+                        .spacing([12.0, 4.0])
+                        .show(ui, |ui| {
+                            for h in ["Plant", "Stage", "Growth", "Water / Health", "Actions"] {
+                                ui.label(RichText::new(h).size(theme.font_size_small).strong().color(theme.text_secondary()));
+                            }
+                            ui.end_row();
+                            for crop in &state.crops {
+                                let name_col = if crop.dead {
+                                    theme.danger()
                                 } else if crop.mature {
-                                    (format!("{}, ready to harvest", crop.name), theme.accent())
+                                    theme.accent()
                                 } else {
-                                    (format!("{}, {}", crop.name, crop.stage), theme.text_primary())
+                                    theme.text_primary()
                                 };
-                                ui.label(RichText::new(title).color(title_col));
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        if crop.mature
-                                            && widgets::primary_button(ui, theme, "Harvest")
-                                        {
-                                            action_harvest_crop = Some(crop.entity_bits);
-                                        }
-                                        if !crop.dead
-                                            && widgets::secondary_button(ui, theme, "Water")
-                                        {
-                                            action_water_crop = Some(crop.entity_bits);
-                                        }
-                                        if !crop.dead
-                                            && widgets::secondary_button(ui, theme, "Fertilize")
-                                        {
-                                            action_fertilize_crop = Some(crop.entity_bits);
-                                        }
-                                    },
+                                ui.label(RichText::new(&crop.name).color(name_col));
+                                let stage_txt = if crop.dead {
+                                    "dead"
+                                } else if crop.mature {
+                                    "ready"
+                                } else {
+                                    crop.stage.as_str()
+                                };
+                                ui.label(RichText::new(stage_txt).size(theme.font_size_small).color(theme.text_secondary()));
+                                ui.add(
+                                    egui::ProgressBar::new(crop.progress.clamp(0.0, 1.0))
+                                        .fill(theme.accent())
+                                        .desired_width(200.0),
                                 );
-                            });
-                            ui.add(
-                                egui::ProgressBar::new(crop.progress.clamp(0.0, 1.0))
-                                    .fill(theme.accent())
-                                    .text("growth"),
-                            );
-                            ui.horizontal(|ui| {
                                 let wcol = if crop.water < 0.2 {
                                     theme.danger()
                                 } else {
                                     theme.text_secondary()
                                 };
                                 ui.label(
-                                    RichText::new(format!("Water {:.0}%", crop.water * 100.0))
+                                    RichText::new(format!("{:.0}% / {:.0}%", crop.water * 100.0, crop.health))
                                         .size(theme.font_size_small)
                                         .color(wcol),
                                 );
-                                ui.label(
-                                    RichText::new(format!("Health {:.0}%", crop.health))
-                                        .size(theme.font_size_small)
-                                        .color(theme.text_secondary()),
-                                );
-                            });
+                                ui.horizontal(|ui| {
+                                    if crop.mature && widgets::primary_button(ui, theme, "Harvest") {
+                                        action_harvest_crop = Some(crop.entity_bits);
+                                    }
+                                    if !crop.dead && widgets::secondary_button(ui, theme, "Water") {
+                                        action_water_crop = Some(crop.entity_bits);
+                                    }
+                                    if !crop.dead && widgets::secondary_button(ui, theme, "Fertilize") {
+                                        action_fertilize_crop = Some(crop.entity_bits);
+                                    }
+                                });
+                                ui.end_row();
+                            }
                         });
-                        ui.add_space(theme.spacing_xs);
-                    }
                 }
 
                 // ── Mining: commission drones to fetch ore from finite asteroids. ──
