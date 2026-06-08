@@ -1546,6 +1546,17 @@ mod native_app {
                             }
                         }
                     }
+                    // Plant a whole tower (v0.386): the GUI sends the plant ids.
+                    if let Some(plant_ids) = state.gui_state.pending_plant_tower.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<Vec<String>>>>("plant_tower_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(plant_ids);
+                            }
+                        }
+                    }
                     if let Some(bits) = state.gui_state.pending_water_crop.take() {
                         if let Some(slot) = state
                             .data_store

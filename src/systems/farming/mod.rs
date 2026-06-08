@@ -293,6 +293,34 @@ impl System for FarmingSystem {
             }
         }
 
+        // PLANT TOWER (v0.386): spawn a CropInstance for each plant id sent by the
+        // GUI (dev-friendly: no seed consumption). A tower's curated varieties all
+        // become growing crops at once; growth/water/harvest reuse the logic below.
+        let plant_tower = data
+            .get::<std::sync::Mutex<Option<Vec<String>>>>("plant_tower_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+        if let Some(plant_ids) = plant_tower {
+            let mut planted = 0u32;
+            for plant_id in plant_ids {
+                let first_stage = plant_registry
+                    .and_then(|reg| reg.get(&plant_id))
+                    .map(|d| d.first_stage().to_string());
+                if let Some(first_stage) = first_stage {
+                    world.spawn((CropInstance {
+                        crop_def_id: plant_id,
+                        growth_stage: first_stage,
+                        planted_at: elapsed_seconds,
+                        water_level: 1.0,
+                        health: 100.0,
+                    },));
+                    planted += 1;
+                }
+            }
+            if planted > 0 {
+                log::info!("[Farming] planted tower: {planted} crops");
+            }
+        }
+
         // WATER: top up one crop's water + a little health.
         let water_bits = data
             .get::<std::sync::Mutex<Option<u64>>>("water_request")
@@ -535,6 +563,10 @@ mod gardening_tests {
             std::sync::Mutex::new(crate::systems::time::GameTime::default()),
         );
         data.insert("plant_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert(
+            "plant_tower_request",
+            std::sync::Mutex::new(Option::<Vec<String>>::None),
+        );
         data.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
         data.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
         data.insert("dev_grow_crops", std::sync::Mutex::new(false));

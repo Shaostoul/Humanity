@@ -1043,6 +1043,10 @@ pub struct GuiState {
     // ── Gardening state ──
     /// Seed item id the player clicked "Plant" on this frame → FarmingSystem.
     pub pending_plant_seed: Option<String>,
+    /// GUI -> ECS: plant a whole aeroponic tower. The Vec is the plant ids (one per
+    /// slot) to spawn as CropInstances; drained into the "plant_tower_request"
+    /// channel for FarmingSystem (v0.386). Dev-friendly: no seed consumption yet.
+    pub pending_plant_tower: Option<Vec<String>>,
     /// Crop entity bits the player clicked "Water" on this frame.
     pub pending_water_crop: Option<u64>,
     /// Crop entity bits the player clicked "Harvest" on this frame.
@@ -1891,6 +1895,7 @@ impl Default for GuiState {
             pending_fertilize_crop: None,
             vitals: GuiVitals::default(),
             pending_plant_seed: None,
+            pending_plant_tower: None,
             pending_water_crop: None,
             pending_harvest_crop: None,
             dev_grow_crops: false,

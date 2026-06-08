@@ -211,6 +211,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut action_water_crop: Option<u64> = None;
     let mut action_harvest_crop: Option<u64> = None;
     let mut action_dev_grow = false;
+    // Plant a whole tower (v0.386): the plant ids to spawn as crops, set by the
+    // Garden section's "Plant a tower" buttons, applied to GuiState after the panel.
+    let mut action_plant_tower: Option<Vec<String>> = None;
     // Drone manifest builder: a stepper click (ore, +1/-1), launch, or clear.
     let mut action_manifest_delta: Option<(String, i32)> = None;
     let mut action_launch_manifest = false;
@@ -673,6 +676,32 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     });
                 });
                 ui.add_space(theme.spacing_xs);
+                // Plant a whole tower: spawns its curated varieties as growing crops
+                // (dev-friendly, no seed consumption). They grow + harvest below.
+                if !state.tower_configs.is_empty() {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(
+                            RichText::new("Plant a tower:")
+                                .size(theme.font_size_small)
+                                .color(theme.text_secondary()),
+                        );
+                        for tower in &state.tower_configs {
+                            if widgets::secondary_button(ui, theme, &tower.name) {
+                                action_plant_tower = Some(
+                                    tower
+                                        .plantings
+                                        .iter()
+                                        .flat_map(|p| {
+                                            std::iter::repeat(p.plant.clone())
+                                                .take(p.slots.max(1) as usize)
+                                        })
+                                        .collect(),
+                                );
+                            }
+                        }
+                    });
+                    ui.add_space(theme.spacing_xs);
+                }
                 if state.crops.is_empty() {
                     ui.label(
                         RichText::new("No crops yet, plant a seed from your inventory.")
@@ -901,6 +930,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     // Apply the Garden actions (set inside the central panel) to GuiState; the main
     // loop bridges these into FarmingSystem's command channels before the next tick.
+    if let Some(ids) = action_plant_tower {
+        state.pending_plant_tower = Some(ids);
+    }
     if let Some(bits) = action_water_crop {
         state.pending_water_crop = Some(bits);
     }
