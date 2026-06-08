@@ -617,7 +617,20 @@ fn container_node(ui: &mut Ui, theme: &Theme, node: &TreeNode, selected: &str, c
         egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, true)
             .show_header(ui, |ui| {
                 paint_swatch(ui, node.color);
-                ui.label(egui::RichText::new(&node.label).color(theme.text_primary()).strong());
+                // A container header is itself SELECTABLE when it carries an id (so a
+                // garden plot / tower can be picked, not only expanded); plain label
+                // otherwise. The collapse triangle stays an independent control.
+                if node.id.is_empty() {
+                    ui.label(egui::RichText::new(&node.label).color(theme.text_primary()).strong());
+                } else if ui
+                    .selectable_label(
+                        selected == node.id,
+                        egui::RichText::new(&node.label).color(theme.text_primary()).strong(),
+                    )
+                    .clicked()
+                {
+                    *clicked = Some(node.id.clone());
+                }
                 tree_detail(ui, theme, &node.detail);
             })
             .body(|ui| {
