@@ -207,12 +207,6 @@ impl<'a> Button<'a> {
             ButtonSize::Medium => theme.font_size_body,
             ButtonSize::Large => theme.font_size_heading,
         };
-        let height = self.min_height.unwrap_or(match self.size {
-            ButtonSize::Small => (theme.button_height * 0.75).round(),
-            ButtonSize::Medium => theme.button_height,
-            ButtonSize::Large => (theme.button_height * 1.25).round(),
-        });
-
         // Compose label: icon ' ' label ' ' trailing-icon. Each is RichText so
         // egui's layout handles them as one inline run.
         let composed = match (self.icon, self.icon_trailing) {
@@ -271,14 +265,18 @@ impl<'a> Button<'a> {
         };
 
         let text = RichText::new(composed).size(font_size).color(text_color);
+        // Slim, font-driven height: the global button_padding (theme.button_padding_h
+        // / theme.button_pad_y) wraps the content, so the FONT sets the height — no
+        // fixed button_height is forced (operator 2026-06-08: slim, even-padded
+        // buttons). An explicit .min_height or .full_width still applies.
         let mut btn = egui::Button::new(text)
             .fill(fill)
             .stroke(stroke)
-            .rounding(Rounding::same(theme.border_radius as u8))
-            .min_size(Vec2::new(0.0, height));
-
+            .rounding(Rounding::same(theme.border_radius as u8));
         if self.full_width {
-            btn = btn.min_size(Vec2::new(ui.available_width(), height));
+            btn = btn.min_size(Vec2::new(ui.available_width(), 0.0));
+        } else if let Some(h) = self.min_height {
+            btn = btn.min_size(Vec2::new(0.0, h));
         }
 
         let response = if self.disabled {

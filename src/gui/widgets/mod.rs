@@ -513,7 +513,9 @@ pub fn stepper_button(
     enabled: bool,
     positive: bool,
 ) -> bool {
-    let s = theme.font_size_body + 8.0;
+    // Slim square sized to the compact-button height so the +/- match the garden's
+    // inline buttons (operator 2026-06-08).
+    let s = theme.compact_button_height;
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(s, s), egui::Sense::click());
     let (border, fill, fg) = if !enabled {
         (theme.text_muted(), theme.bg_secondary(), theme.text_muted())

@@ -44,6 +44,11 @@ pub struct Theme {
     pub border_radius_lg: f32,
     pub button_height: f32,
     pub button_padding_h: f32,
+    /// Vertical padding inside buttons. With button_padding_h, gives buttons even
+    /// slim padding; the font then drives the height (operator 2026-06-08: slim,
+    /// even-padded buttons). Themeable.
+    #[serde(default = "default_button_pad_y")]
+    pub button_pad_y: f32,
     pub input_height: f32,
     pub sidebar_width: f32,
     pub card_padding: f32,
@@ -412,6 +417,7 @@ impl Theme {
         self.status_bar_width = 200.0;
         self.status_bar_height = 5.0;
         self.compact_button_height = 18.0;
+        self.button_pad_y = 3.0;
     }
 
     /// Apply this theme to an egui Context (sets visuals, spacing).
@@ -453,7 +459,7 @@ impl Theme {
 
         let mut style = (*ctx.style()).clone();
         style.spacing.item_spacing = Vec2::new(self.spacing_sm, self.spacing_sm);
-        style.spacing.button_padding = Vec2::new(self.button_padding_h, 6.0);
+        style.spacing.button_padding = Vec2::new(self.button_padding_h, self.button_pad_y);
         ctx.set_style(style);
     }
 }
@@ -516,6 +522,7 @@ fn default_stat_value_width() -> f32 { 82.0 }
 fn default_status_bar_width() -> f32 { 200.0 }
 fn default_status_bar_height() -> f32 { 5.0 }
 fn default_compact_button_height() -> f32 { 18.0 }
+fn default_button_pad_y() -> f32 { 3.0 }
 fn default_bg_panel() -> C { (0.078, 0.078, 0.098, 1.0) }      // rgb(20, 20, 25)
 fn default_bg_sidebar() -> C { (0.086, 0.086, 0.110, 1.0) }    // rgb(22, 22, 28)
 fn default_bg_sidebar_dark() -> C { (0.118, 0.118, 0.141, 1.0) } // rgb(30, 30, 36)
@@ -593,7 +600,8 @@ fn default_theme() -> Theme {
         border_radius: 6.0,
         border_radius_lg: 12.0,
         button_height: 36.0,
-        button_padding_h: 16.0,
+        button_padding_h: 8.0,
+        button_pad_y: 3.0,
         input_height: 36.0,
         sidebar_width: 280.0,
         card_padding: 16.0,
