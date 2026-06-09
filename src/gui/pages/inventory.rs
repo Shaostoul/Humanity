@@ -738,11 +738,30 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let crops: Vec<&crate::gui::GuiCrop> =
                             state.crops.iter().filter(|c| &c.tower_id == tid).collect();
                         let ready = crops.iter().filter(|c| c.mature).count();
-                        let header = if crops.is_empty() {
-                            format!("{}  (not planted)", title)
+                        let count_txt = if crops.is_empty() {
+                            "not planted".to_string()
                         } else {
-                            format!("{}  ({}/{} ready)", title, ready, crops.len())
+                            format!("{}/{} ready", ready, crops.len())
                         };
+                        // Make/model/version subtitle for the tower title row (operator
+                        // 2026-06-08: "aeroponic tower make model version"). Data-driven.
+                        let subtitle = tid
+                            .as_ref()
+                            .and_then(|id| state.tower_configs.iter().find(|t| &t.id == id))
+                            .map(|t| {
+                                let mut parts: Vec<String> = Vec::new();
+                                if !t.make.is_empty() {
+                                    parts.push(t.make.clone());
+                                }
+                                if !t.model.is_empty() {
+                                    parts.push(t.model.clone());
+                                }
+                                if !t.version.is_empty() {
+                                    parts.push(format!("v{}", t.version));
+                                }
+                                parts.join(" ")
+                            })
+                            .unwrap_or_default();
                         // Resolve the tower's plant-id list up front (so the Plant button
                         // doesn't borrow state inside the body closure).
                         let plant_ids: Option<(String, Vec<String>)> = tid.as_ref().and_then(|id| {
@@ -758,16 +777,26 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             })
                         });
                         let planted_label = if crops.is_empty() { "Plant this tower" } else { "Plant again" };
-                        egui::CollapsingHeader::new(RichText::new(header).strong().color(theme.accent()))
-                            .id_salt(("garden_grp", gi))
-                            .default_open(tree_default_open)
-                            .open(tree_force)
-                            .show(ui, |ui| {
-                                if let Some((tid, ids)) = &plant_ids {
-                                    if widgets::secondary_button(ui, theme, planted_label) {
-                                        action_plant_tower = Some((tid.clone(), ids.clone()));
+                        widgets::expandable_row(
+                            ui,
+                            ("garden_grp", gi),
+                            tree_default_open,
+                            tree_force,
+                            |ui| {
+                                // Tower title row: name + make/model/version + ready
+                                // count + the Plant button (widgets in the title row).
+                                ui.label(RichText::new(title).strong().color(theme.accent()));
+                                if !subtitle.is_empty() {
+                                    ui.label(RichText::new(format!("· {subtitle}")).size(theme.font_size_small).color(theme.text_muted()));
+                                }
+                                ui.label(RichText::new(format!("· {count_txt}")).size(theme.font_size_small).color(theme.text_secondary()));
+                                if let Some((tid2, ids)) = &plant_ids {
+                                    if widgets::compact_button(ui, theme, planted_label, widgets::ButtonVariant::Secondary) {
+                                        action_plant_tower = Some((tid2.clone(), ids.clone()));
                                     }
                                 }
+                            },
+                            |ui| {
                                 if crops.is_empty() {
                                     return;
                                 }
@@ -805,7 +834,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             ui.end_row();
                                         }
                                     });
-                            });
+                            },
+                        );
                     }
                 }
                 widgets::rgb_section_divider(ui, theme);

@@ -2633,6 +2633,15 @@ pub struct TowerConfig {
     pub id: String,
     #[serde(default)]
     pub name: String,
+    /// Make / model / version, shown in the tower's title row (operator 2026-06-08:
+    /// "aeroponic tower make model version"). Data-driven so the community can brand
+    /// their own designs; empty strings just hide that part of the title.
+    #[serde(default)]
+    pub make: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub version: String,
     #[serde(default)]
     pub purpose: String,
     #[serde(default)]
@@ -2866,6 +2875,9 @@ mod tower_compat_tests {
         let mut t = TowerConfig {
             id: "t".into(),
             name: "T".into(),
+            make: String::new(),
+            model: String::new(),
+            version: String::new(),
             purpose: String::new(),
             description: String::new(),
             covers: vec![],

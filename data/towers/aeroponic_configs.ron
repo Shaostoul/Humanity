@@ -27,6 +27,9 @@
         (
             id: "nutrition",
             name: "Variety Greens and Beans",
+            make: "HumanityOS",
+            model: "Helix Wide 60",
+            version: "1.0",
             purpose: "Maximum variety of food crops in one aeroponic tower",
             description: "An ideal minimalistic vegetable garden showing how many different things you can easily grow in one vertical tower: one of each leafy green, brassica, root, allium, fruiting vegetable, legume, and kitchen herb. Swap or add freely; the community will tune the perfect mix.",
             covers: [
@@ -104,6 +107,9 @@
         (
             id: "apothecary",
             name: "Variety Herbs and Remedies",
+            make: "HumanityOS",
+            model: "Helix Slim 32",
+            version: "1.0",
             purpose: "Maximum variety of culinary and medicinal herbs in one tower",
             description: "One of each cooking herb, tea herb, and traditional remedy plant, to show the range an apothecary tower can hold. Pair it with the nutrition tower for flavor and home remedies.",
             covers: [

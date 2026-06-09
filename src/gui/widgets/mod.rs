@@ -699,6 +699,47 @@ pub fn tree_list_ex(
     clicked
 }
 
+/// A single EXPANDABLE ROW — the universal nesting primitive (operator 2026-06-08:
+/// "this nesting style ... should be a universal widget with configurable columns
+/// per implementation"). The `header` closure renders the row's content (e.g. a set
+/// of fixed-width column cells + inline buttons); clicking the row's triangle toggles
+/// the `body` (e.g. nested expandable rows, or a multi-row detail card). `default_open`
+/// + `force` wire it to the standard Collapse/Expand/Start-collapsed controls (pass
+/// the page's tree_default_open / tree_force). COMPOSE them to any depth: a group row
+/// whose body is more `expandable_row`s, whose bodies are detail cards. Reusable across
+/// the app (garden towers/slots, mining, the inventory tree, future sections).
+pub fn expandable_row(
+    ui: &mut Ui,
+    id_salt: impl std::hash::Hash,
+    default_open: bool,
+    force: Option<bool>,
+    header: impl FnOnce(&mut Ui),
+    body: impl FnOnce(&mut Ui),
+) {
+    let id = ui.make_persistent_id(id_salt);
+    let mut state =
+        egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, default_open);
+    if let Some(open) = force {
+        state.set_open(open);
+    }
+    state.show_header(ui, |ui| header(ui)).body(|ui| body(ui));
+}
+
+/// A fixed-width cell for an [`expandable_row`] header (or any aligned column row):
+/// allocates exactly `width` and renders `content` left-aligned + clipped, so stacked
+/// rows line up into columns without an egui::Grid (which can't host an inline
+/// expanding body). Pair several for a configurable-column row.
+pub fn row_cell(ui: &mut Ui, width: f32, content: impl FnOnce(&mut Ui)) {
+    ui.allocate_ui_with_layout(
+        Vec2::new(width, ui.spacing().interact_size.y),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.set_clip_rect(ui.max_rect());
+            content(ui);
+        },
+    );
+}
+
 /// State for a [`lockable_gate`] — kept per-section in GuiState, IN MEMORY ONLY
 /// (never persisted), so an app restart re-locks everything.
 #[derive(Debug, Default, Clone)]
