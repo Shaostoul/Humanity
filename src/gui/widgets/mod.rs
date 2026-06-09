@@ -602,6 +602,7 @@ fn container_node(
     clicked: &mut Option<String>,
     default_open: bool,
     force: Option<bool>,
+    inline: &mut dyn FnMut(&mut Ui, &str),
 ) {
     if node.children.is_empty() {
         ui.horizontal(|ui| {
@@ -619,6 +620,14 @@ fn container_node(
             }
             tree_detail(ui, theme, &node.detail);
         });
+        // Inline EXPAND-IN-PLACE body (operator 2026-06-08: "click an item row to
+        // expand in place ... instead of a popup/top detail"). When this leaf is the
+        // selected one, render its detail card directly under the row, indented so it
+        // visually belongs to the row above. `inline` is a no-op for trees that don't
+        // use it (e.g. the plain `tree_list`).
+        if !node.id.is_empty() && selected == node.id {
+            ui.indent(("inline_body", &node.id), |ui| inline(ui, &node.id));
+        }
     } else {
         let id = ui.make_persistent_id("tree_node");
         let mut cs =
@@ -649,7 +658,7 @@ fn container_node(
             .body(|ui| {
                 for (j, child) in node.children.iter().enumerate() {
                     ui.push_id(j, |ui| {
-                        container_node(ui, theme, child, selected, clicked, default_open, force)
+                        container_node(ui, theme, child, selected, clicked, default_open, force, inline)
                     });
                 }
             });
@@ -674,7 +683,7 @@ fn paint_swatch(ui: &mut Ui, color: Option<Color32>) {
 /// root, which is how Real and Sim stay structurally separate (different pages, same
 /// widget). `selected` highlights the current selection.
 pub fn tree_list(ui: &mut Ui, theme: &Theme, roots: &[TreeNode], selected: &str) -> Option<String> {
-    tree_list_ex(ui, theme, roots, selected, true, None)
+    tree_list_ex(ui, theme, roots, selected, true, None, &mut |_, _| {})
 }
 
 /// [`tree_list`] with explicit collapse control: `default_open` sets the initial
@@ -689,11 +698,14 @@ pub fn tree_list_ex(
     selected: &str,
     default_open: bool,
     force: Option<bool>,
+    // Renders the inline expand-in-place body for the SELECTED leaf (called with its
+    // id). Pass `&mut |_, _| {}` for a plain tree with no inline detail.
+    inline: &mut dyn FnMut(&mut Ui, &str),
 ) -> Option<String> {
     let mut clicked = None;
     for (i, node) in roots.iter().enumerate() {
         ui.push_id(i, |ui| {
-            container_node(ui, theme, node, selected, &mut clicked, default_open, force)
+            container_node(ui, theme, node, selected, &mut clicked, default_open, force, inline)
         });
     }
     clicked

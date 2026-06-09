@@ -177,6 +177,128 @@ fn kind_color(theme: &Theme, kind: &str) -> egui::Color32 {
     }
 }
 
+/// Quick-action outputs from the inline item card. The card only borrows an item
+/// SNAPSHOT (so it can't touch GuiState mid-render), so it records what the player
+/// asked for here and the caller applies it to GuiState after the tree renders.
+#[derive(Default)]
+struct ItemCardActions {
+    eat: Option<String>,
+    drink: Option<String>,
+    plant: Option<String>,
+    equip: bool,
+    drop: bool,
+}
+
+/// The EXPAND-IN-PLACE card for one inventory item (operator 2026-06-08: "click an
+/// item row to expand in place — picture/3d + full details over rows — instead of a
+/// popup/top detail"). Rendered under the selected row by the places/backpack tree's
+/// inline renderer: a colored placeholder image tile (the universal widget, swatch by
+/// item id) + category badge + a details grid + description + quick actions. Records
+/// the chosen action into `acts`; the caller bridges it into GuiState.
+fn draw_item_card(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    item: &crate::gui::GuiItemSlot,
+    acts: &mut ItemCardActions,
+) {
+    let details = lookup_item_details(&item.item_id);
+    ui.add_space(theme.spacing_xs);
+    ui.horizontal_top(|ui| {
+        // Colored placeholder image / 3D-model stand-in (stable colour per item id).
+        let glyph = item
+            .name
+            .chars()
+            .next()
+            .map(|c| c.to_uppercase().to_string())
+            .unwrap_or_default();
+        widgets::placeholder_tile(ui, theme, widgets::swatch_color(&item.item_id), 64.0, &glyph);
+        ui.add_space(theme.spacing_sm);
+        ui.vertical(|ui| {
+            ui.label(
+                RichText::new(&item.name)
+                    .size(theme.font_size_heading)
+                    .strong()
+                    .color(theme.accent()),
+            );
+            if let Some(d) = &details {
+                // Category badge.
+                egui::Frame::none()
+                    .fill(category_color(&d.category))
+                    .rounding(Rounding::same(3))
+                    .inner_margin(Vec2::new(6.0, 2.0))
+                    .show(ui, |ui| {
+                        ui.label(
+                            RichText::new(&d.category)
+                                .size(theme.font_size_small)
+                                .color(Color32::WHITE),
+                        );
+                    });
+            }
+        });
+    });
+    ui.add_space(theme.spacing_xs);
+    // Details grid.
+    widgets::card(ui, theme, |ui| {
+        widgets::detail_row(ui, theme, "ID", &item.item_id);
+        widgets::detail_row(ui, theme, "Quantity", &item.quantity.to_string());
+        if let Some(d) = &details {
+            widgets::detail_row(ui, theme, "Category", &d.category);
+            widgets::detail_row(ui, theme, "Subcategory", &d.subcategory);
+            widgets::detail_row(ui, theme, "Weight", &format!("{:.2} kg", d.weight_kg));
+            widgets::detail_row(ui, theme, "Stack Size", &d.stack_size.to_string());
+            widgets::detail_row(ui, theme, "Material", &d.base_material);
+            if d.durability > 0 {
+                widgets::detail_row(ui, theme, "Durability", &d.durability.to_string());
+            }
+        }
+    });
+    if let Some(d) = &details {
+        if !d.description.is_empty() {
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new(&d.description)
+                    .color(theme.text_secondary())
+                    .size(theme.font_size_small),
+            );
+        }
+    }
+    ui.add_space(theme.spacing_sm);
+    // Quick actions — Eat (food) / Drink (liquid) / Plant (seed) / Use, then Equip +
+    // Drop. Compact buttons so the row reads cleanly under the item.
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        let is_drink = details
+            .as_ref()
+            .map(|d| d.subcategory == "drink" || d.subcategory == "liquid")
+            .unwrap_or(false)
+            || item.item_id.starts_with("water_");
+        let is_food = details.as_ref().map(|d| d.category == "food").unwrap_or(false) && !is_drink;
+        let is_seed = details.as_ref().map(|d| d.subcategory == "seed").unwrap_or(false)
+            || item.item_id.starts_with("seed_");
+        if is_drink {
+            if widgets::compact_button(ui, theme, "Drink", widgets::ButtonVariant::Primary) {
+                acts.drink = Some(item.item_id.clone());
+            }
+        } else if is_food {
+            if widgets::compact_button(ui, theme, "Eat", widgets::ButtonVariant::Primary) {
+                acts.eat = Some(item.item_id.clone());
+            }
+        } else if is_seed {
+            if widgets::compact_button(ui, theme, "Plant", widgets::ButtonVariant::Primary) {
+                acts.plant = Some(item.item_id.clone());
+            }
+        } else {
+            let _ = widgets::compact_button(ui, theme, "Use", widgets::ButtonVariant::Secondary);
+        }
+        if widgets::compact_button(ui, theme, "Equip", widgets::ButtonVariant::Secondary) {
+            acts.equip = true;
+        }
+        if widgets::compact_button(ui, theme, "Drop", widgets::ButtonVariant::Danger) {
+            acts.drop = true;
+        }
+    });
+}
+
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Calculate carry weight from inventory items + populate equipped slots from
     // the loaded `data/inventory/equipment_slots.json` (lazily — guards against
@@ -201,15 +323,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         }
     });
 
-    // Right side panel: item detail
-    let mut action_drop = false;
-    let mut action_equip = false;
-    // Set inside the panel/central closures (which borrow `state`); applied after
-    // so we can mutate GuiState. action_eat/action_plant come from the detail panel;
-    // the crop actions come from the Garden section in the central panel.
-    let mut action_eat: Option<String> = None;
-    let mut action_drink: Option<String> = None;
-    let mut action_plant: Option<String> = None;
+    // The selected item's inline expand-in-place card records its quick action here
+    // (Eat/Drink/Plant/Equip/Drop); applied to GuiState after the panel closes (the
+    // card only borrows an inventory snapshot, never GuiState mid-render).
+    let mut item_acts = ItemCardActions::default();
+    // Crop actions come from the Garden section in the central panel; applied after.
     let mut action_water_crop: Option<u64> = None;
     let mut action_harvest_crop: Option<u64> = None;
     let mut action_dev_grow = false;
@@ -233,149 +351,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
         ScrollArea::vertical().show(ui, |ui| {
-            // Selected inventory item -> its detail card + actions (crop/tower
-            // detail is gone; the Garden TABLE below shows that data inline).
-            if let Some(idx) = state.selected_slot {
-                    if let Some(Some(item)) = state.inventory_items.get(idx) {
-                        ui.label(RichText::new(&item.name).size(theme.font_size_title).color(theme.accent()));
-                        ui.add_space(theme.spacing_xs);
-
-                        // Look up full item details
-                        if let Some(details) = lookup_item_details(&item.item_id) {
-                            // Category badge
-                            let cat_col = category_color(&details.category);
-                            egui::Frame::none()
-                                .fill(cat_col)
-                                .rounding(Rounding::same(3))
-                                .inner_margin(Vec2::new(6.0, 2.0))
-                                .show(ui, |ui| {
-                                    ui.label(RichText::new(&details.category).size(theme.font_size_small).color(Color32::WHITE));
-                                });
-
-                            ui.add_space(theme.spacing_sm);
-
-                            widgets::card(ui, theme, |ui| {
-                                crate::gui::widgets::detail_row(ui, theme, "ID", &item.item_id);
-                                crate::gui::widgets::detail_row(ui, theme, "Quantity", &item.quantity.to_string());
-                                crate::gui::widgets::detail_row(ui, theme, "Category", &details.category);
-                                crate::gui::widgets::detail_row(ui, theme, "Subcategory", &details.subcategory);
-                                crate::gui::widgets::detail_row(ui, theme, "Weight", &format!("{:.2} kg", details.weight_kg));
-                                crate::gui::widgets::detail_row(ui, theme, "Stack Size", &details.stack_size.to_string());
-                                crate::gui::widgets::detail_row(ui, theme, "Material", &details.base_material);
-                                if details.durability > 0 {
-                                    crate::gui::widgets::detail_row(ui, theme, "Durability", &details.durability.to_string());
-                                }
-                            });
-
-                            // Description
-                            if !details.description.is_empty() {
-                                ui.add_space(theme.spacing_xs);
-                                ui.label(RichText::new(&details.description).color(theme.text_secondary()).size(theme.font_size_small));
-                            }
-                        } else {
-                            widgets::card(ui, theme, |ui| {
-                                crate::gui::widgets::detail_row(ui, theme, "ID", &item.item_id);
-                                crate::gui::widgets::detail_row(ui, theme, "Quantity", &item.quantity.to_string());
-                            });
-                        }
-
-                        ui.add_space(theme.spacing_md);
-
-                        // Quick actions
-                        ui.label(RichText::new("Actions").size(theme.font_size_body).color(theme.text_secondary()));
-                        ui.add_space(theme.spacing_xs);
-                        ui.horizontal(|ui| {
-                            // Food items get a real "Eat" action (drives the nutrition
-                            // loop), seeds get "Plant" (drives the gardening loop); all
-                            // else keeps the placeholder "Use".
-                            let details = lookup_item_details(&item.item_id);
-                            let is_drink = details
-                                .as_ref()
-                                .map(|d| d.subcategory == "drink" || d.subcategory == "liquid")
-                                .unwrap_or(false)
-                                || item.item_id.starts_with("water_");
-                            // Drinks are category "food" too, so check drink FIRST.
-                            let is_food = details
-                                .as_ref()
-                                .map(|d| d.category == "food")
-                                .unwrap_or(false)
-                                && !is_drink;
-                            let is_seed = details
-                                .as_ref()
-                                .map(|d| d.subcategory == "seed")
-                                .unwrap_or(false)
-                                || item.item_id.starts_with("seed_");
-                            if is_drink {
-                                if widgets::primary_button(ui, theme, "Drink") {
-                                    action_drink = Some(item.item_id.clone());
-                                }
-                            } else if is_food {
-                                if widgets::primary_button(ui, theme, "Eat") {
-                                    action_eat = Some(item.item_id.clone());
-                                }
-                            } else if is_seed {
-                                if widgets::primary_button(ui, theme, "Plant") {
-                                    action_plant = Some(item.item_id.clone());
-                                }
-                            } else if widgets::primary_button(ui, theme, "Use") {
-                                // Placeholder for non-food/non-seed/non-drink use.
-                            }
-                            if widgets::secondary_button(ui, theme, "Equip") {
-                                action_equip = true;
-                            }
-                            if widgets::danger_button(ui, theme, "Drop") {
-                                action_drop = true;
-                            }
-                        });
-                    } else {
-                        ui.label(RichText::new("Empty Slot").size(theme.font_size_heading).color(theme.text_muted()));
-                        ui.add_space(theme.spacing_sm);
-                        ui.label(RichText::new("Select an item to view details.").color(theme.text_muted()));
-                    }
-                    }
-
-    // Handle drop action
-    if action_drop {
-        if let Some(idx) = state.selected_slot {
-            if idx < state.inventory_items.len() {
-                state.inventory_items[idx] = None;
-                state.selected_slot = None;
-                with_state(|ps| ps.initialized = false); // recalc weight
-            }
-        }
-    }
-
-    // Handle equip action (placeholder: just note the equipped item)
-    if action_equip {
-        if let Some(idx) = state.selected_slot {
-            if let Some(Some(item)) = state.inventory_items.get(idx) {
-                let item_name = item.name.clone();
-                with_state(|ps| {
-                    // Try to equip to first empty slot
-                    for slot in &mut ps.equipped {
-                        if slot.1.is_none() {
-                            slot.1 = Some(item_name.clone());
-                            break;
-                        }
-                    }
-                });
-            }
-        }
-    }
-
-    // Handle eat action — bridge to FoodSystem via GuiState (the main loop forwards
-    // pending_consume_item into the consume_request DataStore channel before the tick).
-    if let Some(item_id) = action_eat {
-        state.pending_consume_item = Some(item_id);
-    }
-    // Handle drink action — bridge to FoodSystem (restores hydration).
-    if let Some(item_id) = action_drink {
-        state.pending_drink_item = Some(item_id);
-    }
-    // Handle plant action — bridge to FarmingSystem (consumes the seed, spawns a crop).
-    if let Some(seed_id) = action_plant {
-        state.pending_plant_seed = Some(seed_id);
-    }
             ui.label(RichText::new("Inventory").size(theme.font_size_title).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
 
@@ -664,6 +639,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 let selected_str =
                     state.selected_slot.map(|i| i.to_string()).unwrap_or_default();
 
+                // Inline expand-in-place card for the SELECTED item, rendered by the
+                // tree directly under that item's row (operator 2026-06-08: replaces
+                // the old top-of-panel detail). The card only reads an inventory
+                // SNAPSHOT, recording the chosen action into `item_acts` (applied to
+                // GuiState after the panel) so it never borrows GuiState mid-render.
+                let inv_snapshot = state.inventory_items.clone();
+                let mut inline_card = |ui: &mut egui::Ui, id: &str| {
+                    if let Ok(idx) = id.parse::<usize>() {
+                        if let Some(Some(it)) = inv_snapshot.get(idx) {
+                            draw_item_card(ui, theme, it, &mut item_acts);
+                        }
+                    }
+                };
+
                 // Entity tree when we have the spine; else flat backpack.
                 let clicked = if !state.places.is_empty() {
                     let entities = state.places.clone();
@@ -671,7 +660,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .iter()
                         .map(|e| place_to_tree(theme, e, &item_nodes))
                         .collect();
-                    widgets::tree_list_ex(ui, theme, &trees, &selected_str, tree_default_open, tree_force)
+                    widgets::tree_list_ex(ui, theme, &trees, &selected_str, tree_default_open, tree_force, &mut inline_card)
                 } else if item_nodes.is_empty() {
                     ui.label(
                         RichText::new("Empty, mine, craft, or dev-stock to fill it.")
@@ -679,7 +668,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     );
                     None
                 } else {
-                    widgets::tree_list_ex(ui, theme, &item_nodes, &selected_str, tree_default_open, tree_force)
+                    widgets::tree_list_ex(ui, theme, &item_nodes, &selected_str, tree_default_open, tree_force, &mut inline_card)
                 };
 
                 if let Some(clicked) = clicked {
@@ -1187,6 +1176,44 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 } // ── end Mining ──
         }); // close the single-panel ScrollArea
         }); // close the single CentralPanel
+
+    // Apply the inline item card's quick action (set under the selected item row,
+    // inside the panel) to GuiState now that the panel — and the snapshot-borrowing
+    // card closure — are done. Drop clears the slot; Equip fills the first free
+    // equipment slot; Eat/Drink/Plant bridge into the Food/Farming systems.
+    if item_acts.drop {
+        if let Some(idx) = state.selected_slot {
+            if idx < state.inventory_items.len() {
+                state.inventory_items[idx] = None;
+                state.selected_slot = None;
+                with_state(|ps| ps.initialized = false); // recalc weight
+            }
+        }
+    }
+    if item_acts.equip {
+        if let Some(idx) = state.selected_slot {
+            if let Some(Some(item)) = state.inventory_items.get(idx) {
+                let item_name = item.name.clone();
+                with_state(|ps| {
+                    for slot in &mut ps.equipped {
+                        if slot.1.is_none() {
+                            slot.1 = Some(item_name.clone());
+                            break;
+                        }
+                    }
+                });
+            }
+        }
+    }
+    if let Some(item_id) = item_acts.eat {
+        state.pending_consume_item = Some(item_id);
+    }
+    if let Some(item_id) = item_acts.drink {
+        state.pending_drink_item = Some(item_id);
+    }
+    if let Some(seed_id) = item_acts.plant {
+        state.pending_plant_seed = Some(seed_id);
+    }
 
     // Apply the Garden actions (set inside the central panel) to GuiState; the main
     // loop bridges these into FarmingSystem's command channels before the next tick.
