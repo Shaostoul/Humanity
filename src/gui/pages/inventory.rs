@@ -229,121 +229,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
         ScrollArea::vertical().show(ui, |ui| {
-    if state.garden_selection.is_some() || state.selected_slot.is_some() {
-                    let garden_sel = state.garden_selection.clone();
-                    if let Some(bits) = garden_sel
-                        .as_deref()
-                        .and_then(|s| s.strip_prefix("crop:"))
-                        .and_then(|s| s.parse::<u64>().ok())
-                    {
-                        // ── CROP detail + actions ──
-                        if let Some(crop) = state.crops.iter().find(|c| c.entity_bits == bits) {
-                            let name_col = if crop.dead {
-                                theme.danger()
-                            } else if crop.mature {
-                                theme.accent()
-                            } else {
-                                theme.text_primary()
-                            };
-                            ui.label(RichText::new(&crop.name).size(theme.font_size_title).color(name_col));
-                            let stage_txt = if crop.dead {
-                                "dead"
-                            } else if crop.mature {
-                                "ready to harvest"
-                            } else {
-                                crop.stage.as_str()
-                            };
-                            ui.add_space(theme.spacing_xs);
-                            ui.label(RichText::new(stage_txt).size(theme.font_size_small).color(theme.text_secondary()));
-                            ui.add_space(theme.spacing_xs);
-                            ui.add(egui::ProgressBar::new(crop.progress.clamp(0.0, 1.0)).fill(theme.accent()));
-                            ui.add_space(theme.spacing_sm);
-                            widgets::card(ui, theme, |ui| {
-                                widgets::detail_row(ui, theme, "Growth", &format!("{:.0}%", crop.progress * 100.0));
-                                widgets::detail_row(ui, theme, "Water", &format!("{:.0}%", crop.water * 100.0));
-                                widgets::detail_row(ui, theme, "Health", &format!("{:.0}%", crop.health));
-                                widgets::detail_row(ui, theme, "N-P-K demand", &format!("{:.2} · {:.2} · {:.2}", crop.n, crop.p, crop.k));
-                                widgets::detail_row(ui, theme, "Water need", &format!("{:.1} L/day", crop.water_per_day));
-                                widgets::detail_row(ui, theme, "Temp range", &format!("{:.0}-{:.0}°C", crop.temp_min, crop.temp_max));
-                            });
-                            ui.add_space(theme.spacing_md);
-                            ui.label(RichText::new("Actions").size(theme.font_size_body).color(theme.text_secondary()));
-                            ui.add_space(theme.spacing_xs);
-                            ui.horizontal_wrapped(|ui| {
-                                if crop.mature && widgets::primary_button(ui, theme, "Harvest") {
-                                    action_harvest_crop = Some(crop.entity_bits);
-                                }
-                                if !crop.dead && widgets::secondary_button(ui, theme, "Water") {
-                                    action_water_crop = Some(crop.entity_bits);
-                                }
-                                if !crop.dead && widgets::secondary_button(ui, theme, "Fertilize") {
-                                    action_fertilize_crop = Some(crop.entity_bits);
-                                }
-                            });
-                        } else {
-                            ui.label(RichText::new("This crop is gone (harvested or removed).").color(theme.text_muted()));
-                        }
-                    } else if let Some(tid) = garden_sel
-                        .as_deref()
-                        .and_then(|s| s.strip_prefix("tower:"))
-                        .map(|s| s.to_string())
-                    {
-                        // ── TOWER detail + actions (plant it, dev-grow) ──
-                        if let Some((ti, tower)) =
-                            state.tower_configs.iter().enumerate().find(|(_, t)| t.id == tid)
-                        {
-                            ui.label(RichText::new(&tower.name).size(theme.font_size_title).color(theme.accent()));
-                            if !tower.purpose.is_empty() {
-                                ui.add_space(theme.spacing_xs);
-                                ui.label(RichText::new(&tower.purpose).size(theme.font_size_small).color(theme.text_secondary()));
-                            }
-                            let planted = state.crops.iter().filter(|c| c.tower_id.as_deref() == Some(tid.as_str())).count();
-                            let ready = state.crops.iter().filter(|c| c.tower_id.as_deref() == Some(tid.as_str()) && c.mature).count();
-                            ui.add_space(theme.spacing_sm);
-                            widgets::card(ui, theme, |ui| {
-                                widgets::detail_row(ui, theme, "Slots", &tower.slots.to_string());
-                                widgets::detail_row(ui, theme, "Varieties", &tower.plantings.len().to_string());
-                                widgets::detail_row(ui, theme, "Planted", &format!("{planted} ({ready} ready)"));
-                                if let Some(c) = state.tower_compat.get(ti) {
-                                    if c.water_per_day_total > 0.0 {
-                                        widgets::detail_row(ui, theme, "Water draw", &format!("{:.1} L/day", c.water_per_day_total));
-                                    }
-                                    if c.full_harvest_days > 0.0 {
-                                        widgets::detail_row(ui, theme, "Harvest", &format!("{:.0}-{:.0} days", c.first_harvest_days, c.full_harvest_days));
-                                    }
-                                }
-                            });
-                            if let Some(c) = state.tower_compat.get(ti) {
-                                if !c.conflicts.is_empty() {
-                                    ui.add_space(theme.spacing_xs);
-                                    for note in &c.conflicts {
-                                        ui.label(RichText::new(format!("⚠ {note}")).size(theme.font_size_small).color(theme.warning()));
-                                    }
-                                }
-                            }
-                            ui.add_space(theme.spacing_md);
-                            ui.label(RichText::new("Actions").size(theme.font_size_body).color(theme.text_secondary()));
-                            ui.add_space(theme.spacing_xs);
-                            ui.horizontal_wrapped(|ui| {
-                                let label = if planted > 0 { "Plant again" } else { "Plant this tower" };
-                                if widgets::primary_button(ui, theme, label) {
-                                    let ids: Vec<String> = tower
-                                        .plantings
-                                        .iter()
-                                        .flat_map(|p| {
-                                            std::iter::repeat(p.plant.clone()).take(p.slots.max(1) as usize)
-                                        })
-                                        .collect();
-                                    action_plant_tower = Some((tower.id.clone(), ids));
-                                }
-                                if planted > 0 && widgets::secondary_button(ui, theme, "Dev: grow all") {
-                                    action_dev_grow = true;
-                                }
-                            });
-                        } else {
-                            ui.label(RichText::new("Tower not found.").color(theme.text_muted()));
-                        }
-                    } else if let Some(idx) = state.selected_slot {
+            // Selected inventory item -> its detail card + actions (crop/tower
+            // detail is gone; the Garden TABLE below shows that data inline).
+            if let Some(idx) = state.selected_slot {
                     if let Some(Some(item)) = state.inventory_items.get(idx) {
                         ui.label(RichText::new(&item.name).size(theme.font_size_title).color(theme.accent()));
                         ui.add_space(theme.spacing_xs);
@@ -441,7 +329,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.label(RichText::new("Select an item to view details.").color(theme.text_muted()));
                     }
                     }
-    }
 
     // Handle drop action
     if action_drop {
@@ -789,11 +676,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 }
 
-                // ── GARDEN tree: the towers (garden plots) and their growing crops,
-                //    in the LEFT nav with the rest of the inventory (operator
-                //    2026-06-08: the garden belongs on the left, not the central
-                //    panel). Select a tower or a crop and the right panel shows its
-                //    details + actions. "Dev: grow all" sits in the header. ──
+                // ── GARDEN: an aligned TABLE grouped by tower (operator 2026-06-08:
+                //    one panel, rows/columns spreadsheet design). Each tower is a
+                //    collapsible group with a Plant button + a crop table; the
+                //    "Dev: stock seeds" + "Dev: grow all" buttons sit in the header. ──
                 ui.add_space(theme.spacing_md);
                 ui.separator();
                 ui.add_space(theme.spacing_sm);
@@ -820,24 +706,99 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 });
                 ui.add_space(theme.spacing_xs);
-                let garden_sel_str = state.garden_selection.clone().unwrap_or_default();
-                let garden_nodes = garden_tree_nodes(theme, &state.tower_configs, &state.crops);
-                if garden_nodes.is_empty() {
+                // Garden as an aligned TABLE grouped by tower (operator 2026-06-08:
+                // rows/columns spreadsheet design, not a tree+detail). One collapsible
+                // group per tower (a Plant button in its body), each a compact egui::Grid
+                // with fixed columns; the growth bar is capped at theme.status_bar_width.
+                // Seed-planted crops fall under "Other crops".
+                if state.tower_configs.is_empty() && state.crops.is_empty() {
                     ui.label(
                         RichText::new("No garden plots yet. Add an aeroponic tower design at Home.")
                             .color(theme.text_muted()),
                     );
-                } else if let Some(gclicked) =
-                    widgets::tree_list_ex(ui, theme, &garden_nodes, &garden_sel_str, tree_default_open, tree_force)
-                {
-                    // Toggle the garden selection; clear the item selection (exclusive).
-                    state.garden_selection =
-                        if state.garden_selection.as_deref() == Some(gclicked.as_str()) {
-                            None
+                } else {
+                    // Group order: one per configured tower, then "Other crops" if any
+                    // seed-planted (tower-less) crops exist.
+                    let mut groups: Vec<(Option<String>, String)> = state
+                        .tower_configs
+                        .iter()
+                        .map(|t| (Some(t.id.clone()), t.name.clone()))
+                        .collect();
+                    if state.crops.iter().any(|c| c.tower_id.is_none()) {
+                        groups.push((None, "Other crops".to_string()));
+                    }
+                    for (gi, (tid, title)) in groups.iter().enumerate() {
+                        let crops: Vec<&crate::gui::GuiCrop> =
+                            state.crops.iter().filter(|c| &c.tower_id == tid).collect();
+                        let ready = crops.iter().filter(|c| c.mature).count();
+                        let header = if crops.is_empty() {
+                            format!("{}  (not planted)", title)
                         } else {
-                            Some(gclicked)
+                            format!("{}  ({}/{} ready)", title, ready, crops.len())
                         };
-                    state.selected_slot = None;
+                        // Resolve the tower's plant-id list up front (so the Plant button
+                        // doesn't borrow state inside the body closure).
+                        let plant_ids: Option<(String, Vec<String>)> = tid.as_ref().and_then(|id| {
+                            state.tower_configs.iter().find(|t| &t.id == id).map(|t| {
+                                let ids: Vec<String> = t
+                                    .plantings
+                                    .iter()
+                                    .flat_map(|p| {
+                                        std::iter::repeat(p.plant.clone()).take(p.slots.max(1) as usize)
+                                    })
+                                    .collect();
+                                (t.id.clone(), ids)
+                            })
+                        });
+                        let planted_label = if crops.is_empty() { "Plant this tower" } else { "Plant again" };
+                        egui::CollapsingHeader::new(RichText::new(header).strong().color(theme.accent()))
+                            .id_salt(("garden_grp", gi))
+                            .default_open(tree_default_open)
+                            .open(tree_force)
+                            .show(ui, |ui| {
+                                if let Some((tid, ids)) = &plant_ids {
+                                    if widgets::secondary_button(ui, theme, planted_label) {
+                                        action_plant_tower = Some((tid.clone(), ids.clone()));
+                                    }
+                                }
+                                if crops.is_empty() {
+                                    return;
+                                }
+                                egui::Grid::new(("garden_tbl", gi))
+                                    .striped(true)
+                                    .spacing([12.0, 4.0])
+                                    .show(ui, |ui| {
+                                        for h in ["Plant", "Stage", "Growth", "N·P·K", "Water/day", "Temp", "State", "Actions"] {
+                                            ui.label(RichText::new(h).size(theme.font_size_small).strong().color(theme.text_secondary()));
+                                        }
+                                        ui.end_row();
+                                        for crop in &crops {
+                                            let name_col = if crop.dead { theme.danger() } else if crop.mature { theme.accent() } else { theme.text_primary() };
+                                            ui.label(RichText::new(&crop.name).color(name_col));
+                                            let stage_txt = if crop.dead { "dead" } else if crop.mature { "ready" } else { crop.stage.as_str() };
+                                            ui.label(RichText::new(stage_txt).size(theme.font_size_small).color(theme.text_secondary()));
+                                            ui.add(egui::ProgressBar::new(crop.progress.clamp(0.0, 1.0)).fill(theme.accent()).desired_width(theme.status_bar_width));
+                                            ui.label(RichText::new(format!("{:.2}·{:.2}·{:.2}", crop.n, crop.p, crop.k)).size(theme.font_size_small).color(theme.text_secondary()));
+                                            ui.label(RichText::new(format!("{:.1} L", crop.water_per_day)).size(theme.font_size_small).color(theme.text_secondary()));
+                                            ui.label(RichText::new(format!("{:.0}-{:.0}°C", crop.temp_min, crop.temp_max)).size(theme.font_size_small).color(theme.text_secondary()));
+                                            let wcol = if crop.water < 0.2 { theme.danger() } else { theme.text_secondary() };
+                                            ui.label(RichText::new(format!("{:.0}% / {:.0}%", crop.water * 100.0, crop.health)).size(theme.font_size_small).color(wcol));
+                                            ui.horizontal(|ui| {
+                                                if crop.mature && widgets::primary_button(ui, theme, "Harvest") {
+                                                    action_harvest_crop = Some(crop.entity_bits);
+                                                }
+                                                if !crop.dead && widgets::secondary_button(ui, theme, "Water") {
+                                                    action_water_crop = Some(crop.entity_bits);
+                                                }
+                                                if !crop.dead && widgets::secondary_button(ui, theme, "Fertilize") {
+                                                    action_fertilize_crop = Some(crop.entity_bits);
+                                                }
+                                            });
+                                            ui.end_row();
+                                        }
+                                    });
+                            });
+                    }
                 }
                 // ── Mining: commission drones to fetch ore from finite asteroids. ──
                 ui.label(
@@ -1057,79 +1018,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
 }
 
-/// Build the GARDEN branch for the inventory left tree (operator 2026-06-08: the
-/// garden lives in the left nav with the inventory). One node per configured tower
-/// (a garden "plot", id `tower:<id>`) whose children are its growing crops (id
-/// `crop:<entity_bits>`); seed-planted crops fall under "Other crops". Selecting a
-/// node drives the right detail panel. Empty when there are no towers and no crops.
-fn garden_tree_nodes(
-    theme: &Theme,
-    towers: &[crate::gui::TowerConfig],
-    crops: &[crate::gui::GuiCrop],
-) -> Vec<widgets::TreeNode> {
-    let tower_color = kind_color(theme, "building");
-    let mut nodes: Vec<widgets::TreeNode> = Vec::new();
-    for t in towers {
-        let crop_nodes: Vec<widgets::TreeNode> = crops
-            .iter()
-            .filter(|c| c.tower_id.as_deref() == Some(t.id.as_str()))
-            .map(|c| crop_leaf(theme, c))
-            .collect();
-        let total = crop_nodes.len();
-        let ready = crops
-            .iter()
-            .filter(|c| c.tower_id.as_deref() == Some(t.id.as_str()) && c.mature)
-            .count();
-        nodes.push(widgets::TreeNode {
-            id: format!("tower:{}", t.id),
-            label: t.name.clone(),
-            detail: if total > 0 {
-                format!("{ready}/{total} ready")
-            } else {
-                "not planted".to_string()
-            },
-            color: Some(tower_color),
-            children: crop_nodes,
-        });
-    }
-    // Seed-planted crops (no tower) grouped under "Other crops".
-    let other: Vec<widgets::TreeNode> = crops
-        .iter()
-        .filter(|c| c.tower_id.is_none())
-        .map(|c| crop_leaf(theme, c))
-        .collect();
-    if !other.is_empty() {
-        let ready = crops.iter().filter(|c| c.tower_id.is_none() && c.mature).count();
-        nodes.push(widgets::TreeNode {
-            id: String::new(),
-            label: "Other crops".to_string(),
-            detail: format!("{}/{} ready", ready, other.len()),
-            color: Some(tower_color),
-            children: other,
-        });
-    }
-    nodes
-}
-
-/// One growing crop as a selectable tree leaf (id `crop:<entity_bits>`), coloured
-/// and labelled by its state (dead / ready / current stage).
-fn crop_leaf(theme: &Theme, c: &crate::gui::GuiCrop) -> widgets::TreeNode {
-    let color = if c.dead {
-        theme.danger()
-    } else if c.mature {
-        theme.accent()
-    } else {
-        kind_color(theme, "item")
-    };
-    let detail = if c.dead {
-        "dead".to_string()
-    } else if c.mature {
-        "ready".to_string()
-    } else {
-        c.stage.clone()
-    };
-    widgets::TreeNode::selectable(format!("crop:{}", c.entity_bits), c.name.clone(), detail)
-        .with_color(color)
-}
+// (garden_tree_nodes + crop_leaf removed in v0.402 — the garden is an aligned
+// TABLE now, not a tree, so the tree-node builders are no longer needed.)
 
 // detail_row moved to crate::gui::widgets::detail_row
