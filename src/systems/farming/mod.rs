@@ -363,6 +363,7 @@ impl System for FarmingSystem {
                             water_level: 1.0,
                             health: 100.0,
                             tower_id: None,
+                            tower_slot: None,
                         },));
                         log::info!("[Farming] planted {plant_id} (from {seed_id})");
                     }
@@ -385,7 +386,8 @@ impl System for FarmingSystem {
         if let Some((tower_id, plant_ids)) = plant_tower {
             let mut planted = 0u32;
             let mut skipped = 0u32;
-            for plant_id in plant_ids {
+            for (slot_idx, plant_id) in plant_ids.into_iter().enumerate() {
+                let slot_idx = slot_idx as u32;
                 let first_stage = plant_registry
                     .and_then(|reg| reg.get(&plant_id))
                     .map(|d| d.first_stage().to_string());
@@ -393,6 +395,29 @@ impl System for FarmingSystem {
                     Some(s) => s,
                     None => continue,
                 };
+                // SLOT FILL (v0.410): a tower has fixed slots. Skip if a LIVE crop
+                // already occupies this slot, so replanting is IDEMPOTENT (fills only
+                // empty / harvested / dead slots) instead of stacking a new set every
+                // time. Despawn any DEAD crop in the slot first so it gets refilled.
+                let mut occupied = false;
+                let mut dead_in_slot: Vec<hecs::Entity> = Vec::new();
+                for (e, c) in world.query::<&CropInstance>().iter() {
+                    if c.tower_id.as_deref() == Some(tower_id.as_str())
+                        && c.tower_slot == Some(slot_idx)
+                    {
+                        if c.growth_stage.as_str() == crate::ecs::components::STAGE_DEAD {
+                            dead_in_slot.push(e);
+                        } else {
+                            occupied = true;
+                        }
+                    }
+                }
+                if occupied {
+                    continue;
+                }
+                for e in dead_in_slot {
+                    let _ = world.despawn(e);
+                }
                 // Survival: consume one seed for this variety, skip if absent.
                 if !creative {
                     let seed_id = format!("seed_{plant_id}_0");
@@ -419,6 +444,7 @@ impl System for FarmingSystem {
                     water_level: 1.0,
                     health: 100.0,
                     tower_id: Some(tower_id.clone()),
+                    tower_slot: Some(slot_idx),
                 },));
                 planted += 1;
             }
@@ -877,6 +903,38 @@ mod gardening_tests {
         );
     }
 
+    /// Replanting a tower FILLS its fixed slots idempotently — it must NOT stack a
+    /// fresh set of crops each time (the v0.410 fix for the 33 -> 66 -> 99 bug).
+    #[test]
+    fn tower_replant_fills_slots_idempotently() {
+        let mut data = make_store();
+        data.insert("creative_mode", std::sync::Mutex::new(true));
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let _player = world.spawn((Inventory::new(16), Controllable));
+        let set_req = |data: &DataStore| {
+            *data
+                .get::<std::sync::Mutex<Option<(String, Vec<String>)>>>("plant_tower_request")
+                .unwrap()
+                .lock()
+                .unwrap() = Some(("nutrition".to_string(), vec!["tomato".to_string(), "lettuce".to_string()]));
+        };
+        set_req(&data);
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(world.query::<&CropInstance>().iter().count(), 2, "first plant fills 2 slots");
+        // Plant AGAIN: slots already occupied -> still 2 crops, not 4.
+        set_req(&data);
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.query::<&CropInstance>().iter().count(),
+            2,
+            "replant is idempotent (no stacking)"
+        );
+        let slots: Vec<Option<u32>> =
+            world.query::<&CropInstance>().iter().map(|(_, c)| c.tower_slot).collect();
+        assert!(slots.contains(&Some(0)) && slots.contains(&Some(1)), "slots 0 and 1 recorded");
+    }
+
     #[test]
     fn seed_and_harvest_id_mapping() {
         assert_eq!(plant_id_from_seed("seed_tomato_0").as_deref(), Some("tomato"));
@@ -913,6 +971,7 @@ mod gardening_tests {
             water_level: 0.5,
             health: 40.0,
             tower_id: None,
+            tower_slot: None,
         },));
 
         *data

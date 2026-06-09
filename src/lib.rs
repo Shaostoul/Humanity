@@ -2196,6 +2196,7 @@ mod native_app {
                                 mature,
                                 dead,
                                 tower_id: crop.tower_id.clone(),
+                                tower_slot: crop.tower_slot,
                                 n: def.map(|d| d.nutrient_n).unwrap_or(0.0),
                                 p: def.map(|d| d.nutrient_p).unwrap_or(0.0),
                                 k: def.map(|d| d.nutrient_k).unwrap_or(0.0),

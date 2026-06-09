@@ -431,6 +431,8 @@ pub struct GuiCrop {
     pub dead: bool,
     /// The tower this crop belongs to (its config id), if planted via a tower.
     pub tower_id: Option<String>,
+    /// Which slot of the tower this crop occupies (0-based), for the slot view.
+    pub tower_slot: Option<u32>,
     /// Plant-def reference data (from plants.csv) shown as Garden-table columns:
     /// relative nutrient demand (N, P, K), daily water need (L), and the
     /// tolerated temperature window (Celsius). 0 when the species is unknown.

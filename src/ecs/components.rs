@@ -297,6 +297,11 @@ pub struct CropInstance {
     /// are None; #[serde(default)] keeps pre-v0.389 saves loading.
     #[serde(default)]
     pub tower_id: Option<String>,
+    /// Which SLOT of the tower this crop occupies (0-based), if planted in a tower.
+    /// Lets "Plant this tower" FILL fixed slots (idempotent) instead of stacking new
+    /// crops on every replant (v0.410). Seed-planted crops are None.
+    #[serde(default)]
+    pub tower_slot: Option<u32>,
 }
 
 // ── Vehicles & Mechs ─────────────────────────────────────────
