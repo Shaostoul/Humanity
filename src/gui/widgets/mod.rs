@@ -802,6 +802,67 @@ pub fn placeholder_tile(ui: &mut Ui, theme: &Theme, color: Color32, size: f32, g
     }
 }
 
+/// A collapsible MAIN-SECTION header (operator 2026-06-08: "every section
+/// collapsible + more defined, with the standard Collapse/Expand/Start-collapsed
+/// on ALL nested lists"). Draws `title` as a heading with a painted triangle
+/// (▶ collapsed / ▼ open — a SHAPE, not a font glyph, so it never renders as
+/// tofu) and returns whether the section is OPEN. The caller guards its body
+/// with `if section_header(..) { ...body... }`, so the body stays in the caller's
+/// scope — no body closure, no re-borrowing of the page's `action_*` locals. The
+/// open-state persists per `id_salt` in egui memory; `force` wires the global
+/// Collapse-all / Expand-all / Start-collapsed controls (pass the page's
+/// `tree_force`) so one control set drives every section + nested tree at once.
+/// (Distinct from [`section_header`] — a non-collapsible heading — and from
+/// [`collapsible_section`], which takes a body CLOSURE; this one is closure-free
+/// and returns the open-state so the caller guards its own body with an `if`.)
+pub fn section_disclosure(
+    ui: &mut Ui,
+    theme: &Theme,
+    id_salt: impl std::hash::Hash,
+    title: &str,
+    force: Option<bool>,
+) -> bool {
+    let id = ui.make_persistent_id(id_salt);
+    // Persisted open-state (defaults open). A global Collapse/Expand click
+    // (`force`) overrides it this frame AND is written back so it sticks.
+    let mut open = ui.data_mut(|d| *d.get_temp_mut_or(id, true));
+    if let Some(f) = force {
+        open = f;
+    }
+    let sz = theme.font_size_heading;
+    let row = ui.horizontal(|ui| {
+        let (tri_rect, _) = ui.allocate_exact_size(Vec2::splat(sz), Sense::hover());
+        // A small triangle pointing right (collapsed) or down (open). Painted as
+        // a filled polygon so glyph-font coverage is irrelevant.
+        let ctr = tri_rect.center();
+        let r = sz * 0.28;
+        let pts = if open {
+            vec![
+                ctr + Vec2::new(-r, -r * 0.6),
+                ctr + Vec2::new(r, -r * 0.6),
+                ctr + Vec2::new(0.0, r * 0.8),
+            ]
+        } else {
+            vec![
+                ctr + Vec2::new(-r * 0.6, -r),
+                ctr + Vec2::new(-r * 0.6, r),
+                ctr + Vec2::new(r * 0.8, 0.0),
+            ]
+        };
+        ui.painter().add(egui::Shape::convex_polygon(pts, theme.text_secondary(), Stroke::NONE));
+        ui.label(RichText::new(title).size(sz).color(theme.text_primary()));
+    });
+    let resp = row.response.interact(Sense::click());
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    if resp.clicked() {
+        open = !open;
+    }
+    ui.data_mut(|d| d.insert_temp(id, open));
+    open
+}
+
 /// State for a [`lockable_gate`] — kept per-section in GuiState, IN MEMORY ONLY
 /// (never persisted), so an app restart re-locks everything.
 #[derive(Debug, Default, Clone)]

@@ -394,6 +394,35 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             );
             ui.add_space(theme.spacing_sm);
 
+            // Collapse/Expand/Start-collapsed controls (operator 2026-06-08): ONE
+            // control set driving every collapsible SECTION below + their nested
+            // trees. Rendered up top so `tree_force` is set before any section reads
+            // it (the buttons mutate it THIS frame; sections below pick it up).
+            let mut tree_force: Option<bool> = None;
+            ui.horizontal(|ui| {
+                if widgets::secondary_button(ui, theme, "Collapse all") {
+                    tree_force = Some(false);
+                }
+                if widgets::secondary_button(ui, theme, "Expand all") {
+                    tree_force = Some(true);
+                }
+                // "Start collapsed" as a proper bordered button — the whole area is
+                // clickable; .active() renders the ON state like a pressed button.
+                if widgets::Button::new("Start collapsed")
+                    .active(state.trees_start_collapsed)
+                    .show(ui, theme)
+                {
+                    state.trees_start_collapsed = !state.trees_start_collapsed;
+                    tree_force = Some(!state.trees_start_collapsed);
+                }
+            });
+            let tree_default_open = !state.trees_start_collapsed;
+            ui.add_space(theme.spacing_sm);
+
+            // ── Status (collapsible) — the live player vitals. Body renders only
+            //    when the section is open; closes just before the Equipment divider. ──
+            if widgets::section_disclosure(ui, theme, ("inv_sec", "status"), "Status", tree_force) {
+
             // Weight indicator
             let (carry_weight, max_weight) = with_state(|ps| (ps.carry_weight, ps.max_carry_weight));
             let weight_frac = if max_weight > 0.0 { carry_weight / max_weight } else { 0.0 };
@@ -545,10 +574,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
             }
 
+            } // ── end Status ──
+
             widgets::rgb_section_divider(ui, theme);
 
-                // Equipment section
-                ui.label(RichText::new("Equipment").size(theme.font_size_heading).color(theme.text_primary()));
+                // ── Equipment (collapsible) — closes before the You & places divider ──
+                if widgets::section_disclosure(ui, theme, ("inv_sec", "equipment"), "Equipment", tree_force) {
                 ui.add_space(theme.spacing_xs);
 
                 ui.horizontal_wrapped(|ui| {
@@ -596,33 +627,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     });
                 });
 
-                widgets::rgb_section_divider(ui, theme);
+                } // ── end Equipment ──
 
-                // Tree controls (operator 2026-06-08): collapse/expand ALL branches +
-                // a "Start collapsed" default, driving BOTH the places tree and the
-                // Garden tree below (one control set for the inventory's nested lists).
-                let mut tree_force: Option<bool> = None;
-                ui.horizontal(|ui| {
-                    if widgets::secondary_button(ui, theme, "Collapse all") {
-                        tree_force = Some(false);
-                    }
-                    if widgets::secondary_button(ui, theme, "Expand all") {
-                        tree_force = Some(true);
-                    }
-                    // "Start collapsed" as a proper bordered button (operator
-                    // 2026-06-08: the whole button area is clickable, not just a tiny
-                    // checkbox); .active() renders the ON state like a pressed button.
-                    if widgets::Button::new("Start collapsed")
-                        .active(state.trees_start_collapsed)
-                        .show(ui, theme)
-                    {
-                        state.trees_start_collapsed = !state.trees_start_collapsed;
-                        // Apply the new default to the already-rendered trees this frame.
-                        tree_force = Some(!state.trees_start_collapsed);
-                    }
-                });
-                let tree_default_open = !state.trees_start_collapsed;
-                ui.add_space(theme.spacing_xs);
+                widgets::rgb_section_divider(ui, theme);
 
                 // Your entity / container tree — top-level entities (You, your
                 // home, a vehicle, …), each a container with its own contents,
@@ -630,8 +637,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // spine is data-driven (data/places/seed.json → state.places); the
                 // live backpack contents inject at the node marked kind:"backpack".
                 // No place data → flat backpack fallback.
+                // ── You & places (collapsible) — closes before the Garden divider ──
                 let header = if state.places.is_empty() { "Backpack" } else { "You & your places" };
-                ui.label(RichText::new(header).size(theme.font_size_heading).color(theme.text_primary()));
+                if widgets::section_disclosure(ui, theme, ("inv_sec", "places"), header, tree_force) {
                 ui.add_space(theme.spacing_xs);
 
                 // Live backpack contents as selectable leaves (id = slot index → the
@@ -685,12 +693,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 }
 
-                // ── GARDEN: an aligned TABLE grouped by tower (operator 2026-06-08:
-                //    one panel, rows/columns spreadsheet design). Each tower is a
-                //    collapsible group with a Plant button + a crop table; the
-                //    "Dev: stock seeds" + "Dev: grow all" buttons sit in the header. ──
+                } // ── end You & places ──
+
+                // ── GARDEN (collapsible) — numbered SLOT rows per tower; click a
+                //    slot to expand its multi-row plant card. The Dev seed/grow
+                //    buttons sit in the body. Closes before the Mining divider. ──
                 widgets::rgb_section_divider(ui, theme);
-                ui.label(RichText::new("Garden").size(theme.font_size_heading).color(theme.text_primary()));
+                if widgets::section_disclosure(ui, theme, ("inv_sec", "garden"), "Garden", tree_force) {
                 ui.horizontal_wrapped(|ui| {
                     // Dev: grant the starter seed set (one of each tower variety), so
                     // survival-mode planting is testable now. Creative ignores seeds.
@@ -1035,13 +1044,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         );
                     }
                 }
+                } // ── end Garden ──
+
                 widgets::rgb_section_divider(ui, theme);
-                // ── Mining: commission drones to fetch ore from finite asteroids. ──
-                ui.label(
-                    RichText::new("Mining")
-                        .size(theme.font_size_heading)
-                        .color(theme.text_primary()),
-                );
+                // ── Mining (collapsible) — commission drones to fetch ore from
+                //    finite asteroids. Closes before the panel's scroll area. ──
+                if widgets::section_disclosure(ui, theme, ("inv_sec", "mining"), "Mining", tree_force) {
                 ui.add_space(theme.spacing_xs);
                 if state.asteroids.is_empty() {
                     ui.label(RichText::new("No asteroids in range.").color(theme.text_muted()));
@@ -1176,6 +1184,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.add(egui::ProgressBar::new(drone.phase_progress.clamp(0.0, 1.0)).fill(theme.accent()).desired_width(theme.status_bar_width).desired_height(theme.status_bar_height));
                     }
                 }
+                } // ── end Mining ──
         }); // close the single-panel ScrollArea
         }); // close the single CentralPanel
 
