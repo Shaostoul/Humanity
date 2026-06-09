@@ -766,7 +766,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 }
                                 egui::Grid::new(("garden_tbl", gi))
                                     .striped(true)
-                                    .spacing([12.0, 4.0])
+                                    .spacing([10.0, 3.0])
                                     .show(ui, |ui| {
                                         for h in ["Plant", "Stage", "Growth", "N·P·K", "Water/day", "Temp", "State", "Actions"] {
                                             ui.label(RichText::new(h).size(theme.font_size_small).strong().color(theme.text_secondary()));
@@ -777,20 +777,21 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             ui.label(RichText::new(&crop.name).color(name_col));
                                             let stage_txt = if crop.dead { "dead" } else if crop.mature { "ready" } else { crop.stage.as_str() };
                                             ui.label(RichText::new(stage_txt).size(theme.font_size_small).color(theme.text_secondary()));
-                                            ui.add(egui::ProgressBar::new(crop.progress.clamp(0.0, 1.0)).fill(theme.accent()).desired_width(theme.status_bar_width));
+                                            ui.add(egui::ProgressBar::new(crop.progress.clamp(0.0, 1.0)).fill(theme.accent()).desired_width(theme.status_bar_width).desired_height(theme.status_bar_height));
                                             ui.label(RichText::new(format!("{:.2}·{:.2}·{:.2}", crop.n, crop.p, crop.k)).size(theme.font_size_small).color(theme.text_secondary()));
                                             ui.label(RichText::new(format!("{:.1} L", crop.water_per_day)).size(theme.font_size_small).color(theme.text_secondary()));
                                             ui.label(RichText::new(format!("{:.0}-{:.0}°C", crop.temp_min, crop.temp_max)).size(theme.font_size_small).color(theme.text_secondary()));
                                             let wcol = if crop.water < 0.2 { theme.danger() } else { theme.text_secondary() };
                                             ui.label(RichText::new(format!("{:.0}% / {:.0}%", crop.water * 100.0, crop.health)).size(theme.font_size_small).color(wcol));
                                             ui.horizontal(|ui| {
-                                                if crop.mature && widgets::primary_button(ui, theme, "Harvest") {
+                                                ui.spacing_mut().item_spacing.x = 4.0;
+                                                if crop.mature && widgets::compact_button(ui, theme, "Harvest", widgets::ButtonVariant::Primary) {
                                                     action_harvest_crop = Some(crop.entity_bits);
                                                 }
-                                                if !crop.dead && widgets::secondary_button(ui, theme, "Water") {
+                                                if !crop.dead && widgets::compact_button(ui, theme, "Water", widgets::ButtonVariant::Secondary) {
                                                     action_water_crop = Some(crop.entity_bits);
                                                 }
-                                                if !crop.dead && widgets::secondary_button(ui, theme, "Fertilize") {
+                                                if !crop.dead && widgets::compact_button(ui, theme, "Fertilize", widgets::ButtonVariant::Secondary) {
                                                     action_fertilize_crop = Some(crop.entity_bits);
                                                 }
                                             });

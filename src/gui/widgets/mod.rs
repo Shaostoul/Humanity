@@ -33,7 +33,7 @@ pub use button::{Button, ButtonSize, ButtonVariant};
 
 // Legacy free-function aliases now delegate to the universal Button builder.
 // New code should prefer `Button::primary(label).show(ui, theme)`.
-pub use button::{primary_button, secondary_button, danger_button};
+pub use button::{primary_button, secondary_button, danger_button, compact_button};
 
 // Convenience re-exports for the common widget surface so call sites
 // can write `widgets::form_row(...)`, `widgets::alert(...)`, `widgets::dialog(...)`.
@@ -496,7 +496,7 @@ pub fn stat_row(
         ui.add(
             egui::ProgressBar::new(frac.clamp(0.0, 1.0))
                 .fill(fill)
-                .desired_height(6.0)
+                .desired_height(theme.status_bar_height)
                 .desired_width(theme.status_bar_width),
         );
     });

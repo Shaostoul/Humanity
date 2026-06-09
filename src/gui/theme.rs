@@ -125,6 +125,14 @@ pub struct Theme {
     pub stat_value_width: f32,
     #[serde(default = "default_status_bar_width")]
     pub status_bar_width: f32,
+    /// Height of status / progress bars (vitals + the garden growth bars). Thin
+    /// (operator 2026-06-08: ~5px) so rows stay tight; themeable.
+    #[serde(default = "default_status_bar_height")]
+    pub status_bar_height: f32,
+    /// Height of the compact inline action buttons (a table row's
+    /// Harvest/Water/Fertilize cluster) — short so several sit cleanly side by side.
+    #[serde(default = "default_compact_button_height")]
+    pub compact_button_height: f32,
 
     // Panel backgrounds (used across all pages, avoids hardcoded Color32::from_rgb)
     #[serde(default = "default_bg_panel")]
@@ -402,6 +410,8 @@ impl Theme {
         self.stat_name_width = 86.0;
         self.stat_value_width = 82.0;
         self.status_bar_width = 200.0;
+        self.status_bar_height = 5.0;
+        self.compact_button_height = 18.0;
     }
 
     /// Apply this theme to an egui Context (sets visuals, spacing).
@@ -504,6 +514,8 @@ fn default_checkbox_size() -> f32 { 18.0 }
 fn default_stat_name_width() -> f32 { 86.0 }
 fn default_stat_value_width() -> f32 { 82.0 }
 fn default_status_bar_width() -> f32 { 200.0 }
+fn default_status_bar_height() -> f32 { 5.0 }
+fn default_compact_button_height() -> f32 { 18.0 }
 fn default_bg_panel() -> C { (0.078, 0.078, 0.098, 1.0) }      // rgb(20, 20, 25)
 fn default_bg_sidebar() -> C { (0.086, 0.086, 0.110, 1.0) }    // rgb(22, 22, 28)
 fn default_bg_sidebar_dark() -> C { (0.118, 0.118, 0.141, 1.0) } // rgb(30, 30, 36)
@@ -614,6 +626,8 @@ fn default_theme() -> Theme {
         stat_name_width: 86.0,
         stat_value_width: 82.0,
         status_bar_width: 200.0,
+        status_bar_height: 5.0,
+        compact_button_height: 18.0,
         // Panel backgrounds
         bg_panel: default_bg_panel(),
         bg_sidebar: default_bg_sidebar(),

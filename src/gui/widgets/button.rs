@@ -320,6 +320,40 @@ pub fn btn_icon(ui: &mut Ui, theme: &Theme, icon: &str, tooltip: &str) -> bool {
     Button::icon_only(icon).tooltip(tooltip).show(ui, theme)
 }
 
+/// A SHORT, tight inline action button for table-row clusters (e.g. a crop row's
+/// Harvest / Water / Fertilize). Height = `theme.compact_button_height` with tight
+/// padding + a small font, so several sit cleanly side by side without the default
+/// button's bulk overlapping the row (operator 2026-06-08: "nice looking short
+/// buttons right next to each other"). `variant` picks the fill/text like the full
+/// `Button`. All styling is theme-driven. Returns true on click.
+pub fn compact_button(ui: &mut Ui, theme: &Theme, label: &str, variant: ButtonVariant) -> bool {
+    let (text_color, fill, stroke) = match variant {
+        ButtonVariant::Primary => (theme.text_on_accent(), theme.accent(), Stroke::NONE),
+        ButtonVariant::Secondary => (
+            theme.text_primary(),
+            theme.bg_tertiary(),
+            Stroke::new(1.0, theme.text_muted()),
+        ),
+        ButtonVariant::Danger => (Color32::WHITE, theme.danger(), Stroke::NONE),
+        ButtonVariant::Success => (Color32::WHITE, theme.success(), Stroke::NONE),
+        ButtonVariant::Ghost => (theme.text_secondary(), Color32::TRANSPARENT, Stroke::NONE),
+    };
+    // Tighten the button padding for just this widget, then restore it (the rest of
+    // the UI keeps the normal padding). The tight padding + the short min height is
+    // what makes the button compact.
+    let prev = ui.spacing().button_padding;
+    ui.spacing_mut().button_padding = Vec2::new(6.0, 1.0);
+    let text = RichText::new(label).size(theme.font_size_small).color(text_color);
+    let btn = egui::Button::new(text)
+        .fill(fill)
+        .stroke(stroke)
+        .rounding(Rounding::same(theme.border_radius as u8))
+        .min_size(Vec2::new(0.0, theme.compact_button_height));
+    let r = ui.add(btn);
+    ui.spacing_mut().button_padding = prev;
+    r.clicked()
+}
+
 // Legacy names used widely across pages.
 pub use btn_primary as primary_button;
 pub use btn_secondary as secondary_button;
