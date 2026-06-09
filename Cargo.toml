@@ -1,11 +1,17 @@
 [package]
 name = "humanity-engine"
-version = "0.410.0"
+version = "0.411.0"
 edition = "2021"
 
 [[bin]]
 name = "HumanityOS"
 path = "src/main.rs"
+# main.rs is a thin entry point with no unit tests; all tests live in the lib
+# (#[cfg(test)] modules) and tests/ integration files. Skipping the bin's test
+# harness keeps `cargo test` from linking the full native bin — that link emits
+# a huge debug PDB that trips MSVC's type-server limit (LNK1318 LIMIT(12)) on
+# Windows. `cargo build`/release are unaffected. (v0.411, 2026-06-08.)
+test = false
 
 [features]
 default = ["native"]

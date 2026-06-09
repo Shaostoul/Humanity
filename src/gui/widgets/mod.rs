@@ -740,6 +740,68 @@ pub fn row_cell(ui: &mut Ui, width: f32, content: impl FnOnce(&mut Ui)) {
     );
 }
 
+/// A deterministic, pleasant color derived from a seed string (e.g. a plant id
+/// or category). The same seed always yields the same hue, so a species keeps a
+/// stable colour everywhere it appears. Pure FNV-1a-hash → HSV→RGB math — this
+/// is an INFINITE, data-seeded palette (one colour per arbitrary id), not a
+/// fixed brand colour, so no theme token applies (the args are computed, so the
+/// theme-token lint doesn't flag the `from_rgb`). Use for placeholder image
+/// tiles, category swatches, avatar fallbacks — anywhere you need "a colour for
+/// this thing" without a curated palette.
+pub fn swatch_color(seed: &str) -> Color32 {
+    // FNV-1a over the bytes — cheap, stable, std-only, well-spread across hues.
+    let mut h: u32 = 2166136261;
+    for b in seed.bytes() {
+        h ^= b as u32;
+        h = h.wrapping_mul(16777619);
+    }
+    let hue = (h % 360) as f32;
+    let s = 0.55_f32; // muted, so light text reads on top
+    let l = 0.42_f32;
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((hue / 60.0) % 2.0 - 1.0).abs());
+    let m = l - c / 2.0;
+    let (r, g, b) = if hue < 60.0 {
+        (c, x, 0.0)
+    } else if hue < 120.0 {
+        (x, c, 0.0)
+    } else if hue < 180.0 {
+        (0.0, c, x)
+    } else if hue < 240.0 {
+        (0.0, x, c)
+    } else if hue < 300.0 {
+        (x, 0.0, c)
+    } else {
+        (c, 0.0, x)
+    };
+    Color32::from_rgb(((r + m) * 255.0) as u8, ((g + m) * 255.0) as u8, ((b + m) * 255.0) as u8)
+}
+
+/// A colored placeholder tile for "image / 3D model goes here" slots — a rounded
+/// square filled with `color` (typically [`swatch_color`] of the item's id) with
+/// `glyph` (e.g. a plant's initial) centered in white. Stands in until a real
+/// image/model loads; reusable for garden slots, market listings, avatars, etc.
+pub fn placeholder_tile(ui: &mut Ui, theme: &Theme, color: Color32, size: f32, glyph: &str) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), Sense::hover());
+    let rounding = Rounding::same(theme.border_radius_lg as u8);
+    ui.painter().rect_filled(rect, rounding, color);
+    ui.painter().rect_stroke(
+        rect,
+        rounding,
+        Stroke::new(1.0, theme.border()),
+        egui::StrokeKind::Inside,
+    );
+    if !glyph.is_empty() {
+        ui.painter().text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            glyph,
+            egui::FontId::proportional(size * 0.46),
+            Color32::WHITE,
+        );
+    }
+}
+
 /// State for a [`lockable_gate`] — kept per-section in GuiState, IN MEMORY ONLY
 /// (never persisted), so an app restart re-locks everything.
 #[derive(Debug, Default, Clone)]
