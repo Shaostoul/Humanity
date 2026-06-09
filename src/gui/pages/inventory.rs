@@ -611,7 +611,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     if widgets::secondary_button(ui, theme, "Expand all") {
                         tree_force = Some(true);
                     }
-                    if widgets::toggle(ui, theme, "Start collapsed", &mut state.trees_start_collapsed) {
+                    // "Start collapsed" as a proper bordered button (operator
+                    // 2026-06-08: the whole button area is clickable, not just a tiny
+                    // checkbox); .active() renders the ON state like a pressed button.
+                    if widgets::Button::new("Start collapsed")
+                        .active(state.trees_start_collapsed)
+                        .show(ui, theme)
+                    {
+                        state.trees_start_collapsed = !state.trees_start_collapsed;
                         // Apply the new default to the already-rendered trees this frame.
                         tree_force = Some(!state.trees_start_collapsed);
                     }
