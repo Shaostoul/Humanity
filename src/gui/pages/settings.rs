@@ -826,6 +826,7 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     ("Background (secondary)", &mut theme.bg_secondary as *mut _),
                     ("Background (tertiary)", &mut theme.bg_tertiary as *mut _),
                     ("Background (card)", &mut theme.bg_card as *mut _),
+                    ("Row stripe (odd rows)", &mut theme.row_stripe as *mut _),
                     ("Background (modal overlay)", &mut theme.bg_modal as *mut _),
                     ("Accent", &mut theme.accent as *mut _),
                     ("Accent (hover)", &mut theme.accent_hover as *mut _),

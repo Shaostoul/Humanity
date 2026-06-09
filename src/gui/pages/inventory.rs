@@ -142,18 +142,22 @@ fn place_to_tree(theme: &Theme, place: &crate::gui::Place, items: &[widgets::Tre
     if place.kind == "backpack" {
         children.extend(items.iter().cloned());
     }
-    let mut detail = String::new();
-    if let Some(loc) = &place.location {
-        detail = format!("@ {loc}");
-    }
+    // Location inline in the label, in parentheses (operator 2026-06-08: not
+    // right-aligned to the page edge) — e.g. "Home (Silverdale, WA · 47.6°, -122.7°)".
+    let mut loc = place.location.clone().unwrap_or_default();
     if let Some([lat, lon]) = place.coordinate {
         let coord = format!("{lat:.4}°, {lon:.4}°");
-        detail = if detail.is_empty() { coord } else { format!("{detail}  ·  {coord}") };
+        loc = if loc.is_empty() { coord } else { format!("{loc} · {coord}") };
     }
+    let label = if loc.is_empty() {
+        place.label.clone()
+    } else {
+        format!("{} ({})", place.label, loc)
+    };
     widgets::TreeNode {
         id: String::new(),
-        label: place.label.clone(),
-        detail,
+        label,
+        detail: String::new(),
         color: Some(kind_color(theme, &place.kind)),
         children,
     }
