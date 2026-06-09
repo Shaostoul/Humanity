@@ -1090,3 +1090,18 @@ pub fn themed_separator(ui: &mut Ui, theme: &Theme) {
     ui.add_space(theme.section_gap);
 }
 
+/// A 1px full-width divider that slowly cycles through the RGB hue spectrum —
+/// drawn between main sections (operator 2026-06-08). Animated: requests a repaint
+/// each frame. Reuses `row::rgb_from_time` (same hue helper as the nav separators);
+/// the time is scaled so a full sweep takes ~40s ("slow").
+pub fn rgb_section_divider(ui: &mut Ui, theme: &Theme) {
+    let time = ui.input(|i| i.time);
+    let color = row::rgb_from_time(time * 0.3);
+    ui.add_space(theme.spacing_sm);
+    let (rect, _) =
+        ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), Sense::hover());
+    ui.painter().rect_filled(rect, Rounding::ZERO, color);
+    ui.add_space(theme.spacing_sm);
+    ui.ctx().request_repaint(); // keep the colour animating
+}
+

@@ -368,7 +368,7 @@ impl Theme {
         self.bg_secondary = (0.078, 0.078, 0.094, 1.0);   // #141418
         self.bg_tertiary = (0.145, 0.145, 0.188, 1.0);    // #252530
         self.bg_card = (0.102, 0.102, 0.133, 1.0);        // #1a1a22
-        self.row_stripe = (0.0078, 0.0078, 0.0078, 1.0);   // #020202
+        self.row_stripe = (0.0157, 0.0157, 0.0157, 1.0);   // #040404
         self.bg_modal = (0.0, 0.0, 0.0, 0.7);
         self.accent = (0.929, 0.549, 0.141, 1.0);         // #ED8C24
         self.accent_hover = (1.0, 0.651, 0.239, 1.0);     // #FFA63D
@@ -530,7 +530,7 @@ fn default_status_bar_height() -> f32 { 5.0 }
 fn default_compact_button_height() -> f32 { 18.0 }
 fn default_button_pad_y() -> f32 { 3.0 }
 fn default_bg_panel() -> C { (0.078, 0.078, 0.098, 1.0) }      // rgb(20, 20, 25)
-fn default_row_stripe() -> C { (0.0078, 0.0078, 0.0078, 1.0) } // #020202
+fn default_row_stripe() -> C { (0.0157, 0.0157, 0.0157, 1.0) } // #040404
 fn default_bg_sidebar() -> C { (0.086, 0.086, 0.110, 1.0) }    // rgb(22, 22, 28)
 fn default_bg_sidebar_dark() -> C { (0.118, 0.118, 0.141, 1.0) } // rgb(30, 30, 36)
 fn default_badge_padding() -> f32 { 6.0 }
@@ -574,7 +574,7 @@ fn default_theme() -> Theme {
         bg_secondary: (0.078, 0.078, 0.094, 1.0),     // #141418
         bg_tertiary: (0.145, 0.145, 0.188, 1.0),      // #252530
         bg_card: (0.102, 0.102, 0.133, 1.0),           // #1a1a22
-        row_stripe: (0.0078, 0.0078, 0.0078, 1.0),     // #020202
+        row_stripe: (0.0157, 0.0157, 0.0157, 1.0),     // #040404
         bg_modal: (0.0, 0.0, 0.0, 0.7),
         accent: (0.929, 0.549, 0.141, 1.0),            // #ED8C24
         accent_hover: (1.0, 0.65, 0.24, 1.0),

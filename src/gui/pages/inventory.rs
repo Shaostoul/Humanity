@@ -545,7 +545,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
             }
 
-            ui.add_space(theme.spacing_sm);
+            widgets::rgb_section_divider(ui, theme);
 
                 // Equipment section
                 ui.label(RichText::new("Equipment").size(theme.font_size_heading).color(theme.text_primary()));
@@ -596,9 +596,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     });
                 });
 
-                ui.add_space(theme.spacing_md);
-                ui.separator();
-                ui.add_space(theme.spacing_sm);
+                widgets::rgb_section_divider(ui, theme);
 
                 // Tree controls (operator 2026-06-08): collapse/expand ALL branches +
                 // a "Start collapsed" default, driving BOTH the places tree and the
@@ -691,9 +689,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 //    one panel, rows/columns spreadsheet design). Each tower is a
                 //    collapsible group with a Plant button + a crop table; the
                 //    "Dev: stock seeds" + "Dev: grow all" buttons sit in the header. ──
-                ui.add_space(theme.spacing_md);
-                ui.separator();
-                ui.add_space(theme.spacing_sm);
+                widgets::rgb_section_divider(ui, theme);
                 ui.label(RichText::new("Garden").size(theme.font_size_heading).color(theme.text_primary()));
                 ui.horizontal_wrapped(|ui| {
                     // Dev: grant the starter seed set (one of each tower variety), so
@@ -812,6 +808,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             });
                     }
                 }
+                widgets::rgb_section_divider(ui, theme);
                 // ── Mining: commission drones to fetch ore from finite asteroids. ──
                 ui.label(
                     RichText::new("Mining")
