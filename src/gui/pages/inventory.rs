@@ -825,28 +825,28 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
                         }
                     }
-                    for ast in &state.asteroids {
-                        let summary: Vec<String> = ast
-                            .ores
-                            .iter()
-                            .filter(|(_, q)| *q >= 1.0)
-                            .map(|(id, q)| format!("{} {:.0}", ore_short(id), q))
-                            .collect();
-                        ui.label(
-                            RichText::new(format!(
-                                "{} [{}], {}",
-                                ast.name,
-                                ast.classification,
-                                if summary.is_empty() {
-                                    "depleted".to_string()
-                                } else {
-                                    summary.join(", ")
-                                }
-                            ))
-                            .size(theme.font_size_small)
-                            .color(theme.text_secondary()),
-                        );
-                    }
+                    // Asteroids as an aligned table: Asteroid | Type | Ores.
+                    egui::Grid::new("mining_asteroids")
+                        .striped(true)
+                        .spacing([12.0, 3.0])
+                        .show(ui, |ui| {
+                            for h in ["Asteroid", "Type", "Ores"] {
+                                ui.label(RichText::new(h).size(theme.font_size_small).strong().color(theme.text_secondary()));
+                            }
+                            ui.end_row();
+                            for ast in &state.asteroids {
+                                let summary: Vec<String> = ast
+                                    .ores
+                                    .iter()
+                                    .filter(|(_, q)| *q >= 1.0)
+                                    .map(|(id, q)| format!("{} {:.0}", ore_short(id), q))
+                                    .collect();
+                                ui.label(RichText::new(&ast.name).size(theme.font_size_small).color(theme.text_primary()));
+                                ui.label(RichText::new(&ast.classification).size(theme.font_size_small).color(theme.text_secondary()));
+                                ui.label(RichText::new(if summary.is_empty() { "depleted".to_string() } else { summary.join(", ") }).size(theme.font_size_small).color(theme.text_secondary()));
+                                ui.end_row();
+                            }
+                        });
                     ui.add_space(theme.spacing_xs);
                     // ── Drone manifest builder: allocate the fixed hold across ores
                     //    (+/- per ore; the segmented bar shows the split). One drone per
@@ -860,59 +860,37 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         );
                         manifest_bar(ui, theme, &state.drone_manifest_draft, cap);
                         ui.add_space(theme.spacing_xs);
-                        for (id, avail) in &ores {
-                            let cur = state
-                                .drone_manifest_draft
-                                .iter()
-                                .find(|(o, _)| o == id)
-                                .map(|(_, u)| *u)
-                                .unwrap_or(0);
-                            ui.horizontal(|ui| {
-                                let h = theme.font_size_body + 8.0;
-                                // Clean aligned columns: ore | available | [-] value [+].
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(90.0, h),
-                                    egui::Layout::left_to_right(egui::Align::Center),
-                                    |ui| {
-                                        ui.label(
-                                            RichText::new(ore_short(id))
-                                                .size(theme.font_size_small)
-                                                .color(theme.text_secondary()),
-                                        );
-                                    },
-                                );
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(74.0, h),
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        ui.label(
-                                            RichText::new(format!("{:.0} left", avail))
-                                                .size(theme.font_size_small)
-                                                .color(theme.text_muted()),
-                                        );
-                                    },
-                                );
-                                ui.add_space(8.0);
-                                if widgets::stepper_button(ui, theme, "-", cur > 0, false) {
-                                    action_manifest_delta = Some((id.clone(), -1));
+                        // Per-ore allocation as an aligned table: Ore | Available | [-] qty [+].
+                        egui::Grid::new("mining_manifest")
+                            .striped(true)
+                            .spacing([10.0, 3.0])
+                            .show(ui, |ui| {
+                                for h in ["Ore", "Available", "In manifest"] {
+                                    ui.label(RichText::new(h).size(theme.font_size_small).strong().color(theme.text_secondary()));
                                 }
-                                ui.allocate_ui_with_layout(
-                                    egui::vec2(28.0, h),
-                                    egui::Layout::centered_and_justified(
-                                        egui::Direction::LeftToRight,
-                                    ),
-                                    |ui| {
-                                        ui.label(
-                                            RichText::new(format!("{cur}"))
-                                                .color(theme.text_primary()),
-                                        );
-                                    },
-                                );
-                                if widgets::stepper_button(ui, theme, "+", total < cap, true) {
-                                    action_manifest_delta = Some((id.clone(), 1));
+                                ui.end_row();
+                                for (id, avail) in &ores {
+                                    let cur = state
+                                        .drone_manifest_draft
+                                        .iter()
+                                        .find(|(o, _)| o == id)
+                                        .map(|(_, u)| *u)
+                                        .unwrap_or(0);
+                                    ui.label(RichText::new(ore_short(id)).size(theme.font_size_small).color(theme.text_secondary()));
+                                    ui.label(RichText::new(format!("{:.0} left", avail)).size(theme.font_size_small).color(theme.text_muted()));
+                                    ui.horizontal(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                        if widgets::stepper_button(ui, theme, "-", cur > 0, false) {
+                                            action_manifest_delta = Some((id.clone(), -1));
+                                        }
+                                        ui.label(RichText::new(format!("{cur}")).color(theme.text_primary()));
+                                        if widgets::stepper_button(ui, theme, "+", total < cap, true) {
+                                            action_manifest_delta = Some((id.clone(), 1));
+                                        }
+                                    });
+                                    ui.end_row();
                                 }
                             });
-                        }
                         ui.add_space(theme.spacing_xs);
                         ui.horizontal(|ui| {
                             ui.add_enabled_ui(total >= 1, |ui| {
@@ -930,30 +908,37 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if !state.drones.is_empty() {
                     // The active drone (one per player): its manifest + which of the 3
                     // round-trip stages it's in + a bar of progress through that stage.
+                    // Active drone(s) as an aligned table: Stage | Status | Fetching |
+                    // Cargo, then a thin progress bar per drone (one drone per player).
+                    egui::Grid::new("mining_drones")
+                        .striped(true)
+                        .spacing([12.0, 3.0])
+                        .show(ui, |ui| {
+                            for h in ["Drone", "Status", "Fetching", "Cargo"] {
+                                ui.label(RichText::new(h).size(theme.font_size_small).strong().color(theme.text_secondary()));
+                            }
+                            ui.end_row();
+                            for drone in &state.drones {
+                                let (stage, desc) = match drone.phase.as_str() {
+                                    "Outbound" => ("1/3", "outbound"),
+                                    "Mining" => ("2/3", "mining"),
+                                    "Returning" => ("3/3", "returning"),
+                                    _ => ("done", "delivering"),
+                                };
+                                let fetching: Vec<String> = drone
+                                    .manifest
+                                    .iter()
+                                    .map(|(o, u)| format!("{}x {}", u, ore_short(o)))
+                                    .collect();
+                                ui.label(RichText::new(format!("Stage {stage}")).size(theme.font_size_small).color(theme.text_primary()));
+                                ui.label(RichText::new(desc).size(theme.font_size_small).color(theme.text_secondary()));
+                                ui.label(RichText::new(fetching.join(", ")).size(theme.font_size_small).color(theme.text_secondary()));
+                                ui.label(RichText::new(drone.cargo_total.to_string()).size(theme.font_size_small).color(theme.text_secondary()));
+                                ui.end_row();
+                            }
+                        });
                     for drone in &state.drones {
-                        let (stage, desc) = match drone.phase.as_str() {
-                            "Outbound" => ("Stage 1/3", "outbound to the asteroids"),
-                            "Mining" => ("Stage 2/3", "mining"),
-                            "Returning" => ("Stage 3/3", "returning home"),
-                            _ => ("Done", "delivering cargo"),
-                        };
-                        let fetching: Vec<String> = drone
-                            .manifest
-                            .iter()
-                            .map(|(o, u)| format!("{}x {}", u, ore_short(o)))
-                            .collect();
-                        ui.label(
-                            RichText::new(format!(
-                                "Drone, {} · {} · fetching {} · cargo {}",
-                                stage,
-                                desc,
-                                fetching.join(", "),
-                                drone.cargo_total
-                            ))
-                            .size(theme.font_size_small)
-                            .color(theme.text_primary()),
-                        );
-                        widgets::progress_bar(ui, theme, drone.phase_progress, None);
+                        ui.add(egui::ProgressBar::new(drone.phase_progress.clamp(0.0, 1.0)).fill(theme.accent()).desired_width(theme.status_bar_width).desired_height(theme.status_bar_height));
                     }
                 }
         }); // close the single-panel ScrollArea
