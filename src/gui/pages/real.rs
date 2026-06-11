@@ -1,7 +1,7 @@
 //! Profile — your character / identity tab (renamed from "Real" v0.378; page carve v0.358).
 //!
 //! ONE page with a `section_nav` sidebar that folds in Profile's sections
-//! (Body / Identity / Notes / Network / Interests / Skills / Quests / Social /
+//! (Body / Identity / Notes / Network / Interests / Skills / Social /
 //! Streaming) PLUS Possessions (Inventory), Wallet, Tasks, Map, Market — per the
 //! operator's call to merge Profile's sidebar in rather than special-case it.
 //!

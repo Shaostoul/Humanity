@@ -13,7 +13,7 @@ use egui::{Align2, Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
-use super::{governance, identity, onboarding, donate, resources};
+use super::{governance, identity, donate};
 
 /// The Humanity Accord, embedded at compile time from the canonical repo copy so
 /// it is readable in-app with no network and no separate data file to ship or let
@@ -125,9 +125,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     match section.as_str() {
         "governance" => governance::draw(ctx, theme, state),
         "identity" => identity::draw(ctx, theme, state),
-        "onboarding" => onboarding::draw(ctx, theme, state),
         "donate" => donate::draw(ctx, theme, state),
-        "resources" => resources::draw(ctx, theme, state),
+        // v0.415.0: "onboarding" + "resources" arms removed with their retired
+        // pages (neither was in the sidebar; Library + the dashboard cover them).
         // Default = the Mission Dashboard (the real Humanity landing).
         _ => {
             egui::CentralPanel::default()

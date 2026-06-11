@@ -693,7 +693,7 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         P::Crafting    => { paint_hammer(painter, rect, color); true }
         P::Civilization => { paint_building(painter, rect, color); true }
         P::Studio      => { paint_palette(painter, rect, color); true }
-        P::Onboarding  => { paint_compass(painter, rect, color); true }
+        // v0.415.0: Onboarding + Play variants removed with their pages.
         // v0.197.0: Agents + AiUsage variants removed. paint_robot and
         // paint_chart are kept (other future pages might use them).
         P::Cosmos      => { paint_globe(painter, rect, color); true }
@@ -716,7 +716,6 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
             true
         }
         P::Real     => { paint_person(painter, rect, color); true }
-        P::Play     => { paint_hammer(painter, rect, color); true }
         P::Platform => { paint_wrench(painter, rect, color); true }
         P::Library  => { paint_scroll(painter, rect, color); true }
         P::Quests   => { paint_compass(painter, rect, color); true }

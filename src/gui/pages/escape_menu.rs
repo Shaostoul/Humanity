@@ -619,7 +619,7 @@ fn sub_pages_for(category: &str) -> Vec<NavItem> {
             NavItem { label: "Calculator", page: GuiPage::Calculator, description: "Scientific calculator with history." },
             NavItem { label: "Calendar",   page: GuiPage::Calendar,   description: "Month view + add events with time and color." },
             NavItem { label: "Notes",      page: GuiPage::Notes,      description: "Notes app with autosave + word count." },
-            NavItem { label: "Resources",  page: GuiPage::Resources,  description: "Curated resource directory (Real / Sim aware)." },
+            NavItem { label: "Library",    page: GuiPage::Library,    description: "Docs + external resources in one searchable tree." },
             NavItem { label: "Tools",      page: GuiPage::Tools,      description: "Open-source tools catalog with search + filters." },
             NavItem { label: "Browser",    page: GuiPage::Browser,    description: "Curated bookmarks; opens in your default browser." },
         ],
@@ -636,7 +636,6 @@ fn sub_pages_for(category: &str) -> Vec<NavItem> {
             NavItem { label: "Privacy",       page: GuiPage::SettingsPrivacy,       description: "Public profile fields, message visibility, federation opt-ins." },
             NavItem { label: "Data",          page: GuiPage::SettingsData,          description: "Local storage, vault sync, export, restore." },
             NavItem { label: "Updates",       page: GuiPage::SettingsUpdates,       description: "Version, check for updates, channel selector." },
-            NavItem { label: "Onboarding",    page: GuiPage::Onboarding,            description: "First-run orientation + permanent reference quests." },
             NavItem { label: "Server Admin",  page: GuiPage::ServerSettings,        description: "Server / group admin (USER / MOD / ADMIN tiered)." },
         ],
         "dev" => vec![

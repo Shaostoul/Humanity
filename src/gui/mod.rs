@@ -102,15 +102,16 @@ pub enum GuiPage {
     Trade,
     Files,
     BugReport,
-    Resources,
+    // v0.415.0: removed the Resources and Onboarding GuiPage variants. The
+    // Resources directory was retired into the Library (v0.374-375) and the
+    // standalone onboarding page into the Mission Dashboard + Quests page
+    // (v0.373); first boot now lands on Humanity. Saved config strings
+    // ("resources" / "onboarding") migrate in config_str_to_page below.
     Library,
     Donate,
     Tools,
     Studio,
     Quests,
-    /// First-run orientation plus permanent reference page.
-    /// Mirrors the web `/onboarding` page.
-    Onboarding,
     /// Server / group administration settings page. Opened from the cog
     /// menu on the server or group row in the chat sidebar.
     ServerSettings,
@@ -145,14 +146,15 @@ pub enum GuiPage {
     /// section_nav sidebar folding in Profile's sections + Inventory, Wallet,
     /// Tasks, Map, Market. Replaces six separate nav buttons. See pages/real.rs.
     Real,
-    /// Play — the simulation tab (v0.360): section_nav folds Crafting + Studio.
-    Play,
+    // v0.415.0: removed the Play GuiPage variant (the v0.360 tab that folded
+    // Crafting + Studio). Both are top-level tabs now and nothing navigated to
+    // it; the nav's Play button is GuiPage::None (FPS mode), unrelated.
     /// Platform — the software-itself tab (v0.360): section_nav folds Settings,
     /// Recovery, Tools, Bugs, Testing, Browser.
     Platform,
     /// Humanity — the collective / mission tab (v0.360): section_nav folds the
     /// Community/Mission Dashboard (Civilization) + Governance, Directory
-    /// (Identity), Onboarding, Donate, Resources. What the H button opens.
+    /// (Identity), Donate. What the H button opens, and the first-boot landing.
     Humanity,
     /// Home — your offline homestead (v0.379): the Fibonacci homestead Design
     /// browsed as rooms + bill-of-materials + power/water demand + a self-
@@ -193,43 +195,47 @@ pub enum GuiPage {
 /// Pages that can be selected as the startup boot page.
 #[cfg(feature = "native")]
 pub const BOOT_PAGE_OPTIONS: &[(GuiPage, &str)] = &[
-    (GuiPage::Onboarding, "Landing / Onboarding"),
+    (GuiPage::Humanity, "Humanity (Mission Dashboard)"),
     (GuiPage::Chat, "Chat"),
     (GuiPage::Tasks, "Tasks"),
     (GuiPage::Maps, "Maps"),
     (GuiPage::Notes, "Notes"),
     (GuiPage::Calendar, "Calendar"),
     (GuiPage::Cosmos, "Cosmos"),
-    (GuiPage::Resources, "Resources"),
+    (GuiPage::Library, "Library"),
 ];
 
 #[cfg(feature = "native")]
 pub fn page_to_config_str(page: GuiPage) -> &'static str {
     match page {
-        GuiPage::Onboarding => "onboarding",
+        GuiPage::Humanity => "humanity",
         GuiPage::Chat => "chat",
         GuiPage::Tasks => "tasks",
         GuiPage::Maps => "maps",
         GuiPage::Notes => "notes",
         GuiPage::Calendar => "calendar",
         GuiPage::Cosmos => "cosmos",
-        GuiPage::Resources => "resources",
-        _ => "onboarding",
+        GuiPage::Library => "library",
+        _ => "humanity",
     }
 }
 
 #[cfg(feature = "native")]
 pub fn config_str_to_page(s: &str) -> GuiPage {
     match s {
-        "onboarding" => GuiPage::Onboarding,
+        "humanity" => GuiPage::Humanity,
         "chat" => GuiPage::Chat,
         "tasks" => GuiPage::Tasks,
         "maps" => GuiPage::Maps,
         "notes" => GuiPage::Notes,
         "calendar" => GuiPage::Calendar,
         "cosmos" => GuiPage::Cosmos,
-        "resources" => GuiPage::Resources,
-        _ => GuiPage::Onboarding,
+        "library" => GuiPage::Library,
+        // Retired pages saved in old configs land on their successors:
+        // the Resources directory lives in the Library; the onboarding
+        // landing is the Mission Dashboard (also the unknown-id default).
+        "resources" => GuiPage::Library,
+        _ => GuiPage::Humanity,
     }
 }
 
@@ -983,8 +989,6 @@ pub struct GuiState {
     /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
     pub active_real_section: String,
-    /// Selected section for the folded Play tab ("crafting"/"studio").
-    pub active_play_section: String,
     /// Selected section for the folded Platform tab ("settings"/"recovery"/
     /// "tools"/"bugs"/"testing"/"browser").
     pub active_platform_section: String,
@@ -1547,8 +1551,6 @@ pub struct GuiState {
     pub crafting_category_groups: Vec<CraftCategoryGroup>,
     /// Marketplace category filters (`data/market/categories.json`).
     pub market_categories: Vec<String>,
-    /// Curated resources by category (`data/resources/catalog.json`).
-    pub resource_categories: Vec<ResourceCategory>,
     /// In-app Library: sections of nested categories holding docs + external
     /// links (`data/library/` + the shared `data/resources/catalog.json`).
     pub library: Vec<LibrarySection>,
@@ -1588,11 +1590,10 @@ pub struct GuiState {
     /// game_time when attack_pulse_active was last set; used to auto-clear
     /// after a few seconds of no new damage events.
     pub attack_pulse_last_hit_at: f64,
-    /// Onboarding concept cards (`data/onboarding/core_concepts.json`).
-    pub onboarding_concepts: Vec<OnboardingConcept>,
-    /// Onboarding core-page shortcuts (`data/onboarding/core_pages.json`).
-    pub onboarding_core_pages: Vec<OnboardingCorePage>,
     // v0.197.0: ai_usage_filters removed (AI Usage page deleted).
+    // v0.415.0: onboarding_concepts + onboarding_core_pages removed with the
+    // standalone onboarding page (the web /onboarding page still reads the
+    // JSON files; the quest chains below remain the native consumer).
 
     // ── Universal help modal (loaded from data/help/topics.json) ──
     /// Registry of help topics. Populated at startup from data/help/topics.json.
@@ -1800,7 +1801,7 @@ impl Default for GuiState {
             server_connected: false,
             user_name: "Player".to_string(),
             concept_tour_seen: false,
-            default_page: GuiPage::Onboarding,
+            default_page: GuiPage::Humanity,
 
             // Task board defaults
             tasks: Vec::new(),
@@ -1864,7 +1865,6 @@ impl Default for GuiState {
             tower_compat: Vec::new(),
             creative_mode: true,
             active_real_section: "inventory".to_string(),
-            active_play_section: "crafting".to_string(),
             active_platform_section: "recovery".to_string(),
             active_humanity_section: "civilization".to_string(),
             map_selected_planet: None,
@@ -2115,7 +2115,6 @@ impl Default for GuiState {
             bug_categories: Vec::new(),
             crafting_category_groups: Vec::new(),
             market_categories: Vec::new(),
-            resource_categories: Vec::new(),
             library: Vec::new(),
             studio_scene_presets: Vec::new(),
             studio_source_presets: Vec::new(),
@@ -2135,8 +2134,6 @@ impl Default for GuiState {
             nav_top_category: "reality".to_string(),
             attack_pulse_active: false,
             attack_pulse_last_hit_at: 0.0,
-            onboarding_concepts: Vec::new(),
-            onboarding_core_pages: Vec::new(),
             // v0.197.0: ai_usage_filters removed (page deleted).
             help_registry: crate::gui::widgets::help_modal::HelpRegistry::new(),
             active_help_topic: None,
@@ -2352,25 +2349,9 @@ pub fn load_planets(data_dir: &std::path::Path) -> Vec<GuiPlanet> {
 // path is also what the page sees during the brief window before lib.rs wires
 // the loaders into GuiState at startup.
 
-/// One curated resource entry shown on the Resources page.
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct ResourceEntry {
-    pub title: String,
-    pub description: String,
-    pub url: String,
-}
-
-/// A category of resources with parallel Real-mode and Sim-mode lists.
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct ResourceCategory {
-    pub name: String,
-    #[serde(default)]
-    pub real_resources: Vec<ResourceEntry>,
-    #[serde(default)]
-    pub sim_resources: Vec<ResourceEntry>,
-}
+// v0.415.0: ResourceEntry / ResourceCategory / load_resource_categories removed
+// with the Resources page (retired into the Library, which loads the shared
+// data/resources/catalog.json itself).
 
 /// A streaming-studio scene preset.
 #[cfg(feature = "native")]
@@ -3189,16 +3170,6 @@ pub fn load_market_categories(data_dir: &std::path::Path) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Load curated resource categories from `data/resources/catalog.json`.
-#[cfg(feature = "native")]
-pub fn load_resource_categories(data_dir: &std::path::Path) -> Vec<ResourceCategory> {
-    #[derive(serde::Deserialize)]
-    struct File { categories: Vec<ResourceCategory> }
-    read_data_json::<File>(data_dir, "resources/catalog.json")
-        .map(|f| f.categories)
-        .unwrap_or_default()
-}
-
 /// Load streaming-studio scene presets from `data/studio/scenes.json`.
 #[cfg(feature = "native")]
 pub fn load_studio_scenes(data_dir: &std::path::Path) -> Vec<StudioScenePreset> {
@@ -3311,43 +3282,9 @@ pub fn load_browser_bookmarks(data_dir: &std::path::Path) -> Vec<BrowserCategory
         .unwrap_or_default()
 }
 
-/// Concept card shown on the onboarding page.
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct OnboardingConcept {
-    pub title: String,
-    pub body: String,
-}
-
-/// Load onboarding concepts from `data/onboarding/core_concepts.json`.
-#[cfg(feature = "native")]
-pub fn load_onboarding_concepts(data_dir: &std::path::Path) -> Vec<OnboardingConcept> {
-    #[derive(serde::Deserialize)]
-    struct File { concepts: Vec<OnboardingConcept> }
-    read_data_json::<File>(data_dir, "onboarding/core_concepts.json")
-        .map(|f| f.concepts)
-        .unwrap_or_default()
-}
-
-/// Core page shortcut shown on the onboarding page. `page_id` is mapped to a
-/// `GuiPage` variant by the onboarding draw code.
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct OnboardingCorePage {
-    pub page_id: String,
-    pub label: String,
-    pub description: String,
-}
-
-/// Load onboarding core-page shortcuts from `data/onboarding/core_pages.json`.
-#[cfg(feature = "native")]
-pub fn load_onboarding_core_pages(data_dir: &std::path::Path) -> Vec<OnboardingCorePage> {
-    #[derive(serde::Deserialize)]
-    struct File { pages: Vec<OnboardingCorePage> }
-    read_data_json::<File>(data_dir, "onboarding/core_pages.json")
-        .map(|f| f.pages)
-        .unwrap_or_default()
-}
+// v0.415.0: OnboardingConcept / OnboardingCorePage + their loaders removed with
+// the standalone onboarding page. The JSON files stay (the web /onboarding page
+// reads them); the native consumers are gone.
 
 // v0.197.0: AiUsageFilters and load_ai_usage_filters removed (AI Usage
 // page deleted along with its data/ai_usage/filters.json loader).
@@ -3407,7 +3344,9 @@ pub enum ProfileSection {
     NetworkProfile,
     Interests,
     Skills,
-    Quests,
+    // v0.415.0: Quests section removed — live game quests render on the
+    // top-level Quests page beside the learn-by-doing chains (the operator's
+    // "one page, two kinds" model), not buried in Profile.
     // Public (green)
     SocialLinks,
     Streaming,

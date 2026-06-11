@@ -35,7 +35,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 widgets::SectionNavItem::new("network", "Network Profile", PERSONAL_DOT).group("PERSONAL"),
                 widgets::SectionNavItem::new("interests", "Interests", PERSONAL_DOT),
                 widgets::SectionNavItem::new("skills", "Skills", PERSONAL_DOT),
-                widgets::SectionNavItem::new("quests", "Quests", PERSONAL_DOT),
                 widgets::SectionNavItem::new("social", "Social Links", PUBLIC_DOT).group("PUBLIC"),
                 widgets::SectionNavItem::new("streaming", "Streaming", PUBLIC_DOT),
             ];
@@ -68,7 +67,8 @@ pub fn draw_section_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         ProfileSection::NetworkProfile => draw_network_profile(ui, theme, state),
         ProfileSection::Interests => draw_interests(ui, theme, state),
         ProfileSection::Skills => draw_skills(ui, theme, state),
-        ProfileSection::Quests => draw_quests(ui, theme, state),
+        // v0.415.0: Quests section retired — live game quests render on the
+        // top-level Quests page beside the learn-by-doing chains.
         ProfileSection::SocialLinks => draw_social_links(ui, theme, state),
         ProfileSection::Streaming => draw_streaming(ui, theme, state),
     }
@@ -83,7 +83,6 @@ pub fn section_id(section: ProfileSection) -> &'static str {
         ProfileSection::NetworkProfile => "network",
         ProfileSection::Interests => "interests",
         ProfileSection::Skills => "skills",
-        ProfileSection::Quests => "quests",
         ProfileSection::SocialLinks => "social",
         ProfileSection::Streaming => "streaming",
     }
@@ -97,7 +96,6 @@ pub fn section_from_id(id: &str) -> ProfileSection {
         "network" => ProfileSection::NetworkProfile,
         "interests" => ProfileSection::Interests,
         "skills" => ProfileSection::Skills,
-        "quests" => ProfileSection::Quests,
         "social" => ProfileSection::SocialLinks,
         "streaming" => ProfileSection::Streaming,
         _ => ProfileSection::BodyMeasurements,
@@ -334,66 +332,8 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 }
 
-fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Quests").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
-    let has_active = state.quests.iter().any(|q| !q.completed);
-    let has_completed = state.quests.iter().any(|q| q.completed);
-
-    if !has_active && !has_completed {
-        widgets::card(ui, theme, |ui| {
-            ui.label(
-                RichText::new("No quests yet, start a game session to receive your first quest.")
-                    .size(theme.font_size_body)
-                    .color(theme.text_muted()),
-            );
-        });
-        return;
-    }
-
-    // Active quests: current step + a step-progress bar.
-    if has_active {
-        ui.label(RichText::new("Active").size(theme.font_size_body).color(theme.text_secondary()));
-        ui.add_space(theme.spacing_xs);
-        for q in state.quests.iter().filter(|q| !q.completed) {
-            widgets::card(ui, theme, |ui| {
-                ui.label(RichText::new(&q.name).size(theme.font_size_body).color(theme.text_primary()));
-                if q.step_total > 0 {
-                    ui.label(
-                        RichText::new(format!(
-                            "Step {} of {}: {}",
-                            q.step_index + 1,
-                            q.step_total,
-                            q.step_desc
-                        ))
-                        .size(theme.font_size_small)
-                        .color(theme.text_secondary()),
-                    );
-                    let frac = (q.step_index as f32 / q.step_total as f32).clamp(0.0, 1.0);
-                    widgets::progress_bar(ui, theme, frac, None);
-                }
-            });
-            ui.add_space(theme.spacing_xs);
-        }
-    }
-
-    // Completed quests.
-    if has_completed {
-        ui.add_space(theme.spacing_sm);
-        ui.label(RichText::new("Completed").size(theme.font_size_body).color(theme.text_secondary()));
-        ui.add_space(theme.spacing_xs);
-        widgets::card(ui, theme, |ui| {
-            for q in state.quests.iter().filter(|q| q.completed) {
-                ui.label(
-                    RichText::new(format!("\u{2713} {}", q.name))
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
-            }
-        });
-    }
-}
+// v0.415.0: draw_quests moved to pages/quests.rs (draw_game_quests) — the
+// top-level Quests page is the single quest surface (game quests + chains).
 
 fn draw_social_links(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(RichText::new("Social Links").size(theme.font_size_title).color(theme.text_primary()));

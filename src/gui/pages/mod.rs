@@ -10,7 +10,8 @@ pub mod placeholder;
 pub mod tasks;
 pub mod profile;
 pub mod real;
-pub mod play;
+// v0.415.0: play module removed (the dead v0.360 Crafting/Studio fold —
+// nothing navigated to GuiPage::Play; the nav's Play button is GuiPage::None).
 pub mod platform;
 pub mod humanity;
 pub mod library;
@@ -28,7 +29,7 @@ pub mod guilds;
 pub mod trade;
 pub mod files;
 pub mod bugs;
-pub mod resources;
+// v0.415.0: resources module removed (retired into the Library, v0.374-375).
 pub mod donate;
 pub mod tools;
 pub mod studio;

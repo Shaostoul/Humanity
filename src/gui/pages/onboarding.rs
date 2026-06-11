@@ -1,10 +1,13 @@
-//! Onboarding page — first-run orientation plus permanent reference.
+//! Learn-by-doing quest chains (the surviving core of the old onboarding page).
 //!
-//! Mirrors the web `/onboarding` page. Quest chains are loaded from
-//! `data/onboarding/quests.json` so adding new quests never requires a
-//! recompile. Progress is tracked per-step in `gui_state.onboarding_quest_progress`.
+//! The standalone onboarding PAGE was retired in v0.373 (its hero/concepts
+//! overlap the Mission Dashboard, which is the first-boot landing as of
+//! v0.415.0); what remains here is the quest-chain machinery the top-level
+//! Quests page renders. Chains are loaded from `data/onboarding/quests.json`
+//! so adding new quests never requires a recompile. Progress is tracked
+//! per-step in `gui_state.onboarding_quest_progress`.
 
-use egui::{Align, Frame, Layout, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Frame, RichText, Rounding, Stroke, Vec2};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -60,93 +63,10 @@ pub fn load_quest_chains(data_dir: &Path) -> Vec<QuestChain> {
     parsed.chains
 }
 
-// Concept cards + core-page shortcuts are loaded at startup from
-// data/onboarding/core_concepts.json and data/onboarding/core_pages.json
-// into state.onboarding_concepts / state.onboarding_core_pages.
-//
-// page_id strings are mapped to GuiPage variants by page_id_to_gui_page().
-
-/// Map a page_id string from the JSON to the corresponding GuiPage variant.
-/// Unknown ids fall through to GuiPage::Onboarding (no-op safe default).
-fn page_id_to_gui_page(id: &str) -> GuiPage {
-    match id {
-        "chat"     => GuiPage::Chat,
-        "profile"  => GuiPage::Profile,
-        "wallet"   => GuiPage::Wallet,
-        "tasks"    => GuiPage::Tasks,
-        "market"   => GuiPage::Market,
-        "maps"     => GuiPage::Maps,
-        "settings" => GuiPage::Settings,
-        "notes"    => GuiPage::Notes,
-        _          => GuiPage::Onboarding,
-    }
-}
-
-/// Max width of the centered content column. Keeps the layout coherent on
-/// wide displays — without this, sections sprawl across the screen and
-/// alignment drifts between sections.
-const CONTENT_MAX_W: f32 = 1024.0;
-
-pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_primary()).inner_margin(0.0))
-        .show(ctx, |ui| {
-            ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    // ONE outer centered column. All sections render inside it
-                    // with consistent left-aligned content, so headers + cards
-                    // share the same left edge regardless of screen width.
-                    ui.vertical_centered(|ui| {
-                        ui.set_max_width(CONTENT_MAX_W);
-                        ui.with_layout(Layout::top_down(Align::Min), |ui| {
-                            draw_hero(ui, theme);
-                            ui.add_space(theme.spacing_xl);
-                            draw_concepts(ui, theme, state);
-                            ui.add_space(theme.spacing_xl);
-                            draw_core_pages(ui, theme, state);
-                            ui.add_space(theme.spacing_xl);
-                            draw_quests(ui, theme, state);
-                            ui.add_space(theme.spacing_xl);
-                            draw_cta(ui, theme, state);
-                            ui.add_space(theme.spacing_xl * 2.0);
-                        });
-                    });
-                });
-        });
-}
-
-fn draw_hero(ui: &mut egui::Ui, theme: &Theme) {
-    ui.add_space(theme.spacing_xl);
-    ui.with_layout(Layout::top_down(Align::Center), |ui| {
-        ui.label(
-            RichText::new("YOUR PATH TO SELF-SUFFICIENCY")
-                .size(theme.font_size_small)
-                .color(theme.accent())
-                .strong(),
-        );
-        ui.add_space(theme.spacing_sm);
-        ui.label(
-            RichText::new("Learn to provide for yourself and your community.")
-                .size(theme.font_size_title)
-                .color(theme.text_primary())
-                .strong(),
-        );
-        ui.add_space(theme.spacing_md);
-        ui.label(
-            RichText::new(
-                "Water. Food. Energy. The three things every person needs.\n\
-                 HumanityOS teaches you how to secure all three, step by step,\n\
-                 through guided quests and a simulation where mistakes are free.",
-            )
-            .size(theme.font_size_body)
-            .color(theme.text_secondary()),
-        );
-    });
-}
+// v0.415.0: the page renderer (draw + hero/concepts/core-pages/CTA sections)
+// was deleted with the retired page; draw_quests below is the live surface.
 
 /// Section header — small accent-colored kicker + larger primary heading.
-/// Used by every section so they share the same visual rhythm.
 fn section_header(ui: &mut egui::Ui, theme: &Theme, kicker: &str, heading: &str) {
     ui.label(
         RichText::new(kicker)
@@ -162,103 +82,6 @@ fn section_header(ui: &mut egui::Ui, theme: &Theme, kicker: &str, heading: &str)
             .strong(),
     );
     ui.add_space(theme.spacing_md);
-}
-
-fn draw_concepts(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
-    section_header(ui, theme, "THE FOUNDATION", "Four pillars of independence");
-
-    // 4 cards across, each takes ~1/4 of the parent column width.
-    // Clamp to CONTENT_MAX_W because available_width() on a horizontal
-    // layout child can exceed the centered column's set_max_width
-    // constraint and cause the rightmost cards to overflow off-screen.
-    let avail = ui.available_width().min(CONTENT_MAX_W);
-    let col_w = ((avail - theme.spacing_md as f32 * 3.0) / 4.0).max(180.0);
-
-    ui.horizontal_wrapped(|ui| {
-        for concept in &state.onboarding_concepts {
-            Frame::none()
-                .fill(theme.bg_card())
-                .stroke(Stroke::new(1.0, theme.border()))
-                .rounding(Rounding::same(theme.border_radius as u8))
-                .inner_margin(theme.card_padding * 1.5)
-                .show(ui, |ui| {
-                    // Force vertical layout inside the card so title and body
-                    // stack instead of rendering inline (parent is horizontal).
-                    ui.set_width(col_w);
-                    ui.vertical(|ui| {
-                        ui.label(
-                            RichText::new(&concept.title)
-                                .size(theme.font_size_body)
-                                .color(theme.text_primary())
-                                .strong(),
-                        );
-                        ui.add_space(theme.spacing_sm);
-                        ui.label(
-                            RichText::new(&concept.body)
-                                .size(theme.font_size_small)
-                                .color(theme.text_secondary()),
-                        );
-                    });
-                });
-        }
-    });
-}
-
-fn draw_core_pages(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    section_header(ui, theme, "YOUR TOOLKIT", "Where to go next");
-
-    // 4 cards across (8 pages → 2 rows). horizontal_wrapped handles the wrap.
-    // Clamp to CONTENT_MAX_W (see draw_concepts comment).
-    let avail = ui.available_width().min(CONTENT_MAX_W);
-    let col_w = ((avail - theme.spacing_md as f32 * 3.0) / 4.0).max(180.0);
-
-    let mut clicked: Option<GuiPage> = None;
-    ui.horizontal_wrapped(|ui| {
-        for page in &state.onboarding_core_pages {
-            let response = Frame::none()
-                .fill(theme.bg_card())
-                .stroke(Stroke::new(1.0, theme.border()))
-                .rounding(Rounding::same(theme.border_radius as u8))
-                .inner_margin(theme.card_padding)
-                .show(ui, |ui| {
-                    ui.set_width(col_w);
-                    ui.set_height(70.0);
-                    ui.vertical(|ui| {
-                        ui.label(
-                            RichText::new(&page.label)
-                                .size(theme.font_size_body)
-                                .color(theme.text_primary())
-                                .strong(),
-                        );
-                        ui.add_space(2.0);
-                        ui.label(
-                            RichText::new(&page.description)
-                                .size(theme.font_size_small)
-                                .color(theme.text_secondary()),
-                        );
-                    });
-                })
-                .response
-                .interact(egui::Sense::click());
-
-            if response.clicked() {
-                clicked = Some(page_id_to_gui_page(&page.page_id));
-            }
-            if response.hovered() {
-                let painter = ui.painter();
-                painter.rect_stroke(
-                    response.rect,
-                    Rounding::same(theme.border_radius as u8),
-                    Stroke::new(1.5, theme.accent()),
-                    egui::StrokeKind::Outside,
-                );
-            }
-        }
-    });
-
-    if let Some(page) = clicked {
-        state.active_page = page;
-    }
 }
 
 /// Render the learn-by-doing quest chains. Reused by the Real tab's Quests
@@ -388,34 +211,6 @@ pub fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
         ui.add_space(theme.spacing_md);
     }
-}
-
-fn draw_cta(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    section_header(ui, theme, "READY?", "Start building");
-    ui.label(
-        RichText::new(
-            "Pick a quest chain and start. The fastest way to learn is to do.",
-        )
-        .size(theme.font_size_small)
-        .color(theme.text_secondary()),
-    );
-    ui.add_space(theme.spacing_md);
-
-    ui.horizontal(|ui| {
-        if crate::gui::widgets::Button::primary("Open the Chat").show(ui, theme) {
-            // Mark the concept tour as seen so the user goes straight to
-            // Chat on the next launch (instead of being routed back here).
-            // Persist immediately so the flag survives a crash before the
-            // next normal config save. v0.198.0.
-            state.concept_tour_seen = true;
-            crate::config::AppConfig::from_gui_state(state).save();
-            state.active_page = GuiPage::Chat;
-        }
-        ui.add_space(theme.spacing_sm);
-        if crate::gui::widgets::Button::secondary("Settings").show(ui, theme) {
-            state.active_page = GuiPage::Settings;
-        }
-    });
 }
 
 /// Map the `link` field on a quest step to a GuiPage where possible.

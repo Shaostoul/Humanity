@@ -33,6 +33,10 @@ pub mod systems;
 
 #[cfg(feature = "native")]
 pub mod persistence;
+// save_load consumes persistence (the offline-home save is the local player's,
+// not the relay's), so it carries the same native gate — an ungated save_load
+// broke every relay/CI build from v0.381 to v0.414 (E0432 on persistence).
+#[cfg(feature = "native")]
 pub mod save_load;
 
 #[cfg(feature = "native")]
@@ -73,10 +77,10 @@ mod native_app {
     use crate::gui::pages::{
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, market, calculator, calendar, notes, civilization,
-        wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
+        wallet, crafting, guilds, trade, files, bugs, donate, tools, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
         browser, category_overview, settings_pages, cosmos, real,
-        play, platform, humanity, library, quests, homes,
+        platform, humanity, library, quests, homes,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -1165,7 +1169,6 @@ mod native_app {
             // re-loads them; idempotent.)
             load_data_registries(&mut data_store, &data_dir);
             gui_state.market_categories = crate::gui::load_market_categories(&data_dir);
-            gui_state.resource_categories = crate::gui::load_resource_categories(&data_dir);
             gui_state.studio_scene_presets = crate::gui::load_studio_scenes(&data_dir);
             gui_state.studio_source_presets = crate::gui::load_studio_sources(&data_dir);
             gui_state.profile_skills = crate::gui::load_default_player_skills(&data_dir);
@@ -1173,9 +1176,9 @@ mod native_app {
             gui_state.donate_faq = crate::gui::load_donate_faq(&data_dir);
             gui_state.qa_test_tasks = crate::gui::load_qa_test_tasks(&data_dir);
             gui_state.browser_bookmarks = crate::gui::load_browser_bookmarks(&data_dir);
-            gui_state.onboarding_concepts = crate::gui::load_onboarding_concepts(&data_dir);
-            gui_state.onboarding_core_pages = crate::gui::load_onboarding_core_pages(&data_dir);
             // v0.197.0: ai_usage_filters loader removed.
+            // v0.415.0: resource_categories + onboarding concepts/core-pages
+            // loaders removed with their retired pages.
             // Note: TaskPageState reads data/tasks/default_projects.json itself
             // on its first lazy-init (it's a thread-local in pages/tasks.rs).
             // Populate the live studio state from the loaded presets.
@@ -1208,15 +1211,19 @@ mod native_app {
                 gui_state.updater.check_now();
             }
 
-            // Post-identity routing (v0.198.0, v0.220.0 boot page):
+            // Post-identity routing (v0.198.0, v0.220.0 boot page; v0.415.0 the
+            // standalone onboarding page is retired, the Mission Dashboard is the
+            // first landing):
             //   - !onboarding_complete: stay on MainMenu (identity / seed setup)
-            //   - onboarding_complete && !concept_tour_seen: land on Onboarding
+            //   - onboarding_complete && !concept_tour_seen: land on Humanity once
+            //     (and mark the tour seen — the dashboard IS the orientation now)
             //   - onboarding_complete && concept_tour_seen: user's chosen boot page
             if gui_state.onboarding_complete {
                 gui_state.active_page = if gui_state.concept_tour_seen {
                     gui_state.default_page
                 } else {
-                    GuiPage::Onboarding
+                    gui_state.concept_tour_seen = true;
+                    GuiPage::Humanity
                 };
             }
 
@@ -3844,7 +3851,6 @@ mod native_app {
                                     GuiPage::Market => market::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Profile => profile::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Real => real::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Play => play::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Platform => platform::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Humanity => humanity::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Library => library::draw(ctx, &state.theme, &mut state.gui_state),
@@ -3858,13 +3864,12 @@ mod native_app {
                                     GuiPage::Trade => trade::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Files => files::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::BugReport => bugs::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Resources => resources::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Donate => donate::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Tools => tools::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Studio => studio::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Quests => quests::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Homes => homes::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Onboarding => onboarding::draw(ctx, &state.theme, &mut state.gui_state),
+                                    // v0.415.0: Play / Resources / Onboarding arms removed with their pages.
                                     GuiPage::ServerSettings => server_settings::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Identity => identity::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Governance => governance::draw(ctx, &state.theme, &mut state.gui_state),
