@@ -1,6 +1,6 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-05-28 | **Version:** v0.304.x (P2P groups complete both clients + concurrency audit)
+> **Last updated:** 2026-06-11 | **Version:** v0.416.0 (inventory/garden UI overhaul on universal expandable_row v0.400-414; homes-as-profiles + aeroponic towers + seed economy v0.379-399; retired-page cleanup + the relay-build fix v0.416)
 >
 > This is a **feature inventory** — what is built, partial, or planned.
 > Update this file every time features are added or status changes.
@@ -267,7 +267,7 @@ Everything in this section is **built and working**.
 | AI behavior system | ⚠️ | Native `AISystem` (state machines) implemented but **NOT registered** — never ticks in the native runtime. (The relay drives ambient NPC wander separately, server-side.) See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
 | Vehicle/mech system | ⚠️ | `VehicleSystem` implemented but **NOT registered** — never ticks. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
 | Ecology simulation | ⚠️ | `EcologySystem` implemented but **NOT registered** — never ticks. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
-| Quest system | ⚠️ | Native `QuestSystem` implemented but **NOT registered** — never ticks. (The relay runs the authoritative quest chain in `game_state.rs`, so quests work in multiplayer; the native single-player system does not.) See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Quest system | ✅ | **Registered + ticking since v0.342.0** (this row predated that; see the detailed "Quests" row further down). The relay still runs its separate authoritative chain for MMO — native-vs-relay reconciliation is the #8c-tail. |
 | GLTF model loading | ✅ | Load .glb models via gltf crate, mesh caching in AssetManager (v0.34.0) |
 | Instanced rendering | ✅ | InstanceBatch, pre-allocated uniform buffer, no per-frame GPU alloc (v0.34.0) |
 | Global error boundary | ✅ | window.onerror + unhandledrejection, toast UI instead of white screen (v0.35.0) |
@@ -399,7 +399,7 @@ Everything in this section is **built and working**.
 | Feature | Status | Details |
 |---------|--------|---------|
 | OS-standard data dir | ✅ | `%APPDATA%\HumanityOS\` with identity, saves, settings, cache, backups |
-| Save slots | ✅ | Profile, inventory, farm, quests, skills, world |
+| Save slots | ⚠️ | The full multi-slot model (profile/farm/quests/world) is design + test-only. What actually persists between sessions today (v0.381 `src/save_load.rs`, single `offline_home.json`): **inventory + skills** — applied at startup, saved on close + periodically. Health/position/game-time/vitals/crops/quests still reset every launch (the next persistence increment). |
 | Auto-rotating backups | ✅ | Keeps last 5 timestamped snapshots |
 | USB drive detection | ✅ | Detects removable drives for export/import |
 | Tiered sync config | ✅ | Configurable sync levels |
