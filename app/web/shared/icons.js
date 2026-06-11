@@ -35,6 +35,8 @@
     profile: '<circle cx="24" cy="16" r="10"/><path d="M6,44 A18,18 0 0 1 42,44"/>',
     user: '<circle cx="24" cy="16" r="10"/><path d="M6,44 A18,18 0 0 1 42,44"/>',
     users: '<circle cx="18" cy="16" r="8"/><path d="M4,42 A14,14 0 0 1 32,42"/><circle cx="34" cy="18" r="6"/><path d="M32,42 A10,10 0 0 1 44,42"/>',
+    // Crown, marks a group the current user created/owns (vs joined).
+    crown: '<path d="M8,34 L11,16 L19,26 L24,12 L29,26 L37,16 L40,34 Z"/><line x1="8" y1="40" x2="40" y2="40"/>',
     home: '<polyline points="6,24 24,6 42,24"/><polyline points="10,22 10,42 38,42 38,22"/><rect x="18" y="28" width="12" height="14" rx="1"/>',
     inventory: '<rect x="10" y="16" width="28" height="26" rx="3"/><path d="M16,16 V10 A8,8 0 0 1 32,10 V16"/><rect x="16" y="24" width="16" height="8" rx="1"/><line x1="24" y1="26" x2="24" y2="30"/>',
     tasklist: '<rect x="8" y="6" width="32" height="38" rx="3"/><path d="M18,6 V4 A6,6 0 0 1 30,4 V6"/><polyline points="14,18 17,21 22,16"/><line x1="26" y1="19" x2="36" y2="19"/><polyline points="14,28 17,31 22,26"/><line x1="26" y1="29" x2="36" y2="29"/><line x1="14" y1="38" x2="22" y2="38"/><line x1="26" y1="38" x2="34" y2="38"/>',

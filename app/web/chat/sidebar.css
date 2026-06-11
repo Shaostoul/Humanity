@@ -1,4 +1,4 @@
-/* sidebar.css — Sidebar panels, user/channel/DM lists, tab bar, presence */
+/* sidebar.css, Sidebar panels, user/channel/DM lists, tab bar, presence */
 
 /* ── Sidebar ── */
 #sidebar {
@@ -72,6 +72,37 @@
   font-weight: 600;
 }
 .channel-item::before { content: '# '; opacity: 0.6; }
+/* Server channels render the mic + the "#" themselves (mic must sit LEFT of the
+   #), so suppress the automatic prefix on those rows. */
+.channel-item.srv-chan::before { content: none; }
+.channel-item .ch-label { vertical-align: middle; }
+/* Property badges (eye = read-only, node-graph = federated), mirror native's
+   channel status icons; muted, brightening to accent on the active channel. */
+.channel-item .ch-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  color: var(--text-muted);
+  vertical-align: middle;
+  opacity: 0.8;
+}
+.channel-item.active .ch-badge { color: var(--accent); opacity: 0.95; }
+/* Voice mic, clickable button at the START of the row (left of the #). Muted;
+   brightens on hover; turns accent when joined. Matches native's per-channel
+   mic (click = join voice, click again = leave). */
+.channel-item .ch-mic {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 5px;
+  color: var(--text-muted);
+  vertical-align: middle;
+  opacity: 0.75;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.channel-item .ch-mic:hover { color: var(--text); opacity: 1; }
+.channel-item.active .ch-mic { color: var(--text); opacity: 0.95; }
+.channel-item .ch-mic.joined { color: var(--accent); opacity: 1; }
 
 #channel-header {
   background: var(--bg-secondary);
@@ -130,38 +161,91 @@
   color: var(--text-muted);
   letter-spacing: 0.08em;
 }
+/* Flat tinted bands (no border), mirrors native draw_*_section, which fills
+   the header (tint+brightness) and body (tint) as flush rects with NO outline.
+   The old 1px border read as a "card"; native has none. */
 .unified-section {
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 0;
-  margin-bottom: 0.28rem;
+  margin-bottom: 2px;
   overflow: hidden;
   background: var(--bg-primary);
 }
 .unified-section > .unified-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
   width: 100%;
-  text-align: left;
   padding: 0.36rem 0.48rem;
   background: rgba(255,255,255,0.03);
   border: none;
   color: var(--text);
-  cursor: pointer;
   font-size: 0.76rem;
   font-weight: 600;
 }
-/* Left nav compaction */
-.sidebar-unified-left .unified-section {
+/* Collapse toggle = the label+count; fills the row as a transparent button. */
+.unified-header .uh-toggle {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Right-aligned section action icons (cog / + / arrow), mirror native. */
+.unified-header .uh-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.unified-header .uh-act-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 18px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: color 0.12s, opacity 0.12s, background 0.12s;
+}
+.unified-header .uh-act-btn:hover {
+  color: var(--text);
+  opacity: 1;
+  background: rgba(255,255,255,0.08);
+}
+.unified-header .uh-act-btn svg { pointer-events: none; }
+/* Nav compaction, applied to BOTH the left rail and the right rail
+   (#right-sidebar Friends/Members) so density matches native's uniformly tight
+   sections instead of the bulkier default padding. */
+.sidebar-unified-left .unified-section,
+#right-sidebar .unified-section {
   margin-bottom: 0.22rem;
   border-radius: 0;
 }
-.sidebar-unified-left .unified-header {
+.sidebar-unified-left .unified-header,
+#right-sidebar .unified-header {
   padding: 0.28rem 0.42rem;
   font-size: var(--text-xs);
 }
-.sidebar-unified-left .unified-body {
+.sidebar-unified-left .unified-body,
+#right-sidebar .unified-body {
   padding: 0.22rem 0.28rem;
 }
 .sidebar-unified-left .channel-item,
-.sidebar-unified-left .dm-item {
+.sidebar-unified-left .dm-item,
+#right-sidebar .peer {
   padding-top: var(--space-xs);
   padding-bottom: var(--space-xs);
   font-size: 0.73rem;
@@ -175,33 +259,63 @@
 }
 
 /* Context color coding (shared left/right): DMs red, Groups green, Servers blue */
+/* Section tints come from theme.ron (dm_bg/group_bg/server_bg etc.) via the
+   --dm-*/--group-*/--server-* vars, same source native's draw_*_section reads. */
 .unified-section[data-sid="dms"],
 .unified-section[data-usid="friends"] {
-  background: rgba(120, 20, 20, 0.22);
-  border-color: rgba(170, 60, 60, 0.45);
+  background: var(--dm-bg);
 }
 .unified-section[data-sid="groups"],
 .unified-section[data-usid^="group-"] {
-  background: rgba(24, 92, 32, 0.22);
-  border-color: rgba(74, 168, 88, 0.42);
+  background: var(--group-bg);
 }
 .unified-section[data-sid="servers"],
 .unified-section[data-usid^="server-"] {
-  background: rgba(24, 46, 110, 0.22);
-  border-color: rgba(86, 130, 220, 0.42);
+  background: var(--server-bg);
 }
 
 .unified-section[data-sid="dms"] > .unified-header,
 .unified-section[data-usid="friends"] > .unified-header {
-  background: rgba(120, 20, 20, 0.34);
+  background: var(--dm-row-bg);
 }
 .unified-section[data-sid="groups"] > .unified-header,
 .unified-section[data-usid^="group-"] > .unified-header {
-  background: rgba(24, 92, 32, 0.34);
+  background: var(--group-row-bg);
 }
 .unified-section[data-sid="servers"] > .unified-header,
 .unified-section[data-usid^="server-"] > .unified-header {
-  background: rgba(24, 46, 110, 0.34);
+  background: var(--server-row-bg);
+}
+
+/* Scratchpad, local-only top row (native parity).
+   Native draws a standalone "# scratchpad" row at the very top of the left
+   rail (above DMs/Groups/Servers) for a workspace not attached to any
+   server/group/DM. Styled as a peer of the section headers, with the amber
+   "local-only" identity the web scratch-pad already used, and native's purple
+   active accent (rgb(160,140,200)). */
+.sidebar-unified-left .unified-scratch-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.28rem 0.42rem;
+  margin-bottom: 0.22rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-style: italic;
+  color: var(--warning, #e0a030);
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+.sidebar-unified-left .unified-scratch-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.sidebar-unified-left .unified-scratch-row.active {
+  background: rgba(120, 100, 170, 0.28);
+  border-left: 3px solid rgb(160, 140, 200);
+  padding-left: calc(0.42rem - 2px);
+  color: var(--text);
 }
 .unified-subhead {
   font-size: var(--text-xs);
@@ -262,7 +376,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Small icon buttons for call/mic/stream — no visible border at rest */
+/* Small icon buttons for call/mic/stream, no visible border at rest */
 .ulist-icon {
   background: none;
   border: none;

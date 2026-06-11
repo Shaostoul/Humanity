@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HumanityOS - Audit</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    body { line-height: 1.6; min-height: 100vh; color: #e8e8e8; background: #1a1a1a; }
+    .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.8rem; font-weight: 800; margin: 0 0 8px; }
+    .subtitle { color: var(--text-muted, #999); font-size: 0.95rem; margin: 0 0 32px; }
+
+    /* Summary */
+    .summary-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .summary-card {
+      background: var(--bg-card, #222);
+      border: 1px solid var(--border, #333);
+      border-radius: 8px;
+      padding: 14px 18px;
+    }
+    .summary-card .label {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted, #999); margin-bottom: 4px;
+    }
+    .summary-card .value { font-size: 1.3rem; font-weight: 800; color: var(--accent, #FF8811); }
+
+    /* Toolbar */
+    .toolbar { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+    .toolbar-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 6px; font-size: 0.88rem;
+      font-weight: 600; cursor: pointer; transition: all 0.15s;
+      border: 1px solid var(--border, #333);
+      background: var(--bg-card, #222); color: var(--text, #e0e0e0);
+    }
+    .toolbar-btn:hover { border-color: var(--accent, #FF8811); color: var(--accent, #FF8811); }
+    .toolbar-btn.primary { background: var(--accent, #FF8811); color: #000; border-color: transparent; }
+    .toolbar-btn.primary:hover { filter: brightness(1.1); }
+
+    /* Vendor level (L1) */
+    .vendor-group {
+      margin-bottom: 8px;
+      background: var(--bg-card, #222);
+      border: 1px solid var(--border, #333);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .vendor-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.03);
+      cursor: pointer; user-select: none;
+    }
+    .vendor-header:hover { background: rgba(255,255,255,0.05); }
+    .vendor-header h2 {
+      font-size: 0.95rem; font-weight: 700; margin: 0;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .vendor-header .vendor-total { font-size: 0.85rem; font-weight: 600; color: var(--accent, #FF8811); font-variant-numeric: tabular-nums; }
+    .chevron { transition: transform 0.2s; color: var(--text-muted, #999); font-size: 0.7rem; }
+    .collapsed .chevron { transform: rotate(-90deg); }
+    .collapsed .vendor-body { display: none; }
+    .vendor-body { padding: 0 16px 6px; }
+
+    .vendor-actions {
+      display: flex; gap: 8px; padding: 4px 0 2px;
+    }
+
+    /* Item level (L2), single-line compact rows */
+    .item-card {
+      margin-top: 1px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .item-card:last-child { border-bottom: none; }
+    .item-header {
+      display: flex; align-items: center;
+      padding: 5px 16px;
+      cursor: pointer; user-select: none;
+      gap: 10px;
+      font-size: 0.88rem;
+    }
+    .item-header:hover { background: rgba(255,255,255,0.03); }
+    .item-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .item-meta {
+      font-size: 0.78rem; color: var(--text-muted, #999);
+      display: flex; gap: 8px; align-items: center; flex-shrink: 0;
+    }
+    .item-meta .tag {
+      display: inline-block; padding: 0 6px; border-radius: 3px;
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase; line-height: 1.6;
+    }
+    .tag-active { background: rgba(46,204,113,0.15); color: #2ecc71; }
+    .tag-expired { background: rgba(231,76,60,0.15); color: #e74c3c; }
+    .tag-expiring { background: rgba(243,156,18,0.15); color: #f39c12; }
+    .tag-pre-project { background: rgba(155,89,182,0.15); color: #9b59b6; }
+    .item-cost { font-weight: 700; color: var(--accent, #FF8811); font-size: 0.88rem; white-space: nowrap; margin-left: auto; font-variant-numeric: tabular-nums; min-width: 60px; text-align: right; }
+    .item-card.collapsed .item-body { display: none; }
+    .item-card.collapsed .chevron { transform: rotate(-90deg); }
+
+    .item-body { padding: 8px 16px 12px; }
+    .item-notes {
+      font-size: 0.85rem; color: var(--text-muted, #999);
+      margin-bottom: 8px; font-style: italic;
+    }
+
+    /* Transaction table (L3) */
+    .tx-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .tx-table th {
+      text-align: left; padding: 6px 10px;
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted, #999);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .tx-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      color: var(--text, #e0e0e0);
+    }
+    .tx-table tr:last-child td { border-bottom: none; }
+    .tx-table .col-amount { text-align: right; font-variant-numeric: tabular-nums; }
+    .tx-table .col-actions { text-align: center; width: 32px; }
+
+    /* Editable */
+    [contenteditable="true"] { cursor: text; border-radius: 3px; outline: none; min-width: 40px; }
+    [contenteditable="true"]:focus {
+      background: rgba(255,136,17,0.08);
+      box-shadow: inset 0 0 0 1px var(--accent, #FF8811);
+    }
+    .inline-input {
+      background: transparent; border: 1px solid var(--border, #333);
+      color: var(--text, #e0e0e0); padding: 3px 8px; border-radius: 4px;
+      font-size: inherit; font-family: inherit;
+    }
+    .inline-input:focus { border-color: var(--accent, #FF8811); outline: none; }
+    .inline-input.wide { width: 100%; max-width: 280px; }
+
+    /* Buttons */
+    .add-btn {
+      background: transparent; border: 1px dashed var(--border, #444);
+      color: var(--text-muted, #999); padding: 6px 14px; border-radius: 6px;
+      cursor: pointer; font-size: 0.82rem; transition: all 0.15s;
+    }
+    .add-btn:hover { border-color: var(--accent, #FF8811); color: var(--accent, #FF8811); }
+    .del-btn {
+      background: transparent; border: none; color: var(--text-muted, #666);
+      cursor: pointer; font-size: 0.9rem; padding: 2px 6px; border-radius: 4px; line-height: 1;
+    }
+    .del-btn:hover { color: var(--danger, #e55); background: rgba(255,0,0,0.08); }
+    .status-select, .recurring-select {
+      background: transparent; border: 1px solid var(--border, #333);
+      color: var(--text, #e0e0e0); padding: 2px 6px; border-radius: 4px;
+      font-size: 0.82rem; cursor: pointer;
+    }
+    .status-select:focus, .recurring-select:focus { border-color: var(--accent, #FF8811); outline: none; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--bg-card, #222); border: 1px solid var(--accent, #FF8811);
+      border-radius: 8px; padding: 12px 20px; font-size: 0.9rem;
+      color: var(--text, #e0e0e0); z-index: 9999;
+      opacity: 0; transform: translateY(10px); transition: all 0.3s;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Edit mode */
+    body.edit-mode [contenteditable="true"] {
+      background: rgba(255,136,17,0.05);
+      box-shadow: inset 0 0 0 1px rgba(255,136,17,0.25);
+      border-radius: 3px;
+      padding: 2px 4px;
+    }
+    body.edit-mode .inline-input {
+      border-color: var(--accent, #FF8811);
+      background: rgba(255,136,17,0.05);
+    }
+    body.edit-mode .status-select,
+    body.edit-mode .recurring-select {
+      border-color: var(--accent, #FF8811);
+      background: rgba(255,136,17,0.05);
+    }
+    body.edit-mode .add-btn { border-style: solid; border-color: var(--accent, #FF8811); color: var(--accent, #FF8811); }
+    body.edit-mode .del-btn { color: var(--text-muted, #888); }
+    .edit-toggle { font-size: 0.92rem; }
+    .edit-toggle.active {
+      background: var(--accent, #FF8811);
+      color: #000;
+      border-color: transparent;
+    }
+
+    @media (max-width: 600px) {
+      .container { padding: 16px; }
+      .item-meta { flex-direction: column; gap: 4px; }
+    }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js" data-active="audit"></script>
+  <script src="/shared/settings.js"></script>
+
+  <div class="container">
+    <h1>Audit</h1>
+    <p class="subtitle">Full transparency. Every expense, every transaction, open for anyone to verify.</p>
+
+    <div class="summary-row" id="summary-row">
+      <div class="summary-card">
+        <div class="label">Monthly burn</div>
+        <div class="value" id="sum-monthly">$0.00</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Yearly cost</div>
+        <div class="value" id="sum-yearly">$0.00</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">All-time spent</div>
+        <div class="value" id="sum-alltime">$0.00</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Vendors</div>
+        <div class="value" id="sum-vendors">0</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button class="toolbar-btn edit-toggle" id="edit-toggle" onclick="toggleEditMode()">Edit</button>
+      <button class="toolbar-btn" onclick="addVendor()">+ Add Vendor</button>
+      <button class="toolbar-btn" onclick="exportJSON()">Export JSON</button>
+      <button class="toolbar-btn" onclick="importJSON()">Import JSON</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
+    </div>
+
+    <div id="vendors-container"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  var STORAGE_KEY = 'humanity_audit_v2';
+
+  var DEFAULT_DATA = { vendors: [
+    {
+      name: 'Namecheap',
+      items: [
+        {
+          name: 'shaostoul.com',
+          type: 'domain',
+          status: 'active',
+          recurring: 'yearly',
+          notes: 'Personal brand. Active Nov 16, 2020 to Nov 19, 2026.',
+          transactions: [
+            { date: '2020-11-16', amount: 12.99, description: 'Initial registration' }
+          ]
+        },
+        {
+          name: 'united-humanity.us',
+          type: 'domain',
+          status: 'active',
+          recurring: 'yearly',
+          notes: 'Primary project domain.',
+          transactions: [
+            { date: '2025-03-31', amount: 0, description: 'Registration (enter actual cost)' }
+          ]
+        },
+        {
+          name: 'our.universe',
+          type: 'domain',
+          status: 'expiring',
+          recurring: 'yearly',
+          notes: 'Potential simulation/game portal. Expiring May 14, 2026.',
+          transactions: [
+            { date: '2025-02-15', amount: 0, description: 'Registration (enter actual cost)' }
+          ]
+        },
+        {
+          name: 'public.guide',
+          type: 'domain',
+          status: 'active',
+          recurring: 'yearly',
+          notes: 'Potential self-sufficiency guides domain.',
+          transactions: []
+        },
+        {
+          name: 'u-h.us',
+          type: 'domain',
+          status: 'active',
+          recurring: 'yearly',
+          notes: 'Short URL alias.',
+          transactions: []
+        },
+        {
+          name: 'united-humanity.net',
+          type: 'domain',
+          status: 'active',
+          recurring: 'yearly',
+          notes: 'Backup domain.',
+          transactions: []
+        },
+        {
+          name: 'project.universe',
+          type: 'domain',
+          status: 'active',
+          recurring: 'yearly',
+          notes: 'Original project name domain.',
+          transactions: []
+        },
+        {
+          name: 'VPS Quasar (server1.shaostoul.com)',
+          type: 'hosting',
+          status: 'active',
+          recurring: 'monthly',
+          notes: 'Main relay server. Expires Aug 17, 2026.',
+          transactions: []
+        },
+        {
+          name: 'Stellar Plus (shaostoul.com hosting)',
+          type: 'hosting',
+          status: 'active',
+          recurring: 'yearly',
+          notes: 'Shared hosting. Expires Nov 14, 2026.',
+          transactions: []
+        },
+        {
+          name: 'Stellar (our.universe hosting)',
+          type: 'hosting',
+          status: 'expiring',
+          recurring: 'yearly',
+          notes: 'Expiring May 14, 2026.',
+          transactions: []
+        }
+      ]
+    },
+    {
+      name: 'Anthropic (Claude)',
+      items: [
+        {
+          name: 'Claude Pro/Max subscription',
+          type: 'subscription',
+          status: 'active',
+          recurring: 'monthly',
+          notes: 'Currently on $100/month plan.',
+          transactions: []
+        },
+        {
+          name: 'API tokens',
+          type: 'usage',
+          status: 'active',
+          recurring: 'monthly',
+          notes: 'Pay-as-you-go API usage.',
+          transactions: []
+        }
+      ]
+    },
+    {
+      name: 'OpenAI',
+      items: [
+        {
+          name: 'ChatGPT subscription',
+          type: 'subscription',
+          status: 'active',
+          recurring: 'monthly',
+          notes: '',
+          transactions: []
+        }
+      ]
+    },
+    {
+      name: 'Hardware',
+      items: [
+        {
+          name: 'Development PC',
+          type: 'hardware',
+          status: 'pre-project',
+          recurring: 'once',
+          notes: 'i7-8700K, 32GB RAM, RTX 4070 12GB, 3x 2TB NVMe. Purchased before project, used for all development.',
+          transactions: []
+        }
+      ]
+    }
+  ]};
+
+  function loadData() {
+    try {
+      var saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) { console.warn('Load failed:', e); }
+    return JSON.parse(JSON.stringify(DEFAULT_DATA));
+  }
+
+  function saveData(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    updateSummary(data);
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 2500);
+  }
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  function updateSummary(data) {
+    var monthly = 0, yearly = 0, alltime = 0;
+    data.vendors.forEach(function(v) {
+      v.items.forEach(function(item) {
+        var itemTotal = 0;
+        item.transactions.forEach(function(tx) { itemTotal += parseFloat(tx.amount) || 0; });
+        alltime += itemTotal;
+        // Estimate ongoing costs from most recent transaction
+        if (item.transactions.length > 0) {
+          var last = parseFloat(item.transactions[item.transactions.length - 1].amount) || 0;
+          if (item.recurring === 'monthly') { monthly += last; yearly += last * 12; }
+          else if (item.recurring === 'yearly') { yearly += last; monthly += last / 12; }
+        }
+      });
+    });
+    document.getElementById('sum-monthly').textContent = '$' + monthly.toFixed(2);
+    document.getElementById('sum-yearly').textContent = '$' + yearly.toFixed(2);
+    document.getElementById('sum-alltime').textContent = '$' + alltime.toFixed(2);
+    document.getElementById('sum-vendors').textContent = data.vendors.length;
+  }
+
+  function vendorTotal(vendor) {
+    var t = 0;
+    vendor.items.forEach(function(item) {
+      item.transactions.forEach(function(tx) { t += parseFloat(tx.amount) || 0; });
+    });
+    return t;
+  }
+
+  function itemTotal(item) {
+    var t = 0;
+    item.transactions.forEach(function(tx) { t += parseFloat(tx.amount) || 0; });
+    return t;
+  }
+
+  function statusTag(status) {
+    var cls = 'tag-active';
+    if (status === 'expired') cls = 'tag-expired';
+    else if (status === 'expiring') cls = 'tag-expiring';
+    else if (status === 'pre-project') cls = 'tag-pre-project';
+    return '<span class="tag ' + cls + '">' + esc(status) + '</span>';
+  }
+
+  function renderAll() {
+    var data = loadData();
+    var container = document.getElementById('vendors-container');
+    container.innerHTML = '';
+
+    data.vendors.forEach(function(vendor, vi) {
+      var vDiv = document.createElement('div');
+      vDiv.className = 'vendor-group';
+      vDiv.innerHTML =
+        '<div class="vendor-header" onclick="toggleCollapse(this.parentElement)">' +
+          '<h2><span class="chevron">&#9660;</span> ' + esc(vendor.name) + '</h2>' +
+          '<span class="vendor-total">$' + vendorTotal(vendor).toFixed(2) + ' total</span>' +
+        '</div>' +
+        '<div class="vendor-body" id="vbody-' + vi + '">' +
+          '<div class="vendor-actions">' +
+            '<button class="add-btn" onclick="addItem(' + vi + ')">+ Add item</button>' +
+            '<button class="del-btn" onclick="deleteVendor(' + vi + ')" title="Delete vendor">X Remove vendor</button>' +
+          '</div>' +
+        '</div>';
+      container.appendChild(vDiv);
+
+      var vBody = document.getElementById('vbody-' + vi);
+      vendor.items.forEach(function(item, ii) {
+        vBody.appendChild(buildItemCard(vi, ii, item));
+      });
+    });
+
+    updateSummary(data);
+  }
+
+  function buildItemCard(vi, ii, item) {
+    var card = document.createElement('div');
+    card.className = 'item-card collapsed';
+    var total = itemTotal(item);
+    var txCount = item.transactions.length;
+
+    card.innerHTML =
+      '<div class="item-header" onclick="toggleCollapse(this.parentElement)">' +
+        '<span class="chevron">&#9660;</span>' +
+        '<span class="item-name">' + esc(item.name) + '</span>' +
+        '<span class="item-meta">' +
+          statusTag(item.status) +
+          '<span>' + esc(item.type) + '</span>' +
+          '<span>' + esc(item.recurring) + '</span>' +
+          '<span>' + txCount + 'tx</span>' +
+        '</span>' +
+        '<span class="item-cost">$' + total.toFixed(2) + '</span>' +
+      '</div>' +
+      '<div class="item-body" id="ibody-' + vi + '-' + ii + '"></div>';
+
+    var body = card.querySelector('.item-body');
+    // Editable fields
+    body.innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">' +
+        '<div><label style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Name</label>' +
+          '<input class="inline-input wide" value="' + esc(item.name) + '" onchange="updateItem(' + vi + ',' + ii + ',\'name\',this.value)"></div>' +
+        '<div><label style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Type</label>' +
+          '<input class="inline-input wide" value="' + esc(item.type) + '" onchange="updateItem(' + vi + ',' + ii + ',\'type\',this.value)"></div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">' +
+        '<div><label style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Status</label>' +
+          '<select class="status-select" style="display:block;margin-top:2px;" onchange="updateItem(' + vi + ',' + ii + ',\'status\',this.value)">' +
+            '<option value="active"' + (item.status === 'active' ? ' selected' : '') + '>active</option>' +
+            '<option value="expiring"' + (item.status === 'expiring' ? ' selected' : '') + '>expiring</option>' +
+            '<option value="expired"' + (item.status === 'expired' ? ' selected' : '') + '>expired</option>' +
+            '<option value="pre-project"' + (item.status === 'pre-project' ? ' selected' : '') + '>pre-project</option>' +
+          '</select></div>' +
+        '<div><label style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Recurring</label>' +
+          '<select class="recurring-select" style="display:block;margin-top:2px;" onchange="updateItem(' + vi + ',' + ii + ',\'recurring\',this.value)">' +
+            '<option value="once"' + (item.recurring === 'once' ? ' selected' : '') + '>once</option>' +
+            '<option value="monthly"' + (item.recurring === 'monthly' ? ' selected' : '') + '>monthly</option>' +
+            '<option value="yearly"' + (item.recurring === 'yearly' ? ' selected' : '') + '>yearly</option>' +
+          '</select></div>' +
+      '</div>' +
+      '<div style="margin-bottom:10px;">' +
+        '<label style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Notes</label>' +
+        '<input class="inline-input wide" style="max-width:100%;" value="' + esc(item.notes || '') + '" onchange="updateItem(' + vi + ',' + ii + ',\'notes\',this.value)">' +
+      '</div>';
+
+    // Transaction table
+    var txHtml =
+      '<table class="tx-table"><thead><tr>' +
+        '<th>Date</th><th>Description</th><th class="col-amount">Amount ($)</th><th class="col-actions"></th>' +
+      '</tr></thead><tbody id="txbody-' + vi + '-' + ii + '"></tbody></table>' +
+      '<div style="padding:6px 0;">' +
+        '<button class="add-btn" onclick="addTx(' + vi + ',' + ii + ')">+ Add transaction</button> ' +
+        '<button class="del-btn" onclick="deleteItem(' + vi + ',' + ii + ')" style="margin-left:8px;">X Remove item</button>' +
+      '</div>';
+    body.insertAdjacentHTML('beforeend', txHtml);
+
+    var tbody = body.querySelector('#txbody-' + vi + '-' + ii);
+    item.transactions.forEach(function(tx, ti) {
+      tbody.appendChild(buildTxRow(vi, ii, ti, tx));
+    });
+
+    return card;
+  }
+
+  function buildTxRow(vi, ii, ti, tx) {
+    var tr = document.createElement('tr');
+
+    var tdDate = document.createElement('td');
+    tdDate.contentEditable = 'true';
+    tdDate.textContent = tx.date || '';
+    tdDate.addEventListener('blur', function() { updateTx(vi, ii, ti, 'date', this.textContent.trim()); });
+
+    var tdDesc = document.createElement('td');
+    tdDesc.contentEditable = 'true';
+    tdDesc.textContent = tx.description || '';
+    tdDesc.addEventListener('blur', function() { updateTx(vi, ii, ti, 'description', this.textContent.trim()); });
+
+    var tdAmt = document.createElement('td');
+    tdAmt.className = 'col-amount';
+    tdAmt.contentEditable = 'true';
+    tdAmt.textContent = (parseFloat(tx.amount) || 0).toFixed(2);
+    tdAmt.addEventListener('blur', function() {
+      var val = parseFloat(this.textContent.replace(/[^0-9.\-]/g, '')) || 0;
+      this.textContent = val.toFixed(2);
+      updateTx(vi, ii, ti, 'amount', val);
+    });
+
+    var tdDel = document.createElement('td');
+    tdDel.className = 'col-actions';
+    var btn = document.createElement('button');
+    btn.className = 'del-btn';
+    btn.textContent = 'X';
+    btn.title = 'Delete transaction';
+    btn.addEventListener('click', function() { deleteTx(vi, ii, ti); });
+    tdDel.appendChild(btn);
+
+    tr.appendChild(tdDate);
+    tr.appendChild(tdDesc);
+    tr.appendChild(tdAmt);
+    tr.appendChild(tdDel);
+    return tr;
+  }
+
+  // Data operations
+  function updateItem(vi, ii, field, value) {
+    var data = loadData();
+    data.vendors[vi].items[ii][field] = value;
+    saveData(data);
+    renderAll();
+  }
+
+  function updateTx(vi, ii, ti, field, value) {
+    var data = loadData();
+    data.vendors[vi].items[ii].transactions[ti][field] = value;
+    saveData(data);
+    // Don't re-render for inline edits, just update summaries
+    updateSummary(data);
+  }
+
+  function addVendor() {
+    var name = prompt('Vendor name:');
+    if (!name || !name.trim()) return;
+    var data = loadData();
+    data.vendors.push({ name: name.trim(), items: [] });
+    saveData(data);
+    renderAll();
+    showToast('Vendor "' + name.trim() + '" added');
+  }
+
+  function deleteVendor(vi) {
+    var data = loadData();
+    var name = data.vendors[vi].name;
+    if (!confirm('Delete vendor "' + name + '" and all its items?')) return;
+    data.vendors.splice(vi, 1);
+    saveData(data);
+    renderAll();
+    showToast('Vendor removed');
+  }
+
+  function addItem(vi) {
+    var data = loadData();
+    data.vendors[vi].items.push({
+      name: 'New item',
+      type: 'service',
+      status: 'active',
+      recurring: 'once',
+      notes: '',
+      transactions: []
+    });
+    saveData(data);
+    renderAll();
+    showToast('Item added');
+  }
+
+  function deleteItem(vi, ii) {
+    var data = loadData();
+    var name = data.vendors[vi].items[ii].name;
+    if (!confirm('Delete "' + name + '" and all its transactions?')) return;
+    data.vendors[vi].items.splice(ii, 1);
+    saveData(data);
+    renderAll();
+    showToast('Item removed');
+  }
+
+  function addTx(vi, ii) {
+    var data = loadData();
+    var today = new Date().toISOString().slice(0, 10);
+    data.vendors[vi].items[ii].transactions.push({
+      date: today,
+      description: '',
+      amount: 0
+    });
+    saveData(data);
+    renderAll();
+    // Expand the item and focus the new row
+    var cards = document.querySelectorAll('.item-card');
+    var idx = 0;
+    data.vendors.forEach(function(v, vIdx) {
+      v.items.forEach(function(item, iIdx) {
+        if (vIdx === vi && iIdx === ii) {
+          if (cards[idx]) {
+            cards[idx].classList.remove('collapsed');
+            var tbody = cards[idx].querySelector('tbody');
+            if (tbody && tbody.lastElementChild) {
+              var descCell = tbody.lastElementChild.children[1];
+              if (descCell) descCell.focus();
+            }
+          }
+        }
+        idx++;
+      });
+    });
+  }
+
+  function deleteTx(vi, ii, ti) {
+    var data = loadData();
+    data.vendors[vi].items[ii].transactions.splice(ti, 1);
+    saveData(data);
+    renderAll();
+    showToast('Transaction deleted');
+  }
+
+  function toggleCollapse(el) { el.classList.toggle('collapsed'); }
+
+  // Export / Import
+  function exportJSON() {
+    var data = loadData();
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'humanity-audit-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Exported audit data');
+  }
+
+  function importJSON() { document.getElementById('import-file').click(); }
+
+  function handleImport(event) {
+    var file = event.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var data = JSON.parse(e.target.result);
+        if (!data.vendors || !Array.isArray(data.vendors)) {
+          showToast('Invalid format (expected "vendors" array)');
+          return;
+        }
+        saveData(data);
+        renderAll();
+        showToast('Imported ' + data.vendors.length + ' vendors');
+      } catch (err) { showToast('Failed to parse JSON'); }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  function toggleEditMode() {
+    var btn = document.getElementById('edit-toggle');
+    var active = document.body.classList.toggle('edit-mode');
+    btn.textContent = active ? 'Done Editing' : 'Edit';
+    btn.classList.toggle('active', active);
+    // Expand/collapse all vendors and items
+    document.querySelectorAll('.vendor-group').forEach(function(el) {
+      el.classList.toggle('collapsed', !active);
+    });
+    document.querySelectorAll('.item-card').forEach(function(el) {
+      el.classList.toggle('collapsed', !active);
+    });
+  }
+
+  renderAll();
+  </script>
+</body>
+</html>

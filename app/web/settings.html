@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Settings — HumanityOS</title>
+  <title>Settings, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
 
@@ -577,10 +577,10 @@
 <script src="/shared/shell.js" data-active="settings"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">Change how the app looks, sounds, and works — plus your security vault.</div>
+  <div class="eli5-simple">Change how the app looks, sounds, and works, plus your security vault.</div>
   <div class="eli5-expert">Centralized config hub: appearance (theme, font, layout), notifications, privacy, chat behavior, keybinds, accessibility, audio/video, DND mode, storage management. Includes Server Info panel (live stats from /api/stats). Vault section provides AES-256-GCM encrypted credential storage with PBKDF2 key derivation (600k iterations), cloud sync via /api/vault/sync, and auto-lock timer.</div>
 </div>
-<p class="page-hint">Your settings. Change how things look and work — colors, sounds, notifications, and more. Make it yours.</p>
+<p class="page-hint">Your settings. Change how things look and work, colors, sounds, notifications, and more. Make it yours.</p>
 <div id="settings-app">
 
   <!-- Sidebar nav -->
@@ -640,7 +640,7 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong>Color Scheme</strong>
-            <span>Base palette — colors below override individual values</span>
+            <span>Base palette, colors below override individual values</span>
           </div>
           <select class="setting-select" id="pref-theme" onchange="savePref()">
             <option value="dark">Dark</option>
@@ -699,7 +699,7 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong>Line Weight</strong>
-            <span>Stroke thickness for all SVG icons — thicker is easier to see</span>
+            <span>Stroke thickness for all SVG icons, thicker is easier to see</span>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <input type="range" id="pref-icon-weight" min="1" max="6" step="0.5" value="3"
@@ -922,7 +922,7 @@
     <!-- Wallet -->
     <section class="settings-section" id="sec-wallet">
       <h1>Wallet</h1>
-      <p class="section-desc">Optional Solana wallet, derived from the same BIP39 seed phrase as your post-quantum identity but via a separate KDF path. Decoupled from identity — using HumanityOS doesn't require any blockchain.</p>
+      <p class="section-desc">Optional Solana wallet, derived from the same BIP39 seed phrase as your post-quantum identity but via a separate KDF path. Decoupled from identity, using HumanityOS doesn't require any blockchain.</p>
 
       <div class="settings-group">
         <div class="settings-group-title">Address</div>
@@ -932,7 +932,7 @@
             <span>Derived from your seed via path hum/solana/v1 (separate from your PQ identity)</span>
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-md);">
-            <span id="wallet-sol-address" style="font-family:monospace;font-size:0.82rem;color:var(--text);">—</span>
+            <span id="wallet-sol-address" style="font-family:monospace;font-size:0.82rem;color:var(--text);">-</span>
             <button id="wallet-copy-btn" style="background:none;border:1px solid var(--border);border-radius:var(--radius);padding:2px 8px;font-size:0.72rem;color:var(--text-muted);cursor:pointer;">Copy</button>
           </div>
         </div>
@@ -1195,7 +1195,7 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong>Public Key</strong>
-            <span>Your post-quantum (Dilithium3) identity key — base64, read-only</span>
+            <span>Your post-quantum (Dilithium3) identity key, base64, read-only</span>
           </div>
           <span id="pubkey-display" style="font-family:monospace;font-size:0.72rem;color:var(--text-muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Not connected</span>
         </div>
@@ -1285,13 +1285,13 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong>Clear App Cache &amp; Reload</strong>
-            <span>Forces every page to re-download fresh — use when an update isn't showing up. Keyboard shortcut: <kbd style="background:var(--bg-input);border:1px solid var(--text-muted);border-radius:3px;padding:1px 5px;font-size:0.78rem;">Ctrl+Shift+Delete</kbd></span>
+            <span>Forces every page to re-download fresh, use when an update isn't showing up. Keyboard shortcut: <kbd style="background:var(--bg-input);border:1px solid var(--text-muted);border-radius:3px;padding:1px 5px;font-size:0.78rem;">Ctrl+Shift+Delete</kbd></span>
           </div>
           <button onclick="clearAppCache()" style="background:#1a1a2a;border:1px solid #46f;color:#68f;padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;font-weight:600;">Clear Cache</button>
         </div>
       </div>
 
-      <p class="version-tag" id="version-tag">HumanityOS — loading version…</p>
+      <p class="version-tag" id="version-tag">HumanityOS, loading version…</p>
     </section>
 
     <!-- Keyboard Shortcuts -->
@@ -1457,7 +1457,7 @@
     <!-- Security -->
     <section class="settings-section" id="sec-security">
       <h1>Security</h1>
-      <p class="section-desc">Protect your identity and manage your devices. Your Dilithium3 key (post-quantum) is your passport — keep its 24-word seed safe and consider setting up social key recovery via guardians at /recovery.</p>
+      <p class="section-desc">Protect your identity and manage your devices. Your Dilithium3 key (post-quantum) is your passport, keep its 24-word seed safe and consider setting up social key recovery via guardians at /recovery.</p>
 
       <div id="backup-warning" class="settings-group" style="background:rgba(229,85,85,0.08);border:1px solid rgba(229,85,85,0.3);border-radius:10px;padding:var(--space-xl) var(--space-2xl);margin-bottom:var(--space-2xl);">
         <div style="display:flex;align-items:flex-start;gap:var(--space-lg);">
@@ -1466,10 +1466,10 @@
             <strong style="color:var(--danger);font-size:0.95rem;">Your identity is NOT backed up</strong>
             <p style="color:var(--text-muted);font-size:0.82rem;line-height:1.6;margin:var(--space-md) 0 0;">
               Your private key lives only in this browser's storage. If you clear your browser data, reinstall, or lose this device,
-              <strong style="color:var(--text);">your identity is gone forever</strong> — no one can recover it for you.
+              <strong style="color:var(--text);">your identity is gone forever</strong>, no one can recover it for you.
             </p>
             <p style="color:var(--text-muted);font-size:0.82rem;line-height:1.6;margin:var(--space-md) 0 0;">
-              <strong style="color:var(--text);">Fix this now:</strong> Use any backup method below — seed phrase (paper), encrypted file (cloud), or password manager.
+              <strong style="color:var(--text);">Fix this now:</strong> Use any backup method below, seed phrase (paper), encrypted file (cloud), or password manager.
               Two backups in different places is safest.
             </p>
           </div>
@@ -1542,7 +1542,7 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong>View Seed Phrase</strong>
-            <span>24-word recovery phrase — write it down, never share it, never screenshot it</span>
+            <span>24-word recovery phrase, write it down, never share it, never screenshot it</span>
           </div>
           <button onclick="settingsOpenSeed()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🌱 View Seed</button>
         </div>
@@ -1698,10 +1698,10 @@
         <h2>🖥️ Server Stats</h2>
         <div class="info-body">
           <div class="stat-grid" id="ki-info-stats">
-            <div class="stat-card"><div class="stat-val" id="ki-info-online">—</div><div class="stat-label">Online</div></div>
-            <div class="stat-card"><div class="stat-val" id="ki-info-registered">—</div><div class="stat-label">Registered</div></div>
-            <div class="stat-card"><div class="stat-val" id="ki-info-uptime">—</div><div class="stat-label">Uptime</div></div>
-            <div class="stat-card"><div class="stat-val" id="ki-info-version">—</div><div class="stat-label">Version</div></div>
+            <div class="stat-card"><div class="stat-val" id="ki-info-online">-</div><div class="stat-label">Online</div></div>
+            <div class="stat-card"><div class="stat-val" id="ki-info-registered">-</div><div class="stat-label">Registered</div></div>
+            <div class="stat-card"><div class="stat-val" id="ki-info-uptime">-</div><div class="stat-label">Uptime</div></div>
+            <div class="stat-card"><div class="stat-val" id="ki-info-version">-</div><div class="stat-label">Version</div></div>
           </div>
         </div>
       </div>
@@ -1748,7 +1748,7 @@
         <div class="info-body">
           <div class="role-card">
             <h3>Viewers️ Follow</h3>
-            <div class="perms">One-way — shows you care. Use <code>/follow &lt;name&gt;</code>. Right-click a user for quick follow.</div>
+            <div class="perms">One-way, shows you care. Use <code>/follow &lt;name&gt;</code>. Right-click a user for quick follow.</div>
           </div>
           <div class="role-card">
             <h3>🤝 Friends (Mutual Follow)</h3>
@@ -1756,7 +1756,7 @@
           </div>
           <div class="role-card">
             <h3>🚫 Block</h3>
-            <div class="perms">Client-side — hides their messages from your view. Use <code>/block &lt;name&gt;</code>.</div>
+            <div class="perms">Client-side, hides their messages from your view. Use <code>/block &lt;name&gt;</code>.</div>
           </div>
         </div>
       </div>
@@ -1768,7 +1768,7 @@
             <div class="perms">
               <strong>Messages:</strong> Fibonacci rate limiting (1,1,2,3,5,8… second delays on rapid posting)<br>
               <strong>New accounts:</strong> 5s minimum delay for first 10 minutes<br>
-              <strong>Uploads:</strong> 2/minute, 4 image max per user (FIFO — oldest replaced)<br>
+              <strong>Uploads:</strong> 2/minute, 4 image max per user (FIFO, oldest replaced)<br>
               <strong>API:</strong> 10 req/s general, 5 req/s for read endpoints
             </div>
           </div>
@@ -1780,68 +1780,68 @@
         <div class="info-body">
           <div class="cmd-group">
             <h4>👥 Social</h4>
-            <div class="cmd-row"><code>/follow &lt;name&gt;</code> — Follow a user</div>
-            <div class="cmd-row"><code>/unfollow &lt;name&gt;</code> — Unfollow a user</div>
-            <div class="cmd-row"><code>/block &lt;name&gt;</code> — Block a user</div>
-            <div class="cmd-row"><code>/unblock &lt;name&gt;</code> — Unblock a user</div>
-            <div class="cmd-row"><code>/blocklist</code> — Show blocked users</div>
+            <div class="cmd-row"><code>/follow &lt;name&gt;</code>, Follow a user</div>
+            <div class="cmd-row"><code>/unfollow &lt;name&gt;</code>, Unfollow a user</div>
+            <div class="cmd-row"><code>/block &lt;name&gt;</code>, Block a user</div>
+            <div class="cmd-row"><code>/unblock &lt;name&gt;</code>, Unblock a user</div>
+            <div class="cmd-row"><code>/blocklist</code>, Show blocked users</div>
           </div>
           <div class="cmd-group">
             <h4>💬 DMs &amp; Groups</h4>
-            <div class="cmd-row"><code>/dm &lt;name&gt; &lt;msg&gt;</code> — Send a direct message</div>
-            <div class="cmd-row"><code>/dms</code> — List DM conversations</div>
-            <div class="cmd-row"><code>/group-create &lt;name&gt;</code> — Create a group chat</div>
-            <div class="cmd-row"><code>/group-join &lt;code&gt;</code> — Join group by invite code</div>
-            <div class="cmd-row"><code>/group-invite</code> — Copy current group's invite code</div>
-            <div class="cmd-row"><code>/group-leave</code> — Leave current group</div>
-            <div class="cmd-row"><code>/friendcode</code> — Generate a one-time friend code (auto-mutual follow)</div>
-            <div class="cmd-row"><code>/redeem &lt;code&gt;</code> — Redeem a friend code (both users follow each other)</div>
+            <div class="cmd-row"><code>/dm &lt;name&gt; &lt;msg&gt;</code>, Send a direct message</div>
+            <div class="cmd-row"><code>/dms</code>, List DM conversations</div>
+            <div class="cmd-row"><code>/group-create &lt;name&gt;</code>, Create a group chat</div>
+            <div class="cmd-row"><code>/group-join &lt;code&gt;</code>, Join group by invite code</div>
+            <div class="cmd-row"><code>/group-invite</code>, Copy current group's invite code</div>
+            <div class="cmd-row"><code>/group-leave</code>, Leave current group</div>
+            <div class="cmd-row"><code>/friendcode</code>, Generate a one-time friend code (auto-mutual follow)</div>
+            <div class="cmd-row"><code>/redeem &lt;code&gt;</code>, Redeem a friend code (both users follow each other)</div>
           </div>
           <div class="cmd-group">
             <h4>✏️ Profile</h4>
-            <div class="cmd-row"><code>/bio &lt;text&gt;</code> — Set your bio</div>
-            <div class="cmd-row"><code>/social &lt;platform&gt; &lt;handle&gt;</code> — Set social link</div>
-            <div class="cmd-row"><code>/profile</code> — Edit profile</div>
-            <div class="cmd-row"><code>/name &lt;name&gt;</code> — Change display name</div>
+            <div class="cmd-row"><code>/bio &lt;text&gt;</code>, Set your bio</div>
+            <div class="cmd-row"><code>/social &lt;platform&gt; &lt;handle&gt;</code>, Set social link</div>
+            <div class="cmd-row"><code>/profile</code>, Edit profile</div>
+            <div class="cmd-row"><code>/name &lt;name&gt;</code>, Change display name</div>
           </div>
           <div class="cmd-group">
             <h4>📌 Pins</h4>
-            <div class="cmd-row"><code>/pin</code> — Pin the last message (mod/admin)</div>
-            <div class="cmd-row"><code>/unpin &lt;N&gt;</code> — Unpin by index (mod/admin)</div>
-            <div class="cmd-row"><code>/mypin</code> — Pin your last message (for yourself)</div>
-            <div class="cmd-row"><code>/unmypin &lt;N&gt;</code> — Unpin your pin by index</div>
-            <div class="cmd-row"><code>/pins</code> — View pins</div>
+            <div class="cmd-row"><code>/pin</code>, Pin the last message (mod/admin)</div>
+            <div class="cmd-row"><code>/unpin &lt;N&gt;</code>, Unpin by index (mod/admin)</div>
+            <div class="cmd-row"><code>/mypin</code>, Pin your last message (for yourself)</div>
+            <div class="cmd-row"><code>/unmypin &lt;N&gt;</code>, Unpin your pin by index</div>
+            <div class="cmd-row"><code>/pins</code>, View pins</div>
           </div>
           <div class="cmd-group">
             <h4>📞 Voice</h4>
-            <div class="cmd-row"><code>/call</code> — Start a voice call (or use 📞 button)</div>
+            <div class="cmd-row"><code>/call</code>, Start a voice call (or use 📞 button)</div>
           </div>
           <div class="cmd-group">
             <h4>🛡️ Moderation</h4>
-            <div class="cmd-row"><code>/kick &lt;name&gt;</code> — Disconnect a user</div>
-            <div class="cmd-row"><code>/mute &lt;name&gt;</code> — Mute a user</div>
-            <div class="cmd-row"><code>/ban &lt;name&gt;</code> — Ban a user</div>
-            <div class="cmd-row"><code>/report &lt;name&gt; [reason]</code> — Report a user</div>
+            <div class="cmd-row"><code>/kick &lt;name&gt;</code>, Disconnect a user</div>
+            <div class="cmd-row"><code>/mute &lt;name&gt;</code>, Mute a user</div>
+            <div class="cmd-row"><code>/ban &lt;name&gt;</code>, Ban a user</div>
+            <div class="cmd-row"><code>/report &lt;name&gt; [reason]</code>, Report a user</div>
           </div>
           <div class="cmd-group">
             <h4>👑 Admin</h4>
-            <div class="cmd-row"><code>/verify &lt;name&gt;</code> — Verify a user</div>
-            <div class="cmd-row"><code>/unverify &lt;name&gt;</code> — Remove verified</div>
-            <div class="cmd-row"><code>/mod &lt;name&gt;</code> — Promote to moderator</div>
-            <div class="cmd-row"><code>/unmod &lt;name&gt;</code> — Remove moderator</div>
-            <div class="cmd-row"><code>/donor &lt;name&gt;</code> — Set donor role</div>
-            <div class="cmd-row"><code>/lockdown</code> — Toggle registration lock</div>
-            <div class="cmd-row"><code>/channel-create &lt;name&gt; [desc]</code> — Create channel</div>
-            <div class="cmd-row"><code>/channel-delete &lt;name&gt;</code> — Delete channel</div>
-            <div class="cmd-row"><code>/wipe</code> — Delete all chat history</div>
+            <div class="cmd-row"><code>/verify &lt;name&gt;</code>, Verify a user</div>
+            <div class="cmd-row"><code>/unverify &lt;name&gt;</code>, Remove verified</div>
+            <div class="cmd-row"><code>/mod &lt;name&gt;</code>, Promote to moderator</div>
+            <div class="cmd-row"><code>/unmod &lt;name&gt;</code>, Remove moderator</div>
+            <div class="cmd-row"><code>/donor &lt;name&gt;</code>, Set donor role</div>
+            <div class="cmd-row"><code>/lockdown</code>, Toggle registration lock</div>
+            <div class="cmd-row"><code>/channel-create &lt;name&gt; [desc]</code>, Create channel</div>
+            <div class="cmd-row"><code>/channel-delete &lt;name&gt;</code>, Delete channel</div>
+            <div class="cmd-row"><code>/wipe</code>, Delete all chat history</div>
           </div>
           <div class="cmd-group">
             <h4>🔧 Utility</h4>
-            <div class="cmd-row"><code>/help</code> — Show help</div>
-            <div class="cmd-row"><code>/export</code> — Download identity backup</div>
-            <div class="cmd-row"><code>/link</code> — Link another device</div>
-            <div class="cmd-row"><code>/revoke &lt;key&gt;</code> — Remove a device</div>
-            <div class="cmd-row"><code>/users</code> — List all users</div>
+            <div class="cmd-row"><code>/help</code>, Show help</div>
+            <div class="cmd-row"><code>/export</code>, Download identity backup</div>
+            <div class="cmd-row"><code>/link</code>, Link another device</div>
+            <div class="cmd-row"><code>/revoke &lt;key&gt;</code>, Remove a device</div>
+            <div class="cmd-row"><code>/users</code>, List all users</div>
           </div>
         </div>
       </div>
@@ -1857,14 +1857,14 @@
         <div class="lock-card">
           <h1>🔐 Create Your Vault</h1>
           <p class="subtitle">
-            A secure place for passwords, recovery phrases, and private notes —
+            A secure place for passwords, recovery phrases, and private notes -
             all on your device, all encrypted, none of it visible to anyone but you.
           </p>
           <div class="eli5-box">
             <p>
               <strong>Think of this like a filing cabinet with a combination lock.</strong>
               Only you know the combination. Everything inside is scrambled into
-              unreadable gibberish — even if someone got into your computer,
+              unreadable gibberish, even if someone got into your computer,
               they would see nothing useful.
             </p>
             <p>
@@ -1875,7 +1875,7 @@
           <div class="eli5-box" style="margin-bottom:var(--space-2xl);border-color:#3a3000;background:#100e00">
             <p>
               <strong style="color:var(--accent)">⚠ Choose a passphrase you'll remember.</strong>
-              If you forget your vault passphrase, everything inside is gone —
+              If you forget your vault passphrase, everything inside is gone -
               there is no "forgot password" because only you hold the key.
               Make it long and memorable: a phrase or three words you won't forget.
             </p>
@@ -1891,7 +1891,7 @@
           <div id="vault-sec-setup-msg" class="vault-screen-msg"></div>
           <button class="vault-btn-primary" id="vault-sec-setup-btn" onclick="vault_doSetup()">Create Vault</button>
           <p style="font-size:.7rem;color:#3a3a3a;margin-top:var(--space-xl);text-align:center">
-            Your passphrase is never stored or transmitted — only a mathematical lock derived from it.
+            Your passphrase is never stored or transmitted, only a mathematical lock derived from it.
           </p>
         </div>
       </div>
@@ -1950,7 +1950,7 @@
             <div style="flex:1">
               <div style="font-size:.85rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm)">Your Humanity identity isn't backed up here yet</div>
               <div style="font-size:.78rem;color:var(--text-muted);line-height:1.55;margin-bottom:var(--space-lg)">
-                Your chat identity has a 24-word seed phrase — like a master key written in plain English.
+                Your chat identity has a 24-word seed phrase, like a master key written in plain English.
                 Save it here and you can always recover your account, even if your device is lost or your browser is wiped.
               </div>
               <div style="display:flex;gap:var(--space-lg);flex-wrap:wrap">
@@ -1971,7 +1971,7 @@
           <div id="vault-sec-welcome">
             <h2>Your vault is unlocked 🔓</h2>
             <p>
-              Add anything you want to keep private — seed phrases, passwords, secure notes.
+              Add anything you want to keep private, seed phrases, passwords, secure notes.
               Everything is encrypted with your passphrase before it's saved.
               Nothing leaves your device.
             </p>
@@ -2002,23 +2002,23 @@
               <h3>📖 How the vault works</h3>
               <div class="eli5-row">
                 <span class="eli5-icon">🔒</span>
-                <p><strong>Your passphrase = your key.</strong> When you save an entry, it's scrambled using your passphrase. Only someone who knows that passphrase can unscramble it — not us, not your internet provider, not anyone else.</p>
+                <p><strong>Your passphrase = your key.</strong> When you save an entry, it's scrambled using your passphrase. Only someone who knows that passphrase can unscramble it, not us, not your internet provider, not anyone else.</p>
               </div>
               <div class="eli5-row">
                 <span class="eli5-icon">📱</span>
-                <p><strong>It stays on your device.</strong> Unlike a cloud password manager, this vault lives in your browser's local storage. It doesn't sync across devices automatically — that's a trade-off for maximum privacy. Export a backup if you want to move it somewhere else.</p>
+                <p><strong>It stays on your device.</strong> Unlike a cloud password manager, this vault lives in your browser's local storage. It doesn't sync across devices automatically, that's a trade-off for maximum privacy. Export a backup if you want to move it somewhere else.</p>
               </div>
               <div class="eli5-row">
                 <span class="eli5-icon">👁️</span>
-                <p><strong>Secret fields are hidden until you click them.</strong> Passwords and seed phrases show as blur by default — tap to reveal. This protects you from someone glancing at your screen.</p>
+                <p><strong>Secret fields are hidden until you click them.</strong> Passwords and seed phrases show as blur by default, tap to reveal. This protects you from someone glancing at your screen.</p>
               </div>
               <div class="eli5-row">
                 <span class="eli5-icon">💾</span>
-                <p><strong>Back it up.</strong> If you clear your browser data, you lose your vault. Use <strong>⬇ Export</strong> to download an encrypted copy, or <strong>☁ Sync</strong> to save it to the Humanity relay — then <strong>☁⬇ Restore</strong> on any other device using the same identity.</p>
+                <p><strong>Back it up.</strong> If you clear your browser data, you lose your vault. Use <strong>⬇ Export</strong> to download an encrypted copy, or <strong>☁ Sync</strong> to save it to the Humanity relay, then <strong>☁⬇ Restore</strong> on any other device using the same identity.</p>
               </div>
               <div class="eli5-row">
                 <span class="eli5-icon">☁</span>
-                <p><strong>Cloud sync is still encrypted.</strong> The relay server never sees your passwords or seed phrases — only scrambled data that only you can unscramble with your vault passphrase. You need a Humanity chat identity to use cloud sync (it signs the request to prove it's really you).</p>
+                <p><strong>Cloud sync is still encrypted.</strong> The relay server never sees your passwords or seed phrases, only scrambled data that only you can unscramble with your vault passphrase. You need a Humanity chat identity to use cloud sync (it signs the request to prove it's really you).</p>
               </div>
             </div>
           </div>
@@ -2052,7 +2052,7 @@
   onclick="document.getElementById('vault-sec-blur-overlay').style.display='none'">
   <div style="font-size:2.5rem">🔒</div>
   <div style="font-size:.95rem;color:var(--text-muted)">Vault hidden while you were away</div>
-  <div style="font-size:.75rem;color:var(--text-muted)">Click to continue — or wait for auto-lock</div>
+  <div style="font-size:.75rem;color:var(--text-muted)">Click to continue, or wait for auto-lock</div>
 </div>
 
 <!-- Vault import modal -->
@@ -2064,7 +2064,7 @@
     <h3 style="font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:var(--space-md)">⬆ Import Vault Backup</h3>
     <p style="font-size:.78rem;color:var(--text-muted);line-height:1.5;margin-bottom:var(--space-xl)">
       Select a <code>humanity-vault-backup.json</code> file and enter the passphrase you used when you exported it.
-      Entries will be merged — nothing gets overwritten.
+      Entries will be merged, nothing gets overwritten.
     </p>
     <div style="margin-bottom:var(--space-xl)">
       <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:var(--space-sm)">Backup File</label>
@@ -2130,6 +2130,11 @@
 
 <script src="/chat/bip39-english.js?v=1"></script>
 <script src="/chat/crypto.js?v=5"></script>
+<!-- Dilithium identity bridge for relay REST auth (Inc5c-tail, v0.277.2). -->
+<!-- `pq.js` installs window.pqDeriveIdentity + window.pqSignMessage; -->
+<!-- `pq-relay-auth.js` installs window.getPqSignedAuth used by vault sync. -->
+<script src="/chat/pq.js?v=1"></script>
+<script src="/shared/pq-relay-auth.js?v=1"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/pages/settings-app.js"></script>
 </body>

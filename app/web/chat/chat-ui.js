@@ -5,6 +5,52 @@
 //   esc, switchChannel, openDmConversation, sendMessage)
 // ─────────────────────────────────────────────────────────────────────────
 
+// Channel property badges, mirror native's channel status icons
+// (src/gui/pages/chat.rs paint_eye / paint_federation), muted color, drawn
+// after the channel name. Eye = read-only, node-graph = federated.
+const CH_BADGE_READONLY = '<span class="ch-badge" title="Read-only, only admins/mods can post"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.6 8C3.1 5.1 5.3 3.8 8 3.8s4.9 1.3 6.4 4.2C12.9 10.9 10.7 12.2 8 12.2S3.1 10.9 1.6 8Z"/><circle cx="8" cy="8" r="1.8" fill="currentColor" stroke="none"/></svg></span>';
+const CH_BADGE_FEDERATED = '<span class="ch-badge" title="Federated channel"><svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor"><g stroke="currentColor" stroke-width="1"><line x1="8" y1="8" x2="8" y2="2.8"/><line x1="8" y1="8" x2="3.5" y2="10.6"/><line x1="8" y1="8" x2="12.5" y2="10.6"/></g><circle cx="8" cy="8" r="1.9"/><circle cx="8" cy="2.8" r="1.4"/><circle cx="3.5" cy="10.6" r="1.4"/><circle cx="12.5" cy="10.6" r="1.4"/></svg></span>';
+// Mic glyph, native shows a clickable mic at the START of a voice-enabled
+// channel row (left of the #), src/gui/pages/chat.rs ~1378 paint_mic. Click =
+// join voice for that channel; click again = leave (sends voice_join/voice_leave
+// with the channel name, exactly like native). The standalone "Voice Channels"
+// section was removed in favour of this per-channel mic.
+const MIC_SVG = '<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="6" y="1.8" width="4" height="7.2" rx="2" fill="currentColor" stroke="none"/><path d="M4.3 7.4a3.7 3.7 0 007.4 0"/><line x1="8" y1="11.1" x2="8" y2="13.6"/><line x1="5.8" y1="13.6" x2="10.2" y2="13.6"/></svg>';
+
+// Section-header action icons (mirror native draw_*_section header buttons):
+// DMs → cog (settings), Groups → plus (create) + arrow (join), Servers → plus
+// (add server). Muted; brighten on hover via .uh-act-btn CSS.
+const UH_ICON_COG = '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M8 5.2a2.8 2.8 0 100 5.6 2.8 2.8 0 000-5.6zm0 4.1a1.3 1.3 0 110-2.6 1.3 1.3 0 010 2.6z"/><path d="M13.5 8c0-.3 0-.6-.05-.9l1.3-1-1.3-2.2-1.5.6a4.6 4.6 0 00-1.5-.9L10.2 1.5h-2.6L7.4 3.1a4.6 4.6 0 00-1.5.9l-1.5-.6-1.3 2.2 1.3 1c-.05.3-.05.6-.05.9s0 .6.05.9l-1.3 1 1.3 2.2 1.5-.6c.45.4.95.7 1.5.9l.2 1.6h2.6l.25-1.6c.55-.2 1.05-.5 1.5-.9l1.5.6 1.3-2.2-1.3-1c.05-.3.05-.6.05-.9z" opacity="0.55"/></svg>';
+const UH_ICON_PLUS = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="8" y1="3.5" x2="8" y2="12.5"/><line x1="3.5" y1="8" x2="12.5" y2="8"/></svg>';
+const UH_ICON_ARROW = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="8" x2="12" y2="8"/><polyline points="8.5,4.5 12.5,8 8.5,11.5"/></svg>';
+
+// Track which channels we've joined voice on (client-side, mirrors native's
+// ch.voice_joined). Sending voice_join/voice_leave matches native's wire format
+// exactly; the relay does not yet bridge per-channel audio, that's the WebRTC
+// transport track, so today this is the join/leave signal + visual state.
+window._voiceJoinedChannels = window._voiceJoinedChannels || new Set();
+function toggleChannelVoice(channel) {
+  if (!channel) return;
+  const joined = window._voiceJoinedChannels.has(channel);
+  if (joined) window._voiceJoinedChannels.delete(channel);
+  else window._voiceJoinedChannels.add(channel);
+  if (typeof ws !== 'undefined' && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: joined ? 'voice_leave' : 'voice_join', channel }));
+  }
+  if (typeof renderServerList === 'function') renderServerList();
+}
+
+// DM settings (the DMs-section cog). Native opens a small popup whose only live
+// control is a DM-notifications toggle; mirror that intent as a mute toggle.
+window.openDmSettings = function() {
+  const key = 'hos_dm_notifications_muted';
+  const muted = localStorage.getItem(key) === '1';
+  localStorage.setItem(key, muted ? '0' : '1');
+  const msg = muted ? '🔔 DM notifications unmuted' : '🔕 DM notifications muted';
+  if (typeof addNotice === 'function') addNotice(msg, muted ? 'green' : 'orange', 4);
+  else if (typeof addSystemMessage === 'function') addSystemMessage(msg);
+};
+
 // ── Key Bindings ──
 document.getElementById('name-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') connect();
@@ -73,7 +119,7 @@ let SOUND_PRESETS = {};
 fetch('/data/sounds/presets.json', { cache: 'no-cache' })
   .then(function(r) { return r.ok ? r.json() : null; })
   .then(function(j) { if (j && j.presets) SOUND_PRESETS = j.presets; })
-  .catch(function() { /* silent — sounds just won't play */ });
+  .catch(function() { /* silent, sounds just won't play */ });
 
 function playNotificationChime() {
   if (!soundEnabled) return;
@@ -112,6 +158,33 @@ function closeSoundMenuOutside(e) {
   if (!menu.contains(e.target) && e.target.id !== 'sound-toggle') {
     menu.style.display = 'none';
     document.removeEventListener('click', closeSoundMenuOutside);
+  }
+}
+
+// ── Account & Identity menu (header popover) ──
+// Native parity: the left rail has NO persistent identity header. Profile,
+// public key, contact-card share/add, peer sync, key protection, system info,
+// and devices live OFF the channel list. Web mirrors this by relocating the
+// #my-identity block into this header popover (see relocateIdentityToMenu),
+// toggled by #account-toggle. Same open/close + outside-click pattern as the
+// sound menu. Must be global (called from inline onclick).
+function toggleIdentityMenu() {
+  const menu = document.getElementById('identity-menu');
+  if (!menu) return;
+  if (menu.style.display === 'none' || !menu.style.display) {
+    menu.style.display = 'block';
+    setTimeout(() => document.addEventListener('click', closeIdentityMenuOutside), 0);
+  } else {
+    menu.style.display = 'none';
+  }
+}
+function closeIdentityMenuOutside(e) {
+  const menu = document.getElementById('identity-menu');
+  if (!menu) return;
+  // Keep open when the click is inside the menu or on its toggle button.
+  if (!menu.contains(e.target) && !e.target.closest('#account-toggle')) {
+    menu.style.display = 'none';
+    document.removeEventListener('click', closeIdentityMenuOutside);
   }
 }
 function renderSoundOptions() {
@@ -154,13 +227,16 @@ function notifyNewMessage(author, content, isDm) {
     startTitleFlash();
   }
 
-  // Always notify on @mention or DM, even if focused.
-  if (mentioned || isDm || !windowFocused) {
+  // DM notifications can be muted via the DMs-section cog (DM settings).
+  const dmMuted = isDm && localStorage.getItem('hos_dm_notifications_muted') === '1';
+
+  // Always notify on @mention or DM, even if focused (unless DMs are muted).
+  if (!dmMuted && (mentioned || isDm || !windowFocused)) {
     playNotificationChime();
   }
 
   // Browser notification (if permitted).
-  if (Notification.permission === 'granted' && (!windowFocused || mentioned || isDm)) {
+  if (!dmMuted && Notification.permission === 'granted' && (!windowFocused || mentioned || isDm)) {
     const prefix = isDm ? '💬 DM from ' : '';
     const n = new Notification(prefix + author, {
       body: content.substring(0, 100),
@@ -213,7 +289,7 @@ function subscribeToPush() {
       var keys = sub.toJSON().keys;
       // Sign the request so the server knows which user this subscription belongs to.
       var ts = Date.now();
-      return signMessage(myIdentity.privateKey, 'push_subscribe', ts).then(function(sig) {
+      return pqSignChatMessage('push_subscribe', ts).then(function(sig) { // full-PQ: Dilithium3 over push_subscribe\nts
         return fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -299,10 +375,10 @@ function updateCharCounter(len) {
   const has = await supportsEd25519();
   const el = document.getElementById('crypto-status');
   if (has) {
-    el.textContent = '✓ Ed25519 signatures enabled — messages will be cryptographically signed';
+    el.textContent = '✓ Ed25519 signatures enabled, messages will be cryptographically signed';
     el.style.color = 'var(--success)';
   } else {
-    el.textContent = '⚠ Ed25519 not supported in this browser — messages will not be signed';
+    el.textContent = '⚠ Ed25519 not supported in this browser, messages will not be signed';
     el.style.color = 'var(--warning)';
   }
 })();
@@ -314,7 +390,7 @@ async function updateStats() {
     const data = await resp.json();
     document.getElementById('stats').textContent =
       `${data.total_messages} msgs · ${data.connected_peers} online`;
-  } catch (e) { /* ignore — stats are cosmetic */ }
+  } catch (e) { /* ignore, stats are cosmetic */ }
 }
 
 // Update stats every 30s.
@@ -742,7 +818,7 @@ function openLoginSeedRecovery() {
     const wordCount = mnemonic.split(' ').filter(Boolean).length;
 
     if (!name || !/^[A-Za-z0-9_-]{1,24}$/.test(name)) {
-      msgEl.innerHTML = '<span style="color:var(--danger)">Enter a valid name (letters, numbers, underscores, dashes — max 24 chars).</span>';
+      msgEl.innerHTML = '<span style="color:var(--danger)">Enter a valid name (letters, numbers, underscores, dashes, max 24 chars).</span>';
       return;
     }
     if (wordCount !== 24) {
@@ -766,7 +842,7 @@ function openLoginSeedRecovery() {
       connect();
     } catch (e) {
       const isChecksum = /checksum/i.test(e.message);
-      msgEl.innerHTML = `<span style="color:var(--danger)">${isChecksum ? 'Invalid recovery phrase — check your words and try again.' : e.message}</span>`;
+      msgEl.innerHTML = `<span style="color:var(--danger)">${isChecksum ? 'Invalid recovery phrase, check your words and try again.' : e.message}</span>`;
       submitBtn.disabled = false;
       submitBtn.textContent = 'Recover & Connect';
     }
@@ -880,9 +956,9 @@ sendMessage = async function() {
       const group = myGroups.find(g => g.id === activeGroupId);
       if (group) {
         navigator.clipboard.writeText(group.invite_code).then(() => {
-          addSystemMessage('📋 Invite code copied: ' + group.invite_code + ' — Share it with /group-join ' + group.invite_code);
+          addSystemMessage('📋 Invite code copied: ' + group.invite_code + ', Share it with /group-join ' + group.invite_code);
         }).catch(() => {
-          addSystemMessage('📋 Invite code: ' + group.invite_code + ' — Share it with /group-join ' + group.invite_code);
+          addSystemMessage('📋 Invite code: ' + group.invite_code + ', Share it with /group-join ' + group.invite_code);
         });
       }
     } else {
@@ -913,12 +989,20 @@ sendMessage = async function() {
         return;
       }
       if (!isFriend(activeDmPartner)) {
-        addSystemMessage('🔒 You must be friends to DM this user. Use /follow <name> — if they follow you back, you\'ll be friends.');
+        addSystemMessage('🔒 You must be friends to DM this user. Use /follow <name>, if they follow you back, you\'ll be friends.');
         return;
       }
     }
     if (val && ws && ws.readyState === WebSocket.OPEN) {
-      const peerEcdh = getPeerEcdhPublic(activeDmPartner);
+      // The relay only length-limits PLAINTEXT DMs (a PQ ciphertext blob
+      // is opaque and ~9 KB even for a short note), so enforce the
+      // user-visible limit here, before sealing.
+      const DM_PLAINTEXT_MAX = 2000;
+      if (val.length > DM_PLAINTEXT_MAX) {
+        addSystemMessage(`Message too long (${val.length}/${DM_PLAINTEXT_MAX} chars). Please shorten it.`);
+        return;
+      }
+      const peerKyber = getPeerEcdhPublic(activeDmPartner); // Kyber768 pub now
       let dmPayload = {
         type: 'dm',
         from: myKey,
@@ -927,15 +1011,24 @@ sendMessage = async function() {
         content: val,
         timestamp: Date.now(),
       };
-      // E2EE: encrypt if both parties have ECDH keys.
-      if (peerEcdh && myEcdhKeyPair) {
-        const enc = await encryptDmContent(val, peerEcdh);
-        if (enc) {
-          dmPayload.content = enc.content;
-          dmPayload.nonce = enc.nonce;
-          dmPayload.encrypted = true;
-        }
+      // Full-PQ E2EE, FAIL CLOSED. A DM is only ever sent sealed. If the
+      // recipient hasn't advertised a Kyber key yet, or our own PQ
+      // identity isn't ready, ABORT, never transmit plaintext to the
+      // relay. The relay is zero-knowledge; friendship is access control,
+      // NOT confidentiality (the operator can read the DB). (Security
+      // review HIGH-1: the old "graceful plaintext fallback" leaked DMs.)
+      if (!peerKyber) {
+        addSystemMessage("🔒 Can't send yet, this person hasn't come online with a current post-quantum client, so there's no key to encrypt to. Try again once they've reconnected.");
+        return;
       }
+      const enc = await encryptDmContent(val, peerKyber);
+      if (!enc) {
+        addSystemMessage("🔒 Your encryption identity isn't ready yet. Wait a moment and resend (reload the page if it persists).");
+        return;
+      }
+      dmPayload.content = enc.content;
+      dmPayload.nonce = enc.nonce;
+      dmPayload.encrypted = true;
       ws.send(JSON.stringify(dmPayload));
       // Show locally immediately (plaintext) and keep DM list persistent.
       const sentTs = Date.now();
@@ -959,7 +1052,7 @@ var federatedServersFetched = false;
   const SERVER_ORDER_KEY = 'humanity_server_order';
   const SERVER_COLLAPSE_KEY = 'humanity_server_collapsed';
 
-  // Tab click handler via event delegation — register FIRST before anything that might throw
+  // Tab click handler via event delegation, register FIRST before anything that might throw
   document.getElementById('sidebar-tabs').addEventListener('click', function(e) {
     const tab = e.target.closest('.sidebar-tab');
     if (!tab) return;
@@ -1008,31 +1101,108 @@ var federatedServersFetched = false;
       tabs.insertAdjacentElement('afterend', unified);
     }
 
-    const mkSection = (id, label, panel) => {
+    // Header = a flex row: a [collapse toggle button] + an optional [action
+    // icons] span. Buttons are siblings (not nested) so the markup is valid and
+    // each gets its own click. Mirrors native draw_*_section header buttons.
+    const mkSection = (id, label, panel, actions) => {
       const wrap = document.createElement('div');
       wrap.className = 'unified-section';
       wrap.dataset.sid = id;
-      const head = document.createElement('button');
+      const head = document.createElement('div');
       head.className = 'unified-header';
-      head.dataset.baseLabel = label;
-      head.textContent = label + ' ▾';
+      const toggle = document.createElement('button');
+      toggle.className = 'uh-toggle';
+      toggle.type = 'button';
+      toggle.dataset.baseLabel = label;
+      toggle.textContent = label + ' ▾';
+      toggle.onclick = () => {
+        wrap.classList.toggle('collapsed');
+        refreshUnifiedLeftHeaderCounts();
+      };
+      head.appendChild(toggle);
+      if (actions && actions.length) {
+        const act = document.createElement('span');
+        act.className = 'uh-actions';
+        for (const a of actions) {
+          const b = document.createElement('button');
+          b.className = 'uh-act-btn';
+          b.type = 'button';
+          b.title = a.title;
+          b.innerHTML = a.icon;
+          b.onclick = (e) => { e.stopPropagation(); try { a.onClick(); } catch (err) { console.error(err); } };
+          act.appendChild(b);
+        }
+        head.appendChild(act);
+      }
       const body = document.createElement('div');
       body.className = 'unified-body';
       body.appendChild(panel);
       panel.classList.add('force-show');
-      head.onclick = () => {
-        wrap.classList.toggle('collapsed');
-        refreshUnifiedLeftHeaderCounts();
-      };
       wrap.appendChild(head);
       wrap.appendChild(body);
       return wrap;
     };
 
+    // Native-parity section header actions:
+    //   DMs    → cog (DM settings: toggle DM notification mute)
+    //   Groups → + (create group), → (join by invite)
+    //   Servers→ + (add server)
+    const dmActions = [
+      { title: 'DM settings', icon: UH_ICON_COG, onClick: () => window.openDmSettings && window.openDmSettings() },
+    ];
+    const groupActions = [
+      { title: 'Create group', icon: UH_ICON_PLUS, onClick: () => window.promptCreateGroup && window.promptCreateGroup() },
+      { title: 'Join group by invite', icon: UH_ICON_ARROW, onClick: () => window.promptJoinGroup && window.promptJoinGroup() },
+    ];
+    const serverActions = [
+      { title: 'Add server', icon: UH_ICON_PLUS, onClick: () => window.promptAddServer && window.promptAddServer() },
+    ];
+
     // Requested order: DMs (top), Groups (middle), Servers (bottom)
-    if (!unified.querySelector('[data-sid="dms"]')) unified.appendChild(mkSection('dms', 'DMs', tabDms));
-    if (!unified.querySelector('[data-sid="groups"]')) unified.appendChild(mkSection('groups', 'Groups', tabGroups));
-    if (!unified.querySelector('[data-sid="servers"]')) unified.appendChild(mkSection('servers', 'Servers', tabServers));
+    if (!unified.querySelector('[data-sid="dms"]')) unified.appendChild(mkSection('dms', 'DMs', tabDms, dmActions));
+    if (!unified.querySelector('[data-sid="groups"]')) unified.appendChild(mkSection('groups', 'Groups', tabGroups, groupActions));
+    if (!unified.querySelector('[data-sid="servers"]')) unified.appendChild(mkSection('servers', 'Servers', tabServers, serverActions));
+
+    // ── Scratchpad: standalone top row (native parity) ──
+    // Native (`draw_left_panel`) renders a "# scratchpad" row at the very TOP
+    // of the left rail, above DMs/Groups/Servers, for a local-only workspace
+    // not attached to any server/group/DM. Web previously nested its
+    // `__scratch__` channel INSIDE the Humanity server's channel list (so it
+    // vanished when that server collapsed). Promote it to a peer top row here;
+    // the in-server copy is removed in renderServerList to avoid duplication.
+    let scratchRow = document.getElementById('unified-scratch-row');
+    if (!scratchRow) {
+      scratchRow = document.createElement('button');
+      scratchRow.id = 'unified-scratch-row';
+      scratchRow.type = 'button';
+      scratchRow.className = 'unified-scratch-row';
+      scratchRow.title = 'Local workspace. Nothing sent to anyone.';
+      scratchRow.textContent = '# scratch-pad';
+      scratchRow.onclick = function() {
+        if (typeof switchChannel === 'function') switchChannel('__scratch__');
+      };
+      unified.insertBefore(scratchRow, unified.firstChild);
+    }
+    // Keep the row's active highlight in sync with the current context.
+    function refreshScratchActive() {
+      const isScratch = (typeof activeChannel !== 'undefined' && activeChannel === '__scratch__')
+        && !(typeof activeDmPartner !== 'undefined' && activeDmPartner)
+        && !(typeof activeGroupId !== 'undefined' && activeGroupId);
+      scratchRow.classList.toggle('active', !!isScratch);
+    }
+    window.refreshScratchActive = refreshScratchActive;
+    // Wrap switchChannel once so every context change refreshes the highlight
+    // (channel-list re-render handles the in-list items; this top row is
+    // outside that container, so it needs its own sync hook).
+    if (!window.__scratchRowWrapped && typeof switchChannel === 'function') {
+      const _origSwitchForScratch = switchChannel;
+      switchChannel = function(id) {
+        _origSwitchForScratch(id);
+        try { refreshScratchActive(); } catch (e) {}
+      };
+      window.__scratchRowWrapped = true;
+    }
+    refreshScratchActive();
 
     function refreshUnifiedLeftHeaderCounts() {
       const serverCount = (channelList || []).length;
@@ -1045,7 +1215,9 @@ var federatedServersFetched = false;
       };
       unified.querySelectorAll('.unified-section[data-sid]').forEach(sec => {
         const sid = sec.getAttribute('data-sid');
-        const head = sec.querySelector('.unified-header');
+        // Update only the collapse-toggle's label, the action icons live in a
+        // sibling .uh-actions span and must not be clobbered.
+        const head = sec.querySelector('.unified-header .uh-toggle') || sec.querySelector('.unified-header');
         if (!head || !mapping[sid]) return;
         const collapsed = sec.classList.contains('collapsed');
         head.textContent = `${mapping[sid].label} (${mapping[sid].count}) ${collapsed ? '▸' : '▾'}`;
@@ -1131,6 +1303,43 @@ var federatedServersFetched = false;
   setTimeout(initUnifiedLeftSidebar, 0);
   setTimeout(initPanelResizers, 0);
 
+  // Web-native parity (Track W): the native chat puts streaming/studio on
+  // the RIGHT for streamers, not the left. The static markup still has the
+  // studio panel inside the left #sidebar; relocate it at runtime to the
+  // TOP of the right rail (above the people/friends list), matching the
+  // parity design. Runtime move (vs HTML cut-paste) keeps it reversible
+  // and preserves every studio control's id/handler, the element just
+  // changes parent. Mirrors how initUnifiedLeftSidebar restructures the
+  // left rail. See docs/design/web-native-parity.md + studio-streaming.md.
+  function relocateStudioToRightRail() {
+    const studio = document.getElementById('stream-studio-panel');
+    const rightRail = document.getElementById('right-sidebar');
+    if (!studio || !rightRail) return;
+    // Already moved? (idempotent, init can run more than once.)
+    if (studio.parentElement === rightRail) return;
+    rightRail.insertBefore(studio, rightRail.firstChild);
+  }
+  setTimeout(relocateStudioToRightRail, 0);
+  window.relocateStudioToRightRail = relocateStudioToRightRail;
+
+  // Web-native parity (Track W): native's left rail starts clean (scratchpad →
+  // DMs → Groups → Servers) with NO persistent identity header. Web's
+  // #my-identity block sat at the top of the left #sidebar; relocate it at
+  // runtime into the header #identity-menu popover (toggled by #account-toggle),
+  // keeping every control's id/handler intact, same runtime-move approach as
+  // relocateStudioToRightRail. Graceful: if this never runs, the block simply
+  // stays in the sidebar. See docs/design/web-native-parity.md (parity step 1).
+  function relocateIdentityToMenu() {
+    const block = document.getElementById('my-identity');
+    const menu = document.getElementById('identity-menu');
+    if (!block || !menu) return;
+    if (menu.contains(block)) return; // already moved (idempotent)
+    block.style.marginBottom = '0'; // shed sidebar spacing inside the popover
+    menu.appendChild(block);
+  }
+  setTimeout(relocateIdentityToMenu, 0);
+  window.relocateIdentityToMenu = relocateIdentityToMenu;
+
   // ── Server List Rendering ──
   function getServerOrder() {
     try {
@@ -1180,45 +1389,26 @@ var federatedServersFetched = false;
     const isCollapsed = collapsed.has('Humanity');
     const myRoleCh = (window.myPeerRole || '').toLowerCase();
 
-    // Standard channels rendered as monochromatic icon buttons on the server header row.
-    // SVG icons mirror the hub-nav rounded-square aesthetic.
-    const PINNED_CHANNELS = {
-      welcome: {
-        tip: 'Welcome',
-        icon: `<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M14 2H2a1 1 0 00-1 1v8a1 1 0 001 1h3v3l4-3h5a1 1 0 001-1V3a1 1 0 00-1-1zM6 8H4V7h2v1zm3 0H7V7h2v1zm3 0h-2V7h2v1z"/></svg>`,
-      },
-      rules: {
-        tip: 'Rules',
-        icon: `<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M11 1H5a2 2 0 00-2 2v10a2 2 0 002 2h6a2 2 0 002-2V3a2 2 0 00-2-2zM5 5h6v1.5H5V5zm0 3h6v1.5H5V8zm0 3h4v1.5H5V11z"/></svg>`,
-      },
-      announcements: {
-        tip: 'Announcements',
-        icon: `<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M12.5 1.5v13L7 11H4a1.5 1.5 0 01-1.5-1.5v-3A1.5 1.5 0 014 5h3l5.5-3.5z"/><path d="M4.5 11h.5l.8 3.5H4.7l-.7-3.5z"/><circle cx="14" cy="8" r="1"/></svg>`,
-      },
-    };
-    const pinnedIds = new Set(Object.keys(PINNED_CHANNELS));
-
-    const channelsHtml = channelList
-      .filter(ch => !pinnedIds.has(ch.id))  // hide pinned channels from main list
-      .map(ch => {
-        const isActive = ch.id === activeChannel && !activeDmPartner && !activeGroupId;
-        const title = ch.description ? ` title="${esc(ch.description)}"` : '';
-        const lock = ch.read_only ? ' 🔒' : '';
-        const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
-        return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${cogHtml}${esc(ch.name)}${lock}</div>`;
-      }).join('');
-
-    // Build pinned icon buttons — only show if the channel actually exists.
-    const existingPinnedIds = channelList.filter(ch => pinnedIds.has(ch.id)).map(ch => ch.id);
-    const pinnedBtnsHtml = existingPinnedIds.length > 0
-      ? `<div class="server-pinned-btns">${existingPinnedIds.map(id => {
-          const p = PINNED_CHANNELS[id];
-          const isActive = id === activeChannel && !activeDmPartner && !activeGroupId;
-          const count = (window.unreadChannelCounts && window.unreadChannelCounts[id]) || 0;
-          const badge = count > 0 ? `<span class="pinned-notif-badge">${count > 99 ? '99+' : count}</span>` : '';
-          return `<button onclick="event.stopPropagation();switchChannel('${esc(id)}')" title="${p.tip}" class="${isActive ? 'active-ch' : ''}" data-pinned-id="${esc(id)}">${p.icon}${badge}</button>`;
-        }).join('')}</div>`
-      : '';
+    // Every channel renders as a normal row, mirrors native, where
+    // #announcements is just a read-only channel, not a separate widget.
+    // Property badges after the name match native's channel status icons
+    // (src/gui/pages/chat.rs ~1027): eye = read-only, node-graph = federated,
+    // both drawn in muted color.
+    const channelsHtml = channelList.map(ch => {
+      const isActive = ch.id === activeChannel && !activeDmPartner && !activeGroupId;
+      const title = ch.description ? ` title="${esc(ch.description)}"` : '';
+      const badges = (ch.read_only ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
+      // Mic sits LEFT of the # (native order: mic, cog, #name). Clickable -
+      // toggles voice join/leave for the channel; joined = accent + filled.
+      const voiceJoined = !!(window._voiceJoinedChannels && window._voiceJoinedChannels.has(ch.name));
+      const micHtml = ch.voice_enabled
+        ? `<span class="ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.name)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
+        : '';
+      const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
+      // .srv-chan suppresses the auto "# " ::before so the mic can sit before the
+      // hash; the hash is rendered as part of the label instead.
+      return `<div class="channel-item srv-chan${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label"># ${esc(ch.name)}</span>${badges}</div>`;
+    }).join('');
 
     // Text channel create button (admin/mod only)
     let createChannelBtn = '';
@@ -1226,50 +1416,21 @@ var federatedServersFetched = false;
       createChannelBtn = '<div style="padding:var(--space-xs) 0;"><button class="vr-btn" data-action="create-text-channel" style="width:100%;margin-top:var(--space-xs);font-size:0.7rem;">+ Create Channel</button></div>';
     }
 
-    // Persistent voice channels section
-    const voiceChannels = window._voiceChannels || [];
-    let voiceHtml = '<div class="voice-rooms-section"><h4>🔊 Voice Channels</h4>';
-    for (const vc of voiceChannels) {
-      const inRoom = vc.participants.some(p => p.public_key === myKey);
-      const hasParticipants = vc.participants.length > 0;
-      const dimClass = hasParticipants ? '' : ' vc-empty';
-      const vcCogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="voice" data-cog-id="${vc.id}" data-cog-name="${esc(vc.name)}">⚙️</span>` : '';
-      voiceHtml += `<div class="voice-room-item${inRoom ? ' in-room' : ''}${dimClass}" data-vc-id="${vc.id}">
-        <div class="vr-name">${vcCogHtml}🔊 ${esc(vc.name)}${hasParticipants ? ' <span class="vr-count">(' + vc.participants.length + ')</span>' : ''}</div>`;
-      if (hasParticipants) {
-        voiceHtml += '<div class="vr-participants">';
-        const qMap = window._peerQualityCache || new Map();
-        for (const p of vc.participants) {
-          const q = qMap.get(p.public_key) || '';
-          const qBadge = q ? ` <span class="quality-indicator">${q}</span>` : '';
-          voiceHtml += `<div class="vr-participant" data-participant-key="${p.public_key}">🎤 ${esc(p.display_name)}${qBadge}</div>`;
-        }
-        voiceHtml += '</div>';
-      }
-      voiceHtml += '<div style="margin-top:var(--space-xs);">';
-      if (inRoom) {
-        voiceHtml += '<button class="vr-btn vr-leave" data-action="vc-leave">Leave</button>';
-      } else {
-        voiceHtml += `<button class="vr-btn vr-join" data-action="vc-join" data-vc-id="${vc.id}">Join</button>`;
-      }
-      voiceHtml += '</div></div>';
-    }
-    if (myRoleCh === 'admin' || myRoleCh === 'mod') {
-      voiceHtml += '<button class="vr-btn" data-action="vc-create" style="margin-top:var(--space-sm);width:100%;">+ Create Voice Channel</button>';
-    }
-    voiceHtml += '</div>';
+    // Native parity: there is NO standalone "Voice Channels" section. Voice is
+    // surfaced as a mic indicator on each voice-enabled text channel row above
+    // (CH_ICON_VOICE), mirroring native's draw_servers_section. The old
+    // window._voiceChannels rooms UI was removed here in v0.290.x.
 
-    // Scratch Pad channel (always first, local-only)
-    const scratchActive = activeChannel === '__scratch__' && !activeDmPartner && !activeGroupId;
-    const scratchHtml = `<div class="channel-item scratch-pad-item${scratchActive ? ' active' : ''}" data-channel-id="__scratch__" title="Local workspace. Nothing sent to anyone." style="color:var(--warning,#e0a030);font-style:italic;">scratch-pad</div>`;
+    // Scratch-pad moved to a standalone top row in the unified left sidebar
+    // (see initUnifiedLeftSidebar → #unified-scratch-row) to match native,
+    // which renders it above DMs/Groups/Servers. No longer nested here.
 
     let html = `<div class="server-group${isCollapsed ? ' collapsed' : ''}" data-server="Humanity">
       <div class="server-group-header" data-server-toggle="Humanity" style="font-weight:bold;">
         <span class="collapse-arrow">▼</span>
-        <span class="srv-name">🟢 🅷 Humanity</span>
-        ${pinnedBtnsHtml}
+        <span class="srv-name">🟢 ${esc(location.host || 'united-humanity.us')}</span>
       </div>
-      <div class="server-group-channels">${scratchHtml}${channelsHtml}${createChannelBtn}${voiceHtml}</div>
+      <div class="server-group-channels">${channelsHtml}${createChannelBtn}</div>
     </div>`;
 
     // Federated servers.
@@ -1280,7 +1441,7 @@ var federatedServersFetched = false;
         const fedLive = (window._federationStatus || {})[s.server_id];
         const statusDot = (fedLive && fedLive.connected) ? '🟢' : s.status === 'online' ? '🟡' : s.status === 'unreachable' ? '🔴' : '⚫';
         html += `<div class="server-group" data-server="${esc(s.name)}">
-          <div class="server-group-header" data-federated-url="${esc(s.url)}" title="Tier ${s.trust_tier} — ${esc(s.status)}\n${esc(s.url)}">
+          <div class="server-group-header" data-federated-url="${esc(s.url)}" title="Tier ${s.trust_tier}, ${esc(s.status)}\n${esc(s.url)}">
             <span>${statusDot} ${tierBadge} ${esc(s.name)}</span>
           </div>
         </div>`;
@@ -1330,7 +1491,7 @@ var federatedServersFetched = false;
 
   // Event delegation for server list interactions
   document.getElementById('server-list').addEventListener('click', function(e) {
-    // Federated server click — navigate to it.
+    // Federated server click, navigate to it.
     const fedHeader = e.target.closest('[data-federated-url]');
     if (fedHeader) {
       const url = fedHeader.getAttribute('data-federated-url');
@@ -1355,6 +1516,13 @@ var federatedServersFetched = false;
       saveCollapsedServers(collapsed);
       return;
     }
+    // Channel mic, toggle voice join/leave for this channel (don't switch to it).
+    const micEl = e.target.closest('.ch-mic');
+    if (micEl) {
+      const vch = micEl.getAttribute('data-voice-channel');
+      if (vch) toggleChannelVoice(vch);
+      return;
+    }
     // Channel click (skip if clicking the settings cog)
     if (e.target.closest('.channel-cog')) return;
     const chItem = e.target.closest('.channel-item');
@@ -1363,7 +1531,7 @@ var federatedServersFetched = false;
       if (channelId) switchChannel(channelId);
       return;
     }
-    // Voice channel actions (event delegation — no inline onclick)
+    // Voice channel actions (event delegation, no inline onclick)
     const actionBtn = e.target.closest('[data-action]');
     if (actionBtn) {
       const action = actionBtn.getAttribute('data-action');
@@ -1451,36 +1619,12 @@ function markUnread(channelId) {
   unreadChannels.add(channelId);
   window.unreadChannelCounts[channelId] = (window.unreadChannelCounts[channelId] || 0) + 1;
   renderUnreadDots();
-  updatePinnedBadges();
 }
 
 function clearUnread(channelId) {
   unreadChannels.delete(channelId);
   delete window.unreadChannelCounts[channelId];
   renderUnreadDots();
-  updatePinnedBadges();
-}
-
-/**
- * Updates the notification count badges on pinned channel icon buttons
- * without re-rendering the full server list — just patches the DOM in place.
- */
-function updatePinnedBadges() {
-  document.querySelectorAll('.server-pinned-btns button[data-pinned-id]').forEach(btn => {
-    const id = btn.getAttribute('data-pinned-id');
-    const count = (window.unreadChannelCounts && window.unreadChannelCounts[id]) || 0;
-    let badge = btn.querySelector('.pinned-notif-badge');
-    if (count > 0) {
-      if (!badge) {
-        badge = document.createElement('span');
-        badge.className = 'pinned-notif-badge';
-        btn.appendChild(badge);
-      }
-      badge.textContent = count > 99 ? '99+' : String(count);
-    } else {
-      if (badge) badge.remove();
-    }
-  });
 }
 
 function renderUnreadDots() {
@@ -1658,7 +1802,7 @@ const CMD_PALETTE_ACTIONS = {
 fetch('/data/commands.json', { cache: 'no-cache' })
   .then(function(r) { return r.ok ? r.json() : null; })
   .then(function(j) { if (j && Array.isArray(j.categories)) CMD_PALETTE_DATA = j; })
-  .catch(function() { /* silent — palette will be empty on first open */ });
+  .catch(function() { /* silent, palette will be empty on first open */ });
 
 function getCmdPaletteItems() {
 const myRole = (typeof peerData !== 'undefined' && typeof myKey !== 'undefined' && peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
@@ -1757,7 +1901,7 @@ if (e.key === 'Escape') {
 }
 }, true);
 
-// Skip SW in Tauri desktop — files are local, no caching needed, and
+// Skip SW in Tauri desktop, files are local, no caching needed, and
 // Tauri serves missing files as text/html (the SPA fallback).
 if ('serviceWorker' in navigator && !window.__TAURI__) {
 navigator.serviceWorker.register('/sw.js')
@@ -1823,7 +1967,7 @@ function doSearch() {
 
   const msg = { type: 'search', query: query };
   if (typeof currentChannel !== 'undefined' && currentChannel) {
-    // Don't filter by channel — search all. User can filter from dropdown later.
+    // Don't filter by channel, search all. User can filter from dropdown later.
   }
   if (fromUser) msg.from = fromUser;
   if (typeof ws !== 'undefined' && ws && ws.readyState === 1) {

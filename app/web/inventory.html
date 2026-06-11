@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gear — HumanityOS</title>
+  <title>Gear, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
 
@@ -596,7 +596,7 @@
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">Everything you own, organized by where it is — on you, in your bag, or at home.</div>
+  <div class="eli5-simple">Everything you own, organized by where it is, on you, in your bag, or at home.</div>
   <div class="eli5-expert">Dual-tab inventory system. Inventory tracks items by location (player carried, worn, home storage, fleet). Equipment manages loadout slots mapped to body positions. All data persists in localStorage with category filtering and search.</div>
 </div>
 
@@ -838,7 +838,7 @@
       <div>
         <label>Slot (for Loadout)</label>
         <select id="eq-slot">
-          <option value="">— none —</option>
+          <option value="">- none -</option>
           <option value="head">Head</option>
           <option value="neck">Neck</option>
           <option value="chest">Chest</option>
@@ -994,7 +994,7 @@ function buildItemRow(item) {
   return `<div class="item-row" onclick="openEditModal('${item.id}')">
     <span class="row-icon">${icon}</span>
     <span class="row-name">${esc(item.name)}</span>
-    <span class="row-location">${esc(item.location || '—')}</span>
+    <span class="row-location">${esc(item.location || '-')}</span>
     <span class="row-qty">×${item.qty}</span>
     <div class="row-actions">
       <button class="row-act-btn" onclick="event.stopPropagation();openEditModal('${item.id}')">Edit</button>

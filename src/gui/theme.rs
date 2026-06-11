@@ -142,6 +142,15 @@ pub struct Theme {
     /// Harvest/Water/Fertilize cluster) — short so several sit cleanly side by side.
     #[serde(default = "default_compact_button_height")]
     pub compact_button_height: f32,
+    // Expandable-row column widths (the garden/mining spreadsheet rows + the
+    // inventory tree's item column). Three sizes cover the row_cell layouts:
+    // narrow (slot numbers), short (status/availability), name (the label column).
+    #[serde(default = "default_cell_narrow_width")]
+    pub cell_narrow_width: f32,
+    #[serde(default = "default_cell_short_width")]
+    pub cell_short_width: f32,
+    #[serde(default = "default_cell_name_width")]
+    pub cell_name_width: f32,
 
     // Panel backgrounds (used across all pages, avoids hardcoded Color32::from_rgb)
     #[serde(default = "default_bg_panel")]
@@ -423,6 +432,9 @@ impl Theme {
         self.status_bar_width = 200.0;
         self.status_bar_height = 5.0;
         self.compact_button_height = 18.0;
+        self.cell_narrow_width = 60.0;
+        self.cell_short_width = 90.0;
+        self.cell_name_width = 150.0;
         self.button_pad_y = 3.0;
     }
 
@@ -528,6 +540,9 @@ fn default_stat_value_width() -> f32 { 82.0 }
 fn default_status_bar_width() -> f32 { 200.0 }
 fn default_status_bar_height() -> f32 { 5.0 }
 fn default_compact_button_height() -> f32 { 18.0 }
+fn default_cell_narrow_width() -> f32 { 60.0 }
+fn default_cell_short_width() -> f32 { 90.0 }
+fn default_cell_name_width() -> f32 { 150.0 }
 fn default_button_pad_y() -> f32 { 3.0 }
 fn default_bg_panel() -> C { (0.078, 0.078, 0.098, 1.0) }      // rgb(20, 20, 25)
 fn default_row_stripe() -> C { (0.0157, 0.0157, 0.0157, 1.0) } // #040404
@@ -644,6 +659,9 @@ fn default_theme() -> Theme {
         status_bar_width: 200.0,
         status_bar_height: 5.0,
         compact_button_height: 18.0,
+        cell_narrow_width: 60.0,
+        cell_short_width: 90.0,
+        cell_name_width: 150.0,
         // Panel backgrounds
         bg_panel: default_bg_panel(),
         bg_sidebar: default_bg_sidebar(),

@@ -887,14 +887,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         false,
                                         tree_force,
                                         |ui| {
-                                            widgets::row_cell(ui, 60.0, |ui| {
+                                            widgets::row_cell(ui, theme.cell_narrow_width, |ui| {
                                                 ui.label(
                                                     RichText::new(format!("Slot {}", s + 1))
                                                         .size(theme.font_size_small)
                                                         .color(theme.text_muted()),
                                                 );
                                             });
-                                            widgets::row_cell(ui, 150.0, |ui| {
+                                            widgets::row_cell(ui, theme.cell_name_width, |ui| {
                                                 let col = match crop {
                                                     Some(c) if c.dead => theme.danger(),
                                                     Some(c) if c.mature => theme.accent(),
@@ -903,7 +903,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 };
                                                 ui.label(RichText::new(&name).color(col));
                                             });
-                                            widgets::row_cell(ui, 90.0, |ui| {
+                                            widgets::row_cell(ui, theme.cell_short_width, |ui| {
                                                 let (txt, col) = match crop {
                                                     Some(c) if c.dead => {
                                                         ("dead".to_string(), theme.danger())
@@ -1057,28 +1057,52 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
                         }
                     }
-                    // Asteroids as an aligned table: Asteroid | Type | Ores.
-                    egui::Grid::new("mining_asteroids")
-                        .striped(true)
-                        .spacing([12.0, 3.0])
-                        .show(ui, |ui| {
-                            for h in ["Asteroid", "Type", "Ores"] {
-                                ui.label(RichText::new(h).size(theme.font_size_small).strong().color(theme.text_secondary()));
-                            }
-                            ui.end_row();
-                            for ast in &state.asteroids {
-                                let summary: Vec<String> = ast
-                                    .ores
-                                    .iter()
-                                    .filter(|(_, q)| *q >= 1.0)
-                                    .map(|(id, q)| format!("{} {:.0}", ore_short(id), q))
-                                    .collect();
-                                ui.label(RichText::new(&ast.name).size(theme.font_size_small).color(theme.text_primary()));
-                                ui.label(RichText::new(&ast.classification).size(theme.font_size_small).color(theme.text_secondary()));
+                    // Asteroids as aligned EXPANDABLE rows (v0.414, the universal
+                    // widget): Asteroid | Type | ore summary in the title row;
+                    // expand for the per-ore composition, each with a thin bar of
+                    // its share of the asteroid's richest deposit.
+                    for (ai, ast) in state.asteroids.iter().enumerate() {
+                        let summary: Vec<String> = ast
+                            .ores
+                            .iter()
+                            .filter(|(_, q)| *q >= 1.0)
+                            .map(|(id, q)| format!("{} {:.0}", ore_short(id), q))
+                            .collect();
+                        let max_q = ast.ores.iter().map(|(_, q)| *q).fold(0.0f32, f32::max).max(1.0);
+                        widgets::expandable_row(
+                            ui,
+                            ("mining_ast", ai),
+                            false,
+                            tree_force,
+                            |ui| {
+                                widgets::row_cell(ui, theme.cell_name_width, |ui| {
+                                    ui.label(RichText::new(&ast.name).size(theme.font_size_small).color(theme.text_primary()));
+                                });
+                                widgets::row_cell(ui, theme.cell_short_width, |ui| {
+                                    ui.label(RichText::new(&ast.classification).size(theme.font_size_small).color(theme.text_secondary()));
+                                });
                                 ui.label(RichText::new(if summary.is_empty() { "depleted".to_string() } else { summary.join(", ") }).size(theme.font_size_small).color(theme.text_secondary()));
-                                ui.end_row();
-                            }
-                        });
+                            },
+                            |ui| {
+                                for (id, qty) in ast.ores.iter().filter(|(_, q)| *q >= 1.0) {
+                                    ui.horizontal(|ui| {
+                                        widgets::row_cell(ui, theme.cell_name_width, |ui| {
+                                            ui.label(RichText::new(ore_short(id)).size(theme.font_size_small).color(theme.text_secondary()));
+                                        });
+                                        widgets::row_cell(ui, theme.cell_short_width, |ui| {
+                                            ui.label(RichText::new(format!("{:.0}", qty)).size(theme.font_size_small).color(theme.text_muted()));
+                                        });
+                                        ui.add(
+                                            egui::ProgressBar::new((qty / max_q).clamp(0.0, 1.0))
+                                                .fill(theme.accent())
+                                                .desired_width(theme.status_bar_width)
+                                                .desired_height(theme.status_bar_height),
+                                        );
+                                    });
+                                }
+                            },
+                        );
+                    }
                     ui.add_space(theme.spacing_xs);
                     // ── Drone manifest builder: allocate the fixed hold across ores
                     //    (+/- per ore; the segmented bar shows the split). One drone per
@@ -1092,37 +1116,51 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         );
                         manifest_bar(ui, theme, &state.drone_manifest_draft, cap);
                         ui.add_space(theme.spacing_xs);
-                        // Per-ore allocation as an aligned table: Ore | Available | [-] qty [+].
-                        egui::Grid::new("mining_manifest")
-                            .striped(true)
-                            .spacing([10.0, 3.0])
-                            .show(ui, |ui| {
-                                for h in ["Ore", "Available", "In manifest"] {
-                                    ui.label(RichText::new(h).size(theme.font_size_small).strong().color(theme.text_secondary()));
-                                }
-                                ui.end_row();
-                                for (id, avail) in &ores {
-                                    let cur = state
-                                        .drone_manifest_draft
-                                        .iter()
-                                        .find(|(o, _)| o == id)
-                                        .map(|(_, u)| *u)
-                                        .unwrap_or(0);
-                                    ui.label(RichText::new(ore_short(id)).size(theme.font_size_small).color(theme.text_secondary()));
-                                    ui.label(RichText::new(format!("{:.0} left", avail)).size(theme.font_size_small).color(theme.text_muted()));
-                                    ui.horizontal(|ui| {
-                                        ui.spacing_mut().item_spacing.x = 4.0;
-                                        if widgets::stepper_button(ui, theme, "-", cur > 0, false) {
-                                            action_manifest_delta = Some((id.clone(), -1));
-                                        }
-                                        ui.label(RichText::new(format!("{cur}")).color(theme.text_primary()));
-                                        if widgets::stepper_button(ui, theme, "+", total < cap, true) {
-                                            action_manifest_delta = Some((id.clone(), 1));
-                                        }
+                        // Per-ore allocation as aligned EXPANDABLE rows (v0.414):
+                        // Ore | Available | [-] qty [+] in the title row; expand
+                        // for which asteroids hold that ore.
+                        for (id, avail) in &ores {
+                            let cur = state
+                                .drone_manifest_draft
+                                .iter()
+                                .find(|(o, _)| o == id)
+                                .map(|(_, u)| *u)
+                                .unwrap_or(0);
+                            widgets::expandable_row(
+                                ui,
+                                ("mining_ore", id.as_str()),
+                                false,
+                                tree_force,
+                                |ui| {
+                                    widgets::row_cell(ui, theme.cell_name_width, |ui| {
+                                        ui.label(RichText::new(ore_short(id)).size(theme.font_size_small).color(theme.text_secondary()));
                                     });
-                                    ui.end_row();
-                                }
-                            });
+                                    widgets::row_cell(ui, theme.cell_short_width, |ui| {
+                                        ui.label(RichText::new(format!("{:.0} left", avail)).size(theme.font_size_small).color(theme.text_muted()));
+                                    });
+                                    ui.spacing_mut().item_spacing.x = 4.0;
+                                    if widgets::stepper_button(ui, theme, "-", cur > 0, false) {
+                                        action_manifest_delta = Some((id.clone(), -1));
+                                    }
+                                    ui.label(RichText::new(format!("{cur}")).color(theme.text_primary()));
+                                    if widgets::stepper_button(ui, theme, "+", total < cap, true) {
+                                        action_manifest_delta = Some((id.clone(), 1));
+                                    }
+                                },
+                                |ui| {
+                                    for ast in &state.asteroids {
+                                        if let Some((_, q)) = ast.ores.iter().find(|(o, q)| o == id && *q >= 1.0) {
+                                            ui.horizontal(|ui| {
+                                                widgets::row_cell(ui, theme.cell_name_width, |ui| {
+                                                    ui.label(RichText::new(&ast.name).size(theme.font_size_small).color(theme.text_secondary()));
+                                                });
+                                                ui.label(RichText::new(format!("{:.0} available", q)).size(theme.font_size_small).color(theme.text_muted()));
+                                            });
+                                        }
+                                    }
+                                },
+                            );
+                        }
                         ui.add_space(theme.spacing_xs);
                         ui.horizontal(|ui| {
                             ui.add_enabled_ui(total >= 1, |ui| {
@@ -1138,39 +1176,50 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
                 ui.add_space(theme.spacing_xs);
                 if !state.drones.is_empty() {
-                    // The active drone (one per player): its manifest + which of the 3
-                    // round-trip stages it's in + a bar of progress through that stage.
-                    // Active drone(s) as an aligned table: Stage | Status | Fetching |
-                    // Cargo, then a thin progress bar per drone (one drone per player).
-                    egui::Grid::new("mining_drones")
-                        .striped(true)
-                        .spacing([12.0, 3.0])
-                        .show(ui, |ui| {
-                            for h in ["Drone", "Status", "Fetching", "Cargo"] {
-                                ui.label(RichText::new(h).size(theme.font_size_small).strong().color(theme.text_secondary()));
-                            }
-                            ui.end_row();
-                            for drone in &state.drones {
-                                let (stage, desc) = match drone.phase.as_str() {
-                                    "Outbound" => ("1/3", "outbound"),
-                                    "Mining" => ("2/3", "mining"),
-                                    "Returning" => ("3/3", "returning"),
-                                    _ => ("done", "delivering"),
-                                };
+                    // The active drone (one per player) as an aligned EXPANDABLE row
+                    // (v0.414): Stage | status | progress bar in the title row;
+                    // expand for the manifest it's fetching + cargo on board.
+                    for (di, drone) in state.drones.iter().enumerate() {
+                        let (stage, desc) = match drone.phase.as_str() {
+                            "Outbound" => ("1/3", "outbound"),
+                            "Mining" => ("2/3", "mining"),
+                            "Returning" => ("3/3", "returning"),
+                            _ => ("done", "delivering"),
+                        };
+                        widgets::expandable_row(
+                            ui,
+                            ("mining_drone", di),
+                            false,
+                            tree_force,
+                            |ui| {
+                                widgets::row_cell(ui, theme.cell_name_width, |ui| {
+                                    ui.label(RichText::new(format!("Drone, stage {stage}")).size(theme.font_size_small).color(theme.text_primary()));
+                                });
+                                widgets::row_cell(ui, theme.cell_short_width, |ui| {
+                                    ui.label(RichText::new(desc).size(theme.font_size_small).color(theme.text_secondary()));
+                                });
+                                ui.add(egui::ProgressBar::new(drone.phase_progress.clamp(0.0, 1.0)).fill(theme.accent()).desired_width(theme.status_bar_width).desired_height(theme.status_bar_height));
+                            },
+                            |ui| {
                                 let fetching: Vec<String> = drone
                                     .manifest
                                     .iter()
                                     .map(|(o, u)| format!("{}x {}", u, ore_short(o)))
                                     .collect();
-                                ui.label(RichText::new(format!("Stage {stage}")).size(theme.font_size_small).color(theme.text_primary()));
-                                ui.label(RichText::new(desc).size(theme.font_size_small).color(theme.text_secondary()));
-                                ui.label(RichText::new(fetching.join(", ")).size(theme.font_size_small).color(theme.text_secondary()));
-                                ui.label(RichText::new(drone.cargo_total.to_string()).size(theme.font_size_small).color(theme.text_secondary()));
-                                ui.end_row();
-                            }
-                        });
-                    for drone in &state.drones {
-                        ui.add(egui::ProgressBar::new(drone.phase_progress.clamp(0.0, 1.0)).fill(theme.accent()).desired_width(theme.status_bar_width).desired_height(theme.status_bar_height));
+                                ui.horizontal(|ui| {
+                                    widgets::row_cell(ui, theme.cell_name_width, |ui| {
+                                        ui.label(RichText::new("Fetching").size(theme.font_size_small).color(theme.text_muted()));
+                                    });
+                                    ui.label(RichText::new(fetching.join(", ")).size(theme.font_size_small).color(theme.text_secondary()));
+                                });
+                                ui.horizontal(|ui| {
+                                    widgets::row_cell(ui, theme.cell_name_width, |ui| {
+                                        ui.label(RichText::new("Cargo").size(theme.font_size_small).color(theme.text_muted()));
+                                    });
+                                    ui.label(RichText::new(format!("{} units", drone.cargo_total)).size(theme.font_size_small).color(theme.text_secondary()));
+                                });
+                            },
+                        );
                     }
                 }
                 } // ── end Mining ──

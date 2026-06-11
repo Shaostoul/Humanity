@@ -1,6 +1,12 @@
 /**
  * HumanityOS Admin Dashboard
- * Requires admin role — authenticates via Ed25519 signature.
+ * Requires admin role, authenticates via Dilithium3 signature (was Ed25519
+ * pre-v0.266.0; the relay's identity-keyed endpoints all verify Dilithium
+ * now, so an Ed25519 sig here silently fails). Inc5c-tail (v0.277.2).
+ *
+ * Requires `/chat/pq.js` and `/shared/pq-relay-auth.js` to be loaded
+ * before this script, they install the `window.getPqSignedAuth` and
+ * `window.pqDeriveIdentity` globals we delegate to.
  */
 (function() {
   'use strict';
@@ -11,30 +17,18 @@
 
   // ── Identity helpers ──
 
+  // Thin wrapper around the shared Dilithium-signed-auth helper so call
+  // sites read the same as the pre-cutover code. Returns null when
+  // there's no plaintext identity backup in localStorage (wrapped-only
+  // users have to use the chat client; standalone pages cannot re-derive
+  // the seed without re-prompting for the vault passphrase, which is a
+  // separate scope).
   async function getSignedAuth(purpose) {
-    const backup = localStorage.getItem('humanity_key_backup');
-    const keyHex = localStorage.getItem('humanity_key');
-    if (!backup || !keyHex) return null;
-    try {
-      const parsed = JSON.parse(backup);
-      let privateKey;
-      if (parsed.jwk) {
-        privateKey = await crypto.subtle.importKey('jwk', parsed.jwk, 'Ed25519', false, ['sign']);
-      } else if (parsed.privateKeyPkcs8) {
-        const pkcs8Buf = Uint8Array.from(atob(parsed.privateKeyPkcs8), c => c.charCodeAt(0));
-        privateKey = await crypto.subtle.importKey('pkcs8', pkcs8Buf, 'Ed25519', false, ['sign']);
-      } else {
-        return null;
-      }
-      const ts = Date.now();
-      const payload = `${purpose}\n${ts}`;
-      const sigBuf = await crypto.subtle.sign('Ed25519', privateKey, new TextEncoder().encode(payload));
-      const sig = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
-      return { key: keyHex, timestamp: ts, sig };
-    } catch (e) {
-      console.warn('Admin auth sign failed:', e);
+    if (typeof window.getPqSignedAuth !== 'function') {
+      console.warn('Admin auth: pq-relay-auth.js not loaded');
       return null;
     }
+    return await window.getPqSignedAuth(purpose);
   }
 
   // ── Formatting helpers ──
@@ -147,6 +141,51 @@
 
     // Federation
     renderFederation(data.federation || []);
+
+    // System health (in-app-ops first slice)
+    renderSystem(data.system || null);
+  }
+
+  // Render the System Health panel from the admin-stats `system` object.
+  // Replaces the operator's SSH for disk / version / watchdog / backup.
+  function renderSystem(sys) {
+    const el = document.getElementById('system-health');
+    if (!el) return;
+    if (!sys) { el.innerHTML = '<p style="color:#666">No system data.</p>'; return; }
+    const rows = [];
+    rows.push(['Relay version', sys.version || '?']);
+    // Watchdog state with a color cue.
+    const wd = sys.watchdog_state || 'unknown';
+    const wdColor = wd === 'up' ? '#2ecc71' : (wd === 'unknown' ? '#888' : '#e67e22');
+    rows.push(['Watchdog', '<span style="color:' + wdColor + '">' + escapeHtml(wd) + '</span>']);
+    // Disk.
+    if (sys.disk) {
+      const d = sys.disk;
+      const pct = d.used_pct != null ? d.used_pct : '?';
+      const pctColor = pct >= 90 ? '#e74c3c' : (pct >= 80 ? '#e67e22' : '#2ecc71');
+      rows.push(['Disk', '<span style="color:' + pctColor + '">' + pct + '% used</span> (' +
+        formatBytes(d.used_bytes) + ' / ' + formatBytes(d.total_bytes) + ', ' +
+        formatBytes(d.avail_bytes) + ' free)']);
+    } else {
+      rows.push(['Disk', '<span style="color:#888">unavailable</span>']);
+    }
+    // Backup freshness.
+    if (sys.backup) {
+      const b = sys.backup;
+      const ageMin = Math.floor((b.newest_age_secs || 0) / 60);
+      const ageStr = ageMin < 60 ? ageMin + 'm ago' : Math.floor(ageMin / 60) + 'h ago';
+      // Backups run every 30 min; flag if the newest is much older.
+      const stale = (b.newest_age_secs || 0) > 3600;
+      const ageColor = stale ? '#e67e22' : '#2ecc71';
+      rows.push(['Newest backup', '<span style="color:' + ageColor + '">' + ageStr + '</span> (' +
+        formatBytes(b.newest_size_bytes) + ', ' + b.count + ' kept)']);
+    } else {
+      rows.push(['Backups', '<span style="color:#e67e22">none found</span>']);
+    }
+    el.innerHTML = '<table style="width:100%;border-collapse:collapse">' +
+      rows.map(r => '<tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">' +
+        r[0] + '</td><td style="padding:4px 0">' + r[1] + '</td></tr>').join('') +
+      '</table>';
   }
 
   function renderActivityChart(hourlyData) {

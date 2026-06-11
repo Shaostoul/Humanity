@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Web — HumanityOS</title>
+  <title>Web, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     body {
@@ -291,7 +291,7 @@
   <div class="eli5-simple">Websites to explore! Click any card to visit. Use the + button to save your own bookmarks.</div>
   <div class="eli5-expert">Curated bookmark directory with localStorage persistence (key: hos_bookmarks_v1). In the desktop app (Tauri), sites open in built-in browser tabs. On web, they open in new windows. Custom bookmarks are saved locally and merged with the default set.</div>
 </div>
-<p class="page-hint">Your bookmarked websites — click to visit, + to add your own</p>
+<p class="page-hint">Your bookmarked websites, click to visit, + to add your own</p>
 
 <div id="page-app">
   <div class="platform-note">
@@ -338,7 +338,7 @@
 </div>
 
 <script>
-/** Default curated bookmarks — not editable by the user */
+/** Default curated bookmarks, not editable by the user */
 var DEFAULT_SITES = [
   // Learning
   { name: 'Khan Academy',       desc: 'Free courses on everything',                url: 'https://www.khanacademy.org',           category: 'Learning' },
@@ -360,7 +360,7 @@ var DEFAULT_SITES = [
   // Science & Space
   { name: 'NASA',               desc: 'Space exploration and science',               url: 'https://www.nasa.gov',                  category: 'Science & Space' },
   { name: 'arXiv',              desc: 'Open-access research papers',                 url: 'https://arxiv.org',                     category: 'Science & Space' },
-  { name: 'Sci-Hub',            desc: 'Research paper access tool (legal gray area — no link provided)', url: '',                  category: 'Science & Space' },
+  { name: 'Sci-Hub',            desc: 'Research paper access tool (legal gray area, no link provided)', url: '',                  category: 'Science & Space' },
 
   // Tools
   { name: 'OpenStreetMap',      desc: 'Free editable maps',                          url: 'https://www.openstreetmap.org',         category: 'Tools' },
@@ -380,7 +380,7 @@ var DEFAULT_SITES = [
 var STORAGE_KEY = 'hos_bookmarks_v1';
 var activeCategory = '';
 
-/** Deterministic color from a string — generates a hue for the favicon circle */
+/** Deterministic color from a string, generates a hue for the favicon circle */
 function stringColor(str) {
   var hash = 0;
   for (var i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -451,7 +451,7 @@ function setCategory(cat) {
   renderSites();
 }
 
-/** Open a site — desktop app uses built-in tab, browser uses new window */
+/** Open a site, desktop app uses built-in tab, browser uses new window */
 function openSite(url) {
   if (!url) return; // Sci-Hub has no URL
   if (typeof window.__TAURI__ !== 'undefined' && typeof openWebviewTab === 'function') {
@@ -495,7 +495,7 @@ function renderSites() {
     if (!groups[cat] || groups[cat].length === 0) return;
     html += '<div class="cat-section"><h2>' + esc(cat) + '</h2><div class="site-grid">';
     groups[cat].forEach(function(s) {
-      var domain = s.url ? s.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '') : '—';
+      var domain = s.url ? s.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '') : '-';
       var letter = iconLetter(s.name);
       var color = stringColor(domain || s.name);
       var hasUrl = !!s.url;

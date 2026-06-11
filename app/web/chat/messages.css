@@ -1,17 +1,58 @@
-/* messages.css — Message bubbles, replies, reactions, threads, attachments */
+/* messages.css, Message bubbles, replies, reactions, threads, attachments */
 
 .message {
-  margin-bottom: var(--space-sm);
+  /* Native parity (step 3): flat grouped rows, [avatar gutter | content].
+     Avatar + name show once per sender group; continuations show just the
+     timestamp pill. Flat (bg on hover only), not nested bubbles. */
+  display: flex;
+  gap: var(--avatar-gap);
+  align-items: flex-start;
+  margin-bottom: 1px;
   line-height: 1.4;
-  padding: var(--space-md) var(--space-lg);
-  background: rgba(255,255,255,0.02);
-  border-radius: var(--radius);
+  padding: 2px var(--space-md);
+  background: none;
+  border-radius: var(--radius-sm);
+  position: relative;
+  cursor: pointer;
 }
+/* System messages stay simple full-width blocks (no gutter/content split). */
+.message.system { display: block; }
+
+/* Left gutter: 32px avatar on a group's first message; empty (but keeps its
+   width) on continuation rows so all content stays aligned under the name. */
+.msg-gutter { flex-shrink: 0; width: var(--avatar-size); }
+.msg-main { flex: 1; min-width: 0; display: flow-root; }
+
+/* Timestamp pill, compact HH:MM + Þ (the add-reaction affordance). Floats
+   left so body text wraps to its right on line 1 and below it after, the
+   way native lays it out. */
+.ts-pill {
+  float: left;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px var(--space-sm) 0 0;
+  padding: 0 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--pill-radius);
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  white-space: nowrap;
+}
+.ts-pill .ts-time { color: var(--text-muted); }
+.ts-pill .ts-thorn { color: var(--accent); cursor: pointer; font-weight: 700; }
+.ts-pill .ts-thorn:hover { filter: brightness(1.35); }
 
 .message .meta {
-  display: flex;
+  /* Header rows only (continuations omit it). Float so the name sits inline
+     with the timestamp pill, native shows "Name  HH:MM Þ  content" on one
+     line, then content wraps below. */
+  float: left;
+  display: inline-flex;
   align-items: baseline;
-  gap: var(--space-md);
+  gap: var(--space-sm);
+  margin: 1px var(--space-sm) 0 0;
 }
 
 .message .author {
@@ -24,19 +65,21 @@
 .message .author.you { color: var(--success); }
 
 .identicon {
-  width: 18px;
-  height: 18px;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
   border-radius: var(--radius-sm);
-  vertical-align: middle;
-  margin-right: var(--space-xs);
+  display: block;
 }
 
 .reactions {
+  /* Sit right of the timestamp pill (native: reactions live with the time),
+     so float them too; body flows after both. */
+  float: left;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-xs);
-  margin-top: var(--space-xs);
-  padding-left: 1.6rem;
+  margin: 2px 0 0 0;
 }
 .reactions:empty { display: none; }
 .reaction-badge {
@@ -68,7 +111,7 @@
   color: var(--text-muted);
   background: rgba(128,128,128,0.12);
 }
-/* Signature present but verification failed — possible tampering */
+/* Signature present but verification failed, possible tampering */
 .sig-badge.invalid {
   color: #e55;
   background: rgba(220,60,60,0.15);
@@ -81,12 +124,10 @@
 }
 
 .message .body {
+  /* Flat: no nested bubble bg/padding, no 1.6rem indent, content flows
+     directly under the meta line like native. (step 3a) */
   font-size: var(--text-base);
-  margin-top: var(--space-sm);
-  margin-left: 1.6rem;
-  padding: var(--space-sm) var(--space-md);
-  background: rgba(255,255,255,0.025);
-  border-radius: var(--radius);
+  margin-top: 2px;
   word-wrap: break-word;
   white-space: pre-wrap;
 }
@@ -101,7 +142,7 @@
   border-radius: 0;
 }
 
-/* Ephemeral notices — color-coded, auto-dismiss */
+/* Ephemeral notices, color-coded, auto-dismiss */
 .notice {
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius);
@@ -158,7 +199,7 @@
 }
 
 /* ── Message hover actions ── */
-.message { position: relative; cursor: pointer; border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md); }
+/* position/cursor/padding now live in the main .message rule above. */
 .message:hover { background: var(--bg-hover); }
 .message .msg-actions {
   display: none;
@@ -409,7 +450,7 @@
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-sm);
   padding: var(--space-md) var(--space-lg);
-  margin: var(--space-sm) 0 var(--space-sm) 1.6rem;
+  margin: var(--space-sm) 0;
   font-size: var(--text-sm);
   max-width: 500px;
   cursor: pointer;

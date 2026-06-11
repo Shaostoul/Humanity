@@ -3,7 +3,7 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content="width=device-width, initial-scale=1.0">
-  <title>Admin — HumanityOS</title>
+  <title>Admin, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     :root {
@@ -155,9 +155,22 @@
         <p style="color:#666">No federated servers configured.</p>
       </div>
     </div>
+
+    <!-- System health (in-app-ops: replaces SSHing for disk/version/watchdog/backup) -->
+    <div class="panel">
+      <h2>System Health</h2>
+      <div id="system-health">
+        <p style="color:#666">Loading…</p>
+      </div>
+    </div>
   </div>
 </div>
 
+<!-- Dilithium identity bridge for relay REST auth (Inc5c-tail, v0.277.2). -->
+<!-- `pq.js` installs window.pqDeriveIdentity + window.pqSignMessage; -->
+<!-- `pq-relay-auth.js` installs window.getPqSignedAuth which the page uses. -->
+<script src="/chat/pq.js?v=1"></script>
+<script src="/shared/pq-relay-auth.js?v=1"></script>
 <script src="/pages/admin-app.js"></script>
 </body>
 </html>

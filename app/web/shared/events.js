@@ -1,4 +1,4 @@
-// HOS Event Bus — replaces monkey-patching pattern
+// HOS Event Bus, replaces monkey-patching pattern
 // Load before app.js, after crypto.js
 window.hos = window.hos || {};
 

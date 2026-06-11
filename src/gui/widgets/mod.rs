@@ -607,18 +607,30 @@ fn container_node(
     if node.children.is_empty() {
         ui.horizontal(|ui| {
             paint_swatch(ui, node.color);
-            if node.id.is_empty() {
-                ui.label(egui::RichText::new(&node.label).color(theme.text_primary()));
-            } else if ui
-                .selectable_label(
-                    selected == node.id,
-                    egui::RichText::new(&node.label).color(theme.text_primary()),
-                )
-                .clicked()
-            {
-                *clicked = Some(node.id.clone());
+            // The label sits in a fixed-width cell so sibling leaves line up into
+            // name | detail columns (the same row_cell the garden/mining rows use);
+            // the detail follows the cell inline instead of at the panel's far edge
+            // (v0.414 — the You & places rows join the spreadsheet look).
+            row_cell(ui, theme.cell_name_width, |ui| {
+                if node.id.is_empty() {
+                    ui.label(egui::RichText::new(&node.label).color(theme.text_primary()));
+                } else if ui
+                    .selectable_label(
+                        selected == node.id,
+                        egui::RichText::new(&node.label).color(theme.text_primary()),
+                    )
+                    .clicked()
+                {
+                    *clicked = Some(node.id.clone());
+                }
+            });
+            if !node.detail.is_empty() {
+                ui.label(
+                    egui::RichText::new(&node.detail)
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
             }
-            tree_detail(ui, theme, &node.detail);
         });
         // Inline EXPAND-IN-PLACE body (operator 2026-06-08: "click an item row to
         // expand in place ... instead of a popup/top detail"). When this leaf is the
@@ -629,15 +641,18 @@ fn container_node(
             ui.indent(("inline_body", &node.id), |ui| inline(ui, &node.id));
         }
     } else {
-        let id = ui.make_persistent_id("tree_node");
-        let mut cs =
-            egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, default_open);
-        // Collapse-all / Expand-all force every branch open/closed for this frame
-        // (then the state persists until the next manual toggle).
-        if let Some(open) = force {
-            cs.set_open(open);
-        }
-        cs.show_header(ui, |ui| {
+        // A branch IS the universal [`expandable_row`] (v0.414 — same persisted
+        // collapse state, same Collapse/Expand-all `force`, one nesting primitive
+        // across the app). Header clicks on a selectable container land in a local
+        // and merge into `clicked` after the call, because the body closure needs
+        // `clicked` itself for the recursion.
+        let mut header_clicked: Option<String> = None;
+        expandable_row(
+            ui,
+            "tree_node",
+            default_open,
+            force,
+            |ui| {
                 paint_swatch(ui, node.color);
                 // A container header is itself SELECTABLE when it carries an id (so a
                 // garden plot / tower can be picked, not only expanded); plain label
@@ -651,17 +666,21 @@ fn container_node(
                     )
                     .clicked()
                 {
-                    *clicked = Some(node.id.clone());
+                    header_clicked = Some(node.id.clone());
                 }
                 tree_detail(ui, theme, &node.detail);
-            })
-            .body(|ui| {
+            },
+            |ui| {
                 for (j, child) in node.children.iter().enumerate() {
                     ui.push_id(j, |ui| {
                         container_node(ui, theme, child, selected, clicked, default_open, force, inline)
                     });
                 }
-            });
+            },
+        );
+        if header_clicked.is_some() {
+            *clicked = header_clicked;
+        }
     }
 }
 

@@ -1240,6 +1240,9 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
             any_changed |= styled_slider(ui, &ss, "Status Bar Width", &mut theme.status_bar_width, 80.0..=400.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Status Bar Height", &mut theme.status_bar_height, 2.0..=20.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Compact Button Height", &mut theme.compact_button_height, 12.0..=36.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Cell Narrow Width", &mut theme.cell_narrow_width, 30.0..=120.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Cell Short Width", &mut theme.cell_short_width, 40.0..=180.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Cell Name Width", &mut theme.cell_name_width, 80.0..=300.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Sidebar Width", &mut theme.sidebar_width, 150.0..=400.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Settings Label Width", &mut theme.settings_label_width, 100.0..=300.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Modal Width", &mut theme.modal_width, 300.0..=800.0, label_color);

@@ -5,10 +5,10 @@ const SCOPES = [
   { n:2,  key:'hearth',  label:'Hearth',  color:'#ffd32a', desc:'Home, close relationships, household' },
   { n:3,  key:'circle',  label:'Circle',  color:'#0be881', desc:'Friend group / small team (3–8 people)' },
   { n:5,  key:'village', label:'Village', color:'#05c46b', desc:'Neighborhood / working group (8–21 people)' },
-  { n:8,  key:'city',    label:'City',    color:'#0fbcf9', desc:'Project level — HumanityOS (default)' },
+  { n:8,  key:'city',    label:'City',    color:'#0fbcf9', desc:'Project level, HumanityOS (default)' },
   { n:13, key:'region',  label:'Region',  color:'#7f8fa6', desc:'Large organization / national / bioregional' },
   { n:21, key:'world',   label:'World',   color:'#a29bfe', desc:'Civilization-wide, planetary goals' },
-  { n:34, key:'solar',   label:'Solar',   color:'#74b9ff', desc:'Solar System — space stations, Mars colony' },
+  { n:34, key:'solar',   label:'Solar',   color:'#74b9ff', desc:'Solar System, space stations, Mars colony' },
   { n:55, key:'cosmos',  label:'Cosmos',  color:'#dfe6e9', desc:'Interstellar civilization' },
 ];
 
@@ -55,7 +55,7 @@ function buildScopeTabs() {
 function buildScopeSelect() {
   const sel = document.getElementById('f-scope');
   sel.innerHTML = SCOPES.map(s =>
-    `<option value="${s.key}"${s.key === 'city' ? ' selected' : ''}>${s.n}·${s.label} — ${s.desc}</option>`
+    `<option value="${s.key}"${s.key === 'city' ? ' selected' : ''}>${s.n}·${s.label}, ${s.desc}</option>`
   ).join('');
 }
 
@@ -121,7 +121,7 @@ function renderBoard() {
     const count = document.getElementById('count-' + status);
     const filtered = tasks.filter(t => t.status === status);
     count.textContent = filtered.length;
-    if (!filtered.length) { col.innerHTML = `<div class="empty-col">—</div>`; return; }
+    if (!filtered.length) { col.innerHTML = `<div class="empty-col">-</div>`; return; }
     try {
       col.innerHTML = filtered.map(renderCard).join('');
     } catch (e) {
@@ -214,7 +214,7 @@ function ensureTaskWs() {
       // Resolve pending create promise
       if (m.type === 'task_created' && taskWsPending) { taskWsPending(m.task); taskWsPending = null; }
       if (m.type === 'system' && m.message && taskWsPending) { taskWsPending(null, m.message); taskWsPending = null; }
-      // Real-time board updates — add/update tasks without full reload
+      // Real-time board updates, add/update tasks without full reload
       if (m.type === 'task_created') {
         if (!allTasks.find(t => t.id === m.task.id)) { allTasks.push(m.task); renderBoard(); }
       }
@@ -323,7 +323,7 @@ async function submitTask() {
       btn.textContent = 'Create Task';
     }
   } else {
-    // Relay WebSocket path — requires humanity_key_backup in localStorage.
+    // Relay WebSocket path, requires humanity_key_backup in localStorage.
     ensureTaskWs();
     if (!taskWs || taskWs.readyState !== WebSocket.OPEN) {
       // Give it 1.5s to connect
@@ -372,7 +372,7 @@ function openDetail(id) {
     `<span class="detail-badge badge-status-${task.status}">${statusLabel}</span>` +
     `<span class="detail-badge badge-priority-${task.priority}">${task.priority}</span>`;
 
-  // Status action buttons — clicking moves the task to that status.
+  // Status action buttons, clicking moves the task to that status.
   const statusSteps = [
     { key: 'backlog',     label: (typeof hosIcon==='function'?hosIcon('tasklist',14):'')+' Backlog' },
     { key: 'in_progress', label: (typeof hosIcon==='function'?hosIcon('settings',14):'')+' In Progress' },
@@ -416,7 +416,7 @@ function openDetail(id) {
     ? labels.map(l => `<span class="label-tag">${esc(l)}</span>`).join('')
     : '';
 
-  const created = task.created_at ? new Date(task.created_at).toLocaleString() : '—';
+  const created = task.created_at ? new Date(task.created_at).toLocaleString() : '-';
   const age = task.created_at ? timeAgo(task.created_at) + ' ago' : '';
   document.getElementById('detail-meta').innerHTML =
     `<div class="detail-meta-row"><span class="detail-meta-label">Created</span><span>${created}${age ? ' · ' + age : ''}</span></div>` +
@@ -634,7 +634,7 @@ function renderTestPanel(task) {
         <div style="margin-top:var(--space-md);display:flex;gap:var(--space-md)">
           <button class="btn-test-vote${community.find(v=>v.device==='_local')?.result==='pass'?' vote-pass':''}"
                   style="font-size:.72rem;padding:var(--space-sm) var(--space-md)"
-                  onclick="castCommunityVote(${task.id},'pass')">✅ I tested it — works</button>
+                  onclick="castCommunityVote(${task.id},'pass')">✅ I tested it, works</button>
           <button class="btn-test-vote${community.find(v=>v.device==='_local')?.result==='fail'?' vote-fail':''}"
                   style="font-size:.72rem;padding:var(--space-sm) var(--space-md)"
                   onclick="castCommunityVote(${task.id},'fail')">❌ Broken</button>
@@ -699,7 +699,7 @@ function changeTaskAssignee(taskId) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Projects — project selector, CRUD, filtering
+   Projects, project selector, CRUD, filtering
    ═══════════════════════════════════════════════════════════════ */
 
 /** Fetch projects from REST API */
@@ -1025,7 +1025,7 @@ async function submitProject() {
   }
 }
 
-/** Open project settings (edit) — triggered by right-click on dropdown item */
+/** Open project settings (edit), triggered by right-click on dropdown item */
 function openProjectSettings(id) {
   closeProjectDropdown();
   openProjectModal(id);
@@ -1093,7 +1093,7 @@ function switchView(view) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Quests — local quest tracker (localStorage hos_quests_v1)
+   Quests, local quest tracker (localStorage hos_quests_v1)
    All functions prefixed with quest_ to avoid collisions.
    ═══════════════════════════════════════════════════════════════ */
 const QUEST_STORAGE_KEY = 'hos_quests_v1';

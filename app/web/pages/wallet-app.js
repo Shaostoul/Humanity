@@ -1,5 +1,5 @@
 /**
- * Wallet Dashboard — page logic for wallet.html
+ * Wallet Dashboard, page logic for wallet.html
  *
  * Depends on window.HosWallet (from wallet.js) for all blockchain calls.
  * Identity comes from localStorage (humanity_pubkey) or window.myIdentity.
@@ -46,7 +46,7 @@
 
     // Check that HosWallet is available
     if (!window.HosWallet) {
-      console.warn('wallet.js not loaded — HosWallet unavailable');
+      console.warn('wallet.js not loaded, HosWallet unavailable');
       document.getElementById('wallet-no-identity').style.display = '';
       document.getElementById('wallet-no-identity').querySelector('h2').textContent = 'Wallet module loading...';
       document.getElementById('wallet-no-identity').querySelector('p').innerHTML =
@@ -167,7 +167,7 @@
     }
 
     // Fallback: just show the address text
-    container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted);padding:var(--space-lg);border:1px dashed var(--border);border-radius:8px;">QR code unavailable — share the address above</div>';
+    container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted);padding:var(--space-lg);border:1px dashed var(--border);border-radius:8px;">QR code unavailable, share the address above</div>';
   }
 
   // ── Price Fetching ──
@@ -265,9 +265,9 @@
       var isSent = tx.from === solAddress || tx.direction === 'sent';
       var dirClass = isSent ? 'sent' : 'received';
       var dirLabel = isSent ? 'Sent' : 'Recv';
-      var addr = isSent ? (tx.to || '—') : (tx.from || '—');
+      var addr = isSent ? (tx.to || '-') : (tx.from || '-');
       var shortAddr = addr.length > 12 ? addr.slice(0, 6) + '...' + addr.slice(-4) : addr;
-      var amount = tx.amount != null ? formatAmount(tx.amount, 4) : '—';
+      var amount = tx.amount != null ? formatAmount(tx.amount, 4) : '-';
       var token = tx.token || 'SOL';
       var time = tx.timestamp ? formatTime(tx.timestamp) : '';
       var sig = tx.signature || tx.hash || '';
@@ -357,7 +357,7 @@
     document.getElementById('confirm-to').title = to;
     document.getElementById('confirm-amount').textContent = amount + ' ' + token;
 
-    var usdValue = '—';
+    var usdValue = '-';
     if (token === 'SOL' && cachedPrice) {
       usdValue = '$' + formatUSD(amount * cachedPrice);
     } else if (token === 'USDC') {
@@ -476,7 +476,7 @@
         var impact = quote.priceImpactPct || 0;
         var impactEl = document.getElementById('swap-impact');
         if (impact > 1) {
-          impactEl.textContent = 'Price impact: ' + impact.toFixed(2) + '% — proceed with caution';
+          impactEl.textContent = 'Price impact: ' + impact.toFixed(2) + '%, proceed with caution';
           impactEl.style.display = '';
         } else {
           impactEl.style.display = 'none';
@@ -485,7 +485,7 @@
         document.getElementById('btn-swap').disabled = false;
       } else {
         document.getElementById('swap-output-amount').value = '';
-        document.getElementById('swap-rate').textContent = 'Swap not available — wallet.js does not support quotes';
+        document.getElementById('swap-rate').textContent = 'Swap not available, wallet.js does not support quotes';
         document.getElementById('btn-swap').disabled = true;
       }
     } catch (e) {
@@ -611,9 +611,9 @@
     }
 
     listEl.innerHTML = validators.map(function (v) {
-      var name = v.name || v.identity || (v.votePubkey ? v.votePubkey.slice(0, 8) + '...' : '—');
-      var commission = v.commission != null ? v.commission + '%' : '—';
-      var stake = v.activatedStake != null ? formatAmount(v.activatedStake / 1e9, 0) + ' SOL' : '—';
+      var name = v.name || v.identity || (v.votePubkey ? v.votePubkey.slice(0, 8) + '...' : '-');
+      var commission = v.commission != null ? v.commission + '%' : '-';
+      var stake = v.activatedStake != null ? formatAmount(v.activatedStake / 1e9, 0) + ' SOL' : '-';
       return '<div class="validator-item" onclick="selectValidator(\'' + escapeHtml(v.votePubkey || '') + '\')">' +
         '<span class="v-name">' + escapeHtml(name) + '</span>' +
         '<span class="v-commission">' + commission + '</span>' +
@@ -629,7 +629,7 @@
       return;
     }
     select.innerHTML = validators.map(function (v) {
-      var name = v.name || v.identity || (v.votePubkey ? v.votePubkey.slice(0, 12) + '...' : '—');
+      var name = v.name || v.identity || (v.votePubkey ? v.votePubkey.slice(0, 12) + '...' : '-');
       var commission = v.commission != null ? ' (' + v.commission + '%)' : '';
       return '<option value="' + escapeHtml(v.votePubkey || '') + '">' + escapeHtml(name) + commission + '</option>';
     }).join('');
@@ -682,7 +682,7 @@
 
         var status = sa.status || 'active';
         var statusClass = status.toLowerCase().replace(/\s/g, '');
-        var validator = sa.validatorName || (sa.votePubkey ? sa.votePubkey.slice(0, 8) + '...' : '—');
+        var validator = sa.validatorName || (sa.votePubkey ? sa.votePubkey.slice(0, 8) + '...' : '-');
 
         return '<div class="stake-account">' +
           '<span class="sa-status ' + statusClass + '">' + status + '</span>' +

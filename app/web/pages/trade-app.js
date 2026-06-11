@@ -1,4 +1,4 @@
-/* trade-app.js — Peer-to-peer trading UI */
+/* trade-app.js, Peer-to-peer trading UI */
 
 let tradeWs = null;
 let tradeMyKey = '';
@@ -185,7 +185,7 @@ function renderTradeDetail() {
     return;
   }
 
-  // Active trade — full interactive view
+  // Active trade, full interactive view
   viewEl.innerHTML = renderTwoColumns(t, isInitiator, true);
 }
 

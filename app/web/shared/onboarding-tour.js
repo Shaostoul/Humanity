@@ -1,5 +1,5 @@
 /**
- * HumanityOS Onboarding Tour — guided first-time user walkthrough.
+ * HumanityOS Onboarding Tour, guided first-time user walkthrough.
  * Self-contained IIFE, no external dependencies beyond DOM.
  * Auto-starts for new users; callable via window.startOnboardingTour().
  */

@@ -1,15 +1,15 @@
 /**
- * HumanityOS Glossary — Inline term definitions
+ * HumanityOS Glossary, Inline term definitions
  *
  * Loads definitions from /data/glossary.json.
  * Auto-scans the page for elements with data-term="word" and adds click handlers.
  * On click, shows a small dark-themed modal/tooltip near the word with the definition.
  *
  * API:
- *   glossary.define(term)   — returns definition string or null
- *   glossary.show(term, el) — manually show tooltip near element
- *   glossary.hide()         — close any open tooltip
- *   glossary.rescan()       — re-scan DOM for new data-term elements
+ *   glossary.define(term), returns definition string or null
+ *   glossary.show(term, el), manually show tooltip near element
+ *   glossary.hide(), close any open tooltip
+ *   glossary.rescan(), re-scan DOM for new data-term elements
  *
  * Usage in HTML:
  *   <script src="/shared/glossary.js"></script>

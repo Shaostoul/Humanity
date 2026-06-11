@@ -147,7 +147,7 @@ function applyCustomizerLive() {
   document.getElementById('font-size-val').textContent = fs + 'px';
   doc.style.setProperty('--font-size-base', fs + 'px');
   doc.style.setProperty('font-size', fs + 'px');
-  // Border radius — update all scale levels proportionally
+  // Border radius, update all scale levels proportionally
   var br = parseInt(document.getElementById('pref-border-radius').value);
   document.getElementById('border-radius-val').textContent = br + 'px';
   doc.style.setProperty('--radius', br + 'px');
@@ -251,7 +251,7 @@ function showSaved() {
 
 async function clearAppCache() {
   // Wipe all service-worker caches and force a full network reload.
-  // Fixes stale JS/HTML after a deploy — same as Ctrl+Shift+Delete.
+  // Fixes stale JS/HTML after a deploy, same as Ctrl+Shift+Delete.
   try {
     const names = await caches.keys();
     await Promise.all(names.map(n => caches.delete(n)));
@@ -307,7 +307,7 @@ function beginPttRebind() {
     localStorage.setItem('humanity-vc-ptt-key', e.code);
     if (typeof window.setVcInputMode === 'function') {
       // Trigger reload of key in the voice module via a temporary hack
-      // (the module reads the key on next keydown — just update display here)
+      // (the module reads the key on next keydown, just update display here)
     }
     updatePttKeyDisplay(e.code);
     if (btn) { btn.textContent = 'Rebind'; btn.disabled = false; }
@@ -670,7 +670,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS — v0.161.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.414.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -688,7 +688,7 @@ if (window.hosIcon) {
     if (!old) return; // nothing to migrate
     var oldData = JSON.parse(old);
     var current = JSON.parse(localStorage.getItem('humanity_settings') || '{}');
-    // Merge old keys into current — old values fill gaps, don't overwrite existing
+    // Merge old keys into current, old values fill gaps, don't overwrite existing
     Object.keys(oldData).forEach(function(k) {
       if (current[k] === undefined) current[k] = oldData[k];
     });
@@ -761,7 +761,7 @@ function updateDndTimes(enabled) {
   container.style.pointerEvents = enabled ? 'auto' : 'none';
 }
 
-/** Master push toggle — subscribe or unsubscribe */
+/** Master push toggle, subscribe or unsubscribe */
 async function togglePushNotifications(enabled) {
   var statusEl = document.getElementById('push-status-msg');
   localStorage.setItem('hos_notify_enabled', enabled ? 'true' : 'false');
@@ -906,7 +906,7 @@ function requestNotifPrefsFromServer() {
   ws.send(JSON.stringify({ type: 'get_notification_prefs' }));
 }
 
-/** Handle incoming notification_prefs_data from server — update UI and localStorage */
+/** Handle incoming notification_prefs_data from server, update UI and localStorage */
 function handleNotifPrefsData(msg) {
   if (msg.dm !== undefined) localStorage.setItem('hos_notify_dms', msg.dm ? 'true' : 'false');
   if (msg.mentions !== undefined) localStorage.setItem('hos_notify_mentions', msg.mentions ? 'true' : 'false');
@@ -1016,7 +1016,7 @@ function walletDisplayAddress() {
     var pk = myIdentity.publicKeyHex;
     var shortPk = pk.length > 8 ? pk.substring(0, 4) + '...' + pk.substring(pk.length - 4) : pk;
     addrEl.textContent = shortPk;
-    addrEl.title = pk + ' (wallet.js not loaded — install to see Solana address)';
+    addrEl.title = pk + ' (wallet.js not loaded, install to see Solana address)';
     if (copyBtn) {
       copyBtn.addEventListener('click', function() {
         navigator.clipboard.writeText(pk).then(function() {
@@ -1099,7 +1099,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
 
   const VAULT_LS_KEY = 'hos_vault_v1';
 
-  // In-memory state — cleared on lock
+  // In-memory state, cleared on lock
   let vaultKey     = null;
   let vault        = null;
   let activeId     = null;
@@ -1264,7 +1264,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
     if (count) count.textContent = `${vault && vault.entries.length || 0} ${vault && vault.entries.length === 1 ? 'entry' : 'entries'}`;
 
     if (!entries.length) {
-      if (list) list.innerHTML = `<div class="no-entries">${query ? 'No matches.' : 'No entries yet — click + New to add one.'}</div>`;
+      if (list) list.innerHTML = `<div class="no-entries">${query ? 'No matches.' : 'No entries yet, click + New to add one.'}</div>`;
       return;
     }
 
@@ -1386,7 +1386,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
 
       if (isSecret) {
         let remaining = 30;
-        if (cc) cc.textContent = `✓ Copied — clipboard clears in ${remaining}s`;
+        if (cc) cc.textContent = `✓ Copied, clipboard clears in ${remaining}s`;
         const iv = setInterval(() => {
           remaining--;
           if (remaining <= 0) {
@@ -1395,7 +1395,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
             if (cc) { cc.textContent = '🧹 Clipboard cleared'; setTimeout(() => { cc.textContent = ''; }, 2000); }
             btn.textContent = orig;
           } else {
-            if (cc) cc.textContent = `✓ Copied — clipboard clears in ${remaining}s`;
+            if (cc) cc.textContent = `✓ Copied, clipboard clears in ${remaining}s`;
           }
         }, 1000);
       } else {
@@ -1429,7 +1429,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
       fields: [
         { label: 'Seed Phrase (24 words)', key: 'phrase', placeholder: 'word1 word2 … word24', multiline: true, secret: true }
       ],
-      note: 'These 24 words are your identity master key. Anyone who has them can use your account — guard them carefully.'
+      note: 'These 24 words are your identity master key. Anyone who has them can use your account, guard them carefully.'
     },
     password: {
       label: 'Password', icon: '🔑',
@@ -1652,7 +1652,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
       btn.textContent = 'Done';
       setTimeout(() => { document.getElementById('vault-sec-import-overlay').style.display = 'none'; }, 2000);
     } catch(e) {
-      msg.innerHTML = `<span style="color:#e55">⚠ ${e.message} — wrong passphrase?</span>`;
+      msg.innerHTML = `<span style="color:#e55">⚠ ${e.message}, wrong passphrase?</span>`;
       btn.disabled = false; btn.textContent = 'Import & Merge';
     }
   }
@@ -1725,35 +1725,25 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
 
   // ── Cloud vault sync (relay-backed) ──
 
+  // Vault-sync auth, Dilithium3-signed (was Ed25519 pre-v0.266.0; the relay's
+  // identity-keyed endpoints all verify Dilithium now). Delegates to the
+  // shared helper installed by `/shared/pq-relay-auth.js`, which in turn
+  // depends on `/chat/pq.js`; both must be loaded before this script.
+  // Returns null when there's no plaintext identity backup in localStorage
+  // (wrapped-only users have to sync via the chat client). Inc5c-tail.
   async function vault_signSyncRequest() {
-    const backup = localStorage.getItem('humanity_key_backup');
-    const keyHex = localStorage.getItem('humanity_key');
-    if (!backup || !keyHex) return null;
-    try {
-      const parsed = JSON.parse(backup);
-      let privateKey;
-      if (parsed.jwk) {
-        privateKey = await crypto.subtle.importKey('jwk', parsed.jwk, 'Ed25519', false, ['sign']);
-      } else if (parsed.privateKeyPkcs8) {
-        const pkcs8Buf = Uint8Array.from(atob(parsed.privateKeyPkcs8), c => c.charCodeAt(0));
-        privateKey = await crypto.subtle.importKey('pkcs8', pkcs8Buf, 'Ed25519', false, ['sign']);
-      } else {
-        console.warn('Vault sync: unrecognised key_backup format');
-        return null;
-      }
-      const ts = Date.now();
-      const payload = `vault_sync\n${ts}`;
-      const sigBuf = await crypto.subtle.sign('Ed25519', privateKey, new TextEncoder().encode(payload));
-      const sig = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
-      return { key: keyHex, timestamp: ts, sig };
-    } catch(e) { console.warn('Vault sync sign failed:', e); return null; }
+    if (typeof window.getPqSignedAuth !== 'function') {
+      console.warn('Vault sync: pq-relay-auth.js not loaded');
+      return null;
+    }
+    return await window.getPqSignedAuth('vault_sync');
   }
 
   async function vault_syncToCloud() {
     const stored = localStorage.getItem(VAULT_LS_KEY);
     if (!stored) { alert('No vault to sync.'); return; }
     const auth = await vault_signSyncRequest();
-    if (!auth) { alert('No Humanity identity found — vault sync requires a chat identity to authenticate.'); return; }
+    if (!auth) { alert('No Humanity identity found, vault sync requires a chat identity to authenticate.'); return; }
     const btn = document.getElementById('vault-sec-cloud-sync-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
     try {
@@ -1773,7 +1763,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
 
   async function vault_restoreFromCloud() {
     const auth = await vault_signSyncRequest();
-    if (!auth) { alert('No Humanity identity found — vault sync requires a chat identity to authenticate.'); return; }
+    if (!auth) { alert('No Humanity identity found, vault sync requires a chat identity to authenticate.'); return; }
     if (!confirm('Restore vault from cloud? Any entries not in the cloud backup will be lost unless you export first.')) return;
     try {
       const url = `/api/vault/sync?key=${encodeURIComponent(auth.key)}&timestamp=${auth.timestamp}&sig=${encodeURIComponent(auth.sig)}`;
@@ -1845,7 +1835,7 @@ async function settingsOpenBackup() {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:#e0e0e0;">' +
     '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-md)">🔐 Download Encrypted Backup</h2>' +
-    '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter a passphrase to encrypt your private key. Store the file in your cloud — it\'s useless without the passphrase.</p>' +
+    '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter a passphrase to encrypt your private key. Store the file in your cloud, it\'s useless without the passphrase.</p>' +
     '<input id="set-bkp-pass" type="password" placeholder="Passphrase (8+ characters)" autocomplete="new-password" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:var(--space-md);">' +
     '<div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-lg);">' +
     '<button id="set-bkp-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
@@ -1914,7 +1904,7 @@ function settingsOpenRestore() {
         this.disabled = false; this.textContent = 'Restore';
       }
     } catch(e) {
-      msg.innerHTML = '<span style="color:#e55">' + (e.message || 'Decryption failed — wrong passphrase?') + '</span>';
+      msg.innerHTML = '<span style="color:#e55">' + (e.message || 'Decryption failed, wrong passphrase?') + '</span>';
       this.disabled = false; this.textContent = 'Restore';
     }
   });
@@ -1949,7 +1939,7 @@ async function settingsOpenSeed() {
   overlay.querySelector('#set-seed-done').addEventListener('click', function() { overlay.remove(); localStorage.setItem('hos_vault_seed_nudge_dismissed', '1'); checkBackupStatus(); });
   overlay.querySelector('#set-seed-copy').addEventListener('click', function() {
     navigator.clipboard.writeText(mnemonic).then(function() {
-      overlay.querySelector('#set-seed-msg').textContent = '✓ Copied — write it down, then clear clipboard';
+      overlay.querySelector('#set-seed-msg').textContent = '✓ Copied, write it down, then clear clipboard';
       overlay.querySelector('#set-seed-copy').textContent = 'Copied!';
     });
   });

@@ -13,7 +13,7 @@ function switchTab(tab) {
 }
 
 // ══════════════════════════════════════════════
-// Notes — Personal encrypted data store
+// Notes, Personal encrypted data store
 // ══════════════════════════════════════════════
 // Goal: local-first encrypted notes using AES-256-GCM. Each note can optionally
 // have per-note passphrase encryption on top of the base localStorage layer.
@@ -249,7 +249,7 @@ function toggleEncrypt() {
   if (!note) return;
 
   if (!note.encrypted) {
-    // Enable encryption — prompt for passphrase
+    // Enable encryption, prompt for passphrase
     const pass = prompt('Choose a passphrase for this note.\nYou must enter it every time you open the note.');
     if (!pass || pass.length < 4) { alert('Passphrase too short (min 4 characters).'); return; }
     note.encrypted = true;
@@ -389,7 +389,7 @@ showNotePanel(false);
 
 
 // ══════════════════════════════════════════════
-// Log — Personal logbook (namespaced with log_ prefix)
+// Log, Personal logbook (namespaced with log_ prefix)
 // ══════════════════════════════════════════════
 
 const LOG_STORAGE_KEY = 'hos_logbook_v1';
@@ -422,7 +422,7 @@ function log_newEntry() {
   const now = new Date();
   const e = {
     id: log_uid(),
-    title: 'Entry — ' + now.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
+    title: 'Entry, ' + now.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
     body: '',
     tags: [],
     created: now.toISOString(),
@@ -563,7 +563,7 @@ function log_renderSidebar() {
 }
 
 document.addEventListener('keydown', function(e) {
-  // Ctrl+N / Ctrl+S — route to correct tab
+  // Ctrl+N / Ctrl+S, route to correct tab
   if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
     e.preventDefault();
     if (document.getElementById('log-content').style.display !== 'none') {

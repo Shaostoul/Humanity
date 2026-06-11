@@ -1,4 +1,4 @@
-// Parse static emoji on page load — skip hub-nav so emoji match other pages
+// Parse static emoji on page load, skip hub-nav so emoji match other pages
 document.addEventListener('DOMContentLoaded', () => {
   if (window.twemoji) {
     document.querySelectorAll('#login-screen, #chat-screen').forEach(el => twemoji.parse(el));
@@ -45,11 +45,11 @@ function resetMsgStripe() {
   _msgStripe = 0;
 }
 
-// Persist name across sessions — auto-login if returning user.
+// Persist name across sessions, auto-login if returning user.
 const savedName = localStorage.getItem('humanity_name');
 if (savedName) {
   document.getElementById('name-input').value = savedName;
-  // Skip login screen immediately — show chat with "Connecting..." status.
+  // Skip login screen immediately, show chat with "Connecting..." status.
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('chat-screen').style.display = 'flex';
   setStatus('reconnecting', 'Connecting…');
@@ -229,14 +229,23 @@ async function connect() {
   document.getElementById('crypto-status').textContent = 'Connecting…';
   document.getElementById('crypto-status').style.color = 'var(--text-muted)';
 
-  // Initialize Ed25519 identity.
+  // Ed25519 keypair = the BIP39 seed source + Solana wallet ONLY.
   myIdentity = await getOrCreateIdentity();
-  myKey = myIdentity.publicKeyHex;
 
-  // Initialize ECDH P-256 keypair for E2E encrypted DMs (non-blocking).
-  getOrCreateEcdhKeypair().catch(e => console.warn('ECDH init failed:', e));
+  // FULL-PQ cutover: derive Dilithium3 (THE chat identity) + Kyber768
+  // (DM) from the same seed and PROMOTE Dilithium to the identity.
+  // AWAITED, `public_key` must be the Dilithium key at identify. PQ
+  // is mandatory; if it fails we do not connect (no Ed25519 fallback).
+  const pqOk = await attachPqIdentity();
+  if (!pqOk) {
+    alert('Post-quantum identity could not be initialized.\n'
+      + 'This client cannot connect without it. Reload to retry; '
+      + 'if it persists the vendored PQ bundle failed to load.');
+    return;
+  }
+  myKey = myIdentity.publicKeyHex; // now the Dilithium3 public-key hex
 
-  // Stay on login screen — we switch to chat only after server confirms identity.
+  // Stay on login screen, we switch to chat only after server confirms identity.
   identityConfirmed = false;
   openSocket();
 }
@@ -280,7 +289,7 @@ async function decryptSyncData(data) {
     if (!parsed.v || !parsed.encrypted) return data; // Plaintext (backward compat)
     if (parsed.key && parsed.key !== myKey) {
       console.warn('Sync data encrypted by different device key:', parsed.key);
-      return null; // Can't decrypt — different device
+      return null; // Can't decrypt, different device
     }
     const key = await deriveSyncKey();
     if (!key) return null;
@@ -348,7 +357,7 @@ function scheduleSyncSave() {
 
 async function handleSyncData(payload) {
   if (payload === 'null') {
-    // No server data — push local data to server.
+    // No server data, push local data to server.
     syncInitialized = true;
     scheduleSyncSave();
     return;
@@ -360,18 +369,18 @@ async function handleSyncData(payload) {
     const localUpdatedAt = parseInt(localStorage.getItem('sync_updated_at') || '0', 10);
 
     if (!localUpdatedAt || localUpdatedAt < serverUpdatedAt) {
-      // Server is newer — decrypt and apply server data.
+      // Server is newer, decrypt and apply server data.
       const decrypted = await decryptSyncData(serverData);
       if (decrypted) {
         applySyncBlob(decrypted);
         localStorage.setItem('sync_updated_at', String(serverUpdatedAt));
       } else {
-        // Can't decrypt (different device key) — keep local, re-encrypt on next save.
+        // Can't decrypt (different device key), keep local, re-encrypt on next save.
         console.warn('Could not decrypt sync data from server, keeping local data.');
         setTimeout(() => scheduleSyncSave(), 1000);
       }
     } else {
-      // Local is newer or equal — push to server.
+      // Local is newer or equal, push to server.
       setTimeout(() => scheduleSyncSave(), 1000);
     }
   } catch (e) {
@@ -385,7 +394,7 @@ function requestSyncLoad() {
   ws.send(JSON.stringify({ type: 'sync_load' }));
 }
 
-// Watch localStorage changes — intercept setItem to detect changes.
+// Watch localStorage changes, intercept setItem to detect changes.
 (function() {
   const origSetItem = localStorage.setItem.bind(localStorage);
   localStorage.setItem = function(key, value) {
@@ -419,7 +428,7 @@ function onIdentityConfirmed() {
     }
   }
 
-  // Launch onboarding wizard for first-time users — explains the identity
+  // Launch onboarding wizard for first-time users, explains the identity
   // system in plain language and walks them through the seed phrase backup.
   if (myIdentity && myIdentity.isNew) {
     myIdentity.isNew = false; // Only trigger once
@@ -432,7 +441,7 @@ function onIdentityConfirmed() {
       } else {
         // Fallback: just download the backup file if wizard script didn't load.
         const ok = await downloadIdentityBackup(myName);
-        if (ok) addNotice("🔑 Identity backup downloaded — save it somewhere safe.", 'red', 60);
+        if (ok) addNotice("🔑 Identity backup downloaded, save it somewhere safe.", 'red', 60);
       }
       requestPersistentStorage();
     }, 1200);
@@ -475,6 +484,12 @@ function onIdentityConfirmed() {
   // Request user data sync from server.
   requestSyncLoad();
 
+  // Proactively load P2P groups now that identity (myKey) is ready, so they
+  // appear in the left rail on first load instead of only after the user
+  // interacts (create/join). loadP2pGroups self-guards on myKey + sets its
+  // own fetched flag; calling it here is the reliable trigger.
+  if (typeof window.loadP2pGroups === 'function') window.loadP2pGroups();
+
   // ── URL hash channel navigation ──
   // If URL has #channelname, switch to that channel (e.g. /chat#dev -> dev)
   if (location.hash && location.hash !== '#profile') {
@@ -486,7 +501,7 @@ function onIdentityConfirmed() {
     }
   }
 
-  // Don't load history here — wait for channel_list to arrive,
+  // Don't load history here, wait for channel_list to arrive,
   // then switchChannel will load it.
   // If channel_list already arrived, load now.
   if (channelList.length > 0) {
@@ -535,21 +550,14 @@ async function loadHistory() {
 
         const key = msg.from + ':' + msg.timestamp;
         seenTimestamps.add(key);
-        // Verify history message signatures client-side so tampered history is surfaced.
-        if (msg.signature && msg.from && !msg.from.startsWith('bot_')) {
-          const _msg = msg; // capture for async closure
-          verifyMessage(_msg.from, _msg.signature, _msg.content, _msg.timestamp).then(valid => {
-            addChatMessage(
-              resolveSenderName(_msg.from_name, _msg.from), _msg.content, _msg.timestamp, _msg.from,
-              true, valid ? true : 'invalid', _msg.reply_to || null, _msg.thread_count || null, false, _msg.message_id || null
-            );
-          });
-        } else {
-          addChatMessage(
-            resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from,
-            true, false, msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null
-          );
-        }
+        // Full-PQ: the relay is the authoritative chat verifier, it
+        // checks the Dilithium3 `pq_signature` server-side before it
+        // stores/replays history (Inc3). The dead Ed25519 client-verify
+        // path was removed; no per-message client crypto on the hot path.
+        addChatMessage(
+          resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from,
+          true, false, msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null
+        );
       }
 
       // Update last-seen to the newest message timestamp.
@@ -565,7 +573,7 @@ async function loadHistory() {
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
       }
     } else {
-      // No history — ensure we're at bottom for new messages.
+      // No history, ensure we're at bottom for new messages.
       document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
     }
   } catch (e) {
@@ -586,14 +594,19 @@ function openSocket() {
     reconnectDelay = 1000;
     clearTimeout(reconnectTimer);
 
+    // Full-PQ: `public_key` IS the Dilithium3 hex (promoted to chat identity
+    // by attachPqIdentity()). `myKey` already points at it. There is no
+    // Ed25519-as-identity and no ECDH key on the wire anymore.
     const identifyMsg = {
       type: 'identify',
       public_key: myKey,
       display_name: myName,
     };
-    // E2EE: Include ECDH public key for end-to-end encrypted DMs.
-    if (myEcdhPublicBase64) {
-      identifyMsg.ecdh_public = myEcdhPublicBase64;
+    // Full-PQ DM: advertise the Kyber768 (ML-KEM-768) public key so peers
+    // can encapsulate a fresh shared secret to us per message. Deterministic
+    // from the same BIP39 seed, so it's identical on web and native.
+    if (myKyberPublicBase64) {
+      identifyMsg.kyber_public = myKyberPublicBase64;
     }
     if (pendingLinkCode) {
       identifyMsg.link_code = pendingLinkCode;
@@ -605,7 +618,7 @@ function openSocket() {
     }
     ws.send(JSON.stringify(identifyMsg));
 
-    // Don't switch screens yet — wait for server to confirm via peer_list.
+    // Don't switch screens yet, wait for server to confirm via peer_list.
     // If already confirmed (reconnect), re-enable input.
     if (identityConfirmed) {
       setStatus('connected', 'Connected');
@@ -657,16 +670,10 @@ async function handleMessage(msg) {
       const key = msg.from + ':' + msg.timestamp;
       if (seenTimestamps.has(key)) return; // Deduplicate
       seenTimestamps.add(key);
-      const hasSig = !!msg.signature;
-      // If message has a signature, verify it client-side and surface the result.
-      // 'invalid' warns the user if a relay or MITM tampered with the content.
-      if (hasSig && msg.from && !msg.from.startsWith('bot_')) {
-        verifyMessage(msg.from, msg.signature, msg.content, msg.timestamp).then(valid => {
-          addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, valid ? true : 'invalid', msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null);
-        });
-      } else {
-        addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, false, msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null);
-      }
+      // Full-PQ: the relay verifies the Dilithium3 `pq_signature`
+      // server-side before broadcasting (Inc3), it is the chat trust
+      // boundary. The dead Ed25519 client-verify path was removed.
+      addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, false, msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null);
       // If this message is a reply, update the parent's thread count badge in the DOM.
       if (msg.reply_to) {
         updateThreadBadge(msg.reply_to.from, msg.reply_to.timestamp);
@@ -674,7 +681,7 @@ async function handleMessage(msg) {
       break;
     }
     case 'federated_chat': {
-      // Cross-server federated message — display with server badge.
+      // Cross-server federated message, display with server badge.
       const fedChannel = msg.channel || 'general';
       if (fedChannel !== activeChannel) return;
       const fedKey = 'fed:' + msg.server_id + ':' + msg.timestamp;
@@ -693,12 +700,12 @@ async function handleMessage(msg) {
       break;
     }
     case 'peer_joined':
-      // Update peerData with new peer info — sidebar handles visibility.
-      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', ecdh_public: msg.ecdh_public || null };
+      // Update peerData with new peer info, sidebar handles visibility.
+      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', kyber_public: msg.kyber_public || null };
       updateStats();
       break;
     case 'peer_left':
-      // Keep ecdh_public in peerData for offline decryption of history
+      // Keep the peer's Kyber key in peerData for offline history decrypt
       if (peerData[msg.public_key]) {
         peerData[msg.public_key]._offline = true;
       }
@@ -709,6 +716,38 @@ async function handleMessage(msg) {
       updateChannelHeader();
       updateInputForChannel();
       break;
+    case 'identify_challenge': {
+      // Full-PQ Inc3b: relay issued a nonce after our Identify. Sign the
+      // canonical preimage with our Dilithium3 secret and return it via
+      // identify_response, only then does the relay bind the socket to
+      // our claimed key. Closes HIGH-2 (identity spoofing).
+      try {
+        const nonce = msg.nonce || '';
+        if (!nonce || !myDilithiumSecret || typeof window.pqSignMessage !== 'function') {
+          console.error('identify_challenge: missing nonce or PQ identity not ready');
+          break;
+        }
+        const preimage = new TextEncoder().encode(
+          'hum/identify/v1\n' + nonce + '\n' + myKey
+        );
+        // pqSignMessage returns Uint8Array (3309 bytes for ML-DSA-65).
+        Promise.resolve(window.pqSignMessage(myDilithiumSecret, preimage))
+          .then(sigBytes => {
+            if (!sigBytes) {
+              console.error('identify_challenge: signing returned null');
+              return;
+            }
+            const sig_b64 = btoa(String.fromCharCode(...sigBytes));
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'identify_response', sig_b64 }));
+            }
+          })
+          .catch(e => console.error('identify_challenge sign failed:', e && e.message));
+      } catch (e) {
+        console.error('identify_challenge handler error:', e && e.message);
+      }
+      break;
+    }
     case 'peer_list':
       // Auto-reload on server update: if server_version changed, unregister SW and refresh.
       if (msg.server_version) {
@@ -777,7 +816,7 @@ async function handleMessage(msg) {
       break;
     }
     case 'message_deleted': {
-      // Admin/mod deleted a message by database ID — find and remove by data-message-id.
+      // Admin/mod deleted a message by database ID, find and remove by data-message-id.
       if (msg.message_id != null) {
         const el = document.querySelector('.message[data-message-id="' + msg.message_id + '"]');
         if (el) el.remove();
@@ -865,19 +904,13 @@ async function handleMessage(msg) {
       const dmPartnerName = (dmFrom === myKey) ? (peerData[msg.to]?.display_name || shortKey(msg.to || '')) : dmFromName;
       let dmContent = msg.content;
       let dmIsEncrypted = !!msg.encrypted;
-      // E2EE: Decrypt if encrypted.
-      if (msg.encrypted && msg.nonce) {
-        const senderEcdh = getPeerEcdhPublic(dmFrom);
-        if (senderEcdh) {
-          const plain = await decryptDmContent(msg.content, msg.nonce, senderEcdh);
-          if (plain !== null) {
-            dmContent = plain;
-          } else {
-            dmContent = '🔒 [Decryption failed]';
-          }
-        } else {
-          dmContent = '🔒 [Cannot decrypt — missing sender key]';
-        }
+      // Full-PQ: decapsulate with OUR OWN deterministic Kyber secret -
+      // no sender key needed (ML-KEM). The dual-seal envelope means this
+      // works for both incoming messages and our own from history.
+      if (msg.encrypted) {
+        const plain = await decryptDmContent(msg.content, msg.nonce, null);
+        dmContent = (plain !== null && plain !== undefined)
+          ? plain : '🔒 [Decryption failed]';
       }
       upsertDmConversation(dmPartnerKey, dmPartnerName, dmIsEncrypted ? '🔒 Encrypted message' : dmContent, msg.timestamp, dmFrom !== myKey);
       if (activeDmPartner && (dmFrom === activeDmPartner || dmFrom === myKey)) {
@@ -906,14 +939,16 @@ async function handleMessage(msg) {
       if (activeDmPartner === msg.partner) {
         document.getElementById('messages').innerHTML = '';
         const msgs = msg.messages || [];
-        // E2EE status banner
-        const partnerEcdh = getPeerEcdhPublic(msg.partner);
+        // E2EE status banner. Full-PQ: a conversation is end-to-end
+        // encrypted when the partner advertised a Kyber768 key and our
+        // own PQ secret is ready (dual-seal lets us read BOTH directions).
+        const partnerKyber = getPeerEcdhPublic(msg.partner);
         const e2eeNotice = document.createElement('div');
         e2eeNotice.style.cssText = 'text-align:center;font-size:0.7rem;padding:var(--space-sm);color:var(--text-muted);';
-        if (partnerEcdh && myEcdhKeyPair) {
-          e2eeNotice.innerHTML = hosIcon('lock', 14) + ' Messages are end-to-end encrypted';
+        if (partnerKyber && myKyberSecret) {
+          e2eeNotice.innerHTML = hosIcon('lock', 14) + ' Messages are end-to-end encrypted (post-quantum)';
         } else {
-          e2eeNotice.innerHTML = hosIcon('unlock', 14) + ' Messages are <b>not</b> encrypted — the other party does not support E2EE';
+          e2eeNotice.innerHTML = hosIcon('unlock', 14) + ' Messages are <b>not</b> encrypted, the other party has no post-quantum key';
         }
         document.getElementById('messages').appendChild(e2eeNotice);
         if (msgs.length > 0) {
@@ -925,15 +960,12 @@ async function handleMessage(msg) {
         for (const m of msgs) {
           let histContent = m.content;
           let histEncrypted = !!m.encrypted;
-          if (m.encrypted && m.nonce) {
-            // Determine peer key: if from me, use partner's key; if from partner, use partner's key
-            const peerKeyForDecrypt = getPeerEcdhPublic(m.from === myKey ? m.to : m.from) || getPeerEcdhPublic(msg.partner);
-            if (peerKeyForDecrypt) {
-              const plain = await decryptDmContent(m.content, m.nonce, peerKeyForDecrypt);
-              histContent = plain !== null ? plain : '🔒 [Decryption failed]';
-            } else {
-              histContent = '🔒 [Cannot decrypt — missing key]';
-            }
+          if (m.encrypted) {
+            // Full-PQ dual-seal: our own Kyber secret opens BOTH our sent
+            // copy and received messages, no peer key needed.
+            const plain = await decryptDmContent(m.content, m.nonce, null);
+            histContent = (plain !== null && plain !== undefined)
+              ? plain : '🔒 [Decryption failed]';
           }
           addDmMessage(resolveSenderName(m.from_name, m.from), histContent, m.timestamp, m.from, m.to, histEncrypted);
         }
@@ -975,6 +1007,18 @@ async function handleMessage(msg) {
         break;
       }
       if (msg.message === 'sync_ack') break; // Silent ack
+      // Game-engine traffic (ambient NPC chatter, quest events, world ticks)
+      // is broadcast as system-prefixed messages so AI agents subscribed to
+      // game state can listen. They must NOT pollute regular chat channels.
+      // Forward to any registered game listener and skip rendering.
+      // (Bug fix 2026-05-03.)
+      if (msg.message && msg.message.startsWith('__game__:')) {
+        try {
+          const game = JSON.parse(msg.message.slice('__game__:'.length));
+          if (typeof window.onGameMessage === 'function') window.onGameMessage(game);
+        } catch (e) { console.warn('Bad __game__ payload', e); }
+        break;
+      }
       // Skill endorsement counts response.
       if (msg.message && msg.message.startsWith('__skill_endorsements__:')) {
         try {
@@ -983,7 +1027,7 @@ async function handleMessage(msg) {
         } catch (e) { console.warn('Bad skill_endorsements', e); }
         break;
       }
-      // Skill verification request — another peer wants to endorse our skill.
+      // Skill verification request, another peer wants to endorse our skill.
       if (msg.message && msg.message.startsWith('__skill_verify_req__:')) {
         try {
           const d = JSON.parse(msg.message.slice('__skill_verify_req__:'.length));
@@ -991,7 +1035,7 @@ async function handleMessage(msg) {
         } catch (e) { console.warn('Bad skill_verify_req', e); }
         break;
       }
-      // Skill verification response — our endorsement request was approved.
+      // Skill verification response, our endorsement request was approved.
       if (msg.message && msg.message.startsWith('__skill_verify_resp__:')) {
         try {
           const d = JSON.parse(msg.message.slice('__skill_verify_resp__:'.length));
@@ -1000,7 +1044,16 @@ async function handleMessage(msg) {
         break;
       }
       const handledAdminFeedback = handleChannelAdminFeedback(msg.message);
-      if (!handledAdminFeedback) addSystemMessage(msg.message);
+      // Don't leak a server system notice into an open P2P group / DM view: it
+      // would render there and then vanish on the next group refresh (which
+      // rebuilds strictly from the group's signed log), the confusing
+      // "deploy-bot post appeared in the group then disappeared" the operator
+      // hit on native. These notices are server-context, not for a private
+      // conversation; the deploy bot also posts to #announcements as a normal
+      // chat message, which is preserved + shown there.
+      const inPrivateView = !!window.activeP2pGroup
+        || (typeof activeDmPartner !== 'undefined' && !!activeDmPartner);
+      if (!handledAdminFeedback && !inPrivateView) addSystemMessage(msg.message);
       break;
     case 'thread_response': {
       // Server sent back the messages in a thread. Pass to chat-messages.js renderer.
@@ -1010,7 +1063,7 @@ async function handleMessage(msg) {
       break;
     }
     case 'name_taken': {
-      // Stop reconnecting — this is a permanent error, not a transient disconnect.
+      // Stop reconnecting, this is a permanent error, not a transient disconnect.
       clearTimeout(reconnectTimer);
       reconnectDelay = 1000;
       // Clear the saved name so auto-login doesn't loop.
@@ -1079,11 +1132,10 @@ async function sendMessage() {
 
   const timestamp = Date.now();
 
-  // Sign the content if Ed25519 is available.
-  let signature = null;
-  if (myIdentity && myIdentity.canSign) {
-    signature = await signMessage(myIdentity.privateKey, content, timestamp);
-  }
+  // Full-PQ: sign with Dilithium3 (the chat identity). The relay verifies
+  // `pq_signature` over `content\ntimestamp` against `public_key` (which
+  // IS the Dilithium key now). There is no Ed25519 chat signature anymore.
+  const pqSig = await pqSignChatMessage(content, timestamp);
 
   const msg = {
     type: 'chat',
@@ -1093,8 +1145,8 @@ async function sendMessage() {
     timestamp: timestamp,
     channel: activeChannel,
   };
-  if (signature) {
-    msg.signature = signature;
+  if (pqSig) {
+    msg.pq_signature = pqSig;
   }
   if (replyRef) {
     msg.reply_to = replyRef;
@@ -1104,7 +1156,7 @@ async function sendMessage() {
 
   const key = myKey + ':' + timestamp;
   seenTimestamps.add(key);
-  addChatMessage(myName, content, timestamp, myKey, false, !!signature, replyRef, null);
+  addChatMessage(myName, content, timestamp, myKey, false, !!pqSig, replyRef, null);
   input.value = '';
   input.style.height = 'auto'; // Reset textarea height after sending.
   input.focus();
@@ -1230,12 +1282,11 @@ async function sendChatCommand(command, channelOverride) {
   };
 
   try {
-    if (myIdentity && myIdentity.canSign) {
-      const signature = await signMessage(myIdentity.privateKey, command, timestamp);
-      if (signature) msg.signature = signature;
-    }
+    // Full-PQ: Dilithium3 sign over `command\ntimestamp`.
+    const pqSig = await pqSignChatMessage(command, timestamp);
+    if (pqSig) msg.pq_signature = pqSig;
   } catch (e) {
-    console.warn('sendChatCommand: signature failed, sending unsigned command', e);
+    console.warn('sendChatCommand: pq signature failed, sending unsigned command', e);
   }
 
   try {
@@ -1260,7 +1311,11 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   el.dataset.timestamp = timestamp;
   if (messageId != null) el.dataset.messageId = messageId;
 
-  const time = formatTime(timestamp);
+  // Native-parity sender grouping: continuation rows drop the avatar + name.
+  const isContinuation = isMessageContinuation(fromKey, timestamp);
+  if (isContinuation) el.classList.add('continuation');
+
+  const timePill = formatTimePill(timestamp);
   const isMe = fromKey === myKey;
   const isBot = fromKey && fromKey.startsWith('bot_');
   const isFed = fromKey && fromKey.startsWith('fed:');
@@ -1274,11 +1329,11 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
 
   // signed can be: true (verified), 'invalid' (sig present but failed), false/falsy (unsigned)
   const sigBadge = signed === true
-    ? '<span class="sig-badge" title="Signature verified — this message was genuinely sent by this identity">✓</span>'
+    ? '<span class="sig-badge" title="Signature verified, this message was genuinely sent by this identity">✓</span>'
     : signed === 'invalid'
-      ? '<span class="sig-badge invalid" title="⚠ Signature invalid — this message may have been tampered with">⚠</span>'
+      ? '<span class="sig-badge invalid" title="⚠ Signature invalid, this message may have been tampered with">⚠</span>'
       : signed // legacy truthy (history, unverified-yet)
-        ? '<span class="sig-badge unverified" title="Signed — not yet verified">~</span>'
+        ? '<span class="sig-badge unverified" title="Signed, not yet verified">~</span>'
         : '';
 
   // Action buttons: react, reply, edit (own), pin (admin/mod), delete (own).
@@ -1300,8 +1355,8 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   actions += '</div>';
 
   const isBotMsg = fromKey && fromKey.startsWith('bot_');
-  const identiconSrc = (!isBotMsg && fromKey) ? generateIdenticon(fromKey, 20) : '';
-  const identiconHtml = isBotMsg ? '<span class="identicon" style="font-size:18px;line-height:20px;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
+  const identiconSrc = (!isBotMsg && fromKey) ? generateIdenticon(fromKey, 32) : '';
+  const identiconHtml = isBotMsg ? '<span class="identicon" style="font-size:calc(var(--avatar-size) * 0.75);line-height:var(--avatar-size);text-align:center;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
 
   // Look up role for author badge.
   const peerRole = (peerData[fromKey] && peerData[fromKey].role) ? peerData[fromKey].role : '';
@@ -1336,19 +1391,21 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     threadBadgeHtml = `<div class="thread-badge" data-thread-from="${esc(fromKey)}" data-thread-ts="${timestamp}">${hosIcon('chat', 16)} ${threadCount} ${threadCount === 1 ? 'reply' : 'replies'}</div>`;
   }
 
-  el.innerHTML = `
-    ${replyIndicatorHtml}
-    <div class="meta">
-      ${identiconHtml}
-      <span class="author${authorClass}" data-username="${isFed ? '' : esc(author)}" data-pubkey="${esc(fromKey)}" style="cursor:pointer;">${isFed ? author : esc(author)}</span>${badge}
-      ${sigBadge}
-      <span class="time">${time}</span>
-    </div>
-    <div class="body">${bodyHtml}</div>
-    <div class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></div>
-    ${threadBadgeHtml}
-    ${actions}
-  `;
+  const metaHtml = `<div class="meta">
+        <span class="author${authorClass}" data-username="${isFed ? '' : esc(author)}" data-pubkey="${esc(fromKey)}" style="cursor:pointer;">${isFed ? author : esc(author)}</span>${badge}
+        ${sigBadge}
+      </div>`;
+  el.innerHTML = messageRowHTML({
+    isContinuation,
+    identiconHtml,
+    metaHtml,
+    pillHtml: timestampPillHTML({ time: timePill, thorn: true }),
+    reactionsHtml: `<span class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></span>`,
+    bodyHtml,
+    replyIndicatorHtml,
+    threadBadgeHtml,
+    actionsHtml: actions,
+  });
 
   // Context menu on author name click.
   const authorEl = el.querySelector('.author');
@@ -1364,6 +1421,16 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     e.stopPropagation();
     showReactionPicker(e.target, fromKey, timestamp, el);
   });
+
+  // Click the Þ in the timestamp pill → reaction picker (native parity:
+  // the pill's thorn is the primary add-reaction affordance).
+  const thornEl = el.querySelector('.ts-thorn');
+  if (thornEl) {
+    thornEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showReactionPicker(e.target, fromKey, timestamp, el);
+    });
+  }
 
   // Click reply button → show reply preview bar above input.
   el.querySelector('.reply-btn').addEventListener('click', (e) => {
@@ -1444,35 +1511,35 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
 function addSystemMessage(text) {
   // Route certain messages as ephemeral notices instead of permanent system messages.
   const lower = text.toLowerCase();
-  // Link codes — ephemeral yellow, 5 minutes (matches server expiry)
+  // Link codes, ephemeral yellow, 5 minutes (matches server expiry)
   if (lower.includes('link code:')) {
     return addNotice(text, 'yellow', 300);
   }
-  // Invite codes — ephemeral yellow, 24h display for 60s (code lasts 24h, notice fades)
+  // Invite codes, ephemeral yellow, 24h display for 60s (code lasts 24h, notice fades)
   if (lower.includes('invite code:')) {
     return addNotice(text, 'yellow', 120);
   }
-  // Rate limiting / slow mode — ephemeral cyan, 15s
+  // Rate limiting / slow mode, ephemeral cyan, 15s
   if (lower.includes('rate limit') || lower.includes('please wait') || lower.includes('slow mode')) {
     return addNotice(text, 'cyan', 15);
   }
-  // Kick/ban/mute — important red, 30s
+  // Kick/ban/mute, important red, 30s
   if (lower.includes('kicked') || lower.includes('banned') || lower.includes('muted')) {
     return addNotice(text, 'red', 30);
   }
-  // Lockdown — red, 30s
+  // Lockdown, red, 30s
   if (lower.includes('lockdown')) {
     return addNotice(text, 'red', 30);
   }
-  // Pin actions — green, 20s
+  // Pin actions, green, 20s
   if (lower.includes('pinned a message')) {
     return addNotice(text, 'green', 20);
   }
-  // Verified/donor — green, 20s
+  // Verified/donor, green, 20s
   if (lower.includes('verified') || lower.includes('donor')) {
     return addNotice(text, 'green', 20);
   }
-  // Everything else — regular system message
+  // Everything else, regular system message
   const el = document.createElement('div');
   el.className = 'message system';
   el.textContent = `• ${text}`;
@@ -1538,7 +1605,7 @@ function appendMessage(el) {
 
 let myUploadToken = '';
 function updatePeerList(peers) {
-  // Update peerData from peer_list (online peers only — for backwards compat).
+  // Update peerData from peer_list (online peers only, for backwards compat).
   for (const p of peers) {
     peerData[p.public_key] = p;
     // M-4: Capture our upload token.
@@ -1557,7 +1624,7 @@ function updateUserList(users) {
 
   // Update peerData from full user list.
   for (const u of users) {
-    peerData[u.public_key] = { public_key: u.public_key, display_name: u.name, role: u.role || '', ecdh_public: u.ecdh_public || null };
+    peerData[u.public_key] = { public_key: u.public_key, display_name: u.name, role: u.role || '', kyber_public: u.kyber_public || null };
   }
 
   const online = users.filter(u => u.online);
@@ -1699,7 +1766,7 @@ function updateChannelHeader() {
   const ch = channelList.find(c => c.id === activeChannel);
   if (ch) {
     const lock = ch.read_only ? ' ' + hosIcon('lock', 14) : '';
-    header.innerHTML = `<span class="ch-name"># ${esc(ch.name)}${lock}</span>${ch.description ? `<span class="ch-desc">— ${esc(ch.description)}</span>` : ''}`;
+    header.innerHTML = `<span class="ch-name"># ${esc(ch.name)}${lock}</span>${ch.description ? `<span class="ch-desc">- ${esc(ch.description)}</span>` : ''}`;
     header.style.display = 'block';
     if (window.twemoji) twemoji.parse(header);
   } else {
@@ -1781,6 +1848,28 @@ function formatTime(ts) {
   return time;
 }
 
+// Compact HH:MM for the message timestamp pill (native parity). The date
+// lives in the date-separator between days, so per-message time is just
+// hour:minute. 24h to match the native app's pill.
+function formatTimePill(ts) {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+// Decide whether a new message should visually GROUP with the one above it:
+// same sender, within 5 minutes, and the previous DOM node is an actual
+// message (not a date-separator / notice). Native collapses these so the
+// avatar + name show once and continuations show just the time pill.
+function isMessageContinuation(fromKey, timestamp) {
+  if (!fromKey) return false;
+  const mc = document.getElementById('messages');
+  const prev = mc && mc.lastElementChild;
+  if (!prev || !prev.classList || !prev.classList.contains('message')) return false;
+  if (prev.classList.contains('system')) return false;
+  if (prev.dataset.from !== fromKey) return false;
+  const dt = Math.abs((Number(timestamp) || 0) - (Number(prev.dataset.timestamp) || 0));
+  return dt < 5 * 60 * 1000;
+}
+
 function formatBody(text) {
   // Step 1: Extract code blocks BEFORE escaping (they get special treatment).
   const codeBlocks = [];
@@ -1838,7 +1927,7 @@ function formatBody(text) {
   // `inline code` (but not inside code blocks)
   safe = safe.replace(/`([^`\n]+)`/g, '<code>$1</code>');
 
-  // @mentions — highlight usernames.
+  // @mentions, highlight usernames.
   safe = safe.replace(/@([A-Za-z0-9_-]+)/g, (match, name) => {
     const isMe = myName && name.toLowerCase() === myName.toLowerCase();
     const cls = isMe ? 'mention mention-me' : 'mention';
@@ -1978,7 +2067,7 @@ function generateIdenticon(hexKey, size) {
   canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  // Parse first 15 bytes from hex for the 5x5 grid (only need half — mirror for symmetry).
+  // Parse first 15 bytes from hex for the 5x5 grid (only need half, mirror for symmetry).
   const bytes = [];
   for (let i = 0; i < 30 && i < hexKey.length; i += 2) {
     bytes.push(parseInt(hexKey.substr(i, 2), 16) || 0);

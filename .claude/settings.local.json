@@ -5,7 +5,15 @@
       "Bash(node -p \"require\\('fs'\\).readFileSync\\('Cargo.toml','utf8'\\).match\\(/^version\\\\s*=\\\\s*\\\\\"\\(.+?\\)\\\\\"/m\\)[1]\")",
       "Bash(gh release *)",
       "Bash(cargo check *)",
-      "Bash(xargs wc -l)"
+      "Bash(xargs wc -l)",
+      "Bash(node scripts/agent-status.js)",
+      "PowerShell($f = 'C:\\\\Humanity\\\\data\\\\coordination\\\\orchestrator_state.json'; $raw = Get-Content $f -Raw; \"Length: $\\($raw.Length\\) chars\"; $raw.Substring\\($raw.Length - 12000\\))",
+      "Bash(curl -s https://united-humanity.us/health)",
+      "Bash(curl -s https://united-humanity.us/api/stats)",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Humanity\\\\docs\\\\history\\\\' -Filter '*.md' | Sort-Object LastWriteTime -Descending | Select-Object -First 5 Name\")",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Humanity\\\\docs\\\\history\\\\' -Filter '2026-06-*.md' | Sort-Object LastWriteTime -Descending\")",
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Humanity\\\\data\\\\coordination\\\\orchestrator_state.json' | Select-String -Pattern '\\\\\"at\\\\\": \\\\\"2026' | tail -5\")",
+      "Bash(curl -s \"https://api.github.com/repos/Shaostoul/Humanity/releases?per_page=10\")"
     ],
     "deny": [
       "mcp__Claude_Preview__preview_start",

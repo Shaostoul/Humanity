@@ -1,5 +1,5 @@
 /**
- * Wallet Guide — renders step-by-step wallet education sections
+ * Wallet Guide, renders step-by-step wallet education sections
  * from a data-driven array. No crypto jargon without explanation.
  */
 (function () {
@@ -17,8 +17,8 @@
           '<p>A crypto wallet works differently: <strong>you</strong> hold the keys. The money is stored on a public ledger (the blockchain) that nobody owns, and only your private key can move your funds.</p>' +
           '<p>Your wallet has two parts:</p>' +
           '<ul>' +
-          '<li><strong>Public key (your address)</strong> — Like your email address. You share this with people so they can send you money. Safe to share with anyone.</li>' +
-          '<li><strong>Private key</strong> — Like your email password. This proves the money is yours. <strong>Never share this with anyone, ever.</strong></li>' +
+          '<li><strong>Public key (your address)</strong>, Like your email address. You share this with people so they can send you money. Safe to share with anyone.</li>' +
+          '<li><strong>Private key</strong>, Like your email password. This proves the money is yours. <strong>Never share this with anyone, ever.</strong></li>' +
           '</ul>' +
           '<div class="callout">Think of it this way: Your address is your mailbox. Anyone can drop letters (money) in. But only you have the key to open it and take things out.</div>';
       }
@@ -29,7 +29,7 @@
       content: function () {
         return '<p>Here is the good news: <strong>you already have a wallet.</strong></p>' +
           '<p>Your HumanityOS identity uses post-quantum cryptography (Dilithium3). For optional crypto payments, the system can derive a separate Solana wallet (Ed25519) from the same 24-word BIP39 seed phrase, via a distinct KDF path (<code>hum/solana/v1</code>).</p>' +
-          '<p>That means one seed phrase backs up <strong>both</strong> your identity AND your wallet — with no coupling between them. You can ignore Solana entirely if you never want to use blockchain.</p>' +
+          '<p>That means one seed phrase backs up <strong>both</strong> your identity AND your wallet, with no coupling between them. You can ignore Solana entirely if you never want to use blockchain.</p>' +
           '<ul>' +
           '<li>Your seed phrase derives both your DID and (optionally) your Solana wallet</li>' +
           '<li>Your 24-word seed phrase backs up both your identity AND your wallet</li>' +
@@ -100,9 +100,9 @@
           '<h4>Option C: Use a fiat on-ramp service</h4>' +
           '<p>On-ramp services let you buy crypto with a card and send it directly to your wallet address, without creating an exchange account. They are simpler but may have slightly higher fees.</p>' +
           '<ul>' +
-          '<li><a href="https://www.moonpay.com" target="_blank" rel="noopener">MoonPay</a> — supports cards and bank transfers</li>' +
-          '<li><a href="https://transak.com" target="_blank" rel="noopener">Transak</a> — supports 100+ countries</li>' +
-          '<li><a href="https://ramp.network" target="_blank" rel="noopener">Ramp Network</a> — low fees, many payment methods</li>' +
+          '<li><a href="https://www.moonpay.com" target="_blank" rel="noopener">MoonPay</a>, supports cards and bank transfers</li>' +
+          '<li><a href="https://transak.com" target="_blank" rel="noopener">Transak</a>, supports 100+ countries</li>' +
+          '<li><a href="https://ramp.network" target="_blank" rel="noopener">Ramp Network</a>, low fees, many payment methods</li>' +
           '</ul>' +
           '</div>' +
           '<div class="callout">Tip: If you are just starting out, buying a small amount ($10-20) first is a good way to learn how it works without risking much.</div>';
@@ -136,8 +136,8 @@
       content: function () {
         return '<p><strong>What are tokens?</strong> On the Solana network, SOL is the main currency (like the US Dollar is the main currency in America). But there are also "tokens" that run on the same network, each with a different purpose:</p>' +
           '<ul>' +
-          '<li><strong>USDC</strong> — A stablecoin worth exactly $1. It does not go up or down in price like SOL does. Good for saving money without price swings.</li>' +
-          '<li><strong>USDT</strong> — Another stablecoin worth $1, similar to USDC.</li>' +
+          '<li><strong>USDC</strong>, A stablecoin worth exactly $1. It does not go up or down in price like SOL does. Good for saving money without price swings.</li>' +
+          '<li><strong>USDT</strong>, Another stablecoin worth $1, similar to USDC.</li>' +
           '</ul>' +
           '<p><strong>Why swap?</strong> If you have SOL but want something that does not change in price, you can swap SOL for USDC. Or if you have USDC and want SOL (to stake it or pay fees), you swap the other way.</p>' +
           '<ol class="steps">' +

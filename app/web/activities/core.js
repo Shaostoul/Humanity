@@ -252,7 +252,7 @@
      '</div>' +
      '<div style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;">' +
        '<div style="font-weight:700;margin-bottom:0.4rem;">Recent Logbook</div>' +
-       '<div style="font-size:0.78rem;color:var(--text-muted);white-space:pre-wrap;">' + escHtml((logs[0] ? (logs[0].title + ' — ' + (logs[0].body||'').slice(0,120)) : 'No entries yet.')) + '</div>' +
+       '<div style="font-size:0.78rem;color:var(--text-muted);white-space:pre-wrap;">' + escHtml((logs[0] ? (logs[0].title + ', ' + (logs[0].body||'').slice(0,120)) : 'No entries yet.')) + '</div>' +
      '</div>' +
    '</div>';
  }
@@ -382,7 +382,7 @@
     const res = await fetch('/api/stats');
     if (res.ok) {
      const data = await res.json();
-     el('debug-connection').textContent = '✅ Connected — ' + (data.online_users || 0) + ' users online';
+     el('debug-connection').textContent = '✅ Connected, ' + (data.online_users || 0) + ' users online';
      el('debug-connection').style.color = '#4a8';
      if (data.version) el('debug-version').textContent = data.version;
     } else {
@@ -472,7 +472,7 @@
   }, 100);
  }
 
- // toggleGoLive removed — replaced by streamGoLive/streamStop
+ // toggleGoLive removed, replaced by streamGoLive/streamStop
 
  function toggleChannel(btn) {
   if (btn.classList.contains('btn-channeling')) {

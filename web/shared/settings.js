@@ -8,6 +8,7 @@
   const STORAGE_KEY = window.HOS_STORAGE_KEY || 'humanity_settings';
 
   // AUTO-GENERATED FROM data/themes/presets.json, do not edit by hand.
+  // AUTO-GENERATED FROM data/themes/presets.json — do not edit by hand.
   const ACCENT_PRESETS = [
     { name: "Orange", color: "#FF8811" },
     { name: "Blue", color: "#4488ff" },
@@ -59,6 +60,7 @@
       "--border": "#222222"
     }
   };
+  // END AUTO-GENERATED.
   // END AUTO-GENERATED.
 
   function load() {

@@ -445,16 +445,14 @@ async function handleFileAttachment(event) {
   if (url && ws && ws.readyState === WebSocket.OPEN) {
     const timestamp = Date.now();
     const content = url;
-    let signature = null;
-    if (myIdentity && myIdentity.canSign) {
-      signature = await signMessage(myIdentity.privateKey, content, timestamp);
-    }
     const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp, channel: activeChannel };
-    if (signature) msg.signature = signature;
+    // Full-PQ: Dilithium3 `pq_signature` only (no Ed25519 chat sig).
+    const pqSig = await pqSignChatMessage(content, timestamp);
+    if (pqSig) msg.pq_signature = pqSig;
     ws.send(JSON.stringify(msg));
     const key = myKey + ':' + timestamp;
     seenTimestamps.add(key);
-    addChatMessage(myName, content, timestamp, myKey, false, !!signature);
+    addChatMessage(myName, content, timestamp, myKey, false, !!pqSig);
   }
 }
 
@@ -473,16 +471,14 @@ document.getElementById('msg-input').addEventListener('paste', async (e) => {
       if (url && ws && ws.readyState === WebSocket.OPEN) {
         const timestamp = Date.now();
         const content = url;
-        let signature = null;
-        if (myIdentity && myIdentity.canSign) {
-          signature = await signMessage(myIdentity.privateKey, content, timestamp);
-        }
         const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp };
-        if (signature) msg.signature = signature;
+        // Full-PQ: Dilithium3 `pq_signature` only (no Ed25519 chat sig).
+        const pqSig = await pqSignChatMessage(content, timestamp);
+        if (pqSig) msg.pq_signature = pqSig;
         ws.send(JSON.stringify(msg));
         const key = myKey + ':' + timestamp;
         seenTimestamps.add(key);
-        addChatMessage(myName, content, timestamp, myKey, false, !!signature);
+        addChatMessage(myName, content, timestamp, myKey, false, !!pqSig);
       }
       return;
     }
@@ -503,16 +499,14 @@ chatArea.addEventListener('drop', async (e) => {
       if (url && ws && ws.readyState === WebSocket.OPEN) {
         const timestamp = Date.now();
         const content = url;
-        let signature = null;
-        if (myIdentity && myIdentity.canSign) {
-          signature = await signMessage(myIdentity.privateKey, content, timestamp);
-        }
         const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp };
-        if (signature) msg.signature = signature;
+        // Full-PQ: Dilithium3 `pq_signature` only (no Ed25519 chat sig).
+        const pqSig = await pqSignChatMessage(content, timestamp);
+        if (pqSig) msg.pq_signature = pqSig;
         ws.send(JSON.stringify(msg));
         const key = myKey + ':' + timestamp;
         seenTimestamps.add(key);
-        addChatMessage(myName, content, timestamp, myKey, false, !!signature);
+        addChatMessage(myName, content, timestamp, myKey, false, !!pqSig);
       }
     }
   }
@@ -577,10 +571,6 @@ async function sendThreadReply() {
   if (!content || !ws || ws.readyState !== WebSocket.OPEN || !currentThread) return;
 
   const timestamp = Date.now();
-  let signature = null;
-  if (myIdentity && myIdentity.canSign) {
-    signature = await signMessage(myIdentity.privateKey, content, timestamp);
-  }
 
   const msg = {
     type: 'chat',
@@ -596,7 +586,9 @@ async function sendThreadReply() {
       timestamp: currentThread.timestamp,
     },
   };
-  if (signature) msg.signature = signature;
+  // Full-PQ: Dilithium3 `pq_signature` only (no Ed25519 chat sig).
+  const pqSig = await pqSignChatMessage(content, timestamp);
+  if (pqSig) msg.pq_signature = pqSig;
   ws.send(JSON.stringify(msg));
 
   // Add to thread panel immediately.
@@ -612,7 +604,7 @@ async function sendThreadReply() {
   // Also add to main chat.
   const key = myKey + ':' + timestamp;
   seenTimestamps.add(key);
-  addChatMessage(myName, content, timestamp, myKey, false, !!signature, msg.reply_to, null);
+  addChatMessage(myName, content, timestamp, myKey, false, !!pqSig, msg.reply_to, null);
 
   input.value = '';
 }

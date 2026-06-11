@@ -1,5 +1,5 @@
 /**
- * HumanityOS Bug Reporter — Client logic
+ * HumanityOS Bug Reporter, Client logic
  * Submits bug reports to POST /api/bugs and lists known bugs from GET /api/bugs.
  */
 (function () {

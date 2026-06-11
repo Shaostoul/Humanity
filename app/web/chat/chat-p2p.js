@@ -36,12 +36,12 @@
 // Goal: enable direct peer-to-peer messaging between users without routing
 // message content through the central relay server.
 //
-// Phase 3a — Signed Contact Cards
+// Phase 3a, Signed Contact Cards
 //   Allows two users to exchange a signed JSON card (via QR code or clipboard)
 //   so they can follow each other and establish a DataChannel connection without
 //   sharing a server.
 //
-// Phase 3b — WebRTC DataChannel
+// Phase 3b, WebRTC DataChannel
 //   Once a contact card has been imported, a direct DataChannel is opened so DMs
 //   travel peer-to-peer (encrypted with ECDH+AES-256-GCM).  The relay is used
 //   only for ICE signaling; it never sees DM content.
@@ -51,11 +51,11 @@
 //   signData, importEd25519PublicKey, verifySignature (crypto.js helpers)
 
 // ── Contact Card State ──
-/** pubKeyHex → { name, ecdh_pub, added_at, dc_status } — persisted in IndexedDB */
+/** pubKeyHex → { name, ecdh_pub, added_at, dc_status }, persisted in IndexedDB */
 let p2pContacts = {};
-/** pubKeyHex → RTCPeerConnection — open DataChannel connections */
+/** pubKeyHex → RTCPeerConnection, open DataChannel connections */
 let p2pConnections = {};
-/** pubKeyHex → RTCDataChannel — open DataChannels for DM routing */
+/** pubKeyHex → RTCDataChannel, open DataChannels for DM routing */
 let p2pDataChannels = {};
 /** Messages queued while a DataChannel is negotiating. Array of { peerKey, ciphertext, nonce } */
 let p2pSendQueue = [];
@@ -75,7 +75,7 @@ const CONTACT_CARD_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
  */
 async function exportContactCard() {
   if (!myIdentity || !myIdentity.privateKey) {
-    addSystemMessage('⚠️ Cannot export — identity not loaded.');
+    addSystemMessage('⚠️ Cannot export, identity not loaded.');
     return;
   }
 
@@ -87,16 +87,19 @@ async function exportContactCard() {
     ts:   Math.floor(Date.now() / 1000),
   };
 
-  // Attach our ECDH public key if available (needed for E2E encryption setup).
-  // myEcdhPublicBase64 is set by getOrCreateEcdhKeypair() in crypto.js on connect.
-  if (myEcdhPublicBase64) payload.ecdh = myEcdhPublicBase64;
+  // Full-PQ: attach our Kyber768 public key so the peer can seal P2P
+  // DMs to us (pure ML-KEM, same envelope as relay DMs). Set by
+  // attachPqIdentity() in crypto.js on connect.
+  if (myKyberPublicBase64) payload.kyber = myKyberPublicBase64;
 
-  // Sign the canonical JSON representation (keys sorted alphabetically).
+  // Sign the canonical JSON with Dilithium3, `pub` IS the Dilithium
+  // identity key, so the card must be Dilithium-signed (not Ed25519).
   const canonical = JSON.stringify(payload, Object.keys(payload).sort());
   let sig = '';
   try {
-    const sigBuf = await crypto.subtle.sign('Ed25519', myIdentity.privateKey, new TextEncoder().encode(canonical));
-    sig = bufToHex(sigBuf); // bufToHex is defined in crypto.js
+    const sigBytes = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(canonical));
+    if (!sigBytes) throw new Error('post-quantum identity not ready');
+    sig = bufToHex(sigBytes); // bufToHex is defined in crypto.js
   } catch (err) {
     addSystemMessage('⚠️ Failed to sign contact card: ' + err.message);
     return;
@@ -267,7 +270,7 @@ async function importContactCardFromModal() {
 async function importContactCard(json) {
   let card;
   try { card = JSON.parse(json); }
-  catch { throw new Error('Invalid JSON — cannot parse card.'); }
+  catch { throw new Error('Invalid JSON, cannot parse card.'); }
 
   // Basic field checks.
   if (!card.v || card.v !== 1)   throw new Error('Unsupported card version.');
@@ -278,18 +281,18 @@ async function importContactCard(json) {
   const ageMs = Date.now() - card.ts * 1000;
   if (ageMs > CONTACT_CARD_MAX_AGE_MS) throw new Error('Card has expired (older than 7 days).');
 
-  // Verify Ed25519 signature over the canonical payload.
+  // Verify the Dilithium3 signature over the canonical payload.
   const payload = { v: card.v, name: card.name, pub: card.pub, ts: card.ts };
-  if (card.ecdh) payload.ecdh = card.ecdh;
+  if (card.kyber) payload.kyber = card.kyber;
   const canonical = JSON.stringify(payload, Object.keys(payload).sort());
   const valid = await verifyContactCardSignature(canonical, card.sig, card.pub);
-  if (!valid) throw new Error('Signature verification failed — card may be tampered.');
+  if (!valid) throw new Error('Signature verification failed, card may be tampered.');
 
   // Store in memory (IndexedDB persistence is a future improvement).
   p2pContacts[card.pub] = {
-    name:     card.name,
-    ecdh_pub: card.ecdh || null,
-    added_at: Date.now(),
+    name:      card.name,
+    kyber_pub: card.kyber || null,
+    added_at:  Date.now(),
     dc_status: 'idle',
   };
 
@@ -304,26 +307,27 @@ async function importContactCard(json) {
 }
 
 /**
- * Verify an Ed25519 signature over a message using the public key from a contact card.
+ * Verify a Dilithium3 signature over a message using the public key from a contact card.
  * @param {string} message   - The signed message (canonical JSON string)
- * @param {string} sigHex    - Hex-encoded signature
- * @param {string} pubKeyHex - Hex-encoded Ed25519 public key
+ * @param {string} sigHex    - Hex-encoded Dilithium3 signature
+ * @param {string} pubKeyHex - Hex-encoded Dilithium3 public key
  * @returns {Promise<boolean>}
  */
 async function verifyContactCardSignature(message, sigHex, pubKeyHex) {
   try {
-    // Import the public key in raw form (hexToBuf is defined in crypto.js).
-    const pubKey = await crypto.subtle.importKey('raw', hexToBuf(pubKeyHex), 'Ed25519', true, ['verify']);
-    const msgBytes = new TextEncoder().encode(message);
+    // Full-PQ: `pub` is the Dilithium3 identity key; verify with ML-DSA-65.
+    // hexToBuf is defined in crypto.js.
+    const pubBytes = hexToBuf(pubKeyHex);
     const sigBytes = hexToBuf(sigHex);
-    return await crypto.subtle.verify({ name: 'Ed25519' }, pubKey, sigBytes, msgBytes);
+    const msgBytes = new TextEncoder().encode(message);
+    return await window.pqVerifyMessage(pubBytes, msgBytes, sigBytes);
   } catch {
     return false;
   }
 }
 
 // ── Phase 3b: WebRTC DataChannel ──
-// (Implementation in progress — signaling infrastructure below)
+// (Implementation in progress, signaling infrastructure below)
 
 /**
  * Open a WebRTC DataChannel to a peer so future DMs travel P2P.
@@ -346,7 +350,7 @@ async function initDataChannel(peerPubKey) {
     if (candidate && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'webrtc_signal',
-        target: peerPubKey,
+        to: peerPubKey,
         signal_type: 'dc_ice',
         data: JSON.stringify(candidate),
       }));
@@ -359,7 +363,7 @@ async function initDataChannel(peerPubKey) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: 'webrtc_signal',
-      target: peerPubKey,
+      to: peerPubKey,
       signal_type: 'dc_offer',
       data: JSON.stringify(offer),
     }));
@@ -387,7 +391,7 @@ async function handleDCOffer(signal) {
     if (candidate && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'webrtc_signal',
-        target: peerKey,
+        to: peerKey,
         signal_type: 'dc_ice',
         data: JSON.stringify(candidate),
       }));
@@ -401,7 +405,7 @@ async function handleDCOffer(signal) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: 'webrtc_signal',
-      target: peerKey,
+      to: peerKey,
       signal_type: 'dc_answer',
       data: JSON.stringify(answer),
     }));
@@ -462,10 +466,10 @@ async function sendP2PMessage(peerPubKey, text) {
   const dc = p2pDataChannels[peerPubKey];
   const contact = p2pContacts[peerPubKey];
 
-  if (dc && dc.readyState === 'open' && contact?.ecdh_pub) {
-    // Happy path: encrypt and send over open DataChannel.
+  if (dc && dc.readyState === 'open' && contact?.kyber_pub) {
+    // Happy path: dual-seal (Kyber768) and send over the open DataChannel.
     try {
-      const enc = await encryptDmContent(text, contact.ecdh_pub);
+      const enc = await encryptDmContent(text, contact.kyber_pub);
       if (enc) {
         dc.send(JSON.stringify({ type: 'p2p_dm', ciphertext: enc.content, nonce: enc.nonce, ts: Date.now() }));
         return;
@@ -473,22 +477,26 @@ async function sendP2PMessage(peerPubKey, text) {
     } catch {}
   }
 
-  // Fallback: relay DM (same payload as normal DM send in app.js).
+  // Fallback: relay DM, FAIL CLOSED. Only ever send sealed; never put
+  // plaintext on the relay (security review HIGH-1). If we can't seal
+  // (no peer Kyber key / PQ identity not ready), drop the relay fallback
+  // rather than leak. (The P2P direct path above is the happy path.)
   if (ws && ws.readyState === WebSocket.OPEN) {
-    const peerEcdh = getPeerEcdhPublic(peerPubKey);
-    const payload = { type: 'dm', from: myKey, from_name: myName, to: peerPubKey, content: text, timestamp: Date.now() };
-    if (peerEcdh && myEcdhKeyPair) {
-      try {
-        const enc = await encryptDmContent(text, peerEcdh);
-        if (enc) { payload.content = enc.content; payload.nonce = enc.nonce; payload.encrypted = true; }
-      } catch {}
-    }
-    ws.send(JSON.stringify(payload));
+    const peerKyber = getPeerEcdhPublic(peerPubKey); // Kyber768 pub
+    if (!peerKyber) return;
+    let enc = null;
+    try { enc = await encryptDmContent(text, peerKyber); } catch {}
+    if (!enc) return;
+    ws.send(JSON.stringify({
+      type: 'dm', from: myKey, from_name: myName, to: peerPubKey,
+      content: enc.content, nonce: enc.nonce, encrypted: true,
+      timestamp: Date.now(),
+    }));
   }
 }
 
 /**
- * Handle an incoming message on a DataChannel — decrypt and render it.
+ * Handle an incoming message on a DataChannel, decrypt and render it.
  * @param {MessageEvent} event   - The DataChannel message event
  * @param {string}       peerKey - Sender's public key hex
  */
@@ -504,7 +512,7 @@ async function onDCMessage(event, peerKey) {
   let content = '[encrypted message]';
   if (msg.ciphertext && msg.nonce) {
     try {
-      const plain = await decryptDmContent(msg.ciphertext, msg.nonce, contact?.ecdh_pub);
+      const plain = await decryptDmContent(msg.ciphertext, msg.nonce, null);
       if (plain !== null) content = plain;
     } catch {}
   }
@@ -540,7 +548,7 @@ const SYNC_STORES = {
   'hos_home_notes':  'blob',          // last-write-wins
   'hos_inventory_v1':'array_by_id',   // merge by item.id
   'hos_notes_v1':    'array_by_id',   // notes page entries by id
-  'hos_skills_v1':   'skill_merge',   // skills XP/level map — merge by taking max(level, xp) per skill
+  'hos_skills_v1':   'skill_merge',   // skills XP/level map, merge by taking max(level, xp) per skill
   'hos_quests_v1':   'array_by_id',   // quests by id
   'hos_equipment_v1':'array_by_id',   // equipment items by id
   'hos_logbook_v1':  'array_by_id',   // logbook journal entries by id
@@ -573,13 +581,13 @@ function applySyncBundle(remote) {
 
       if (strategy === 'blob') {
         const localRaw = localStorage.getItem(key);
-        // Keep whichever was written more recently — only replace if local is absent
+        // Keep whichever was written more recently, only replace if local is absent
         if (!localRaw) { localStorage.setItem(key, JSON.stringify(remoteVal)); }
         continue;
       }
 
       if (strategy === 'skill_merge') {
-        // Skills data: { skill_id: { level, xp } } — take the higher level+xp per skill.
+        // Skills data: { skill_id: { level, xp } }, take the higher level+xp per skill.
         if (typeof remoteVal !== 'object' || Array.isArray(remoteVal)) continue;
         let local = {};
         try { local = JSON.parse(localStorage.getItem(key) || '{}'); } catch {}
@@ -652,12 +660,12 @@ async function handleSyncFrame(msg, peerKey) {
     dc.send(JSON.stringify({ type: 'sync_accept', keys: accepted }));
     // Send our own bundle back
     dc.send(JSON.stringify({ type: 'sync_data', data: buildSyncBundle() }));
-    addSystemMessage(`🔄 Sync request from ${name} — sending data…`);
+    addSystemMessage(`🔄 Sync request from ${name}, sending data…`);
     return;
   }
 
   if (msg.type === 'sync_accept') {
-    // Peer accepted — send our bundle
+    // Peer accepted, send our bundle
     dc.send(JSON.stringify({ type: 'sync_data', data: buildSyncBundle() }));
     return;
   }
@@ -687,6 +695,12 @@ const _onDCMessageOrig = onDCMessage;
 onDCMessage = async function(event, peerKey) {
   let msg;
   try { msg = JSON.parse(event.data); } catch { return; }
+  // Phase 3: P2P group messages, a signed group_msg_v1 object pushed by a
+  // group peer. chat-groups-p2p.js verifies + decrypts + renders it.
+  if (msg.type === 'p2p_group_obj') {
+    if (typeof window.handleP2pGroupObj === 'function') await window.handleP2pGroupObj(msg, peerKey);
+    return;
+  }
   if (msg.type && msg.type.startsWith('sync_')) {
     await handleSyncFrame(msg, peerKey);
     return;

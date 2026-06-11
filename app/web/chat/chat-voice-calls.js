@@ -289,7 +289,7 @@ function handleVoiceCallMessage(msg) {
   switch (msg.action) {
     case 'ring':
       if (callState !== 'idle') {
-        // Already busy — auto-reject
+        // Already busy, auto-reject
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'voice_call', from: myKey, to: msg.from, action: 'reject' }));
         }

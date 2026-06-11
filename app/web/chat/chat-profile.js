@@ -35,7 +35,7 @@ function togglePrivacyField(field) {
   if (btn) {
     btn.innerHTML = editPrivacyMap[field] === 'private' ? hosIcon('lock', 14) : '🌐';
     btn.classList.toggle('is-private', editPrivacyMap[field] === 'private');
-    btn.title = editPrivacyMap[field] === 'private' ? 'Visible to friends only — click to make public' : 'Visible to everyone — click to make private';
+    btn.title = editPrivacyMap[field] === 'private' ? 'Visible to friends only, click to make public' : 'Visible to everyone, click to make private';
   }
 }
 
@@ -210,7 +210,7 @@ function syncProfileOnConnect() {
  */
 function requestViewProfile(name, publicKey) {
   pendingProfileView = { name, publicKey };
-  // Check cache first — pass the full cached profile object.
+  // Check cache first, pass the full cached profile object.
   const cached = profileCache[name.toLowerCase()];
   if (cached) {
     showViewProfileCard(name, publicKey, cached);
@@ -230,7 +230,7 @@ function requestViewProfile(name, publicKey) {
  * Renders a read-only profile card in the view-profile overlay.
  * Accepts a profile object (all fields optional) so callers pass profileCache[name]
  * directly; fields absent from the server response (privacy-filtered) are simply
- * not rendered — no placeholder text shown.
+ * not rendered, no placeholder text shown.
  *
  * @param {string} name      - Display name of the profile owner
  * @param {string} publicKey - Ed25519 public key hex (used for identicon + follow actions)
@@ -239,7 +239,7 @@ function requestViewProfile(name, publicKey) {
 function showViewProfileCard(name, publicKey, profile) {
   // Accept either the new object form or the legacy (bio, socialsStr) positional args.
   if (typeof profile === 'string') {
-    // Legacy call: showViewProfileCard(name, key, bio, socialsStr) — 4th arg is socialsStr.
+    // Legacy call: showViewProfileCard(name, key, bio, socialsStr), 4th arg is socialsStr.
     // eslint-disable-next-line prefer-rest-params
     profile = { bio: profile, socials: arguments[3] || '{}' };
   }
@@ -256,7 +256,7 @@ function showViewProfileCard(name, publicKey, profile) {
   const isBot = publicKey && publicKey.startsWith('bot_');
   const identiconSrc = !isBot && publicKey ? generateIdenticon(publicKey, 64) : '';
 
-  // Banner strip — shown only when the user has set one.
+  // Banner strip, shown only when the user has set one.
   let html = '';
   if (bannerUrl) {
     html += '<div class="profile-card-banner" style="background-image:url(' + esc(bannerUrl) + ')"></div>';
@@ -341,13 +341,13 @@ function showViewProfileCard(name, publicKey, profile) {
     }
   }
 
-  // Public key (click to copy) — use DOM API instead of inline onclick.
+  // Public key (click to copy), use DOM API instead of inline onclick.
   if (publicKey) {
     const shortPk = publicKey.length > 24 ? publicKey.substring(0, 24) + '…' : publicKey;
     html += '<div class="profile-card-key" id="profile-pk-copy" title="Click to copy full key">🔑 ' + esc(shortPk) + '</div>';
   }
 
-  // Wallet section — show Solana address and balances if HosWallet is available
+  // Wallet section, show Solana address and balances if HosWallet is available
   if (window.HosWallet && publicKey) {
     var solAddress = HosWallet.publicKeyToSolanaAddress(publicKey);
     var shortAddr = solAddress.length > 8 ? solAddress.substring(0, 4) + '...' + solAddress.substring(solAddress.length - 4) : solAddress;
@@ -436,7 +436,7 @@ function showViewProfileCard(name, publicKey, profile) {
       });
     }
   }
-  // Endorse skill button — prompts for skill ID + level, then sends request to the peer
+  // Endorse skill button, prompts for skill ID + level, then sends request to the peer
   if (publicKey && publicKey !== myKey) {
     const endorseBtn = document.getElementById('profile-endorse-btn');
     if (endorseBtn) {
@@ -451,7 +451,7 @@ function showViewProfileCard(name, publicKey, profile) {
       });
     }
   }
-  // Funding section — shown only on server owner's profile card
+  // Funding section, shown only on server owner's profile card
   if (publicKey) {
     fetch('/api/server-info').then(function(r) { return r.json(); }).then(function(info) {
       if (!info.owner_key || info.owner_key !== publicKey || !info.funding || !info.funding.enabled) return;
@@ -491,7 +491,7 @@ function showViewProfileCard(name, publicKey, profile) {
           })(copyBtns[j]);
         }
       }
-    }).catch(function() { /* server-info unavailable — skip funding section */ });
+    }).catch(function() { /* server-info unavailable, skip funding section */ });
   }
 
   if (window.twemoji) twemoji.parse(document.getElementById('view-profile-content'));
@@ -580,7 +580,7 @@ function reRenderMessagesForBlockChange() {
 
 // ── Seed Phrase (BIP39) UI ──
 // Goal: let users back up and restore their Ed25519 identity using a standard
-// 24-word BIP39 mnemonic — writeable on paper, hardware-wallet compatible.
+// 24-word BIP39 mnemonic, writeable on paper, hardware-wallet compatible.
 
 /**
  * Open a modal showing the identity as a 24-word BIP39 mnemonic.
@@ -593,11 +593,11 @@ async function openSeedPhraseModal() {
   try {
     mnemonic = await generateMnemonic();
   } catch (e) {
-    addSystemMessage('⚠️ Seed phrase unavailable — ' + e.message);
+    addSystemMessage('⚠️ Seed phrase unavailable, ' + e.message);
     return;
   }
   if (!mnemonic) {
-    addSystemMessage('⚠️ Seed phrase unavailable — key may be non-extractable.');
+    addSystemMessage('⚠️ Seed phrase unavailable, key may be non-extractable.');
     return;
   }
 
@@ -610,7 +610,7 @@ async function openSeedPhraseModal() {
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:600px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto">
       <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Identity Seed Phrase (24 words)</h2>
       <p style="font-size:.76rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-xl)">
-        These 24 words <em>are</em> your identity — anyone who has them can use your account.
+        These 24 words <em>are</em> your identity, anyone who has them can use your account.
         Store at least one copy somewhere safe. <strong style="color:var(--danger)">Never photograph this screen.</strong>
       </p>
 
@@ -628,7 +628,7 @@ async function openSeedPhraseModal() {
         <!-- Paper -->
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-lg) var(--space-xl);display:flex;align-items:center;justify-content:space-between;gap:var(--space-lg);flex-wrap:wrap">
           <div>
-            <p style="font-size:.8rem;color:var(--text);font-weight:600;margin:0 0 var(--space-xs)">📝 Paper — write it down</p>
+            <p style="font-size:.8rem;color:var(--text);font-weight:600;margin:0 0 var(--space-xs)">📝 Paper, write it down</p>
             <p style="font-size:.72rem;color:var(--text-muted);margin:0">Offline. Can't be hacked. Fireproof box or safe.</p>
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-md)">
@@ -639,7 +639,7 @@ async function openSeedPhraseModal() {
 
         <!-- Encrypted file -->
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-lg) var(--space-xl)">
-          <p style="font-size:.8rem;color:var(--text);font-weight:600;margin:0 0 var(--space-xs)">${hosIcon('save', 14)} Encrypted file — store in cloud</p>
+          <p style="font-size:.8rem;color:var(--text);font-weight:600;margin:0 0 var(--space-xs)">${hosIcon('save', 14)} Encrypted file, store in cloud</p>
           <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 var(--space-md)">Lock the words with a passphrase → download a tiny file → store in Google Drive, Dropbox, etc. Useless without the passphrase, so keep them separate.</p>
           <div style="display:flex;gap:var(--space-md);align-items:center;flex-wrap:wrap">
             <input id="sp-enc-pass" type="password" placeholder="Choose a passphrase (8+ chars)…" autocomplete="new-password"
@@ -685,7 +685,7 @@ async function openSeedPhraseModal() {
 
   overlay.querySelector('#sp-pm-btn').addEventListener('click', () => {
     navigator.clipboard.writeText(_mn).then(() => {
-      overlay.querySelector('#sp-pm-msg').textContent = '✓ Copied — paste into a Secure Note';
+      overlay.querySelector('#sp-pm-msg').textContent = '✓ Copied, paste into a Secure Note';
       overlay.querySelector('#sp-pm-btn').textContent = 'Copied!';
     }).catch(() => { overlay.querySelector('#sp-pm-msg').textContent = 'Failed'; });
   });
@@ -698,7 +698,7 @@ async function openSeedPhraseModal() {
     encBtn.disabled = true; encBtn.textContent = 'Encrypting…'; encMsg.textContent = '';
     try {
       await downloadEncryptedMnemonic(_mn, pass);
-      encMsg.textContent = '✓ Downloaded — store the file in cloud, passphrase stays in your head.';
+      encMsg.textContent = '✓ Downloaded, store the file in cloud, passphrase stays in your head.';
       encBtn.textContent = 'Downloaded!';
     } catch(e) {
       encMsg.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
@@ -769,7 +769,7 @@ function openRestoreFromMnemonicModal() {
   });
   ta.focus();
 
-  // Wire the encrypted-file decrypt button — decrypts and fills the textarea.
+  // Wire the encrypted-file decrypt button, decrypts and fills the textarea.
   document.getElementById('rm-file-btn').addEventListener('click', async () => {
     const fileInput = document.getElementById('rm-file');
     const pass      = document.getElementById('rm-file-pass').value;
@@ -782,7 +782,7 @@ function openRestoreFromMnemonicModal() {
       const words  = await decryptMnemonic(blob, pass);
       ta.value = words;
       ta.dispatchEvent(new Event('input'));
-      fileMsg.textContent = '✓ Decrypted — verify the words above, then click Restore Identity.';
+      fileMsg.textContent = '✓ Decrypted, verify the words above, then click Restore Identity.';
     } catch(e) {
       fileMsg.innerHTML = `<span style="color:var(--danger)">⚠ ${e.message}</span>`;
     }
@@ -832,7 +832,7 @@ function openEncryptedBackupModal() {
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:480px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
       <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-md)">${hosIcon('lock', 14)} Encrypted Identity Backup</h2>
       <p style="font-size:.82rem;color:var(--text-muted);line-height:1.6;margin-bottom:var(--space-2xl)">
-        Choose a passphrase to protect your backup. Anyone with the file AND passphrase can use your identity —
+        Choose a passphrase to protect your backup. Anyone with the file AND passphrase can use your identity -
         so keep them <strong style="color:var(--text)">separate</strong> (file in cloud, passphrase memorised or in password manager).
       </p>
       <div style="margin-bottom:var(--space-xl)">
@@ -873,7 +873,7 @@ async function doEncryptedBackup() {
 
   try {
     await exportEncryptedIdentityBackup(p1);
-    msg.innerHTML = '<span style="color:var(--success)">✓ Backup downloaded. Keep the file and passphrase safe — separately.</span>';
+    msg.innerHTML = '<span style="color:var(--success)">✓ Backup downloaded. Keep the file and passphrase safe, separately.</span>';
     btn.textContent = 'Done';
     setTimeout(() => document.getElementById('encrypted-backup-overlay')?.remove(), 2500);
   } catch (e) {
@@ -964,8 +964,8 @@ function openKeyProtectionModal() {
       <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-md)">${hosIcon('lock', 14)} Key Protection</h2>
       <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:1var(--space-xs)">
         ${wrapped
-          ? `<span style="color:var(--success);font-weight:600">${hosIcon('check', 14)} Protected</span> — your private key in localStorage is encrypted with a passphrase. It is safe even if someone accesses your browser storage.`
-          : `<span style="color:var(--accent);font-weight:600">⚠️ Not protected</span> — your private key is stored as readable plaintext in your browser's <code style="color:var(--text-muted)">localStorage</code>. Anyone with DevTools access, a malicious browser extension, or physical access to your browser profile directory could extract it. Set a passphrase to encrypt it at rest.`
+          ? `<span style="color:var(--success);font-weight:600">${hosIcon('check', 14)} Protected</span>, your private key in localStorage is encrypted with a passphrase. It is safe even if someone accesses your browser storage.`
+          : `<span style="color:var(--accent);font-weight:600">⚠️ Not protected</span>, your private key is stored as readable plaintext in your browser's <code style="color:var(--text-muted)">localStorage</code>. Anyone with DevTools access, a malicious browser extension, or physical access to your browser profile directory could extract it. Set a passphrase to encrypt it at rest.`
         }
       </div>
       <div style="margin-bottom:var(--space-xl)">
@@ -981,7 +981,7 @@ function openKeyProtectionModal() {
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
         ${wrapped ? `<button id="kp-remove-btn" onclick="doRemoveKeyProtection()"
           style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer"
-          title="Remove passphrase protection — key will be stored in plaintext again">Remove Protection</button>` : ''}
+          title="Remove passphrase protection, key will be stored in plaintext again">Remove Protection</button>` : ''}
         <button id="kp-save-btn" onclick="doEnableKeyProtection()"
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">
           ${wrapped ? 'Change Passphrase' : 'Protect Key'}</button>
@@ -1013,7 +1013,7 @@ async function doEnableKeyProtection() {
     btn.onclick = () => document.getElementById('key-protection-overlay').remove();
     // Also update the remove-protection button text to be accurate.
     const removeBtn = document.getElementById('kp-remove-btn');
-    if (removeBtn) removeBtn.title = 'Remove passphrase encryption — key reverts to plaintext in localStorage';
+    if (removeBtn) removeBtn.title = 'Remove passphrase encryption, key reverts to plaintext in localStorage';
   } catch(e) {
     msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
     btn.disabled = false; btn.textContent = 'Protect Key';
@@ -1024,7 +1024,6 @@ function doRemoveKeyProtection() {
   if (!confirm('Remove passphrase protection? Your private key will be stored in plaintext in localStorage again.')) return;
   try {
     localStorage.removeItem(WRAPPED_KEY_LS);
-    localStorage.removeItem(WRAPPED_ECDH_LS);
     const msg = document.getElementById('kp-msg');
     if (msg) msg.innerHTML = '<span style="color:var(--accent)">⚠️ Protection removed. Key is now stored in plaintext.</span>';
     const protBtn = document.getElementById('key-protect-btn');
@@ -1035,7 +1034,7 @@ function doRemoveKeyProtection() {
 // ── Key Rotation UI ───────────────────────────────────────────────────────────
 // Goal: let a user generate a new Ed25519 identity that cryptographically
 // inherits their old one. Both keys sign a rotation certificate so peers know
-// the change was authorised — not an impersonation.
+// the change was authorised, not an impersonation.
 
 /**
  * Open the key rotation modal.
@@ -1116,7 +1115,7 @@ function saveSystemProfile(profile) {
   localStorage.setItem('hos_system_profile', JSON.stringify(profile));
 }
 
-/** Open the system info modal — detect specs and merge with saved overrides. */
+/** Open the system info modal, detect specs and merge with saved overrides. */
 function openSystemInfoModal() {
   const detected = detectSystemSpecs();
   const saved = loadSystemProfile();
@@ -1189,7 +1188,7 @@ function copySystemContext() {
 /** Sync system profile to the server using Ed25519 auth (same pattern as vault sync). */
 async function syncSystemProfile() {
   if (!myIdentity || !myIdentity.canSign) {
-    alert('Cannot sync — no signing key available. Generate or restore a key first.');
+    alert('Cannot sync, no signing key available. Generate or restore a key first.');
     return;
   }
   const saved = loadSystemProfile();
@@ -1198,7 +1197,7 @@ async function syncSystemProfile() {
     return;
   }
   const timestamp = Date.now();
-  const sig = await signMessage(myIdentity.privateKey, 'system_profile', timestamp);
+  const sig = await pqSignChatMessage('system_profile', timestamp); // full-PQ: Dilithium3 over system_profile\nts
   if (!sig) { alert('Signing failed.'); return; }
 
   try {
@@ -1223,7 +1222,7 @@ async function syncSystemProfile() {
 async function fetchSystemProfile() {
   if (!myIdentity || !myIdentity.canSign) return null;
   const timestamp = Date.now();
-  const sig = await signMessage(myIdentity.privateKey, 'system_profile', timestamp);
+  const sig = await pqSignChatMessage('system_profile', timestamp); // full-PQ: Dilithium3 over system_profile\nts
   if (!sig) return null;
   try {
     const params = new URLSearchParams({

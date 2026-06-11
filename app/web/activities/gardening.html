@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Garden — HumanityOS</title>
+  <title>Garden, HumanityOS</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="/shared/theme.css">
@@ -334,7 +334,7 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════
-// HumanityOS Garden — Isometric 2D Farming Game
+// HumanityOS Garden, Isometric 2D Farming Game
 // ═══════════════════════════════════════════════════════════════════
 (function() {
 'use strict';
@@ -465,7 +465,7 @@ function createDefaultState() {
 function saveGame() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
-  } catch(e) { /* quota exceeded — ignore */ }
+  } catch(e) { /* quota exceeded, ignore */ }
 }
 
 function loadGame() {
@@ -484,7 +484,7 @@ function loadGame() {
         return true;
       }
     }
-  } catch(e) { /* corrupt save — ignore */ }
+  } catch(e) { /* corrupt save, ignore */ }
   return false;
 }
 
@@ -838,7 +838,7 @@ function drawPlayer() {
   ctx.roundRect(bx, by + bodyH * 0.35, bodyW * squash, bodyH * stretch * 0.55, w*0.03);
   ctx.fill();
 
-  // Arms — faster swing when tool is active
+  // Arms, faster swing when tool is active
   const swingAngle = toolSwingTimer > 0 ? Math.sin(toolSwingTimer * 20) * 0.7 : 0;
   ctx.save();
   ctx.translate(cx + bobbleX, by + bodyH * 0.5);

@@ -1,5 +1,5 @@
 /**
- * Humanity Network — Client-side Ed25519 cryptography (inlined).
+ * Humanity Network, Client-side Ed25519 cryptography (inlined).
  * Uses Web Crypto API. Keys persisted in IndexedDB.
  */
 const DB_NAME = 'humanity-keys';
@@ -100,7 +100,7 @@ async function restoreKeyFromLocalStorage() {
 async function getOrCreateIdentity() {
   const hasEd25519 = await supportsEd25519();
   if (!hasEd25519) {
-    console.warn('Ed25519 not supported — falling back to random key');
+    console.warn('Ed25519 not supported, falling back to random key');
     let key = localStorage.getItem('humanity_key');
     if (!key) { const bytes = new Uint8Array(32); crypto.getRandomValues(bytes); key = bufToHex(bytes); localStorage.setItem('humanity_key', key); }
     return { publicKeyHex: key, privateKey: null, publicKey: null, canSign: false };
@@ -114,10 +114,10 @@ async function getOrCreateIdentity() {
       saveKeyBackupToLocalStorage(stored.publicKeyHex, stored.privateKey);
       return { publicKeyHex: stored.publicKeyHex, privateKey: stored.privateKey, publicKey: stored.publicKey, canSign: true, isNew: false };
     }
-    // IndexedDB empty — try localStorage backup before generating new key
+    // IndexedDB empty, try localStorage backup before generating new key
     const restored = await restoreKeyFromLocalStorage();
     if (restored) return restored;
-    // No plaintext backup — check for passphrase-wrapped key
+    // No plaintext backup, check for passphrase-wrapped key
     if (isKeyWrapped()) {
       const pp = window.prompt('Your identity is passphrase-protected.\nEnter your passphrase to unlock it:');
       if (pp) {
@@ -228,14 +228,9 @@ async function exportIdentityJSON(name) {
       exportedAt: new Date().toISOString(),
       note: "Keep this file safe. Anyone with it can impersonate you."
     };
-    // Include ECDH key for E2EE DMs if available.
-    if (myEcdhKeyPair) {
-      try {
-        const ecdhPkcs8 = await crypto.subtle.exportKey('pkcs8', myEcdhKeyPair.privateKey);
-        exportData.ecdhPrivateKey = btoa(String.fromCharCode(...new Uint8Array(ecdhPkcs8)));
-        exportData.ecdhPublicKey = myEcdhPublicBase64;
-      } catch (e) { console.warn('ECDH export failed:', e); }
-    }
+    // Full-PQ: the BIP39 seed (privateKey above) is the SOLE backup -
+    // it deterministically re-derives Dilithium3 (identity+signing) and
+    // Kyber768 (DM). No separate DM key is exported or needed anymore.
     return exportData;
   } catch (e) {
     console.error('Export failed (key may be non-extractable):', e);
@@ -297,7 +292,7 @@ async function openLinkDeviceModal() {
   const name = (typeof myName !== 'undefined' && myName) || localStorage.getItem('humanity_name') || 'user';
   const data = await exportIdentityJSON(name);
   if (!data) {
-    alert('Cannot export identity — this key was created before backup support was added. Please download a backup from the 🔐 Backup button instead.');
+    alert('Cannot export identity, this key was created before backup support was added. Please download a backup from the 🔐 Backup button instead.');
     return;
   }
   const json = JSON.stringify(data, null, 2);
@@ -442,7 +437,7 @@ async function importIdentityFromJSON(jsonData) {
 // ── Seed Phrase Display (paper backup) ──
 // Goal: let users write their identity key on paper in a readable format.
 // Displays the 32-byte Ed25519 seed as 8 groups of 4 hex chars (like a PIN
-// sheet) — easy to write down, hard to misread. No word list required.
+// sheet), easy to write down, hard to misread. No word list required.
 
 /**
  * Return the current identity seed as a formatted "paper phrase":
@@ -488,7 +483,7 @@ async function deriveKeyFromPassphrase(passphrase, salt) {
 
 /**
  * Export the current identity as a passphrase-encrypted JSON file download.
- * The file is safe to store in cloud drives — it's useless without the passphrase.
+ * The file is safe to store in cloud drives, it's useless without the passphrase.
  * @param {string} passphrase - User-chosen passphrase to protect the backup.
  */
 async function exportEncryptedIdentityBackup(passphrase) {
@@ -559,12 +554,11 @@ async function importIdentityBackup(parsed, passphrase) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 const WRAPPED_KEY_LS   = 'humanity_key_wrapped';
-const WRAPPED_ECDH_LS  = 'humanity_ecdh_wrapped';
 
 /**
- * Encrypt the current Ed25519 (and optionally ECDH) private keys with a
- * passphrase and persist them in localStorage as AES-256-GCM blobs.
- * Wrapped keys are safe to leave in localStorage even if DevTools are open —
+ * Encrypt the current Ed25519 (BIP39 seed) private key with a
+ * passphrase and persist it in localStorage as an AES-256-GCM blob.
+ * Wrapped keys are safe to leave in localStorage even if DevTools are open -
  * they are useless without the passphrase.
  * @param {string} passphrase - User-chosen passphrase (≥ 8 chars)
  */
@@ -584,22 +578,8 @@ async function wrapAndStoreKey(passphrase) {
     ct: btoa(String.fromCharCode(...new Uint8Array(ct))),
     wrappedAt: new Date().toISOString(),
   }));
-
-  // Wrap ECDH key if available
-  if (myEcdhKeyPair) {
-    try {
-      const ePkcs8   = await crypto.subtle.exportKey('pkcs8', myEcdhKeyPair.privateKey);
-      const eSalt    = crypto.getRandomValues(new Uint8Array(16));
-      const eIv      = crypto.getRandomValues(new Uint8Array(12));
-      const eWrapKey = await deriveKeyFromPassphrase(passphrase, eSalt);
-      const eCt      = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: eIv }, eWrapKey, ePkcs8);
-      localStorage.setItem(WRAPPED_ECDH_LS, JSON.stringify({
-        v: 1, publicKeyRaw: myEcdhPublicBase64,
-        salt: bufToHex(eSalt), iv: bufToHex(eIv),
-        ct: btoa(String.fromCharCode(...new Uint8Array(eCt))),
-      }));
-    } catch (e) { console.warn('ECDH wrap failed:', e); }
-  }
+  // Full-PQ: only the Ed25519/BIP39 seed is wrapped. Dilithium3 + Kyber768
+  // re-derive from it deterministically on unlock, nothing else to store.
   return true;
 }
 
@@ -624,23 +604,8 @@ async function loadWrappedKey(passphrase) {
   } catch { throw new Error('Wrong passphrase.'); }
   const privateKey = await crypto.subtle.importKey('pkcs8', pkcs8, 'Ed25519', true, ['sign']);
   const publicKey  = await crypto.subtle.importKey('raw', hexToBuf(b.publicKeyHex), 'Ed25519', true, ['verify']);
-  // Also restore ECDH key if wrapped
-  try {
-    const er = localStorage.getItem(WRAPPED_ECDH_LS);
-    if (er) {
-      const eb      = JSON.parse(er);
-      const eWrapKey = await deriveKeyFromPassphrase(passphrase, hexToBuf(eb.salt));
-      const ePkcs8  = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: hexToBuf(eb.iv) },
-        eWrapKey,
-        Uint8Array.from(atob(eb.ct), c => c.charCodeAt(0))
-      );
-      const ePriv = await crypto.subtle.importKey('pkcs8', ePkcs8, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
-      const ePub  = await crypto.subtle.importKey('raw', Uint8Array.from(atob(eb.publicKeyRaw), c => c.charCodeAt(0)), { name: 'ECDH', namedCurve: 'P-256' }, true, []);
-      myEcdhKeyPair = { privateKey: ePriv, publicKey: ePub };
-      myEcdhPublicBase64 = eb.publicKeyRaw;
-    }
-  } catch (e) { console.warn('ECDH unwrap failed:', e); }
+  // Full-PQ: no separate DM key to restore. attachPqIdentity() re-derives
+  // Dilithium3 + Kyber768 from this seed after unlock.
   return { publicKeyHex: b.publicKeyHex, privateKey, publicKey, canSign: true, isNew: false };
 }
 
@@ -654,150 +619,167 @@ function isKeyWrapped() { return !!localStorage.getItem(WRAPPED_KEY_LS); }
 function removeUnwrappedKey() {
   if (!isKeyWrapped()) throw new Error('Enable key protection before removing the plain backup.');
   localStorage.removeItem('humanity_key_backup');
-  localStorage.removeItem('humanity_ecdh_backup');
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// E2EE: ECDH P-256 + AES-256-GCM for end-to-end encrypted DMs
+// Full-PQ identity (Dilithium3 id+signing, Kyber768 DM)
 // ══════════════════════════════════════════════════════════════════════════════
+// Both keys derive deterministically from the SAME 32-byte BIP39 seed as
+// the Ed25519 key (see pq.js), byte-identical to the relay/native
+// (KAT-locked). The Ed25519 key is kept ONLY as the seed source + the
+// Solana wallet. The legacy ECDH-P256 DM keypair has been fully removed
+//, DMs are pure ML-KEM-768 (see "Full-PQ DM" below).
+let myDilithiumPublicHex = null;   // hex of the 1952-byte ML-DSA-65 public key, THE chat identity (full-PQ)
+let myDilithiumSecret = null;      // Uint8Array secret key (in-memory only)
+// Full-PQ DM: Kyber768 (ML-KEM-768), derived from the SAME seed.
+let myKyberPublicBase64 = null;    // base64 1184-byte encapsulation key (advertised at identify)
+let myKyberSecret = null;          // Uint8Array decapsulation key (in-memory only)
 
-const ECDH_DB_STORE = 'ecdh_identity';
-let myEcdhKeyPair = null; // { publicKey, privateKey }
-let myEcdhPublicBase64 = null; // base64-encoded raw public key for transmission
-
-/** Generate or load ECDH P-256 keypair for E2EE DMs. */
-async function getOrCreateEcdhKeypair() {
+/**
+ * FULL-PQ identity (cutover v0.262.34). From the ONE 32-byte BIP39
+ * seed derive Dilithium3 (THE chat identity + signing) AND Kyber768
+ * (DM). Both are byte-identical to the relay/native (KAT-locked:
+ * pq_crypto.rs::{dilithium,kyber}_cross_language_kat + pq-kat.mjs).
+ * The Ed25519 key is kept ONLY as the seed source + the Solana
+ * wallet, it is NO LONGER the chat identity.
+ *
+ * PQ is MANDATORY now (no Ed25519 fallback). Returns true on success;
+ * false means the caller MUST NOT connect (PQ unavailable). Awaited
+ * before connect so `public_key` IS the Dilithium key at identify.
+ */
+async function attachPqIdentity() {
   try {
-    // Try loading from IndexedDB
-    const db = await openKeyDB();
-    const stored = await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const req = tx.objectStore(STORE_NAME).get('ecdh');
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
-    if (stored && stored.privateKey && stored.publicKey) {
-      myEcdhKeyPair = { privateKey: stored.privateKey, publicKey: stored.publicKey };
-      const raw = await crypto.subtle.exportKey('raw', stored.publicKey);
-      myEcdhPublicBase64 = btoa(String.fromCharCode(...new Uint8Array(raw)));
-      console.log('Loaded existing ECDH key');
-      return;
+    if (!myIdentity || !myIdentity.privateKey) return false;
+    if (typeof window.pqDeriveIdentity !== 'function'
+        || typeof window.pqDeriveKyber !== 'function') {
+      console.error('FULL-PQ: pq.js missing, cannot derive a PQ identity');
+      return false;
     }
-  } catch (e) { console.warn('ECDH IndexedDB load failed:', e); }
-
-  // Try localStorage backup
-  try {
-    const backup = localStorage.getItem('humanity_ecdh_backup');
-    if (backup) {
-      const { publicKeyRaw, privateKeyPkcs8 } = JSON.parse(backup);
-      const privBuf = Uint8Array.from(atob(privateKeyPkcs8), c => c.charCodeAt(0));
-      const pubBuf = Uint8Array.from(atob(publicKeyRaw), c => c.charCodeAt(0));
-      const privateKey = await crypto.subtle.importKey('pkcs8', privBuf, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
-      const publicKey = await crypto.subtle.importKey('raw', pubBuf, { name: 'ECDH', namedCurve: 'P-256' }, true, []);
-      myEcdhKeyPair = { privateKey, publicKey };
-      myEcdhPublicBase64 = publicKeyRaw;
-      console.log('Restored ECDH key from localStorage');
-      // Re-save to IndexedDB
-      try {
-        const db = await openKeyDB();
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        tx.objectStore(STORE_NAME).put({ id: 'ecdh', privateKey, publicKey });
-      } catch (e) {}
-      return;
+    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
+    const seed = extractSeedFromPkcs8(pkcs8); // 32-byte BIP39 master seed
+    const pq = await window.pqDeriveIdentity(seed);  // Dilithium3
+    const kp = await window.pqDeriveKyber(seed);     // Kyber768
+    if (!pq || !pq.dilithiumPublicHex || !kp || !kp.kyberPublicBytes) {
+      console.error('FULL-PQ: identity derivation failed, refusing to connect');
+      return false;
     }
-  } catch (e) { console.warn('ECDH localStorage restore failed:', e); }
-
-  // Generate new
-  try {
-    const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
-    myEcdhKeyPair = { privateKey: kp.privateKey, publicKey: kp.publicKey };
-    const raw = await crypto.subtle.exportKey('raw', kp.publicKey);
-    myEcdhPublicBase64 = btoa(String.fromCharCode(...new Uint8Array(raw)));
-
-    // Store in IndexedDB
-    try {
-      const db = await openKeyDB();
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put({ id: 'ecdh', privateKey: kp.privateKey, publicKey: kp.publicKey });
-    } catch (e) {}
-
-    // Backup to localStorage
-    try {
-      const pkcs8 = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
-      const pkcs8B64 = btoa(String.fromCharCode(...new Uint8Array(pkcs8)));
-      localStorage.setItem('humanity_ecdh_backup', JSON.stringify({ publicKeyRaw: myEcdhPublicBase64, privateKeyPkcs8: pkcs8B64 }));
-    } catch (e) {}
-
-    console.log('Generated new ECDH P-256 keypair');
+    myDilithiumPublicHex = pq.dilithiumPublicHex;
+    myDilithiumSecret = pq.dilithiumSecret;
+    myKyberSecret = kp.kyberSecret;
+    myKyberPublicBase64 = btoa(String.fromCharCode(...kp.kyberPublicBytes));
+    // Promote Dilithium to THE chat identity. Stash the old Ed25519
+    // hex (Solana-wallet use only); `publicKeyHex` is now Dilithium.
+    myIdentity.ed25519PublicKeyHex = myIdentity.publicKeyHex;
+    myIdentity.publicKeyHex = myDilithiumPublicHex;
+    myIdentity.dilithiumPublicHex = myDilithiumPublicHex;
+    myIdentity.kyberPublicBase64 = myKyberPublicBase64;
+    console.log('FULL-PQ identity:', myDilithiumPublicHex.substring(0, 16)
+      + '… (Dilithium3 id + Kyber768 DM)');
+    return true;
   } catch (e) {
-    console.error('ECDH key generation failed:', e);
+    console.error('attachPqIdentity FAILED (PQ is mandatory):', e && e.message);
+    return false;
   }
 }
 
-/** Derive an AES-GCM-256 key from our ECDH private key and peer's ECDH public key. */
-async function deriveSharedKey(peerEcdhPublicBase64) {
-  if (!myEcdhKeyPair || !peerEcdhPublicBase64) return null;
+/**
+ * Full-PQ: produce the Dilithium3 signature over `content\ntimestamp`.
+ * This IS the chat message signature now, the relay verifies it against
+ * `public_key` (which IS the sender's Dilithium identity key). Returns
+ * hex of the 3309-byte signature, or null if PQ identity isn't ready
+ * (the message then ships unsigned and the relay logs it).
+ */
+async function pqSignChatMessage(content, timestamp) {
   try {
-    const peerRaw = Uint8Array.from(atob(peerEcdhPublicBase64), c => c.charCodeAt(0));
-    const peerKey = await crypto.subtle.importKey('raw', peerRaw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
-    return await crypto.subtle.deriveKey(
-      { name: 'ECDH', public: peerKey },
-      myEcdhKeyPair.privateKey,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt', 'decrypt']
-    );
+    if (!myDilithiumSecret || typeof window.pqSignMessage !== 'function') return null;
+    const payload = `${content}\n${timestamp}`; // identical to signMessage()
+    const sigBytes = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(payload));
+    if (!sigBytes) return null;
+    let hex = '';
+    for (let i = 0; i < sigBytes.length; i++) hex += sigBytes[i].toString(16).padStart(2, '0');
+    return hex;
   } catch (e) {
-    console.error('ECDH key derivation failed:', e);
+    console.warn('pqSignChatMessage failed:', e && e.message);
     return null;
   }
 }
 
-/** Encrypt a plaintext string for a peer. Returns { content, nonce } (both base64) or null. */
-async function encryptDmContent(plaintext, peerEcdhPublicBase64) {
-  const sharedKey = await deriveSharedKey(peerEcdhPublicBase64);
-  if (!sharedKey) return null;
-  try {
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encoded = new TextEncoder().encode(plaintext);
-    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, sharedKey, encoded);
-    return {
-      content: btoa(String.fromCharCode(...new Uint8Array(ciphertext))),
-      nonce: btoa(String.fromCharCode(...iv))
-    };
-  } catch (e) {
-    console.error('DM encryption failed:', e);
-    return null;
-  }
-}
+// ── Full-PQ DM (Kyber768 / ML-KEM-768) ──────────────────────────────────────
+// Replaces the ECDH-P256 path. The recipient's Kyber keypair is
+// DETERMINISTIC from their BIP39 seed (pq.js pqDeriveKyber, identical on
+// web + native), so whatever a sender encapsulates is decryptable on EVERY
+// device with the seed, no random per-browser key, no vault import. This is
+// the root-cause fix for the cross-client "decryption failed" bug.
+//
+// Envelope (packed into the relay's opaque `content` string, the relay is
+// zero-knowledge and never parses it):
+//   { v:1, r:{ek_ct_b64,nonce_b64,ct_b64}, s:{...} }
+// `r` = sealed to the RECIPIENT's Kyber pub; `s` = sealed to OUR OWN Kyber
+// pub. Dual-seal is mandatory because pure ML-KEM is recipient-only, the
+// sender keeps no shared secret, so without an `s` copy a sender could not
+// read their own sent messages from server history on any device.
+// Function NAMES/arity are kept identical to the old ECDH helpers so the
+// existing DM call sites need no structural change.
 
-/** Decrypt an encrypted DM. Returns plaintext string or null. */
-async function decryptDmContent(ciphertextBase64, nonceBase64, peerEcdhPublicBase64) {
-  const sharedKey = await deriveSharedKey(peerEcdhPublicBase64);
-  if (!sharedKey) return null;
-  try {
-    const iv = Uint8Array.from(atob(nonceBase64), c => c.charCodeAt(0));
-    const ciphertext = Uint8Array.from(atob(ciphertextBase64), c => c.charCodeAt(0));
-    const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, sharedKey, ciphertext);
-    return new TextDecoder().decode(plainBuf);
-  } catch (e) {
-    console.error('DM decryption failed:', e);
-    return null;
-  }
-}
-
-/** Look up ECDH public key for a peer by their Ed25519 public key. */
+/** Peer's Kyber768 public key (base64) by their identity key, or null.
+ *  (Name retained for call-site compatibility, no longer ECDH.) */
 function getPeerEcdhPublic(peerKey) {
   const peer = peerData[peerKey];
-  return peer ? peer.ecdh_public : null;
+  return peer ? (peer.kyber_public || null) : null;
 }
+
+/** Dual-seal `plaintext` (to recipient + to self). Returns
+ *  { content:<JSON envelope>, nonce:<recipient nonce, wire-compat> } or
+ *  null (→ caller falls back to sending plaintext). */
+async function encryptDmContent(plaintext, peerKyberPublicBase64) {
+  try {
+    if (typeof window.pqDmSeal !== 'function'
+        || !peerKyberPublicBase64 || !myKyberPublicBase64) return null;
+    const r = await window.pqDmSeal(peerKyberPublicBase64, plaintext); // → recipient
+    const s = await window.pqDmSeal(myKyberPublicBase64, plaintext);   // → self (history)
+    if (!r || !s) return null;
+    const env = { v: 1, r, s };
+    // Keep a top-level `nonce` only so existing `msg.encrypted && msg.nonce`
+    // guards still trip; the authoritative nonce lives inside the envelope.
+    return { content: JSON.stringify(env), nonce: r.nonce_b64 };
+  } catch (e) {
+    console.warn('encryptDmContent (PQ) failed:', e && e.message);
+    return null;
+  }
+}
+
+/** Open a PQ DM envelope. The 3rd arg (old ECDH peer key) is IGNORED, a
+ *  KEM decapsulates with OUR OWN deterministic secret. Tries the recipient
+ *  copy then the self copy, so it works whether the message was received
+ *  OR is our own from history. Returns plaintext or null. */
+async function decryptDmContent(contentStr, _nonceIgnored, _peerKeyIgnored) {
+  try {
+    if (typeof window.pqDmOpen !== 'function' || !myKyberSecret) return null;
+    let env;
+    try { env = JSON.parse(contentStr); } catch { return null; }
+    if (!env || env.v !== 1) return null;
+    for (const part of [env.r, env.s]) {
+      if (!part) continue;
+      const p = await window.pqDmOpen(
+        myKyberSecret, part.ek_ct_b64, part.nonce_b64, part.ct_b64);
+      if (p !== null && p !== undefined) return p;
+    }
+    return null;
+  } catch (e) {
+    console.warn('decryptDmContent (PQ) failed:', e && e.message);
+    return null;
+  }
+}
+
+/** Back-compat alias, some call sites use the explicit Kyber name. */
+function getPeerKyberPublic(peerKey) { return getPeerEcdhPublic(peerKey); }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // End E2EE
 // ══════════════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════════════
-// BIP39 Seed Phrase — 24-word paper backup for the Ed25519 identity key
+// BIP39 Seed Phrase, 24-word paper backup for the Ed25519 identity key
 // ══════════════════════════════════════════════════════════════════════════════
 // Goal: let users write 24 words on paper and fully restore their identity
 // on a new device with no cloud, no server, no QR code required.
@@ -871,7 +853,7 @@ async function seedFromMnemonic(mnemonic) {
   let actualChecksum = 0;
   for (let i = 0; i < 8; i++) actualChecksum = (actualChecksum << 1) | bits[256 + i];
   if (actualChecksum !== expectedChecksum) {
-    throw new Error('Invalid recovery phrase — checksum failed. Check for typos.');
+    throw new Error('Invalid recovery phrase, checksum failed. Check for typos.');
   }
   return seed;
 }
@@ -956,7 +938,7 @@ async function restoreIdentityFromMnemonic(mnemonic) {
   const test = new TextEncoder().encode('humanity-identity-verify');
   const sig = await crypto.subtle.sign('Ed25519', privateKey, test);
   const ok  = await crypto.subtle.verify('Ed25519', publicKey, sig, test);
-  if (!ok) throw new Error('Key self-verification failed — seed may be corrupted.');
+  if (!ok) throw new Error('Key self-verification failed, seed may be corrupted.');
 
   // Persist to IndexedDB and localStorage backup
   const db = await openKeyDB();
@@ -971,7 +953,7 @@ async function restoreIdentityFromMnemonic(mnemonic) {
  * Encrypt a BIP39 mnemonic with a user passphrase and return a small portable
  * JSON blob that can be saved anywhere (file, password manager note, cloud).
  * Uses PBKDF2-SHA256 (600k iterations) → AES-256-GCM, same as identity backup.
- * The output contains everything needed to decrypt — no server, no account.
+ * The output contains everything needed to decrypt, no server, no account.
  * @param {string} mnemonic  - 24-word space-separated BIP39 phrase.
  * @param {string} passphrase - User-chosen encryption passphrase.
  * @returns {Promise<object>} Blob: { v, enc, iv, salt } (all base64).
@@ -1017,14 +999,14 @@ async function decryptMnemonic(blob, passphrase) {
 
 /**
  * Encrypt a mnemonic and trigger a browser download of a tiny JSON file the
- * user can store anywhere — cloud, USB, password manager attachment.
+ * user can store anywhere, cloud, USB, password manager attachment.
  * Accepts an already-generated mnemonic string, or generates one if omitted.
  * @param {string|null} mnemonic  - Pre-generated mnemonic, or null to generate.
  * @param {string}      passphrase - User-chosen passphrase.
  */
 async function downloadEncryptedMnemonic(mnemonic, passphrase) {
   if (!mnemonic) mnemonic = await generateMnemonic();
-  if (!mnemonic) throw new Error('Key is not extractable — use Encrypted Backup instead.');
+  if (!mnemonic) throw new Error('Key is not extractable, use Encrypted Backup instead.');
   const blob = await encryptMnemonic(mnemonic, passphrase);
   const json = JSON.stringify(blob, null, 2);
   const a = document.createElement('a');

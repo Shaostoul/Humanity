@@ -1,5 +1,5 @@
 /**
- * Donate page logic — fetches funding config, renders source cards
+ * Donate page logic, fetches funding config, renders source cards
  * dynamically from the flexible addresses array (or legacy sources),
  * queries blockchain balances client-side, animates progress bar.
  */
@@ -191,7 +191,7 @@
         card.innerHTML =
           '<h3><span class="source-icon" style="color:#c678dd;">&#x1F49C;</span> GitHub Sponsors</h3>' +
           '<p>Recurring monthly support for full-time open-source development.</p>' +
-          '<div class="fee-tag">0% fees — GitHub covers processing</div>' +
+          '<div class="fee-tag">0% fees, GitHub covers processing</div>' +
           '<a href="' + escHtml(src.url || 'https://github.com/sponsors/Shaostoul') + '" target="_blank" rel="noopener" class="btn-sponsor">' +
             '&#x2764; Sponsor on GitHub</a>';
       } else if (src.type === 'solana') {
@@ -199,7 +199,7 @@
         var hasAddr = solAddr && solAddr !== 'Coming soon';
         card.innerHTML =
           '<h3><span class="source-icon">&#x25CE;</span> Solana (SOL / USDC)</h3>' +
-          '<p>Near-zero fees. Uses Ed25519 — the same cryptography as HumanityOS identity.</p>' +
+          '<p>Near-zero fees. Uses Ed25519, the same cryptography as HumanityOS identity.</p>' +
           '<div class="fee-tag">~0% fees</div>' +
           (hasAddr
             ? '<div class="addr-row"><span class="addr-text">' + escHtml(solAddr) + '</span>' +

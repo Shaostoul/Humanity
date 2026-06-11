@@ -1,5 +1,5 @@
 /**
- * HumanityOS Shared Shell — Nav + Footer
+ * HumanityOS Shared Shell, Nav + Footer
  * Place as the FIRST child of <body> on any page.
  * Set data-active="<key>" on the <script> tag to highlight the matching nav tab.
  * If omitted, active tab is auto-detected from the current URL.
@@ -13,7 +13,7 @@
   if (window.__HOS_SHELL_INIT__) return;
   window.__HOS_SHELL_INIT__ = true;
 
-  // ── Global error boundary — prevent white-screen-of-death ──
+  // ── Global error boundary, prevent white-screen-of-death ──
   function showErrorBanner(msg) {
     if (document.getElementById('hos-error-banner')) return;
     var banner = document.createElement('div');
@@ -213,7 +213,15 @@
       z-index: 5500;
       isolation: isolate;
       font-size: 15px !important; /* fixed so global font-size slider doesn't break nav */
+      /* Web-native parity (Track W): labels are always shown (below), so the
+         row can exceed the viewport width, scroll horizontally rather than
+         clip/overflow. Thin scrollbar keeps it unobtrusive. */
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
     }
+    .hub-nav::-webkit-scrollbar { height: 4px; }
+    .hub-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
     /* Spacer pushes page content below the fixed nav */
     .hub-nav-spacer {
       height: 41px; /* 40px nav + 1px separator */
@@ -247,15 +255,16 @@
       animation: channeling 3s linear infinite;
     }
 
-    /* ── Tab (icon-only by default) ── */
+    /* ── Tab (icon + label, native-parity: labels always shown) ── */
     .hub-nav .tab {
       position: relative;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 30px;
+      width: auto;
       height: 28px;
-      padding: 0;
+      padding: 0 0.5rem;
+      gap: 0.3rem;
       color: var(--text-muted);
       cursor: pointer;
       border-radius: var(--radius);
@@ -283,14 +292,15 @@
       transition: opacity 0.1s, width 0.15s, height 0.15s;
     }
 
-    /* Label hidden on inactive tabs — only visible when active */
+    /* Label always shown (native parity). color:inherit so inactive labels
+       are muted like their icon + active labels go bright, preserving the
+       active/inactive distinction without hiding the label. */
     .hub-nav .tab .tab-label {
-      display: none;
+      display: inline-flex;
       font-size: 0.76rem;
       font-weight: 600;
       white-space: nowrap;
-      margin-left: 0.3rem;
-      color: #fff;
+      color: inherit;
     }
 
     /* ── Hover: tooltip below, icon stays fully visible ── */
@@ -301,7 +311,7 @@
     .hub-nav .tab:not(.active):hover .tab-icon img,
     .hub-nav .tab:not(.active):hover .tab-icon svg { opacity: 1; }
     .hub-nav .tab:not(.active):hover::after {
-      content: attr(data-tip);
+      content: none; /* label is always shown now (native parity), tooltip redundant */
       position: absolute;
       /* sits below the button with a gap so the icon is never obscured */
       top: calc(100% + 10px);
@@ -323,8 +333,8 @@
     /* ── Active: expand to show icon + label, RGB border ── */
     .hub-nav .tab.active {
       width: auto;
-      padding: 0 0.55rem 0 0.4rem;
-      gap: 0;
+      padding: 0 0.5rem;
+      gap: 0.3rem; /* match the base tab gap now that all tabs show icon+label */
       color: #fff;
       animation: channeling 3s linear infinite;
     }
@@ -361,7 +371,7 @@
     [data-theme="light"] .hub-nav .tab.active { color: #1a1a1a; }
     [data-theme="light"] .hub-nav .nav-divider { background: #ccc; }
 
-    /* ── Divider between nav groups — negative margin cancels the double flex-gap ── */
+    /* ── Divider between nav groups, negative margin cancels the double flex-gap ── */
     .hub-nav .nav-divider {
       width: 1px;
       height: 18px;
@@ -374,7 +384,7 @@
     /* min-width:0 ensures the spacer collapses before right-side tabs get pushed off-screen */
     .hub-nav .spacer { flex: 1; min-width: 0; }
 
-    /* ── Mobile hamburger — hidden on desktop ── */
+    /* ── Mobile hamburger, hidden on desktop ── */
     .hub-nav .mobile-menu-btn {
       display: none;
       background: transparent;
@@ -450,9 +460,9 @@
     .site-footer .footer-links a { color: var(--text-muted); text-decoration: none; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; }
     .site-footer .footer-links a:hover { color: var(--accent); }
     .site-footer .footer-links svg { width: 14px; height: 14px; fill: currentColor; vertical-align: middle; }
-    /* Toggle is its own fixed element — always visible above all content */
+    /* Toggle is its own fixed element, always visible above all content */
     /* Toggle lives INSIDE .site-footer so it slides with the panel.
-       bottom:100% makes its bottom edge flush with the footer's top edge — no gap. */
+       bottom:100% makes its bottom edge flush with the footer's top edge, no gap. */
     @keyframes footer-toggle-rgb {
       0%   { border-color: #f44; box-shadow: 0 -2px 6px rgba(255,68,68,0.25); }
       16%  { border-color: #f80; box-shadow: 0 -2px 6px rgba(255,136,0,0.25); }
@@ -596,7 +606,12 @@
   nav.innerHTML =
     '<nav class="hub-nav">' +
       /* Brand */
-      '<a href="/" class="brand' + (active === 'landing' ? ' active' : '') + '" data-tip="Home">H</a>' +
+      // v0.196.0: H brand button now goes to /chat (the cooperative
+      // platform's primary surface) instead of the marketing landing
+      // page. Operator: "the H stands for Humanity ... fitting because
+      // chat IS the cooperative platform." Marketing/landing is reached
+      // via the standalone /pages/index.html for unsigned visitors.
+      '<a href="/chat" class="brand' + (active === 'chat' ? ' active' : '') + '" data-tip="Home, Chat">H</a>' +
 
       '<div class="nav-divider"></div>' +
 
@@ -624,6 +639,7 @@
       /* Blue group: system/config */
       '<span class="nav-group-blue">' +
         navTab('/projects', 'folder',    'Projects',  'projects') +
+        navTab('/audit',    'coin',      'Audit',     'audit') +
         navTab('/settings', 'settings',  'Settings',  'settings') +
         navTab('/download', 'download', 'Download', 'download') +
         navTab('/ops',      'ops',       'Ops',       'ops') +
@@ -631,13 +647,10 @@
         navTab('/dev',      'dev',       'Dev',       'dev') +
       '</span>' +
 
-      /* Spacer pushes context toggle to the right */
+      /* Spacer pushes hamburger to the right */
       '<div class="spacer"></div>' +
 
-      /* Context toggle — right-aligned */
-      buildContextToggle() +
-
-      /* Mobile hamburger — only visible on small screens */
+      /* Mobile hamburger, only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid var(--border);align-items:center;padding:0 var(--space-xl);gap:var(--space-sm);overflow-x:auto;"></div>' +
@@ -679,12 +692,10 @@
     '<div class="mobile-hub-group group-blue"><h4>System</h4>' +
       mobileLink('/agents',               'Agents') +
       mobileLink('/ai-usage',             'AI Usage') +
+      mobileLink('/audit',                'Audit') +
       mobileLink('/settings',             'Settings') +
       mobileLink('/bugs',                  'Bug Reports') +
       mobileLink('/download',   'Download') +
-    '</div>' +
-    '<div class="mobile-hub-group"><h4>Context</h4>' +
-      '<div style="padding:0.5rem 0.55rem;">' + buildContextToggle() + '</div>' +
     '</div>';
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
@@ -925,7 +936,7 @@
       }
     }
     // All other nav clicks: let the browser do a normal full-page navigation.
-    // Every page is a standalone HTML file — no SPA routing needed.
+    // Every page is a standalone HTML file, no SPA routing needed.
   });
 
   // ── Inject Footer ──
@@ -940,7 +951,7 @@
   footerEl.innerHTML =
     '<button class="footer-toggle" id="footer-toggle" aria-label="Toggle footer">▲</button>' +
     '<div class="footer-content" id="footer-content">' +
-      '<span id="hos-footer-label">HumanityOS — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
+      '<span id="hos-footer-label">HumanityOS, Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
       '<div class="footer-links">' +
         '<a href="https://github.com/Shaostoul/Humanity" target="_blank">' + ghIcon + ' GitHub</a>' +
         '<a href="#" id="hos-take-tour" style="margin-left:var(--space-lg, 12px);font-size:0.72rem;">Take Tour</a>' +
@@ -954,7 +965,7 @@
   var webviewTabs = {};
   var webviewCounter = 0;
   var activeWebviewTab = null;
-  var NAV_HEIGHT = 42; // px — height of the hub-nav bar
+  var NAV_HEIGHT = 42; // px, height of the hub-nav bar
 
   /** Check if Tauri native webview API is available. */
   function hasTauriWebview() {
@@ -1003,7 +1014,7 @@
 
   function switchWebviewTab(tabId) {
     if (!hasTauriWebview()) return;
-    // For native webviews, we just track which is active — Tauri handles visibility
+    // For native webviews, we just track which is active, Tauri handles visibility
     // TODO: when multi-tab is fully supported, hide/show webviews here
     activeWebviewTab = tabId;
     renderWebviewTabBar();
@@ -1094,7 +1105,7 @@
     });
   }, 0);
 
-  // ── PWA Service Worker registration (skip in Tauri — local files, no caching) ──
+  // ── PWA Service Worker registration (skip in Tauri, local files, no caching) ──
   if ('serviceWorker' in navigator && !window.__TAURI__) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('/shared/sw.js').then(function (reg) {
@@ -1170,7 +1181,7 @@
     document.body.appendChild(overlay);
 
     document.addEventListener('keydown', function (e) {
-      // ? key — but NOT when focus is in an input/textarea
+      // ? key, but NOT when focus is in an input/textarea
       if (e.key === '?' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
         e.preventDefault();
         var vis = overlay.style.display;
@@ -1196,11 +1207,11 @@
     document.body.appendChild(dbg);
 
     var WS_LABELS = ['CONNECTING','OPEN','CLOSING','CLOSED'];
-    function wsLabel(state) { return WS_LABELS[state] || '—'; }
+    function wsLabel(state) { return WS_LABELS[state] || '-'; }
     function wsColor(state) { return state === 1 ? '#3d3' : state === 0 ? '#fa0' : '#f55'; }
     function keyPrefix() {
       try { var id = JSON.parse(localStorage.getItem('hos_identity')); if (id && id.publicKeyHex) return id.publicKeyHex.slice(0,10) + '…'; } catch (_) {}
-      return '—';
+      return '-';
     }
 
     function update() {
@@ -1209,7 +1220,7 @@
       dbg.innerHTML =
         '<b style="color:#6f6">🐛 Debug</b><br>' +
         '<span style="color:var(--text-muted)">Page: </span>' + location.pathname + '<br>' +
-        '<span style="color:var(--text-muted)">WS: </span><span style="color:' + (state !== null ? wsColor(state) : 'var(--text-muted)') + '">' + (state !== null ? wsLabel(state) : '—') + '</span><br>' +
+        '<span style="color:var(--text-muted)">WS: </span><span style="color:' + (state !== null ? wsColor(state) : 'var(--text-muted)') + '">' + (state !== null ? wsLabel(state) : '-') + '</span><br>' +
         '<span style="color:var(--text-muted)">Key: </span>' + keyPrefix() + '<br>' +
         '<span style="color:var(--text-muted)">SW: </span>humanity-v9';
     }
@@ -1251,7 +1262,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.161.0';
+    var CURRENT_VERSION = '0.414.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
@@ -1299,7 +1310,7 @@
             }
           }
         })
-        .catch(function() { /* offline or rate-limited — skip silently */ });
+        .catch(function() { /* offline or rate-limited, skip silently */ });
     }
 
     // Desktop app: Tauri injects __HOS_UPDATE_READY after its background check.
@@ -1309,7 +1320,7 @@
       var dlTab = document.querySelector('a.tab[href="/download"]');
       if (!dlTab || dlTab.classList.contains('tab-update-ready')) return;
       dlTab.classList.add('tab-update-ready');
-      dlTab.setAttribute('data-tip', 'Update available — v' + version + ' (click to install)');
+      dlTab.setAttribute('data-tip', 'Update available, v' + version + ' (click to install)');
 
       // Add notification badge dot
       var badge = document.createElement('span');
@@ -1335,7 +1346,7 @@
             dlTab.classList.remove('tab-update-ready');
           })
           .catch(function(err) {
-            dlTab.setAttribute('data-tip', 'Update failed — click to retry');
+            dlTab.setAttribute('data-tip', 'Update failed, click to retry');
             console.error('Update install failed:', err);
           });
       });
@@ -1344,9 +1355,9 @@
     // Show version info in footer when running in desktop app
     var footerLabel = document.getElementById('hos-footer-label');
     if (footerLabel && window.__HOS_APP_VERSION) {
-      footerLabel.innerHTML = 'HumanityOS — App v' + window.__HOS_APP_VERSION +
+      footerLabel.innerHTML = 'HumanityOS, App v' + window.__HOS_APP_VERSION +
         ' · Web v' + CURRENT_VERSION +
-        ' — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a>';
+        ', Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a>';
     }
 
     // Delay the check so it doesn't compete with page load.

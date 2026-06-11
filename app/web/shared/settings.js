@@ -7,6 +7,7 @@
   const DEFAULTS = window.HOS_DEFAULTS || {};
   const STORAGE_KEY = window.HOS_STORAGE_KEY || 'humanity_settings';
 
+  // AUTO-GENERATED FROM data/themes/presets.json, do not edit by hand.
   // AUTO-GENERATED FROM data/themes/presets.json — do not edit by hand.
   const ACCENT_PRESETS = [
     { name: "Orange", color: "#FF8811" },
@@ -60,6 +61,7 @@
     }
   };
   // END AUTO-GENERATED.
+  // END AUTO-GENERATED.
 
   function load() {
     try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(STORAGE_KEY))); }
@@ -93,7 +95,7 @@
     doc.style.setProperty('--accent-hover', darken(accent, 0.15));
     doc.style.setProperty('--accent-dim', `rgba(${r},${g},${b},0.15)`);
 
-    // Font size — prefer pixel slider value, fall back to named size
+    // Font size, prefer pixel slider value, fall back to named size
     if (settings.fontSizePx) {
       doc.style.setProperty('--font-size-base', settings.fontSizePx + 'px');
       doc.style.setProperty('font-size', settings.fontSizePx + 'px');
@@ -115,7 +117,7 @@
     const is = settings.iconSize ?? DEFAULTS.iconSize;
     doc.style.setProperty('--icon-size', is + 'px');
 
-    // Border radius — scale sm/lg proportionally
+    // Border radius, scale sm/lg proportionally
     const br = settings.borderRadius ?? DEFAULTS.borderRadius;
     doc.style.setProperty('--radius', br + 'px');
     doc.style.setProperty('--radius-sm', Math.max(1, Math.round(br * 0.5)) + 'px');
@@ -130,7 +132,7 @@
     doc.style.setProperty('--line-height', lh);
     doc.style.setProperty('line-height', lh);
 
-    // UI Spacing scale — multiply base spacing values
+    // UI Spacing scale, multiply base spacing values
     const ss = settings.spacingScale ?? 100;
     if (ss !== 100) {
       const scale = ss / 100;
@@ -164,7 +166,7 @@
   function injectGearButton() {
     const nav = document.querySelector('.hub-nav');
     if (!nav) return;
-    // shell.js already renders a /settings nav tab — don't add a second one
+    // shell.js already renders a /settings nav tab, don't add a second one
     if (nav.querySelector('a[href="/settings"]')) return;
     const spacer = nav.querySelector('.spacer');
     if (!spacer) return;
@@ -313,7 +315,7 @@
       });
       chatSection.appendChild(tsRow);
 
-      // Sound toggle — syncs with chat's 🔔 menu
+      // Sound toggle, syncs with chat's 🔔 menu
       const soundRow = document.createElement('label');
       soundRow.style.cssText = 'display:flex;align-items:center;gap:var(--space-xl);font-size:0.8rem;color:var(--text);cursor:pointer;margin-bottom:var(--space-md);';
       const soundCb = document.createElement('input');
@@ -342,7 +344,7 @@
       soundRow.appendChild(document.createTextNode('🔔 Notification sounds'));
       chatSection.appendChild(soundRow);
 
-      // "Open sound picker" button — opens the chat's existing sound menu
+      // "Open sound picker" button, opens the chat's existing sound menu
       const soundPickerBtn = document.createElement('button');
       soundPickerBtn.textContent = '🎵 Choose notification sound…';
       soundPickerBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-md) var(--space-lg);border-radius:var(--radius);font-size:0.78rem;cursor:pointer;font-family:inherit;display:block;';

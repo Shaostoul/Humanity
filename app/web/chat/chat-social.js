@@ -214,11 +214,35 @@ function addFollowContextMenu() {
 function renderGroupList() {
   const container = document.getElementById('tab-groups');
   if (!container) return;
-  if (myGroups.length === 0) {
-    container.innerHTML = '<div style="padding:var(--space-md);color:var(--text-muted);font-size:0.8rem;">No groups yet.<br>Use <code>/group-create &lt;name&gt;</code> to create one.</div>';
-    return;
+  // Lazily fetch P2P (sovereign signed-object) groups once identity is ready;
+  // create/join re-fetch via window.loadP2pGroups(). These render above the
+  // legacy relay-mediated ones. NOTE: gate on myKey, loadP2pGroups bails
+  // without it, and it sets _p2pGroupsFetched itself only on a real attempt,
+  // so we retry on the next render once identity loads (connect() also kicks
+  // a proactive load). Without the myKey gate here the flag burned before
+  // identity → "no groups until I interact" bug.
+  if (!window._p2pGroupsFetched && typeof window.loadP2pGroups === 'function'
+      && typeof myKey === 'string' && myKey) {
+    window.loadP2pGroups();
   }
+  const p2pGroups = window._p2pGroups || [];
   let html = '';
+  // P2P groups (the new model). Click → switch the main chat to this group
+  // (same surface as switching channels). Right-click → "Copy invite ticket".
+  const activeP2p = window.activeP2pGroup;
+  for (const g of p2pGroups) {
+    const isActiveP2p = !!(activeP2p && activeP2p.id === g.group_id);
+    // Crown = a group I created (own), vs one I merely joined. Gold tint;
+    // sits just left of the name like a little ownership badge.
+    const crown = g.is_creator
+      ? `<span title="You created this group" style="margin-right:3px;display:inline-flex;vertical-align:middle;">${hosIcon('crown', 13, 'var(--warning)')}</span>`
+      : '';
+    html += `<div class="channel-item${isActiveP2p ? ' active' : ''}" data-p2p-group-id="${esc(g.group_id)}" style="cursor:pointer;">
+      <span style="opacity:0.6">${hosIcon('users', 16)} </span>${crown}${esc(g.name)}
+      <span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${(g.members || []).length}</span>
+    </div>`;
+  }
+  // Legacy relay-mediated groups (shown until migrated, Phase 1 step e).
   for (const g of myGroups) {
     const isActive = activeGroupId === g.id;
     const unread = groupUnread[g.id] || 0;
@@ -228,11 +252,85 @@ function renderGroupList() {
       ${badge}
     </div>`;
   }
+  if (p2pGroups.length === 0 && myGroups.length === 0) {
+    html += '<div style="padding:var(--space-md);color:var(--text-muted);font-size:0.8rem;">No groups yet. Create one, or paste an invite ticket to join.</div>';
+  }
   html += '<div style="display:flex;gap:var(--space-sm);padding:var(--space-sm) 0;">'
        + '<button class="vr-btn" onclick="promptCreateGroup()" style="flex:1;font-size:0.7rem;">+ Create Group</button>'
        + '<button class="vr-btn" onclick="promptJoinGroup()" style="flex:1;font-size:0.7rem;">+ Join Group</button>'
        + '</div>';
   container.innerHTML = html;
+  // P2P group rows → switch the main chat to this group (channel-style).
+  // Right-click → context menu with "Copy invite ticket" (no modal, no z-order
+  // bugs, the menu is a tiny absolutely-positioned div that dismisses on
+  // outside click, same pattern the legacy group menu uses below).
+  container.querySelectorAll('[data-p2p-group-id]').forEach(el => {
+    el.onclick = () => {
+      const gid = el.dataset.p2pGroupId;
+      const g = (window._p2pGroups || []).find(x => x.group_id === gid);
+      if (g && typeof window.openP2pGroup === 'function') window.openP2pGroup(gid, g.name);
+    };
+    el.oncontextmenu = (e) => {
+      e.preventDefault();
+      document.querySelectorAll('.group-ctx-menu').forEach(m => m.remove());
+      const gid = el.dataset.p2pGroupId;
+      const g = (window._p2pGroups || []).find(x => x.group_id === gid);
+      if (!g) return;
+      const menu = document.createElement('div');
+      menu.className = 'group-ctx-menu';
+      menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 0;min-width:180px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+      menu.style.left = e.clientX + 'px';
+      menu.style.top = e.clientY + 'px';
+      const items = [
+        { label: hosIcon('copy', 14) + ' Copy invite ticket', html: true, action: async () => {
+          if (typeof window.createP2pInvite !== 'function') return;
+          try {
+            const ticket = await window.createP2pInvite(gid, g.name);
+            if (!ticket) return;
+            try {
+              await navigator.clipboard.writeText(ticket);
+              if (typeof addSystemMessage === 'function') addSystemMessage('Invite ticket copied. Share within 7 days.');
+            } catch {
+              window.prompt('Copy this invite ticket (Ctrl+C):', ticket);
+            }
+          } catch (err) {
+            if (typeof addNotice === 'function') addNotice('Invite failed: ' + err.message, 'red', 6);
+          }
+        }},
+        // Leave, available to anyone. Removes me from the roster (self-leave).
+        { label: '🚪 Leave group', action: () => {
+          if (!confirm('Leave group "' + g.name + '"? You can rejoin with a new invite ticket.')) return;
+          if (typeof window.leaveP2pGroup !== 'function') return;
+          window.leaveP2pGroup(gid).catch((err) => {
+            if (typeof addNotice === 'function') addNotice('Leave failed: ' + err.message, 'red', 6);
+          });
+        }},
+      ];
+      // Disband, creator only (relay enforces; we hide it for non-creators to
+      // avoid a confusing silent no-op). is_creator comes from /api/v2/groups.
+      if (g.is_creator) {
+        items.push({ label: hosIcon('trash', 14) + ' Disband group (for everyone)', html: true, action: () => {
+          if (!confirm('Disband "' + g.name + '" for EVERYONE? This cannot be undone.')) return;
+          if (typeof window.disbandP2pGroup !== 'function') return;
+          window.disbandP2pGroup(gid).catch((err) => {
+            if (typeof addNotice === 'function') addNotice('Disband failed: ' + err.message, 'red', 6);
+          });
+        }});
+      }
+      items.forEach(it => {
+        const div = document.createElement('div');
+        div.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:0.82rem;color:var(--text);';
+        if (it.html) div.innerHTML = it.label; else div.textContent = it.label;
+        div.onmouseenter = () => { div.style.background = 'var(--bg-hover)'; };
+        div.onmouseleave = () => { div.style.background = ''; };
+        div.onclick = (ev) => { ev.stopPropagation(); menu.remove(); it.action(); };
+        menu.appendChild(div);
+      });
+      document.body.appendChild(menu);
+      const closeMenu = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', closeMenu); } };
+      setTimeout(() => document.addEventListener('click', closeMenu), 0);
+    };
+  });
   // Click handler for groups
   container.querySelectorAll('[data-group-id]').forEach(el => {
     el.onclick = () => openGroup(el.dataset.groupId);
@@ -269,18 +367,90 @@ function renderGroupList() {
   if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
 }
 
+// Create/join now use the P2P signed-object model (docs/design/p2p-groups.md):
+// a group is a sovereign signed object, and joining uses a creator-signed invite
+// ticket (works even when the creator is offline). The old relay-mediated
+// group_create/group_join WS path is retired here (legacy groups still render
+// until migrated, Phase 1 step e).
+// One radio option (with pros/cons) for the create-group history choice.
+function _p2pgHistoryOption(value, checked, title, desc, pros, cons) {
+  const list = (items, sym, color) => items.map((t) =>
+    '<li style="margin:2px 0;"><span style="color:' + color + ';font-weight:700;">' + sym + '</span> ' + esc(t) + '</li>').join('');
+  return '<label style="display:block;border:1px solid var(--border,#333);border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">' +
+    '<div style="display:flex;align-items:center;gap:8px;">' +
+      '<input type="radio" name="p2pg-history" value="' + value + '"' + (checked ? ' checked' : '') + '>' +
+      '<span style="font-weight:600;">' + esc(title) + '</span>' +
+    '</div>' +
+    '<div style="margin:4px 0 6px 24px;color:var(--text-muted,#aaa);font-size:0.8rem;">' + esc(desc) + '</div>' +
+    '<ul style="margin:0 0 0 24px;padding-left:14px;font-size:0.76rem;list-style:none;color:var(--text-muted,#aaa);">' +
+      list(pros, '✓', 'var(--success,#4caf50)') + list(cons, '✕', 'var(--danger,#e57373)') +
+    '</ul>' +
+  '</label>';
+}
+
+// Create-group modal: name + history policy (with pros/cons). A plain prompt()
+// can't show the choice, and the operator asked for it on the create window.
 function promptCreateGroup() {
-  const name = prompt('Group name:');
-  if (name && name.trim() && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'group_create', name: name.trim() }));
-  }
+  if (typeof window.createP2pGroup !== 'function') return;
+  const old = document.getElementById('p2pg-create-modal');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'p2pg-create-modal';
+  // The card is a CHILD of the backdrop, so it always renders above it.
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--bg-elevated,#1b1b1b);color:var(--text-primary,#eee);border:1px solid var(--border,#333);border-radius:10px;max-width:460px;width:92%;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,0.5);';
+  card.innerHTML =
+    '<h3 style="margin:0 0 12px;font-size:1.05rem;">Create group</h3>' +
+    '<input id="p2pg-name" type="text" placeholder="Group name" autocomplete="off" ' +
+      'style="width:100%;box-sizing:border-box;padding:9px 11px;border-radius:7px;border:1px solid var(--border,#333);background:var(--bg,#111);color:var(--text-primary,#eee);font-size:0.95rem;margin-bottom:16px;">' +
+    '<div style="font-weight:600;margin-bottom:8px;font-size:0.85rem;">Message history for people who join later</div>' +
+    _p2pgHistoryOption('private', true, 'Private (default)',
+      'New members only see messages sent after they join.',
+      ['Past conversations stay between who was there', 'Stronger forward secrecy, the group re-keys on each join'],
+      ['Newcomers start with no context']) +
+    _p2pgHistoryOption('shared', false, 'Shared history',
+      'New members can read the full history from before they joined.',
+      ['Newcomers get full context, good for onboarding'],
+      ['Anyone invited later can read everything said earlier', 'Weaker forward secrecy, the key is not rotated on join']) +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">' +
+      '<button id="p2pg-cancel" class="vr-btn" style="font-size:0.85rem;">Cancel</button>' +
+      '<button id="p2pg-create" class="vr-btn" style="font-size:0.85rem;background:var(--accent,#4a9);color:#fff;">Create group</button>' +
+    '</div>';
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+
+  const nameInput = card.querySelector('#p2pg-name');
+  try { nameInput.focus(); } catch (_e) {}
+  const close = () => overlay.remove();
+  const submit = () => {
+    const name = (nameInput.value || '').trim();
+    if (!name) { try { nameInput.focus(); } catch (_e) {} return; }
+    const sharedEl = card.querySelector('input[name="p2pg-history"][value="shared"]');
+    const shared = !!(sharedEl && sharedEl.checked);
+    close();
+    window.createP2pGroup(name, shared).catch((e) => {
+      if (typeof addNotice === 'function') addNotice('Create failed: ' + e.message, 'red', 6);
+    });
+  };
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  card.querySelector('#p2pg-cancel').onclick = close;
+  card.querySelector('#p2pg-create').onclick = submit;
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); close(); }
+  });
 }
 
 function promptJoinGroup() {
-  const code = prompt('Enter group invite code:');
-  if (code && code.trim() && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'group_join', invite_code: code.trim() }));
-  }
+  const ticket = prompt('Paste your group invite ticket:');
+  if (!ticket || !ticket.trim()) return;
+  if (typeof window.joinP2pGroupByTicket !== 'function') return;
+  window.joinP2pGroupByTicket(ticket.trim()).catch((e) => {
+    if (typeof addNotice === 'function') addNotice('Join failed: ' + e.message, 'red', 6);
+  });
 }
 
 function openGroup(groupId) {
@@ -289,10 +459,10 @@ function openGroup(groupId) {
   activeGroupId = groupId;
   activeGroupName = group.name;
   groupUnread[groupId] = 0; // Clear unread on enter
-  activeDmPartner = null; // Exit DM view — also deselect server channel + DM highlights
+  activeDmPartner = null; // Exit DM view, also deselect server channel + DM highlights
   renderChannelList();
   if (typeof renderDmList === 'function') renderDmList();
-  // Update channel header — replace innerHTML fully so leftover DM spans don't linger.
+  // Update channel header, replace innerHTML fully so leftover DM spans don't linger.
   const header = document.getElementById('channel-header');
   if (header) {
     header.style.display = 'flex';
