@@ -1358,7 +1358,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "local==GitHub==forge: v0.416.0 (releases v0.414.0 + v0.416.0 created; v0.415.0 is a stray TAG with no release — skip it, never create one). Local exes archived for both. CI Deploy was RED v0.381→v0.414 (ungated save_load broke the relay feature build); fixed in v0.416.0 — verify the v0.416.0 deploy run went green.",
+  "version_state": "local==GitHub==forge: v0.416.2. CI Deploy GREEN since v0.416.0 (was red v0.381→v0.414, ungated save_load). v0.415.0 = stray tag whose auto-built release is marked PRERELEASE with a warning body (the tag-build workflow had published it and stolen Latest; caught + fixed 2026-06-11) — leave tag + prerelease alone. Latest release = newest real version; all platform binaries attach via the tag-build workflow.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
