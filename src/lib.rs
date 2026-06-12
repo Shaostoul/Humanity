@@ -60,6 +60,11 @@ pub mod auto_unlock;
 #[cfg(feature = "native")]
 pub mod updater;
 
+// Signed-release verification + the operator-side signing/keygen tooling (the
+// supply-chain root of trust; audit 2026-06-12 CRITICAL fix). Self-gated with
+// `#![cfg(feature = "native")]` at the top of the file.
+pub mod release_update;
+
 pub mod debug;
 
 #[cfg(feature = "wasm")]

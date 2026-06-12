@@ -3,6 +3,15 @@
 /HumanityOS.exe
 /v*_HumanityOS.exe
 *.old.exe
+
+# ── Release signing PRIVATE key vault (NEVER commit) ──
+# The encrypted hybrid Ed25519+Dilithium3 signing seeds (src/release_update.rs
+# --gen-release-key). Only the PUBLIC keys (data/release/signing_pubkeys.json)
+# are committed. Back this file up encrypted, offline; losing it means you must
+# rotate to a new signing key. The audit's CRITICAL fix depends on this staying
+# off GitHub.
+/release-signing-key.enc
+*.signing-key.enc
 # Updater handoff: the running app writes the target exe path here before
 # restarting into a new build (src/updater.rs). Machine-local + transient.
 /restart_target.txt

@@ -176,10 +176,14 @@ impl Updater {
                             version: ver.clone(),
                             progress: 0.0,
                         };
+                        // Degraded fallback path: we only have the binary URL,
+                        // not the release's asset list, so no manifest/sig URLs.
+                        // With signing provisioned this fails closed (safe);
+                        // the normal path below supplies the manifest.
                         let (tx, rx) = std::sync::mpsc::channel();
                         self.rx = Some(rx);
                         std::thread::spawn(move || {
-                            match download_and_apply(&url, &ver, &tx) {
+                            match download_and_apply(&url, &ver, None, None, &tx) {
                                 Ok(()) => {
                                     let _ = tx.send(UpdateMsg::Applied(ver));
                                 }
@@ -203,6 +207,10 @@ impl Updater {
                 return;
             }
         };
+        // The signed manifest + signature ride as release assets; pass their
+        // URLs so download_and_apply can verify the download before installing.
+        let manifest_url = find_asset_url(&release.assets, MANIFEST_NAME);
+        let sig_url = find_asset_url(&release.assets, MANIFEST_SIG_NAME);
 
         self.state = UpdateState::Downloading {
             version: version.to_string(),
@@ -214,7 +222,7 @@ impl Updater {
         let ver = version.to_string();
 
         std::thread::spawn(move || {
-            match download_and_apply(&asset.browser_download_url, &ver, &tx) {
+            match download_and_apply(&asset.browser_download_url, &ver, manifest_url, sig_url, &tx) {
                 Ok(()) => {
                     let _ = tx.send(UpdateMsg::Applied(ver));
                 }
@@ -279,12 +287,24 @@ impl Updater {
 
     /// Compare available releases against current version and channel preference.
     fn evaluate_update(&mut self) {
+        // Once the operator's release-signing keys are embedded, only ever
+        // OFFER a release that carries a signed manifest asset — so an unsigned
+        // release (a not-yet-signed publish, or a stray/malicious tag) is simply
+        // invisible to auto-update rather than erroring. The download path still
+        // verifies the signature as the authoritative gate (defense in depth).
+        // Until provisioning, every release is eligible (legacy behaviour).
+        let require_manifest = crate::release_update::embedded_pubkeys().is_provisioned();
+        let eligible = |r: &ReleaseInfo| -> bool {
+            !r.prerelease
+                && !r.draft
+                && (!require_manifest || find_asset_url(&r.assets, MANIFEST_NAME).is_some())
+        };
         let target_version = match &self.channel {
             UpdateChannel::AlwaysLatest => {
-                // Find the latest non-prerelease, non-draft release
+                // Find the latest eligible (non-prerelease, non-draft, signed) release.
                 self.available_releases
                     .iter()
-                    .find(|r| !r.prerelease && !r.draft)
+                    .find(|r| eligible(r))
                     .map(|r| r.tag_name.clone())
             }
             UpdateChannel::Disabled => {
@@ -431,13 +451,45 @@ fn find_platform_asset(assets: &[ReleaseAsset]) -> Option<&ReleaseAsset> {
 #[cfg(feature = "native")]
 const MIN_BINARY_SIZE: u64 = 1_048_576;
 
+/// The signed release manifest + its detached signature, uploaded as release
+/// assets alongside the binaries. The updater fetches these to verify a
+/// download before installing it (audit 2026-06-12 CRITICAL fix).
+#[cfg(feature = "native")]
+const MANIFEST_NAME: &str = "release-manifest.json";
+#[cfg(feature = "native")]
+const MANIFEST_SIG_NAME: &str = "release-manifest.json.sig.json";
+
+/// Find a release asset's download URL by exact filename.
+#[cfg(feature = "native")]
+fn find_asset_url(assets: &[ReleaseAsset], exact_name: &str) -> Option<String> {
+    assets
+        .iter()
+        .find(|a| a.name == exact_name)
+        .map(|a| a.browser_download_url.clone())
+}
+
+/// Fetch a small asset (manifest / signature) fully into memory.
+#[cfg(feature = "native")]
+fn http_get_bytes(url: &str) -> Result<Vec<u8>, String> {
+    let resp = ureq::get(url)
+        .set("User-Agent", "HumanityOS-Updater")
+        .call()
+        .map_err(|e| format!("HTTP error: {e}"))?;
+    let mut buf = Vec::new();
+    std::io::Read::read_to_end(&mut resp.into_reader(), &mut buf)
+        .map_err(|e| format!("read error: {e}"))?;
+    Ok(buf)
+}
+
 /// Download a binary and replace the running executable.
 /// Reports progress via the channel. On success, the current exe has been
 /// swapped out and a restart will launch the new version.
 #[cfg(feature = "native")]
 fn download_and_apply(
     url: &str,
-    _version: &str,
+    version: &str,
+    manifest_url: Option<String>,
+    sig_url: Option<String>,
     tx: &std::sync::mpsc::Sender<UpdateMsg>,
 ) -> Result<(), String> {
     crate::debug::push_debug(format!("Updater: starting download from {}", url));
@@ -479,6 +531,10 @@ fn download_and_apply(
 
     let mut downloaded: u64 = 0;
     let mut buf = [0u8; 65536];
+    // Hash the bytes as they stream past so we can check the download against
+    // the signed manifest without a second read of the file.
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
     loop {
         let n = std::io::Read::read(&mut reader, &mut buf)
             .map_err(|e| format!("Read error: {}", e))?;
@@ -487,6 +543,7 @@ fn download_and_apply(
         }
         std::io::Write::write_all(&mut file, &buf[..n])
             .map_err(|e| format!("Write error: {}", e))?;
+        hasher.update(&buf[..n]);
         downloaded += n as u64;
         if total_size > 0 {
             let progress = downloaded as f32 / total_size as f32;
@@ -494,6 +551,7 @@ fn download_and_apply(
         }
     }
     drop(file);
+    let digest_hex = hex::encode(hasher.finalize());
 
     // Pre-download verification: ensure the file exists and is large enough
     let update_size = std::fs::metadata(&update_path)
@@ -512,6 +570,64 @@ fn download_and_apply(
         crate::debug::push_debug(format!("Updater: {}", msg));
         let _ = std::fs::remove_file(&update_path);
         return Err(msg);
+    }
+
+    // ── SIGNATURE VERIFICATION (audit 2026-06-12, the CRITICAL fix). ──
+    // If the operator's release-signing keys are embedded in this build, the
+    // release MUST carry a valid hybrid-signed manifest (Ed25519 + Dilithium3,
+    // both must verify) whose recorded SHA-256 for THIS artifact matches the
+    // bytes we just downloaded. Otherwise we delete the download and refuse to
+    // install — a GitHub/release compromise can no longer push code to users.
+    // Until the operator runs `just gen-release-key` (the embedded pubkeys are
+    // empty), we log a loud warning and fall back to the legacy behaviour so
+    // the app keeps working during that one-time provisioning window.
+    let asset_name = url.rsplit('/').next().unwrap_or_default().to_string();
+    if crate::release_update::embedded_pubkeys().is_provisioned() {
+        let (Some(murl), Some(surl)) = (manifest_url.as_deref(), sig_url.as_deref()) else {
+            let _ = std::fs::remove_file(&update_path);
+            return Err(
+                "This release is not signed (no release-manifest). Refusing to install it for \
+                 your safety."
+                    .into(),
+            );
+        };
+        let manifest_bytes = http_get_bytes(murl).map_err(|e| {
+            let _ = std::fs::remove_file(&update_path);
+            format!("Could not fetch the release manifest: {e}")
+        })?;
+        let sig_bytes = http_get_bytes(surl).map_err(|e| {
+            let _ = std::fs::remove_file(&update_path);
+            format!("Could not fetch the release signature: {e}")
+        })?;
+        match crate::release_update::verify_release_artifact(
+            &manifest_bytes,
+            &sig_bytes,
+            &asset_name,
+            version,
+            &digest_hex,
+        ) {
+            Ok(crate::release_update::VerifyOutcome::Verified) => {
+                crate::debug::push_debug("Updater: release signature VERIFIED.".to_string());
+            }
+            // Unreachable: we already confirmed the pubkeys are provisioned.
+            Ok(crate::release_update::VerifyOutcome::Unprovisioned) => {}
+            Err(e) => {
+                let _ = std::fs::remove_file(&update_path);
+                crate::debug::push_debug(format!("Updater: VERIFICATION FAILED: {e}"));
+                return Err(format!(
+                    "Release verification FAILED — refusing to install. {e}"
+                ));
+            }
+        }
+    } else {
+        crate::debug::push_debug(
+            "Updater: WARNING release-signing keys not provisioned; installing UNVERIFIED \
+             (legacy). Run `just gen-release-key` to activate signed updates."
+                .to_string(),
+        );
+        log::warn!(
+            "Updater: release-signing not provisioned; installing without signature verification."
+        );
     }
 
     // Apply the update by replacing the running executable

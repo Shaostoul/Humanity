@@ -290,6 +290,46 @@ bundle-web:
     node scripts/bundle-web.js
 
 # ══════════════════════════════════════════════════════════════════════════════
+# RELEASE SIGNING — supply-chain root of trust (audit 2026-06-12 CRITICAL fix)
+# ══════════════════════════════════════════════════════════════════════════════
+# The updater + the local exe-launcher refuse to run a build unless it carries a
+# valid HYBRID signature (Ed25519 + Dilithium3, both must verify) from the
+# operator's dedicated signing key. The PRIVATE key lives ONLY here, encrypted —
+# never in CI (the whole point is to survive a GitHub/CI compromise).
+# Full procedure: docs/release-signing.md
+
+# ONE-TIME: generate the hybrid signing keypair. Set HUMANITY_SIGNING_PASSPHRASE
+# (>= 12 chars) first. Writes the PUBLIC keys to data/release/signing_pubkeys.json
+# (COMMIT it — it compiles into every build) and the encrypted PRIVATE vault to
+# release-signing-key.enc (gitignored — BACK IT UP encrypted + offline). Then
+# commit the pubkeys and ship a release so the updater begins enforcing.
+gen-release-key:
+    @test -n "$HUMANITY_SIGNING_PASSPHRASE" || (echo "✗ Set HUMANITY_SIGNING_PASSPHRASE first (>= 12 chars)"; exit 1)
+    @test -f target/release/HumanityOS.exe || cargo build --release --features native
+    ./target/release/HumanityOS.exe --gen-release-key data/release/signing_pubkeys.json release-signing-key.enc
+    @grep -q '"ed25519": "[0-9a-f]' data/release/signing_pubkeys.json \
+        && echo "✓ Keypair generated. COMMIT data/release/signing_pubkeys.json, rebuild, then ship + sign a release." \
+        || (echo "✗ keygen produced no pubkeys — check the passphrase + try again"; exit 1)
+
+# Sign a PUBLISHED release so the auto-updater will trust it. Run AFTER the tag's
+# Build-Desktop workflow has uploaded the platform binaries. Needs
+# HUMANITY_SIGNING_PASSPHRASE + release-signing-key.enc.
+# Usage:  just sign-release v0.418.0
+sign-release version:
+    @test -n "$HUMANITY_SIGNING_PASSPHRASE" || (echo "✗ Set HUMANITY_SIGNING_PASSPHRASE first"; exit 1)
+    @test -f release-signing-key.enc || (echo "✗ No release-signing-key.enc — run 'just gen-release-key' first"; exit 1)
+    @rm -rf /tmp/humanity-relsign && mkdir -p /tmp/humanity-relsign
+    gh release download {{version}} --repo Shaostoul/Humanity -D /tmp/humanity-relsign \
+        --pattern 'HumanityOS-windows-x64.exe' --pattern 'HumanityOS-linux-x64' \
+        --pattern 'HumanityOS-macos-arm64' --pattern 'HumanityOS-macos-x64'
+    node scripts/make-release-manifest.js {{version}} /tmp/humanity-relsign
+    @test -f target/release/HumanityOS.exe || cargo build --release --features native
+    ./target/release/HumanityOS.exe --sign-release release-manifest.json release-signing-key.enc
+    @test -f release-manifest.json.sig.json || (echo "✗ no signature produced — wrong passphrase?"; exit 1)
+    gh release upload {{version}} --repo Shaostoul/Humanity release-manifest.json release-manifest.json.sig.json --clobber
+    @echo "✓ {{version}} signed — auto-update now trusts it (manifest + sig uploaded)."
+
+# ══════════════════════════════════════════════════════════════════════════════
 # WORKTREE HYGIENE — prevent context rot
 # ══════════════════════════════════════════════════════════════════════════════
 

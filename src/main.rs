@@ -13,6 +13,51 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let headless = args.iter().any(|a| a == "--headless");
 
+    // ── Operator-only release-signing tooling (native builds). Runs + exits
+    //    before any window/relay startup AND before find_newer_exe delegation.
+    //    The private key is read from an encrypted vault via the
+    //    HUMANITY_SIGNING_PASSPHRASE env var; it NEVER touches CI (audit
+    //    2026-06-12 CRITICAL fix). Output goes to the files written + the exit
+    //    code; on a release GUI build the console is hidden, so drive these via
+    //    the `just gen-release-key` / `just sign-release` recipes. ──
+    #[cfg(feature = "native")]
+    {
+        if let Some(i) = args.iter().position(|a| a == "--gen-release-key") {
+            let pub_path = args
+                .get(i + 1)
+                .cloned()
+                .unwrap_or_else(|| "data/release/signing_pubkeys.json".to_string());
+            let vault_path = args
+                .get(i + 2)
+                .cloned()
+                .unwrap_or_else(|| "release-signing-key.enc".to_string());
+            match humanity_engine::release_update::gen_release_key(&pub_path, &vault_path) {
+                Ok(()) => std::process::exit(0),
+                Err(e) => {
+                    eprintln!("gen-release-key failed: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        if let Some(i) = args.iter().position(|a| a == "--sign-release") {
+            let Some(manifest) = args.get(i + 1).cloned() else {
+                eprintln!("usage: --sign-release <manifest.json> [vault.enc]");
+                std::process::exit(2);
+            };
+            let vault_path = args
+                .get(i + 2)
+                .cloned()
+                .unwrap_or_else(|| "release-signing-key.enc".to_string());
+            match humanity_engine::release_update::sign_release(&manifest, &vault_path) {
+                Ok(()) => std::process::exit(0),
+                Err(e) => {
+                    eprintln!("sign-release failed: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+
     if headless {
         // Server-only mode: run the relay without any GPU/window
         #[cfg(feature = "relay")]
