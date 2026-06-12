@@ -264,11 +264,21 @@ pub async fn upload_file(
         "png", "jpg", "jpeg", "gif", "webp",
         "mp3", "ogg", "wav", "mp4", "webm",
         "pdf", "txt", "md", "json", "zip", "tar.gz", "gz",
-        "blend", "stl", "obj", "gltf", "glb", "svg",
+        "blend", "stl", "obj", "gltf", "glb",
+        // NOTE: "svg" is deliberately NOT allowed. SVG is an active-content
+        // format (can carry <script>/event handlers) and our /uploads is
+        // served same-origin, so an uploaded SVG opened directly executes in
+        // our origin = stored XSS -> localStorage seed theft. 3D models use
+        // stl/obj/gltf/glb, so nothing legitimate needs SVG upload. (Audit
+        // 2026-06-12; defense-in-depth with the Content-Disposition header on
+        // the /uploads service + svg in BLOCKED_EXTENSIONS below.)
     ];
     const BLOCKED_EXTENSIONS: &[&str] = &[
         "exe", "sh", "bat", "cmd", "msi", "dmg", "app", "com", "scr", "pif",
         "html", "htm", "xhtml", "xml", "js", "mjs",
+        // Active-content image/markup formats — same stored-XSS class as the
+        // markup types above (audit 2026-06-12).
+        "svg", "svgz",
     ];
     // Server settings drive the upload limits (v0.237; per-role FIFO
     // v0.238). The total disk cap is server-wide (read now). The per-user

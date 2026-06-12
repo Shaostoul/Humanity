@@ -32,7 +32,13 @@
   <link rel="stylesheet" href="/chat/modals.css?v=3">
   <link rel="stylesheet" href="/chat/voice.css?v=3">
   <link rel="stylesheet" href="/chat/inputs.css?v=3">
-  <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
+  <!-- Vendored same-origin (twemoji 17.0.3, MIT). Was cdn.jsdelivr.net/@latest
+       with no SRI: a CDN/account compromise could have injected arbitrary JS
+       into the chat with full access to the localStorage seed. Serving it
+       from our own origin removes that supply-chain vector (audit 2026-06-12).
+       The library still fetches emoji IMAGE assets from a CDN at runtime, but
+       those are img-src only (no script execution). -->
+  <script src="/chat/twemoji.min.js"></script>
   <!--
     v0.196.0: pre-flight check for first-time visitors. If the browser
     has no stored HumanityOS identity (neither IndexedDB nor localStorage

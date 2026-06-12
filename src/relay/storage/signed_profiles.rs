@@ -39,6 +39,21 @@ impl Storage {
         timestamp: u64,
         signature: &str,
     ) -> Result<bool, rusqlite::Error> {
+        // Reject implausibly future-dated profiles. "Latest timestamp wins"
+        // has no upper bound otherwise, so a validly-signed profile stamped
+        // far in the future (e.g. u64::MAX) would win forever and lock the
+        // user (or a federated attacker holding that key) out of every real
+        // update until the wall clock reaches that date. Allow a generous
+        // 24h skew for clock drift across federated servers, then drop it.
+        // (Audit 2026-06-12.)
+        const MAX_FUTURE_SKEW_MS: u64 = 24 * 60 * 60 * 1000;
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        if now_ms > 0 && timestamp > now_ms.saturating_add(MAX_FUTURE_SKEW_MS) {
+            return Ok(false);
+        }
         self.with_conn(|conn| {
             // Check if we already have a newer or equal profile
             let existing_ts: Option<u64> = conn

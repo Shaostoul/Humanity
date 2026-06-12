@@ -50,8 +50,20 @@ async fn security_headers(
     req: axum::extract::Request,
     next: middleware::Next,
 ) -> axum::response::Response {
+    // Capture whether this is an /uploads response before `req` is consumed —
+    // user-uploaded files are served from our own origin, so force them to
+    // DOWNLOAD (never render in-origin). Combined with the global nosniff
+    // below, this neutralizes the stored-XSS class for ANY uploaded content
+    // type (e.g. an SVG/HTML that slipped past the extension filter can no
+    // longer execute in our origin and steal the localStorage seed).
+    // Defense-in-depth with the upload-side extension blocklist. (Audit
+    // 2026-06-12.)
+    let is_upload = req.uri().path().starts_with("/uploads");
     let mut res = next.run(req).await;
     let h = res.headers_mut();
+    if is_upload {
+        h.insert("content-disposition", HeaderValue::from_static("attachment"));
+    }
     h.insert("x-content-type-options",   HeaderValue::from_static("nosniff"));
     h.insert("x-frame-options",          HeaderValue::from_static("SAMEORIGIN"));
     h.insert("referrer-policy",          HeaderValue::from_static("strict-origin-when-cross-origin"));
