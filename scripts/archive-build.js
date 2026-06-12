@@ -75,6 +75,36 @@ function purgeOld() {
     } catch (e) {
       console.warn(`  Could not purge ${name}: ${e.message}`);
     }
+    // Remove the orphaned signature sidecar too, if present.
+    try {
+      fs.unlinkSync(full + ".sig.json");
+    } catch (e) {
+      /* no sidecar */
+    }
+  }
+}
+
+// Sign the archived build so the local launcher (find_newer_exe) will trust it
+// (audit 2026-06-12). Opt-in + zero-friction: only signs when the operator's
+// encrypted signing key is present AND HUMANITY_SIGNING_PASSPHRASE is set in
+// the environment. Unsigned builds still launch directly via `just launch`;
+// they just won't be auto-delegated-to from an older running build.
+function signArchive(dest) {
+  const keyFile = path.join(BINDIR, "release-signing-key.enc");
+  if (!fs.existsSync(keyFile)) return; // signing not provisioned; nothing to do
+  if (!process.env.HUMANITY_SIGNING_PASSPHRASE) {
+    console.log("  (unsigned — set HUMANITY_SIGNING_PASSPHRASE to sign this build)");
+    return;
+  }
+  try {
+    execSync(`"${dest}" --sign-file "${dest}" "${keyFile}"`, { stdio: "ignore" });
+    if (fs.existsSync(dest + ".sig.json")) {
+      console.log(`  Signed: ${path.basename(dest)}.sig.json`);
+    } else {
+      console.warn("  Signing produced no sidecar (wrong passphrase?)");
+    }
+  } catch (e) {
+    console.warn(`  Could not sign build: ${e.message}`);
   }
 }
 
@@ -96,6 +126,7 @@ function archive() {
   const mb = (fs.statSync(dest).size / 1048576).toFixed(1);
   console.log(`Archived: ${dest} (${mb} MB)`);
 
+  signArchive(dest);
   purgeOld();
   return dest;
 }

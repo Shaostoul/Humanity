@@ -2,6 +2,9 @@
 /target/
 /HumanityOS.exe
 /v*_HumanityOS.exe
+/v*_HumanityOS.exe.sig.json
+/release-manifest.json
+/release-manifest.json.sig.json
 *.old.exe
 
 # ── Release signing PRIVATE key vault (NEVER commit) ──

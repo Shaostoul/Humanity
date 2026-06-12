@@ -75,10 +75,14 @@ malicious tag is never auto-installed.
 
 ## Notes / future hardening
 
-- The local-build launcher (`find_newer_exe` in `main.rs`) is a separate, local
-  vector (HIGH in the audit) and is hardened in a follow-up: it should verify a
-  candidate `vX_HumanityOS.exe` before launching it, with `just build-game`
-  signing its own archived output. Tracked in the security sprint.
+- The local-build launcher (`find_newer_exe` in `main.rs`) is hardened too
+  (v0.419.0): it verifies each candidate `vX_HumanityOS.exe` against its detached
+  `.sig.json` sidecar before launching, so a malicious local build is skipped.
+  `just build-game` signs each archived dev build automatically when
+  `HUMANITY_SIGNING_PASSPHRASE` is set + `release-signing-key.enc` exists
+  (otherwise the build is left unsigned and simply isn't auto-delegated-to —
+  `just launch` still runs it directly). Sign a build by hand with
+  `HumanityOS --sign-file <path>`.
 - Optional custody upgrade: move the Ed25519 half onto a hardware token
   (YubiKey) so the classical key never leaves hardware. The manifest format is
   unchanged by that.

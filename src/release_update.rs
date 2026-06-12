@@ -247,6 +247,33 @@ pub fn verify_release_artifact(
     Ok(VerifyOutcome::Verified)
 }
 
+/// Verify a standalone file (e.g. a locally-archived `vX_HumanityOS.exe`)
+/// against its detached sidecar `<path>.sig.json`. The signature is over the
+/// file's SHA-256 hex. Returns `Verified` only if signing is provisioned AND
+/// both signatures pass; `Unprovisioned` when no keys are embedded (caller
+/// decides the pre-provisioning fallback). Used by `find_newer_exe` so the
+/// launcher never execs an unsigned/tampered local binary.
+pub fn verify_file_against_sidecar(path: &std::path::Path) -> Result<VerifyOutcome, String> {
+    if !embedded_pubkeys().is_provisioned() {
+        return Ok(VerifyOutcome::Unprovisioned);
+    }
+    let sig_path = sidecar_path(path);
+    let sig_bytes = std::fs::read(&sig_path)
+        .map_err(|_| format!("no signature sidecar: {}", sig_path.display()))?;
+    let sig: ManifestSignature =
+        serde_json::from_slice(&sig_bytes).map_err(|e| format!("malformed sidecar: {e}"))?;
+    let file_bytes = std::fs::read(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let msg = sha256_hex(&file_bytes);
+    verify_manifest_bytes_with(msg.as_bytes(), &sig, &embedded_pubkeys()).map(|()| VerifyOutcome::Verified)
+}
+
+/// The sidecar signature path for a file: `<path>.sig.json`.
+fn sidecar_path(path: &std::path::Path) -> std::path::PathBuf {
+    let mut s = path.as_os_str().to_os_string();
+    s.push(".sig.json");
+    std::path::PathBuf::from(s)
+}
+
 // ===========================================================================
 // Operator-side tooling: keygen + sign (CLI subcommands). These run on the
 // operator's machine only; the private keys never touch CI.
@@ -452,6 +479,24 @@ pub fn sign_release(manifest_path: &str, vault_path: &str) -> Result<(), String>
     Ok(())
 }
 
+/// `--sign-file <path>`: sign a standalone binary (e.g. an archived
+/// `vX_HumanityOS.exe`) so the local launcher will trust it. Writes
+/// `<path>.sig.json` (hybrid signature over the file's SHA-256). Used by
+/// `just build-game` to sign each archived dev build when the operator's
+/// passphrase is available.
+pub fn sign_file(path: &str, vault_path: &str) -> Result<(), String> {
+    let p = std::path::Path::new(path);
+    let file_bytes = std::fs::read(p).map_err(|e| format!("read {path}: {e}"))?;
+    let msg = sha256_hex(&file_bytes);
+    let sig = sign_manifest_bytes(msg.as_bytes(), vault_path)?;
+    let sig_json = serde_json::to_string_pretty(&sig).map_err(|e| format!("serialize sig: {e}"))?;
+    let sig_path = sidecar_path(p);
+    std::fs::write(&sig_path, format!("{sig_json}\n"))
+        .map_err(|e| format!("write {}: {e}", sig_path.display()))?;
+    println!("Signed file -> {}", sig_path.display());
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -578,5 +623,29 @@ mod tests {
         let p = embedded_pubkeys();
         // Unprovisioned by default in the repo; this asserts the include + parse path works.
         let _ = p.is_provisioned();
+    }
+
+    #[test]
+    fn file_hash_signature_roundtrip() {
+        // Mirrors verify_file_against_sidecar's chain (file bytes -> sha256 hex
+        // -> hybrid sign -> verify) but with EXPLICIT keys, since the embedded
+        // pubkeys are empty in the repo. Proves the sign_file / verify wrapper
+        // logic is sound.
+        let file_bytes = b"a pretend HumanityOS.exe payload";
+        let hash = sha256_hex(file_bytes);
+        let (pubs, sig) = make_signed(hash.as_bytes());
+        assert!(verify_manifest_bytes_with(hash.as_bytes(), &sig, &pubs).is_ok());
+        // A different file (different hash) must not verify against this sig.
+        let other_hash = sha256_hex(b"a tampered payload");
+        assert!(verify_manifest_bytes_with(other_hash.as_bytes(), &sig, &pubs).is_err());
+    }
+
+    #[test]
+    fn sidecar_path_appends_suffix() {
+        let p = std::path::Path::new("/tmp/v0.418.0_HumanityOS.exe");
+        assert_eq!(
+            sidecar_path(p),
+            std::path::PathBuf::from("/tmp/v0.418.0_HumanityOS.exe.sig.json")
+        );
     }
 }

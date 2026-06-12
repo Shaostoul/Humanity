@@ -56,6 +56,23 @@ fn main() {
                 }
             }
         }
+        if let Some(i) = args.iter().position(|a| a == "--sign-file") {
+            let Some(file) = args.get(i + 1).cloned() else {
+                eprintln!("usage: --sign-file <path> [vault.enc]");
+                std::process::exit(2);
+            };
+            let vault_path = args
+                .get(i + 2)
+                .cloned()
+                .unwrap_or_else(|| "release-signing-key.enc".to_string());
+            match humanity_engine::release_update::sign_file(&file, &vault_path) {
+                Ok(()) => std::process::exit(0),
+                Err(e) => {
+                    eprintln!("sign-file failed: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
     }
 
     if headless {
@@ -117,6 +134,26 @@ fn find_newer_exe() -> Option<std::path::PathBuf> {
                     continue;
                 }
                 if ver > current {
+                    // SECURITY (audit 2026-06-12): never delegate to / exec a
+                    // local versioned exe unless it's signed by the operator's
+                    // embedded keys. A malicious vX_HumanityOS.exe dropped into
+                    // this user-writable dir would otherwise auto-run on launch.
+                    // When signing isn't provisioned yet (embedded pubkeys
+                    // empty) we keep the legacy behaviour so the dev workflow
+                    // works during provisioning.
+                    use humanity_engine::release_update::{
+                        verify_file_against_sidecar, VerifyOutcome,
+                    };
+                    match verify_file_against_sidecar(&entry_path) {
+                        Ok(VerifyOutcome::Verified) | Ok(VerifyOutcome::Unprovisioned) => {}
+                        Err(e) => {
+                            eprintln!(
+                                "Skipping unsigned/invalid local build {}: {e}",
+                                entry_path.display()
+                            );
+                            continue;
+                        }
+                    }
                     if best.as_ref().map_or(true, |(bv, _)| ver > *bv) {
                         best = Some((ver, entry_path));
                     }
