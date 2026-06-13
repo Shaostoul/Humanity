@@ -439,14 +439,25 @@ mod native_app {
             let path = state.data_dir.join("machines").join("home.ron");
             if let Some(home) = crate::machines::MachineHome::load(&path) {
                 use std::collections::HashMap;
-                // room id -> (center, floor_y).
-                let rooms: HashMap<&str, (Vec3, f32)> = homestead
+                // room id -> (center, floor_y, ceiling_y).
+                let rooms: HashMap<&str, (Vec3, f32, f32)> = homestead
                     .room_info
                     .iter()
-                    .map(|r| (r.id.as_str(), (r.center, r.center.y - r.dimensions.y * 0.5)))
+                    .map(|r| {
+                        (
+                            r.id.as_str(),
+                            (
+                                r.center,
+                                r.center.y - r.dimensions.y * 0.5,
+                                r.center.y + r.dimensions.y * 0.5,
+                            ),
+                        )
+                    })
                     .collect();
                 // Anchor (low pipe height) per instance, so connection tubes line up.
                 let mut anchors: HashMap<String, Vec3> = HashMap::new();
+                // Per-instance (floor_y, ceiling_y) so the pipe router can size run height.
+                let mut anchor_rooms: HashMap<String, (f32, f32)> = HashMap::new();
                 state.gui_state.machine_labels.clear();
                 // Room volumes for label occlusion (which room is the camera in).
                 state.gui_state.room_bounds = homestead
@@ -462,7 +473,7 @@ mod native_app {
                 // Explicit instances + every `arrays` grid expanded (dense garden towers).
                 let all_instances = home.all_instances();
                 for inst in &all_instances {
-                    let Some(&(center, floor_y)) = rooms.get(inst.room.as_str()) else { continue };
+                    let Some(&(center, floor_y, ceiling_y)) = rooms.get(inst.room.as_str()) else { continue };
                     let Some(def) = home.catalog.get(&inst.machine) else { continue };
                     let pos = Vec3::new(
                         center.x + inst.offset.0,
@@ -491,6 +502,7 @@ mod native_app {
                     };
                     state.placeholder_objects.push((mesh_idx, mat, draw_pos));
                     anchors.insert(inst.id.clone(), Vec3::new(pos.x, floor_y + 0.35, pos.z));
+                    anchor_rooms.insert(inst.id.clone(), (floor_y, ceiling_y));
                     // Floating label anchor: just above the machine's top.
                     let top_y = if def.shape == "sphere" { pos.y + 2.0 * sx } else { pos.y + sy };
                     let name = if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() };
@@ -502,22 +514,89 @@ mod native_app {
                     });
                     placed += 1;
                 }
-                // Connections as colored pipes/tubes between machine anchors.
+                // Connections as REALISTIC routed pipe runs: orthogonal up-over-down routing
+                // (no diagonals through walls/machines) with real fittings, the way a plumber
+                // and electrician would install exposed services on a ship. Rules are data
+                // (data/routing_rules.ron); the geometry plan comes from the routing module.
+                use crate::systems::construction::routing::{plan_pipe, PipePart, RoutingRules};
+                let rules = RoutingRules::load(&state.data_dir.join("routing_rules.ron"));
+                // Shared fitting meshes/materials reused by translation (keeps mesh count sane).
+                let bracket_mesh =
+                    state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 0.06, 0.05, 0.06));
+                let bracket_mat =
+                    state.renderer.add_material_typed([0.45, 0.46, 0.48, 1.0], 0.9, 0.5, 0.0); // steel grey
+                let lever_mat =
+                    state.renderer.add_material_typed([0.80, 0.20, 0.16, 1.0], 0.5, 0.5, 0.0); // red valve lever
                 let mut linked = 0usize;
                 for conn in &home.connections {
                     let (Some(&a), Some(&b)) = (anchors.get(&conn.from), anchors.get(&conn.to))
                     else {
                         continue;
                     };
-                    let mesh_idx =
-                        state.renderer.add_mesh(Mesh::segment(&state.renderer.device, a, b, 0.04));
-                    let mat = state.renderer.add_material_typed(
-                        crate::machines::MachineHome::connection_color(&conn.kind),
-                        0.2,
-                        0.6,
+                    let (fa, ca) = anchor_rooms.get(&conn.from).copied().unwrap_or((a.y - 0.35, a.y + 3.0));
+                    let (fb, cb) = anchor_rooms.get(&conn.to).copied().unwrap_or((b.y - 0.35, b.y + 3.0));
+                    let floor = fa.max(fb);
+                    let ceiling = ca.min(cb);
+                    let run_h = rules.run_height(&conn.kind, floor, ceiling);
+                    let (_lane, pipe_r) = rules.lane(&conn.kind);
+                    let color = crate::machines::MachineHome::connection_color(&conn.kind);
+                    // Metallic pipe body; fittings (elbows/collars/valve body) a shade darker.
+                    let pipe_mat = state.renderer.add_material_typed(color, 0.7, 0.35, 0.0);
+                    let fitting_mat = state.renderer.add_material_typed(
+                        [color[0] * 0.7, color[1] * 0.7, color[2] * 0.7, 1.0],
+                        0.85,
+                        0.4,
                         0.0,
                     );
-                    state.placeholder_objects.push((mesh_idx, mat, Vec3::ZERO));
+                    // One elbow sphere per run (all its elbows share a radius), reused by position.
+                    let elbow_mesh = state.renderer.add_mesh(Mesh::sphere(
+                        &state.renderer.device,
+                        pipe_r * rules.elbow_mult,
+                        8,
+                        10,
+                    ));
+                    let parts = plan_pipe(a, b, pipe_r, run_h, rules.is_fluid(&conn.kind), &rules);
+                    for part in &parts {
+                        match part {
+                            PipePart::Tube { a, b, radius } => {
+                                let m = state.renderer.add_mesh(Mesh::tube(
+                                    &state.renderer.device,
+                                    *a,
+                                    *b,
+                                    *radius,
+                                    8,
+                                ));
+                                state.placeholder_objects.push((m, pipe_mat, Vec3::ZERO));
+                            }
+                            PipePart::Elbow { at, .. } => {
+                                state.placeholder_objects.push((elbow_mesh, fitting_mat, *at));
+                            }
+                            PipePart::Bracket { at } => {
+                                state.placeholder_objects.push((
+                                    bracket_mesh,
+                                    bracket_mat,
+                                    Vec3::new(at.x, at.y - 0.025, at.z),
+                                ));
+                            }
+                            PipePart::Valve { at, axis, radius } => {
+                                let half = *axis * 0.05;
+                                let bm = state.renderer.add_mesh(Mesh::tube(
+                                    &state.renderer.device,
+                                    *at - half,
+                                    *at + half,
+                                    *radius,
+                                    8,
+                                ));
+                                state.placeholder_objects.push((bm, fitting_mat, Vec3::ZERO));
+                                // Lever sticking out (the ball-valve handle).
+                                state.placeholder_objects.push((
+                                    bracket_mesh,
+                                    lever_mat,
+                                    Vec3::new(at.x + 0.09, at.y, at.z),
+                                ));
+                            }
+                        }
+                    }
                     linked += 1;
                 }
                 log::info!("Machines: placed {placed} machines + {linked} connections");

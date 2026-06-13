@@ -326,6 +326,47 @@ impl Mesh {
         Self::from_vertices(device, &v, &idx)
     }
 
+    /// A straight ROUND tube (pipe / cable) from world point `a` to `b` with the given
+    /// outer `radius` and `sides` (cross-section polygon, 8 reads round). Built in world
+    /// space and placed at the origin, since the render path is translation-only. This is
+    /// the realistic-pipe successor to `segment`: round section reads as plumbing/conduit
+    /// rather than ducting. Used for pipe bodies, collars (fat + short), and valve bodies.
+    pub fn tube(device: &wgpu::Device, a: glam::Vec3, b: glam::Vec3, radius: f32, sides: u32) -> Self {
+        let n = sides.max(3);
+        let tau = std::f32::consts::TAU;
+        let dir = (b - a).normalize_or_zero();
+        let dir = if dir.length_squared() < 1e-6 { glam::Vec3::Y } else { dir };
+        let up = if dir.dot(glam::Vec3::Y).abs() > 0.95 { glam::Vec3::X } else { glam::Vec3::Y };
+        let right = dir.cross(up).normalize_or_zero();
+        let realup = right.cross(dir).normalize_or_zero();
+        let mut v: Vec<Vertex> = Vec::new();
+        for &p in &[a, b] {
+            for i in 0..=n {
+                let t = i as f32 / n as f32;
+                let ang = t * tau;
+                let off = right * (ang.cos() * radius) + realup * (ang.sin() * radius);
+                let pos = p + off;
+                let nrm = off.normalize_or_zero();
+                v.push(Vertex {
+                    position: [pos.x, pos.y, pos.z],
+                    normal: [nrm.x, nrm.y, nrm.z],
+                    uv: [t, 0.0],
+                });
+            }
+        }
+        let stride = n + 1;
+        let mut idx: Vec<u32> = Vec::new();
+        for i in 0..n {
+            let a0 = i;
+            let a1 = i + 1;
+            let b0 = i + stride;
+            let b1 = i + 1 + stride;
+            // Same winding convention as `segment` (verified outward-facing).
+            idx.extend_from_slice(&[a0, b0, a1, a1, b0, b1]);
+        }
+        Self::from_vertices(device, &v, &idx)
+    }
+
     /// A straight square-section tube (pipe / cable / connection) from world point
     /// `a` to world point `b` with the given `radius`. Built directly in world space
     /// and placed at the origin, since the placeholder render path is translation-only

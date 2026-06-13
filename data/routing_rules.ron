@@ -1,0 +1,41 @@
+// Pipe / cable routing rules (v0.434). Turns straight machine-to-machine connections into
+// realistic ORTHOGONAL runs with real fittings, the way a plumber and electrician would
+// actually install them on an exposed-services ship interior (submarine / ISS aesthetic).
+//
+// Grounded in real code: ASME A13.1 (pipe color), IPC 308.5 + NEC 358.30 (support
+// spacing), NEC 300.4 (power runs ABOVE wet lines). Data-driven (infinite-of-X): retune
+// here, no recompile. Loaded by src/systems/construction/routing.rs::RoutingRules::load.
+(
+    // Overhead service-band height (m) above the room floor, BEFORE the per-kind lane
+    // offset. Must clear the tallest machine (aeroponic towers are 2.4 m), so 3.0 m.
+    base_run_height: 3.0,
+    // Keep runs at least this far (m) under the ceiling.
+    ceiling_margin: 0.4,
+    // Straight stub (m) out of a machine face before the first elbow (reserved for
+    // face-aware routing; the current router risers straight up).
+    stub: 0.15,
+    // Meters between support brackets on a horizontal run. IPC copper max is 1.83 m
+    // (6 ft); EMT conduit 3.05 m. 1.8 m reads correct for the mixed runs here.
+    bracket_spacing: 1.8,
+    // Elbow sphere radius = pipe radius * this.
+    elbow_mult: 1.4,
+    // Fitting-collar radius = pipe radius * this. The diameter STEP at a joint is the
+    // single strongest "this is hollow pipe, not a solid rod" cue.
+    collar_mult: 1.3,
+    // Collar length (m) of the sleeve over each machine-port joint.
+    collar_len: 0.08,
+    // Per-kind vertical LANE (m, added to base_run_height: higher = nearer ceiling) and
+    // pipe outer RADIUS (m). Power rides highest (above any wet line, NEC 300.4); waste
+    // lowest. Water pipe is fatter than electrical conduit. Stacking the lanes also stops
+    // parallel runs from z-fighting into one another.
+    lanes: {
+        "power":    (lane: 0.45, radius: 0.022),  // conduit, top of stack
+        "air":      (lane: 0.35, radius: 0.024),  // compressed air / gas
+        "fuel":     (lane: 0.30, radius: 0.024),  // flammable
+        "water":    (lane: 0.20, radius: 0.028),  // potable, ~1 inch copper trunk
+        "nutrient": (lane: 0.00, radius: 0.030),  // process / fertigation
+        "waste":    (lane: -0.15, radius: 0.034), // drain / greywater, lowest, fattest
+    },
+    // Kinds that are fluids get a shutoff valve at the destination inlet (IPC 606).
+    fluid_kinds: ["water", "nutrient", "fuel", "waste"],
+)

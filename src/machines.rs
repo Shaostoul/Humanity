@@ -159,10 +159,12 @@ impl MachineHome {
     /// Color (rgba) for a connection kind.
     pub fn connection_color(kind: &str) -> [f32; 4] {
         match kind {
-            "power" => [0.95, 0.75, 0.15, 1.0],    // amber
-            "water" => [0.20, 0.45, 0.85, 1.0],    // blue
+            "power" => [0.95, 0.75, 0.15, 1.0],    // amber (energized conduit)
+            "water" => [0.20, 0.45, 0.85, 1.0],    // blue (utility/AWWA potable)
             "nutrient" => [0.45, 0.30, 0.16, 1.0], // brown
-            "fuel" => [0.55, 0.50, 0.18, 1.0],     // olive
+            "fuel" => [0.55, 0.50, 0.18, 1.0],     // olive (flammable)
+            "air" => [0.30, 0.70, 0.85, 1.0],      // cyan (compressed air/gas, ASME safety blue family)
+            "waste" => [0.30, 0.36, 0.30, 1.0],    // grey-green (drain/greywater)
             _ => [0.6, 0.6, 0.6, 1.0],
         }
     }
