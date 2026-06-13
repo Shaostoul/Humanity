@@ -1538,6 +1538,16 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::labeled_slider(ui, theme, "Render Distance", &mut state.settings.render_distance, 50.0..=2000.0) {
             state.settings_dirty = true;
         }
+
+        ui.add_space(theme.spacing_md);
+        ui.label(RichText::new("Machine label distances (m)").color(theme.text_secondary()).strong());
+        ui.label(RichText::new("How close to show a machine's dot / name / info card. Hold Tab in-game to triple these and see through walls.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.add_space(theme.spacing_xs);
+        // These live on GuiState (session-tunable); the defaults (21 / 13 / 8) are the
+        // saved-feel values. Not persisted to settings yet.
+        widgets::labeled_slider(ui, theme, "Dot", &mut state.machine_label_dot_dist, 2.0..=60.0);
+        widgets::labeled_slider(ui, theme, "Name", &mut state.machine_label_name_dist, 1.0..=40.0);
+        widgets::labeled_slider(ui, theme, "Info card", &mut state.machine_label_card_dist, 1.0..=30.0);
     });
 }
 
@@ -1563,6 +1573,7 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             ("Sprint", "Shift"),
             ("Interact", "E"),
             ("Inventory", "I"),
+            ("Reveal labels (hold)", "Tab"),
             ("Map", "M"),
             ("Escape Menu", "Esc"),
         ];

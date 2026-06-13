@@ -39,6 +39,61 @@ pub fn paint_cog(painter: &egui::Painter, rect: Rect, color: Color32) {
     painter.circle_filled(c, inner_r * 0.2, Color32::from_rgb(30, 30, 36));
 }
 
+/// Helper: a point at fractional (fx, fy) inside `rect` (0..1).
+#[inline]
+fn frac(rect: Rect, fx: f32, fy: f32) -> Pos2 {
+    Pos2::new(rect.left() + fx * rect.width(), rect.top() + fy * rect.height())
+}
+
+/// Lightning bolt (power). Drawn as two filled triangles forming the classic Z.
+pub fn paint_bolt(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let upper = vec![frac(rect, 0.62, 0.05), frac(rect, 0.28, 0.56), frac(rect, 0.52, 0.56)];
+    let lower = vec![frac(rect, 0.48, 0.44), frac(rect, 0.72, 0.44), frac(rect, 0.38, 0.95)];
+    painter.add(egui::Shape::convex_polygon(upper, color, Stroke::NONE));
+    painter.add(egui::Shape::convex_polygon(lower, color, Stroke::NONE));
+}
+
+/// Water droplet: round bottom + pointed top.
+pub fn paint_droplet(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let r = w * 0.30;
+    painter.circle_filled(Pos2::new(c.x, c.y + w * 0.12), r, color);
+    let tip = vec![
+        Pos2::new(c.x, c.y - w * 0.42),
+        Pos2::new(c.x - r * 0.98, c.y + w * 0.12),
+        Pos2::new(c.x + r * 0.98, c.y + w * 0.12),
+    ];
+    painter.add(egui::Shape::convex_polygon(tip, color, Stroke::NONE));
+}
+
+/// Flame (heat): a 5-point upward teardrop, distinct from the round droplet.
+pub fn paint_flame(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let pts = vec![
+        frac(rect, 0.5, 0.05),
+        frac(rect, 0.74, 0.52),
+        frac(rect, 0.60, 0.95),
+        frac(rect, 0.40, 0.95),
+        frac(rect, 0.26, 0.52),
+    ];
+    painter.add(egui::Shape::convex_polygon(pts, color, Stroke::NONE));
+}
+
+/// Leaf (nutrient/organic): an almond with a center vein.
+pub fn paint_leaf(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let pts = vec![
+        frac(rect, 0.12, 0.78),
+        frac(rect, 0.82, 0.18),
+        frac(rect, 0.88, 0.46),
+        frac(rect, 0.40, 0.90),
+    ];
+    painter.add(egui::Shape::convex_polygon(pts, color, Stroke::NONE));
+    painter.line_segment(
+        [frac(rect, 0.20, 0.74), frac(rect, 0.78, 0.24)],
+        Stroke::new(1.0, Color32::from_black_alpha(90)),
+    );
+}
+
 /// Draw a microphone icon inside `rect`.
 pub fn paint_mic(painter: &egui::Painter, rect: Rect, color: Color32) {
     let c = rect.center();

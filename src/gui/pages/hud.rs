@@ -282,8 +282,26 @@ fn draw_machine_card(painter: &egui::Painter, theme: &Theme, anchor: Pos2, label
     y += row_h + 3.0;
     for s in &label.stats {
         let color = stat_status_color(&s.status, theme);
-        painter.text(Pos2::new(card.left() + pad, y), Align2::LEFT_TOP, &s.kind, FontId::proportional(11.0), color);
-        painter.text(Pos2::new(card.right() - pad, y), Align2::RIGHT_TOP, &s.value, FontId::proportional(11.0), theme.text_secondary());
+        // status-colored icon (left column) + value (right column).
+        let icon_rect = Rect::from_min_size(Pos2::new(card.left() + pad, y), Vec2::splat(12.0));
+        paint_stat_icon(painter, icon_rect, &s.kind, color);
+        painter.text(Pos2::new(card.right() - pad, y + 0.5), Align2::RIGHT_TOP, &s.value, FontId::proportional(11.0), theme.text_secondary());
         y += row_h;
+    }
+}
+
+/// Map a stat kind to its painted icon, drawn in `color` (the status color).
+fn paint_stat_icon(painter: &egui::Painter, rect: Rect, kind: &str, color: Color32) {
+    use crate::gui::widgets::icons;
+    match kind {
+        "power" => icons::paint_bolt(painter, rect, color),
+        "water" | "fuel" => icons::paint_droplet(painter, rect, color),
+        "heat" => icons::paint_flame(painter, rect, color),
+        "nutrient" => icons::paint_leaf(painter, rect, color),
+        "storage" => icons::paint_box(painter, rect, color),
+        "progress" => icons::paint_cog(painter, rect, color),
+        _ => {
+            painter.circle_filled(rect.center(), rect.width() * 0.22, color);
+        }
     }
 }
