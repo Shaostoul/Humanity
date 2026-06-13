@@ -329,6 +329,18 @@ sign-release version:
     gh release upload {{version}} --repo Shaostoul/Humanity release-manifest.json release-manifest.json.sig.json --clobber
     @echo "✓ {{version}} signed — auto-update now trusts it (manifest + sig uploaded)."
 
+# Independently VERIFY a signed release: downloads the manifest + signature +
+# the Windows binary and checks both signatures against the committed public
+# keys using DIFFERENT crypto impls than the signer (noble ml-dsa + Node's
+# Ed25519) plus the artifact hash. Anyone can run this — no key needed.
+# Usage: just verify-release v0.421.3
+verify-release version:
+    @rm -rf /tmp/relverify && mkdir -p /tmp/relverify
+    gh release download {{version}} --repo Shaostoul/Humanity -D /tmp/relverify \
+        --pattern 'release-manifest.json' --pattern 'release-manifest.json.sig.json' \
+        --pattern 'HumanityOS-windows-x64.exe'
+    node scripts/verify-release-signature.mjs /tmp/relverify
+
 # ══════════════════════════════════════════════════════════════════════════════
 # WORKTREE HYGIENE — prevent context rot
 # ══════════════════════════════════════════════════════════════════════════════
