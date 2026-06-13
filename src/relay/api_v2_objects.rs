@@ -159,6 +159,56 @@ pub async fn post_object(
     State(state): State<Arc<RelayState>>,
     Json(payload): Json<SignedObjectSubmission>,
 ) -> impl IntoResponse {
+    // Per-author submission quota (audit 2026-06-12). The signature is verified
+    // below (so the author key can't be spoofed), but a holder of one valid key
+    // could otherwise flood the DB with unlimited DISTINCT objects. Cap the rate
+    // per author in a sliding window; over the cap → 429. Mirrors the
+    // identify_rate pattern (compute under the lock, drop the guard before any
+    // await). Keyed by a short hash of the author key so the map keys stay small.
+    {
+        use std::time::Instant;
+        const OBJECT_SUBMIT_WINDOW_SECS: u64 = 60;
+        const OBJECT_SUBMIT_MAX: usize = 30; // generous for legit votes/vouches/recovery; kills floods
+        const OBJECT_RATE_MAP_CAP: usize = 50_000; // bound distinct-author growth
+        let fp = {
+            use sha2::{Digest, Sha256};
+            let mut h = Sha256::new();
+            h.update(payload.author_public_key_b64.as_bytes());
+            hex::encode(&h.finalize()[..8])
+        };
+        let over_limit = {
+            let mut rate = state.object_submit_rate.lock().unwrap();
+            let now = Instant::now();
+            // Occasional global prune so a churn of distinct authors can't grow
+            // the map without bound (drop keys whose timestamps are all stale).
+            if rate.len() > OBJECT_RATE_MAP_CAP {
+                rate.retain(|_, times| {
+                    times.retain(|t| now.duration_since(*t).as_secs() < OBJECT_SUBMIT_WINDOW_SECS);
+                    !times.is_empty()
+                });
+            }
+            let times = rate.entry(fp).or_default();
+            times.retain(|t| now.duration_since(*t).as_secs() < OBJECT_SUBMIT_WINDOW_SECS);
+            if times.len() >= OBJECT_SUBMIT_MAX {
+                true
+            } else {
+                times.push(now);
+                false
+            }
+        };
+        if over_limit {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(serde_json::json!({
+                    "error": format!(
+                        "submission rate limit: max {OBJECT_SUBMIT_MAX} objects per {OBJECT_SUBMIT_WINDOW_SECS}s per author"
+                    )
+                })),
+            )
+                .into_response();
+        }
+    }
+
     let object = match payload.to_object() {
         Ok(o) => o,
         Err(e) => {

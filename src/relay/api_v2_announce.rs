@@ -66,6 +66,34 @@ pub async fn post_announce(
     if let Err((code, msg)) = check_api_auth(&headers) {
         return (code, Json(serde_json::json!({"error": msg}))).into_response();
     }
+    // Global announce rate cap (audit 2026-06-12): system announcements are
+    // broadcast to everyone, so bound the flood blast-radius if API_SECRET
+    // leaks. Legit use is ~1/deploy.
+    {
+        use std::time::Instant;
+        const ANNOUNCE_WINDOW_SECS: u64 = 60;
+        const ANNOUNCE_MAX: usize = 20;
+        let over = {
+            let mut times = state.announce_rate.lock().unwrap();
+            let now = Instant::now();
+            times.retain(|t| now.duration_since(*t).as_secs() < ANNOUNCE_WINDOW_SECS);
+            if times.len() >= ANNOUNCE_MAX {
+                true
+            } else {
+                times.push(now);
+                false
+            }
+        };
+        if over {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(serde_json::json!({
+                    "error": format!("announce rate limit: max {ANNOUNCE_MAX} per {ANNOUNCE_WINDOW_SECS}s")
+                })),
+            )
+                .into_response();
+        }
+    }
     if req.content.trim().is_empty() {
         return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "content required"}))).into_response();
     }

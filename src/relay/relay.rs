@@ -154,6 +154,20 @@ pub struct RelayState {
     /// in a session, so 5 leaves a buffer. Tune via that constant once
     /// real traffic data exists.
     pub new_identity_per_ip: std::sync::Mutex<HashMap<String, Vec<(String, Instant)>>>,
+    /// Audit 2026-06-12: per-author submission-rate window for `POST
+    /// /api/v2/objects`. The endpoint signature-verifies the AUTHOR (so a key
+    /// you don't hold can't be spoofed), but without a cap any holder of one
+    /// valid key could flood the DB with unlimited DISTINCT objects (the
+    /// object_id dedup only stops EXACT repeats) → storage exhaustion. Map:
+    /// author-key fingerprint → recent submission timestamps; pruned to the
+    /// window on every access. Cap is a constant on the gate.
+    pub object_submit_rate: std::sync::Mutex<HashMap<String, Vec<Instant>>>,
+    /// Audit 2026-06-12: GLOBAL sliding-window cap on system announcements
+    /// (`POST /api/v2/announce`). Announcements are signed by the server identity
+    /// and broadcast to every client, so a flood (if `API_SECRET` leaks) is
+    /// high-impact. Legit use is ~1 per deploy, so a generous global cap bounds
+    /// the blast radius without affecting normal operation.
+    pub announce_rate: std::sync::Mutex<Vec<Instant>>,
     /// VAPID keypair for WebPush notifications (P-256/ES256).
     pub vapid_key: Option<ES256KeyPair>,
     /// Server configuration loaded from data/server-config.json (funding, membership, etc.).
@@ -263,6 +277,8 @@ impl RelayState {
             federation_rate: std::sync::Mutex::new(HashMap::new()),
             identify_rate: std::sync::Mutex::new(HashMap::new()),
             new_identity_per_ip: std::sync::Mutex::new(HashMap::new()),
+            object_submit_rate: std::sync::Mutex::new(HashMap::new()),
+            announce_rate: std::sync::Mutex::new(Vec::new()),
             vapid_key: None,
             server_config,
             game_world: RwLock::new(GameWorld::new()),

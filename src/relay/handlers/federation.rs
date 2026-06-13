@@ -392,6 +392,41 @@ pub async fn federation_connect_loop(
                                             signature,
                                         };
 
+                                        // Per-SOURCE inbound rate limit (audit 2026-06-12).
+                                        // Without this, one malicious peer sending us valid
+                                        // objects at line rate gets AMPLIFIED: each accepted
+                                        // object is re-gossiped to every OTHER peer, so N×rate
+                                        // outbound from 1×rate inbound. The outbound limiter is
+                                        // keyed by DESTINATION, so it doesn't stop a single
+                                        // source from saturating the relay. Cap how many objects
+                                        // we INGEST from a given source per second; over the cap,
+                                        // drop (don't store, don't re-emit). Reuses the existing
+                                        // federation_rate map with an `:inbound` key namespace.
+                                        {
+                                            const INBOUND_MAX_PER_SEC: usize = 50;
+                                            let allow = {
+                                                let mut rate = state_for_read.federation_rate.lock().unwrap();
+                                                let times = rate
+                                                    .entry(format!("{}:inbound", _sid_for_read))
+                                                    .or_default();
+                                                let now = Instant::now();
+                                                times.retain(|t| now.duration_since(*t).as_secs() < 1);
+                                                if times.len() < INBOUND_MAX_PER_SEC {
+                                                    times.push(now);
+                                                    true
+                                                } else {
+                                                    false
+                                                }
+                                            };
+                                            if !allow {
+                                                tracing::warn!(
+                                                    "Federation: inbound gossip rate limit hit for source {} — dropping object {}",
+                                                    _sid_for_read, object_id
+                                                );
+                                                continue;
+                                            }
+                                        }
+
                                         // put_signed_object verifies the Dilithium3 signature.
                                         let source = Some(_sid_for_read.as_str());
                                         match state_for_read.db.put_signed_object(&object, source) {
