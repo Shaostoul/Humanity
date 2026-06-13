@@ -694,6 +694,11 @@ impl Storage {
     pub fn wipe_messages(&self) -> Result<usize, rusqlite::Error> {
         self.with_conn(|conn| {
             let rows = conn.execute("DELETE FROM messages", [])?;
+            // Fold the just-deleted (secure_delete-zeroed) pages out of the WAL and
+            // truncate it, so a bulk wipe does not leave content in the -wal file
+            // (audit 2026-06-12). Best-effort: a busy reader makes this a no-op; never
+            // fail the wipe over a checkpoint hiccup.
+            let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
             Ok(rows)
         })
     }
@@ -705,6 +710,8 @@ impl Storage {
                 "DELETE FROM messages WHERE channel_id = ?1",
                 params![channel_id],
             )?;
+            // See wipe_messages: truncate the WAL after a bulk delete (best-effort).
+            let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
             Ok(rows)
         })
     }

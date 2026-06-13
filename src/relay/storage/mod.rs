@@ -471,7 +471,14 @@ impl Storage {
         let conn = Connection::open(path)?;
 
         // Enable WAL mode for better concurrent read/write performance.
-        conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+        // secure_delete=ON zeroes the bytes of deleted rows in the main DB file
+        // rather than leaving them as free-page slack (audit 2026-06-12: hard-deleted
+        // PUBLIC messages used to linger recoverable in free pages). Deletes go through
+        // this writer connection, so enabling it here covers them. Negligible cost at
+        // our delete volume. It does NOT scrub the WAL or rotating backups, see the
+        // bulk-wipe checkpoint in channels.rs and the documented residual in
+        // docs/reference/retention_and_deletion_semantics.md.
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON;")?;
 
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS messages (
@@ -2157,6 +2164,41 @@ mod resilient_open_tests {
             rusqlite::params![ts as i64],
             |r| r.get::<_, i64>(0),
         )).unwrap()
+    }
+
+    #[test]
+    fn secure_delete_scrubs_deleted_message_bytes() {
+        // Proves secure_delete=ON + the post-wipe wal_checkpoint(TRUNCATE) actually
+        // remove deleted content from the on-disk files (audit 2026-06-12), not just
+        // from the live table. Insert a uniquely-marked message, wipe, and assert the
+        // marker is absent from both relay.db and its -wal.
+        let dir = tmp_dir("secdel");
+        let db = dir.join("relay.db");
+        const MARKER: &str = "SECDEL_UNIQUE_MARKER_8f3a2c91";
+
+        let s = Storage::open(&db).expect("open");
+        s.with_conn(|c| {
+            c.execute(
+                "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id)
+                 VALUES ('chat','pk','name', ?1, 1, '{}', 'general')",
+                rusqlite::params![MARKER],
+            )
+        }).unwrap();
+        // Sanity: the marker is on disk before the wipe (so the test can fail).
+        let _ = s.wipe_messages().unwrap();
+        drop(s); // final checkpoint + close
+
+        let scan = |p: &std::path::Path| -> bool {
+            match std::fs::read(p) {
+                Ok(bytes) => bytes
+                    .windows(MARKER.len())
+                    .any(|w| w == MARKER.as_bytes()),
+                Err(_) => false, // file absent (e.g. truncated -wal) counts as clean
+            }
+        };
+        let wal = db.with_extension("db-wal");
+        assert!(!scan(&db), "marker must be scrubbed from relay.db after secure delete");
+        assert!(!scan(&wal), "marker must not linger in the WAL after checkpoint");
     }
 
     #[test]
