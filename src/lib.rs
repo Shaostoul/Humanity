@@ -448,6 +448,16 @@ mod native_app {
                 // Anchor (low pipe height) per instance, so connection tubes line up.
                 let mut anchors: HashMap<String, Vec3> = HashMap::new();
                 state.gui_state.machine_labels.clear();
+                // Room volumes for label occlusion (which room is the camera in).
+                state.gui_state.room_bounds = homestead
+                    .room_info
+                    .iter()
+                    .map(|r| crate::gui::RoomBounds {
+                        id: r.id.clone(),
+                        min: r.center - r.dimensions * 0.5,
+                        max: r.center + r.dimensions * 0.5,
+                    })
+                    .collect();
                 let mut placed = 0usize;
                 for inst in &home.instances {
                     let Some(&(center, floor_y)) = rooms.get(inst.room.as_str()) else { continue };
@@ -486,6 +496,7 @@ mod native_app {
                         pos: Vec3::new(pos.x, top_y + 0.4, pos.z),
                         name,
                         stats: def.stats.clone(),
+                        room: inst.room.clone(),
                     });
                     placed += 1;
                 }
@@ -1467,8 +1478,17 @@ mod native_app {
                             state.gui_state.show_chat = !state.gui_state.show_chat;
                         }
 
-                        // Tab toggles inventory (only when in-game)
-                        if key == KeyCode::Tab && pressed
+                        // Tab = HOLD to reveal hidden labels (v0.429): peek markers
+                        // through walls across owned/explored rooms at x3 distance.
+                        // Tracks held state (true on press, false on release).
+                        if key == KeyCode::Tab {
+                            state.gui_state.reveal_held = pressed;
+                            if state.gui_state.active_page == GuiPage::None {
+                                return; // consume Tab in-game (it was inventory pre-v0.429)
+                            }
+                        }
+                        // I opens inventory (took over from Tab when Tab became the reveal peek).
+                        if key == KeyCode::KeyI && pressed
                             && state.gui_state.active_page == GuiPage::None
                         {
                             state.gui_state.active_page = GuiPage::Inventory;

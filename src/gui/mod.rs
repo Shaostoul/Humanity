@@ -790,6 +790,19 @@ pub struct MachineLabel {
     pub pos: glam::Vec3,
     pub name: String,
     pub stats: Vec<crate::machines::MachineStat>,
+    /// The room this machine sits in (for room-based occlusion: a label only shows by
+    /// default when you are in its room; hold Tab to see across rooms).
+    pub room: String,
+}
+
+/// An axis-aligned room volume, used by the HUD to tell which room the camera is in
+/// (for label occlusion). Populated by load_world from the homestead room info.
+#[cfg(feature = "native")]
+#[derive(Clone)]
+pub struct RoomBounds {
+    pub id: String,
+    pub min: glam::Vec3,
+    pub max: glam::Vec3,
 }
 
 /// Tracks all GUI state for the native app.
@@ -966,9 +979,16 @@ pub struct GuiState {
     pub profile_directory_listed: bool,
     /// Floating machine labels in the 3D home (v0.428), populated by load_world.
     pub machine_labels: Vec<MachineLabel>,
-    /// Distance (meters) at which a machine's NAME appears (label LOD). Configurable.
+    /// Room volumes (v0.429), for room-based label occlusion: which room is the camera in.
+    pub room_bounds: Vec<RoomBounds>,
+    /// Hold-Tab "reveal" peek (v0.429): triples the label distances and shows labels
+    /// through walls across all owned/explored rooms. True only while Tab is held.
+    pub reveal_held: bool,
+    /// Distance (meters) at which a machine's DOT appears (the coarsest LOD).
+    pub machine_label_dot_dist: f32,
+    /// Distance (meters) at which a machine's NAME appears (closer than the dot).
     pub machine_label_name_dist: f32,
-    /// Distance (meters) at which the full stat CARD appears (closer than the name).
+    /// Distance (meters) at which the full stat CARD appears (closest). Hold Tab x3 all.
     pub machine_label_card_dist: f32,
     /// Transient confirmation shown after a "Save to server" click.
     pub profile_network_saved_note: String,
@@ -1871,8 +1891,11 @@ impl Default for GuiState {
             profile_network_avatar: String::new(),
             profile_directory_listed: true,
             machine_labels: Vec::new(),
-            machine_label_name_dist: 12.0,
-            machine_label_card_dist: 4.0,
+            room_bounds: Vec::new(),
+            reveal_held: false,
+            machine_label_dot_dist: 8.0,
+            machine_label_name_dist: 5.0,
+            machine_label_card_dist: 3.0,
             profile_network_saved_note: String::new(),
             profile_interests: Vec::new(),
             profile_interest_input: String::new(),

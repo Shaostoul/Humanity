@@ -114,23 +114,40 @@ pub fn draw(
                 }
             }
 
-            // ── Machine labels (world-space, distance level-of-detail) ──
-            // A dot floats over each machine; within name_dist its name appears; within
-            // the closer card_dist a stat card expands (clean two-column rows, colored
-            // by status). Distances are GuiState settings (configurable). v0.428.
-            let name_dist = state.machine_label_name_dist.max(1.0);
-            let card_dist = state.machine_label_card_dist.max(0.5);
+            // ── Machine labels (world-space, distance LOD + room occlusion) ──
+            // dot within dot_dist -> +name within name_dist -> +card within card_dist.
+            // By default ONLY machines in the room you are in show (walls occlude the
+            // rest). Hold Tab to reveal markers through walls across all owned/explored
+            // rooms at x3 distance. v0.429.
+            let mul = if state.reveal_held { 3.0 } else { 1.0 };
+            let dot_dist = state.machine_label_dot_dist.max(0.5) * mul;
+            let name_dist = state.machine_label_name_dist.max(0.5) * mul;
+            let card_dist = state.machine_label_card_dist.max(0.5) * mul;
+            // Which room is the camera in? (None = outside every room.)
+            let current_room: Option<&str> = state.room_bounds.iter()
+                .find(|r| {
+                    cam_pos.x >= r.min.x && cam_pos.x <= r.max.x
+                        && cam_pos.y >= r.min.y && cam_pos.y <= r.max.y
+                        && cam_pos.z >= r.min.z && cam_pos.z <= r.max.z
+                })
+                .map(|r| r.id.as_str());
             for label in &state.machine_labels {
-                let Some(sp) = world_to_screen(label.pos, view_proj, screen) else { continue };
+                // Occlusion: by default only the camera's room is visible; Tab reveals all.
+                if !state.reveal_held && current_room != Some(label.room.as_str()) {
+                    continue;
+                }
                 let cam_dist = (label.pos - cam_pos).length();
-                if cam_dist > name_dist + 60.0 { continue; } // cull very distant labels
-                // Marker dot (always, when on screen).
-                painter.circle_filled(sp, 3.0, Color32::from_white_alpha(210));
-                painter.circle_stroke(sp, 4.5, egui::Stroke::new(1.0, Color32::from_black_alpha(140)));
+                if cam_dist > dot_dist {
+                    continue; // beyond the coarsest level of detail
+                }
+                let Some(sp) = world_to_screen(label.pos, view_proj, screen) else { continue };
+                // Marker dot (small).
+                painter.circle_filled(sp, 1.7, Color32::from_white_alpha(220));
+                painter.circle_stroke(sp, 3.0, egui::Stroke::new(1.0, Color32::from_black_alpha(150)));
                 if cam_dist <= card_dist {
                     draw_machine_card(painter, theme, sp, label);
                 } else if cam_dist <= name_dist {
-                    text_shadowed(painter, sp + Vec2::new(9.0, 0.0), Align2::LEFT_CENTER, &label.name, 13.0, Color32::WHITE);
+                    text_shadowed(painter, sp + Vec2::new(8.0, 0.0), Align2::LEFT_CENTER, &label.name, 12.0, Color32::WHITE);
                 }
             }
 
