@@ -1553,7 +1553,10 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 
 pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
-        if widgets::labeled_slider(ui, theme, "Mouse Sensitivity", &mut state.settings.mouse_sensitivity, 0.01..=10.0) {
+        // Range max 1.0 keeps the slider in the usable band AND selects the widget's
+        // 2-decimal display (max <= 1.0), so a low value like 0.11 is visible and tunable
+        // instead of rounding to "0.1". 1.0 here is a fast 0.01 rad per mouse-pixel.
+        if widgets::labeled_slider(ui, theme, "Mouse Sensitivity", &mut state.settings.mouse_sensitivity, 0.02..=1.0) {
             state.settings_dirty = true;
         }
         if widgets::toggle(ui, theme, "Invert Y-Axis", &mut state.settings.invert_y) {

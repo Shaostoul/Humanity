@@ -3469,7 +3469,7 @@ impl Default for SettingsState {
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,
-            mouse_sensitivity: 3.0,
+            mouse_sensitivity: 0.25,
             invert_y: false,
             dark_mode: true,
             font_size: 14.0,

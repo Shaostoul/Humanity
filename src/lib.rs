@@ -1112,7 +1112,9 @@ mod native_app {
             camera.position = Vec3::new(-0.5, 1.7, 4.0);
             camera.pitch = -0.2;
             camera.yaw = std::f32::consts::PI;
-            let controller = CameraController::new(5.0, 3.0);
+            // Sensitivity here is just the frame-0 default; the boot-time settings_dirty
+            // sync (below) overrides it with the saved value on the first frame.
+            let controller = CameraController::new(5.0, 0.25);
 
             // Minimal asset/ECS (lightweight, no file I/O)
             let asset_manager = AssetManager::new(data_dir.clone());
@@ -1388,6 +1390,13 @@ mod native_app {
             // Load persistent config and apply to GUI state
             let config = crate::config::AppConfig::load();
             config.apply_to_gui_state(&mut gui_state);
+            // Push the LOADED settings into the engine on the first frame. Without this the
+            // camera boots at CameraController::new's hardcoded sensitivity (and the camera
+            // FOV / far-plane stay at their constructor defaults) until the user nudges a
+            // slider, so a saved low/high mouse sensitivity never took effect on startup.
+            // The settings_dirty block (in the render loop) applies fov + sensitivity +
+            // fullscreen + render distance from gui_state.settings, so trip it once here.
+            gui_state.settings_dirty = true;
 
             // Clean up .old files from previous updates
             crate::updater::Updater::cleanup_old_versions();

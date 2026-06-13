@@ -196,7 +196,9 @@ pub struct DonateAddressConfig {
 
 fn default_legacy_iterations() -> u32 { PBKDF2_ITERATIONS_LEGACY }
 fn default_fov() -> f32 { 90.0 }
-fn default_mouse_sensitivity() -> f32 { 3.0 }
+// 0.25 with the camera's `dx * sensitivity * 0.01` formula is a calm, precise default;
+// the old 3.0 was ~12x too fast (it made every new player's view whip around).
+fn default_mouse_sensitivity() -> f32 { 0.25 }
 fn default_master_volume() -> f32 { 0.8 }
 fn default_music_volume() -> f32 { 0.5 }
 fn default_sfx_volume() -> f32 { 0.7 }
@@ -470,7 +472,12 @@ impl AppConfig {
         state.onboarding_complete = self.completed_onboarding;
         state.concept_tour_seen = self.concept_tour_seen;
         state.settings.fov = self.fov;
-        state.settings.mouse_sensitivity = self.mouse_sensitivity;
+        // Guard against a non-positive saved value (a 0.0 would freeze the camera look).
+        state.settings.mouse_sensitivity = if self.mouse_sensitivity > 0.0 {
+            self.mouse_sensitivity
+        } else {
+            default_mouse_sensitivity()
+        };
         state.settings.master_volume = self.master_volume;
         state.settings.music_volume = self.music_volume;
         state.settings.sfx_volume = self.sfx_volume;
