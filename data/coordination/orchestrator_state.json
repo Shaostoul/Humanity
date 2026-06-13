@@ -10,6 +10,18 @@
   "recent_decisions": [
     {
       "at": "2026-06-13",
+      "decision": "FIX mouse sensitivity not applied on boot (v0.435.0, BUG-038). Operator: sensitivity super high on spawn until adjusted; shows 0.0. Diagnosed: config.json DID save the value (0.10948) - not a save bug. Two issues: (1) camera controller booted at CameraController::new(5.0,3.0) hardcoded and only synced from settings in the `if settings_dirty` block (fires only on slider move), so every launch used 3.0 (old default, ~12x operator value) until nudged; FOV+render-distance had the same latent boot bug. (2) shows-0.0 was a DISPLAY artifact: slider max 10.0 selects labeled_slider 1-decimal format so 0.109 -> 0.1 with no low-end precision. Fix: set settings_dirty=true right after config load so the apply block pushes loaded fov+sensitivity+fullscreen+render-distance on frame 1; retune default 3.0->0.25 (3 spots); slider range 0.01..=10 -> 0.02..=1.0 (2-decimal display + usable band); guard apply against <=0 (would freeze the look).",
+      "why": "Operator-reported camera bug. Lesson: a settings_dirty-gated apply block silently never runs on boot, so loaded settings dont reach the engine until the user touches each control. Verified: native+relay compile, all 4 gui lints pass.",
+      "files": [
+        "src/lib.rs",
+        "src/config.rs",
+        "src/gui/mod.rs",
+        "src/gui/pages/settings.rs",
+        "docs/BUGS.md"
+      ]
+    },
+    {
+      "at": "2026-06-13",
       "decision": "REALISTIC PIPE ROUTING (v0.434.0). Operator (home is on a rotating spaceship ring): pipes were straight diagonal tubes spearing through walls/machines; wants proper plumber/electrician routing with inner/outer diameter, brackets, valves. Grounded the params in a real-world spec via a research agent (ASME A13.1 pipe color, IPC 308.5/NEC 358.30 support spacing, NEC 300.4 power-above-water). Implemented: orthogonal up-over-down routing (riser up, right-angle run along an overhead service band one axis per leg = single 90deg elbows, riser down; no diagonals; degenerate legs collapse; run height clears machines + clamps under the lower of two ceilings for cross-room). Real fittings: new Mesh::tube ROUND primitive (vs old square segment), sphere elbows at corners, fat short COLLARS at machine ports (the diameter-step that reads as hollow pipe), grey BRACKETS at 1.8m code spacing on horizontal runs, red-lever shutoff VALVE on every fluid line. Services stack in vertical lanes (power above water). Data-driven: ALL geometry in data/routing_rules.ron (run height, per-kind lane+radius, bracket spacing, fitting mults, fluid_kinds) so the operator retunes without recompiling. Fleshed out the previously-empty AutoRouter stub in src/systems/construction/routing.rs with the router + PipePart plan + 4 unit tests. Added air/waste colors.",
       "why": "Operator wants the home to look like real-life plumbing/electrical (north star: in-game maps to a real buildable thing). The exposed-services ship aesthetic makes code-correct orthogonal overhead runs the AUTHENTIC look, not a compromise. Verified: native+relay compile, 4 routing tests pass, theme_token_lint clean (touched renderer/mesh.rs).",
       "files": [
@@ -1492,7 +1504,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.434.0; local exe building (bfoio8yfz). Releases v0.427-0.434 each pushed origin+forge + GitHub release. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.435.0; local exe building (bzwwpr5pm). v0.434 (pipe routing) + v0.435 (sensitivity fix) shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",

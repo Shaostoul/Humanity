@@ -4,6 +4,13 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Resolved Bugs
 
+### BUG-038: Saved mouse sensitivity ignored on boot (camera too fast, slider showed ~0)
+- **Status**: Fixed
+- **Version Fixed**: v0.435.0
+- **Reported**: 2026-06-13 (operator: "doesn't seem to be saving what I set it to. When I first spawn in my sensitivity is super high until I adjust the value. On first boot it shows 0.0.")
+- **Root cause**: TWO separate issues, neither was a save bug (config.json correctly held the saved value, e.g. 0.10948). (1) The camera controller booted at `CameraController::new(5.0, 3.0)`'s hardcoded sensitivity and only synced from `gui_state.settings` inside the `if settings_dirty` block (`src/lib.rs` ~line 4386), which fires ONLY when a slider moves. So on every launch the camera used 3.0 (the old default, ~12x the operator's 0.109) until the slider was nudged. FOV + render-distance had the same latent boot bug. (2) The "shows 0.0" was a DISPLAY artifact: the Mouse Sensitivity slider's range max was 10.0, which selects `labeled_slider`'s 1-decimal format (`{:.1}`), so 0.109 rendered as "0.1" with no precision to tune the low end the operator actually uses.
+- **Fix**: (a) Set `gui_state.settings_dirty = true` right after `config.apply_to_gui_state` at startup so the existing apply block pushes loaded fov + sensitivity + fullscreen + render distance into the engine on frame 1. (b) Retune the default 3.0 -> 0.25 in all three spots (config serde default, SettingsState default, controller constructor). (c) Slider range 0.01..=10.0 -> 0.02..=1.0 (max <= 1.0 selects the 2-decimal display + confines the slider to the usable band). (d) Guard `apply_to_gui_state` against a non-positive saved value (a 0.0 would freeze the look) by falling back to the default. Files: `src/lib.rs`, `src/config.rs`, `src/gui/mod.rs`, `src/gui/pages/settings.rs`.
+
 ### BUG-037: Chat message duplicates in-memory after a delay, clears on app restart
 - **Status**: Fixed
 - **Version Fixed**: v0.284.0
