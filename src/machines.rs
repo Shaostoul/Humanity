@@ -64,12 +64,31 @@ pub struct MachineConnection {
     pub kind: String,
 }
 
+/// One self-sufficiency loop (energy / water / food / nutrients): whether it closes and
+/// the honest story. Rendered as the Home-page closure summary.
+#[derive(Debug, Clone, Deserialize)]
+pub struct HomeLoop {
+    pub name: String,
+    pub demand: String,
+    pub supply: String,
+    /// Does supply + storage meet demand averaged over the worst stretch?
+    pub closes: bool,
+    /// Is this the binding (weakest) loop, the one that limits overall self-sufficiency?
+    #[serde(default)]
+    pub weakest: bool,
+    pub note: String,
+}
+
 /// The whole home machine layout.
 #[derive(Debug, Clone, Deserialize)]
 pub struct MachineHome {
     pub catalog: HashMap<String, MachineDef>,
     pub instances: Vec<MachineInstance>,
     pub connections: Vec<MachineConnection>,
+    /// The coupled self-sufficiency loops (energy/water/food/nutrients). Optional so an
+    /// older RON without it still parses.
+    #[serde(default)]
+    pub loops: Vec<HomeLoop>,
 }
 
 impl MachineHome {

@@ -1247,6 +1247,12 @@ mod native_app {
             gui_state.map_planets = crate::gui::load_planets(&data_dir);
             gui_state.places = crate::gui::load_places(&data_dir);
             gui_state.homestead_design = crate::gui::load_homestead_design(&data_dir);
+            // Self-sufficiency loops for the Home-page closure summary (v0.432).
+            gui_state.homestead_loops = crate::machines::MachineHome::load(
+                &data_dir.join("machines").join("home.ron"),
+            )
+            .map(|h| h.loops)
+            .unwrap_or_default();
             gui_state.tower_configs = crate::gui::load_tower_configs(&data_dir);
             gui_state.library = crate::gui::load_library(&data_dir);
             gui_state.equipment_slots = crate::gui::load_equipment_slots(&data_dir);
@@ -1517,12 +1523,17 @@ mod native_app {
                             && state.gui_state.active_page == GuiPage::None
                         {
                             if let Some(t) = state.gui_state.targeted_machine {
+                                // Looking at a machine: toggle its card open/closed.
                                 state.gui_state.selected_machine =
                                     if state.gui_state.selected_machine == Some(t) {
                                         None
                                     } else {
                                         Some(t)
                                     };
+                            } else if state.gui_state.selected_machine.is_some() {
+                                // Not looking at any machine but a card is pinned: E closes it
+                                // (so "[E] close" works from anywhere, not just at the machine).
+                                state.gui_state.selected_machine = None;
                             }
                         }
 

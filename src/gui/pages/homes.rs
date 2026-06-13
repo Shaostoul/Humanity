@@ -95,7 +95,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 );
                 return;
             };
-            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat);
+            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops);
         });
 }
 
@@ -105,6 +105,7 @@ fn draw_design(
     design: &HomesteadDesign,
     towers: &[TowerConfig],
     compat: &[TowerCompat],
+    loops: &[crate::machines::HomeLoop],
 ) {
     ui.label(RichText::new("Your Home").size(theme.font_size_title).color(theme.text_primary()));
     ui.label(RichText::new(&design.name).size(theme.font_size_heading).color(theme.accent()));
@@ -195,14 +196,45 @@ fn draw_design(
                     widgets::detail_row(ui, theme, label, &n.to_string());
                 }
             }
-            ui.add_space(theme.spacing_xs);
-            ui.label(
-                RichText::new("To be fully self-sustaining, this generation must meet the demand above. Exact closure scoring (output vs demand, per loop) is the next data layer.")
-                    .size(theme.font_size_small)
-                    .color(theme.text_secondary()),
-            );
         });
         ui.add_space(theme.spacing_sm);
+
+        // ── Loop closure (the self-sufficiency demonstration, v0.432) ──
+        // The four coupled loops with whether each closes, from data/machines/home.ron.
+        if !loops.is_empty() {
+            let closed = loops.iter().filter(|l| l.closes).count();
+            widgets::card(ui, theme, |ui| {
+                ui.label(RichText::new("Closed-loop self-sufficiency").size(theme.font_size_body).strong().color(theme.text_primary()));
+                ui.label(
+                    RichText::new(format!(
+                        "{}/{} loops close. You are only as self-sufficient as your weakest loop.",
+                        closed, loops.len()
+                    ))
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+                );
+                ui.add_space(theme.spacing_xs);
+                for l in loops {
+                    let (mark, mark_color) = if l.closes {
+                        ("closed", theme.success())
+                    } else {
+                        ("short", theme.danger())
+                    };
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(&l.name).size(theme.font_size_small).strong().color(theme.text_primary()));
+                        ui.label(RichText::new(mark).size(theme.font_size_small).strong().color(mark_color));
+                        if l.weakest {
+                            ui.label(RichText::new("weakest loop").size(theme.font_size_small).color(theme.warning()));
+                        }
+                    });
+                    widgets::detail_row(ui, theme, "  demand", &l.demand);
+                    widgets::detail_row(ui, theme, "  supply", &l.supply);
+                    ui.label(RichText::new(&l.note).size(theme.font_size_small).color(theme.text_secondary()));
+                    ui.add_space(theme.spacing_xs);
+                }
+            });
+            ui.add_space(theme.spacing_sm);
+        }
 
         // ── Bill of materials ──
         egui::CollapsingHeader::new(

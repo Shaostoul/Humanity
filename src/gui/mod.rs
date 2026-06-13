@@ -1021,6 +1021,9 @@ pub struct GuiState {
     /// The loaded Fibonacci homestead blueprint (the first offline "Design"),
     /// browsed on the Home page. None if the blueprint file is absent.
     pub homestead_design: Option<HomesteadDesign>,
+    /// The homestead's self-sufficiency loops (energy/water/food/nutrients) from
+    /// data/machines/home.ron, rendered as the closure summary on the Home page (v0.432).
+    pub homestead_loops: Vec<crate::machines::HomeLoop>,
     /// The curated aeroponic tower configs (nutrition + apothecary), browsed on the
     /// Home page. Empty if data/towers/aeroponic_configs.ron is absent.
     pub tower_configs: Vec<TowerConfig>,
@@ -1921,6 +1924,7 @@ impl Default for GuiState {
             map_planets: Vec::new(),
             places: Vec::new(),
             homestead_design: None,
+            homestead_loops: Vec::new(),
             tower_configs: Vec::new(),
             tower_compat: Vec::new(),
             creative_mode: true,
