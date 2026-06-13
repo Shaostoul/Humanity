@@ -406,6 +406,20 @@ pub async fn federation_connect_loop(
                                             const INBOUND_MAX_PER_SEC: usize = 50;
                                             let allow = {
                                                 let mut rate = state_for_read.federation_rate.lock().unwrap();
+                                                // Bound the map (audit hunt 2026-06-12). federation_rate
+                                                // is the one shared rate map with no size cap; its keys
+                                                // (server_id, `:inbound`, `:obj`) are never removed. Peers
+                                                // are operator-curated so growth is bounded in practice,
+                                                // but drop keys idle past a generous window for symmetry
+                                                // with object_submit_rate / seen_auth_nonces.
+                                                const FED_RATE_MAP_CAP: usize = 10_000;
+                                                if rate.len() > FED_RATE_MAP_CAP {
+                                                    let cutoff = Instant::now();
+                                                    rate.retain(|_, times| {
+                                                        times.retain(|t| cutoff.duration_since(*t).as_secs() < 300);
+                                                        !times.is_empty()
+                                                    });
+                                                }
                                                 let times = rate
                                                     .entry(format!("{}:inbound", _sid_for_read))
                                                     .or_default();

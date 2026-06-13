@@ -122,7 +122,9 @@ pub use members::MemberRecord;
 pub use signed_profiles::SignedProfileRecord;
 
 /// A generic signed object record from the Phase 0 PQ substrate.
-pub use signed_objects::{SignedObjectRecord, author_fingerprint, compute_object_id};
+pub use signed_objects::{
+    MAX_SIGNED_OBJECT_PAYLOAD, SignedObjectRecord, author_fingerprint, compute_object_id,
+};
 
 /// DID resolution: DID → current Dilithium3 pubkey + first/last-seen metadata.
 pub use dids::DidResolution;

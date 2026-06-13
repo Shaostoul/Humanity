@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use crate::relay::core::object::Object;
 use crate::relay::relay::RelayState;
-use crate::relay::storage::SignedObjectRecord;
+use crate::relay::storage::{MAX_SIGNED_OBJECT_PAYLOAD, SignedObjectRecord};
 
 /// JSON shape submitted by clients to `POST /api/v2/objects`. Binary fields are base64.
 #[derive(Debug, Deserialize)]
@@ -138,6 +138,8 @@ enum IngestError {
     BadPublicKey(String),
     /// object_id computation or a genuine storage fault → HTTP 500.
     Storage(String),
+    /// Payload exceeded `MAX_SIGNED_OBJECT_PAYLOAD` → HTTP 413.
+    TooLarge(String),
 }
 
 /// `POST /api/v2/objects`
@@ -219,6 +221,22 @@ pub async fn post_object(
         }
     };
 
+    // Reject an oversized payload BEFORE the expensive signature verify (audit hunt
+    // 2026-06-12: the per-author count quota does not bound bytes). The storage
+    // chokepoint (`put_signed_object`) enforces the same cap for the gossip path.
+    if object.payload.len() > MAX_SIGNED_OBJECT_PAYLOAD {
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            Json(serde_json::json!({
+                "error": format!(
+                    "payload too large: {} bytes (max {MAX_SIGNED_OBJECT_PAYLOAD})",
+                    object.payload.len()
+                )
+            })),
+        )
+            .into_response();
+    }
+
     // Run the CPU-bound verify + the DB write off the async executor. The
     // closure must be `'static + Send`, so we clone the `Arc<RelayState>` and
     // move the owned `object` in; the object is handed back out so the
@@ -248,6 +266,8 @@ pub async fn post_object(
                     Err(IngestError::BadSignature(msg))
                 } else if msg.contains("author_pubkey must be") {
                     Err(IngestError::BadPublicKey(msg))
+                } else if msg.contains("payload too large") {
+                    Err(IngestError::TooLarge(msg))
                 } else {
                     Err(IngestError::Storage(format!("storage error: {e}")))
                 }
@@ -271,6 +291,12 @@ pub async fn post_object(
         }
         Ok(Err(IngestError::Storage(msg))) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                "error": msg
+            })))
+                .into_response();
+        }
+        Ok(Err(IngestError::TooLarge(msg))) => {
+            return (StatusCode::PAYLOAD_TOO_LARGE, Json(serde_json::json!({
                 "error": msg
             })))
                 .into_response();

@@ -19,6 +19,16 @@ use crate::relay::core::error::{Error, Result as CoreResult};
 use crate::relay::core::object::Object;
 use crate::relay::core::pq_crypto::DILITHIUM_PK_LEN;
 
+/// Maximum stored payload size for a signed object. The per-author submission
+/// quota (api_v2_objects.rs) caps object COUNT (30/60s); this caps object SIZE so
+/// a holder of one valid key cannot exhaust disk with a handful of huge objects
+/// (audit hunt 2026-06-12: the count-quota alone left ~60MB/min/author via axum's
+/// 2MB default body limit). 256 KiB is generous for the small signed objects this
+/// table holds (votes, vouches, recovery shares, group + member objects, profiles).
+/// Enforced at this storage chokepoint so BOTH the REST submit path AND inbound
+/// federation gossip are bounded.
+pub const MAX_SIGNED_OBJECT_PAYLOAD: usize = 256 * 1024;
+
 /// A row from the `signed_objects` table. Mirrors the in-memory `Object`
 /// 1:1 plus storage-only fields (`source_server`, `received_at`).
 #[derive(Debug, Clone)]
@@ -80,6 +90,18 @@ impl Storage {
             return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
                 SignedObjectError(format!(
                     "author_pubkey must be {DILITHIUM_PK_LEN} bytes"
+                )),
+            )));
+        }
+
+        // Bound the stored payload size (audit hunt 2026-06-12). The per-author
+        // count quota does not bound bytes, so cap size here, the single chokepoint
+        // for both REST submission and inbound gossip.
+        if object.payload.len() > MAX_SIGNED_OBJECT_PAYLOAD {
+            return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                SignedObjectError(format!(
+                    "payload too large: {} bytes (max {MAX_SIGNED_OBJECT_PAYLOAD})",
+                    object.payload.len()
                 )),
             )));
         }
@@ -453,6 +475,31 @@ mod tests {
 
         let result = db.put_signed_object(&obj, None);
         assert!(result.is_err(), "tampered object must be rejected");
+    }
+
+    #[test]
+    fn put_rejects_oversized_payload() {
+        let db = make_test_storage();
+        let kp = DilithiumKeypair::generate().unwrap();
+        // A validly-signed object whose payload exceeds the storage cap.
+        let big = "x".repeat(MAX_SIGNED_OBJECT_PAYLOAD + 16);
+        let obj = make_signed_object(&kp, "post", &big);
+        assert!(
+            obj.payload.len() > MAX_SIGNED_OBJECT_PAYLOAD,
+            "test fixture payload should exceed the cap"
+        );
+
+        let result = db.put_signed_object(&obj, None);
+        assert!(result.is_err(), "oversized payload must be rejected");
+        let msg = format!("{}", result.unwrap_err());
+        assert!(
+            msg.contains("payload too large"),
+            "error should name the cap, got: {msg}"
+        );
+
+        // A normal-sized object still stores fine (the cap doesn't break the happy path).
+        let small = make_signed_object(&kp, "post", "ok");
+        assert!(db.put_signed_object(&small, None).unwrap());
     }
 
     #[test]
