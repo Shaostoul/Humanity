@@ -948,6 +948,13 @@ pub struct GuiState {
     pub profile_network_name: String,
     pub profile_network_bio: String,
     pub profile_network_avatar: String,
+    /// Whether to appear in the server's public member directory (audit 2026-06-12
+    /// opt-out). On = listed; off sends profile privacy `directory:"unlisted"`.
+    /// Defaults to listed; native does not fetch server privacy, so it reflects the
+    /// session's intent rather than the stored server state.
+    pub profile_directory_listed: bool,
+    /// Transient confirmation shown after a "Save to server" click.
+    pub profile_network_saved_note: String,
     // Interests
     pub profile_interests: Vec<String>,
     pub profile_interest_input: String,
@@ -1845,6 +1852,8 @@ impl Default for GuiState {
             profile_network_name: String::new(),
             profile_network_bio: String::new(),
             profile_network_avatar: String::new(),
+            profile_directory_listed: true,
+            profile_network_saved_note: String::new(),
             profile_interests: Vec::new(),
             profile_interest_input: String::new(),
             // Populated from data/skills/default_profile.json at startup

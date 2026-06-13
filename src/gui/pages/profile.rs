@@ -217,6 +217,15 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         ui.add_space(theme.spacing_sm);
         field_row(ui, theme, "Avatar URL:", &mut state.profile_network_avatar);
 
+        // Member-directory opt-out (audit 2026-06-12). On = listed in this server's
+        // public member directory; off sends profile privacy directory:"unlisted" so
+        // the relay hides you from /api/members (you stay a full member, just unlisted).
+        ui.add_space(theme.spacing_sm);
+        ui.checkbox(
+            &mut state.profile_directory_listed,
+            "List me in the public member directory",
+        );
+
         // Online status
         ui.add_space(theme.spacing_sm);
         let status_color = if state.server_connected { theme.success() } else { theme.text_muted() };
@@ -227,6 +236,52 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             ui.painter().circle_filled(dot_rect.center(), 5.0, status_color);
             ui.label(RichText::new(status_text).color(status_color));
         });
+
+        // Save to server. Sends a `profile_update` over the chat WS (same shape the web
+        // client sends + the relay's RelayMessage::ProfileUpdate). Gated on being
+        // connected. Native only edits bio/avatar + the directory flag, so it sends an
+        // empty socials map and a directory-only privacy map; per-field privacy parity
+        // with web is a future enhancement (this would overwrite web-set privacy fields).
+        ui.add_space(theme.spacing_md);
+        ui.horizontal(|ui| {
+            let can_save = state.server_connected && state.ws_client.is_some();
+            let saved = can_save && widgets::Button::primary("Save to server").show(ui, theme);
+            if !can_save {
+                ui.label(
+                    RichText::new("Connect to a server to save")
+                        .color(theme.text_muted())
+                        .size(theme.font_size_small),
+                );
+            }
+            if saved {
+                if let Some(ref client) = state.ws_client {
+                    let privacy = if state.profile_directory_listed {
+                        "{}".to_string()
+                    } else {
+                        "{\"directory\":\"unlisted\"}".to_string()
+                    };
+                    let mut msg = serde_json::json!({
+                        "type": "profile_update",
+                        "bio": state.profile_network_bio.trim(),
+                        "socials": "{}",
+                        "privacy": privacy,
+                    });
+                    let avatar = state.profile_network_avatar.trim();
+                    if !avatar.is_empty() {
+                        msg["avatar_url"] = serde_json::Value::String(avatar.to_string());
+                    }
+                    client.send(&msg.to_string());
+                    state.profile_network_saved_note = "Saved to server.".to_string();
+                }
+            }
+        });
+        if !state.profile_network_saved_note.is_empty() {
+            ui.label(
+                RichText::new(&state.profile_network_saved_note)
+                    .color(theme.success())
+                    .size(theme.font_size_small),
+            );
+        }
     });
 }
 
