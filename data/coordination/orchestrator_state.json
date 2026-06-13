@@ -3,11 +3,24 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "HEADLINE ARC in progress: 3D home machines + connections. v0.427.0 shipped 15 machines + 13 connection pipes (data-driven, data/machines/home.ron + src/machines.rs + 3 new mesh primitives). NEXT depends on the operator viewing it (just play): expand to all blueprint machines (trivial, add RON instances), tune positions/sizes/colors, or move to walk-up interactivity. Security sprint done (nginx live; only GitHub branch protection remains, operator click). Release v0.426.0 created + building for the operator to sign (just sign-release v0.426.0); v0.427.0 is the 3D work on top.",
+  "current_focus": "FIRST-PLAYABLE / 3D-home arc in progress. Machines placed (v0.427) + world-space LOD labels (v0.428) + hold-Tab reveal & room occlusion (v0.429). NEXT (operator views v0.429 first, then feedback): swap the stat-kind TEXT for painted status ICONS (lightning bolt greying out when power off, droplet, gauge) + a Settings UI for the label distances. FUTURE (design-doc filed): the expedition/stealth/awareness gameplay layer. Security sprint done (only GitHub branch protection remains, operator). v0.426.0 release built + awaiting operator signature.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
   "recent_decisions": [
+    {
+      "at": "2026-06-13",
+      "decision": "WORLD-SPACE MACHINE LABELS arc (v0.428 -> v0.429). v0.428: floating labels over each machine with distance level-of-detail, dot (far) -> +name -> +info card (clean two-column stat rows colored by status). world_to_screen projection in hud.rs using the camera view_projection_matrix (verified against the reverse-Z perspective_rh: NDC stays [0,1], x/y standard). Each machine type got a display label + demo stats (kind/value/status) in data/machines/home.ron; GuiState.machine_labels populated by load_world. v0.429 (operator feedback): smaller dots (1.7px), distances retuned to dot 8 / name 5 / card 3 (GuiState fields), ROOM-BASED OCCLUSION (default shows only machines in the camera-current room; GuiState.room_bounds from the homestead rooms), and HOLD-TAB reveal peek (markers through walls across all rooms + x3 distance). Tab was the inventory key -> moved inventory to the I key. SOP followed correctly this time: pushed origin + forge + built the local exe each release.",
+      "why": "Operator first-playable interactivity: walk up to a machine and read its state. The operator brain-dumped a larger stealth/expedition gameplay vision (awareness as a contested resource: in-sight / owned-explored Tab-peek / expedition explore-to-reveal / last-known-only; AI symbionts sharing sight; speech + equipment noise; EMF-hunting aliens; remote cameras), captured in docs/game/expedition-stealth-and-awareness.md as FUTURE design. Verified each increment: native + relay check clean, all 4 gui lints pass.",
+      "files": [
+        "src/gui/pages/hud.rs",
+        "src/gui/mod.rs",
+        "src/lib.rs",
+        "data/machines/home.ron",
+        "src/machines.rs",
+        "docs/game/expedition-stealth-and-awareness.md"
+      ]
+    },
     {
       "at": "2026-06-13",
       "decision": "HEADLINE ARC started, 3D home machines + connections (v0.427.0). Operator: populate the home with rudimentary cubes/spheres/pyramids/pipes for all machines + the connections between them. Added 3 renderer primitives to mesh.rs: box_xyz(w,h,d) (floor-sitting cuboid), pyramid(base,height) (outward-normal-flipped so culling is right without a visual check), segment(a,b,radius) (an oriented square tube built in world space, since the placeholder render path is translation-only, for pipes/connections). Data-driven layout in data/machines/home.ron + src/machines.rs (pure data, relay-safe, ungated): a catalog (machine type -> shape/size/color), instances (machine + room + offset), and connections (power/water/nutrient/fuel, each a colored tube). load_world loads it, maps each instance to its room floor via room_info, draws the primitive, then draws a colored pipe per connection between anchors. Shipped 15 key machines (garage power+water cluster, garden food cluster, study fabrication, ranch storage) + 13 connections. Falls back silently if the RON is absent.",
@@ -1422,7 +1435,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==forge: v0.427.0. v0.426.0 RELEASE created (Latest) + Build-Desktop compiling its binaries, operator signs with just sign-release v0.426.0. v0.427.0 (3D machines) pushed on top; the next signed release will carry it. Deploy-to-VPS + Pages green. Release signing active since v0.421.0.",
+  "version_state": "main==origin==forge: v0.429.0. Local exe building (v0.429.0). v0.426.0 RELEASE awaits operator just sign-release. Each release v0.423-0.429 pushed to BOTH origin + forge + local exe built (SOP corrected 2026-06-13 after the operator caught forge + local-exe drift). Deploy-to-VPS + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
