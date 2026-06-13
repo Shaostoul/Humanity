@@ -447,6 +447,7 @@ mod native_app {
                     .collect();
                 // Anchor (low pipe height) per instance, so connection tubes line up.
                 let mut anchors: HashMap<String, Vec3> = HashMap::new();
+                state.gui_state.machine_labels.clear();
                 let mut placed = 0usize;
                 for inst in &home.instances {
                     let Some(&(center, floor_y)) = rooms.get(inst.room.as_str()) else { continue };
@@ -478,6 +479,14 @@ mod native_app {
                     };
                     state.placeholder_objects.push((mesh_idx, mat, draw_pos));
                     anchors.insert(inst.id.clone(), Vec3::new(pos.x, floor_y + 0.35, pos.z));
+                    // Floating label anchor: just above the machine's top.
+                    let top_y = if def.shape == "sphere" { pos.y + 2.0 * sx } else { pos.y + sy };
+                    let name = if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() };
+                    state.gui_state.machine_labels.push(crate::gui::MachineLabel {
+                        pos: Vec3::new(pos.x, top_y + 0.4, pos.z),
+                        name,
+                        stats: def.stats.clone(),
+                    });
                     placed += 1;
                 }
                 // Connections as colored pipes/tubes between machine anchors.
@@ -4006,7 +4015,14 @@ mod native_app {
 
                                 // Always draw HUD when in-game
                                 if state.gui_state.active_page == GuiPage::None && state.gui_state.show_hud {
-                                    hud::draw(ctx, &state.theme, &state.gui_state, state.camera.yaw);
+                                    hud::draw(
+                                        ctx,
+                                        &state.theme,
+                                        &state.gui_state,
+                                        state.camera.yaw,
+                                        state.camera.view_projection_matrix(),
+                                        state.camera.position,
+                                    );
                                 }
 
                                 // Draw chat overlay if visible (only in-game)

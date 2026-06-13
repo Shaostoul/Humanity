@@ -781,6 +781,17 @@ impl Default for StudioState {
     }
 }
 
+/// A machine's floating world-space label (built in load_world, drawn by the in-game
+/// HUD with distance-based level-of-detail: dot, then name, then a stat card).
+#[cfg(feature = "native")]
+#[derive(Clone)]
+pub struct MachineLabel {
+    /// World anchor, set just above the machine so the label floats over it.
+    pub pos: glam::Vec3,
+    pub name: String,
+    pub stats: Vec<crate::machines::MachineStat>,
+}
+
 /// Tracks all GUI state for the native app.
 #[cfg(feature = "native")]
 pub struct GuiState {
@@ -953,6 +964,12 @@ pub struct GuiState {
     /// Defaults to listed; native does not fetch server privacy, so it reflects the
     /// session's intent rather than the stored server state.
     pub profile_directory_listed: bool,
+    /// Floating machine labels in the 3D home (v0.428), populated by load_world.
+    pub machine_labels: Vec<MachineLabel>,
+    /// Distance (meters) at which a machine's NAME appears (label LOD). Configurable.
+    pub machine_label_name_dist: f32,
+    /// Distance (meters) at which the full stat CARD appears (closer than the name).
+    pub machine_label_card_dist: f32,
     /// Transient confirmation shown after a "Save to server" click.
     pub profile_network_saved_note: String,
     // Interests
@@ -1853,6 +1870,9 @@ impl Default for GuiState {
             profile_network_bio: String::new(),
             profile_network_avatar: String::new(),
             profile_directory_listed: true,
+            machine_labels: Vec::new(),
+            machine_label_name_dist: 12.0,
+            machine_label_card_dist: 4.0,
             profile_network_saved_note: String::new(),
             profile_interests: Vec::new(),
             profile_interest_input: String::new(),

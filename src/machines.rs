@@ -12,7 +12,21 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 
-/// A machine type: which primitive shape to draw it as, its size, and its color.
+/// One readout shown on a machine's info card: an icon (by `kind`), a value, and a
+/// status that colors the icon. Placeholder/demo data until the machines are wired to
+/// the live simulation.
+#[derive(Debug, Clone, Deserialize)]
+pub struct MachineStat {
+    /// "power" | "water" | "storage" | "progress" | "heat" | "fuel" | "nutrient".
+    pub kind: String,
+    /// Human value, e.g. "120 W", "60%", "idle".
+    pub value: String,
+    /// "ok" | "warn" | "off" | "low". Colors the icon (green / amber / red-grey / amber).
+    pub status: String,
+}
+
+/// A machine type: which primitive shape to draw it as, its size, color, display name,
+/// and the stat readouts shown on its info card.
 #[derive(Debug, Clone, Deserialize)]
 pub struct MachineDef {
     /// "box" | "cylinder" | "sphere" | "pyramid".
@@ -22,6 +36,12 @@ pub struct MachineDef {
     pub size: (f32, f32, f32),
     /// Base color, linear 0..1 RGB.
     pub color: (f32, f32, f32),
+    /// Display name shown on the floating label (e.g. "Solar panel").
+    #[serde(default)]
+    pub label: String,
+    /// Stat readouts shown on the info card when you are close.
+    #[serde(default)]
+    pub stats: Vec<MachineStat>,
 }
 
 /// One placed machine.

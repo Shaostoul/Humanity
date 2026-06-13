@@ -1,11 +1,19 @@
 //! In-game HUD: health bar, hotbar, crosshair, compass, FPS, weather, day/night.
 
 use egui::{Align2, Area, Color32, FontId, Pos2, Rect, RichText, Rounding, Vec2};
+use glam::{Mat4, Vec3};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::updater::UpdateState;
 
-pub fn draw(ctx: &egui::Context, theme: &Theme, state: &GuiState, camera_yaw: f32) {
+pub fn draw(
+    ctx: &egui::Context,
+    theme: &Theme,
+    state: &GuiState,
+    camera_yaw: f32,
+    view_proj: Mat4,
+    cam_pos: Vec3,
+) {
     let screen = ctx.screen_rect();
 
     Area::new(egui::Id::new("hud_layer"))
@@ -106,6 +114,26 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &GuiState, camera_yaw: f3
                 }
             }
 
+            // ── Machine labels (world-space, distance level-of-detail) ──
+            // A dot floats over each machine; within name_dist its name appears; within
+            // the closer card_dist a stat card expands (clean two-column rows, colored
+            // by status). Distances are GuiState settings (configurable). v0.428.
+            let name_dist = state.machine_label_name_dist.max(1.0);
+            let card_dist = state.machine_label_card_dist.max(0.5);
+            for label in &state.machine_labels {
+                let Some(sp) = world_to_screen(label.pos, view_proj, screen) else { continue };
+                let cam_dist = (label.pos - cam_pos).length();
+                if cam_dist > name_dist + 60.0 { continue; } // cull very distant labels
+                // Marker dot (always, when on screen).
+                painter.circle_filled(sp, 3.0, Color32::from_white_alpha(210));
+                painter.circle_stroke(sp, 4.5, egui::Stroke::new(1.0, Color32::from_black_alpha(140)));
+                if cam_dist <= card_dist {
+                    draw_machine_card(painter, theme, sp, label);
+                } else if cam_dist <= name_dist {
+                    text_shadowed(painter, sp + Vec2::new(9.0, 0.0), Align2::LEFT_CENTER, &label.name, 13.0, Color32::WHITE);
+                }
+            }
+
             // ── Hotbar (bottom-center) ──
             // Show first 9 inventory slots as the hotbar
             let slot_size = 44.0;
@@ -176,4 +204,69 @@ fn normalize_angle(a: f32) -> f32 {
     if a > std::f32::consts::PI { a -= 2.0 * std::f32::consts::PI; }
     if a < -std::f32::consts::PI { a += 2.0 * std::f32::consts::PI; }
     a
+}
+
+/// Project a world point to screen pixels (wgpu NDC: x,y in [-1,1] y-up, z in [0,1]).
+/// Returns None when the point is at/behind the camera or outside the depth range.
+fn world_to_screen(world: Vec3, view_proj: Mat4, screen: Rect) -> Option<Pos2> {
+    let clip = view_proj * world.extend(1.0);
+    if clip.w <= 0.0001 {
+        return None;
+    }
+    let ndc = clip.truncate() / clip.w;
+    if ndc.z < 0.0 || ndc.z > 1.0 {
+        return None;
+    }
+    let x = screen.left() + (ndc.x * 0.5 + 0.5) * screen.width();
+    let y = screen.top() + (1.0 - (ndc.y * 0.5 + 0.5)) * screen.height();
+    Some(Pos2::new(x, y))
+}
+
+/// Draw text with a 1px black drop-shadow so it stays legible over any 3D background.
+fn text_shadowed(
+    painter: &egui::Painter,
+    pos: Pos2,
+    anchor: Align2,
+    text: &str,
+    size: f32,
+    color: Color32,
+) {
+    painter.text(pos + Vec2::splat(1.0), anchor, text, FontId::proportional(size), Color32::from_black_alpha(170));
+    painter.text(pos, anchor, text, FontId::proportional(size), color);
+}
+
+/// Color a stat readout by its status.
+fn stat_status_color(status: &str, theme: &Theme) -> Color32 {
+    match status {
+        "ok" => theme.success(),
+        "warn" | "low" => theme.warning(),
+        "off" => theme.danger(),
+        _ => theme.text_secondary(),
+    }
+}
+
+/// The expanded machine info card: a name header plus clean two-column stat rows
+/// (kind on the left colored by status, value on the right). v0.428; icons replace the
+/// kind text in a later pass.
+fn draw_machine_card(painter: &egui::Painter, theme: &Theme, anchor: Pos2, label: &crate::gui::MachineLabel) {
+    let row_h = 15.0;
+    let pad = 7.0;
+    let w = 144.0;
+    let rows = label.stats.len() as f32;
+    let h = pad * 2.0 + row_h * (1.0 + rows) + 2.0;
+    let card = Rect::from_min_size(Pos2::new(anchor.x + 12.0, anchor.y - h * 0.5), Vec2::new(w, h));
+    painter.rect_filled(card, Rounding::same(5), Color32::from_black_alpha(205));
+    painter.rect_stroke(card, Rounding::same(5), egui::Stroke::new(1.0, Color32::from_white_alpha(45)), egui::StrokeKind::Outside);
+    // A connector tick from the dot to the card.
+    painter.line_segment([anchor + Vec2::new(4.0, 0.0), Pos2::new(card.left(), anchor.y)], egui::Stroke::new(1.0, Color32::from_white_alpha(70)));
+
+    let mut y = card.top() + pad;
+    painter.text(Pos2::new(card.left() + pad, y), Align2::LEFT_TOP, &label.name, FontId::proportional(13.0), Color32::WHITE);
+    y += row_h + 3.0;
+    for s in &label.stats {
+        let color = stat_status_color(&s.status, theme);
+        painter.text(Pos2::new(card.left() + pad, y), Align2::LEFT_TOP, &s.kind, FontId::proportional(11.0), color);
+        painter.text(Pos2::new(card.right() - pad, y), Align2::RIGHT_TOP, &s.value, FontId::proportional(11.0), theme.text_secondary());
+        y += row_h;
+    }
 }
