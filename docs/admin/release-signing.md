@@ -25,9 +25,9 @@
   signature, verifies BOTH signatures over the exact manifest bytes, then checks
   the downloaded binary's SHA-256 against the manifest. Any failure → abort.
 
-Code: [`src/release_update.rs`](../src/release_update.rs) (sign/verify/keygen +
-tests), the verification wiring in [`src/updater.rs`](../src/updater.rs), and the
-CLI subcommands in [`src/main.rs`](../src/main.rs).
+Code: [`src/release_update.rs`](../../src/release_update.rs) (sign/verify/keygen +
+tests), the verification wiring in [`src/updater.rs`](../../src/updater.rs), and the
+CLI subcommands in [`src/main.rs`](../../src/main.rs).
 
 ## One-time setup (operator)
 

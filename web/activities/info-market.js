@@ -1,14 +1,16 @@
  // ── Knowledge Docs (info tab) ──
+ // Fallback list (paths relative to docs/). The live list is loaded from
+ // /docs/knowledge_manifest.json; this only shows if that fetch fails.
  let KNOWLEDGE_DOCS = [
-  'docs/index.md','README.md','AGENTS.md','OPERATING_CONTRACT.md','TOOLS.md',
-  'design/README.md','design/feature_web.md','design/ui/app_shell_information_architecture.md','design/runtime/update_distribution_architecture.md',
-  'knowledge/index.md','knowledge/OPERATIONS_RUNBOOK.md','accord/humanity_accord.md'
+  'README.md','ROADMAP.md',
+  'user/getting-started.md','admin/SELF-HOSTING.md','ai/onboarding.md','contributor/00-START-HERE.md',
+  'design/README.md','network/README.md','game/README.md','accord/humanity_accord.md'
  ];
  let KNOWLEDGE_TEXT = {
-  'docs/index.md': 'Top-level docs index for easier navigation.',
-  'README.md': 'Project root overview and entrypoint for contributors.',
-  'design/feature_web.md': 'Feature Showcase system goals, model, and roadmap.',
-  'knowledge/OPERATIONS_RUNBOOK.md': 'Deploy and operations runbook.'
+  'README.md': 'Documentation router: pick your path by who you are.',
+  'ROADMAP.md': 'What HumanityOS is building and why, by theme, with status.',
+  'user/getting-started.md': 'Plain-language quickstart for everyone.',
+  'accord/humanity_accord.md': 'The Humanity Accord: the CC0 constitution.'
  };
  async function knowledgeLoadManifest() {
   try {
@@ -38,7 +40,7 @@
    if (!groups[g]) groups[g] = [];
    groups[g].push(p);
   });
-  const order = ['root','docs','design','core','security','gameplay','product','ui','runtime','rfc','knowledge','accord','website'];
+  const order = ['root','user','admin','ai','contributor','design','network','game','reference','accord','history','website'];
   treeEl.innerHTML = order.filter(g => groups[g] && groups[g].length).map(g => {
    const items = groups[g].map(p => {
      let label = p;

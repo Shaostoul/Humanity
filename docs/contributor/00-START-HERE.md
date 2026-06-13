@@ -25,13 +25,13 @@ Read next: [`01-VISION.md`](./01-VISION.md)
 1. Read [`01-VISION.md`](./01-VISION.md)
 2. Read [`02-ARCHITECTURE.md`](./02-ARCHITECTURE.md)
 3. Read [`03-MODULE-MAP.md`](./03-MODULE-MAP.md)
-4. Read [`05-AI-ONBOARDING.md`](./05-AI-ONBOARDING.md)
+4. Read [`05-AI-ONBOARDING.md`](../ai/05-AI-ONBOARDING.md)
 
 ## 4) Where to work first
 
 - Product/intent questions: `docs/`
-- Rust boundaries and crate responsibilities: `docs/02-ARCHITECTURE.md`
-- New skill or feature module planning: `docs/03-MODULE-MAP.md`
+- Rust boundaries and crate responsibilities: `docs/contributor/02-ARCHITECTURE.md`
+- New skill or feature module planning: `docs/contributor/03-MODULE-MAP.md`
 
 ## 5) Safe first task
 

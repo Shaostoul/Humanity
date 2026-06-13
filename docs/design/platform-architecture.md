@@ -4,7 +4,7 @@
 **Author:** Shaostoul + Claude
 **Date:** 2026-03-18
 **Scope:** Civilization-scale platform design, the master reference for how HumanityOS operates as infrastructure for all of humanity.
-**Companion docs:** [engine-architecture.md](engine-architecture.md) (game engine), [../network/server_federation.md](../network/server_federation.md) (federation), [../01-VISION.md](../01-VISION.md) (mission), [../accord/humanity_accord.md](../accord/humanity_accord.md) (governance)
+**Companion docs:** [engine-architecture.md](engine-architecture.md) (game engine), [../network/server_federation.md](../network/server_federation.md) (federation), [../01-VISION.md](../contributor/01-VISION.md) (mission), [../accord/humanity_accord.md](../accord/humanity_accord.md) (governance)
 
 ---
 
@@ -578,7 +578,7 @@ A crypto payment layer will enable real-value exchange within the platform:
 - No intermediaries or payment processors
 - Cross-border by default
 - Integration with the volumetric cargo and supply chain systems
-- See [crypto_exchange.md](../economy/crypto_exchange.md) for the design
+- See [crypto_exchange.md](../game/crypto_exchange.md) for the design
 
 ---
 
@@ -900,11 +900,11 @@ This document is the top-level architectural reference. It connects to:
 |----------|-------|
 | [engine-architecture.md](engine-architecture.md) | Game engine internals (17 sections) |
 | [server_federation.md](../network/server_federation.md) | Federation protocol and trust tiers |
-| [../01-VISION.md](../01-VISION.md) | Mission statement and design doctrine |
-| [../02-ARCHITECTURE.md](../02-ARCHITECTURE.md) | Cargo workspace layout and crate layers |
+| [../01-VISION.md](../contributor/01-VISION.md) | Mission statement and design doctrine |
+| [../02-ARCHITECTURE.md](../contributor/02-ARCHITECTURE.md) | Cargo workspace layout and crate layers |
 | [../roadmap.md](../roadmap.md) | Current feature priority list |
 | [../accord/humanity_accord.md](../accord/humanity_accord.md) | Governance principles |
-| [../security/security_and_privacy_architecture.md](../security/security_and_privacy_architecture.md) | Threat model and encryption details |
+| [../security/security_and_privacy_architecture.md](../reference/security_and_privacy_architecture.md) | Threat model and encryption details |
 | [../network/offline_first_sync.md](../network/offline_first_sync.md) | Offline-first sync strategy |
-| [../economy/crypto_exchange.md](../economy/crypto_exchange.md) | Crypto payment layer design |
-| [../core/ai_interface.md](../core/ai_interface.md) | AI authority limits and access rules |
+| [../economy/crypto_exchange.md](../game/crypto_exchange.md) | Crypto payment layer design |
+| [../core/ai_interface.md](./ai_interface.md) | AI authority limits and access rules |

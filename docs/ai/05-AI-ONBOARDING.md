@@ -22,8 +22,8 @@ Humanity is a modular platform + game ecosystem where shared domain systems (mat
 
 ## New contributor quick path
 
-1. Read [`00-START-HERE.md`](./00-START-HERE.md)
-2. Read [`03-MODULE-MAP.md`](./03-MODULE-MAP.md)
+1. Read [`00-START-HERE.md`](../contributor/00-START-HERE.md)
+2. Read [`03-MODULE-MAP.md`](../contributor/03-MODULE-MAP.md)
 3. Pick one module area
 4. Implement one narrow change with tests
 5. Update docs and leave a concise handoff note

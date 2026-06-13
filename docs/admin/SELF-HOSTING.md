@@ -238,7 +238,7 @@ GET https://your-domain.com/api/server-info
    - **Tier 1 (🔵):** Unverified + Accord adopted
    - **Tier 0 (⚪):** Unverified
 
-To earn the highest trust tier, publicly adopt the [Humanity Accord](accord/humanity_accord.md) and verify your server identity with an existing trusted server admin.
+To earn the highest trust tier, publicly adopt the [Humanity Accord](../accord/humanity_accord.md) and verify your server identity with an existing trusted server admin.
 
 ---
 

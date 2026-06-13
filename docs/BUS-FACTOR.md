@@ -25,7 +25,7 @@
 
 ### Primary VPS (`humanity-vps` SSH alias)
 - **Host**: server1.shaostoul.com (Debian Linux, AMD64)
-- **Resources**: see `docs/distribution-mirrors.md` + `docs/torrent-infrastructure.md`
+- **Resources**: see `docs/admin/distribution-mirrors.md` + `docs/admin/torrent-infrastructure.md`
 - **Services**:
   - `humanity-relay.service` (systemd), the Rust relay running `HumanityOS --headless`
   - `nginx`, reverse proxy, TLS termination (Let's Encrypt via certbot)

@@ -52,7 +52,7 @@ actively claimed.
 Every AI agent (including new chat sessions) reads the same docs before working:
 
 ```
-docs/ENGINE_REFERENCE.md   -- What exists, what's missing, how to build
+docs/contributor/ENGINE_REFERENCE.md   -- What exists, what's missing, how to build
 docs/STATUS.md             -- Feature completion inventory
 docs/FEATURES.md           -- Feature file paths
 docs/BUGS.md               -- Known issues, resolved bugs
@@ -149,7 +149,7 @@ Re-read the entire codebase and update ENGINE_REFERENCE.md to match current stat
 When a chat session ends, the next session picks up by:
 
 1. Reading `CLAUDE.md` (auto-loaded)
-2. Reading `docs/ENGINE_REFERENCE.md` (complete engine state)
+2. Reading `docs/contributor/ENGINE_REFERENCE.md` (complete engine state)
 3. Reading `docs/STATUS.md` (what's built)
 4. Checking `git log --oneline -10` (recent work)
 5. Checking for any `.claude/next-session-prompt.md` (explicit handoff notes)

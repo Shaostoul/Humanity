@@ -129,7 +129,7 @@ Works **fully offline**. Native 3D world bundled.
 3. `./target/release/HumanityOS --headless`
 4. nginx + systemd in front
 
-Under 10 minutes from zero to live. **[Full guide →](docs/SELF-HOSTING.md)**
+Under 10 minutes from zero to live. **[Full guide →](docs/admin/SELF-HOSTING.md)**
 
 </td>
 </tr>
@@ -150,7 +150,7 @@ Under 10 minutes from zero to live. **[Full guide →](docs/SELF-HOSTING.md)**
 | **Storage** | Encrypted vaults — server stores only ciphertext |
 | **Logs** | No IP logging, no analytics, no tracking pixels |
 | **Privilege** | Non-root systemd service with hardened sandboxing |
-| **Audit** | Full report → [SECURITY_AUDIT.md](SECURITY_AUDIT.md) |
+| **Audit** | Full report → [SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) |
 
 Solana wallet support is **optional** and decoupled from your identity. Using HumanityOS doesn't require any blockchain. If you opt in, the wallet derives from the same 24-word seed via a separate path (`hum/solana/v1`).
 

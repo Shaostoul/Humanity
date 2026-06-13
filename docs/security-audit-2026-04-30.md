@@ -161,7 +161,7 @@ poison the manifest.
 
 ### I4. Forgejo install lock not explicitly documented as required
 
-**Where**: `docs/forgejo-setup.md`.
+**Where**: `docs/admin/forgejo-setup.md`.
 
 **Issue**: After completing the web installer, `app.ini` should have
 `INSTALL_LOCK = true`. If missing, the installer remains accessible, 
@@ -174,7 +174,7 @@ completes, but the doc doesn't say to verify it.
 
 ### I5. Forgejo session-signing secrets potentially defaulted
 
-**Where**: `docs/forgejo-setup.md`.
+**Where**: `docs/admin/forgejo-setup.md`.
 
 **Issue**: Setup doesn't mention regenerating Forgejo's `SECRET_KEY`
 and `INTERNAL_TOKEN`, used for session signing and internal API auth.

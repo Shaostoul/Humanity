@@ -4,4 +4,4 @@ title: Self-Hosting Guide
 permalink: /reference/self-hosting
 ---
 
-{% include canon/docs/SELF-HOSTING.md %}
+{% include canon/docs/admin/SELF-HOSTING.md %}

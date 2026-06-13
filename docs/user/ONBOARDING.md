@@ -1,6 +1,6 @@
 # Humanity: New Contributor Onboarding
 
-Welcome. This document answers the questions that every newcomer has. Read it once, then keep [CONTRIBUTING.md](CONTRIBUTING.md) open as a reference.
+Welcome. This document answers the questions that every newcomer has. Read it once, then keep [CONTRIBUTING.md](../contributor/04-CONTRIBUTING.md) open as a reference.
 
 ---
 
@@ -186,7 +186,7 @@ The server routes by `type`. To add a new feature, you add a new message type, h
 
 ## The Accord (Read Before Proposing Changes)
 
-The [Humanity Accord](accord/humanity_accord.md) defines what this project must never do. It's short. Read it.
+The [Humanity Accord](../accord/humanity_accord.md) defines what this project must never do. It's short. Read it.
 
 Non-negotiable prohibitions include anything involving sexual violence, child exploitation, slavery, political coercion, and a handful of others. Every server that joins the network must adopt it to reach verified status.
 

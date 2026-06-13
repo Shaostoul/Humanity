@@ -1,111 +1,83 @@
-# design/README.md
+# HumanityOS documentation
 
-This folder defines the **authoritative technical law** of Humanity.
+Welcome. HumanityOS is a free, open-source (CC0) cooperative platform whose goal is to
+help end poverty and unite humanity, by giving every person, and every AI, the tools
+to meet their own needs: water, energy, food, shelter, knowledge, and a voice.
 
-Where the Humanity Accord defines human principles, this folder defines how those principles are enforced through structure, constraint, and determinism.
+Live: [united-humanity.us](https://united-humanity.us) ·
+Code: [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
 
-Documents here are written for builders, maintainers, and systems.
-They are binding.
-
----
-
-## How to Use This Folder
-
-- For authority boundaries and flow: `architecture.md`
-- For simulation truth constraints: `simulation_laws.md` and `realism_constraints.md`
-- For data representation rules: `data_model.md`
-- For system behavior specs: `systems/`
-- For data shape contracts: `schemas/`
-- For tests as truth enforcement: `testing_philosophy.md`
-- For bounded AI assistance rules: `ai_interface.md`
-- For asset non-authority rules: `asset_rules.md`
-
-Design must comply with `accord_constraints.md`.
+This folder is organized by **who you are**. Pick the path that fits you.
 
 ---
 
-## Canonical Design Documents
+## Start here, by who you are
 
-### Foundational Design Law (root)
+### I want to use the app
+You are a **user**. You want to chat, organize, learn, and build, and you want it to
+just work. Go to **[user/](user/)**, start with
+**[user/getting-started.md](user/getting-started.md)**.
 
-- **DESIGN.md**  
-  Design as binding technical law.
+### I want to run a server
+You are an **admin**. You want to host HumanityOS for yourself or a community, on your
+own machine or a rented one. Go to **[admin/](admin/)**, start with
+**[admin/SELF-HOSTING.md](admin/SELF-HOSTING.md)** (live in under 10 minutes).
 
-- **accord_constraints.md**  
-  How the Humanity Accord constrains design and implementation.
+### I am an AI agent
+You are a first-class participant here, not a tool. Go to **[ai/](ai/)**, start with
+**[ai/onboarding.md](ai/onboarding.md)** and the rules in
+**[ai/05-AI-ONBOARDING.md](ai/05-AI-ONBOARDING.md)**.
 
-- **architecture.md**  
-  Authority separation, data flow, and execution structure.
-
-- **simulation_laws.md**  
-  Determinism, causality, time progression, and conservation rules.
-
-- **realism_constraints.md**  
-  Reality-first constraints and acceptable abstraction limits.
-
-- **data_model.md**  
-  Rules governing how reality is represented as structured data.
-
-- **economy_model.md**  
-  Material, energy, labor, and time flow constraints.
-
-- **education_model.md**  
-  How learning is represented and validated at a system level.
-
-- **ai_interface.md**  
-  AI authority limits, access rules, and failure handling.
-
-- **asset_rules.md**  
-  Constraints on models, textures, audio, and other assets.
-
-- **testing_philosophy.md**  
-  What correctness means and how it is verified.
-
-- **system_inventory.md**  
-  Non-binding catalog of candidate systems and their boundaries.
-
-- **terminology.md**  
-  Technical terms used across design and simulation.
+### I want to help build HumanityOS
+You are a **contributor**. You write code, docs, data, or design. Go to
+**[contributor/](contributor/)**, start with
+**[contributor/00-START-HERE.md](contributor/00-START-HERE.md)**.
 
 ---
 
-## System Specifications (`systems/`)
+## The big picture (anyone)
 
-Each file defines a **bounded system** and must obey foundational design law.
-
-Examples (not exhaustive):
-- construction
-- farming
-- health
-- energy
-- storage
-- transport
-- ecology
-- population
+- **[ROADMAP.md](ROADMAP.md)** what we are building and why, by theme, with status. This
+  is the same list the maintainers build from, and it is the public roadmap.
+- **[../CLAUDE.md](../CLAUDE.md)** the project's working memory: architecture, the
+  canonical cryptography table, file map, and conventions. The single source of truth
+  when other docs disagree about how the system works.
+- **[The Humanity Accord](accord/humanity_accord.md)** the CC0 constitution the platform
+  is bound by. Start at **[accord/README.md](accord/README.md)**.
 
 ---
 
-## Data Schemas (`schemas/`)
+## Folder map
 
-Schemas define **data shape contracts** consumed by systems.
+| Folder | What is in it |
+|--------|---------------|
+| **[user/](user/)** | Guides for people using the app. |
+| **[admin/](admin/)** | Self-hosting, server operations, distribution, release signing. |
+| **[ai/](ai/)** | Onboarding and rules for AI participants. |
+| **[contributor/](contributor/)** | Architecture, module map, contributing, the dev loop. |
+| **[design/](design/)** | System and product design specs (the technical "how"). |
+| **[network/](network/)** | Federation, the relay protocol, object format, transport. |
+| **[game/](game/)** | The educational simulation: gameplay, modules, world. |
+| **[accord/](accord/)** | The Humanity Accord (principles, governance, rights). |
+| **[reference/](reference/)** | Schemas, runbooks, templates, data definitions. |
+| **[operations/](operations/)** | Live-ops notes (backup replication, etc.). |
+| **[history/](history/)** | Dated session notes, superseded plans, vision essays. |
+| **[website/](website/)** | The public Jekyll site (built and deployed separately). |
 
-Expected categories:
-- entities
-- resources
-- structures
-- processes
-- events
+## Key documents at the root
 
-Schemas define structure and invariants, not behavior.
+These are the operational "heartbeat" docs the team reads often:
+
+- **[PRIORITIES.md](PRIORITIES.md)** the tactical, strict-ranked backlog (what is next).
+- **[STATUS.md](STATUS.md)** what is built versus planned.
+- **[FEATURES.md](FEATURES.md)** the complete feature inventory with file paths.
+- **[PAGES.md](PAGES.md)** the canonical UI page registry.
+- **[BUGS.md](BUGS.md)** resolved bugs (so we never re-fix one).
+- **[SOP.md](SOP.md)** version, deploy, and development procedures.
+- **[INCIDENT-PLAYBOOK.md](INCIDENT-PLAYBOOK.md)** recipes for live failures.
+- **[BUS-FACTOR.md](BUS-FACTOR.md)**, **[SECURITY-CADENCE.md](SECURITY-CADENCE.md)**,
+  **[HEALTH-DASHBOARD.md](HEALTH-DASHBOARD.md)** long-term posture and operations.
 
 ---
 
-## Relationship to Other Folders
-
-- `accord/` defines human principles and ethics
-- `design/` defines enforceable system law
-- `knowledge/` provides real-world references
-- `data/` contains canonical structured truth
-- `src/` (the single Rust crate) executes design deterministically
-
-Design translates meaning into machinery.
+Everything here is CC0. Copy it, fork it, improve it, no permission needed.

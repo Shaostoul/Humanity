@@ -4,4 +4,4 @@ title: Vision
 permalink: /docs/01-vision
 ---
 
-{% include canon/docs/01-VISION.md %}
+{% include canon/docs/contributor/01-VISION.md %}

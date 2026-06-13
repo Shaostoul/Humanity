@@ -2,7 +2,16 @@
 
 This file links **vision -> design docs -> implementation status** so new humans and AIs can quickly tell what is already real vs planned.
 
-Last updated: 2026-05-15
+> **Reality note (v0.422.x):** the precedence list in section 1 is current and correct.
+> The specific `docs/design/<subfolder>/...` paths cited later (for example
+> `design/product/`, `design/systems/`, `design/core/`) are **illustrative groupings,
+> not the on-disk layout**, the actual `docs/design/` folder is **flat** (files live
+> directly in `design/`, not in product/systems/core subfolders). For the real, current
+> picture use **[../../CLAUDE.md](../../CLAUDE.md)** (architecture + file map) and the
+> docs router **[../README.md](../README.md)**. Treat the cited subpaths below as
+> "the design doc named X exists somewhere under design/", not as exact paths.
+
+Last updated: 2026-05-15 (reality note added 2026-06-12)
 
 ## 1) Canonical source hierarchy
 
@@ -113,7 +122,7 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 ## G) Website/docs publishing
 
 - Design sources:
-  - `docs/design/docs/md_information_architecture_plan.md`
+  - `docs/design/docs/history/md_information_architecture_plan.md`
 - Implementation now:
   - `docs/website/` + mirrored/public docs strategy
 - Status:
@@ -122,11 +131,11 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 
 ## 4) Where new contributors should start
 
-1. `docs/00-START-HERE.md`
-2. `docs/01-VISION.md`
-3. `docs/02-ARCHITECTURE.md`
-4. `docs/03-MODULE-MAP.md`
-5. This file (`docs/06-SOURCE-OF-TRUTH-MAP.md`)
+1. `docs/contributor/00-START-HERE.md`
+2. `docs/contributor/01-VISION.md`
+3. `docs/contributor/02-ARCHITECTURE.md`
+4. `docs/contributor/03-MODULE-MAP.md`
+5. This file (`docs/contributor/06-SOURCE-OF-TRUTH-MAP.md`)
 
 ## 5) Next execution step (recommended)
 

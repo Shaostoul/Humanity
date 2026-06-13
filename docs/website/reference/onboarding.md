@@ -4,4 +4,4 @@ title: New Contributor Onboarding
 permalink: /reference/onboarding
 ---
 
-{% include canon/docs/ONBOARDING.md %}
+{% include canon/docs/user/ONBOARDING.md %}

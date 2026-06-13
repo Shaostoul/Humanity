@@ -651,5 +651,5 @@ As a non-custodial platform, KYC/AML obligations are minimal. However:
 - [Helius RPC Free Tier](https://www.helius.dev/)
 - [GitHub Sponsors FAQ](https://docs.github.com/en/sponsors)
 - [EU MiCA Regulation, Wallet Exclusions](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32023R1114)
-- [HumanityOS Identity Architecture](/design/architecture_decisions/client_side_identity_keys.md)
-- [HumanityOS Key Management](/design/identity/keys_and_sessions.md)
+- [HumanityOS Identity Architecture](../design/client_side_identity_keys.md)
+- [HumanityOS Key Management](../design/client_side_identity_keys.md)

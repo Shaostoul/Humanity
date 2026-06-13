@@ -79,4 +79,4 @@ Initial non-human targets (livestock + pollinators): anatomy L2, physiology L3, 
 ## 13) Documentation contract
 - README with species parity table
 - Example scenario: human + livestock + crop stress chain
-- Link: `docs/09-LIFEFORM-PARITY-FRAMEWORK.md`
+- Link: `docs/contributor/09-LIFEFORM-PARITY-FRAMEWORK.md`

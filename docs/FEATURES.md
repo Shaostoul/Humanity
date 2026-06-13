@@ -421,7 +421,7 @@ Server-side game world with entity management, position validation, player sync.
 Headless gameplay protocol, AI agents perceive and act in the game world via structured JSON instead of rendered frames. Validates distance for interactions (5m), perception range (20m).
 - WebSocket messages: `game_perceive` (room + nearby + environment), `game_interact` (action on entity), `game_query_inventory`, `game_query_entity`
 - Server: `src/relay/handlers/msg_handlers.rs` (handle_game_perceive, handle_game_interact, etc.), `src/relay/relay.rs` (routing)
-- Docs: `docs/ai-onboarding.md` (Playing the Game section), `docs/design/ai_interface.md` (Game Participation role)
+- Docs: `docs/ai/onboarding.md` (Playing the Game section), `docs/design/ai_interface.md` (Game Participation role)
 - Test script: `scripts/test-perception-api.js`
 
 ### Unified Binary Deploy

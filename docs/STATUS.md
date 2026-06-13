@@ -108,7 +108,7 @@ purely additive (existing chat untouched). See
 | v0.121.0 | 21/21 scopes audited + native onboarding styling fix + native AI Usage form | Full agent-coordination audit pass |
 | v0.121.2 | README rewrite | Current architecture, accessible language |
 | v0.121.3 | Worker agent expands items-game scope | 500-item milestone hit |
-| v0.131.0 | AI Perception API, headless gameplay for AI agents | `game_perceive`/`game_interact`/`game_query_inventory`/`game_query_entity` WebSocket messages; ship layout loading; spatial queries. AI experiences the game world as JSON instead of pixels. (`docs/ai-onboarding.md` §"Playing the Game"; `docs/design/ai_interface.md` §5 Game Participation) |
+| v0.131.0 | AI Perception API, headless gameplay for AI agents | `game_perceive`/`game_interact`/`game_query_inventory`/`game_query_entity` WebSocket messages; ship layout loading; spatial queries. AI experiences the game world as JSON instead of pixels. (`docs/ai/onboarding.md` §"Playing the Game"; `docs/design/ai_interface.md` §5 Game Participation) |
 | v0.131.1 | Version sync after `just build-game` | No code changes, version-string-only patch |
 | v0.132.0 | Perception API bug fix, typed RON deserialization | Caught via new unit tests: `room_type: bridge` (unquoted RON enum identifier) was parsing as `Value::Unit` not String, so all room equipment lists came up empty. Now uses typed `ShipDef` from `src/ship/layout.rs`. 6 new GameWorld tests prevent regression. |
 

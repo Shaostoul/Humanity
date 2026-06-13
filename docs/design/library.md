@@ -81,7 +81,7 @@ the existing per-key rate limiting.
   against the owner.
 - Permanent still costs relay disk, so "infinite pins" is bounded by routing
   permanent items to the **existing BitTorrent seeder** (`torrent-create-and-seed`,
-  `docs/torrent-infrastructure.md`) + eventually **Internet Archive** (a free
+  `docs/admin/torrent-infrastructure.md`) + eventually **Internet Archive** (a free
   permanent seeder, already on the torrent roadmap). Permanent tier = P2P/IA-backed,
   not just relay disk. *This is what makes "infinite" actually hold.*
 
@@ -165,7 +165,7 @@ today). Difference in the Files tab:
 | Tiers | `roles.rs`, `trust_score.rs`, `credentials.rs` | `pin_files` permission; per-tier quota config |
 | Pins | `pins.rs` (message pins) | file pins → permanent + quota refund + torrent/IA handoff |
 | Config | `server_settings.rs` | per-tier GB/%; per-file caps; auto-torrent threshold (GUI-first) |
-| Distribution | `docs/torrent-infrastructure.md` seeder | per-file `torrent-create-and-seed` on pin/large-file |
+| Distribution | `docs/admin/torrent-infrastructure.md` seeder | per-file `torrent-create-and-seed` on pin/large-file |
 
 ## Phased build plan
 
