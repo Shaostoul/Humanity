@@ -11,6 +11,27 @@
 
 ## Active focus
 
+**DONE 2026-06-13: SECURITY SPRINT TAIL (v0.423.0->.426.0).** Continued + largely
+closed the 2026-06-12 audit. A scoping workflow (9 agents) re-verified ALL prior shipped
+fixes still hold (SVG-XSS, vault-replay, object/announce quotas, headers, twemoji,
+gossip-amplification, future-timestamp, all SOLID by file:line) and surfaced + planned
+the open items. Shipped: **(1) object storage hardening v0.423.0** (per-author quota
+capped count but not bytes -> MAX_SIGNED_OBJECT_PAYLOAD 256KiB at the put_signed_object
+chokepoint covering REST + gossip, 413 on REST; + a size cap on the federation_rate
+map); **(2) hard-delete remnants v0.424.0** (PRAGMA secure_delete=ON + wal_checkpoint
+TRUNCATE after bulk wipes; honest backup-residual documented; byte-scan test proves
+scrub); **(3) member-directory opt-out, FULLY DONE v0.425.0 backend+web + v0.426.0
+native** (profiles.privacy directory:"unlisted" honored in get_members/count/get_member
+via a shared LEFT JOIN + json_extract; web checkbox + native checkbox & the first-ever
+native profile_update send). **REMAINING = operator-only tasks** (no code): /api/send
+nginx edge rate-limit (paired VPS zone-def + conf block; LOW value, API_SECRET-gated)
+and GitHub branch/tag protection + deploy approval gate, both with exact steps in
+**docs/admin/security-hardening-tasks.md**; plus the ongoing `just sign-release vX` duty.
+The audit's CODE surface is now closed. **NEXT (operator pick from ROADMAP.md "Right
+now"): the next gameplay arc (garden plot-types registry OR First Playable).**
+
+---
+
 **DONE 2026-06-12: DOCS REFACTOR (v0.422.1->.3, docs-only patches on main).** The whole
 docs folder was refactored to the operator's brief: (1) all em dashes removed from active
 docs (they read as AI-written); (2) stale crypto fixed (Ed25519->Dilithium3 identity,

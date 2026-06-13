@@ -18,6 +18,10 @@ community a home without becoming its gatekeeper.
 
 ## Operations and infrastructure
 
+- **[security-hardening-tasks.md](security-hardening-tasks.md)** the operator-only
+  security items from the 2026-06-12 audit (nginx edge rate limit, GitHub branch
+  protection, release signing). The code-side fixes are already shipped; these live in
+  GitHub settings or the VPS config.
 - **[release-signing.md](release-signing.md)** how releases are cryptographically signed
   so the auto-updater only ever installs trusted code. Read this before you publish
   builds.
