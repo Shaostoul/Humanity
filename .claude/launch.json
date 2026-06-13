@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/preview-server.js", "8099"],
+      "port": 8099
+    }
+  ]
+}
