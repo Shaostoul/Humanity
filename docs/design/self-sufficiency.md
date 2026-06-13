@@ -69,6 +69,40 @@ For every loop the same five things matter: **supply** (what you make/collect),
 - **Condition:** *annual production + preservation buffer >= annual nutritional need,
   complete, surviving the seasonal gap + a bad-harvest margin.*
 
+#### Why an indoor garden cannot grow ALL the calories (the light cap)
+
+A recurring instinct is "give me a big indoor room full of aeroponic towers and it
+feeds everyone." It does not, and the reason is **light, not floor space**. This was
+worked out for the in-game 34x34x6 m garden (v0.433) and the numbers generalize:
+
+- **Free sunlight is a SINGLE canopy.** Stacking towers or grow-tiers under a skylight
+  does not multiply production, the upper leaves just shade the lower ones. A room's
+  sun-lit output is capped near its **illuminated floor footprint**, no matter how many
+  towers you cram in. So 1156 m2 of floor behaves like ~1000 m2 of real growing canopy.
+- **The biointensive anchor:** ~700-1000 m2 of intensive growing feeds **one** person a
+  complete diet for a year. So a sun-lit garden room is roughly a **one-person** food
+  engine, not a three-person one. Tower *count* is a vanity metric; **effective canopy**
+  is the binding quantity.
+- **Towers are the wrong tool for calories.** Leafy/fruiting tower crops are ~95% water
+  (~30-100 kcal/tower/day). Bulk calories come from staples (potato, grain, oilseed),
+  which are the **worst** per-m2 indoor crops. Aeroponic potato (NASA/CIP) is real and is
+  the best indoor calorie source, but even ~340 m2 of intensive beds only reaches ~half
+  of a 3-person calorie need.
+- **The only way past the canopy cap is artificial light, and it breaks the energy loop.**
+  LED grow-light for greens costs ~2.2 kWh/m2/day; for calorie crops ~4.8 kWh/m2/day. The
+  EROI of lighting staples is ~**0.005** (you burn ~194 kWh of light per 1 kWh of food
+  out). Feeding 3 people indoors under LEDs needs **30-150+ kWh/day, 2.5x-12x** a typical
+  off-grid homestead budget. Lighting just two towers (~14 kWh/day) already exceeds a
+  12 kWh/day budget. **This is why real self-sufficient homes keep outdoor field crops.**
+- **What the indoor garden CAN fully do:** all vegetables + herbs, ~100% of protein
+  (legumes + mushrooms + a small aquaponic fish loop), all plant vitamins/minerals, and,
+  uniquely, the aquaponic fish loop **closes Vitamin B12 + omega-3 (EPA/DHA)**, the two
+  gaps no plant can fill. Calories (~half) and fats (~a fifth) are the honest shortfall
+  the outdoor fields carry. The tradeoff (free single-canopy sunlight is area-limited;
+  grow-light staples are energetically negative) IS the lesson, so we show it, never hide
+  it. **Next:** a live "grow-light draw vs power budget" meter that turns red the instant
+  any LED is added past the free pump headroom (the single most honest teaching artifact).
+
 ### 4. Waste / nutrient cycling (the loop-closer)
 - Organic waste + manure -> **compost** or **biogas** (energy + digestate fertilizer)
   -> soil -> food. Greywater -> irrigation. Humanure/blackwater -> compost/septic.

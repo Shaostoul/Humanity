@@ -11,18 +11,23 @@
 
 ## Active focus
 
-**ACTIVE 2026-06-13: HEADLINE ARC, 3D home machines + connections (First Playable
-groundwork).** Operator: populate the home with rudimentary cubes/spheres/pyramids/
-pipes for ALL the machines + the connections between them. **v0.427.0 shipped the
-foundation:** 3 new renderer primitives (`box_xyz`, `pyramid`, `segment` tube) +
-a data-driven layout (`data/machines/home.ron` + `src/machines.rs`, infinite-of-X:
-catalog -> instances -> connections) placing 15 key machines (garage power+water,
-garden food, study fabrication, ranch storage) wired by 13 colored connection pipes
-(power/water/nutrient/fuel). load_world reads the RON, places a primitive per machine
-on its room floor, draws a pipe per connection. **NEXT (operator views via `just play`
-first):** expand to the rest of the blueprint machines (trivial, add RON instances),
-tune positions/sizes/colors from the screenshot, then walk-up interactivity. The data
-file makes machines + links editable with no code change.
+**ACTIVE 2026-06-13: HEADLINE ARC, 3D home as a HONEST closed-loop homestead (First
+Playable groundwork).** Operator: populate the home with primitives for ALL machines +
+connections, then make it a demonstrable self-sufficient homestead anyone can load and
+learn from. **Shipped v0.427 -> v0.433:** data-driven machine layout (`home.ron` +
+`src/machines.rs`, infinite-of-X catalog/instances/connections) with `box_xyz`/`pyramid`/
+`segment` primitives (v0.427); floating LOD machine labels with status icons + occlusion +
+Tab-reveal (v0.428-0.430); walk-up [E] interaction cards (v0.431); closed-loop stats +
+Home-page closure summary (v0.432); **v0.433 the honest indoor garden:** a 4-lens design
+workflow proved LIGHT (not floor area) caps indoor food, so 1156 m2 of sun-lit garden ~=
+a ONE-person diet, and grow-lights to feed 3 would draw 2.5-12x the energy budget. Built
+sun-lit: closes B12+omega-3 via aquaponics, honestly offloads ~half the calories + most
+fat to outdoor fields. New `arrays` data feature fills any room with one RON line. Lesson
+baked into the loop notes + `docs/design/self-sufficiency.md`. **NEXT (operator-flagged by
+the design pass, high teaching value): a live GROW-LIGHT-DRAW vs power-budget meter** that
+turns red the instant an LED is added past the free pump headroom, the single most honest
+teaching artifact in the build. Then: live-sim wiring (loop numbers move with day/night
+play), an in-world closure HUD, or the expedition/stealth layer (design-doc filed).
 
 **Sign step pending:** the v0.426.0 release is built + waiting for `just sign-release
 v0.426.0` (operator passphrase). Security sprint code-complete; only the GitHub
