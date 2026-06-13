@@ -75,6 +75,12 @@ function openEditProfileModal() {
     }
   }
 
+  // Member-directory opt-out (audit 2026-06-12). A separate checkbox, not a
+  // per-field lock: checked = listed in the server's public member directory;
+  // unchecked = directory:"unlisted" (the relay hides you from /api/members).
+  const dirToggle = document.getElementById('privacy-directory');
+  if (dirToggle) dirToggle.checked = editPrivacyMap.directory !== 'unlisted';
+
   updateBioCounter();
   overlay.classList.add('open');
 }
@@ -129,6 +135,11 @@ function saveProfile() {
   for (const [field, state] of Object.entries(editPrivacyMap)) {
     if (state === 'private') privacyMap[field] = 'private';
   }
+  // Member-directory opt-out (separate from the per-field locks): when the user
+  // un-checks "list me in the directory", persist directory:"unlisted" so the relay
+  // hides them from the public /api/members directory (audit 2026-06-12).
+  const dirToggle = document.getElementById('privacy-directory');
+  if (dirToggle && !dirToggle.checked) privacyMap.directory = 'unlisted';
 
   // Save all fields locally so the modal pre-fills correctly next time.
   saveProfileLocal({ bio, socials: cleanSocials, avatar_url, banner_url, pronouns, location, website, privacy: privacyMap });

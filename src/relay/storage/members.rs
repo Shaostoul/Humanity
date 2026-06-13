@@ -11,6 +11,20 @@ pub struct MemberRecord {
     pub last_seen: Option<String>,
 }
 
+/// Shared SQL for the public member-directory opt-out (audit 2026-06-12). A member is
+/// visible UNLESS their profile's privacy JSON sets `directory:"unlisted"`. The list,
+/// count, and single-member queries all use these SAME fragments so pagination totals
+/// stay consistent with the listing. LEFT JOIN to `profiles` (keyed by name, COLLATE
+/// NOCASE) so a member with no profile row (NULL privacy) stays listed, listed is the
+/// default and opt-out is explicit (you appear in a server's directory when you JOIN
+/// it). `json_extract` returns NULL for an absent key OR malformed JSON, both treated
+/// as listed; `save_profile_extended` already rejects invalid privacy JSON so a stored
+/// `unlisted` is always honored.
+const MEMBER_DIR_JOIN: &str =
+    " FROM server_members m LEFT JOIN profiles p ON m.name = p.name COLLATE NOCASE ";
+const MEMBER_DIR_VISIBLE: &str =
+    "(json_extract(p.privacy, '$.directory') IS NULL OR json_extract(p.privacy, '$.directory') <> 'unlisted')";
+
 impl Storage {
     // ── Server Membership methods ──
 
@@ -110,13 +124,12 @@ impl Storage {
         self.with_read_conn(|conn| {
             if let Some(q) = search {
                 let pattern = format!("%{}%", q);
-                let mut stmt = conn.prepare(
-                    "SELECT public_key, name, role, joined_at, last_seen
-                     FROM server_members
-                     WHERE name LIKE ?1 OR public_key LIKE ?1
-                     ORDER BY joined_at DESC
-                     LIMIT ?2 OFFSET ?3"
-                )?;
+                let sql = format!(
+                    "SELECT m.public_key, m.name, m.role, m.joined_at, m.last_seen{MEMBER_DIR_JOIN}\
+                     WHERE (m.name LIKE ?1 OR m.public_key LIKE ?1) AND {MEMBER_DIR_VISIBLE} \
+                     ORDER BY m.joined_at DESC LIMIT ?2 OFFSET ?3"
+                );
+                let mut stmt = conn.prepare(&sql)?;
                 let rows = stmt.query_map(params![pattern, limit as i64, offset as i64], |row| {
                     Ok(MemberRecord {
                         public_key: row.get(0)?,
@@ -128,12 +141,12 @@ impl Storage {
                 })?;
                 rows.collect()
             } else {
-                let mut stmt = conn.prepare(
-                    "SELECT public_key, name, role, joined_at, last_seen
-                     FROM server_members
-                     ORDER BY joined_at DESC
-                     LIMIT ?1 OFFSET ?2"
-                )?;
+                let sql = format!(
+                    "SELECT m.public_key, m.name, m.role, m.joined_at, m.last_seen{MEMBER_DIR_JOIN}\
+                     WHERE {MEMBER_DIR_VISIBLE} \
+                     ORDER BY m.joined_at DESC LIMIT ?1 OFFSET ?2"
+                );
+                let mut stmt = conn.prepare(&sql)?;
                 let rows = stmt.query_map(params![limit as i64, offset as i64], |row| {
                     Ok(MemberRecord {
                         public_key: row.get(0)?,
@@ -150,11 +163,15 @@ impl Storage {
 
     /// Get a single member by public key.
     pub fn get_member(&self, public_key: &str) -> Result<Option<MemberRecord>, rusqlite::Error> {
-        // Read-only single-row lookup. Read pool.
+        // Read-only single-row lookup. Read pool. Honors the directory opt-out: an
+        // unlisted member returns None, and get_member_by_key (api.rs) maps None -> 404.
         self.with_read_conn(|conn| {
+            let sql = format!(
+                "SELECT m.public_key, m.name, m.role, m.joined_at, m.last_seen{MEMBER_DIR_JOIN}\
+                 WHERE m.public_key = ?1 AND {MEMBER_DIR_VISIBLE}"
+            );
             conn.query_row(
-                "SELECT public_key, name, role, joined_at, last_seen
-                 FROM server_members WHERE public_key = ?1",
+                &sql,
                 params![public_key],
                 |row| Ok(MemberRecord {
                     public_key: row.get(0)?,
@@ -180,21 +197,19 @@ impl Storage {
 
     /// Get total member count, optionally filtered by search.
     pub fn get_member_count(&self, search: Option<&str>) -> Result<i64, rusqlite::Error> {
-        // Read-only COUNT. Read pool.
+        // Read-only COUNT. Read pool. Uses the SAME join + visibility filter as
+        // get_members so the total matches the listed rows (no phantom pages).
         self.with_read_conn(|conn| {
             if let Some(q) = search {
                 let pattern = format!("%{}%", q);
-                conn.query_row(
-                    "SELECT COUNT(*) FROM server_members WHERE name LIKE ?1 OR public_key LIKE ?1",
-                    params![pattern],
-                    |row| row.get(0),
-                )
+                let sql = format!(
+                    "SELECT COUNT(*){MEMBER_DIR_JOIN}\
+                     WHERE (m.name LIKE ?1 OR m.public_key LIKE ?1) AND {MEMBER_DIR_VISIBLE}"
+                );
+                conn.query_row(&sql, params![pattern], |row| row.get(0))
             } else {
-                conn.query_row(
-                    "SELECT COUNT(*) FROM server_members",
-                    [],
-                    |row| row.get(0),
-                )
+                let sql = format!("SELECT COUNT(*){MEMBER_DIR_JOIN}WHERE {MEMBER_DIR_VISIBLE}");
+                conn.query_row(&sql, [], |row| row.get(0))
             }
         })
     }
@@ -234,6 +249,10 @@ impl Storage {
     }
 
     /// Get the N most recently joined members (for admin dashboard).
+    ///
+    /// Intentionally NOT filtered by the directory opt-out: this feeds the operator's
+    /// admin dashboard, which should see every join (the opt-out only hides a member
+    /// from the PUBLIC `/api/members` directory, not from the server's own admins).
     pub fn recent_joins(&self, limit: usize) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
         // Read-only: SELECT + query_map + collect (admin dashboard). Read pool.
         self.with_read_conn(|conn| {
@@ -257,5 +276,53 @@ impl Storage {
             })?;
             rows.collect()
         })
+    }
+}
+
+#[cfg(test)]
+mod directory_optout_tests {
+    //! Public member-directory opt-out (audit 2026-06-12): a member with
+    //! profile privacy `directory:"unlisted"` is hidden from /api/members,
+    //! its count, and the single-member lookup; everyone else stays listed.
+    //! Also proves json_extract is available in this build (first storage use).
+    use super::*;
+
+    fn test_storage() -> Storage {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_members_{pid}_{nanos}.db"));
+        Storage::open(&path).expect("open test db")
+    }
+
+    #[test]
+    fn unlisted_member_hidden_everywhere_else_listed() {
+        let db = test_storage();
+        db.join_server("KEY_ALICE", "alice").unwrap();
+        db.join_server("KEY_BOB", "bob").unwrap();
+        // alice has no profile row at all (NULL privacy) -> stays listed (default).
+        // bob opts out via profile privacy.
+        db.save_profile_extended("bob", "", "{}", "", "", "", "", "", "{\"directory\":\"unlisted\"}")
+            .unwrap();
+
+        let listed = db.get_members(100, 0, None).unwrap();
+        let names: Vec<String> = listed.iter().filter_map(|m| m.name.clone()).collect();
+        assert!(names.contains(&"alice".to_string()), "alice (no profile) stays listed");
+        assert!(!names.contains(&"bob".to_string()), "bob opted out -> hidden");
+        assert_eq!(db.get_member_count(None).unwrap(), 1, "count matches the listed rows");
+        assert!(db.get_member("KEY_BOB").unwrap().is_none(), "unlisted -> None (api maps to 404)");
+        assert!(db.get_member("KEY_ALICE").unwrap().is_some(), "listed -> Some");
+
+        // A member who sets privacy WITHOUT the directory key stays listed.
+        db.join_server("KEY_CAROL", "carol").unwrap();
+        db.save_profile_extended("carol", "", "{}", "", "", "", "", "", "{\"location\":\"private\"}")
+            .unwrap();
+        assert_eq!(db.get_member_count(None).unwrap(), 2, "carol (privacy, no directory key) listed");
+
+        // The search path honors the filter too (no surfacing an unlisted member).
+        assert!(db.get_members(100, 0, Some("bob")).unwrap().is_empty(), "search hides unlisted");
+        assert_eq!(db.get_member_count(Some("bob")).unwrap(), 0, "search count hides unlisted");
     }
 }

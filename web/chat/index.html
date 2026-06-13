@@ -560,6 +560,16 @@
       </div>
       <input type="text" id="profile-website-url" maxlength="256" placeholder="https://yoursite.com">
 
+      <!-- Member-directory listing opt-out (audit 2026-06-12). Separate from the
+           per-field locks above: this controls whether you appear in this server's
+           public member directory at all. -->
+      <div class="profile-field-row">
+        <label for="privacy-directory">👥 List me in the public member directory</label>
+        <input type="checkbox" id="privacy-directory" checked
+          data-tip-title="Member Directory"
+          data-tip-desc="When on, you appear in this server's public member list. Turn it off to join and chat without being listed.">
+      </div>
+
       <!-- Social handles (always public, shown in bio card) -->
       <label for="profile-website">🌐 Socials, Website</label>
       <input type="text" id="profile-website" maxlength="200" placeholder="https://yoursite.com">
