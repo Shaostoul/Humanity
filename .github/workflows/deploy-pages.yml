@@ -52,7 +52,8 @@ jobs:
         run: |
           set -euo pipefail
           test -f docs/website/_includes/canon/accord/humanity_accord.md
-          test -f docs/website/_includes/canon/docs/00-START-HERE.md
+          # 00-START-HERE moved to docs/contributor/ in the v0.422.3 audience-first reorg.
+          test -f docs/website/_includes/canon/docs/contributor/00-START-HERE.md
           test -f docs/website/_includes/canon/docs/design/architecture.md
           test -f docs/website/_includes/canon/reference/README.md
 
