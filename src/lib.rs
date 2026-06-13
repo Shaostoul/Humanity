@@ -1510,6 +1510,21 @@ mod native_app {
                             state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
                             return;
                         }
+                        // E opens/pins the targeted machine's info card (walk-up
+                        // interaction, v0.431). No early return: E still drives
+                        // input.interact for the ECS interaction system below.
+                        if key == KeyCode::KeyE && pressed
+                            && state.gui_state.active_page == GuiPage::None
+                        {
+                            if let Some(t) = state.gui_state.targeted_machine {
+                                state.gui_state.selected_machine =
+                                    if state.gui_state.selected_machine == Some(t) {
+                                        None
+                                    } else {
+                                        Some(t)
+                                    };
+                            }
+                        }
 
                         // Don't pass input to game when egui consumed it or a menu is open
                         if egui_consumed || state.gui_state.active_page != GuiPage::None {
@@ -1598,6 +1613,28 @@ mod native_app {
                     let forward = Vec3::new(-yaw_sin, 0.0, -yaw_cos).normalize();
                     state.data_store.insert("camera_forward", forward);
                     state.data_store.insert("camera_yaw", state.camera.yaw);
+
+                    // Walk-up interaction (v0.431): the machine the player is looking at,
+                    // nearest within range inside a look-cone. Drives the [E] prompt + card.
+                    {
+                        let cp = state.camera.position;
+                        let cf = state.camera.forward();
+                        let mut best: Option<(usize, f32)> = None;
+                        for (i, label) in state.gui_state.machine_labels.iter().enumerate() {
+                            let to = label.pos - cp;
+                            let dist = to.length();
+                            if !(0.05..=5.0).contains(&dist) {
+                                continue;
+                            }
+                            if (to / dist).dot(cf) < 0.9 {
+                                continue; // outside the ~25-degree look cone
+                            }
+                            if best.map_or(true, |b| dist < b.1) {
+                                best = Some((i, dist));
+                            }
+                        }
+                        state.gui_state.targeted_machine = best.map(|b| b.0);
+                    }
 
                     // Survival environment context: is the player inside the sealed
                     // homestead volume (oxygenated/heated) or exposed (vacuum/cold)?

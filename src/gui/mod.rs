@@ -979,6 +979,12 @@ pub struct GuiState {
     pub profile_directory_listed: bool,
     /// Floating machine labels in the 3D home (v0.428), populated by load_world.
     pub machine_labels: Vec<MachineLabel>,
+    /// Index into machine_labels of the machine the player is currently looking at
+    /// within interact range (walk-up interaction, v0.431). Recomputed each frame.
+    pub targeted_machine: Option<usize>,
+    /// Index of the machine whose card is pinned open (toggled with E). Stays until E
+    /// again or it is cleared. Survives walking away (it is the "opened station").
+    pub selected_machine: Option<usize>,
     /// Room volumes (v0.429), for room-based label occlusion: which room is the camera in.
     pub room_bounds: Vec<RoomBounds>,
     /// Hold-Tab "reveal" peek (v0.429): triples the label distances and shows labels
@@ -1891,6 +1897,8 @@ impl Default for GuiState {
             profile_network_avatar: String::new(),
             profile_directory_listed: true,
             machine_labels: Vec::new(),
+            targeted_machine: None,
+            selected_machine: None,
             room_bounds: Vec::new(),
             reveal_held: false,
             machine_label_dot_dist: 21.0,

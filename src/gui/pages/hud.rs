@@ -131,7 +131,7 @@ pub fn draw(
                         && cam_pos.z >= r.min.z && cam_pos.z <= r.max.z
                 })
                 .map(|r| r.id.as_str());
-            for label in &state.machine_labels {
+            for (i, label) in state.machine_labels.iter().enumerate() {
                 // Occlusion: by default only the camera's room is visible; Tab reveals all.
                 if !state.reveal_held && current_room != Some(label.room.as_str()) {
                     continue;
@@ -141,13 +141,45 @@ pub fn draw(
                     continue; // beyond the coarsest level of detail
                 }
                 let Some(sp) = world_to_screen(label.pos, view_proj, screen) else { continue };
-                // Marker dot (small).
+                let is_target = state.targeted_machine == Some(i);
+                // Marker dot; the machine you are looking at gets an accent ring.
                 painter.circle_filled(sp, 1.7, Color32::from_white_alpha(220));
-                painter.circle_stroke(sp, 3.0, egui::Stroke::new(1.0, Color32::from_black_alpha(150)));
+                painter.circle_stroke(
+                    sp,
+                    if is_target { 5.0 } else { 3.0 },
+                    egui::Stroke::new(
+                        if is_target { 1.5 } else { 1.0 },
+                        if is_target { theme.accent() } else { Color32::from_black_alpha(150) },
+                    ),
+                );
                 if cam_dist <= card_dist {
                     draw_machine_card(painter, theme, sp, label);
                 } else if cam_dist <= name_dist {
                     text_shadowed(painter, sp + Vec2::new(8.0, 0.0), Align2::LEFT_CENTER, &label.name, 12.0, Color32::WHITE);
+                }
+            }
+            // Walk-up interaction prompt at the crosshair (v0.431): looking at a machine
+            // within reach shows [E] open/close.
+            if let Some(i) = state.targeted_machine {
+                if let Some(label) = state.machine_labels.get(i) {
+                    let verb = if state.selected_machine == Some(i) { "close" } else { "open" };
+                    text_shadowed(
+                        painter,
+                        Pos2::new(center.x, center.y + 22.0),
+                        Align2::CENTER_TOP,
+                        &format!("[E] {} {}", verb, label.name),
+                        13.0,
+                        theme.accent(),
+                    );
+                }
+            }
+            // Pinned (E-opened) machine card: fixed top-left, stays until E again.
+            if let Some(i) = state.selected_machine {
+                if let Some(label) = state.machine_labels.get(i) {
+                    let size = machine_card_size(label);
+                    let card = Rect::from_min_size(Pos2::new(16.0, 56.0), size);
+                    draw_machine_card_body(painter, theme, card, label, true);
+                    text_shadowed(painter, Pos2::new(card.left() + 2.0, card.bottom() + 9.0), Align2::LEFT_CENTER, "[E] close", 10.0, theme.text_muted());
                 }
             }
 
@@ -265,29 +297,40 @@ fn stat_status_color(status: &str, theme: &Theme) -> Color32 {
 /// The expanded machine info card: a name header plus clean two-column stat rows
 /// (kind on the left colored by status, value on the right). v0.428; icons replace the
 /// kind text in a later pass.
-fn draw_machine_card(painter: &egui::Painter, theme: &Theme, anchor: Pos2, label: &crate::gui::MachineLabel) {
-    let row_h = 15.0;
-    let pad = 7.0;
-    let w = 144.0;
-    let rows = label.stats.len() as f32;
-    let h = pad * 2.0 + row_h * (1.0 + rows) + 2.0;
-    let card = Rect::from_min_size(Pos2::new(anchor.x + 12.0, anchor.y - h * 0.5), Vec2::new(w, h));
-    painter.rect_filled(card, Rounding::same(5), Color32::from_black_alpha(205));
-    painter.rect_stroke(card, Rounding::same(5), egui::Stroke::new(1.0, Color32::from_white_alpha(45)), egui::StrokeKind::Outside);
-    // A connector tick from the dot to the card.
-    painter.line_segment([anchor + Vec2::new(4.0, 0.0), Pos2::new(card.left(), anchor.y)], egui::Stroke::new(1.0, Color32::from_white_alpha(70)));
+const CARD_ROW_H: f32 = 15.0;
+const CARD_PAD: f32 = 7.0;
+const CARD_W: f32 = 150.0;
 
-    let mut y = card.top() + pad;
-    painter.text(Pos2::new(card.left() + pad, y), Align2::LEFT_TOP, &label.name, FontId::proportional(13.0), Color32::WHITE);
-    y += row_h + 3.0;
+fn machine_card_size(label: &crate::gui::MachineLabel) -> Vec2 {
+    let h = CARD_PAD * 2.0 + CARD_ROW_H * (1.0 + label.stats.len() as f32) + 2.0;
+    Vec2::new(CARD_W, h)
+}
+
+/// Draw the card body (background, name header, two-column stat rows) into `card`.
+/// `pinned` gives it an accent border (the E-opened station).
+fn draw_machine_card_body(painter: &egui::Painter, theme: &Theme, card: Rect, label: &crate::gui::MachineLabel, pinned: bool) {
+    painter.rect_filled(card, Rounding::same(5), Color32::from_black_alpha(if pinned { 228 } else { 205 }));
+    let border = if pinned { theme.accent() } else { Color32::from_white_alpha(45) };
+    painter.rect_stroke(card, Rounding::same(5), egui::Stroke::new(1.0, border), egui::StrokeKind::Outside);
+    let mut y = card.top() + CARD_PAD;
+    painter.text(Pos2::new(card.left() + CARD_PAD, y), Align2::LEFT_TOP, &label.name, FontId::proportional(13.0), Color32::WHITE);
+    y += CARD_ROW_H + 3.0;
     for s in &label.stats {
         let color = stat_status_color(&s.status, theme);
-        // status-colored icon (left column) + value (right column).
-        let icon_rect = Rect::from_min_size(Pos2::new(card.left() + pad, y), Vec2::splat(12.0));
+        let icon_rect = Rect::from_min_size(Pos2::new(card.left() + CARD_PAD, y), Vec2::splat(12.0));
         paint_stat_icon(painter, icon_rect, &s.kind, color);
-        painter.text(Pos2::new(card.right() - pad, y + 0.5), Align2::RIGHT_TOP, &s.value, FontId::proportional(11.0), theme.text_secondary());
-        y += row_h;
+        painter.text(Pos2::new(card.right() - CARD_PAD, y + 0.5), Align2::RIGHT_TOP, &s.value, FontId::proportional(11.0), theme.text_secondary());
+        y += CARD_ROW_H;
     }
+}
+
+/// Floating card next to a machine's screen dot.
+fn draw_machine_card(painter: &egui::Painter, theme: &Theme, anchor: Pos2, label: &crate::gui::MachineLabel) {
+    let size = machine_card_size(label);
+    let card = Rect::from_min_size(Pos2::new(anchor.x + 12.0, anchor.y - size.y * 0.5), size);
+    draw_machine_card_body(painter, theme, card, label, false);
+    // A connector tick from the dot to the card.
+    painter.line_segment([anchor + Vec2::new(4.0, 0.0), Pos2::new(card.left(), anchor.y)], egui::Stroke::new(1.0, Color32::from_white_alpha(70)));
 }
 
 /// Map a stat kind to its painted icon, drawn in `color` (the status color).
