@@ -3,11 +3,21 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "FIRST-PLAYABLE / 3D-home arc: machines placed (v0.427), world-space LOD labels with room occlusion + Tab x-ray + status icons + Settings sliders COMPLETE (v0.428-0.430). NEXT (recommended): WALK-UP INTERACTION, approach a machine + press E to use/inspect it (the First-Playable \"stations become real\" milestone). Other arc options: wire machine stats to the live sim (real power/water/progress), add the rest of the blueprint machines to data/machines/home.ron (trivial). Security sprint done bar GitHub branch protection; v0.426.0 release awaits operator signature.",
+  "current_focus": "FIRST-PLAYABLE / 3D-home arc: machines (v0.427) + LOD labels/occlusion/Tab/icons/sliders (v0.428-0.430) + WALK-UP INTERACTION v1 (v0.431, look->[E]->pinned card) all shipped. NEXT options for the operator: (a) wire machine stats to the LIVE sim (real power/water/progress from systems) so the cards stop showing demo data; (b) add the rest of the blueprint machines to data/machines/home.ron (trivial); (c) fuller interaction actions (toggle/control buttons on the opened station, needs a cursor mode); (d) begin the expedition/stealth/awareness layer (design-doc filed). Security sprint done bar GitHub branch protection; v0.426.0 release awaits operator signature.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
   "recent_decisions": [
+    {
+      "at": "2026-06-13",
+      "decision": "WALK-UP INTERACTION v1 (v0.431.0). The machine you look at within ~5m (camera.forward() look-cone) becomes GuiState.targeted_machine; the HUD gives it an accent ring + a [E] open <name> crosshair prompt; pressing E pins its info card in a fixed top-left panel (GuiState.selected_machine) that persists until E again. Reuses the machine_labels + card (refactored into machine_card_size + draw_machine_card_body for floating + pinned). No ECS conversion, machines stay GuiState data; E still feeds input.interact so the ECS interaction system is unaffected.",
+      "why": "First-Playable milestone: machines become operable stations, not just readable scenery. Verified native+relay check clean, 4 gui lints pass.",
+      "files": [
+        "src/lib.rs",
+        "src/gui/pages/hud.rs",
+        "src/gui/mod.rs"
+      ]
+    },
     {
       "at": "2026-06-13",
       "decision": "MACHINE-LABEL FEATURE COMPLETE (v0.429.1 + v0.430.0). v0.429.1 fixed the Tab-freezes-movement bug (Tab was reaching egui in FPS mode -> egui grabbed keyboard focus via focus-traversal and swallowed WASD; fix: do not feed Tab to egui while in GuiPage::None). v0.430.0: distances retuned to Fibonacci 21/13/8; the info card now shows painted STATUS ICONS instead of kind text (new widgets/icons.rs: paint_bolt/droplet/flame/leaf + reused box/cog), colored by status (ok green / warn-low amber / off red), two-column row icon+value; Settings>Graphics gained live sliders for the 3 distances; keybinds list shows Inventory=I, Reveal(hold)=Tab. Occlusion is room-based (operator confirmed fine, no raycast wanted).",
@@ -1447,7 +1457,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.430.0; local exe building. v0.426.0 RELEASE awaits operator just sign-release. Every release v0.427-0.430 pushed origin+forge + local exe built (SOP). Deploy-to-VPS + Pages green.",
+  "version_state": "main==origin==forge: v0.431.0; local exe building. Every release v0.427-0.431 pushed origin+forge + local exe built (SOP). v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
