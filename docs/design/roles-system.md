@@ -63,9 +63,9 @@ role declares which of the four existing limit tiers it inherits via
 also having `can_stream = 1`. The four built-ins set
 `base_tier = <self>`.
 
-**v0.261 — per-role image/file sharing.** `image_sharing_enabled` /
+**v0.261, per-role image/file sharing.** `image_sharing_enabled` /
 `file_sharing_enabled` were server-wide booleans (and, until v0.261,
-never actually enforced server-side — only the chat UI hid the button).
+never actually enforced server-side, only the chat UI hid the button).
 Now `roles.can_image_share` / `can_file_share` give the same
 master∧capability model as streaming: an upload is allowed iff
 `server_settings.<x>_sharing_enabled AND role.can_<x>_share`, enforced
@@ -73,11 +73,11 @@ in `api.rs::upload_file`. Migration seeds every existing/built-in role
 to `1` so the upgrade is non-breaking (sharing stays gated only by the
 server master exactly as before; the per-role denial is opt-in).
 
-> **R4 — BUILT (v0.262).** `roles` now owns `max_chars`,
+> **R4, BUILT (v0.262).** `roles` now owns `max_chars`,
 > `max_upload_mb`, `max_uploads_kept` per-role. The "Per-role limits"
 > matrix is gone; everything per-role lives in ONE cohesive Roles table
 > (caps + numeric limits, all editable incl. built-ins). Enforcement
-> reads `role_def(role).max_*` directly — no `server_settings` tier hop
+> reads `role_def(role).max_*` directly, no `server_settings` tier hop
 > (`relay.rs` chat length, `api.rs` upload size + FIFO). This also
 > closed a latent gap: per-tier `max_upload_mb` was never enforced
 > server-side before R4 (only a hard const). Non-breaking upgrade: the
@@ -112,7 +112,7 @@ behavior), so nothing breaks if a role is deleted while assigned.
 `donor` (trust 2, = verified caps) is also seeded for backward compat
 with existing `user_roles` rows that say `"donor"`.
 
-Streaming defaults **off** for everyone except mod/admin — the operator
+Streaming defaults **off** for everyone except mod/admin, the operator
 opts a role in (e.g. creates a "Streamer" or "Family" role with
 `can_stream = 1`). The server-wide `video_streaming_enabled` bool is
 retained as a **master kill-switch**: if it's off, nobody streams
@@ -131,7 +131,7 @@ effective_can_X(user) = server_master_X_enabled
 ## 4. Capability check API
 
 `Storage::role_def(role_id) -> RoleDef` (falls back to the `unverified`
-seed for unknown ids — safe default-deny). `RoleDef` has the bool
+seed for unknown ids, safe default-deny). `RoleDef` has the bool
 capabilities + `base_tier`. The scattered `match role { ... }` checks
 become:
 
@@ -157,7 +157,7 @@ are its own.
   (capabilities still editable on built-ins), broadcasts new `role_list`.
 - `role_delete` (admin → server): delete a custom role. Built-ins
   rejected. Any users holding the deleted role fall back to unverified
-  behavior (no DB rewrite needed — `role_def` fallback handles it).
+  behavior (no DB rewrite needed, `role_def` fallback handles it).
 - `set_user_role` (admin → server): assign a role id to a user. This
   generalizes the existing `mod_action` "mod"/"unmod" actions (those
   remain as shortcuts).
@@ -172,7 +172,7 @@ are its own.
 - **Server Settings → Roles**: ONE cohesive table. The header is
   followed by a single **"Server master"** row (accent-colored, no
   swatch) carrying the 4 server-wide kill-switches in the
-  Stream/Voice/Image/File columns (`Upload` is a dash — legacy general
+  Stream/Voice/Image/File columns (`Upload` is a dash, legacy general
   `can_upload` has no server-wide master); every row below is a role
   (add custom, edit label/color/capabilities + per-role numeric limits,
   delete custom). **v0.262.6:** the kill-switches were previously a

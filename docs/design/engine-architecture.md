@@ -9,7 +9,7 @@
 > **Implementation vs Design:** This document describes the v1.0 target architecture, including
 > a multi-crate layout (`crates/`) that was **explored but not adopted**. As of the v0.90.0
 > unified-binary restructure, the actual implementation is a **single Rust crate at `src/`**
-> (no Cargo workspace, no `crates/` sub-crates — they were folded into `src/`; the relay is
+> (no Cargo workspace, no `crates/` sub-crates, they were folded into `src/`; the relay is
 > `src/relay/`). Treat every `crates/...` path in the design sections below as the *aspirational*
 > module map, not files that exist. Key differences from this design as actually built:
 > - **GUI**: egui immediate-mode UI (theme.ron, widgets, 5 pages) replaces Tauri WebView (v0.36.0)
@@ -52,21 +52,21 @@
 
 These principles are non-negotiable. Every system in the engine must satisfy all of them.
 
-**ZERO hardcoded content.** Every game constant, item definition, recipe, crop growth rate, ship component stat, NPC behavior, and quest objective lives in a data file. The Rust code is a generic simulation engine that reads data and executes rules. Adding a new crop, weapon, or ship module requires zero code changes — only a new data file entry.
+**ZERO hardcoded content.** Every game constant, item definition, recipe, crop growth rate, ship component stat, NPC behavior, and quest objective lives in a data file. The Rust code is a generic simulation engine that reads data and executes rules. Adding a new crop, weapon, or ship module requires zero code changes, only a new data file entry.
 
-**Hot-reloadable everything.** Any data file change takes effect immediately without restarting the game. Shaders, assets, game constants, item definitions, AI behavior trees — all hot-reloaded via file watchers. The dev loop is: edit a TOML file, save, see the change in-game within one second.
+**Hot-reloadable everything.** Any data file change takes effect immediately without restarting the game. Shaders, assets, game constants, item definitions, AI behavior trees, all hot-reloaded via file watchers. The dev loop is: edit a TOML file, save, see the change in-game within one second.
 
 **Dual rendering.** The egui immediate-mode GUI handles HUD, menus, inventory, settings, and overlays natively. The wgpu renderer handles 3D world rendering. Both run in the same Rust binary. The web frontend (HTML/JS/CSS) handles all social features in the browser. Desktop and web share the same server API but render independently.
 
 **Parametric construction.** Building is not snapping cubes on a grid. Shapes have continuously adjustable dimensions. A wall is length x width x thickness, not a fixed-size block. CSG boolean operations combine primitives into complex geometry.
 
-**Multi-scale.** The same engine renders a light switch at centimeter precision and a Dyson sphere at astronomical scale. No separate "space game" and "surface game" — one continuous simulation with LOD and streaming.
+**Multi-scale.** The same engine renders a light switch at centimeter precision and a Dyson sphere at astronomical scale. No separate "space game" and "surface game", one continuous simulation with LOD and streaming.
 
 **Real technology only.** All ship systems, propulsion methods, life support, and engineering are based on real or near-proven physics. No magic shields, no FTL without theoretical basis, no handwaved energy sources. Advanced but real.
 
 **Volumetric cargo.** Items have physical volume (cubic meters) and mass (kilograms). A cargo hold has a capacity in cubic meters, not abstract inventory slots. You cannot fit a turbine in a backpack.
 
-**Off-screen autonomy.** When the player logs off, their character continues routine activities — tending gardens, repairing tools, mining asteroids. The simulation runs in compressed time on the server. Players return to meaningful progress.
+**Off-screen autonomy.** When the player logs off, their character continues routine activities, tending gardens, repairing tools, mining asteroids. The simulation runs in compressed time on the server. Players return to meaningful progress.
 
 **Education through gameplay.** Every game system teaches a real skill. Failure is educational, not punitive. The game creates situations where mastering real knowledge is the path to success. See [educational-gameplay.md](educational-gameplay.md) for the full philosophy.
 
@@ -151,7 +151,7 @@ src/
 
 ```
 crates/
-  humanity-engine/              # Core engine — rendering, ECS, physics, audio, input
+  humanity-engine/              # Core engine - rendering, ECS, physics, audio, input
     src/
       lib.rs                    # Engine initialization, main loop, plugin registration
       renderer/
@@ -170,14 +170,14 @@ crates/
         streaming.rs            # Region-based asset streaming, VRAM budget management
         csg.rs                  # CSG boolean operations for parametric construction
       ecs/
-        mod.rs                  # Archetypal ECS — entities, components, system scheduler
+        mod.rs                  # Archetypal ECS - entities, components, system scheduler
         world.rs                # World state container, entity creation/destruction
         query.rs                # Component query iterators
         schedule.rs             # System ordering, dependency resolution, parallel execution
         hot_reload.rs           # Component schema versioning, live data migration
       physics/
         mod.rs                  # Physics orchestration, timestep management
-        rigid_body.rs           # Rapier3d integration — rigid bodies, colliders, joints
+        rigid_body.rs           # Rapier3d integration - rigid bodies, colliders, joints
         fluid.rs                # Pressure-based fluid simulation between connected volumes
         pressure.rs             # Atmosphere pressure model, hull breach venting
         fire.rs                 # O2-dependent fire spread, suppression systems
@@ -185,15 +185,15 @@ crates/
         gravity.rs              # Per-zone gravity (centrifugal sections, zero-G, planetary)
       audio/
         mod.rs                  # Audio orchestration, bus routing
-        mixer.rs                # kira integration — voice pool, ducking, limiting
-        spatial.rs              # Steam Audio FFI — HRTF, occlusion, reverb
+        mixer.rs                # kira integration - voice pool, ducking, limiting
+        spatial.rs              # Steam Audio FFI - HRTF, occlusion, reverb
         music.rs                # Adaptive music system, crossfade, stems
         hot_reload.rs           # Sound file watcher, live replacement
       input/
         mod.rs                  # Input orchestration, device detection
         mapping.rs              # Action-to-key bindings, rebindable, hot-reloadable
         gamepad.rs              # Gamepad support, dead zones, rumble
-        vr.rs                   # OpenXR input — hand tracking, controllers
+        vr.rs                   # OpenXR input - hand tracking, controllers
       assets/
         mod.rs                  # Asset manager orchestration
         loader.rs               # Async asset loading (GLB, KTX2, OGG, WGSL, TOML, CSV, RON)
@@ -201,13 +201,13 @@ crates/
         cache.rs                # LRU asset cache, reference counting, eviction
         hot_reload.rs           # Change detection, affected-system notification
 
-  humanity-game/                # Game systems — ALL data-driven, no hardcoded content
+  humanity-game/                # Game systems - ALL data-driven, no hardcoded content
     src/
       lib.rs                    # Game plugin registration, system wiring
       farming/
         mod.rs                  # Farming system orchestration
         crops.rs                # Crop growth simulation, stages, yield calculation
-        soil.rs                 # Soil chemistry — pH, fertility, moisture, nutrients
+        soil.rs                 # Soil chemistry - pH, fertility, moisture, nutrients
         weather.rs              # Weather effects on crops, irrigation, frost damage
         automation.rs           # Sprinkler, harvester, drone automation
         companion.rs            # Companion planting bonuses, monoculture penalties
@@ -222,7 +222,7 @@ crates/
       inventory/
         mod.rs                  # Inventory system orchestration
         items.rs                # Item definitions (from data files), physical properties
-        containers.rs           # Volumetric containers — capacity in cubic meters
+        containers.rs           # Volumetric containers - capacity in cubic meters
         stacking.rs             # Stack rules, weight limits, fragility
       combat/
         mod.rs                  # Combat system orchestration
@@ -281,7 +281,7 @@ crates/
         fleet.rs                # Fleet-wide resource pools, donation, collective upgrades
         mining.rs               # Asteroid mining yield, ore processing, refining chains
 
-  humanity-relay/               # Existing web relay server — KEEP AS-IS
+  humanity-relay/               # Existing web relay server - KEEP AS-IS
     src/                        # See existing codebase (relay.rs, api.rs, storage/)
     client/                     # Existing HTML/JS/CSS chat client
 
@@ -304,7 +304,7 @@ humanity-engine  ←──  humanity-game
   humanity-relay
 ```
 
-- `humanity-data` is the shared foundation — types used by both the game client and the relay server.
+- `humanity-data` is the shared foundation, types used by both the game client and the relay server.
 - `humanity-engine` depends on `humanity-data` for identity and message types.
 - `humanity-game` depends on `humanity-engine` for rendering, ECS, physics, and audio.
 - `humanity-relay` depends on `humanity-data` but is otherwise independent. It does not depend on the engine or game crates.
@@ -431,7 +431,7 @@ Commands are defined in a data file (`data/console_commands.ron`) and are themse
 
 ### Philosophy
 
-Construction is NOT snapping cubes on a grid. Every shape is parametric — adjustable in every dimension with continuous precision. A wall is not "a wall block" but a rectangular prism with length, width, and thickness that the player sets to any value.
+Construction is NOT snapping cubes on a grid. Every shape is parametric, adjustable in every dimension with continuous precision. A wall is not "a wall block" but a rectangular prism with length, width, and thickness that the player sets to any value.
 
 ### Parametric Primitives
 
@@ -449,17 +449,17 @@ All parameters accept floating-point values. There is no grid snapping by defaul
 ### CSG Boolean Operations
 
 ```
-Union (A ∪ B)         — Combine two shapes into one solid
-Subtract (A - B)      — Cut shape B out of shape A (doors, windows, pipe holes)
-Intersect (A ∩ B)     — Keep only the overlapping region
+Union (A ∪ B)         - Combine two shapes into one solid
+Subtract (A - B)      - Cut shape B out of shape A (doors, windows, pipe holes)
+Intersect (A ∩ B)     - Keep only the overlapping region
 
 Example: Hull panel with a porthole
-  1. Create Box(3.0, 0.1, 2.0)          — wall panel
-  2. Create Cylinder(0.3, 0.2, 32)      — porthole hole
+  1. Create Box(3.0, 0.1, 2.0)          - wall panel
+  2. Create Cylinder(0.3, 0.2, 32)      - porthole hole
   3. Position cylinder at center of box
-  4. Subtract cylinder from box          — wall with circular window
-  5. Create Torus(0.3, 0.02, 32)        — window frame ring
-  6. Union torus with result             — finished porthole
+  4. Subtract cylinder from box          - wall with circular window
+  5. Create Torus(0.3, 0.02, 32)        - window frame ring
+  6. Union torus with result             - finished porthole
 ```
 
 The CSG tree is stored as a DAG (directed acyclic graph) in RON format. Each node is either a primitive with parameters or an operation referencing child nodes. This tree is re-evaluated on parameter change, enabling live-tweaking of any dimension.
@@ -512,7 +512,7 @@ Every constructed object undergoes real-time structural analysis:
 - **Load paths:** Forces traced from load application through structural members to supports.
 - **Stress visualization:** Color overlay showing stress levels (green = safe, yellow = marginal, red = failure imminent).
 - **Material properties:** Each material (steel, aluminum, titanium, composite) has yield strength, elasticity, density defined in `data/items/materials.csv`.
-- **Failure modes:** Exceeding yield strength causes deformation. Exceeding ultimate strength causes fracture. Failure is localized — a broken beam collapses its span, not the whole structure.
+- **Failure modes:** Exceeding yield strength causes deformation. Exceeding ultimate strength causes fracture. Failure is localized, a broken beam collapses its span, not the whole structure.
 - **Safety factor display:** Shows the ratio of capacity to load for each structural member.
 
 ### Auto-Routing
@@ -523,7 +523,7 @@ When a player places two connected systems (e.g., reactor and radiator), the eng
 2. A* pathfind from source connector to destination connector.
 3. Generate pipe/wire geometry along the path, respecting bend radius minimums.
 4. Player can accept the auto-route or manually override any segment.
-5. Routes update when rooms are rearranged — affected routes re-pathfind automatically.
+5. Routes update when rooms are rearranged, affected routes re-pathfind automatically.
 
 ### Blueprint Sharing
 
@@ -538,7 +538,7 @@ Blueprints serialize to RON files. Players can:
 
 ## 5. Ship Systems (Real Technology)
 
-All ship systems are grounded in real or near-proven physics. Each system is defined entirely in data files — adding a new propulsion type means adding a TOML entry, not writing Rust code.
+All ship systems are grounded in real or near-proven physics. Each system is defined entirely in data files, adding a new propulsion type means adding a TOML entry, not writing Rust code.
 
 ### System Definition Schema
 
@@ -576,7 +576,7 @@ real_reference = "NASA NEXT-C ion thruster, demonstrated 2023"
 | Solar sail | Zero (photon pressure) | Infinite | Current tech | Inner system, no fuel cost |
 | Alcubierre concept | N/A | N/A | Highly speculative | Research-tier only, exotic matter required |
 
-Each propulsion type has realistic thrust curves, fuel consumption, heat generation, and failure modes. No propulsion system violates known physics — even the Alcubierre drive is presented as a research project with unsolved problems, not a working FTL drive.
+Each propulsion type has realistic thrust curves, fuel consumption, heat generation, and failure modes. No propulsion system violates known physics, even the Alcubierre drive is presented as a research project with unsolved problems, not a working FTL drive.
 
 ### Power Generation
 
@@ -602,7 +602,7 @@ Power systems feed a ship-wide electrical grid. Every device has a power draw. I
 | Hydroponics | Grow food, supplement O2 | Seeds, nutrients, light | Starvation (weeks-months) |
 | Waste processing | Process biological and industrial waste | Bacteria cultures, energy | Disease, contamination |
 
-Each system has maintenance schedules, spare part requirements, and realistic failure cascades. A broken CO2 scrubber does not instantly kill the crew — it starts a clock during which CO2 levels rise, symptoms appear, and the crew must repair or improvise.
+Each system has maintenance schedules, spare part requirements, and realistic failure cascades. A broken CO2 scrubber does not instantly kill the crew, it starts a clock during which CO2 levels rise, symptoms appear, and the crew must repair or improvise.
 
 ### Gravity Simulation
 
@@ -622,7 +622,7 @@ No artificial gravity generators. Gravity comes from real physics:
 | Relay network | Unlimited (with relays) | Cumulative light-speed | Medium | Relay satellites at Lagrange points |
 | Quantum-entangled (speculative) | Unlimited | Instant | Very low | Research-tier, limited bandwidth |
 
-Communication delay is simulated realistically. Talking to Mars takes 4-24 minutes one-way. Orders to distant fleet elements are not instant — this drives gameplay (autonomy, pre-planned responses, trust in remote commanders).
+Communication delay is simulated realistically. Talking to Mars takes 4-24 minutes one-way. Orders to distant fleet elements are not instant, this drives gameplay (autonomy, pre-planned responses, trust in remote commanders).
 
 ### Defense Systems
 
@@ -646,7 +646,7 @@ No "shields" in the Star Trek sense. Defense is layered: detect threat, evade if
 The ship interior is divided into connected volumes. Each volume tracks:
 
 ```toml
-# Runtime state (not a data file — this is the ECS component schema)
+# Runtime state (not a data file - this is the ECS component schema)
 [volume]
 id = "engine_room_main"
 pressure_kpa = 101.3         # Standard atmosphere
@@ -676,7 +676,7 @@ When a hull breach occurs:
 3. Small breach (bullet hole): slow decompression over minutes. Sealant foam can patch it.
 4. Large breach (railgun hit): explosive decompression in seconds. Emergency bulkheads close automatically if the system is powered.
 5. Objects and people near the breach experience force proportional to pressure differential.
-6. Sound attenuates as atmosphere thins — near-vacuum is nearly silent.
+6. Sound attenuates as atmosphere thins, near-vacuum is nearly silent.
 
 ### Coolant Systems
 
@@ -695,8 +695,8 @@ Radiator Panels (radiate heat to space)
 
 If any segment of the coolant loop is breached:
 - Coolant leaks into the surrounding volume.
-- Primary loop coolant may be irradiated — contamination hazard.
-- Reactor temperature rises without cooling — automatic SCRAM if sensors are functional.
+- Primary loop coolant may be irradiated, contamination hazard.
+- Reactor temperature rises without cooling, automatic SCRAM if sensors are functional.
 - Leaked fluid flows through connected volumes following pressure/gravity.
 
 ### Fire Simulation
@@ -714,7 +714,7 @@ Fire requires three things (fire triangle): fuel, heat, O2.
 Physics responds to local gravity conditions:
 
 - **Centrifugal sections:** Gravity vector points outward from rotation axis. Magnitude = omega^2 x radius. Coriolis effects on moving objects (projectiles curve, thrown objects deflect).
-- **Zero-G core:** No gravity. Objects float. Fluids form spheres. Fire burns in spheres (different from terrestrial fire — harder to fight).
+- **Zero-G core:** No gravity. Objects float. Fluids form spheres. Fire burns in spheres (different from terrestrial fire, harder to fight).
 - **Transition zones:** Moving between rotating and non-rotating sections involves passing through decreasing gravity. Handholds and guide rails assist.
 - **Planetary surface:** Uniform downward gravity at the body's surface value.
 
@@ -897,7 +897,7 @@ Character status: Healthy, well-rested, fed
 | Expert (76-90) | 90% of online rate | Near-optimal performance |
 | Master (91-100) | 95% of online rate | Almost as good as being there |
 
-Offline work is always slightly less efficient than active play — the player's real-time decisions and reactions cannot be fully replicated. This preserves the incentive to play actively while ensuring meaningful progress during absence.
+Offline work is always slightly less efficient than active play, the player's real-time decisions and reactions cannot be fully replicated. This preserves the incentive to play actively while ensuring meaningful progress during absence.
 
 ### Server-Side Implementation
 
@@ -913,7 +913,7 @@ Offline simulation runs on the relay server as a periodic job:
 
 ### Scale Hierarchy
 
-The game world spans 40+ orders of magnitude, from centimeter-precision interiors to galaxy-wide views. Navigation is seamless — no loading screens between scales.
+The game world spans 40+ orders of magnitude, from centimeter-precision interiors to galaxy-wide views. Navigation is seamless, no loading screens between scales.
 
 ```
 Galaxy View         ~100,000 light-years across
@@ -1003,7 +1003,7 @@ Every numeric value in the codebase must come from a data file or be derived fro
 
 Bad:
 ```rust
-// WRONG — hardcoded values
+// WRONG - hardcoded values
 let growth_rate = 0.15;
 let max_health = 100.0;
 let gravity = 9.81;
@@ -1011,7 +1011,7 @@ let gravity = 9.81;
 
 Good:
 ```rust
-// RIGHT — all values from data files
+// RIGHT - all values from data files
 let growth_rate = crop_data.growth_rate;
 let max_health = species_data.base_health;
 let gravity = planet_data.surface_gravity;
@@ -1125,7 +1125,7 @@ BehaviorTree(
 
 ### Every System Teaches a Real Skill
 
-This is not an afterthought — it is the core design goal. See [educational-gameplay.md](educational-gameplay.md) for the full philosophy.
+This is not an afterthought, it is the core design goal. See [educational-gameplay.md](educational-gameplay.md) for the full philosophy.
 
 | Game system | Real skill taught | How failure educates |
 |-------------|------------------|---------------------|
@@ -1141,7 +1141,7 @@ This is not an afterthought — it is the core design goal. See [educational-gam
 
 ### Skill Proficiency Affects Outcomes
 
-Player skill proficiency is not cosmetic — it directly determines success and failure.
+Player skill proficiency is not cosmetic, it directly determines success and failure.
 
 | Proficiency | Effect on gameplay |
 |-------------|-------------------|
@@ -1156,9 +1156,9 @@ Player skill proficiency is not cosmetic — it directly determines success and 
 Multiple players working on the same task mirrors real-world teamwork:
 
 - **Multi-person welding:** One tacks, another runs the bead, a third inspects quality. Communication matters.
-- **Surgical teams:** Operator, anesthetist, vitals monitor — each role requires different knowledge.
-- **Construction crews:** Framing, wiring, plumbing happen in parallel. Sequencing matters — you cannot drywall before wiring inspection.
-- **Ship bridge crew:** Helmsman, navigator, engineer, comms — each station has its own skill requirements.
+- **Surgical teams:** Operator, anesthetist, vitals monitor, each role requires different knowledge.
+- **Construction crews:** Framing, wiring, plumbing happen in parallel. Sequencing matters, you cannot drywall before wiring inspection.
+- **Ship bridge crew:** Helmsman, navigator, engineer, comms, each station has its own skill requirements.
 
 ### In-Game Encyclopedia
 
@@ -1262,7 +1262,7 @@ For the audio architecture (kira + Steam Audio), see [audio-engine.md](audio-eng
 
 ### Behavior Trees
 
-All NPC behavior is defined in RON files (see section 10 for example). The behavior tree evaluator is a generic engine component — it reads RON definitions and executes them. Adding new NPC types requires only new RON files.
+All NPC behavior is defined in RON files (see section 10 for example). The behavior tree evaluator is a generic engine component, it reads RON definitions and executes them. Adding new NPC types requires only new RON files.
 
 Node types:
 - **Sequence:** Execute children in order. Fail on first failure.
@@ -1333,7 +1333,7 @@ NPCs have relationships, morale, and faction standing:
 
 ### Damage Model
 
-Damage is physical and location-specific. There are no abstract "hit points" for ships — every component has its own integrity.
+Damage is physical and location-specific. There are no abstract "hit points" for ships, every component has its own integrity.
 
 **Damage types:**
 | Type | Source | Effect |
@@ -1349,7 +1349,7 @@ Damage is physical and location-specific. There are no abstract "hit points" for
 When a projectile hits a ship:
 1. **Impact point:** Determine which hull section is hit.
 2. **Penetration:** Compare projectile energy vs armor resistance. Penetrating hits continue into interior.
-3. **Interior damage:** The projectile (or shrapnel) damages whatever it hits inside — pipes, wiring, equipment, crew.
+3. **Interior damage:** The projectile (or shrapnel) damages whatever it hits inside, pipes, wiring, equipment, crew.
 4. **Cascading failure:** Damaged systems affect connected systems. A hit on the coolant tank floods the area. A hit on the power conduit blacks out the section.
 5. **Hull breach:** If the hit penetrates both sides of a hull section, atmosphere vents (see section 6).
 
@@ -1376,7 +1376,7 @@ Skills improve through practice, not through spending abstract "skill points." E
 XP gained = base_xp * difficulty_multiplier * (1 - current_level / max_level)^diminishing_factor
 ```
 
-Diminishing returns ensure that trivial tasks stop granting meaningful XP as skill increases. A master welder gains nothing from welding a simple butt joint — they need to attempt challenging techniques to progress.
+Diminishing returns ensure that trivial tasks stop granting meaningful XP as skill increases. A master welder gains nothing from welding a simple butt joint, they need to attempt challenging techniques to progress.
 
 ### Skill Categories
 
@@ -1404,7 +1404,7 @@ orbital_mechanics,Orbital Mechanics,navigation,Calculating orbital trajectories
 
 ### Proficiency Effects
 
-Skill level directly affects gameplay outcomes (no separate "stats"). A player with welding skill 30 produces welds with 30% of master quality — visible defects, lower structural rating, higher failure probability under stress.
+Skill level directly affects gameplay outcomes (no separate "stats"). A player with welding skill 30 produces welds with 30% of master quality, visible defects, lower structural rating, higher failure probability under stress.
 
 ---
 

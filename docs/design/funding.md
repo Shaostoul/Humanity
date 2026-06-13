@@ -109,7 +109,7 @@ async function fetchFundingTotals(sources) {
   // GET https://mempool.space/api/address/{addr}
   // Convert BTC to USD via CoinGecko
 
-  // GitHub Sponsors: no public balance API — manual entry in config
+  // GitHub Sponsors: no public balance API - manual entry in config
   // or scrape from sponsors page (fragile), or use GraphQL with token
 
   cachedTotals = totals;
@@ -156,22 +156,22 @@ Reuse existing `qrcode.js` (already loaded for chat identity). Generate QR on pa
 
 | File | Change |
 |------|--------|
-| `web/pages/donate.html` | New — donation page |
-| `web/pages/donate-app.js` | New — balance queries, progress bar, QR generation |
+| `web/pages/donate.html` | New, donation page |
+| `web/pages/donate-app.js` | New, balance queries, progress bar, QR generation |
 | `src/relay/api.rs` | Extend `/api/server-info` to include `funding` from config |
-| `data/server-config.json` | New — server owner editable funding config |
+| `data/server-config.json` | New, server owner editable funding config |
 | `web/shared/shell.js` | Add conditional "Donate" nav link |
 | `web/chat/chat-profile.js` | Add funding section to owner's profile card |
 
 ## Privacy
 
-- Blockchain balances are inherently public — no new privacy concern
+- Blockchain balances are inherently public, no new privacy concern
 - Individual donor names NOT displayed unless they opt in via a future "wall of supporters" feature
 - GitHub Sponsors respects each donor's privacy settings
 
 ## Legal
 
-- **Not a 501(c)(3)** — donations are NOT tax-deductible (yet)
+- **Not a 501(c)(3)**, donations are NOT tax-deductible (yet)
 - Incorporate when revenue exceeds $50k/year
-- **No MSB classification** — non-custodial crypto (wallet addresses displayed, not exchanged or held on behalf of users)
-- No securities implications — donations, not investments; no tokens issued
+- **No MSB classification**, non-custodial crypto (wallet addresses displayed, not exchanged or held on behalf of users)
+- No securities implications, donations, not investments; no tokens issued

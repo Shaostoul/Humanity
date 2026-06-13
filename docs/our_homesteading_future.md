@@ -6,7 +6,7 @@ We trade 40+ hours a week for rent, groceries, and basics while megacorps and go
 **That ends with a single small change.**
 
 ### The Vision
-Universal homesteading — every household producing its own food, water, power, and security.  
+Universal homesteading, every household producing its own food, water, power, and security.  
 AI and robotics now make it realistic for *everyone*, including apartments, disabled people, and seniors.  
 
 The tech is simple, documented for decades, and ready today.  
@@ -50,12 +50,12 @@ Pick any of these battle-tested designs. All work great for aeroponics with a si
 
 **Total cost to start with a printable:** $40–80 (filament + pump + nozzles).  
 **3D Printing: The Independence Multiplier**  
-Buy a printer once (~$200 entry-level) and every tower after the first costs pennies in filament. Customize height, add features, print spare parts on demand, and never rely on supply chains again. It’s the gateway skill that lets you 3D-print the rest of your homestead — tools, robot mounts, greenhouse clips, you name it.
+Buy a printer once (~$200 entry-level) and every tower after the first costs pennies in filament. Customize height, add features, print spare parts on demand, and never rely on supply chains again. It’s the gateway skill that lets you 3D-print the rest of your homestead, tools, robot mounts, greenhouse clips, you name it.
 
 ### Offline Monitoring – No Internet, No Cloud
 Drop in a $5 ESP32 (pH, EC/TDS, temp, level, humidity).  
 It runs a tiny local web server.  
-Pull up the live dashboard on your smart TV, Xbox, PlayStation, Nintendo Switch, phone — anything with a browser.  
+Pull up the live dashboard on your smart TV, Xbox, PlayStation, Nintendo Switch, phone, anything with a browser.  
 Completely private. Works even if the house has zero internet.
 
 ### Why This Changes Everything
@@ -65,11 +65,11 @@ Completely private. Works even if the house has zero internet.
 - Inclusive: voice/app control for anyone  
 - Environmental: less transport, less waste, regenerative foundation  
 
-This is how we end poverty — household abundance first.  
-This is how we unite humanity — open tools anyone can improve.
+This is how we end poverty, household abundance first.  
+This is how we unite humanity, open tools anyone can improve.
 
 ### Your Next Step
-1. Visit **united-humanity.us** — the chat is live right now. Jump in, share your build, get real-time help from the community.  
+1. Visit **united-humanity.us**, the chat is live right now. Jump in, share your build, get real-time help from the community.  
 2. Pick a model above and print or buy it this weekend.  
 3. When our official CC0 self-assembling version lands in the MVPs section, remix it and make it better.  
 
@@ -78,6 +78,6 @@ Print the key.
 
 **Let’s build the world we actually want.**
 
-— Michael Boisson & the United Humanity team  
+, Michael Boisson & the United Humanity team  
 February 2026  
 united-humanity.us | This doc: Humanity/mvps/our_homesteading_future.md

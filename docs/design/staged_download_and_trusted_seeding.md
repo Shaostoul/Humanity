@@ -17,7 +17,7 @@
 
 ## Two-Stage Install Strategy
 
-## Stage 1 — Core Runtime (required)
+## Stage 1: Core Runtime (required)
 
 Includes:
 - desktop runtime shell
@@ -30,7 +30,7 @@ Outcome:
 - app is usable quickly
 - user can reach Download Manager immediately
 
-## Stage 2 — Expanded Content Packs (optional)
+## Stage 2: Expanded Content Packs (optional)
 
 User opens **Download Manager** and chooses packs:
 - base game environment pack

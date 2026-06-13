@@ -33,7 +33,7 @@ Universe (observable)
 | 6 | **Planet** | Globe view with icosphere grid overlay |
 | 7 | **Surface** | Zoomed terrain (placeholder for future 3D) |
 
-Zoom transitions are continuous — scroll wheel or pinch smoothly interpolates between levels. Breadcrumb navigation shows current location path and allows jumping up.
+Zoom transitions are continuous, scroll wheel or pinch smoothly interpolates between levels. Breadcrumb navigation shows current location path and allows jumping up.
 
 ---
 
@@ -57,9 +57,9 @@ A universal addressing scheme for any point on any spherical body.
 - **T** / path = triangle index within that face at that level
 
 Examples:
-- `F13.L5.T2048` — Face 13, level 5, triangle 2048
-- `F13.J4235` — Face 13, level 10 (J), triangle 4235
-- `F0.A0` — Face 0, level 1, first sub-triangle
+- `F13.L5.T2048`, Face 13, level 5, triangle 2048
+- `F13.J4235`, Face 13, level 10 (J), triangle 4235
+- `F0.A0`, Face 0, level 1, first sub-triangle
 
 ### Resolution by Level
 
@@ -89,7 +89,7 @@ Byte layout (64 bits):
 
 ### Universality
 
-Works for any spherical body — planets, stars, moons, asteroids, Dyson spheres, magic orbs. The only parameter that changes is the body's radius (which determines physical area per triangle).
+Works for any spherical body, planets, stars, moons, asteroids, Dyson spheres, magic orbs. The only parameter that changes is the body's radius (which determines physical area per triangle).
 
 ---
 
@@ -340,7 +340,7 @@ Each celestial body can have associated bounties:
 
 ## Implementation Plan
 
-### Phase 1 (MVP) — Current
+### Phase 1 (MVP): Current
 - [x] Design document
 - [x] Solar system data (hardcoded, accurate)
 - [x] ~200 nearest stars from HYG

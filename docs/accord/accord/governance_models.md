@@ -1,4 +1,4 @@
-# Governance Models — Coordination Without Domination
+# Governance Models: Coordination Without Domination
 
 This document defines how humans coordinate decision-making at scale
 without sacrificing dignity, autonomy, or long-term stability.

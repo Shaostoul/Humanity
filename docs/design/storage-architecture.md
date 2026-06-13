@@ -10,36 +10,36 @@
 
 ## Three storage layers
 
-### 1. Server (relay) — SQLite at `/opt/Humanity/data/relay.db`
+### 1. Server (relay): SQLite at `/opt/Humanity/data/relay.db`
 
 - 38 storage modules in `src/relay/storage/`
 - Single SQLite file with WAL mode (`PRAGMA journal_mode=WAL` set in `Storage::open`)
 - Litestream-ready for async S3-compatible replication (see `docs/operations/litestream.md`)
 - Stores both:
-  - **Substrate**: the generic `signed_objects` table — every higher-level
+  - **Substrate**: the generic `signed_objects` table, every higher-level
     domain projects from this
   - **Projections**: vouches, credentials, governance, trust scores, recovery
-    shares, AI status, etc. — populated automatically by side-effects on
+    shares, AI status, etc., populated automatically by side-effects on
     `put_signed_object`
 
-### 2. Web client — browser-local
+### 2. Web client: browser-local
 
 - `localStorage` for small preferences and cached display data
 - `IndexedDB` for larger blobs (image cache, message history)
 - Encrypted vault stored as opaque ciphertext on the relay's `vault_blobs`
-  table — keys never leave the browser
+  table, keys never leave the browser
 - All PQ private key material derived from the BIP39 seed phrase, kept
   client-side and re-derived on each session
 
-### 3. Native client — `%APPDATA%/HumanityOS/`
+### 3. Native client: `%APPDATA%/HumanityOS/`
 
 ```
 %APPDATA%/HumanityOS/
-  identity/      — encrypted Dilithium3 keys (passphrase-locked via Argon2id)
-  saves/         — full ECS world state as JSON (src/persistence.rs)
-  settings/      — preferences, sync config, display state
-  cache/         — offline messages, avatars, manifests
-  backups/       — auto-rotated, last 5
+  identity/      - encrypted Dilithium3 keys (passphrase-locked via Argon2id)
+  saves/         - full ECS world state as JSON (src/persistence.rs)
+  settings/      - preferences, sync config, display state
+  cache/         - offline messages, avatars, manifests
+  backups/       - auto-rotated, last 5
 ```
 
 A native install can also run the relay (`HumanityOS --headless`) so it has
@@ -124,18 +124,18 @@ Bob's client
 ## P2P paths (no server needed)
 
 - **First meet via QR**: signed profile bytes encoded as QR. Both parties verify the Dilithium3 signature locally; no server in the loop.
-- **WebRTC**: `web/chat/chat-p2p.js` — direct browser-to-browser data channels for chat, voice, video, screen share.
-- **Recovery**: guardian sends decrypted Shamir share to holder out-of-band — typically through a friend's DM, but could be in-person, paper, or any side channel.
+- **WebRTC**: `web/chat/chat-p2p.js`, direct browser-to-browser data channels for chat, voice, video, screen share.
+- **Recovery**: guardian sends decrypted Shamir share to holder out-of-band, typically through a friend's DM, but could be in-person, paper, or any side channel.
 
 ---
 
-## "No home server" — what it actually means
+## "No home server": what it actually means
 
 When you connect to a NEW server you've never used before:
 
-1. It looks up your DID (`did:hum:abc...`) — your DID resolves anywhere because the BLAKE3 fingerprint is deterministic from your pubkey
+1. It looks up your DID (`did:hum:abc...`), your DID resolves anywhere because the BLAKE3 fingerprint is deterministic from your pubkey
 2. It pulls your signed profile via federation gossip if any peer has cached it
-3. Your VCs follow you — they're signed by the issuer, not server-bound
+3. Your VCs follow you, they're signed by the issuer, not server-bound
 4. Your trust score recomputes locally from the signed objects this server has observed
 
 Different servers may show slightly different trust scores depending on what
@@ -152,12 +152,12 @@ for you propagate back when you start interacting.
 
 Two separate concerns living side-by-side in the same binary:
 
-- **Social/identity/governance** — flows through the v2 substrate above. Federated, signed, replicated.
-- **Game state** (ECS world, inventory, terrain, ship layouts, NPCs) — lives in:
-  - `data/` next to the exe — hot-reloadable canonical content (CSV/RON/TOML/JSON)
-  - `%APPDATA%/HumanityOS/saves/` — per-user world state (JSON, written by `src/persistence.rs`)
+- **Social/identity/governance**, flows through the v2 substrate above. Federated, signed, replicated.
+- **Game state** (ECS world, inventory, terrain, ship layouts, NPCs), lives in:
+  - `data/` next to the exe, hot-reloadable canonical content (CSV/RON/TOML/JSON)
+  - `%APPDATA%/HumanityOS/saves/`, per-user world state (JSON, written by `src/persistence.rs`)
   - In-memory `hecs::World` at runtime
-- The two intersect at the **inventory** and **marketplace** boundaries — your game-mode marketplace listings can carry trust scores from the social layer.
+- The two intersect at the **inventory** and **marketplace** boundaries, your game-mode marketplace listings can carry trust scores from the social layer.
 
 ---
 
@@ -173,7 +173,7 @@ fast can we search?* Concrete numbers, all on a single mid-range VPS (4 CPU,
 | Lookup by indexed secondary column (e.g. `author_fp`, `category`) | **<5 ms** | B-tree on a smaller key |
 | Range scan by indexed timestamp + LIMIT 100 | **5–20 ms** | Index seek + small forward scan |
 | Full-text search via FTS5 (e.g. "find all items containing 'caffeine'") | **20–100 ms** | FTS5 inverted index; index file is ~5 GB at 1B rows |
-| Multi-column filter without composite index | **seconds to minutes** | Avoid this — add the right composite index, or denormalize |
+| Multi-column filter without composite index | **seconds to minutes** | Avoid this, add the right composite index, or denormalize |
 | Aggregate scan ("count all items by category") | **seconds to minutes** | Use a pre-computed materialized table updated by triggers |
 
 ### What 1 billion items actually looks like
@@ -233,7 +233,7 @@ The schema in `data/items/foods/SCHEMA.md` (v0.117.0+) accommodates this:
   ingredients}]` array
 - **Ingredients** live in their own RON sidecar files with toxicology data
 - **Toxicology is derived** at query time by aggregating the current
-  ingredient list — never stored on the item
+  ingredient list, never stored on the item
 - Query: "what's in Oreos today?" → latest history entry. "What was in Oreos
   in 1985?" → entry with as_of ≤ 1985-01-01.
 - Historical formulations stay queryable for medical exposure investigations
@@ -244,10 +244,10 @@ without touching any item file.
 
 ## Related docs
 
-- `docs/network/object_format.md` — canonical CBOR signed object format
-- `docs/network/hybrid_replication.md` — what replicates P2P vs centralized
-- `docs/network/server_federation.md` — federation protocol
-- `docs/operations/litestream.md` — replication ops
-- `docs/design/identity.md` — DID + key rotation
-- `docs/design/credentials.md` — VC schema details (when written)
-- `docs/design/multi-agent-development.md` — how AI agents coordinate without nuking each other's work
+- `docs/network/object_format.md`, canonical CBOR signed object format
+- `docs/network/hybrid_replication.md`, what replicates P2P vs centralized
+- `docs/network/server_federation.md`, federation protocol
+- `docs/operations/litestream.md`, replication ops
+- `docs/design/identity.md`, DID + key rotation
+- `docs/design/credentials.md`, VC schema details (when written)
+- `docs/design/multi-agent-development.md`, how AI agents coordinate without nuking each other's work

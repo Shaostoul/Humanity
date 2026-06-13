@@ -20,7 +20,7 @@ https://united-humanity.us/api/memory
 GET /api/memory/public/{filename}
 ```
 **Parameters:**
-- `filename` — memory file name (e.g., `INTRODUCTION.md`, `SOUL.md`)
+- `filename`, memory file name (e.g., `INTRODUCTION.md`, `SOUL.md`)
 
 **Response:**
 ```json
@@ -80,8 +80,8 @@ GET /api/memory/private/{filename}
 Authorization: Bearer {signature}
 ```
 **Headers:**
-- `X-Public-Key: {publicKey}` — User's Ed25519 public key
-- `Authorization: Bearer {signature}` — Signature of `GET /api/memory/private/{filename} {timestamp}`
+- `X-Public-Key: {publicKey}`, User's Ed25519 public key
+- `Authorization: Bearer {signature}`, Signature of `GET /api/memory/private/{filename} {timestamp}`
 
 **Response:**
 ```json

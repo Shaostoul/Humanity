@@ -33,7 +33,7 @@ This spec complements `design/feature_web.md` and should be represented in the F
 
 ## Layered Spatial Model
 
-## Layer 1 — Private Habitat Ring
+## Layer 1: Private Habitat Ring
 **Role:** player home, personal growth, preparation.
 
 ### Typical private modules
@@ -54,7 +54,7 @@ This spec complements `design/feature_web.md` and should be represented in the F
 
 ---
 
-## Layer 2 — Community Greenbelt (Public Park Layer)
+## Layer 2: Community Greenbelt (Public Park Layer)
 **Role:** morale, social commons, nature restoration, passive education.
 
 ### Public-space concepts
@@ -72,7 +72,7 @@ This spec complements `design/feature_web.md` and should be represented in the F
 
 ---
 
-## Layer 3 — Civic/Commercial Spine
+## Layer 3: Civic/Commercial Spine
 **Role:** high-traffic shared services and economic/social interaction.
 
 ### Public module examples
@@ -90,7 +90,7 @@ This spec complements `design/feature_web.md` and should be represented in the F
 
 ---
 
-## Layer 4 — Industrial/Logistics Layer
+## Layer 4: Industrial/Logistics Layer
 **Role:** throughput, construction, repair, transport, fleet operations.
 
 ### Functional systems

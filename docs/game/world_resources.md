@@ -1,7 +1,7 @@
-# World Resources — Mirroring Reality
+# World Resources: Mirroring Reality
 
 ## Philosophy
-The game mirrors real-world resource production, consumption, and reserves. Every number in the game comes from real data. Players learn actual economics, chemistry, agriculture, and engineering by playing. Fear comes from ignorance — transparency about humanity's actual capabilities dissolves it.
+The game mirrors real-world resource production, consumption, and reserves. Every number in the game comes from real data. Players learn actual economics, chemistry, agriculture, and engineering by playing. Fear comes from ignorance, transparency about humanity's actual capabilities dissolves it.
 
 ## Data Sources (Free, No API Key Required)
 - USGS Mineral Commodity Summaries (annual)
@@ -65,14 +65,14 @@ For each of the 44 materials:
 
 ## Game Integration
 
-### Reality Tab — "World Dashboard"
+### Reality Tab: "World Dashboard"
 Shows humanity's ACTUAL resource status:
 - Live-ish data (updated yearly for most, quarterly for some)
 - Visual breakdowns (pie charts, bar charts, maps)
 - "Did you know?" callouts that highlight surprising facts
 - Comparison tools: "Your daily water use vs. global average"
 
-### Fantasy Tab — Fleet Economy
+### Fantasy Tab: Fleet Economy
 Player fleet mirrors real production chains:
 - Mining ships → Refineries → Factories → Products
 - Farm ships → Processing → Distribution
@@ -128,4 +128,4 @@ Key facts the game highlights:
 - Literacy is at 87% globally and rising
 - Child mortality has dropped 60% since 1990
 
-The game doesn't hide problems — it shows both the challenges AND humanity's capacity to solve them.
+The game doesn't hide problems, it shows both the challenges AND humanity's capacity to solve them.

@@ -1,4 +1,4 @@
-# HumanityOS — Security Cadence
+# HumanityOS: Security Cadence
 
 > **Security is not a thing you ship once; it's a posture you maintain.** This file is the calendar of mandatory exercises that keep the posture honest.
 >
@@ -16,7 +16,7 @@
 | Secrets rotation | **Annual** (or on suspected leak) | 15 min | Operator |
 | Threat-model review | **Annual** or after major architectural change | 1 hour | Operator + AI session |
 
-## 1. Dependency audit — monthly
+## 1. Dependency audit: monthly
 
 ### Procedure
 ```bash
@@ -38,12 +38,12 @@ cd web && npm audit --omit=dev 2>&1 | tail -20  # JS deps (when web has package.
 |---|---|---|---|
 | 2026-05-20 | _scheduled_ | _scheduled_ | First run pending. Set calendar reminder. |
 
-## 2. Pre-release smoke test — every minor release (0.X.0)
+## 2. Pre-release smoke test: every minor release (0.X.0)
 
 ### Procedure
 For every minor bump (Rust code changed), before `gh release create`:
-1. `cargo test --features native` — full native suite green.
-2. `cargo test --features relay --no-default-features` — full relay suite green.
+1. `cargo test --features native`, full native suite green.
+2. `cargo test --features relay --no-default-features`, full relay suite green.
 3. `cargo build --features native --release` (`just build-game` does this + archive).
 4. Launch the new exe, perform the **smoke checklist** below.
 5. Only THEN tag + release.
@@ -66,7 +66,7 @@ Maintain in git history: every `v0.X.0` release implies a passed smoke test by d
 |---|---|---|
 | _none_ | _ongoing_ | Convention adopted v0.283.x. Prior releases relied on test suite + ad-hoc verification. |
 
-## 3. Independent code review — quarterly
+## 3. Independent code review: quarterly
 
 ### Procedure
 Spawn a dedicated **independent** AI session (or hire a human reviewer) with no context from the active development session. Provide:
@@ -74,7 +74,7 @@ Spawn a dedicated **independent** AI session (or hire a human reviewer) with no 
 - A scope statement: "audit for security flaws, no feature work, no code rewrites without an identified flaw, report MUST/SHOULD/NICE findings with severity."
 - Output expected: written report committed to `docs/security-reviews/<date>-<scope>.md`.
 
-The reviewer must NOT have access to the development session's context — independence is the whole point. The PQ-cutover review captured in CLAUDE.md's Cryptography section is the template.
+The reviewer must NOT have access to the development session's context, independence is the whole point. The PQ-cutover review captured in CLAUDE.md's Cryptography section is the template.
 
 ### Pass criteria
 - All HIGH and MEDIUM findings either fixed or explicitly accepted with documented rationale.
@@ -86,7 +86,7 @@ The reviewer must NOT have access to the development session's context — indep
 | ~v0.266.x | Full v0.262.28..HEAD PQ-cutover diff | Independent AI agent | DM crypto SOUND; 1 HIGH + 1 HIGH + 1 MED + 1 LOW found, all subsequently FIXED | HIGH-1, HIGH-2, MED-1 ✅; LOW-1 ✅ (closed v0.279.0) |
 | _next_ | post-v0.283 hardening sweep | TBD | _scheduled_ | _pending_ |
 
-## 4. Full pentest — annual (budget-gated)
+## 4. Full pentest: annual (budget-gated)
 
 When operator can fund it (~$5-15K for a reputable boutique firm), hire one. Scope:
 - All published REST endpoints.
@@ -102,7 +102,7 @@ Until that's affordable: the quarterly independent review (item 3) is the substi
 |---|---|---|---|
 | _none_ | _budget-gated_ | _-_ | _-_ |
 
-## 5. Backup-restore drill — quarterly
+## 5. Backup-restore drill: quarterly
 
 ### Why
 A backup you never restore from is not a backup. Drills prove the system actually works.
@@ -124,26 +124,26 @@ A backup you never restore from is not a backup. Drills prove the system actuall
 |---|---|---|---|
 | _none_ | _scheduled_ | _-_ | _-_ |
 
-## 6. Secrets rotation — annual or on suspected leak
+## 6. Secrets rotation: annual or on suspected leak
 
 ### What to rotate
 - `API_SECRET` (relay `/opt/Humanity/.env`)
 - `WEBHOOK_SECRET` (relay `.env` + GitHub repo webhook config)
-- `VAPID_*` keys (relay `.env`; invalidates Web Push subscriptions — users re-allow)
+- `VAPID_*` keys (relay `.env`; invalidates Web Push subscriptions, users re-allow)
 - SSH deploy keys (regenerate, update GitHub Secrets, remove old from `~/.ssh/authorized_keys`)
 - Forgejo admin password
 - Operator's GitHub access tokens (PAT in `GH_TOKEN`)
 - Domain registrar password
 
 ### Procedure
-For each, see BUS-FACTOR.md "Secrets — locations, not values" section. Rotate, restart, verify the affected feature still works.
+For each, see BUS-FACTOR.md "Secrets, locations, not values" section. Rotate, restart, verify the affected feature still works.
 
 ### Log
 | Date | Secrets rotated | Reason | Issues |
 |---|---|---|---|
 | _none_ | _annual_ | _baseline_ | _-_ |
 
-## 7. Threat-model review — annual or post-architecture-change
+## 7. Threat-model review: annual or post-architecture-change
 
 ### Procedure
 Re-read `CLAUDE.md` Cryptography section + `docs/design/storage-architecture.md`. Ask:
@@ -161,7 +161,7 @@ Output: an updated `docs/threat-model.md` (or section in this file) capturing cu
 | 2026-05-03 | PQ-cutover migration | Independent review captured in CLAUDE.md Cryptography section. |
 | _next_ | Annual (2027-05) or earlier on architecture change | _scheduled_ |
 
-## Threat model snapshot — current (2026-05-20)
+## Threat model snapshot: current (2026-05-20)
 
 ### Adversary classes we defend against
 
@@ -174,8 +174,8 @@ Output: an updated `docs/threat-model.md` (or section in this file) capturing cu
    - **Residual risk**: TLS cert compromise via CA compromise. Defense: Let's Encrypt's monitoring + manual cert pinning for the chat client (deferred).
 
 3. **Compromised operator** (someone gains VPS access). Wants to read users' data, impersonate users, plant backdoors.
-   - **Mitigations**: DM E2EE means even root-on-VPS can't read DMs (Kyber sealed to user's seed-derived key). Identity = Dilithium with proof-of-possession at identify (Inc3b) — operator can't log in AS a user without their seed.
-   - **Residual risk**: operator can rewrite the deployed binary to phish for seeds. Defense: signed release binaries (deferred — currently CI builds + raw exe; no signing). Federation gossip means other servers cache identities so a single-server compromise is less catastrophic.
+   - **Mitigations**: DM E2EE means even root-on-VPS can't read DMs (Kyber sealed to user's seed-derived key). Identity = Dilithium with proof-of-possession at identify (Inc3b), operator can't log in AS a user without their seed.
+   - **Residual risk**: operator can rewrite the deployed binary to phish for seeds. Defense: signed release binaries (deferred, currently CI builds + raw exe; no signing). Federation gossip means other servers cache identities so a single-server compromise is less catastrophic.
 
 4. **Quantum adversary** (future). Wants to forge identities or decrypt archived DMs.
    - **Mitigations**: identity = Dilithium3 (ML-DSA-65, NIST FIPS 204); DM = Kyber768 (ML-KEM-768, NIST FIPS 203). Both are post-quantum.
@@ -196,4 +196,4 @@ Output: an updated `docs/threat-model.md` (or section in this file) capturing cu
 - **Operator coercion**: legal demands from a jurisdiction. The DM E2EE design means operator can't comply with "show us their messages" for DMs; they CAN comply with "show us metadata" (who messaged whom, when). The architecture choice is to make E2E confidentiality non-circumventable even by the operator.
 
 ## Update log
-- 2026-05-20 — initial creation; quarterly cadences set, first independent review captured retroactively.
+- 2026-05-20, initial creation; quarterly cadences set, first independent review captured retroactively.

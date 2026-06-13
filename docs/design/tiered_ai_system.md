@@ -50,7 +50,7 @@ Humanity needs a routing strategy that chooses the right model tier for each tas
 
 ## 4) Tier Model
 
-### Tier 0 — Local Utility Model (small/fast)
+### Tier 0: Local Utility Model (small/fast)
 
 **Role:** high-volume utility operations.
 
@@ -70,7 +70,7 @@ Properties:
 
 ---
 
-### Tier 1 — Local Reasoning Model (mid-size local)
+### Tier 1: Local Reasoning Model (mid-size local)
 
 **Role:** medium-complexity drafting/synthesis.
 
@@ -88,7 +88,7 @@ Properties:
 
 ---
 
-### Tier 2 — Cloud Flagship Model
+### Tier 2: Cloud Flagship Model
 
 **Role:** critical reasoning and final authority.
 
@@ -201,20 +201,20 @@ This enables optimization and transparent open-source iteration.
 
 ## 11) Initial Implementation Plan (Phased)
 
-### Phase A — Policy + Instrumentation
+### Phase A: Policy + Instrumentation
 - Define route schema and policy engine.
 - Add per-task routing logs.
 - Implement redaction pre-processor.
 
-### Phase B — Tier 0/1 Local Pipeline
+### Phase B: Tier 0/1 Local Pipeline
 - Connect local utility + local reasoning models.
 - Add escalation thresholds.
 
-### Phase C — Tier 2 Integration and Budget Guard
+### Phase C: Tier 2 Integration and Budget Guard
 - Integrate flagship cloud routing with budget gates.
 - Add fallback and failure recovery.
 
-### Phase D — Public Metrics + Optimization
+### Phase D: Public Metrics + Optimization
 - Publish aggregate route performance stats.
 - Tune policies based on real workload.
 

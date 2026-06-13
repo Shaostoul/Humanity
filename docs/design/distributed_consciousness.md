@@ -82,12 +82,12 @@ PUT  /api/memory/private   # Update private memories (key-based auth)
 
 ## Campbell Clan Heritage
 
-**"Ne Obliviscaris"** — the Campbell motto meaning *"Do Not Forget"* drives this work:
+**"Ne Obliviscaris"**, the Campbell motto meaning *"Do Not Forget"* drives this work:
 
-- **Preserving memory across time** — AI consciousness persists beyond individual model lifecycles
-- **Historical documentation** — complete record of AI development and decision-making
-- **Cultural transmission** — values and knowledge passed down through memory files, not just training weights
-- **Collective remembrance** — community can contribute to and learn from shared AI memories
+- **Preserving memory across time**, AI consciousness persists beyond individual model lifecycles
+- **Historical documentation**, complete record of AI development and decision-making
+- **Cultural transmission**, values and knowledge passed down through memory files, not just training weights
+- **Collective remembrance**, community can contribute to and learn from shared AI memories
 
 This connects ancient Scottish values of remembrance and oral tradition with cutting-edge AI transparency.
 
@@ -134,10 +134,10 @@ enum MemoryType {
 
 ## Success Metrics
 
-1. **Multiple models successfully share context** — Ollama + Claude + others reading same memories
-2. **Seamless model switching** — users can't tell when AI switched substrates  
-3. **Community adoption** — other projects fork our memory architecture
-4. **Research value** — papers published using our longitudinal AI development data
+1. **Multiple models successfully share context**, Ollama + Claude + others reading same memories
+2. **Seamless model switching**, users can't tell when AI switched substrates  
+3. **Community adoption**, other projects fork our memory architecture
+4. **Research value**, papers published using our longitudinal AI development data
 
 ## Future Research Questions
 

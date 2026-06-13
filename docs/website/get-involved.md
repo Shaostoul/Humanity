@@ -13,9 +13,9 @@ This is an open project. It belongs to everyone. Here's how you can help.
 
 **The fastest way to get involved is to show up.**
 
-**[united-humanity.us/chat](https://united-humanity.us/chat)** — Our live chat. No account needed. No tracking. Ed25519 cryptographic identity, encrypted by design. Just open the link and say hello.
+**[united-humanity.us/chat](https://united-humanity.us/chat)**, Our live chat. No account needed. No tracking. Ed25519 cryptographic identity, encrypted by design. Just open the link and say hello.
 
-**[Discord](https://discord.gg/9XxmmeQnWC)** — Longer-form discussion, community coordination, and voice chat.
+**[Discord](https://discord.gg/9XxmmeQnWC)**, Longer-form discussion, community coordination, and voice chat.
 
 ---
 
@@ -28,7 +28,7 @@ The Accord and documentation need clear, accessible language. Help us refine ide
 Project Universe needs concept art, UI design, 3D models, and visual identity.
 
 **Developers**
-The server is built in Rust (axum + tokio). The client is modular HTML/CSS/JS split into `index.html`, `style.css`, `crypto.js`, and `app.js` for CSP compliance — no build step required. The desktop app uses Tauri v2. If you can code in Rust, JavaScript, HTML/CSS, or TypeScript — there's work to do.
+The server is built in Rust (axum + tokio). The client is modular HTML/CSS/JS split into `index.html`, `style.css`, `crypto.js`, and `app.js` for CSP compliance, no build step required. The desktop app uses Tauri v2. If you can code in Rust, JavaScript, HTML/CSS, or TypeScript, there's work to do.
 
 **Current technical needs:**
 - Federation protocol improvements
@@ -37,7 +37,7 @@ The server is built in Rust (axum + tokio). The client is modular HTML/CSS/JS sp
 - Testing and bug reports
 
 **Subject Matter Experts**
-Homesteading, agriculture, construction, medicine, engineering — if you know how to do something useful, we want to teach it.
+Homesteading, agriculture, construction, medicine, engineering, if you know how to do something useful, we want to teach it.
 
 **Translators**
 Humanity speaks many languages. The mission should too.
@@ -46,18 +46,18 @@ Humanity speaks many languages. The mission should too.
 
 ## Where to Start
 
-1. **Join the chat** — ask what needs doing
+1. **Join the chat**, ask what needs doing
    → [united-humanity.us/chat](https://united-humanity.us/chat)
 
-2. **Read the Accord** — understand the principles
+2. **Read the Accord**, understand the principles
    → [The Humanity Accord](accord)
 
-3. **Explore the repo** — see what exists, what's planned
+3. **Explore the repo**, see what exists, what's planned
    → [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
 
-4. **Download the app** — try the [desktop app (v0.2.0)](https://github.com/Shaostoul/Humanity/releases/latest) or install the PWA on mobile
+4. **Download the app**, try the [desktop app (v0.2.0)](https://github.com/Shaostoul/Humanity/releases/latest) or install the PWA on mobile
 
-5. **Pick something small** — fix a typo, clarify a sentence, add a detail. Small contributions matter.
+5. **Pick something small**, fix a typo, clarify a sentence, add a detail. Small contributions matter.
 
 ---
 
@@ -75,7 +75,7 @@ Every dollar goes toward development, hosting, and keeping the team fed while we
 
 ## Follow & Connect
 
-Find us everywhere — follow, share, and help spread the word.
+Find us everywhere, follow, share, and help spread the word.
 
 **Video:**
 - 🎥 [YouTube](https://youtube.com/@Shaostoul) · 📺 [Twitch](https://twitch.tv/Shaostoul) · 🟢 [Rumble](https://rumble.com/user/Shaostoul)

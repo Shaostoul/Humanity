@@ -1,4 +1,4 @@
-# Game Engine Decision — HumanityOS
+# Game Engine Decision: HumanityOS
 
 **Status:** Proposed
 **Author:** Shaostoul + Claude
@@ -9,7 +9,7 @@
 
 ## Context
 
-HumanityOS needs a 3D game layer that coexists with the existing Tauri/WebView2 desktop shell. The game world will render natively (GPU-accelerated) while UI overlays (chat, inventory, settings) remain in the HTML/JS layer already built. This hybrid architecture is the primary constraint — most off-the-shelf engines assume they own the entire window.
+HumanityOS needs a 3D game layer that coexists with the existing Tauri/WebView2 desktop shell. The game world will render natively (GPU-accelerated) while UI overlays (chat, inventory, settings) remain in the HTML/JS layer already built. This hybrid architecture is the primary constraint, most off-the-shelf engines assume they own the entire window.
 
 The relay server is Rust/axum/tokio. Staying in Rust for the game client means shared types, shared tooling, and one language across the stack.
 
@@ -37,7 +37,7 @@ The relay server is Rust/axum/tokio. Staying in Rust for the game client means s
 - **Rust-native.** Same language as the relay server. Shared types between client and server with no FFI boundary.
 - **ECS architecture.** Data-oriented design is cache-friendly and scales well for large worlds with many entities. Systems compose cleanly.
 - **Active community.** ~17k GitHub stars, regular release cadence, active Discord. Problems get answered quickly.
-- **Plugin ecosystem.** bevy_rapier (physics), bevy_egui (debug UI), bevy_kira_audio, bevy_renet (networking) — most common game subsystems have community crates.
+- **Plugin ecosystem.** bevy_rapier (physics), bevy_egui (debug UI), bevy_kira_audio, bevy_renet (networking), most common game subsystems have community crates.
 - **MIT/Apache dual-licensed.** No concerns for an open-source project.
 - **Hot-reloading assets.** Built-in asset server watches for file changes during development.
 - **Cross-platform.** Windows, macOS, Linux, and experimental WASM support.
@@ -49,7 +49,7 @@ The relay server is Rust/axum/tokio. Staying in Rust for the game client means s
 - **Heavy compile times.** Clean build: 5-8 minutes. Incremental: 15-40 seconds. Dynamic linking helps during dev but adds complexity.
 - **Learning curve.** ECS thinking is genuinely different from OOP. Queries, system ordering, change detection, and the scheduler have non-obvious behavior.
 - **Dependent on upstream release cycle.** If you need a renderer feature or a bug fix, you wait for the next release or vendor a fork.
-- **Renderer is good, not great.** PBR, shadows, bloom, SSAO — solid. But no built-in ray tracing pipeline, and advanced effects require custom render graph nodes.
+- **Renderer is good, not great.** PBR, shadows, bloom, SSAO, solid. But no built-in ray tracing pipeline, and advanced effects require custom render graph nodes.
 
 ---
 
@@ -66,7 +66,7 @@ The relay server is Rust/axum/tokio. Staying in Rust for the game client means s
 ### Cons
 
 - **Massive time investment.** A usable engine (renderer + scene graph + asset pipeline + animation + audio + input + physics) is years of work for one person. Most solo engines never ship a game.
-- **Every problem is your problem.** Frustum culling, skeletal animation, particle systems, LOD, texture streaming, spatial audio mixing — you build or integrate each one.
+- **Every problem is your problem.** Frustum culling, skeletal animation, particle systems, LOD, texture streaming, spatial audio mixing, you build or integrate each one.
 - **wgpu gives you GPU access, nothing above it.** No scene graph, no material system, no ECS, no asset loading. You start from raw triangles.
 - **No community.** When you hit a rendering bug at 2 AM, there's no Discord to ask. Stack Overflow has sparse wgpu coverage.
 - **Maintenance burden compounds.** Every subsystem you build is a subsystem you maintain forever.
@@ -83,7 +83,7 @@ A more traditional Rust game engine with a scene editor (FyroxEd), node-based sc
 | Renderer | More mature than Bevy's. Deferred rendering, GI probes, multi-render-target. |
 | Community | Much smaller (~7k stars). Primarily one developer (mrDIMAS). |
 | Stability | More stable APIs than Bevy, but smaller team means slower bug fixes. |
-| Editor | FyroxEd is functional — scene editing, material inspector, animation editor. |
+| Editor | FyroxEd is functional, scene editing, material inspector, animation editor. |
 | Risk | Bus factor of 1. If the maintainer steps away, the engine stalls. |
 
 **Verdict:** Stronger renderer and editor than Bevy, but the tiny community is a real risk for a long-term project.
@@ -96,11 +96,11 @@ Use Godot 4 as the game engine with Rust bindings via gdext.
 
 | Aspect | Assessment |
 |---|---|
-| Editor | Godot's editor is excellent — scene tree, visual shader editor, animation tools. |
+| Editor | Godot's editor is excellent, scene tree, visual shader editor, animation tools. |
 | Renderer | Vulkan-based Forward+ and Mobile renderers. Good quality, actively improving. |
 | Rust integration | GDExtension bindings work but add friction. You write Rust that conforms to Godot's object model, not native Rust patterns. |
 | Dependencies | Introduces GDScript and C++ into the stack. Build pipeline gets more complex. |
-| Hybrid UI | Godot assumes it owns the window. Integrating with Tauri overlay is non-trivial — would likely need to embed Godot as a child window. |
+| Hybrid UI | Godot assumes it owns the window. Integrating with Tauri overlay is non-trivial, would likely need to embed Godot as a child window. |
 | License | MIT. No concerns. |
 
 **Verdict:** Best editor and most mature 3D of the Rust-compatible options. But the GDExtension boundary adds friction, and the Tauri hybrid architecture becomes harder, not easier.
@@ -160,7 +160,7 @@ Bevy scores highest overall, but its weak spots (hybrid UI, API churn) align wit
 
 ---
 
-## Decision: Custom engine on wgpu — no Bevy dependency
+## Decision: Custom engine on wgpu: no Bevy dependency
 
 **Status: DECIDED (2026-03-17)**
 
@@ -170,7 +170,7 @@ Build a fully custom game engine on wgpu. No Bevy, no half-measures.
 
 1. **AI-accelerated development changes the calculus.** The "years of solo work" argument against custom engines assumes human typing speed and single-threaded thinking. With Claude spinning parallel agents across dozens of files simultaneously, the custom engine becomes viable in days/weeks, not years.
 2. **Zero upstream dependency risk.** Bevy is pre-1.0 with breaking changes every release. A custom engine means we never get stuck behind someone else's API churn, deprecation cycle, or architectural decisions that don't fit our use case.
-3. **No bloat.** We build exactly what we need — nothing more. No unused subsystems, no framework overhead, no fighting an engine's assumptions about window ownership.
+3. **No bloat.** We build exactly what we need, nothing more. No unused subsystems, no framework overhead, no fighting an engine's assumptions about window ownership.
 4. **The hybrid UI is our unique constraint.** Tauri webview overlay + native GPU window is not a pattern any existing engine supports. We'd be fighting Bevy's renderer to make this work. Building our own means the composition layer is designed for this from day one.
 5. **Full understanding.** Every line of engine code is code we wrote and understand. No black boxes, no "it works but I don't know why."
 
@@ -191,7 +191,7 @@ Build a fully custom game engine on wgpu. No Bevy, no half-measures.
 │ Shared Layer (Tauri IPC)                    │
 │ Game state, input routing, audio (kira)     │
 ├─────────────────────────────────────────────┤
-│ Relay Server (Rust/axum) — multiplayer sync │
+│ Relay Server (Rust/axum) - multiplayer sync │
 └─────────────────────────────────────────────┘
 ```
 
@@ -215,24 +215,24 @@ Build a fully custom game engine on wgpu. No Bevy, no half-measures.
 
 - bevy_ecs pulls in 15+ transitive deps and has breaking changes each Bevy release
 - Our ECS needs are straightforward: entities, components, system scheduling
-- A minimal archetypal ECS is ~500 lines of Rust — Claude can write it in one pass
+- A minimal archetypal ECS is ~500 lines of Rust, Claude can write it in one pass
 - No version drift, no integration glue, no "standalone bevy_ecs" gotchas
 
 ### Build phases
 
-**Phase 1 — Window + Triangle (Week 1):**
+**Phase 1, Window + Triangle (Week 1):**
 Tauri app spawns a native wgpu window alongside the webview. Render a triangle with PBR. Prove the dual-window IPC works.
 
-**Phase 2 — Scene graph + ECS (Week 2):**
+**Phase 2, Scene graph + ECS (Week 2):**
 Custom ECS, transform hierarchy, camera, mesh rendering, glTF loading. Render a textured model.
 
-**Phase 3 — World systems (Weeks 3-4):**
+**Phase 3, World systems (Weeks 3-4):**
 Terrain, sky/atmosphere, day-night cycle, basic physics (Rapier), player controller. Audio via kira.
 
-**Phase 4 — RT + polish (Weeks 5-6):**
+**Phase 4, RT + polish (Weeks 5-6):**
 Deferred rendering pipeline, hardware raytraced reflections/AO/GI, PBR materials, particle system, post-processing.
 
-**Phase 5 — Multiplayer + VR (Weeks 7-8):**
+**Phase 5, Multiplayer + VR (Weeks 7-8):**
 Entity sync via existing WebSocket relay, OpenXR integration for VR headsets.
 
 ### Risks
@@ -261,7 +261,7 @@ The engine prioritizes procedural generation over pre-baked assets to minimize i
 |--------|----------|-------|
 | **OGG Vorbis** | SFX, dialog | Lossy, small files, good quality for short clips |
 | **OGG / FLAC** | Music, ambient | OGG for streaming, FLAC for lossless archival |
-| **WAV** | Development only | Never shipped in release builds — converted to OGG before packaging |
+| **WAV** | Development only | Never shipped in release builds, converted to OGG before packaging |
 
 ### Models
 
@@ -279,7 +279,7 @@ The procedural approach naturally supports hardware scaling:
 | **Low** | Integrated / older GPU | Simplified shaders, low-res procedural textures (512), minimal particles, baked lighting fallbacks |
 
 - **Older hardware skips raytracing** and uses simpler shader variants with fewer noise octaves and lower-resolution outputs.
-- **Procedural texture resolution scales** with a single quality parameter — the same shader produces 512x512 on low-end and 2048x2048 on high-end hardware.
+- **Procedural texture resolution scales** with a single quality parameter, the same shader produces 512x512 on low-end and 2048x2048 on high-end hardware.
 
 ### Asset categories for selective install
 
@@ -287,12 +287,12 @@ Asset categories can be toggled or excluded entirely to reduce install size on s
 
 | Category | Contents | Excludable? |
 |----------|----------|-------------|
-| **Core** | Engine shaders, base procedural materials, essential UI | No — required |
-| **Audio SFX** | Sound effects, UI sounds | Partial — can use reduced set |
-| **Music** | Soundtrack, ambient tracks | Yes — gameplay unaffected |
-| **Voice** | Dialog, narration | Yes — subtitles as fallback |
-| **High-res models** | Detailed GLB models for close-up viewing | Yes — use LOD0 only |
-| **Cinematic assets** | Intro sequences, cutscene-specific assets | Yes — skip or use lower quality |
+| **Core** | Engine shaders, base procedural materials, essential UI | No, required |
+| **Audio SFX** | Sound effects, UI sounds | Partial, can use reduced set |
+| **Music** | Soundtrack, ambient tracks | Yes, gameplay unaffected |
+| **Voice** | Dialog, narration | Yes, subtitles as fallback |
+| **High-res models** | Detailed GLB models for close-up viewing | Yes, use LOD0 only |
+| **Cinematic assets** | Intro sequences, cutscene-specific assets | Yes, skip or use lower quality |
 
 This modular approach means the base install can be kept small (sub-100 MB for core + procedural shaders), with optional packs downloaded as needed.
 
@@ -316,9 +316,9 @@ This modular approach means the base install can be kept small (sub-100 MB for c
 
 ## References
 
-- [Bevy Engine](https://bevyengine.org/) — Main site, examples, migration guides
-- [wgpu](https://wgpu.rs/) — GPU abstraction layer docs
-- [Fyrox](https://fyrox.rs/) — Alternative Rust engine
-- [gdext (godot-rust)](https://github.com/godot-rust/gdext) — Godot 4 Rust bindings
-- [Rapier physics](https://rapier.rs/) — Standalone Rust physics
-- [Learn wgpu](https://sotrh.github.io/learn-wgpu/) — Tutorial for building a renderer on wgpu
+- [Bevy Engine](https://bevyengine.org/), Main site, examples, migration guides
+- [wgpu](https://wgpu.rs/), GPU abstraction layer docs
+- [Fyrox](https://fyrox.rs/), Alternative Rust engine
+- [gdext (godot-rust)](https://github.com/godot-rust/gdext), Godot 4 Rust bindings
+- [Rapier physics](https://rapier.rs/), Standalone Rust physics
+- [Learn wgpu](https://sotrh.github.io/learn-wgpu/), Tutorial for building a renderer on wgpu

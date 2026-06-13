@@ -15,7 +15,7 @@ No exceptions for status, narrative, authority, or convenience.
 
 ## Hard Rules
 
-### R0 — Definitions are operational
+### R0: Definitions are operational
 A claim exists only if it produces:
 - a measurable target
 - a measurement method
@@ -25,7 +25,7 @@ A claim exists only if it produces:
 
 Anything else is labeled **non-operational** and cannot drive decisions.
 
-### R1 — No pre-registration, no effect
+### R1: No pre-registration, no effect
 If a belief is not recorded *before* outcome reveal, it cannot:
 - unlock progression
 - grant certifications
@@ -35,7 +35,7 @@ If a belief is not recorded *before* outcome reveal, it cannot:
 
 Retrospective reasoning is treated as noise.
 
-### R2 — High-stakes actions are blocked by default
+### R2: High-stakes actions are blocked by default
 All actions are classified: `low | medium | high` stakes.
 
 Any **high** stake action is **hard-blocked** until the player provides an Epistemic Packet containing:
@@ -50,7 +50,7 @@ Any **high** stake action is **hard-blocked** until the player provides an Epist
 
 If the packet is incomplete or inadmissible, the action does not execute.
 
-### R3 — Evidence without provenance is inadmissible
+### R3: Evidence without provenance is inadmissible
 Evidence must include:
 - source actor/tool
 - procedure ID + version
@@ -61,7 +61,7 @@ Evidence must include:
 
 Missing any required provenance fields → **inadmissible** for binding decisions.
 
-### R4 — Calibration is the primary fitness function
+### R4: Calibration is the primary fitness function
 Progression and trust are based on calibration, not success count.
 
 Rule:
@@ -71,7 +71,7 @@ Rule:
 
 A player with honest 60% confidence and 60% hit-rate outranks a player claiming 95% confidence with 70% hit-rate.
 
-### R5 — Single-shot success cannot promote trust
+### R5: Single-shot success cannot promote trust
 A model/procedure cannot be promoted beyond `Hypothesis` without:
 - `N` replications (default 3)
 - `M` variation tests (default 1)
@@ -82,7 +82,7 @@ Promotion ladder:
 - `Working` → `Trusted` requires: N replications + calibration above threshold
 - `Trusted` → `Certified` requires: M variations + adversarial check + audit completeness
 
-### R6 — Drift revokes trust automatically
+### R6: Drift revokes trust automatically
 Any `Trusted` or `Certified` model is continuously evaluated in a sliding window.
 
 If performance drops below thresholds:
@@ -92,7 +92,7 @@ If performance drops below thresholds:
 
 No manual override.
 
-### R7 — Adversarial review is mandatory for governance
+### R7: Adversarial review is mandatory for governance
 Any claim affecting:
 - shared systems
 - communal policy
@@ -104,7 +104,7 @@ requires an adversarial step:
 
 Without adversarial artifacts → policy cannot promote.
 
-### R8 — Selective reporting is penalized as falsification
+### R8: Selective reporting is penalized as falsification
 The system tracks:
 - discarded trials
 - missing measurements
@@ -116,7 +116,7 @@ Rules:
 - repeated missingness triggers audit lockout
 - selective reporting blocks certification
 
-### R9 — Correlation cannot certify causality
+### R9: Correlation cannot certify causality
 Correlation-only models may be used for low stakes if calibration is good, but they cannot be `Certified`.
 
 Certification requires at least one:
@@ -124,7 +124,7 @@ Certification requires at least one:
 - randomized assignment (when feasible)
 - causal identification strategy logged in the procedure
 
-### R10 — Postmortems are compulsory on high-confidence failure
+### R10: Postmortems are compulsory on high-confidence failure
 If confidence ≥ threshold (default 0.8) and prediction fails:
 - a postmortem record is required before further progress in that domain
 - the postmortem must name:

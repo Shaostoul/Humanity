@@ -11,7 +11,7 @@ When files disagree, use this precedence:
 1. `docs/accord/` (principles, governance, constraints)
 2. `docs/design/` (architecture/system behavior and contracts)
 3. `data/` (structured runtime/canonical datasets)
-4. `src/`, `web/` (implementation layers — single Rust crate since the v0.90 unified-binary restructure; `server/` + `crates/` no longer exist)
+4. `src/`, `web/` (implementation layers, single Rust crate since the v0.90 unified-binary restructure; `server/` + `crates/` no longer exist)
 5. `docs/website/` content is presentation; canonical meaning stays upstream
 
 See also: `docs/website/README.md`.
@@ -20,7 +20,7 @@ See also: `docs/website/README.md`.
 
 ### Rust crate (single unified binary, post-v0.90)
 
-- `src/` — one crate, all features behind flags. `src/relay/` is the
+- `src/`, one crate, all features behind flags. `src/relay/` is the
   axum relay server (was `server/`); the rest is the game engine +
   systems. Build modes: `HumanityOS` (native desktop) /
   `HumanityOS --headless` (relay). No workspace, no sub-crates.
@@ -144,4 +144,4 @@ Add one pilot domain module (example: `src/systems/orbital.rs` or
 - maps directly to one existing `docs/design/systems/*` doc,
 - registers with the `SystemRunner` if it ticks per-frame,
 - keeps domain content data-driven (`data/*.csv|toml|ron|json`) per the
-  infinite-of-X rule — no hardcoded arrays of domain objects.
+  infinite-of-X rule, no hardcoded arrays of domain objects.

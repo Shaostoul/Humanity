@@ -1,4 +1,4 @@
-# Library — federated file/media catalog + curated directories
+# Library: federated file/media catalog + curated directories
 
 > **Status:** design (2026-05-26). Operator-driven design conversation. The
 > **Library** is HumanityOS's single "free public access to resources" home: a
@@ -12,15 +12,15 @@
 The web chat already lets people attach files, and the relay already has an
 asset-library backend (`assets.rs`) + an upload path (`uploads.rs`). But there's
 no **browsable, searchable, federated catalog** of shared files, and no way to
-host the things that are "cool but not required" — concept art, `.stl`/`.blend`
-3D models, reference media — without unbounded disk growth. The Library adds
+host the things that are "cool but not required", concept art, `.stl`/`.blend`
+3D models, reference media, without unbounded disk growth. The Library adds
 that, and in doing so unifies three overlapping "resources" surfaces into one.
 
 Seed content: the 187 media files (~264 MB of 2020-era concept art/renders)
 archived from the retired Project Universe site (`docs/history/project-universe-site/`,
 staged in gitignored `_pu-archive/media/`) are the Library's first upload.
 
-## Information architecture — one page, tabbed by consume-mode
+## Information architecture: one page, tabbed by consume-mode
 
 The organizing principle that keeps a merged page un-confusing is **how you
 consume the thing**:
@@ -37,7 +37,7 @@ plus a reference desk pointing **elsewhere**.
 
 **Consolidation:** `tools.rs` → **Software** tab; `browser.rs` (curated link
 list) + `resources.rs` → **Web** tab. Those pages retire into the Library
-(phased — see below). The eventual in-app **browser engine** stays a separate
+(phased, see below). The eventual in-app **browser engine** stays a separate
 capability that the Web tab's links *launch into*; the Library is the directory,
 not the renderer. `files.rs` (the `data/`-dir text editor, dev-tier) is
 unrelated and stays as-is.
@@ -46,7 +46,7 @@ unrelated and stays as-is.
 federated*; Software/Web are *curated by HumanityOS*. Every Files item shows its
 **source server**; curated items show "curated." Trust levels never blur.
 
-## The Files engine — bounded disk by construction
+## The Files engine: bounded disk by construction
 
 A **trust-tiered LRU cache (ephemeral) + a curated permanent tier (pins)**. This
 bounds disk *physically* (the 91 GB cascade can't recur) while creating an
@@ -69,14 +69,14 @@ as **GB or % of disk** (% auto-scales as the disk grows; GB is predictable).
 
 When a pool is full and a new upload arrives, evict the **oldest** file in that
 pool. For the shared unverified pool, **evict the heaviest user's oldest first**
-— a flooder evicts *themselves*, not their neighbours (anti-grief). Combine with
+, a flooder evicts *themselves*, not their neighbours (anti-grief). Combine with
 the existing per-key rate limiting.
 
 ### Pin → permanent → durable
 
 - A `pin_files`-roled user (admin/mod/custom) pins a file → it becomes
   **permanent** (exempt from LRU) **and is subtracted from the poster's quota**
-  (refund — incentive to post pin-worthy things).
+  (refund, incentive to post pin-worthy things).
 - **Unpin** → returns to the ephemeral pool with a fresh timestamp, re-counts
   against the owner.
 - Permanent still costs relay disk, so "infinite pins" is bounded by routing
@@ -90,7 +90,7 @@ the existing per-key rate limiting.
 Per tier, so a 300 MB `.blend` can't evict 3,000 pictures from the unverified
 pool. Large files require verified+ (or a separate large-file budget).
 
-## File identity & dedup — content, never name
+## File identity & dedup: content, never name
 
 Files are identified by a **SHA-256 of their bytes** (`content_hash` column),
 not their filename (rename `cat.png` → `dog.png`, the hash is unchanged). The
@@ -101,25 +101,25 @@ Two notions of "same":
 
 1. **Byte-identical** → same SHA-256. Provably identical regardless of name.
    **Auto-link** the new name to the one stored blob; no decision needed (at
-   most a quiet "you already have this" FYI). No preview dialog — they're the
+   most a quiet "you already have this" FYI). No preview dialog, they're the
    same bytes.
 2. **Looks-the-same, different bytes** (re-encoded / resized / cropped /
    screenshotted) → different SHA-256. Caught by a **perceptual hash (pHash)**
    for *images*, which yields a *similarity score*. Because it's probabilistic,
    this is where the **preview-confirmation dialog** fires:
 
-   > "This looks ~94% like a file already here — [new | existing, side by side]
-   > — **Same** (use existing) / **Different** (keep both)."
+   > "This looks ~94% like a file already here, [new | existing, side by side]
+   >, **Same** (use existing) / **Different** (keep both)."
 
    The human decides; near-dupes are never silently merged.
 
 **Honest caveat:** perceptual matching is an *image* technique. For 3D models
 (`.stl`/`.blend`/`.obj`) and other binaries, the realistic mechanism is
-exact-hash only — a re-exported model with different bytes reads as new.
+exact-hash only, a re-exported model with different bytes reads as new.
 Mesh-geometry fingerprinting is a later enhancement, not v1. So: **images get
 exact + perceptual + the dialog; everything else gets exact-hash dedup.**
 
-## Storage & transport — the layered model you already run
+## Storage & transport: the layered model you already run
 
 Storage (bytes) and Catalog (searchable index) are **separate concerns**. The
 catalog is lightweight metadata; bytes are fetched per-file from wherever the
@@ -127,21 +127,21 @@ record points.
 
 - **Bytes:** relay disk → HTTPS (nginx), layered with the existing torrent
   seeder. `torrent-create-and-seed` adds a **WebSeed** pointing at the HTTPS
-  URL, so BitTorrent is a P2P *amplification layer on top of HTTP* — cold files
+  URL, so BitTorrent is a P2P *amplification layer on top of HTTP*, cold files
   fall back to plain HTTPS (always works), popular/large files get P2P offload.
   Auto-torrent files above a threshold (e.g. ≥ 25 MB).
-- **Deferred:** object storage (S3/R2/B2) — infinite scale but **costs money**
+- **Deferred:** object storage (S3/R2/B2), infinite scale but **costs money**
   (against the budget) + external dependency; revisit only under disk pressure
-  (R2's zero egress would be the pick). IPFS — elegant content-addressing but
+  (R2's zero egress would be the pick). IPFS, elegant content-addressing but
   run-a-node complexity; the torrent layer already delivers ~the same benefit.
 
-## Federation — catalog aggregation, not byte-shipping
+## Federation: catalog aggregation, not byte-shipping
 
 **Rule: ephemeral content is server-local; only pinned/permanent content
 federates.** (Otherwise the global search fills with entries that vanish on
 eviction.) The federated Library aggregates **lightweight metadata** across
-`/api/federation/servers` — filename, type, tags, size, `content_hash`, `url`,
-`magnet`, source server — and the Files tab **groups results by source server**
+`/api/federation/servers`, filename, type, tags, size, `content_hash`, `url`,
+`magnet`, source server, and the Files tab **groups results by source server**
 (like the left-rail server grouping). Bytes are fetched per-file via
 `url`/`magnet`. This is how "infinite files × users × servers" stays tractable:
 the index is cheap, the bytes are pulled on demand.
@@ -183,17 +183,17 @@ today). Difference in the Files tab:
 
 ## Moderation / abuse
 
-Ephemeral content auto-expires (good — limits exposure window). Need: active
+Ephemeral content auto-expires (good, limits exposure window). Need: active
 moderation, hard-delete, **hash-ban** (block re-upload of known-bad
 `content_hash`), and pin-as-trust-action (only roled users make content
-permanent + federated — exactly where human judgment belongs).
+permanent + federated, exactly where human judgment belongs).
 
 ## Guardrails
 
-- **Infinite-of-X:** tiers, quotas, categories, curated lists are all data —
+- **Infinite-of-X:** tiers, quotas, categories, curated lists are all data, 
   no hardcoded arrays.
 - **GUI-first:** every quota/cap/threshold/role-permission is a server-admin
   setting in `server_settings`, rendered in-app (and AI-enumerable).
 - **Theme tokens only** in the Library UI (web + native).
-- **Don't regress** Tools/Browser/Resources content when folding them in —
+- **Don't regress** Tools/Browser/Resources content when folding them in, 
   same data files, new home.

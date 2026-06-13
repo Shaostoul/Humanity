@@ -41,11 +41,11 @@ By making capability easy to learn and use.
 
 We are shaping the platform around five core experiences:
 
-- **Private** — your personal progression (profile, inventory, skills, equipment, quests, logbook)
-- **H Dashboard** — your command center and next best actions
-- **Public** — shared systems (network, systems, maps, market, learn, knowledge, streams)
-- **Ops** — health, deploy, logs, moderation
-- **Utility** — search, settings, data, alerts, account
+- **Private**, your personal progression (profile, inventory, skills, equipment, quests, logbook)
+- **H Dashboard**, your command center and next best actions
+- **Public**, shared systems (network, systems, maps, market, learn, knowledge, streams)
+- **Ops**, health, deploy, logs, moderation
+- **Utility**, search, settings, data, alerts, account
 
 ---
 
@@ -117,4 +117,4 @@ Every contribution helps with development, hosting, and continuity.
 
 ---
 
-*Public domain (CC0). This belongs to humanity — present and future.*
+*Public domain (CC0). This belongs to humanity, present and future.*

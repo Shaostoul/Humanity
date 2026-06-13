@@ -2,7 +2,7 @@
 
 ## Core Concept
 
-A "server" is someone's public deployment of HumanityOS. Example: Shaostoul runs `united-humanity.us`. Anyone can connect as a guest and chat. "Joining" means setting that server as your home server — your data syncs there, you appear in its directory, and you participate in its projects.
+A "server" is someone's public deployment of HumanityOS. Example: Shaostoul runs `united-humanity.us`. Anyone can connect as a guest and chat. "Joining" means setting that server as your home server, your data syncs there, you appear in its directory, and you participate in its projects.
 
 Your identity (Ed25519 keys) is portable. You are never locked into a server.
 
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS server_members (
 );
 ```
 
-Guests have no row — they're just connected WebSocket peers. Owner is stored in server config, not this table.
+Guests have no row, they're just connected WebSocket peers. Owner is stored in server config, not this table.
 
 ## API
 
@@ -109,7 +109,7 @@ Server name displayed at top of sidebar (like the current channel list header). 
 3. Server deletes `server_members` row
 4. Server broadcasts `member_left`
 5. App clears server URL from local sync config
-6. User's local data is untouched — data sovereignty preserved
+6. User's local data is untouched, data sovereignty preserved
 
 ## Permission Matrix
 
@@ -127,7 +127,7 @@ Server name displayed at top of sidebar (like the current channel list header). 
 
 ## Federation
 
-- Your Ed25519 identity works on any server — connect to Server B with the same keys
+- Your Ed25519 identity works on any server, connect to Server B with the same keys
 - You can be a **member** of multiple servers but designate one as your **home server** for sync
 - Federated servers bridge messages across channels (existing federation design)
 - Member directories are per-server; federated servers don't merge directories
@@ -135,10 +135,10 @@ Server name displayed at top of sidebar (like the current channel list header). 
 
 ## Implementation Order
 
-1. **`server_members` table** — add to `src/relay/storage/` as new module
-2. **`/api/join`, `/api/leave`, `/api/members`** — add to `api.rs`
-3. **WebSocket handlers** — add `server_join`/`server_leave` to `msg_handlers.rs`
-4. **Role checks** — gate task creation, moderation actions on role
-5. **Settings UI** — "My Server" field in settings page
-6. **Directory UI** — member list page/panel
-7. **`/api/server-info` extension** — add member count, owner profile
+1. **`server_members` table**, add to `src/relay/storage/` as new module
+2. **`/api/join`, `/api/leave`, `/api/members`**, add to `api.rs`
+3. **WebSocket handlers**, add `server_join`/`server_leave` to `msg_handlers.rs`
+4. **Role checks**, gate task creation, moderation actions on role
+5. **Settings UI**, "My Server" field in settings page
+6. **Directory UI**, member list page/panel
+7. **`/api/server-info` extension**, add member count, owner profile

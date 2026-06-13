@@ -2,17 +2,17 @@
 
 ## Core Principle
 
-**Identity IS the Ed25519 keypair.** Not a username, not a server, not an account. The cryptographic key proves who you are. Every message, profile update, and transaction is signed by your key. No server grants identity — the math does.
+**Identity IS the Ed25519 keypair.** Not a username, not a server, not an account. The cryptographic key proves who you are. Every message, profile update, and transaction is signed by your key. No server grants identity, the math does.
 
 ## Identity Components
 
 ### Public Key = Universal Address
 
 Your Ed25519 public key serves as:
-- **Chat identity** — messages signed and attributed to this key
-- **Solana wallet** — same key, base58-encoded, receives/sends crypto
-- **Profile anchor** — all profile data is signed by this key
-- **Cross-server ID** — same key recognized on any server
+- **Chat identity**, messages signed and attributed to this key
+- **Solana wallet**, same key, base58-encoded, receives/sends crypto
+- **Profile anchor**, all profile data is signed by this key
+- **Cross-server ID**, same key recognized on any server
 
 ### Seed Phrase = Master Backup
 
@@ -45,15 +45,15 @@ Profiles are NOT owned by a server. They are **signed objects** that replicate a
 4. Server verifies signature, stores it, and gossips it to federated peers
 5. Any server that receives a valid signed profile caches it
 6. When someone looks up a key, any server that has seen the profile can serve it
-7. **Latest timestamp wins** — if multiple versions exist, the newest valid one is canonical
+7. **Latest timestamp wins**, if multiple versions exist, the newest valid one is canonical
 
 ### Properties
 
-- **No home server** — your profile lives everywhere you've been
-- **No single point of failure** — any server going down doesn't affect your identity
-- **Tamper-proof** — only the private key holder can create valid updates
-- **Offline-capable** — your local app always has your profile
-- **P2P-compatible** — exchange profiles directly via QR/friend code
+- **No home server**, your profile lives everywhere you've been
+- **No single point of failure**, any server going down doesn't affect your identity
+- **Tamper-proof**, only the private key holder can create valid updates
+- **Offline-capable**, your local app always has your profile
+- **P2P-compatible**, exchange profiles directly via QR/friend code
 
 ### Lookup Flow
 
@@ -88,7 +88,7 @@ Without a central authority, two users on different servers could both claim "Al
 - Immutable proof: this public key owns this name globally
 - Costs a small SOL fee (one-time)
 - Any server can verify ownership by querying the chain
-- **Not required** — purely opt-in for users who want guaranteed unique names
+- **Not required**, purely opt-in for users who want guaranteed unique names
 
 ### Recommendation
 
@@ -129,9 +129,9 @@ Works without any server:
 
 ## Related Files
 
-- `web/chat/crypto.js` — Ed25519 key generation, signing, BIP39 seed phrase
-- `web/shared/wallet.js` — Solana address derivation from same keys
-- `src/relay/relay.rs` — Profile handling, key rotation
-- `src/relay/handlers/federation.rs` — Server-to-server communication
-- `docs/network/server_federation.md` — Federation protocol
-- `docs/design/wallet.md` — Wallet integration (same keys)
+- `web/chat/crypto.js`, Ed25519 key generation, signing, BIP39 seed phrase
+- `web/shared/wallet.js`, Solana address derivation from same keys
+- `src/relay/relay.rs`, Profile handling, key rotation
+- `src/relay/handlers/federation.rs`, Server-to-server communication
+- `docs/network/server_federation.md`, Federation protocol
+- `docs/design/wallet.md`, Wallet integration (same keys)

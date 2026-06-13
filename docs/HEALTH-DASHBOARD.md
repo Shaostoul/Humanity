@@ -1,4 +1,4 @@
-# HumanityOS — Health Dashboard
+# HumanityOS: Health Dashboard
 
 > **What "healthy" looks like + how we'd know if it isn't.** This file is the source of truth for SLOs (service-level objectives) and the alert criteria that fire when reality diverges from them.
 >
@@ -11,7 +11,7 @@
 ### Relay availability
 | Metric | Target | Current measurement |
 |---|---|---|
-| Uptime over 30 days | 99.5% (≤ ~3.6 hours downtime/month) | **Not measured** — TIER 1 #2 |
+| Uptime over 30 days | 99.5% (≤ ~3.6 hours downtime/month) | **Not measured**, TIER 1 #2 |
 | `/health` HTTP 200 response time (p95) | < 200ms | Not measured |
 | `/health` reachable from 3 geographic regions | Yes | Not measured (only operator's location verified) |
 
@@ -34,7 +34,7 @@
 ### Federation
 | Metric | Target | Current measurement |
 |---|---|---|
-| Federated peer reconnect time after disconnect | < 5 minutes | Backoff capped at 5 min — measurable from logs |
+| Federated peer reconnect time after disconnect | < 5 minutes | Backoff capped at 5 min, measurable from logs |
 | Cross-server message propagation latency (p95) | < 2 seconds | Not measured |
 | Profile gossip rejection rate | < 0.1% (rejections = signature failures = potential abuse) | Logged but not alerted |
 
@@ -45,32 +45,32 @@
 | Relay process RSS memory | < 500 MB sustained | Not measured |
 | SQLite DB size growth | < 100 MB/month sustained | Not measured |
 
-## Alert criteria — what should page someone
+## Alert criteria: what should page someone
 
-### P0 — wake someone up at 3am
+### P0: wake someone up at 3am
 - Relay returns non-200 from `/health` for 3 consecutive minutes.
 - TLS cert expires within 7 days (means autorenewal failed).
 - Disk `/opt` above 90%.
 - > 100 failed identify-challenge verifications in 1 hour (signals active attack on identity spoofing).
 
-### P1 — notify next morning
+### P1: notify next morning
 - Relay uptime over last 24h below 98%.
 - Backup automation hasn't fired in > 48 hours.
 - > 10 `tracing::error!` events in the relay log over the last hour.
 - A federation peer that was trusted (trust_tier ≥ 2) has been disconnected for > 24 hours.
 
-### P2 — log and review at next scheduled session
+### P2: log and review at next scheduled session
 - A user reports an issue via the chat-side `/report` flow.
-- An admin uses the moderation actions (ban / mute / kick) — record but don't alert.
+- An admin uses the moderation actions (ban / mute / kick), record but don't alert.
 - A bot authentication fails (logged in `tracing::warn!`).
 - Deploy bot reports a CI failure (already surfaces in #announcements).
 
-## Instrumentation plan — status
+## Instrumentation plan: status
 
 **DONE (v0.285.2–v0.286.x):** VPS-side detection + self-heal + configurable external alerting. See "Existing observability" + "Alert configuration" below.
 
 **Remaining:**
-1. **Off-box health monitor** (the other half of TIER 1 #2): a free service (UptimeRobot, BetterStack) or a check from the operator's PC hits `https://united-humanity.us/health` every ~60s and alerts on failure — covers whole-VPS-down, which the on-VPS watchdog can't. Can reuse the same `humanity-alert.js` channels.
+1. **Off-box health monitor** (the other half of TIER 1 #2): a free service (UptimeRobot, BetterStack) or a check from the operator's PC hits `https://united-humanity.us/health` every ~60s and alerts on failure, covers whole-VPS-down, which the on-VPS watchdog can't. Can reuse the same `humanity-alert.js` channels.
 2. **Log-rate alerting**: `journalctl -p err --since "1 hour ago" | wc -l` in a cron → fan out via `humanity-alert.js` if over threshold.
 3. **Cert-expiry pre-warning**: weekly cron checks `certbot certificates`, alerts if < 14 days (belt-and-suspenders on top of auto-renew).
 
@@ -84,35 +84,35 @@ Better (future): Prometheus `/metrics` (needs a `prometheus` crate + RelayState 
 - **SQLite corruption resilience** (v0.286.0): boot-time integrity check + restore-from-healthy-backup or refuse-to-start.
 - **journalctl logs** for `humanity-relay.service` capture `tracing` output. `RUST_LOG=info` default, configurable in `.env`. Watchdog logs under tag `humanity-relay-watchdog`; disk-guard under `humanity-disk-guard`.
 - **GitHub deploy log** for CI run history.
-- **Deploy Bot's announcements** in `#announcements` for successful deploys — semi-passive monitoring (a missing announcement = something is wrong).
+- **Deploy Bot's announcements** in `#announcements` for successful deploys, semi-passive monitoring (a missing announcement = something is wrong).
 
 ## Alert configuration (per server admin)
 
 The watchdog + disk-guard send critical alerts out through whatever channels the admin configures. **It's opt-in: no config = silent no-op.**
 
-1. On the VPS: `cp /opt/Humanity/data/alert-channels.example.json /opt/Humanity/data/alert-channels.secrets.json` (the `.secrets.json` name is gitignored — it holds tokens/URLs).
+1. On the VPS: `cp /opt/Humanity/data/alert-channels.example.json /opt/Humanity/data/alert-channels.secrets.json` (the `.secrets.json` name is gitignored, it holds tokens/URLs).
 2. Edit it; set `"enabled": true` on the channels you want. Supported types:
-   - **`ntfy`** — phone push; just a topic URL (`https://ntfy.sh/<random-topic>`). Easiest.
-   - **`discord`** — an incoming-webhook URL.
-   - **`telegram`** — a bot token + chat id.
-   - **`webhook`** / **`slack`** — POST JSON to any URL (covers Slack incoming webhooks + custom receivers).
+   - **`ntfy`**, phone push; just a topic URL (`https://ntfy.sh/<random-topic>`). Easiest.
+   - **`discord`**, an incoming-webhook URL.
+   - **`telegram`**, a bot token + chat id.
+   - **`webhook`** / **`slack`**, POST JSON to any URL (covers Slack incoming webhooks + custom receivers).
 3. Test without sending real alerts:
    `HUMANITY_ALERT_DRYRUN=1 node /opt/Humanity/scripts/humanity-alert.js "test" critical`
    then for real (drop the env var) once you trust it.
 
-What fires an external alert (anti-spam: once on down, once on recovery — never per-cycle):
+What fires an external alert (anti-spam: once on down, once on recovery, never per-cycle):
 - Relay DOWN, watchdog auto-restarting → **warn**
 - Relay DOWN + binary missing (restart can't fix, needs a deploy) → **critical**
 - Relay RECOVERED → **info**
 - Disk critical after auto-reclaim → **critical**
 
-**Still missing — the off-box layer.** All the above runs ON the VPS, so it covers "relay down / VPS up." It does NOT cover whole-VPS-down (power/network loss) — that needs an external monitor (a free uptime service like UptimeRobot/BetterStack hitting the public `/health`, or a check from the operator's PC). Wiring that is the remaining half of TIER 1 #2; it can reuse the same alert channels.
+**Still missing, the off-box layer.** All the above runs ON the VPS, so it covers "relay down / VPS up." It does NOT cover whole-VPS-down (power/network loss), that needs an external monitor (a free uptime service like UptimeRobot/BetterStack hitting the public `/health`, or a check from the operator's PC). Wiring that is the remaining half of TIER 1 #2; it can reuse the same alert channels.
 
 Better (future):
-- **Prometheus**: relay exposes `/metrics` (need to add — `prometheus` crate, scrape RelayState counters). Prometheus on a second host scrapes. Grafana for dashboards. Alertmanager for routing.
+- **Prometheus**: relay exposes `/metrics` (need to add, `prometheus` crate, scrape RelayState counters). Prometheus on a second host scrapes. Grafana for dashboards. Alertmanager for routing.
 - **Trace sampling**: `tracing-subscriber` already in deps; emit spans to a collector (OpenTelemetry → Jaeger or Tempo).
 
-## Manual health check — what an operator does today
+## Manual health check: what an operator does today
 
 ```bash
 # Quick liveness
@@ -132,4 +132,4 @@ ssh humanity-vps "journalctl -u humanity-relay --since '1 hour ago' | grep -cE '
 If all are green: probably fine. Anything red → INCIDENT-PLAYBOOK.md.
 
 ## Change log
-- 2026-05-20 — initial creation; SLOs set as targets. Instrumentation deferred to TIER 1 #2.
+- 2026-05-20, initial creation; SLOs set as targets. Instrumentation deferred to TIER 1 #2.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define how multiple independently-operated servers form the Humanity Network. Servers are meeting places, not gatekeepers. Identity is portable — the same Dilithium3 (`did:hum:`) key works on any server. Users choose which servers to join; servers choose which servers to trust.
+Define how multiple independently-operated servers form the Humanity Network. Servers are meeting places, not gatekeepers. Identity is portable, the same Dilithium3 (`did:hum:`) key works on any server. Users choose which servers to join; servers choose which servers to trust.
 
 **Key principle: No home servers.** Identity lives in the cryptographic key, not on any server. Signed profiles replicate across every server a user touches. See `docs/design/identity.md` for the full identity architecture.
 
@@ -185,12 +185,12 @@ Clicking a server switches the WebSocket connection and loads that server's chan
 
 - Client connects to ONE server at a time (MVP).
 - Future: simultaneous connections to multiple servers (like Discord).
-- Server switching is fast — close old WS, open new WS, re-identify.
+- Server switching is fast, close old WS, open new WS, re-identify.
 
 ### Identity Across Servers
 
 - Same Dilithium3 keypair used everywhere; same DID (`did:hum:<base58(BLAKE3(pubkey)[..16])>`) resolves on every federated server.
-- Signed profile sent on each connect — server caches and gossips it.
+- Signed profile sent on each connect, server caches and gossips it.
 - Name uniqueness: per-server reservation + optional on-chain global names (see `docs/design/identity.md`).
 - Block list is client-side and applies across all servers.
 
@@ -231,7 +231,7 @@ accord_url = ""
 
 ## Federation Protocol Phases
 
-### Phase 1: Server Switching (MVP — complete)
+### Phase 1: Server Switching (MVP: complete)
 - Client knows about multiple servers.
 - Connects to one at a time.
 - Server list with trust tiers.
@@ -253,7 +253,7 @@ accord_url = ""
 ### Phase 5: Optional On-Chain Names
 - Solana name registry for globally unique names.
 - Any server verifies ownership by querying the chain.
-- Not required — opt-in for users who want it.
+- Not required, opt-in for users who want it.
 
 ---
 
@@ -263,7 +263,7 @@ accord_url = ""
 - **Key theft**: If a server operator modifies the client JS to exfiltrate private keys, users on that server are compromised. Verified servers reduce this risk. Long-term: native apps eliminate it.
 - **Registry tampering**: The server registry is signed. Clients verify the signature before trusting it.
 - **Sybil servers**: An attacker could spin up many unverified servers. Trust tiers and the verification process mitigate this.
-- **Profile spam**: Gossip rules prevent amplification — only profiles from seen users are forwarded, rate-limited.
+- **Profile spam**: Gossip rules prevent amplification, only profiles from seen users are forwarded, rate-limited.
 
 ---
 

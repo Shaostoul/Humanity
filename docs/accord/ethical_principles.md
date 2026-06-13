@@ -27,7 +27,7 @@ An ethical system can prevent cruelty from becoming normal.
 
 ---
 
-## Principle I — Human Dignity Is Inviolable
+## Principle I: Human Dignity Is Inviolable
 
 Every human possesses inherent dignity by virtue of being human.
 
@@ -43,7 +43,7 @@ is ethically invalid, regardless of outcome.
 
 ---
 
-## Principle II — Non-Domination
+## Principle II: Non-Domination
 
 No person, system, or institution is ethically justified
 in exercising unchecked power over others.
@@ -55,7 +55,7 @@ Power asymmetry increases responsibility, not entitlement.
 
 ---
 
-## Principle III — Consent Legitimizes Authority
+## Principle III: Consent Legitimizes Authority
 
 Authority is legitimate only when grounded in
 explicit, informed, and revocable consent.
@@ -71,7 +71,7 @@ Silence, complexity, or default settings do not constitute consent.
 
 ---
 
-## Principle IV — Transparency Is an Ethical Requirement
+## Principle IV: Transparency Is an Ethical Requirement
 
 Ethical action requires transparency by default.
 
@@ -85,7 +85,7 @@ are ethically invalid.
 
 ---
 
-## Principle V — Responsibility Follows Impact
+## Principle V: Responsibility Follows Impact
 
 Intent matters.
 Impact matters more.
@@ -100,7 +100,7 @@ not merely motives.
 
 ---
 
-## Principle VI — Ends Do Not Justify All Means
+## Principle VI: Ends Do Not Justify All Means
 
 Desirable outcomes do not excuse harmful methods.
 
@@ -113,7 +113,7 @@ Process matters as much as result.
 
 ---
 
-## Principle VII — Care for the Vulnerable
+## Principle VII: Care for the Vulnerable
 
 A society is ethically measured by how it treats
 those with the least power.
@@ -131,7 +131,7 @@ are unstable by design.
 
 ---
 
-## Principle VIII — Correction Over Punishment
+## Principle VIII: Correction Over Punishment
 
 Ethics aim to reduce harm, not maximize retribution.
 
@@ -144,7 +144,7 @@ Punishment without correction preserves error.
 
 ---
 
-## Principle IX — Stewardship Over Extraction
+## Principle IX: Stewardship Over Extraction
 
 Short-term gain that undermines long-term viability
 is unethical.
@@ -159,7 +159,7 @@ Ethical action preserves future choice.
 
 ---
 
-## Principle X — Pluralism Within Constraint
+## Principle X: Pluralism Within Constraint
 
 Humans differ in values, cultures, and expression.
 
@@ -199,4 +199,4 @@ in the face of power, uncertainty, and difference.
 
 Having humanity is not automatic.
 
-It is practiced—deliberately—through ethical choice.
+It is practiced, deliberately, through ethical choice.

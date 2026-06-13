@@ -25,7 +25,7 @@ Core principle: same interaction language and module taxonomy, different dataset
 
 ## Local-First Fidelity Tiers
 
-## Tier A — Personal Twin (MVP)
+## Tier A: Personal Twin (MVP)
 **Runs fully on personal PC.**
 - House + lot geometry
 - Zones (home, garden, structures)
@@ -35,14 +35,14 @@ Core principle: same interaction language and module taxonomy, different dataset
 
 **Storage target:** 100 MB - 2 GB per user project (depending on media/assets).
 
-## Tier B — Regional Twin (Optional packs)
+## Tier B: Regional Twin (Optional packs)
 - City/county context tiles (terrain/roads/base map)
 - Optional utility corridor overlays where data exists
 - Medium-detail infrastructure layers
 
 **Storage target:** 2 GB - 40 GB depending on selected area and LOD.
 
-## Tier C — Global Twin (Abstract)
+## Tier C: Global Twin (Abstract)
 - Country/region/global production and utility indicators
 - Mining/refining/energy/transport flows at aggregated resolution
 - No full-fidelity geometry required

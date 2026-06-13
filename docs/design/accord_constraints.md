@@ -243,4 +243,4 @@ The Accord defines what humanity refuses to sacrifice.
 
 Design exists to make those refusals operational.
 
-Any system that cannot uphold the Accord must be redesigned—or not built.
+Any system that cannot uphold the Accord must be redesigned, or not built.

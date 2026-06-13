@@ -1,9 +1,9 @@
-# Release signing — the supply-chain root of trust
+# Release signing: the supply-chain root of trust
 
 > Closes the **CRITICAL** finding from the 2026-06-12 security audit: the
 > auto-updater used to install a downloaded binary after only a 1 MB size check
-> (no signature, no hash), so a GitHub/release compromise — or a wrong "Latest"
-> pointer like the v0.415 stray tag — would have been silent RCE on every
+> (no signature, no hash), so a GitHub/release compromise, or a wrong "Latest"
+> pointer like the v0.415 stray tag, would have been silent RCE on every
 > desktop user. Now the updater refuses to install anything that isn't signed by
 > the operator's keys.
 
@@ -12,9 +12,9 @@
 - **Hybrid Ed25519 + Dilithium3 (ML-DSA-65), BOTH must verify.** Classical
   robustness *and* post-quantum safety; an attacker has to break both to forge a
   release, which also hedges against a bug in the still-young ML-DSA libs.
-- A **dedicated** signing key — never the operator's personal identity seed.
+- A **dedicated** signing key, never the operator's personal identity seed.
 - The **private** key is held passphrase-encrypted (Argon2id + AES-256-GCM) on
-  the operator's machine and used to sign **locally**. It NEVER goes in CI — the
+  the operator's machine and used to sign **locally**. It NEVER goes in CI, the
   whole point is to survive a GitHub/CI compromise.
 - Each release is described by a `release-manifest.json` (version + every
   platform binary's SHA-256). The operator signs the verbatim manifest bytes;
@@ -40,9 +40,9 @@ CLI subcommands in [`src/main.rs`](../src/main.rs).
    just gen-release-key
    ```
    This writes:
-   - `data/release/signing_pubkeys.json` — the PUBLIC keys. **Commit this**; it
+   - `data/release/signing_pubkeys.json`, the PUBLIC keys. **Commit this**; it
      compiles into every build.
-   - `release-signing-key.enc` — the encrypted PRIVATE key. **Gitignored.**
+   - `release-signing-key.enc`, the encrypted PRIVATE key. **Gitignored.**
      **Back it up** encrypted + offline (your 3-2-1). Losing it means rotating to
      a new key (ship a build with new embedded pubkeys).
 3. Commit the public keys and ship a release:
@@ -70,7 +70,7 @@ just sign-release v0.418.0
 This downloads the release's platform binaries, builds + signs the manifest, and
 uploads `release-manifest.json` + `release-manifest.json.sig.json` to the
 release. The updater now trusts that release. A release that hasn't been signed
-is simply invisible to auto-update (not offered) — which also means a stray or
+is simply invisible to auto-update (not offered), which also means a stray or
 malicious tag is never auto-installed.
 
 ## Notes / future hardening
@@ -80,7 +80,7 @@ malicious tag is never auto-installed.
   `.sig.json` sidecar before launching, so a malicious local build is skipped.
   `just build-game` signs each archived dev build automatically when
   `HUMANITY_SIGNING_PASSPHRASE` is set + `release-signing-key.enc` exists
-  (otherwise the build is left unsigned and simply isn't auto-delegated-to —
+  (otherwise the build is left unsigned and simply isn't auto-delegated-to, 
   `just launch` still runs it directly). Sign a build by hand with
   `HumanityOS --sign-file <path>`.
 - Optional custody upgrade: move the Ed25519 half onto a hardware token

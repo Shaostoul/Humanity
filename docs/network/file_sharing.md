@@ -10,7 +10,7 @@ Define how users share files (audio, documents, media) through the Humanity Netw
 - **Signed manifests:** File metadata is signed by the uploader's Ed25519 key. You know who shared what.
 - **Server stores pointers, not payloads.** The relay stores tiny manifests in chat history. Actual file data lives on peers.
 - **Users are the CDN.** Every downloader becomes a potential seed.
-- **Bandwidth-respectful.** Same user-configurable limits as streaming — never consume more than the user allows.
+- **Bandwidth-respectful.** Same user-configurable limits as streaming, never consume more than the user allows.
 
 ## Data Model
 
@@ -74,7 +74,7 @@ Recipients see the file metadata (name, size, type) immediately. Actual download
 3. Each block hashed with BLAKE3
 4. Client creates and signs the manifest
 5. Manifest sent as a chat message (through WebSocket, stored in relay DB)
-6. Blocks held in memory / IndexedDB — sender is the initial seed
+6. Blocks held in memory / IndexedDB, sender is the initial seed
 
 ### Download (receiver side)
 
@@ -141,18 +141,18 @@ Same configurable bandwidth settings as streaming:
 ## Server Role
 
 ### What the relay stores
-- File manifests (in chat message history) — tiny, just metadata
-- Block availability index (in memory, ephemeral) — who has what
+- File manifests (in chat message history), tiny, just metadata
+- Block availability index (in memory, ephemeral), who has what
 
 ### What the relay does NOT store (by default)
-- Actual file blocks — those live on peers only
+- Actual file blocks, those live on peers only
 
 ### Optional: Relay Block Cache
 - Server admin can enable block caching for availability
 - LRU cache with configurable size limit (e.g., 1GB)
 - Caches blocks for files shared in the last N days
 - Ensures files remain available even if all original peers are offline
-- Cache is a convenience, not a guarantee — files may become unavailable
+- Cache is a convenience, not a guarantee, files may become unavailable
 
 ## Profile File Library
 
@@ -186,8 +186,8 @@ downloaded_files [
 ## Security
 
 ### Integrity
-- Every block verified against BLAKE3 hash — corrupted or malicious blocks rejected
-- Manifest signature verified against uploader's Ed25519 key — spoofing prevented
+- Every block verified against BLAKE3 hash, corrupted or malicious blocks rejected
+- Manifest signature verified against uploader's Ed25519 key, spoofing prevented
 
 ### Privacy
 - File transfers between friends can use existing E2E encrypted channels
@@ -198,7 +198,7 @@ downloaded_files [
 - Max file size configurable per server (admin setting)
 - Rate limiting on file shares (e.g., max 10 files per hour per user)
 - Manifests can be removed by admin (deletes the chat message)
-- Block cache respects admin removal — evicts blocks for deleted manifests
+- Block cache respects admin removal, evicts blocks for deleted manifests
 - File type restrictions (admin-configurable allowlist/denylist)
 
 ## Scaling
@@ -206,20 +206,20 @@ downloaded_files [
 | Users with file | Availability | Server cost |
 |-----------------|-------------|-------------|
 | 1 (uploader only) | Only when they're online | ~0 (manifest only) |
-| 10 downloaders | High — any of 10 peers can serve | ~0 |
-| 100+ downloaders | Very high — swarm is self-sustaining | ~0 |
+| 10 downloaders | High, any of 10 peers can serve | ~0 |
+| 100+ downloaders | Very high, swarm is self-sustaining | ~0 |
 | 0 (all offline) | Unavailable (unless relay cache enabled) | Cache cost only |
 
 Server cost is near-zero regardless of file size or popularity. The network does the work.
 
 ## Implementation Phases
 
-1. **Phase 1 — Manifest sharing:** Files split + hashed client-side, manifest posted to chat. Download directly from uploader via WebRTC data channel.
-2. **Phase 2 — Multi-peer download:** Download blocks from multiple peers simultaneously. Block availability announcements.
-3. **Phase 3 — Seeding:** Downloaded files automatically seeded. Rarest-first piece selection.
-4. **Phase 4 — Profile library:** "Shared Files" section on user profiles. Local download cache management.
-5. **Phase 5 — Relay cache:** Optional server-side block cache for availability.
-6. **Phase 6 — Encrypted sharing:** E2E encrypted file transfers for DMs and private channels.
+1. **Phase 1, Manifest sharing:** Files split + hashed client-side, manifest posted to chat. Download directly from uploader via WebRTC data channel.
+2. **Phase 2, Multi-peer download:** Download blocks from multiple peers simultaneously. Block availability announcements.
+3. **Phase 3, Seeding:** Downloaded files automatically seeded. Rarest-first piece selection.
+4. **Phase 4, Profile library:** "Shared Files" section on user profiles. Local download cache management.
+5. **Phase 5, Relay cache:** Optional server-side block cache for availability.
+6. **Phase 6, Encrypted sharing:** E2E encrypted file transfers for DMs and private channels.
 
 ## Relationship to Streaming
 
@@ -227,4 +227,4 @@ File sharing and livestreaming share the same block-and-mesh infrastructure:
 - Files = complete, all blocks known upfront, download at any speed
 - Streams = live, blocks produced in real-time, deadline-sensitive delivery
 
-The peer mesh, block protocol, and bandwidth management are identical. A client that can share files can stream video — the difference is only in scheduling priority.
+The peer mesh, block protocol, and bandwidth management are identical. A client that can share files can stream video, the difference is only in scheduling priority.

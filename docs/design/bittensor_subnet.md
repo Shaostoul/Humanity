@@ -6,12 +6,12 @@
 
 This living document outlines the full vision, design, implementation roadmap, economics, costs, risks, and next steps for evolving **Humanity Chat** (the open-source, no-accounts, E2E-encrypted P2P communication app with voice/video, livestreaming, and optional federated servers) into a **Bittensor subnet**.  
 
-The goal: Turn voluntary community infrastructure into a self-sustaining, economically incentivized decentralized public good — perfectly aligned with the 2017-inspired mission of united-humanity.us (public-domain CC0 tools to end poverty, reduce isolation, and unite humanity through capability-building).
+The goal: Turn voluntary community infrastructure into a self-sustaining, economically incentivized decentralized public good, perfectly aligned with the 2017-inspired mission of united-humanity.us (public-domain CC0 tools to end poverty, reduce isolation, and unite humanity through capability-building).
 
 ---
 
 ### 1. Executive Summary
-Humanity Chat becomes **“HumanityComm Subnet”** (proposed netuid TBD) — the first Bittensor subnet focused on **decentralized private real-time communication infrastructure**.  
+Humanity Chat becomes **“HumanityComm Subnet”** (proposed netuid TBD), the first Bittensor subnet focused on **decentralized private real-time communication infrastructure**.  
 
 Miners earn TAO by providing reliable P2P relaying, stream seeding, and optional federated node hosting. Validators score quality-of-service (QoS) metrics **without ever seeing content** (full E2E privacy preserved).  
 
@@ -41,8 +41,8 @@ Bittensor is the decentralized “marketplace for intelligence.” Subnets are i
 - **Miners** produce a digital commodity → earn TAO.  
 - **Validators** score quality → set weights → determine emissions split.  
 - **Yuma Consensus** (v3) + dTAO mechanics ensure fair, competitive rewards.  
-- Registration: **Burn cost** (dynamic, currently **887.48 TAO** as of Feb 19, 2026 — burned/recycled, not locked). Doubles on new registrations, decays over time. One new subnet every ~4 days. New subnets get **4-month immunity** from deregistration and **1-week inactivity period** (no emissions while bootstrapping).  
-- Current top subnets (emissions %): Chutes (SN64 ~10.44% — compute), Affine (SN120 ~8.88%), Score, Vanta, Targon. No existing comms/P2P subnet — huge greenfield opportunity.
+- Registration: **Burn cost** (dynamic, currently **887.48 TAO** as of Feb 19, 2026, burned/recycled, not locked). Doubles on new registrations, decays over time. One new subnet every ~4 days. New subnets get **4-month immunity** from deregistration and **1-week inactivity period** (no emissions while bootstrapping).  
+- Current top subnets (emissions %): Chutes (SN64 ~10.44%, compute), Affine (SN120 ~8.88%), Score, Vanta, Targon. No existing comms/P2P subnet, huge greenfield opportunity.
 
 Sources: taostats.io, learnbittensor.org docs.
 
@@ -184,6 +184,6 @@ Ongoing: Emissions cover everything after launch.
 **Appendix A**: Full hyperparameter list available on request.  
 **Appendix B**: Sample QoS probe pseudocode (will expand post-feedback).  
 
-This document is CC0 — copy, modify, improve freely.  
+This document is CC0, copy, modify, improve freely.  
 
-Let’s build it. Feedback welcome — post it and tag me! Once funded, we feed the refined version straight into code generation.  
+Let’s build it. Feedback welcome, post it and tag me! Once funded, we feed the refined version straight into code generation.  

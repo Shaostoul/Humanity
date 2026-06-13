@@ -11,8 +11,8 @@ Design doc for seamless cosmic-to-street navigation in the maps page.
 
 The maps page (`pages/maps.html`) has two independent rendering systems:
 
-- **map.js** — Five discrete modes selected by button click: Surface (Earth equirectangular), Solar System, Stellar Neighborhood, Galaxy, Sky View. Each mode has its own render function, zoom/pan state, and zero transition logic between them. Duplicates planet/star data inline because it runs in a separate IIFE from celestial.js.
-- **celestial.js** — Three-level drill-down (sector -> system -> planet) on a separate canvas in the game page's celestial tab. Loads data from `game/data/solar-system.json` and `game/data/stars-nearby.json`. Breadcrumb navigation, click-to-drill.
+- **map.js**, Five discrete modes selected by button click: Surface (Earth equirectangular), Solar System, Stellar Neighborhood, Galaxy, Sky View. Each mode has its own render function, zoom/pan state, and zero transition logic between them. Duplicates planet/star data inline because it runs in a separate IIFE from celestial.js.
+- **celestial.js**, Three-level drill-down (sector -> system -> planet) on a separate canvas in the game page's celestial tab. Loads data from `game/data/solar-system.json` and `game/data/stars-nearby.json`. Breadcrumb navigation, click-to-drill.
 
 Key problems:
 - No seamless zoom between scales. Mode switches are jarring button clicks.
@@ -68,7 +68,7 @@ Enhancement: Use the logarithmic spiral model with 4 major arms (Perseus, Sagitt
 - Sol position: 8.15 kpc from center, between Perseus and Sagittarius arms
 - No external data file needed; generate from parameters
 
-**Existing asset:** `game/data/milky-way.json` (30 Milky Way band points for sky view) — repurpose for galaxy arm density.
+**Existing asset:** `game/data/milky-way.json` (30 Milky Way band points for sky view), repurpose for galaxy arm density.
 
 ### 3.2 Star Catalogs
 
@@ -80,15 +80,15 @@ Enhancement: Use the logarithmic spiral model with 4 major arms (Perseus, Sagitt
 - Fields needed: `id, x, y, z, mag, absmag, spectral, proper_name, constellation`
 
 **Currently loaded:**
-- `game/data/stars-nearby.json` — Small catalog used by celestial.js, ~20 nearby stars in compact array format `[id, x, y, z, spectral, mag, absmag, proper_name]`
-- `game/data/stars-catalog.json` — ~300 brightest stars with RA/Dec for sky view rendering
+- `game/data/stars-nearby.json`, Small catalog used by celestial.js, ~20 nearby stars in compact array format `[id, x, y, z, spectral, mag, absmag, proper_name]`
+- `game/data/stars-catalog.json`, ~300 brightest stars with RA/Dec for sky view rendering
 
 **Strategy:**
 - Ship a pre-processed HYG subset: all stars within 50 pc (~5000 stars) in the compact array format. ~200 KB gzipped.
 - For the full 120K catalog, load on demand when sector zoom > threshold. Split into spatial octree chunks, fetch as needed.
 - LOD: At galaxy scale show only the ~50 brightest. At sector scale show all within viewport frustum.
 
-### 3.3 Solar System — Planets and Dwarf Planets
+### 3.3 Solar System: Planets and Dwarf Planets
 
 **Primary: NASA JPL Horizons**
 - URL: https://ssd.jpl.nasa.gov/horizons/
@@ -100,7 +100,7 @@ Enhancement: Use the logarithmic spiral model with 4 major arms (Perseus, Sagitt
 - URL: https://nssdc.gsfc.nasa.gov/planetary/factsheet/
 - Simple HTML tables with radius, mass, orbit, atmosphere for each body
 
-**Currently loaded:** `game/data/solar-system.json` — Sun + 8 planets + Pluto + moons. Contains orbital elements (semiMajor, eccentricity, period, meanLongitude), physical data (radius, mass, gravity, atmosphere, temperature, resources), and rendering hints (color, symbol).
+**Currently loaded:** `game/data/solar-system.json`, Sun + 8 planets + Pluto + moons. Contains orbital elements (semiMajor, eccentricity, period, meanLongitude), physical data (radius, mass, gravity, atmosphere, temperature, resources), and rendering hints (color, symbol).
 
 **What to add:**
 - Dwarf planets: Ceres, Eris, Haumea, Makemake (add to solar-system.json)
@@ -249,11 +249,11 @@ Each renderer is a standalone function: `render(ctx, width, height, zoomState)`.
 | Tiles | Web Mercator (EPSG:3857) | tile x, y, z |
 
 Conversion functions needed:
-- `galacticToScreen(x, y, z, zoom)` — for galaxy and stellar views
-- `heliocentricToScreen(au_x, au_y, zoom)` — for system view
-- `latLngToScreen(lat, lng, zoom)` — for globe view (equirectangular or orthographic)
-- `latLngToTile(lat, lng, z)` — for tile view (Web Mercator)
-- `screenToLatLng(sx, sy, zoom)` — inverse for click detection
+- `galacticToScreen(x, y, z, zoom)`, for galaxy and stellar views
+- `heliocentricToScreen(au_x, au_y, zoom)`, for system view
+- `latLngToScreen(lat, lng, zoom)`, for globe view (equirectangular or orthographic)
+- `latLngToTile(lat, lng, z)`, for tile view (Web Mercator)
+- `screenToLatLng(sx, sy, zoom)`, inverse for click detection
 
 ### 4.4 Transition Logic
 
@@ -264,7 +264,7 @@ When `scaleMeters` crosses a threshold:
 3. **System -> Globe:** Other planets shrink off-screen. Focus planet grows to fill view. Orbit lines fade. Surface features begin to appear.
 4. **Globe -> Tiles:** Sphere flattens to equirectangular projection. Coastline vectors fade as raster tiles load and fade in. Grid lines persist briefly then fade.
 
-Each transition uses `requestAnimationFrame` with eased interpolation over ~500ms. The transition is interruptible — if the user keeps scrolling, skip to next scale.
+Each transition uses `requestAnimationFrame` with eased interpolation over ~500ms. The transition is interruptible, if the user keeps scrolling, skip to next scale.
 
 ### 4.5 Click Navigation Shortcuts
 
@@ -351,9 +351,9 @@ class TileCache {
 ### 5.5 Canvas vs WebGL
 
 Stick with Canvas 2D for now. Reasons:
-- Current codebase is 100% Canvas 2D — no WebGL anywhere
+- Current codebase is 100% Canvas 2D, no WebGL anywhere
 - All renderers are simple enough (circles, lines, images) for Canvas 2D
-- Galaxy particle rendering is the most intensive at ~2000 circles — well within Canvas 2D budget
+- Galaxy particle rendering is the most intensive at ~2000 circles, well within Canvas 2D budget
 - Tile rendering is just `drawImage` calls
 - WebGL would be warranted if we add: 3D globe rotation with textures, real-time terrain shading, or > 50K particles. Save for Phase 2.
 
@@ -365,7 +365,7 @@ Stick with Canvas 2D for now. Reasons:
 
 **`pages/maps.html`:**
 - Remove the five mode buttons (Surface, Solar System, Stellar, Galaxy). Replace with a single scale indicator bar.
-- Keep Sky View as a separate toggle (it's a different projection — alt/az dome, not spatial zoom).
+- Keep Sky View as a separate toggle (it's a different projection, alt/az dome, not spatial zoom).
 - Add breadcrumb navigation bar showing current scale context.
 - Add OSM attribution text in bottom corner.
 
@@ -404,12 +404,12 @@ Stick with Canvas 2D for now. Reasons:
 
 ### 6.3 Migration Path
 
-1. **Phase 1 — Unified zoom state:** Replace the five mode buttons with scroll-driven scale transitions. Keep existing render functions, wire them to scale thresholds. No new data.
-2. **Phase 2 — Tile renderer:** Add OSM tile loading for Earth surface zoom below continent level. This is the biggest user-facing improvement.
-3. **Phase 3 — Enhanced star catalog:** Ship HYG 50pc subset, replace inline star data, improve stellar neighborhood rendering.
-4. **Phase 4 — Dwarf planets and belts:** Expand solar-system.json, add asteroid/Kuiper belt rendering.
-5. **Phase 5 — Globe renderer:** 3D sphere with rotation for planet view, smooth flatten-to-tiles transition.
-6. **Phase 6 — Elevation/terrain:** Add terrain tile loading and hillshade rendering.
+1. **Phase 1, Unified zoom state:** Replace the five mode buttons with scroll-driven scale transitions. Keep existing render functions, wire them to scale thresholds. No new data.
+2. **Phase 2, Tile renderer:** Add OSM tile loading for Earth surface zoom below continent level. This is the biggest user-facing improvement.
+3. **Phase 3, Enhanced star catalog:** Ship HYG 50pc subset, replace inline star data, improve stellar neighborhood rendering.
+4. **Phase 4, Dwarf planets and belts:** Expand solar-system.json, add asteroid/Kuiper belt rendering.
+5. **Phase 5, Globe renderer:** 3D sphere with rotation for planet view, smooth flatten-to-tiles transition.
+6. **Phase 6, Elevation/terrain:** Add terrain tile loading and hillshade rendering.
 
 ---
 

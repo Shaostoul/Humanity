@@ -1,4 +1,4 @@
-# HumanityOS — Bus Factor
+# HumanityOS: Bus Factor
 
 > **The question this file answers:** if Shaostoul (operator) AND Claude (AI collaborator) both vanished for 6 months, what would the next person need to take this over?
 >
@@ -27,27 +27,27 @@
 - **Host**: server1.shaostoul.com (Debian Linux, AMD64)
 - **Resources**: see `docs/distribution-mirrors.md` + `docs/torrent-infrastructure.md`
 - **Services**:
-  - `humanity-relay.service` (systemd) — the Rust relay running `HumanityOS --headless`
-  - `nginx` — reverse proxy, TLS termination (Let's Encrypt via certbot)
-  - `forgejo` — self-hosted git mirror (port 3000, behind nginx)
-  - `transmission-daemon` — BitTorrent seeder for release binaries + data
-  - `humanity-disk-guard.timer` — periodic disk-pressure cleanup (rotates `backups/`)
+  - `humanity-relay.service` (systemd), the Rust relay running `HumanityOS --headless`
+  - `nginx`, reverse proxy, TLS termination (Let's Encrypt via certbot)
+  - `forgejo`, self-hosted git mirror (port 3000, behind nginx)
+  - `transmission-daemon`, BitTorrent seeder for release binaries + data
+  - `humanity-disk-guard.timer`, periodic disk-pressure cleanup (rotates `backups/`)
 - **Key paths**:
-  - `/opt/Humanity/` — repo working tree (CI git-resets here on every deploy)
-  - `/opt/Humanity/data/relay.db` — SQLite (the live state)
-  - `/opt/Humanity/data/uploads/` — user-uploaded images/files
-  - `/opt/Humanity/backups/` — automated DB snapshots (pq-wipe.sh writes here)
-  - `/opt/Humanity/.env` — env vars (API_SECRET, WEBHOOK_SECRET, VAPID, etc.)
-  - `/var/www/humanity/` — nginx-served web root (rsynced from `web/` on deploy)
-  - `/etc/systemd/system/humanity-*.{service,timer}` — systemd units
+  - `/opt/Humanity/`, repo working tree (CI git-resets here on every deploy)
+  - `/opt/Humanity/data/relay.db`, SQLite (the live state)
+  - `/opt/Humanity/data/uploads/`, user-uploaded images/files
+  - `/opt/Humanity/backups/`, automated DB snapshots (pq-wipe.sh writes here)
+  - `/opt/Humanity/.env`, env vars (API_SECRET, WEBHOOK_SECRET, VAPID, etc.)
+  - `/var/www/humanity/`, nginx-served web root (rsynced from `web/` on deploy)
+  - `/etc/systemd/system/humanity-*.{service,timer}`, systemd units
 
 ### Domains + DNS
-- `united-humanity.us` — primary
-- `chat.united-humanity.us` — subdomain for the chat client (same VPS)
-- `git.united-humanity.us` — Forgejo mirror (same VPS)
+- `united-humanity.us`, primary
+- `chat.united-humanity.us`, subdomain for the chat client (same VPS)
+- `git.united-humanity.us`, Forgejo mirror (same VPS)
 - DNS provider: see operator records (NOT in repo)
 
-### Secrets — locations, not values
+### Secrets: locations, not values
 Secrets live in `/opt/Humanity/.env` on the VPS, mode 600, owned by the relay user. They are **never** committed.
 
 | Key | Purpose | Rotation procedure |
@@ -78,7 +78,7 @@ If GitHub vanishes: deploy continues from Forgejo (`git push forge main` already
 
 The full reasoning lives in `data/coordination/orchestrator_state.json` `recent_decisions`. The high-leverage ones a successor should know:
 
-1. **Single Rust crate, feature flags.** No workspace. `native`, `relay`, `wasm` features control what's built. Pre-v0.90 had `server/`, `native/`, `crates/` — gone, do not recreate.
+1. **Single Rust crate, feature flags.** No workspace. `native`, `relay`, `wasm` features control what's built. Pre-v0.90 had `server/`, `native/`, `crates/`, gone, do not recreate.
 2. **Identity = Dilithium3 (ML-DSA-65) post-quantum.** Ed25519 is now ONLY the BIP39 seed source + Solana wallet derivation. DMs = pure Kyber768. See CLAUDE.md "Cryptography" section.
 3. **No home server.** Profiles are signed objects gossiped between federated servers. Any server can cache; latest timestamp wins.
 4. **Data-driven everything.** Anything that can exist more than once is a data file (CSV/TOML/RON/JSON in `data/`), not Rust code. See `docs/design/infinite-of-x.md`.
@@ -109,7 +109,7 @@ Onboarding path:
 7. First task: pick from TIER 1 or TIER 3 of `docs/PRIORITIES.md`; nothing in TIER 0 is contributor-safe (operator-attended).
 
 ### AI session (Claude or other AI continuing this work)
-The orchestrator_state.json is the running journal. `node scripts/agent-status.js` aggregates per-scope status. CLAUDE.md is the rulebook. Trust those plus the test suite — don't trust AI memory from prior sessions; everything load-bearing is checked into the repo.
+The orchestrator_state.json is the running journal. `node scripts/agent-status.js` aggregates per-scope status. CLAUDE.md is the rulebook. Trust those plus the test suite, don't trust AI memory from prior sessions; everything load-bearing is checked into the repo.
 
 ## Financial floor
 
@@ -130,4 +130,4 @@ Operator's income cap is ~$1k/mo (see MEMORY `project_financial_context.md`). Cl
 This list is intentionally NOT filled in. The operator should fill it as a real exercise; a populated version sits encrypted somewhere the backup operator can reach.
 
 ## Update log
-- 2026-05-20 — initial creation (v0.283.x); Shaostoul + Claude as the only humans/AIs in the loop.
+- 2026-05-20, initial creation (v0.283.x); Shaostoul + Claude as the only humans/AIs in the loop.

@@ -6,8 +6,8 @@ Render live websites onto 3D surfaces inside the game world. Primary use case: i
 
 ## Why Not iframes / OS Webviews
 
-- iframes are HTML-only — the game engine renders via wgpu, not a browser
-- OS webviews (like Tauri's WebView2) are windowed UI components — they can't render onto a 3D mesh
+- iframes are HTML-only, the game engine renders via wgpu, not a browser
+- OS webviews (like Tauri's WebView2) are windowed UI components, they can't render onto a 3D mesh
 - Most websites block iframe embedding via X-Frame-Options / CSP
 - In VR, there is no "system browser" to fall back to
 
@@ -16,14 +16,14 @@ Render live websites onto 3D surfaces inside the game world. Primary use case: i
 ```
 KioskEntity (ECS)
   ├── Transform (position, rotation, scale in world)
-  ├── Mesh (screen quad — flat panel or curved surface)
+  ├── Mesh (screen quad - flat panel or curved surface)
   ├── BrowserComponent
   │     ├── url: String
-  │     ├── size: (u32, u32)          — pixel dimensions of offscreen buffer
-  │     ├── browser: CEF instance     — headless Chromium
-  │     └── input_focus: bool         — whether player is interacting
+  │     ├── size: (u32, u32)          - pixel dimensions of offscreen buffer
+  │     ├── browser: CEF instance     - headless Chromium
+  │     └── input_focus: bool         - whether player is interacting
   └── Material
-        └── texture: GPU texture      — updated each frame from CEF buffer
+        └── texture: GPU texture      - updated each frame from CEF buffer
 ```
 
 ### Render Pipeline
@@ -39,7 +39,7 @@ KioskEntity (ECS)
 2. Ray-mesh intersection gives a UV coordinate on the screen quad
 3. UV coordinate maps to pixel coordinates in the browser viewport
 4. Mouse move / click / scroll / keyboard events are forwarded to CEF
-5. CEF processes the input and re-renders — the texture updates
+5. CEF processes the input and re-renders, the texture updates
 
 ### VR Considerations
 
@@ -51,20 +51,20 @@ KioskEntity (ECS)
 
 ## Technology Options
 
-### CEF (Chromium Embedded Framework) — Recommended
+### CEF (Chromium Embedded Framework): Recommended
 
 - Industry standard: used by Unreal Engine, Unity (via plugins), Steam Overlay, Spotify, Discord
-- Full Chromium browser — renders any website, runs JavaScript, handles cookies/auth
+- Full Chromium browser, renders any website, runs JavaScript, handles cookies/auth
 - Offscreen rendering mode designed exactly for this use case
 - Rust bindings: `cef-rs` crate (or raw FFI to the C API)
 - ~200MB runtime footprint (Chromium is heavy)
 
 ### Servo (Mozilla's Rust browser engine)
 
-- Written in Rust — ideal language fit
+- Written in Rust, ideal language fit
 - Much lighter than Chromium
 - Designed for embedding from the start
-- Less mature — may not render complex sites (Amazon, YouTube) correctly
+- Less mature, may not render complex sites (Amazon, YouTube) correctly
 - Worth evaluating once Servo stabilizes
 
 ### Ultralight
@@ -78,7 +78,7 @@ KioskEntity (ECS)
 
 - Microsoft's Chromium-based engine
 - Has a "visual hosting" mode for offscreen rendering
-- Windows-only — not viable for cross-platform
+- Windows-only, not viable for cross-platform
 
 ## Data-Driven Kiosk Definitions
 
@@ -99,14 +99,14 @@ category = "shopping"
 [kiosk.placement]
 # Default placement rules for procedural world generation
 location = "marketplace"
-min_distance_between = 50.0   # meters — don't cluster duplicates
+min_distance_between = 50.0   # meters - don't cluster duplicates
 ```
 
 ## Affiliate / Revenue Integration
 
 - Kiosk URLs include affiliate tags (e.g., `?tag=humanity-affiliate-20`)
 - Revenue from affiliate links funds the cooperative
-- Players see a small "Affiliate link — supports Humanity" badge on the kiosk frame
+- Players see a small "Affiliate link, supports Humanity" badge on the kiosk frame
 - Transparency: clicking the badge shows exactly what the affiliate tag does
 
 ## Security Considerations
@@ -128,12 +128,12 @@ min_distance_between = 50.0   # meters — don't cluster duplicates
 
 ## Implementation Phases
 
-1. **Phase 1**: CEF integration in engine — render a single URL to a texture, display on a quad
-2. **Phase 2**: Input forwarding — mouse/keyboard from game input to CEF
-3. **Phase 3**: Data-driven kiosks — load from TOML, place in world
-4. **Phase 4**: VR interaction — controller ray input, virtual keyboard
-5. **Phase 5**: Multi-kiosk management — LOD, suspend/resume, memory budget
-6. **Phase 6**: Affiliate tracking dashboard — admin page showing kiosk revenue
+1. **Phase 1**: CEF integration in engine, render a single URL to a texture, display on a quad
+2. **Phase 2**: Input forwarding, mouse/keyboard from game input to CEF
+3. **Phase 3**: Data-driven kiosks, load from TOML, place in world
+4. **Phase 4**: VR interaction, controller ray input, virtual keyboard
+5. **Phase 5**: Multi-kiosk management, LOD, suspend/resume, memory budget
+6. **Phase 6**: Affiliate tracking dashboard, admin page showing kiosk revenue
 
 ## Files (future)
 

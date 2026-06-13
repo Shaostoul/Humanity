@@ -100,7 +100,7 @@ Player-facing mechanics and interaction systems.
 
 ## Engine (`engine/`)
 
-Renderer, performance, and asset pipeline specs. (Note: implementation moved from `engine/` to `native/` in v0.37.0; the v0.90.0 unified-binary restructure then folded `native/`, `server/`, and `crates/` into a single crate at `src/` — those directories no longer exist.)
+Renderer, performance, and asset pipeline specs. (Note: implementation moved from `engine/` to `native/` in v0.37.0; the v0.90.0 unified-binary restructure then folded `native/`, `server/`, and `crates/` into a single crate at `src/`, those directories no longer exist.)
 
 - [asset_budget_policy.md](engine/asset_budget_policy.md) -- Asset budget policy and limits
 - [custom_rust_wgpu_runtime_plan.md](engine/custom_rust_wgpu_runtime_plan.md) -- Custom Rust + wgpu runtime plan

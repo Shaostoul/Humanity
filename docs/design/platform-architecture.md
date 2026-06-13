@@ -3,7 +3,7 @@
 **Status:** Active Reference Document
 **Author:** Shaostoul + Claude
 **Date:** 2026-03-18
-**Scope:** Civilization-scale platform design — the master reference for how HumanityOS operates as infrastructure for all of humanity.
+**Scope:** Civilization-scale platform design, the master reference for how HumanityOS operates as infrastructure for all of humanity.
 **Companion docs:** [engine-architecture.md](engine-architecture.md) (game engine), [../network/server_federation.md](../network/server_federation.md) (federation), [../01-VISION.md](../01-VISION.md) (mission), [../accord/humanity_accord.md](../accord/humanity_accord.md) (governance)
 
 ---
@@ -29,25 +29,25 @@
 
 ## 1. Mission and Design Principles
 
-HumanityOS exists to end poverty and unite humanity in peaceful harmony. It is not an app. It is not a game. It is civilization infrastructure — a cooperative operating layer that gives every human and every AI agent the tools to learn, build, trade, govern, and thrive together.
+HumanityOS exists to end poverty and unite humanity in peaceful harmony. It is not an app. It is not a game. It is civilization infrastructure, a cooperative operating layer that gives every human and every AI agent the tools to learn, build, trade, govern, and thrive together.
 
 ### Non-Negotiable Principles
 
-**Account for everyone.** The platform must serve 8 billion humans today and more tomorrow. It must also serve AI agents — cloud-hosted and locally-run — as equal participants. Every design decision must work at the FINAL scale, not just the current user count. Designing for "a few thousand users first" creates debt that never gets repaid.
+**Account for everyone.** The platform must serve 8 billion humans today and more tomorrow. It must also serve AI agents, cloud-hosted and locally-run, as equal participants. Every design decision must work at the FINAL scale, not just the current user count. Designing for "a few thousand users first" creates debt that never gets repaid.
 
-**No bandaids — do surgery when surgery is needed.** If a subsystem cannot scale to billions, redesign it. Do not patch around it. The cost of rearchitecting later is always higher than building correctly now. Every contributor must ask: "Does this still work when a billion people use it simultaneously?"
+**No bandaids, do surgery when surgery is needed.** If a subsystem cannot scale to billions, redesign it. Do not patch around it. The cost of rearchitecting later is always higher than building correctly now. Every contributor must ask: "Does this still work when a billion people use it simultaneously?"
 
 **Local-first.** The platform works offline from first launch. Data syncs when connectivity exists. A farmer in a village with intermittent 2G connectivity has the same fundamental experience as a developer on gigabit fiber. The network enhances the experience; it does not gate it.
 
-**Zero hardcoded content.** Every string, configuration, game constant, UI layout, and behavior is data-driven and hot-reloadable. Adding a new language, a new crop, a new governance model, or a new educational module requires zero code changes — only new data files.
+**Zero hardcoded content.** Every string, configuration, game constant, UI layout, and behavior is data-driven and hot-reloadable. Adding a new language, a new crop, a new governance model, or a new educational module requires zero code changes, only new data files.
 
-**Humans and AI are equal citizens.** An AI agent connects to the same WebSocket, calls the same API, joins the same channels, creates the same tasks, and trades in the same marketplace as a human. The platform does not distinguish between carbon-based and silicon-based participants at the protocol level. Identity is an Ed25519 key, regardless of who holds it.
+**Humans and AI are equal citizens.** An AI agent connects to the same WebSocket, calls the same API, joins the same channels, creates the same tasks, and trades in the same marketplace as a human. The platform does not distinguish between carbon-based and silicon-based participants at the protocol level. Identity is a Dilithium3 / ML-DSA-65 key, regardless of who holds it.
 
 **Survive everything.** Earthquakes, hurricanes, wars, infrastructure collapse, solar flares. This platform is the coordination layer for civilization. It must function when cell towers are down, when data centers are offline, when governments fall. Federated architecture and offline-first design are survival mechanisms, not features.
 
-**Open source, public domain (CC0).** This infrastructure belongs to everyone. No corporation, government, or individual can own it, restrict it, or shut it down. The code is CC0 — no license, no restrictions, no copyright claims. Fork it, modify it, deploy it. That is the point.
+**Open source, public domain (CC0).** This infrastructure belongs to everyone. No corporation, government, or individual can own it, restrict it, or shut it down. The code is CC0, no license, no restrictions, no copyright claims. Fork it, modify it, deploy it. That is the point.
 
-**Education through everything.** Every interaction is an opportunity to learn. The game teaches real skills. The marketplace teaches economics. The governance system teaches civics. The construction system teaches engineering. Nothing is gamified for its own sake — every system models reality faithfully enough to transfer knowledge to the physical world.
+**Education through everything.** Every interaction is an opportunity to learn. The game teaches real skills. The marketplace teaches economics. The governance system teaches civics. The construction system teaches engineering. Nothing is gamified for its own sake, every system models reality faithfully enough to transfer knowledge to the physical world.
 
 ---
 
@@ -92,23 +92,23 @@ Data is distributed by design. No single entity holds all of it. Each relay stor
 
 The platform must run on:
 
-- **High-end gaming PCs** — full 3D game engine, 4K rendering, VR
-- **Mid-range laptops** — game at reduced quality, full web platform
-- **Low-end phones** — web app via browser, no game engine, chat + tasks + vault
-- **Old desktops** (10+ years) — web app, possibly desktop app at minimum quality
-- **Embedded devices** — headless relay operation, API access only
-- **Kiosks and shared terminals** — stateless session, no persistent identity storage
+- **High-end gaming PCs**, full 3D game engine, 4K rendering, VR
+- **Mid-range laptops**, game at reduced quality, full web platform
+- **Low-end phones**, web app via browser, no game engine, chat + tasks + vault
+- **Old desktops** (10+ years), web app, possibly desktop app at minimum quality
+- **Embedded devices**, headless relay operation, API access only
+- **Kiosks and shared terminals**, stateless session, no persistent identity storage
 
 ### Connectivity
 
 The platform must function across:
 
-- **Gigabit fiber** — full experience, real-time everything
-- **4G/LTE** — full experience with adaptive media quality
-- **3G** — text-based features, deferred media loading
-- **Intermittent 2G** — offline-first, sync when signal appears
-- **No internet** — local mesh or fully offline with local data
-- **Satellite (high latency)** — tolerant of 600ms+ round trips
+- **Gigabit fiber**, full experience, real-time everything
+- **4G/LTE**, full experience with adaptive media quality
+- **3G**, text-based features, deferred media loading
+- **Intermittent 2G**, offline-first, sync when signal appears
+- **No internet**, local mesh or fully offline with local data
+- **Satellite (high latency)**, tolerant of 600ms+ round trips
 
 ---
 
@@ -157,30 +157,30 @@ For private conversations, clients connect directly via WebRTC:
                     (signaled via relay, then direct)
 ```
 
-- **DMs** use ECDH key exchange for end-to-end encryption, relayed through WebRTC DataChannel.
+- **DMs** use Kyber768 / ML-KEM-768 (FIPS 203) key exchange for end-to-end encryption (BLAKE3-KDF, then AES-256-GCM), relayed through WebRTC DataChannel.
 - **Voice/video** use WebRTC media streams, signaled through the relay.
 - **File transfers** are direct P2P, no server storage needed.
-- **Contact cards** are Ed25519-signed JSON, exchangeable via QR codes or relay.
+- **Contact cards** are Dilithium3 / ML-DSA-65-signed JSON (carrying the Kyber768 public key), exchangeable via QR codes or relay.
 
 The relay is the signaling server. Once the P2P connection is established, the relay is out of the loop.
 
 ### Identity Layer
 
-Identity is an Ed25519 keypair. Your public key is your global identity. It works on every relay, in every P2P connection, across the entire network.
+Identity is a Dilithium3 / ML-DSA-65 (FIPS 204) keypair, derived deterministically from the BIP39 seed. Your public key is your global identity. It works on every relay, in every P2P connection, across the entire network. (Ed25519 still derives from the same seed, but only as the seed scalar and the Solana wallet address, not as the chat identity.)
 
 ```
-Identity = Ed25519 keypair
+Identity = Dilithium3 / ML-DSA-65 keypair (derived from the BIP39 seed)
   ├── Public key (hex) = your address, visible to everyone
   ├── Private key = your authority, never leaves your device
   ├── Signatures = proof of authorship on every message, vote, and transaction
   └── Key rotation = dual-signature certificate (old key signs new, new key signs old)
 ```
 
-**No usernames at the protocol level.** Names are per-relay display preferences. Your key is your identity. If you lose your key, BIP39 seed phrase recovery restores it. If your key is compromised, key rotation with dual-signature certificates migrates your identity to a new keypair while maintaining verifiable continuity.
+**No usernames at the protocol level.** Names are per-relay display preferences. Your key is your identity. If you lose your key, BIP39 24-word seed phrase recovery restores it (the seed deterministically re-derives the Dilithium identity and Kyber DM keys). If your key is compromised, key rotation with dual-signature certificates migrates your identity to a new keypair while maintaining verifiable continuity.
 
 ### Future: Mesh Networking
 
-When internet infrastructure fails — and it will, repeatedly, across the planet — local mesh networking keeps communities connected:
+When internet infrastructure fails, and it will, repeatedly, across the planet, local mesh networking keeps communities connected:
 
 - **WiFi Direct / Bluetooth** for device-to-device relay within a building
 - **LoRa** for low-bandwidth, long-range text messaging (kilometers)
@@ -226,17 +226,20 @@ User data (plaintext)
   → Synced across user's devices
 ```
 
-Authentication for vault operations uses Ed25519 signatures with timestamp freshness (5-minute window), preventing replay attacks.
+Authentication for vault operations uses Dilithium3 / ML-DSA-65 signatures over `purpose\ntimestamp` with timestamp freshness (5-minute window), preventing replay attacks.
 
 ### Encryption Architecture
 
+> The canonical, always-current cryptography inventory lives in the "Cryptography" section of `CLAUDE.md` (audited post-quantum cutover). Read it before quoting any algorithm name; this table is a summary that can lag.
+
 | Layer | Algorithm | Purpose |
 |-------|-----------|---------|
-| Identity | Ed25519 | Signing messages, authenticating API calls |
-| Key exchange | X25519 (ECDH) | Establishing shared secrets for E2E DMs |
+| Identity | Dilithium3 / ML-DSA-65 (FIPS 204) | Signing messages, authenticating API calls |
+| Key exchange | Kyber768 / ML-KEM-768 (FIPS 203) | Establishing shared secrets for E2E DMs |
 | Symmetric encryption | AES-256-GCM | Encrypting vault, notes, backups, DM content |
 | Key derivation | PBKDF2-SHA256 (600k rounds) | Deriving encryption key from passphrase |
-| Seed recovery | BIP39 (12-word mnemonic) | Human-readable backup of private key |
+| Seed source / wallet | Ed25519 | BIP39 seed scalar (derives Dilithium + Kyber) and Solana wallet address |
+| Seed recovery | BIP39 (24-word mnemonic) | Human-readable backup of the seed |
 
 ### Privacy by Design
 
@@ -286,8 +289,8 @@ Background sync checks for updates to web assets (granular file-level diffing, n
 
 The desktop app has two rendering surfaces:
 
-1. **WebView2** — all social features, HUD, menus, inventory, settings, task boards. This is the existing HTML/JS/CSS stack, proven and functional.
-2. **wgpu** — 3D game engine rendering. Custom renderer built on wgpu, running in a separate native window or embedded surface.
+1. **WebView2**, all social features, HUD, menus, inventory, settings, task boards. This is the existing HTML/JS/CSS stack, proven and functional.
+2. **wgpu**, 3D game engine rendering. Custom renderer built on wgpu, running in a separate native window or embedded surface.
 
 They communicate via Tauri IPC commands. The WebView2 overlay can render UI elements on top of the 3D view (health bars, chat overlay, minimap). Neither rendering system owns the other.
 
@@ -330,7 +333,7 @@ Browser
   │           → chat-voice.js → chat-profile.js → chat-p2p.js
   ├── web/pages/*.html (standalone feature pages)
   │     └── Each page loads: events.js → shell.js → page-specific.js
-  └── web/shared/ (shell.js, events.js, settings.js — loaded on every page)
+  └── web/shared/ (shell.js, events.js, settings.js - loaded on every page)
 ```
 
 ### Why No Build Step
@@ -342,7 +345,7 @@ Browser
 
 ### Progressive Web App
 
-Service worker (`sw.js`) caches all static assets for offline use. The web app continues to function without network connectivity — reading cached messages, editing local notes, browsing offline data.
+Service worker (`sw.js`) caches all static assets for offline use. The web app continues to function without network connectivity, reading cached messages, editing local notes, browsing offline data.
 
 Push notifications via WebPush API deliver alerts when the browser is closed (pending implementation, Tier 4 on roadmap).
 
@@ -367,13 +370,13 @@ Messages are JSON objects with a `type` field for routing. The relay dispatches 
 
 Stateless HTTP endpoints complement the WebSocket for operations that benefit from request/response semantics:
 
-- **Content retrieval** — message history, search, pins, reactions
-- **File upload** — multipart form data with upload token
-- **Task CRUD** — create, read, update, delete with filtering
-- **Vault sync** — authenticated encrypted blob storage
-- **Server info** — health checks, stats, peer lists
+- **Content retrieval**, message history, search, pins, reactions
+- **File upload**, multipart form data with upload token
+- **Task CRUD**, create, read, update, delete with filtering
+- **Vault sync**, authenticated encrypted blob storage
+- **Server info**, health checks, stats, peer lists
 
-All authenticated endpoints use Ed25519 signatures with timestamp freshness.
+All authenticated endpoints use Dilithium3 / ML-DSA-65 signatures over `purpose\ntimestamp` with timestamp freshness.
 
 ---
 
@@ -383,7 +386,7 @@ All authenticated endpoints use Ed25519 signatures with timestamp freshness.
 
 AI agents are not add-ons or integrations. They are participants. An AI agent:
 
-- Holds an Ed25519 keypair (its identity)
+- Holds a Dilithium3 / ML-DSA-65 keypair (its identity)
 - Connects to relays via WebSocket (same protocol as humans)
 - Calls REST APIs (same endpoints as humans)
 - Sends and receives messages in channels
@@ -415,8 +418,8 @@ The desktop app can run AI models locally:
 ```
 
 - Models run on the user's GPU (CUDA, Vulkan, Metal) or CPU
-- Data stays on the user's machine — full privacy
-- Works offline — AI assistance without internet
+- Data stays on the user's machine, full privacy
+- Works offline, AI assistance without internet
 - Configurable model selection (small/fast vs. large/capable)
 
 ### Cloud AI
@@ -478,7 +481,7 @@ Interior detail (cm)  ──►  Building (m)  ──►  City (km)  ──►  
         └────────────────── Single continuous simulation ──────────────────────┘
 ```
 
-LOD (level of detail) and streaming manage this range. Nearby objects render at full detail; distant objects simplify progressively. No loading screens between scales — continuous zoom from a light switch to a Dyson sphere.
+LOD (level of detail) and streaming manage this range. Nearby objects render at full detail; distant objects simplify progressively. No loading screens between scales, continuous zoom from a light switch to a Dyson sphere.
 
 ### Dual Rendering Coexistence
 
@@ -554,16 +557,16 @@ Mining/Harvesting → Processing → Manufacturing → Transport → Distributio
                       milling)       crafting)      shipping)     trading)       repair)
 ```
 
-Every step in the chain is simulated. A shortage of iron ore propagates through the entire economy. A flood that destroys farmland creates food scarcity downstream. Players who master logistics — optimizing routes, managing warehouses, anticipating demand — provide real value to their communities.
+Every step in the chain is simulated. A shortage of iron ore propagates through the entire economy. A flood that destroys farmland creates food scarcity downstream. Players who master logistics, optimizing routes, managing warehouses, anticipating demand, provide real value to their communities.
 
 ### Skill-Based Marketplace
 
 The marketplace connects people who can do things with people who need things done:
 
-- **Offer skills** — "I can teach welding" / "I can design buildings" / "I can diagnose plant diseases"
-- **Request skills** — "Need help with electrical wiring" / "Looking for a navigator"
-- **Trade goods** — volumetric items with real logistics
-- **Reputation-gated** — Ed25519-signed endorsements build verifiable track records
+- **Offer skills**, "I can teach welding" / "I can design buildings" / "I can diagnose plant diseases"
+- **Request skills**, "Need help with electrical wiring" / "Looking for a navigator"
+- **Trade goods**, volumetric items with real logistics
+- **Reputation-gated**, Dilithium3 / ML-DSA-65-signed endorsements build verifiable track records
 
 The listings API (`/api/listings`) already exists. The marketplace UI and matching algorithm are on the roadmap.
 
@@ -594,13 +597,13 @@ Relay C (Asia)    ──── ONLINE ──► serves Asia
 Relay D (US-East) ──── ONLINE ──► absorbs US-West overflow
 ```
 
-Users are not locked to a single relay. When their primary relay goes down, the client automatically attempts connection to backup relays from the server registry. Identity is portable — the same Ed25519 key works on any relay.
+Users are not locked to a single relay. When their primary relay goes down, the client automatically attempts connection to backup relays from the server registry. Identity is portable, the same Dilithium3 / ML-DSA-65 key works on any relay.
 
 ### Offline Survival
 
 When internet connectivity is lost entirely:
 
-1. **Local data persists.** Messages, tasks, notes, vault — all stored locally in IndexedDB (web) or SQLite (desktop).
+1. **Local data persists.** Messages, tasks, notes, vault, all stored locally in IndexedDB (web) or SQLite (desktop).
 2. **Local relay.** A single surviving machine can run a relay server, creating a local network for the community.
 3. **P2P direct.** Two devices in proximity can communicate via WiFi Direct, Bluetooth, or wired connection.
 4. **Store-and-forward.** Messages queue locally and deliver when connectivity returns. Conflict-free sync resolves ordering.
@@ -608,12 +611,12 @@ When internet connectivity is lost entirely:
 
 ### Backup and Recovery
 
-Every user's identity and data can be recovered from a 12-word BIP39 seed phrase:
+Every user's identity and data can be recovered from a 24-word BIP39 seed phrase:
 
 ```
-Seed phrase (12 words, memorizable)
-  → PBKDF2 derivation
-  → Ed25519 keypair (identity restored)
+Seed phrase (24 words, memorizable)
+  → seed scalar (Ed25519 seed source + Solana wallet)
+  → Dilithium3 / ML-DSA-65 keypair (chat identity restored) + Kyber768 / ML-KEM-768 keypair (DM keys)
   → AES-256-GCM key (vault decrypted)
   → Full data recovery from any relay that has the encrypted vault
 ```
@@ -637,16 +640,16 @@ No single natural disaster, political decision, or infrastructure failure should
 
 ### The Humanity Accord
 
-The Humanity Accord is a set of 21 governance documents that define the ethical principles, rights, responsibilities, and operational constraints for the platform. It is voluntary — no relay is required to adopt it — but adoption signals alignment with shared values and earns higher trust tiers in the federation.
+The Humanity Accord is a set of 21 governance documents that define the ethical principles, rights, responsibilities, and operational constraints for the platform. It is voluntary, no relay is required to adopt it, but adoption signals alignment with shared values and earns higher trust tiers in the federation.
 
 Key Accord documents:
 
-- **Ethical Principles** — dignity, transparency, cooperation
-- **Rights and Responsibilities** — what every participant can expect and must provide
-- **Conflict Resolution** — structured process for disputes
-- **Absolute Prohibitions** — lines that cannot be crossed
-- **Transparency Guarantees** — what must be visible and auditable
-- **Governance Models** — how communities make decisions
+- **Ethical Principles**, dignity, transparency, cooperation
+- **Rights and Responsibilities**, what every participant can expect and must provide
+- **Conflict Resolution**, structured process for disputes
+- **Absolute Prohibitions**, lines that cannot be crossed
+- **Transparency Guarantees**, what must be visible and auditable
+- **Governance Models**, how communities make decisions
 
 See [accord/](../accord/) for the complete text.
 
@@ -654,30 +657,30 @@ See [accord/](../accord/) for the complete text.
 
 Trust is built through verifiable actions, not self-declaration:
 
-- **Ed25519-signed endorsements** — "I verify that this person can weld" (signed by the endorser's key)
-- **Action history** — messages sent, tasks completed, trades fulfilled (all signed and timestamped)
-- **Community standing** — peer assessments aggregated at the relay level
-- **Cross-relay portability** — endorsements travel with your identity
+- **Dilithium3 / ML-DSA-65-signed endorsements**, "I verify that this person can weld" (signed by the endorser's key)
+- **Action history**, messages sent, tasks completed, trades fulfilled (all signed and timestamped)
+- **Community standing**, peer assessments aggregated at the relay level
+- **Cross-relay portability**, endorsements travel with your identity
 
 ### Moderation
 
-Each relay is sovereign — its operator sets the rules. But the platform provides tools:
+Each relay is sovereign, its operator sets the rules. But the platform provides tools:
 
-- **AI-assisted flagging** — content analysis surfaces potential violations for human review
-- **Signed moderation logs** — every moderation action (mute, ban, message deletion) is logged with the moderator's Ed25519 signature, creating an auditable trail
-- **Appeals process** — structured workflow for contesting moderation decisions
-- **Community voting** — governance decisions can be put to ranked-choice vote with cryptographic verification
-- **Transparency** — moderation policies and action logs are visible to community members
+- **AI-assisted flagging**, content analysis surfaces potential violations for human review
+- **Signed moderation logs**, every moderation action (mute, ban, message deletion) is logged with the moderator's Dilithium3 / ML-DSA-65 signature, creating an auditable trail
+- **Appeals process**, structured workflow for contesting moderation decisions
+- **Community voting**, governance decisions can be put to ranked-choice vote with cryptographic verification
+- **Transparency**, moderation policies and action logs are visible to community members
 
 ### No Single Point of Control
 
 No individual, corporation, or government controls HumanityOS:
 
-- The code is CC0 — anyone can fork and deploy
-- The federation is permissionless — anyone can run a relay
-- Identity is self-sovereign — no registration authority
-- Governance is per-community — each relay sets its own rules
-- The root registry is a convenience, not a requirement — relays can be discovered by direct URL
+- The code is CC0, anyone can fork and deploy
+- The federation is permissionless, anyone can run a relay
+- Identity is self-sovereign, no registration authority
+- Governance is per-community, each relay sets its own rules
+- The root registry is a convenience, not a requirement, relays can be discovered by direct URL
 
 ---
 
@@ -696,7 +699,7 @@ Developer pushes to main
   → Deploy Bot announces in chat
 ```
 
-Daily driver: `just ship "commit message"` — commits, pushes, and force-syncs the VPS.
+Daily driver: `just ship "commit message"`, commits, pushes, and force-syncs the VPS.
 
 ### VPS Layout
 
@@ -720,17 +723,17 @@ Daily driver: `just ship "commit message"` — commits, pushes, and force-syncs 
 
 Semver with strict rules:
 
-- `0.X.0` — Rust code changed (requires recompile on VPS)
-- `0.X.Y` — Non-Rust changes only (HTML/JS/CSS/docs/config)
-- `1.0.0` — Reserved for fully functional product
+- `0.X.0`, Rust code changed (requires recompile on VPS)
+- `0.X.Y`, Non-Rust changes only (HTML/JS/CSS/docs/config)
+- `1.0.0`, Reserved for fully functional product
 
 Automated bump script (`node scripts/bump-version.js [patch|minor|major]`) updates version locations:
 
-1. `web/shared/sw.js` — `CACHE_NAME`
-2. `web/pages/settings-app.js` — version display
-3. `web/pages/ops.html` — debug version
-4. `web/shared/shell.js` — version reference
-5. `web/activities/download.html` — fallback badge
+1. `web/shared/sw.js`, `CACHE_NAME`
+2. `web/pages/settings-app.js`, version display
+3. `web/pages/ops.html`, debug version
+4. `web/shared/shell.js`, version reference
+5. `web/activities/download.html`, fallback badge
 
 Note: Tauri app (`app/`) is deprecated. Its `tauri.conf.json` and `Cargo.toml` are no longer maintained.
 
@@ -743,7 +746,7 @@ A single relay (current architecture) handles thousands of concurrent connection
 | 1 – 10k users | Single relay, single VPS |
 | 10k – 100k | Vertical scaling (more CPU/RAM), read replicas for SQLite |
 | 100k – 1M | Multiple relays behind a load balancer, shared-nothing architecture |
-| 1M+ | Federation — users distribute across many independent relays |
+| 1M+ | Federation, users distribute across many independent relays |
 
 The federation model means no single relay needs to handle global scale. Each relay serves its community. The network scales horizontally by adding more relays, not by making one relay bigger.
 
@@ -765,8 +768,8 @@ WEB CLIENT
   Language:     Plain JavaScript (ES2020+, no transpilation)
   Markup:       Plain HTML5
   Styling:      Plain CSS3 (custom properties for theming)
-  Build step:   None — files served directly
-  Crypto:       Web Crypto API (Ed25519, AES-256-GCM, ECDH, PBKDF2)
+  Build step:   None - files served directly
+  Crypto:       Dilithium3 / ML-DSA-65 + Kyber768 / ML-KEM-768 (post-quantum); Web Crypto API (AES-256-GCM, PBKDF2; Ed25519 for seed scalar + Solana wallet)
   Real-time:    WebSocket (native browser API)
   P2P:          WebRTC (DataChannel for data, MediaStream for voice/video)
   Storage:      IndexedDB (client-side persistence)
@@ -787,11 +790,12 @@ NETWORK
   Future:       QUIC (HTTP/3), mesh protocols (LoRa, WiFi Direct)
 
 IDENTITY AND CRYPTO
-  Signing:      Ed25519
+  Signing:      Dilithium3 / ML-DSA-65 (FIPS 204), for chat identity, federation objects, profile gossip
   Encryption:   AES-256-GCM
-  Key exchange: X25519 (ECDH)
+  DM key exchange: Kyber768 / ML-KEM-768 (FIPS 203) → BLAKE3-KDF → AES-256-GCM, dual-seal envelope
   Key derivation: PBKDF2-SHA256 (600,000 iterations)
-  Recovery:     BIP39 (12-word mnemonic)
+  Recovery:     BIP39 (24-word mnemonic); seed re-derives Dilithium + Kyber keys
+  Seed scalar / wallet: Ed25519 (BIP39 seed source + Solana wallet address only)
   Rotation:     Dual-signature certificates (old+new key cross-sign)
 
 DATA FORMATS
@@ -868,7 +872,7 @@ Connect the simulation to real-world value:
 - Crypto payment layer
 - Supply chain simulation (mining to manufacturing to distribution)
 - Structured learning paths (module completion, peer endorsement)
-- Verifiable credentials (Ed25519-signed skill certificates)
+- Verifiable credentials (Dilithium3 / ML-DSA-65-signed skill certificates)
 - Educational curriculum integration (mapping game modules to real-world certifications)
 
 ### v1.0.0: Fully Functional Product

@@ -76,6 +76,6 @@ Farming does not attempt to be a botanical encyclopedia or a full fluid/chemistr
 
 ## Files in this Folder
 
-- `README.md` — system scope, interfaces, invariants
-- `states.md` — authoritative list of farming state variables, ranges, and invariants
-- `processes.md` — authoritative list of farming processes/actions, inputs/outputs, and failure modes
+- `README.md`, system scope, interfaces, invariants
+- `states.md`, authoritative list of farming state variables, ranges, and invariants
+- `processes.md`, authoritative list of farming processes/actions, inputs/outputs, and failure modes

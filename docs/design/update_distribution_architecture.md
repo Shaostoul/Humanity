@@ -10,18 +10,18 @@
 
 ## Update Layers
 
-### Layer A — Hot Reload (no restart)
+### Layer A: Hot Reload (no restart)
 - markdown/docs bundles
 - UI config, labels, themes
 - feature flags
 - non-critical content data packs
 
-### Layer B — Warm Reload (module reload)
+### Layer B: Warm Reload (module reload)
 - plugin bundles
 - renderer/layout modules
 - optional integration adapters
 
-### Layer C — Full Restart
+### Layer C: Full Restart
 - core runtime binaries
 - security-critical components
 - protocol/runtime migrations

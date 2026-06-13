@@ -50,7 +50,7 @@ W3C-style VCs over the signed-object substrate. 12 indexed schemas. Issuer-auth-
 - Weights: `data/identity/trust_weights.ron`
 
 ### Governance
-9 proposal types — 5 local-scope, 4 civilization-scope. Vote weight = trust score capped at 0.95.
+9 proposal types, 5 local-scope, 4 civilization-scope. Vote weight = trust score capped at 0.95.
 - Storage: `src/relay/storage/governance.rs`
 - API: `/api/v2/proposals`, `/api/v2/proposals/{id}`, `/api/v2/proposals/{id}/tally` in `src/relay/api_v2_governance.rs`
 - Types: `data/governance/proposal_types.ron`
@@ -84,10 +84,10 @@ Real-time text chat with channels, threads, and message history.
 Private 1-on-1 conversations encrypted with pure Kyber768 / ML-KEM-768 →
 BLAKE3-KDF → AES-256-GCM (dual-seal envelope; the relay stores opaque
 ciphertext only). The old ECDH P-256 path was deleted (web v0.263.4, native
-v0.264.0) — see the canonical crypto table in `CLAUDE.md`.
+v0.264.0), see the canonical crypto table in `CLAUDE.md`.
 - Web: `web/chat/chat-dms.js`, `web/chat/pq.js` (`pqDmSeal`/`pqDmOpen`)
 - Native: `src/net/dm_pq.rs`
-- Server: `src/relay/storage/dms.rs` (zero-knowledge — never decrypts)
+- Server: `src/relay/storage/dms.rs` (zero-knowledge, never decrypts)
 
 ### Voice Channels
 Group voice chat rooms with join/leave sounds.
@@ -127,10 +127,10 @@ Reply threads on messages.
 
 ## Identity and Security
 
-### Ed25519 Identity
-Cryptographic keypair IS your identity. No accounts, no passwords.
-- Web: `web/chat/crypto.js` (key generation, signing)
-- Server: `src/relay/relay.rs` (signature verification)
+### Dilithium3 / ML-DSA-65 Identity
+Post-quantum cryptographic keypair (Dilithium3 / ML-DSA-65, FIPS 204) IS your identity, derived deterministically from the BIP39 24-word seed. No accounts, no passwords. (Ed25519 survives only as the seed scalar and Solana wallet address, see the canonical crypto table in `CLAUDE.md`.)
+- Web: `web/chat/crypto.js` (key derivation), `web/shared/pq-identity.js` (Dilithium signing)
+- Server: `src/relay/relay.rs` (signature verification), `src/relay/core/pq_crypto.rs`
 
 ### BIP39 Seed Phrase
 24-word backup phrase for identity recovery.
@@ -146,7 +146,7 @@ Profiles are cryptographically signed objects. Any server can cache and serve th
 - Server: `src/relay/storage/signed_profiles.rs`
 
 ### Vault Sync
-Encrypted cloud backup of settings/keys (AES-256-GCM + PBKDF2).
+Encrypted cloud backup of settings/keys (AES-256-GCM + PBKDF2-SHA-256 at 600,000 iterations, both web and native).
 - Web: `web/chat/crypto.js` (encryption), `web/chat/chat-profile.js` (sync UI)
 - Server: `src/relay/storage/vault_sync.rs`
 
@@ -325,7 +325,7 @@ Server analytics for admins. Users, messages, channels, federation, game state.
 ### Server → Services (feature + daemon toggles)
 Operator one-click control of features backed by OS daemons (coturn
 voice/video relay; future P2P distribution via transmission) from the
-native Server Settings page — no SSH. Two layers: a soft
+native Server Settings page, no SSH. Two layers: a soft
 `server_settings` gate (relay stops offering instantly) + an
 allowlisted privilege bridge that start/stops the daemon. Non-root
 relay + tightly-scoped sudoers + compile-time allowlist (no shell, no
@@ -418,7 +418,7 @@ Server-side game world with entity management, position validation, player sync.
 - Server: `src/relay/handlers/game_state.rs`
 
 ### AI Perception API (v0.131.0)
-Headless gameplay protocol — AI agents perceive and act in the game world via structured JSON instead of rendered frames. Validates distance for interactions (5m), perception range (20m).
+Headless gameplay protocol, AI agents perceive and act in the game world via structured JSON instead of rendered frames. Validates distance for interactions (5m), perception range (20m).
 - WebSocket messages: `game_perceive` (room + nearby + environment), `game_interact` (action on entity), `game_query_inventory`, `game_query_entity`
 - Server: `src/relay/handlers/msg_handlers.rs` (handle_game_perceive, handle_game_interact, etc.), `src/relay/relay.rs` (routing)
 - Docs: `docs/ai-onboarding.md` (Playing the Game section), `docs/design/ai_interface.md` (Game Participation role)
@@ -475,13 +475,9 @@ All spacing/sizes halved for actual visual density. 35+ theme variables editable
 All 27 pages refactored to use theme system and universal widgets consistently.
 - Native: `src/gui/pages/*.rs`
 
-### ECDH P-256 DM Encryption (v0.90.4)
-Native ECDH keypair generation, storage, announcement in identify. Decrypt incoming DMs, encrypt outgoing. Matches web client crypto.js.
-- Native: `src/gui/pages/chat.rs`
-
-### ECDH Web Key Import (v0.90.5)
-Settings > Account imports ECDH keypair from web client for cross-platform DM compatibility.
-- Native: `src/gui/pages/settings.rs`
+### Post-Quantum DM Encryption (native)
+Native DM encryption uses pure Kyber768 / ML-KEM-768 (FIPS 203) -> BLAKE3-KDF -> AES-256-GCM in a dual-seal `{v:1,r,s}` envelope, byte-identical to the web client. The Kyber recipient key derives deterministically from the BIP39 seed, so DMs round-trip cross-client. (The earlier ECDH P-256 path was deleted in v0.264.0, see the canonical crypto table in `CLAUDE.md`.)
+- Native: `src/net/dm_pq.rs` (seal/open), `src/gui/pages/chat.rs` (send/receive UI)
 
 ### HUD
 Health bar, hotbar, crosshair, compass, day/night indicator, FPS counter.
@@ -618,7 +614,7 @@ Unified celestial body management for renderer, terrain, and maps.
 - Native: `src/terrain/planet.rs`
 
 ### Construction Placement (v0.90.8, partial)
-Scaffolded placement system for building in the game world. Needs full integration. **⚠️ `PlacementSystem` NOT registered — never ticks (see the lint).**
+Scaffolded placement system for building in the game world. Needs full integration. **⚠️ `PlacementSystem` NOT registered, never ticks (see the lint).**
 - Native: `src/systems/construction/mod.rs`
 
 ### GLTF Model Loading
@@ -707,7 +703,7 @@ Scaffolded system modules for expanded gameplay.
 
 ## Game Systems
 
-> **⚠️ Registration status (2026-05-29 game-code audit):** only **7** of the systems below are actually registered + tick in the runtime — Player Controller, Interaction, Day/Night, Farming, Inventory, Crafting (+ ContainerCompatibility, not separately listed here). Every other system in this section is **implemented but NOT registered**, so it never ticks. `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` is the authoritative list (the build fails if a system is neither registered nor deferred-with-reason); `docs/STATUS.md` has the per-system status.
+> **⚠️ Registration status (2026-05-29 game-code audit):** only **7** of the systems below are actually registered + tick in the runtime, Player Controller, Interaction, Day/Night, Farming, Inventory, Crafting (+ ContainerCompatibility, not separately listed here). Every other system in this section is **implemented but NOT registered**, so it never ticks. `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` is the authoritative list (the build fails if a system is neither registered nor deferred-with-reason); `docs/STATUS.md` has the per-system status.
 
 ### Player Controller
 WASD movement, gravity, jump, ground detection via raycast.
@@ -722,19 +718,19 @@ GameTime with seasons, sun direction/color computation. 20 real minutes = 1 game
 - Native: `src/systems/time.rs`
 
 ### Weather System
-7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions. **⚠️ NOT registered — never ticks (see the lint).**
+7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions. **⚠️ NOT registered, never ticks (see the lint).**
 - Native: `src/systems/weather.rs`
 
 ### Hydrological System
-Rain cycle, rivers, aquifers, contamination tracking, water table simulation. **⚠️ NOT registered — never ticks (see the lint).**
+Rain cycle, rivers, aquifers, contamination tracking, water table simulation. **⚠️ NOT registered, never ticks (see the lint).**
 - Native: `src/systems/hydrology.rs`
 
 ### Atmospheric System
-Gas tracking, explosions, suffocation, pressure simulation. **⚠️ NOT registered — never ticks (see the lint).**
+Gas tracking, explosions, suffocation, pressure simulation. **⚠️ NOT registered, never ticks (see the lint).**
 - Native: `src/systems/atmosphere.rs`
 
 ### Disaster System
-21 disaster types with chain reactions, severity scaling, black holes. **⚠️ NOT registered — never ticks (see the lint).**
+21 disaster types with chain reactions, severity scaling, black holes. **⚠️ NOT registered, never ticks (see the lint).**
 - Native: `src/systems/disasters.rs`
 
 ### Farming
@@ -751,46 +747,46 @@ Recipe matching from CSV, input validation, timed crafting.
 - Data: `data/recipes.csv`
 
 ### Construction
-Blueprint placement, snap-to-grid, timed building, material consumption. **⚠️ NOT registered — never ticks (see the lint).**
+Blueprint placement, snap-to-grid, timed building, material consumption. **⚠️ NOT registered, never ticks (see the lint).**
 - Native: `src/systems/construction/mod.rs`
 - Data: `data/blueprints/basic.ron`
 
 ### Skills/Progression
-20 skills across 5 categories, XP curves, level-up notifications. **⚠️ NOT registered — never ticks (see the lint).**
+20 skills across 5 categories, XP curves, level-up notifications. **⚠️ NOT registered, never ticks (see the lint).**
 - Native: `src/systems/skills/mod.rs`
 - Data: `data/skills/skills.csv`
 
 ### AI Behaviors
-5 behavior types (passive, aggressive, herd, predator, guard) with state machines. **⚠️ Native `AISystem` NOT registered — never ticks (the relay drives ambient NPCs separately, server-side). See the lint.**
+5 behavior types (passive, aggressive, herd, predator, guard) with state machines. **⚠️ Native `AISystem` NOT registered, never ticks (the relay drives ambient NPCs separately, server-side). See the lint.**
 - Native: `src/systems/ai/mod.rs`
 
 ### Vehicles/Mechs
-Enter/exit vehicles, torso twist, jump jets, heat management. **⚠️ NOT registered — never ticks (see the lint).**
+Enter/exit vehicles, torso twist, jump jets, heat management. **⚠️ NOT registered, never ticks (see the lint).**
 - Native: `src/systems/vehicles/mod.rs`
 
 ### Ecology/Disease
-Disease spread by proximity, seasonal effects, population tracking. **⚠️ NOT registered — never ticks (see the lint).**
+Disease spread by proximity, seasonal effects, population tracking. **⚠️ NOT registered, never ticks (see the lint).**
 - Native: `src/systems/ecology.rs`
 
 ### Quests
-Data-driven quest progression from RON files. 6 objective types. **⚠️ Native `QuestSystem` NOT registered — never ticks. (The relay runs the authoritative quest chain, so quests work in multiplayer; the native single-player system does not.) See the lint.**
+Data-driven quest progression from RON files. 6 objective types. **⚠️ Native `QuestSystem` NOT registered, never ticks. (The relay runs the authoritative quest chain, so quests work in multiplayer; the native single-player system does not.) See the lint.**
 - Native: `src/systems/quests/mod.rs`
 - Data: `data/quests/*.ron`
 
 ### Combat
-Damage calculation, status effects. **⚠️ `CombatSystem` NOT registered — never ticks (see the lint).**
+Damage calculation, status effects. **⚠️ `CombatSystem` NOT registered, never ticks (see the lint).**
 - Native: `src/systems/combat/`
 
 ### Economy
-Fleet resource management. **⚠️ `EconomySystem` NOT registered — never ticks (see the lint).**
+Fleet resource management. **⚠️ `EconomySystem` NOT registered, never ticks (see the lint).**
 - Native: `src/systems/economy/`
 
 ### Navigation
-Multi-scale navigation (galaxy, system, orbital, surface). **⚠️ Support module — not wired into the runtime.**
+Multi-scale navigation (galaxy, system, orbital, surface). **⚠️ Support module, not wired into the runtime.**
 - Native: `src/systems/navigation/`
 
 ### Logistics
-Cargo transport and shipping routes. **⚠️ Support module — not wired into the runtime.**
+Cargo transport and shipping routes. **⚠️ Support module, not wired into the runtime.**
 - Native: `src/systems/logistics/`
 
 ---
@@ -882,15 +878,15 @@ Autonomous agent presets for off-screen NPC simulation (patrol, trade, farm, bui
 - Data: `data/offline_behaviors.ron`
 
 ### Simulation Systems (v0.90.0)
-Data-driven simulation modules for engineering and infrastructure. **⚠️ The consuming systems are 47–52 LOC scaffolds, NOT registered — they never tick (see `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`); the data files exist but nothing consumes them at runtime.**
+Data-driven simulation modules for engineering and infrastructure. **⚠️ The consuming systems are 47–52 LOC scaffolds, NOT registered, they never tick (see `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`); the data files exist but nothing consumes them at runtime.**
 - Data: `data/electrical.ron`, `data/plumbing.ron`, `data/hvac.ron`, `data/transportation.ron`, `data/fire_system.ron`, `data/docking.ron`
 
 ### Real-World Systems (v0.90.0)
-Data definitions for social and biological simulation. **⚠️ The consuming systems are scaffolds, NOT registered — they never tick (see the lint); data exists but isn't consumed at runtime.**
+Data definitions for social and biological simulation. **⚠️ The consuming systems are scaffolds, NOT registered, they never tick (see the lint); data exists but isn't consumed at runtime.**
 - Data: `data/governance.ron`, `data/psychology.ron`, `data/medical.ron`, `data/food_system.ron`, `data/economy.ron`, `data/creative_arts.ron`, `data/aging_fitness.ron`
 
 ### Science Systems (v0.90.0)
-Data definitions for natural science simulation. **⚠️ The consuming systems are scaffolds, NOT registered — they never tick (see the lint); data exists but isn't consumed at runtime.**
+Data definitions for natural science simulation. **⚠️ The consuming systems are scaffolds, NOT registered, they never tick (see the lint); data exists but isn't consumed at runtime.**
 - Data: `data/geology.ron`, `data/oceanography.ron`, `data/astronomy_tools.ron`, `data/genetics.ron`, `data/manufacturing.ron`, `data/waste_management.ron`
 
 ### Data Schemas (v0.90.0)

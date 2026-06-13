@@ -2,17 +2,17 @@
 
 > **Goal:** decouple HumanityOS from any single host. The project's source
 > code, release binaries, and installable packages should survive the loss
-> of any one platform — including GitHub. This matches the federation
+> of any one platform, including GitHub. This matches the federation
 > philosophy already baked into the relay.
 
 The strategy has three layers, ordered from most-aligned with HumanityOS's
 P2P design to least:
 
-1. **Sovereignty layer** — you own and run it. No vendor can take it down.
-2. **Community layer** — non-profit or mission-aligned hosts that mirror
+1. **Sovereignty layer**, you own and run it. No vendor can take it down.
+2. **Community layer**, non-profit or mission-aligned hosts that mirror
    the work and add discoverability without acting as a single point of
    failure.
-3. **Distribution layer** — package managers and app stores that get
+3. **Distribution layer**, package managers and app stores that get
    HumanityOS in front of users wherever they live.
 
 Sites the project should keep using or adopt are listed below. **If a
@@ -45,7 +45,7 @@ recommended set.
 
 ---
 
-## 1. Forgejo / Gitea — self-hosted git on the VPS
+## 1. Forgejo / Gitea: self-hosted git on the VPS
 
 [forgejo.org](https://forgejo.org) · [gitea.io](https://gitea.io) ·
 **Cost: $0** (no signup; runs on your existing VPS)
@@ -60,13 +60,13 @@ shift).
 already pay for the VPS, you already have nginx in front of it, the relay
 already runs there. Adding Forgejo gives you a primary source-of-truth
 remote that no third party can take down. `just ship` becomes
-multi-remote — push to GitHub for visibility, push to your own Forgejo
+multi-remote, push to GitHub for visibility, push to your own Forgejo
 for sovereignty. If GitHub disappears tomorrow, your repo, issues, and CI
 configuration are intact.
 
 Forgejo also supports **ForgeFed** (the federation protocol for git
 forges, ActivityPub-based). Once that's production-grade, your Forgejo
-instance can federate with other operators' Forgejo instances — exactly
+instance can federate with other operators' Forgejo instances, exactly
 the same shape as the HumanityOS relay federation. That's the
 philosophically right end state.
 
@@ -84,7 +84,7 @@ Generate `.torrent` and `magnet:` URIs for each release; the VPS is the
 always-on initial seeder; client devices become seeders too once they've
 downloaded.
 
-**Why it fits.** This is exactly the architecture you described — exe is
+**Why it fits.** This is exactly the architecture you described, exe is
 the small entry point, on first run it pulls `data/` and `assets/` via
 the swarm with the VPS as guaranteed seed. Bandwidth scales horizontally
 with users; the VPS's bandwidth budget caps download speed only when the
@@ -105,11 +105,11 @@ to let browser users join the swarm without a native client.
 
 Run an IPFS node on the VPS, pin every release. Each release becomes a
 content-addressable hash (CID). Anyone with the CID can fetch the
-release from any IPFS node that has it pinned — yours, a community
+release from any IPFS node that has it pinned, yours, a community
 member's, a public gateway, or a paid pinning service.
 
 **Why it fits.** Complementary to BitTorrent. Where torrents are great
-for big-file swarms, IPFS is great for granular file addressing — you
+for big-file swarms, IPFS is great for granular file addressing, you
 can pin individual data files (`data/items.csv`, `data/recipes.csv`,
 etc.) and clients can fetch only what they need. CIDs go in
 `server-config.json`; clients can resolve them via HTTP gateways
@@ -133,7 +133,7 @@ mature, organisationally accountable to its members rather than to
 shareholders.
 
 **Why it fits.** The mission match is obvious: Codeberg is what GitHub
-*should* be — community-run, non-commercial, mission-aligned. It's the
+*should* be, community-run, non-commercial, mission-aligned. It's the
 strongest external mirror you can pick. EU jurisdiction adds robustness:
 even if a US legal action targeted GitHub's hosting of HumanityOS,
 Codeberg would be unaffected. Setting up a mirror is one signup + one
@@ -151,10 +151,10 @@ archive. They harvest from GitHub, GitLab, Codeberg, etc. continuously.
 Stored content gets a permanent SWHID identifier that survives every
 host on Earth disappearing.
 
-**Why it fits.** Passive insurance. You don't have to do daily work —
+**Why it fits.** Passive insurance. You don't have to do daily work, 
 they harvest from any git host they're already crawling. You can also
 trigger an explicit save with the [Save Code Now](https://archive.softwareheritage.org/save/)
-form once you set up Forgejo or Codeberg. **No active failure mode** —
+form once you set up Forgejo or Codeberg. **No active failure mode**, 
 this is the layer that says "even if every other host vanishes, the
 source survives."
 
@@ -186,7 +186,7 @@ by the Wayback Machine.
 Peer-to-peer git over a custom gossip protocol. No central server. You
 run a Radicle node, push your repo to it, and it replicates to other
 nodes that follow you. Has issue tracking, patches (PR equivalent), and
-a CLI. Identity is a self-generated keypair — same shape as your HOS
+a CLI. Identity is a self-generated keypair, same shape as your HOS
 identity.
 
 **Why it fits.** Philosophically the closest match to HumanityOS's
@@ -199,7 +199,7 @@ develops). Long-term, Radicle is what HumanityOS's source distribution
 
 ---
 
-## 8. GitHub — keep it, but stop relying on it
+## 8. GitHub: keep it, but stop relying on it
 
 [github.com](https://github.com) · **Cost: $0** for OSS · already done
 
@@ -208,7 +208,7 @@ contributors will find HumanityOS through GitHub first.
 
 **Why it stays.** Visibility, contributor convenience, mature CI/CD
 infrastructure, low effort to maintain. The project doesn't *replace*
-GitHub — it adds layers underneath so a GitHub takedown becomes a
+GitHub, it adds layers underneath so a GitHub takedown becomes a
 nuisance rather than an existential threat. GitHub is the front door,
 not the foundation.
 
@@ -270,7 +270,7 @@ release `.exe`. Users then install with `winget install HumanityOS`.
 **Why it fits.** Lowest-friction Windows distribution path. No publisher
 fees, no certificate-signing requirement, no review queue beyond a
 manifest validation. Reaches every Windows 11 user out of the box.
-Caveat: the manifest still points at GitHub Releases by default —
+Caveat: the manifest still points at GitHub Releases by default, 
 update it to point at your VPS release mirror when that's live.
 
 ---
@@ -286,7 +286,7 @@ pointing at the release binary.
 **Why it fits.** Same shape as WinGet: a PR-based distribution channel
 with no fees and broad reach. Mac users who use Homebrew will install
 HumanityOS with `brew install --cask humanityos`. Caveat: Homebrew casks
-require a stable URL — point it at your VPS release mirror so the link
+require a stable URL, point it at your VPS release mirror so the link
 doesn't depend on GitHub.
 
 ---
@@ -325,26 +325,26 @@ small-scale usage.
 
 The path that gets the most decoupling per unit of effort:
 
-1. **Self-hosted Forgejo on the VPS** ✅ shipped v0.127.0 — see
+1. **Self-hosted Forgejo on the VPS** ✅ shipped v0.127.0, see
    [`forgejo-setup.md`](forgejo-setup.md).
-2. **Codeberg mirror** — non-profit external mirror, signup +
+2. **Codeberg mirror**, non-profit external mirror, signup +
    `git remote add`. ~30 min.
-3. **VPS release mirror** ✅ shipped v0.128.0 — live at
+3. **VPS release mirror** ✅ shipped v0.128.0, live at
    <https://united-humanity.us/releases/>. Backfilled v0.122.0–v0.127.0;
    CI mirrors every future tagged release via `appleboy/scp-action`,
    and the manifest at `/releases/manifest.json` is regenerated
    automatically by `/usr/local/bin/regen-releases-manifest` on the VPS.
    `latest` is a symlink to the newest `vX.Y.Z` directory. The
    auto-updater (BUG-034 fix in v0.124.0) will gain this as a fallback
-   URL in a follow-up — for now it's a working mirror that anyone can
+   URL in a follow-up, for now it's a working mirror that anyone can
    `wget` from independently of GitHub.
-4. **BitTorrent seeder + magnet URIs** ✅ shipped v0.129.0 — see
+4. **BitTorrent seeder + magnet URIs** ✅ shipped v0.129.0, see
    [`torrent-infrastructure.md`](torrent-infrastructure.md). Live on the
    VPS via transmission-daemon, magnet URIs in
    `/releases/manifest.json`. WebSeed makes the critical path
    tracker-independent.
 
-4.5. **Layered packages + file-level manifest** ✅ shipped v0.130.0 —
+4.5. **Layered packages + file-level manifest** ✅ shipped v0.130.0, 
    see [`torrent-infrastructure.md#layered-architecture`](torrent-infrastructure.md).
    Each release now ships a separate `HumanityOS-data-<version>.tar.gz`
    (data + assets, no binary) and a `data-manifest-<version>.json` with
@@ -352,21 +352,21 @@ The path that gets the most decoupling per unit of effort:
    delta sync: a 4 KB recipe edit becomes a 4 KB update, not 38 MB.
    50 torrents now seeding (~3.6 GB) covering both whole-bundle and
    data-only archives across v0.122.0–v0.129.0.
-5. **Internet Archive uploads** — manual at first; automated later. Adds
+5. **Internet Archive uploads**, manual at first; automated later. Adds
    a permanent free seeder to every torrent.
-6. **Software Heritage Save Code Now** — one form, then it's automatic
+6. **Software Heritage Save Code Now**, one form, then it's automatic
    forever. ~10 min.
-7. **WinGet manifest PR** — distribution to every Windows user. ~1 hour.
-8. **Self-hosted IPFS node** — when there's a use case for granular
+7. **WinGet manifest PR**, distribution to every Windows user. ~1 hour.
+8. **Self-hosted IPFS node**, when there's a use case for granular
    content-addressed assets. ~half a day.
-9. **F-Droid / Flathub / Snap / Homebrew submissions** — once the
+9. **F-Droid / Flathub / Snap / Homebrew submissions**, once the
    desktop and mobile clients are stable enough to commit to the
    release cadence. Each is ~1 hour of metadata work.
-10. **Radicle node** — pilot. Mirror the repo, evaluate the workflow.
+10. **Radicle node**, pilot. Mirror the repo, evaluate the workflow.
     Track the ecosystem; revisit when ForgeFed lands in Forgejo.
-11. **Pinata / web3.storage** — only if IPFS becomes a primary channel
+11. **Pinata / web3.storage**, only if IPFS becomes a primary channel
     and the self-hosted node alone isn't enough redundancy.
 
 Steps 1–4 are the meaningful sovereignty work. Steps 5–7 are
-low-effort, high-resilience additions. Steps 8+ are scope-driven —
+low-effort, high-resilience additions. Steps 8+ are scope-driven, 
 pick them up as the project grows.

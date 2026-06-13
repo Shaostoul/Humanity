@@ -1,9 +1,9 @@
-# Security Audit — 2026-04-30 (v0.130.0 snapshot)
+# Security Audit: 2026-04-30 (v0.130.0 snapshot)
 
 > Three parallel Explore agents reviewed crypto + auth, distribution
 > infrastructure, and repo hygiene. The repo's secret-hygiene posture is
 > clean. The substantive findings are in the federation, updater, and
-> distribution-manifest layers — areas that grew rapidly across
+> distribution-manifest layers, areas that grew rapidly across
 > v0.122.0 → v0.130.0 and weren't all covered by the original v0.122.0
 > audit.
 
@@ -13,7 +13,7 @@ references; verify before fixing.
 
 ---
 
-## BLOCKERS — fix soon
+## BLOCKERS: fix soon
 
 ### B1. `FederatedChat` accepts inbound messages with no signature verification
 
@@ -24,7 +24,7 @@ inbound `FederatedChat` messages but never validates it. It only checks
 that the source server's `trust_tier ≥ 2`. Any compromised or malicious
 trust-tier-2 federated server can forge chat messages from any user
 (any `from_name`, any `sender_key`) and inject them into federated
-channels — recipients see them as legitimate.
+channels, recipients see them as legitimate.
 
 **Why this matters**: Trust-tier-2 means "verified but not
 Accord-adopted." It's the broad middle of the federation. A server
@@ -82,9 +82,9 @@ the peer's ECDH key. Default to refuse.
 
 **Issue**: The updater downloads from GitHub via TLS, checks
 `MIN_BINARY_SIZE` (1 MB), and applies. There is no cryptographic
-signature verification. If GitHub is compromised — repo takeover,
+signature verification. If GitHub is compromised, repo takeover,
 account compromise, supply-chain attack on `softprops/action-gh-release`
-— the updater silently installs whatever GitHub serves. The "auth" is
+, the updater silently installs whatever GitHub serves. The "auth" is
 GitHub's TLS cert. Single point of trust.
 
 **Fix shape**:
@@ -94,7 +94,7 @@ GitHub's TLS cert. Single point of trust.
 4. Updater verifies signature before `apply_update`.
 
 This is a substantial change but unblocks turning down the trust
-attached to GitHub — which is the whole point of the sovereignty plan.
+attached to GitHub, which is the whole point of the sovereignty plan.
 
 ---
 
@@ -117,11 +117,11 @@ trust.
 
 ---
 
-## IMPORTANT — fix in coming sessions
+## IMPORTANT: fix in coming sessions
 
 ### I1. CI uses root SSH to the VPS
 
-**Where**: `.github/workflows/build-desktop.yml`, `deploy.yml` —
+**Where**: `.github/workflows/build-desktop.yml`, `deploy.yml`, 
 `username: root` + `key: ${{ secrets.VPS_SSH_KEY }}`.
 
 **Issue**: A successful GitHub Actions environment compromise (workflow
@@ -138,7 +138,7 @@ backdoor, cert theft.
 
 ### I2. CI shell-substitutes `github.ref_name` in scp target without validation
 
-**Where**: `.github/workflows/build-desktop.yml:146` —
+**Where**: `.github/workflows/build-desktop.yml:146`, 
 `target: "/var/www/humanity/releases/${{ github.ref_name }}/"`.
 
 **Issue**: A tag like `v1.0.0/../../../tmp` would traverse upward.
@@ -164,7 +164,7 @@ poison the manifest.
 **Where**: `docs/forgejo-setup.md`.
 
 **Issue**: After completing the web installer, `app.ini` should have
-`INSTALL_LOCK = true`. If missing, the installer remains accessible —
+`INSTALL_LOCK = true`. If missing, the installer remains accessible, 
 anyone visiting `/install` could re-run setup and seize the instance.
 Forgejo writes the lock automatically after the first install
 completes, but the doc doesn't say to verify it.
@@ -177,7 +177,7 @@ completes, but the doc doesn't say to verify it.
 **Where**: `docs/forgejo-setup.md`.
 
 **Issue**: Setup doesn't mention regenerating Forgejo's `SECRET_KEY`
-and `INTERNAL_TOKEN` — used for session signing and internal API auth.
+and `INTERNAL_TOKEN`, used for session signing and internal API auth.
 If left at defaults (or installer-generated weakly), session hijacking
 or internal API forgery becomes possible.
 
@@ -187,7 +187,7 @@ both rotated.
 
 ### I6. Inbound federation gossip has no per-peer rate limit
 
-**Where**: `src/relay/handlers/federation.rs` — federated read loop.
+**Where**: `src/relay/handlers/federation.rs`, federated read loop.
 
 **Issue**: Outbound has 10 msg/sec/server cap; inbound has none. A
 malicious federated peer can flood signed-object gossip, each
@@ -204,13 +204,13 @@ inbound federation read path. Reject when exceeded.
 5 min, but not timestamps in the FUTURE. A client can sign with
 `timestamp = now + 1h` and reuse the signature for an hour.
 
-**Fix shape**: Symmetric window —
-`(now - 5min) < timestamp < (now + 30s)` — small forward tolerance
+**Fix shape**: Symmetric window, 
+`(now - 5min) < timestamp < (now + 30s)`, small forward tolerance
 for clock skew, hard reject beyond.
 
 ---
 
-## MINOR — track but not urgent
+## MINOR: track but not urgent
 
 ### M1. `MIN_BINARY_SIZE` (1 MB) is a weak integrity check
 
@@ -219,7 +219,7 @@ becomes a sanity check rather than a security control. Keep it.
 
 ### M2. GitHub API rate limit on auto-updater
 
-`src/updater.rs:368` — 60 req/hr unauth. Many users checking for
+`src/updater.rs:368`, 60 req/hr unauth. Many users checking for
 updates simultaneously could DoS the endpoint. Add backoff on 429.
 
 ### M3. Manifest JSON not in canonical form
@@ -232,24 +232,24 @@ Use sorted keys + deterministic formatting before signing lands.
 
 `/usr/local/bin/torrent-create-and-seed`,
 `/usr/local/bin/regen-releases-manifest` live only on the VPS. Audit
-blind spot — copy them into `scripts/vps/` for inspection and version
+blind spot, copy them into `scripts/vps/` for inspection and version
 tracking.
 
 ### M5. TransmissionRPC password file path
 
-`/root/.transmission-rpc-password` — root home is unusual storage.
+`/root/.transmission-rpc-password`, root home is unusual storage.
 Cosmetic; consider `/var/lib/transmission/.rpc-password` with mode 600
 in future setup.
 
 ---
 
-## CLEAN — no findings
+## CLEAN: no findings
 
 - **Hardcoded credentials, API keys, tokens**: none found.
 - **Files in git that shouldn't be**: none.
 - **Secrets in docs**: none. Real values (passwords, keys) are
   consistently in env vars or generated locally.
-- **`.gitignore` coverage**: comprehensive — env files, keys, certs,
+- **`.gitignore` coverage**: comprehensive, env files, keys, certs,
   databases, build artifacts, OS junk all covered.
 - **Git history**: no leaked secrets in earlier commits, no big binaries
   later removed (which would persist in pack files).
@@ -258,41 +258,41 @@ in future setup.
 
 ## Recommended fix order
 
-### Tier 1 — security gaps that need closing soon (~1-2 sessions)
+### Tier 1: security gaps that need closing soon (~1-2 sessions)
 
-1. **B3** — DM downgrade refusal + warning UI. Smallest scope, biggest user-trust win.
-2. **B1** — FederatedChat signature verification (mirror the v0.122.0 ProfileGossip pattern).
-3. **B2** — ProfileGossip + FederationHello timestamp freshness.
-4. **I7** — Vault sync future-timestamp rejection.
-5. **I6** — Inbound federation gossip rate limit.
+1. **B3**, DM downgrade refusal + warning UI. Smallest scope, biggest user-trust win.
+2. **B1**, FederatedChat signature verification (mirror the v0.122.0 ProfileGossip pattern).
+3. **B2**, ProfileGossip + FederationHello timestamp freshness.
+4. **I7**, Vault sync future-timestamp rejection.
+5. **I6**, Inbound federation gossip rate limit.
 
-### Tier 2 — supply-chain hardening (~1 session)
+### Tier 2: supply-chain hardening (~1 session)
 
-6. **I2 + I3** — Validate `github.ref_name` in workflow + script.
-7. **I4 + I5** — Document Forgejo install lock + secret rotation.
-8. **I1** — Replace root SSH with restricted `cicd-deploy` user. (Bigger;
+6. **I2 + I3**, Validate `github.ref_name` in workflow + script.
+7. **I4 + I5**, Document Forgejo install lock + secret rotation.
+8. **I1**, Replace root SSH with restricted `cicd-deploy` user. (Bigger;
    plan separately because it requires creating + privileging the user
    and rotating the SSH key.)
 
-### Tier 3 — signed releases (multi-session, the big lift)
+### Tier 3: signed releases (multi-session, the big lift)
 
-9. **B4 + B5** — Generate offline Ed25519 signing key, sign release
+9. **B4 + B5**, Generate offline Ed25519 signing key, sign release
    binaries + manifest, embed verification key in updater. The hardest
    change but the one that turns down GitHub trust to "discoverability
    layer" instead of "supply-chain root."
 
-### Tier 4 — minor cleanup
+### Tier 4: minor cleanup
 
-10. **M1, M2, M3, M4, M5** — opportunistic.
+10. **M1, M2, M3, M4, M5**, opportunistic.
 
 ---
 
 ## Notes on scope
 
 - BUG-034 (updater corrupts on tar.gz), BUG-035 (chat reply vanishes),
-  BUG-036 (channel resurrection) — already fixed in v0.124.0/v0.125.0.
+  BUG-036 (channel resurrection), already fixed in v0.124.0/v0.125.0.
   Not repeated here.
 - The original v0.122.0 audit covered the federation profile-gossip
-  signature verification gap — that's fixed. The findings here are
+  signature verification gap, that's fixed. The findings here are
   additional federation surfaces and the post-v0.122 distribution work.
 - The repo-hygiene audit was clean. No urgent action.

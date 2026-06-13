@@ -45,7 +45,7 @@ Skipping levels without cause increases risk.
 
 ---
 
-## Level I — Information Clarification
+## Level I: Information Clarification
 
 Many conflicts arise from incomplete or incorrect information.
 
@@ -59,7 +59,7 @@ If understanding resolves the issue, escalation is unnecessary.
 
 ---
 
-## Level II — Needs and Interest Alignment
+## Level II: Needs and Interest Alignment
 
 When facts are clear but tension remains, identify underlying needs.
 
@@ -73,7 +73,7 @@ Most durable resolutions occur at this level.
 
 ---
 
-## Level III — Mediation
+## Level III: Mediation
 
 When direct resolution fails, neutral mediation may be required.
 
@@ -87,7 +87,7 @@ Mediators facilitate understanding; they do not impose outcomes.
 
 ---
 
-## Level IV — Structural Separation
+## Level IV: Structural Separation
 
 When interests remain incompatible, separation may be preferable to coercion.
 
@@ -101,7 +101,7 @@ Separation is a resolution, not a failure.
 
 ---
 
-## Level V — Containment of Irreversible Harm
+## Level V: Containment of Irreversible Harm
 
 In rare cases, immediate action is required to prevent irreversible harm.
 

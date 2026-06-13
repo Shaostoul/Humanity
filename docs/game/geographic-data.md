@@ -1,5 +1,5 @@
 ---
-title: Geographic Data — Open Source Map Stack
+title: Geographic Data, Open Source Map Stack
 category: design
 status: active
 updated: 2026-03-13
@@ -18,7 +18,7 @@ and the game's Earth twin simulation.
 
 ### Vector / Road / Building Data
 **OpenStreetMap (OSM)**
-- License: ODbL (Open Database License) — free to use, share, attribute
+- License: ODbL (Open Database License), free to use, share, attribute
 - Contains: roads, buildings, POIs, boundaries, waterways, parks, land use
 - Download: https://download.geofabrik.de/north-america/us/washington.html
   - Washington state .osm.pbf (~200MB compressed)
@@ -104,12 +104,12 @@ tile system (same as Google Maps / OpenStreetMap). Each tile is a PNG image
 OR a GeoJSON vector tile stored at a known path:
 
 ```
-/game/tiles/{zoom}/{x}/{y}.png    (raster — fast, large storage)
-/game/tiles/{zoom}/{x}/{y}.json   (vector — slower render, smaller storage, interactive)
+/game/tiles/{zoom}/{x}/{y}.png    (raster - fast, large storage)
+/game/tiles/{zoom}/{x}/{y}.json   (vector - slower render, smaller storage, interactive)
 ```
 
 **Recommended:** Pre-rasterized PNG tiles for Kitsap at zoom 6–14 (fast loading),
-vector GeoJSON tiles at zoom 15+ (needed for interactivity — click a building, see its data).
+vector GeoJSON tiles at zoom 15+ (needed for interactivity, click a building, see its data).
 
 ### Storage Estimate for Kitsap
 ```
@@ -131,7 +131,7 @@ SELECT * FROM locations_rtree
 WHERE min_lat >= ? AND max_lat <= ?
   AND min_lng >= ? AND max_lng <= ?;
 ```
-This returns only buildings in the current camera view — handles 100k+ buildings
+This returns only buildings in the current camera view, handles 100k+ buildings
 without performance issues.
 
 ---
@@ -144,7 +144,7 @@ A "service area" is a named GeoJSON polygon stored server-side.
 ```json
 {
   "id": "sponsor-a-can-silverdale",
-  "name": "Sponsor-A-Can — Silverdale Service Area",
+  "name": "Sponsor-A-Can - Silverdale Service Area",
   "description": "...",
   "scope": "region",
   "color": "#22aa66",
@@ -165,10 +165,10 @@ On `maps.html`, a "Draw Area" button enters polygon-draw mode:
 5. Polygon renders as a colored overlay on the map
 
 ### Sponsor-A-Can specific layers
-- **Service area boundary** — the overall coverage polygon
-- **Can locations** — point markers at each sponsored bin (GPS coordinates)
-- **Routes** — polylines showing pickup routes
-- **Coverage gaps** — heat map of underserved areas
+- **Service area boundary**, the overall coverage polygon
+- **Can locations**, point markers at each sponsored bin (GPS coordinates)
+- **Routes**, polylines showing pickup routes
+- **Coverage gaps**, heat map of underserved areas
 
 ---
 
@@ -184,7 +184,7 @@ The same geographic data serves two purposes:
 | Service areas | Cooperative coverage zones | Territory / faction zones |
 | POIs | Local businesses, parks | Quests, resources, NPCs |
 
-**The Earth twin is literal** — Kitsap County in the game IS Kitsap County in reality.
+**The Earth twin is literal**, Kitsap County in the game IS Kitsap County in reality.
 A trash can at 47.6543° N, 122.6941° W in Sponsor-A-Can is the same point
 on the game map. Players can verify real-world actions in the game world.
 
@@ -196,7 +196,7 @@ OSM roads in Kitsap = ~40,000 segments. Options:
 
 ### Option A: Pre-rasterized road tiles (recommended for v1)
 Render roads to PNG tiles server-side (using Python + Pillow or Node + sharp).
-Client just requests tile images — no road geometry processing at runtime.
+Client just requests tile images, no road geometry processing at runtime.
 Pro: very fast, works on any device. Con: roads aren't clickable/interactive.
 
 ### Option B: Simplified GeoJSON per tile (v2)
@@ -206,7 +206,7 @@ Pro: interactive, updatable without re-rendering tiles.
 Con: needs spatial indexing + tile server logic.
 
 ### Option C: Vector tiles (MVT format, v3)
-Mapbox Vector Tile format — the industry standard for this. Libraries: MapLibre GL.
+Mapbox Vector Tile format, the industry standard for this. Libraries: MapLibre GL.
 Pro: full zoom interpolation, very efficient. Con: adds a JS library dependency.
 
 **Recommended path:** Start with Option A (raster tiles, fast), add Option B for
@@ -216,26 +216,26 @@ the local Silverdale pilot area, graduate to Option C when performance demands i
 
 ## Implementation Plan
 
-### Phase 1 — Foundation (Kitsap pilot)
+### Phase 1: Foundation (Kitsap pilot)
 1. Download Kitsap OSM .pbf from Geofabrik
 2. Extract to GeoJSON (roads, buildings, POIs separately)
 3. Add a server-side tile endpoint: `/api/tiles/{zoom}/{x}/{y}`
 4. Update `maps.html` to use tile-based rendering instead of current simple canvas
 5. Show Kitsap County at zoom 10–14
 
-### Phase 2 — Sponsor-A-Can integration
+### Phase 2: Sponsor-A-Can integration
 1. Add polygon draw tool to maps.html
 2. POST `/api/areas` endpoint
 3. Render service area overlay
 4. Add can-location markers
 
-### Phase 3 — Game integration
+### Phase 3: Game integration
 1. maps.html and game/js/map.js share the same tile server
 2. In-game Earth twin uses real Kitsap OSM data
 3. Buildings become enterable game objects
 4. Sponsor-A-Can cans appear at real GPS coordinates in game
 
-### Phase 4 — Height map
+### Phase 4: Height map
 1. Download USGS 10m DEM for Kitsap
 2. Process to PNG heightmap tiles
 3. Render elevation shading on map

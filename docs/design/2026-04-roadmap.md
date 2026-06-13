@@ -59,9 +59,9 @@ Fix: the click response should be installed on the userbox's exact rect, not the
 
 **Right-click context menu with role-colored sections.** On right-click over a message, show a context menu with three visually distinct sections:
 
-- **Red** — user actions (copy text, reply, quote, view profile, DM)
-- **Green** — moderator actions (delete message, mute user, pin, timeout) — only visible if caller has mod role on the current channel
-- **Blue** — admin actions (ban, remove from server, view IP if logged, audit trail) — only visible if caller is server admin
+- **Red**, user actions (copy text, reply, quote, view profile, DM)
+- **Green**, moderator actions (delete message, mute user, pin, timeout), only visible if caller has mod role on the current channel
+- **Blue**, admin actions (ban, remove from server, view IP if logged, audit trail), only visible if caller is server admin
 
 Egui supports context menus via `response.context_menu(|ui| { ... })`. The section colors become `ui.colored_label` or a tinted background on each sub-group. Role gating keys off the existing role system in `src/relay/storage/roles.rs`.
 
@@ -82,17 +82,17 @@ Egui supports context menus via `response.context_menu(|ui| { ... })`. The secti
 
 Shipped in v0.91.3:
 
-- `/onboarding` page — data-driven quest chains, four core concepts, core-pages overview, CTAs to chat and accord.
-- `data/onboarding/quests.json` — three quest chains (Welcome, Explore, Going Deeper), fifteen total steps. Progress tracked in `localStorage` under `humanity_quest_progress`.
-- Universal help modal (`window.hosHelp`) — registerable, reusable across pages.
-- Help icon next to the Real/Sim toggle — first built-in help topic.
+- `/onboarding` page, data-driven quest chains, four core concepts, core-pages overview, CTAs to chat and accord.
+- `data/onboarding/quests.json`, three quest chains (Welcome, Explore, Going Deeper), fifteen total steps. Progress tracked in `localStorage` under `humanity_quest_progress`.
+- Universal help modal (`window.hosHelp`), registerable, reusable across pages.
+- Help icon next to the Real/Sim toggle, first built-in help topic.
 
 ### Next onboarding improvements
 
-- **Link from landing page** — add a "Start here" hook in the "Where do you fit?" card so first-time visitors land on `/onboarding` before the chat. (Done in v0.91.3.)
-- **Auto-suggest on first visit** — existing `onboarding-tour.js` is a step-through overlay. Decide: keep the overlay tour (short, contextual) AND the onboarding page (long, reference), OR collapse one into the other. Recommendation: keep both; the overlay for first-session nudges, the page for permanent reference.
-- **Native-app parity** — the same onboarding page should render inside the native desktop app. Options: (a) embed the web page in a webview inside native; (b) render the quest-chain data in egui directly. Option (b) is more consistent with the rest of the native UI. Either way, the data file is the source of truth.
-- **Wire up quest completion to real actions** — right now, ticking a step only toggles a localStorage flag. Later, "Set up your Profile" could auto-complete when the user saves a profile, "Send your first message" when they hit send, etc. Requires a small event bus (`hos.emit('quest:complete', 'welcome:profile')`) wired into each target page.
+- **Link from landing page**, add a "Start here" hook in the "Where do you fit?" card so first-time visitors land on `/onboarding` before the chat. (Done in v0.91.3.)
+- **Auto-suggest on first visit**, existing `onboarding-tour.js` is a step-through overlay. Decide: keep the overlay tour (short, contextual) AND the onboarding page (long, reference), OR collapse one into the other. Recommendation: keep both; the overlay for first-session nudges, the page for permanent reference.
+- **Native-app parity**, the same onboarding page should render inside the native desktop app. Options: (a) embed the web page in a webview inside native; (b) render the quest-chain data in egui directly. Option (b) is more consistent with the rest of the native UI. Either way, the data file is the source of truth.
+- **Wire up quest completion to real actions**, right now, ticking a step only toggles a localStorage flag. Later, "Set up your Profile" could auto-complete when the user saves a profile, "Send your first message" when they hit send, etc. Requires a small event bus (`hos.emit('quest:complete', 'welcome:profile')`) wired into each target page.
 
 ---
 
@@ -104,30 +104,30 @@ Today's nav exposes around 20 pages: Chat, Wallet, Donate, Profile, Civilization
 
 Ranked by expected usage:
 
-1. **Chat** — the foundation. Everything else is secondary to talking to people.
-2. **Profile** — identity discovery. People click names to learn who they are talking to.
-3. **Wallet** — money attention is strong.
-4. **Tasks** — daily coordination.
-5. **Market** — economic activity.
+1. **Chat**, the foundation. Everything else is secondary to talking to people.
+2. **Profile**, identity discovery. People click names to learn who they are talking to.
+3. **Wallet**, money attention is strong.
+4. **Tasks**, daily coordination.
+5. **Market**, economic activity.
 
 These five deserve frictionless polish first. Any regression here is felt immediately by every active user.
 
 ### Missing pages to add
 
-- **In-app help / docs** — today the only help is external GitHub links. A `/help` page that indexes the Humanity Accord, glossary, onboarding, common how-tos, keyboard shortcuts, would be high-leverage. Could reuse the glossary overlay as a component.
-- **Events feed** — "what is happening right now on the network": recent messages across public channels, new listings, trending tasks, upcoming calendar events. A dashboard-style feed, separate from the private dashboard.
-- **Global search** — one search bar that finds messages, users, listings, tasks across all accessible scopes.
-- **Community / server directory** — finding federated servers is currently invisible. A page that lists known servers with their descriptions, member counts, rules snapshot, and a join button would help new users find their tribe.
-- **Notifications inbox** — already partially implemented in-chat but deserves its own page for reviewing missed activity across all contexts.
+- **In-app help / docs**, today the only help is external GitHub links. A `/help` page that indexes the Humanity Accord, glossary, onboarding, common how-tos, keyboard shortcuts, would be high-leverage. Could reuse the glossary overlay as a component.
+- **Events feed**, "what is happening right now on the network": recent messages across public channels, new listings, trending tasks, upcoming calendar events. A dashboard-style feed, separate from the private dashboard.
+- **Global search**, one search bar that finds messages, users, listings, tasks across all accessible scopes.
+- **Community / server directory**, finding federated servers is currently invisible. A page that lists known servers with their descriptions, member counts, rules snapshot, and a join button would help new users find their tribe.
+- **Notifications inbox**, already partially implemented in-chat but deserves its own page for reviewing missed activity across all contexts.
 
 ### Consolidate / rethink
 
-- **Home ≈ Dashboard** — overlapping concepts. Pick one (recommend: `Dashboard` is clearer and already implemented). Delete or redirect `Home`.
-- **Ops + Dev + Bugs** — three developer-facing tabs in the blue group. Merge into a single `Dev` tab with sub-routes. Keep the blue group small.
-- **Web Browser + Data** — these feel like utilities, not pillars. Move under a `Tools` page, alongside Calculator, Calendar, Notes.
-- **Civilization** — vague name. Either rename to make the purpose obvious, or merge into Maps / Dashboard depending on current content.
-- **Projects overlaps Tasks** — a "project" is already a filterable attribute on tasks. Projects as a top-level tab may be redundant. Audit: if Projects is doing something Tasks cannot, keep it; otherwise fold in.
-- **Inventory only matters in Sim mode** — hide non-Sim-relevant pages when Real is active, and vice versa. The nav already has color groups; add a context-gated class.
+- **Home ≈ Dashboard**, overlapping concepts. Pick one (recommend: `Dashboard` is clearer and already implemented). Delete or redirect `Home`.
+- **Ops + Dev + Bugs**, three developer-facing tabs in the blue group. Merge into a single `Dev` tab with sub-routes. Keep the blue group small.
+- **Web Browser + Data**, these feel like utilities, not pillars. Move under a `Tools` page, alongside Calculator, Calendar, Notes.
+- **Civilization**, vague name. Either rename to make the purpose obvious, or merge into Maps / Dashboard depending on current content.
+- **Projects overlaps Tasks**, a "project" is already a filterable attribute on tasks. Projects as a top-level tab may be redundant. Audit: if Projects is doing something Tasks cannot, keep it; otherwise fold in.
+- **Inventory only matters in Sim mode**, hide non-Sim-relevant pages when Real is active, and vice versa. The nav already has color groups; add a context-gated class.
 
 ### Final recommended nav
 
@@ -149,10 +149,10 @@ Precedent set in v0.91.3 with the help modal:
 
 ### Extend this pattern to
 
-- **Confirmation dialogs** — `window.hosConfirm(title, body, onConfirm)` replacing ad-hoc `confirm()` calls. Same styling, same dismissal pattern.
-- **Toast notifications** — transient feedback ("Task saved", "Copied to clipboard") with a single `window.hosToast(msg, {type: 'success'|'error'|'info'})` call.
-- **Contextual menus** — dropdown context menus that use the same theme vars and z-index stack as help.
-- **Inline tooltips** — hover-triggered text bubbles for terms and icons (partially covered by the existing tooltip logic at the bottom of `shell.js`).
+- **Confirmation dialogs**, `window.hosConfirm(title, body, onConfirm)` replacing ad-hoc `confirm()` calls. Same styling, same dismissal pattern.
+- **Toast notifications**, transient feedback ("Task saved", "Copied to clipboard") with a single `window.hosToast(msg, {type: 'success'|'error'|'info'})` call.
+- **Contextual menus**, dropdown context menus that use the same theme vars and z-index stack as help.
+- **Inline tooltips**, hover-triggered text bubbles for terms and icons (partially covered by the existing tooltip logic at the bottom of `shell.js`).
 
 Each new universal widget should:
 - Live in `shell.js` (or a split `web/shared/widgets.js` once shell.js gets too big).
@@ -173,12 +173,12 @@ Today's quest data file is focused on onboarding. The same format works for any 
 
 Proposed extensions:
 
-- **`data/quests/tasks.json`** — "Master the kanban board" (create, assign, label, comment, close).
-- **`data/quests/marketplace.json`** — "Your first trade" (create a listing, get a review, message a buyer).
-- **`data/quests/wallet.json`** — "Take custody" (back up seed, send first payment, receive payment, stake).
-- **`data/quests/sim/farming.json`** — "Raise your first crop" (plant, water, fertilize, harvest).
-- **`data/quests/sim/construction.json`** — "Build your first room" (place foundation, walls, door, furnish).
-- **`data/quests/contributor.json`** — "Become a contributor" (read onboarding, open an issue, submit first PR).
+- **`data/quests/tasks.json`**, "Master the kanban board" (create, assign, label, comment, close).
+- **`data/quests/marketplace.json`**, "Your first trade" (create a listing, get a review, message a buyer).
+- **`data/quests/wallet.json`**, "Take custody" (back up seed, send first payment, receive payment, stake).
+- **`data/quests/sim/farming.json`**, "Raise your first crop" (plant, water, fertilize, harvest).
+- **`data/quests/sim/construction.json`**, "Build your first room" (place foundation, walls, door, furnish).
+- **`data/quests/contributor.json`**, "Become a contributor" (read onboarding, open an issue, submit first PR).
 
 Each quest chain would show:
 - On the relevant feature page as an optional sidebar ("Quests for this page").
@@ -193,15 +193,15 @@ Integrates with the sim/game system cleanly: a "quest" in sim mode is the same d
 
 ## Priority order
 
-1. **Chat P0 fixes** (DM decryption, settings cogs, text selection) — blocks daily use, start next.
-2. **Chat P1 layout + click-zone** — high visibility, moderate scope, single native rebuild.
-3. **Page consolidation** (merge Ops/Dev/Bugs, pick Home or Dashboard, rename Civilization if needed) — web-only, fast, reduces first-visit overwhelm.
-4. **Link onboarding from landing + native** — small edit to landing, then figure out native embed.
-5. **Help system expansion** — register topics for Real/Sim (done), plus Wallet, Identity, Federation, Sim mode, Humanity Accord.
-6. **Chat P2 enhancements** (right-click menu, image embeds, inline widget framework) — longer project, build after P0/P1 ship.
-7. **Confirmation + toast widgets** — quick wins, replace ad-hoc `confirm()` and `alert()` across the codebase.
-8. **Feature quest chains** (tasks, marketplace, wallet, sim) — incremental, one JSON at a time.
-9. **Missing pages** (Help index, events feed, global search, community directory, notifications inbox) — prioritize Help first, others in rough order of user friction.
+1. **Chat P0 fixes** (DM decryption, settings cogs, text selection), blocks daily use, start next.
+2. **Chat P1 layout + click-zone**, high visibility, moderate scope, single native rebuild.
+3. **Page consolidation** (merge Ops/Dev/Bugs, pick Home or Dashboard, rename Civilization if needed), web-only, fast, reduces first-visit overwhelm.
+4. **Link onboarding from landing + native**, small edit to landing, then figure out native embed.
+5. **Help system expansion**, register topics for Real/Sim (done), plus Wallet, Identity, Federation, Sim mode, Humanity Accord.
+6. **Chat P2 enhancements** (right-click menu, image embeds, inline widget framework), longer project, build after P0/P1 ship.
+7. **Confirmation + toast widgets**, quick wins, replace ad-hoc `confirm()` and `alert()` across the codebase.
+8. **Feature quest chains** (tasks, marketplace, wallet, sim), incremental, one JSON at a time.
+9. **Missing pages** (Help index, events feed, global search, community directory, notifications inbox), prioritize Help first, others in rough order of user friction.
 
 Things explicitly NOT on this list right now:
 - Bigger 3D / game-world work. Still scaffolded, not the top blocker.

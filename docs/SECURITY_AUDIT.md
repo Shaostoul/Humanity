@@ -1,4 +1,4 @@
-# Security Audit — February 12, 2026
+# Security Audit: February 12, 2026
 
 ## Summary
 
@@ -28,25 +28,25 @@ _None identified._
 
 #### H-2: Bot WebSocket Auth Uses Non-Constant-Time Comparison
 - **Location:** `relay.rs:~1155` (Identify handler for `bot_` keys)
-- **Description:** `if expected.is_empty() || provided != expected` — the bot_secret comparison in the WebSocket identify flow also uses standard string equality, same timing vulnerability as H-1.
+- **Description:** `if expected.is_empty() || provided != expected`, the bot_secret comparison in the WebSocket identify flow also uses standard string equality, same timing vulnerability as H-1.
 - **Impact:** Same as H-1 but for WebSocket bot authentication.
 - **Recommendation:** Use `constant_time_eq` for bot_secret comparison.
 
 #### H-3: Unauthenticated Read APIs Expose Full Message History
-- **Location:** `api.rs` — `get_messages`, `get_reactions`, `get_pins`, `get_stats`, `get_peers`, `get_tasks`, `get_listings`, `list_federation_servers`, `get_server_info`
+- **Location:** `api.rs`, `get_messages`, `get_reactions`, `get_pins`, `get_stats`, `get_peers`, `get_tasks`, `get_listings`, `list_federation_servers`, `get_server_info`
 - **Description:** Multiple GET endpoints require no authentication whatsoever. While some (like `get_server_info`, `get_listings`) are intentionally public, `get_messages` exposes the full chat history of any channel including message content, author keys, and timestamps. `get_peers` exposes all connected users' public keys. `get_stats` exposes internal metrics.
-- **Impact:** Any unauthenticated party can scrape the entire message history, enumerate all users and their public keys, and monitor online status — even without a WebSocket connection. This bypasses the WebSocket's identify/origin checks.
+- **Impact:** Any unauthenticated party can scrape the entire message history, enumerate all users and their public keys, and monitor online status, even without a WebSocket connection. This bypasses the WebSocket's identify/origin checks.
 - **Recommendation:** Add `check_api_auth` to `get_messages`, `get_peers`, and `get_stats`. Keep `get_server_info`, `get_listings`, and `list_federation_servers` public (they're designed for federation/public browsing). Consider adding optional API key auth for reactions/pins/tasks.
 
 #### H-4: XSS via `formatBody` Post-Escape URL Injection
 - **Location:** `client/index.html:3809-3833` (formatBody function, URL → HTML replacements)
-- **Description:** `formatBody` correctly escapes HTML via `esc()` first, but then uses regex to convert URL patterns back into raw HTML (`<audio>`, `<video>`, `<a>`, `<img>` placeholders). Since escaping converts `&` → `&amp;`, `<` → `&lt;`, etc., the URL content is "safe" — however, the regex operates on the escaped text, and URL values from the escaped text are inserted into `src=` and `href=` attributes without re-validation. A crafted message containing a URL like `javascript:alert(1)` would be escaped to `javascript:alert(1)` (no HTML entities in that string) and then matched by the URL regex `/(?<!["=])(https?:\/\/...)/` — but wait, this regex requires `https?://` prefix, so `javascript:` URLs are actually blocked. The audio/video/document regexes also require specific file extensions. This is **mostly safe** due to the `https?://` requirement, but the file-card handler at line 3821 constructs `<a href="${url}">` where `url` comes from the regex match on escaped text that could contain encoded entities that decode differently in an href context.
+- **Description:** `formatBody` correctly escapes HTML via `esc()` first, but then uses regex to convert URL patterns back into raw HTML (`<audio>`, `<video>`, `<a>`, `<img>` placeholders). Since escaping converts `&` → `&amp;`, `<` → `&lt;`, etc., the URL content is "safe", however, the regex operates on the escaped text, and URL values from the escaped text are inserted into `src=` and `href=` attributes without re-validation. A crafted message containing a URL like `javascript:alert(1)` would be escaped to `javascript:alert(1)` (no HTML entities in that string) and then matched by the URL regex `/(?<!["=])(https?:\/\/...)/`, but wait, this regex requires `https?://` prefix, so `javascript:` URLs are actually blocked. The audio/video/document regexes also require specific file extensions. This is **mostly safe** due to the `https?://` requirement, but the file-card handler at line 3821 constructs `<a href="${url}">` where `url` comes from the regex match on escaped text that could contain encoded entities that decode differently in an href context.
 - **Impact:** Low practical exploitability due to the `https?://` prefix requirement, but defense-in-depth is lacking. If any future regex is added without the protocol check, XSS would be immediate.
 - **Recommendation:** Add explicit protocol validation (`url.startsWith('https://') || url.startsWith('http://')`) before inserting any URL into HTML attributes. Consider using a DOMPurify-like sanitizer as a final pass on `formatBody` output.
 
 #### H-5: Group Messages Broadcast to All Connected Clients
 - **Location:** `relay.rs:~4170-4185` (GroupMsg handler)
-- **Description:** When a user sends a group message, the server broadcasts it to ALL connected clients via the broadcast channel. The comment in the code says "For now, use the broadcast and let all clients filter by group membership" — but there's no server-side filtering. Any connected client receives all group messages regardless of membership. The `GroupMessage` variant has no `target` field and no filtering in the broadcast send loop.
+- **Description:** When a user sends a group message, the server broadcasts it to ALL connected clients via the broadcast channel. The comment in the code says "For now, use the broadcast and let all clients filter by group membership", but there's no server-side filtering. Any connected client receives all group messages regardless of membership. The `GroupMessage` variant has no `target` field and no filtering in the broadcast send loop.
 - **Impact:** All private group conversations are visible to any authenticated WebSocket client. Group privacy is effectively non-existent.
 - **Recommendation:** Add a `target` field to `GroupMessage` or filter by group membership in the broadcast send loop (similar to how DMs are filtered by `to` field).
 
@@ -61,7 +61,7 @@ _None identified._
 - **Recommendation:** Add `Content-Disposition: attachment` for all uploads, or add `X-Content-Type-Options: nosniff` to the upload serving route. Also add SVG to the blocked extensions list.
 
 #### M-2: No Rate Limiting on Several API Endpoints
-- **Location:** `api.rs` — `get_messages`, `get_reactions`, `get_pins`, `get_tasks`, `get_listings`, `get_peers`, `get_stats`
+- **Location:** `api.rs`, `get_messages`, `get_reactions`, `get_pins`, `get_tasks`, `get_listings`, `get_peers`, `get_stats`
 - **Description:** While the WebSocket has Fibonacci rate limiting and search has 1/2s rate limiting, the HTTP API endpoints have no application-level rate limiting. The comment suggests nginx handles this, but if nginx rate limits are per-IP and the server is behind a CDN/proxy, the effective rate limiting may be weaker than expected.
 - **Impact:** An attacker could rapidly poll endpoints to scrape data or cause elevated database load.
 - **Recommendation:** Add application-level rate limiting to API endpoints, or document the nginx rate limit dependency explicitly and ensure it's tested.
@@ -73,13 +73,13 @@ _None identified._
 - **Recommendation:** Add a `WHERE (from_key = ?requester OR to_key = ?requester)` filter to the DM search query.
 
 #### M-4: Broadcast Channel as Message Bus Leaks Metadata
-- **Location:** `relay.rs` — entire broadcast pattern
+- **Location:** `relay.rs`, entire broadcast pattern
 - **Description:** The system uses a single `broadcast::channel` for all message routing. While the send loop filters messages by type (DMs to recipient only, etc.), every connected client's send loop receives every message and then decides whether to forward it. This means the server processes every message for every client, and any bug in the filtering logic would leak private data.
 - **Impact:** Architecture amplifies the impact of any filtering bug. Currently functional but fragile.
 - **Recommendation:** For a future refactor, consider per-user channels or a pub/sub system with topic-based routing. Document the current approach's trade-offs.
 
 #### M-5: No Max Pin Count Per Channel
-- **Location:** `storage.rs` — `pin_message` function
+- **Location:** `storage.rs`, `pin_message` function
 - **Description:** There's no limit on how many messages can be pinned per channel. A moderator (or compromised mod account) could pin thousands of messages, causing performance issues when syncing pins on connect.
 - **Impact:** DoS vector through pin exhaustion, causing slow connections.
 - **Recommendation:** Add a max pin count per channel (e.g., 50) and reject new pins when the limit is reached.
@@ -105,11 +105,11 @@ _None identified._
 #### M-9: Profile Socials URLs Not Fully Validated on Display
 - **Location:** `client/index.html:~5130-5200` (showViewProfileCard)
 - **Description:** While the server validates that profile URL fields start with `https://` and handles start with alphanumerics, the client renders profile social links using innerHTML with `esc()`. The server-side validation is good, but the client trusts the server data and renders it. If the database were compromised or a future code change relaxed server validation, XSS would be possible.
-- **Impact:** Low — requires server-side compromise or validation regression.
+- **Impact:** Low, requires server-side compromise or validation regression.
 - **Recommendation:** Add client-side URL validation before rendering profile links.
 
 #### M-10: No CSRF Protection on File Upload Endpoint
-- **Location:** `api.rs` — `upload_file`
+- **Location:** `api.rs`, `upload_file`
 - **Description:** The upload endpoint uses a per-session token passed as a query parameter (`?token=...`). While this effectively prevents CSRF (the token is secret and per-session), the token is transmitted in the URL which may be logged by proxies, appear in Referer headers, and be stored in browser history.
 - **Impact:** Upload token leakage through URL logging.
 - **Recommendation:** Accept the upload token via a header (e.g., `X-Upload-Token`) instead of a query parameter.
@@ -125,7 +125,7 @@ _None identified._
 - **Recommendation:** Return generic error messages to clients, log details server-side.
 
 #### L-2: In-Memory Rate Limit State Not Bounded
-- **Location:** `relay.rs` — `rate_limits`, `typing_timestamps`, `last_search_times`
+- **Location:** `relay.rs`, `rate_limits`, `typing_timestamps`, `last_search_times`
 - **Description:** The `rate_limits` HashMap grows without bound as new keys connect. Old entries are never cleaned up. Over time (or during an attack with many unique keys), this could consume significant memory.
 - **Impact:** Memory exhaustion DoS over long server uptime.
 - **Recommendation:** Periodically prune stale entries (e.g., entries older than 1 hour) or use an LRU cache.
@@ -137,13 +137,13 @@ _None identified._
 - **Recommendation:** Add a TTL to upload tokens or clear them on re-identify.
 
 #### L-4: CORS Allows localhost Origin in Production
-- **Location:** `main.rs:111` — `"http://localhost:3210"`
+- **Location:** `main.rs:111`, `"http://localhost:3210"`
 - **Description:** The CORS layer includes `http://localhost:3210` as an allowed origin. This is useful for development but should not be present in production.
 - **Impact:** A malicious page on localhost could make cross-origin requests to the production server.
 - **Recommendation:** Make the localhost origin conditional on an environment variable (e.g., only when `RUST_ENV=development`).
 
 #### L-5: No Content Security Policy on Upload Serving
-- **Location:** `main.rs:104` — uploads served via ServeDir
+- **Location:** `main.rs:104`, uploads served via ServeDir
 - **Description:** Uploaded files are served without a restrictive CSP header. While nginx likely adds CSP, the application layer doesn't enforce it.
 - **Impact:** If nginx CSP is misconfigured, uploaded files could execute scripts.
 - **Recommendation:** Add `Content-Security-Policy: default-src 'none'` to the uploads serving route.
@@ -170,13 +170,13 @@ _None identified._
 
 ### INFO
 
-#### I-1: SQL Injection Not Present — Parameterized Queries Throughout
+#### I-1: SQL Injection Not Present: Parameterized Queries Throughout
 - **Location:** `storage.rs` (entire file)
 - **Description:** All SQL queries use parameterized queries (`params![]`). The search function properly escapes LIKE wildcards (`%`, `_`, `\`). No string interpolation is used in SQL. This is excellent.
-- **Impact:** N/A — positive finding.
+- **Impact:** N/A, positive finding.
 
 #### I-2: Server Keypair Stored in SQLite
-- **Location:** `storage.rs` — `get_or_create_server_keypair`
+- **Location:** `storage.rs`, `get_or_create_server_keypair`
 - **Description:** The server's Ed25519 keypair for federation is stored in the SQLite database. If the database file is compromised, the server identity is compromised. This is standard for single-server deployments.
 - **Recommendation:** For high-security deployments, consider storing the server private key in a separate secrets store or HSM.
 
@@ -190,7 +190,7 @@ _None identified._
 
 #### I-5: Markdown Formatting Applies After HTML Escaping
 - **Location:** `client/index.html:3839-3847` (formatBody Step 4)
-- **Description:** The `formatBody` function applies markdown transformations (bold, italic, strikethrough) after HTML escaping. Since `esc()` converts `<` to `&lt;`, the regex-generated HTML tags (`<strong>`, `<em>`, `<del>`, `<code>`) are the only raw HTML in the output. This is a safe pattern, but it's fragile — any future markdown rule that doesn't go through `esc()` first could introduce XSS.
+- **Description:** The `formatBody` function applies markdown transformations (bold, italic, strikethrough) after HTML escaping. Since `esc()` converts `<` to `&lt;`, the regex-generated HTML tags (`<strong>`, `<em>`, `<del>`, `<code>`) are the only raw HTML in the output. This is a safe pattern, but it's fragile, any future markdown rule that doesn't go through `esc()` first could introduce XSS.
 - **Recommendation:** Add a comment documenting this invariant. Consider adding a final sanitization pass (e.g., allowlisting specific tags) as defense-in-depth.
 
 #### I-6: No Audit Log for Admin Actions

@@ -1,6 +1,6 @@
 # Solana Wallet Integration
 
-HumanityOS identity keys are Ed25519 — the same curve Solana uses. The user's existing identity key IS already a valid Solana wallet. No separate wallet app needed, zero extra setup.
+HumanityOS identity keys are Ed25519, the same curve Solana uses. The user's existing identity key IS already a valid Solana wallet. No separate wallet app needed, zero extra setup.
 
 ## Key Derivation
 
@@ -27,26 +27,26 @@ Zero libraries required. Ships fast.
 
 - **Derive Solana address** from existing Ed25519 public key (base58 encode, ~30 lines of vanilla JS)
 - **Display address** in profile + settings with QR code and copy button
-- **Show SOL balance** — query Solana mainnet RPC via fetch()
-- **Show USDC balance** — query SPL token accounts via fetch()
-- **Transaction history** — recent sends/receives with timestamps and amounts
-- **No private key exposure** — view-only, no signing yet
+- **Show SOL balance**, query Solana mainnet RPC via fetch()
+- **Show USDC balance**, query SPL token accounts via fetch()
+- **Transaction history**, recent sends/receives with timestamps and amounts
+- **No private key exposure**, view-only, no signing yet
 
 ### Phase 2: Send & Receive
 
-- **Receive** — show address + QR (already done in Phase 1)
-- **Send SOL** — amount input, recipient address, confirm dialog, sign transaction
-- **Send USDC** — SPL token transfer
-- **Transaction signing** — extract raw private key bytes, build transaction, sign with Ed25519
-- **Confirmation modal** — show amount, recipient, estimated fee (~$0.00025), require explicit confirm
-- **Transaction status** — pending -> confirmed -> finalized
+- **Receive**, show address + QR (already done in Phase 1)
+- **Send SOL**, amount input, recipient address, confirm dialog, sign transaction
+- **Send USDC**, SPL token transfer
+- **Transaction signing**, extract raw private key bytes, build transaction, sign with Ed25519
+- **Confirmation modal**, show amount, recipient, estimated fee (~$0.00025), require explicit confirm
+- **Transaction status**, pending -> confirmed -> finalized
 
 ### Phase 3: Token Swaps (DEX)
 
 Trade one crypto for another (SOL <-> USDC) via decentralized exchange.
 
 - **Implementation:** Jupiter aggregator API (aggregates all Solana DEXes for best price)
-- **UI:** Simple swap interface — "Swap [amount] [SOL] -> [USDC]", show rate, confirm
+- **UI:** Simple swap interface, "Swap [amount] [SOL] -> [USDC]", show rate, confirm
 - **Why useful:** Users can convert volatile SOL to stable USDC, or buy SOL with USDC
 - **Jupiter API:** Free, no API key needed, returns transaction to sign client-side
 
@@ -200,7 +200,7 @@ Use at your own risk.
 
 | File | Change |
 |------|--------|
-| `web/shared/wallet.js` | NEW — Solana wallet module (base58, RPC queries, tx building) |
+| `web/shared/wallet.js` | NEW, Solana wallet module (base58, RPC queries, tx building) |
 | `web/chat/crypto.js` | Add `extractRawKeypair()` to get 64-byte Solana keypair from PKCS8 |
 | `web/pages/settings-app.js` | Add wallet section (address display, network config) |
 | `web/chat/chat-profile.js` | Add wallet balance to profile card |
@@ -217,15 +217,15 @@ Use at your own risk.
 
 ## Relationship to Existing Systems
 
-- **Identity** — Wallet IS the identity. Same keys, same seed phrase, same recovery.
-- **Donations** — Donation page shows the server owner's derived Solana address automatically.
-- **Marketplace** — Future: listings can accept SOL/USDC payment directly via wallet.
-- **Game Economy** — Future: in-game currency backed by SPL tokens.
-- **NFTs** — Future: game items, achievements, certifications as on-chain assets.
+- **Identity**, Wallet IS the identity. Same keys, same seed phrase, same recovery.
+- **Donations**, Donation page shows the server owner's derived Solana address automatically.
+- **Marketplace**, Future: listings can accept SOL/USDC payment directly via wallet.
+- **Game Economy**, Future: in-game currency backed by SPL tokens.
+- **NFTs**, Future: game items, achievements, certifications as on-chain assets.
 
 ## Legal Disclaimer
 
-HumanityOS is not a registered money services business (MSB). The wallet is a self-custody tool — users control their own keys. HumanityOS never has access to user funds. This is equivalent to a user running their own Solana CLI wallet.
+HumanityOS is not a registered money services business (MSB). The wallet is a self-custody tool, users control their own keys. HumanityOS never has access to user funds. This is equivalent to a user running their own Solana CLI wallet.
 
 Standard self-custody disclaimer (displayed on first wallet use + in settings):
 

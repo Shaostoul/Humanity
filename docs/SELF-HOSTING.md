@@ -21,7 +21,7 @@ Run your own Humanity Network server in under 10 minutes. Single binary, zero ex
 git clone https://github.com/Shaostoul/Humanity.git
 cd Humanity
 
-# Build the relay (headless mode — no GPU dependencies)
+# Build the relay (headless mode - no GPU dependencies)
 cargo build --release --features relay --no-default-features
 
 # Run it
@@ -42,7 +42,7 @@ All configuration is via environment variables. Create a `.env` file or set them
 
 ```bash
 # Required for production
-ADMIN_KEYS=your_ed25519_public_key_hex    # Comma-separated admin public keys
+ADMIN_KEYS=your_dilithium3_public_key_hex # Comma-separated admin public keys (Dilithium3 / ML-DSA-65 hex)
 API_SECRET=generate_a_random_64_char_hex  # For bot API authentication
 
 # Optional
@@ -58,7 +58,7 @@ RUST_LOG=info                              # Logging level (trace/debug/info/war
 # Generate a random API secret
 openssl rand -hex 32
 
-# Your admin key is your Ed25519 public key from the chat client
+# Your admin key is your Dilithium3 / ML-DSA-65 public key from the chat client
 # (visible in sidebar after connecting)
 ```
 
@@ -215,13 +215,13 @@ sudo ufw allow 443   # HTTPS
 sudo ufw enable
 ```
 
-Do NOT expose port 3210 — nginx handles all public traffic.
+Do NOT expose port 3210, nginx handles all public traffic.
 
 ---
 
 ## Federation
 
-Your server automatically generates an Ed25519 keypair on first run. Other servers can discover yours via:
+Your server automatically generates a Dilithium3 / ML-DSA-65 keypair on first run (federation object signing and profile gossip are Dilithium3). Other servers can discover yours via:
 
 ```
 GET https://your-domain.com/api/server-info
@@ -308,11 +308,13 @@ Browser ↔ nginx (TLS) ↔ Relay (port 3210)
                          data/uploads/
 ```
 
-- **Single binary** — no external dependencies
-- **SQLite** — embedded database, no setup needed
-- **WebSocket** — real-time bidirectional communication
-- **Ed25519** — cryptographic identity, no passwords
-- **ECDH** — end-to-end encrypted DMs (when both clients support it)
+- **Single binary**, no external dependencies
+- **SQLite**, embedded database, no setup needed
+- **WebSocket**, real-time bidirectional communication
+- **Dilithium3 / ML-DSA-65** (FIPS 204), post-quantum cryptographic identity (derived from the BIP39 seed), no passwords
+- **Kyber768 / ML-KEM-768** (FIPS 203), end-to-end encrypted DMs (pure ML-KEM to BLAKE3-KDF to AES-256-GCM)
+
+> Cryptography here is summarized. The canonical, always-current crypto inventory lives in the "Cryptography" section of `CLAUDE.md`. Read it before quoting any algorithm.
 
 ---
 

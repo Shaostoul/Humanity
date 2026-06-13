@@ -125,4 +125,4 @@ Power that violates humanity
 voids its own authority.
 
 When legitimacy fails,
-humanity has the right—and responsibility—to act.
+humanity has the right, and responsibility, to act.

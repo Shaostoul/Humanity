@@ -4,7 +4,7 @@ Three unified camera modes sharing a single ECS `Camera` component. All modes wo
 
 ## Camera Modes
 
-### 1. First-Person — Primary Gameplay Mode
+### 1. First-Person: Primary Gameplay Mode
 
 WASD movement with mouselook. This is the default mode for most activities: farming, building, cooking, exploring, crafting.
 
@@ -19,9 +19,9 @@ Reference games: Minecraft, Valheim, Satisfactory.
 
 Partially implemented in `src/renderer/` (camera) + `src/systems/` (player controller). (This doc originally referenced a `crates/core-firstperson-controller/` sub-crate, which no longer exists after the v0.90.0 single-crate restructure.)
 
-### 2. Third-Person — Social and Action Mode
+### 2. Third-Person: Social and Action Mode
 
-Camera follows behind the player at an adjustable distance. Better spatial awareness for combat and group activities. Shows the player's character, gear, and animations — important for social interaction and showing off builds.
+Camera follows behind the player at an adjustable distance. Better spatial awareness for combat and group activities. Shows the player's character, gear, and animations, important for social interaction and showing off builds.
 
 Features:
 - Adjustable follow distance (1.5m close, 3m default, 8m max)
@@ -34,7 +34,7 @@ Toggle between first and third person: `F` or `V` key.
 
 Reference games: Skyrim, GTA, Fortnite.
 
-### 3. Orbit/Free Camera — Maps, Planning, Spectating
+### 3. Orbit/Free Camera: Maps, Planning, Spectating
 
 Free rotation around a point of interest. Used for build planning, ship navigation, map exploration, and spectating other players.
 
@@ -73,22 +73,22 @@ Orbit mode supports seamless zoom from character level to galactic scale. Each l
 | Solar System | 50,000km - 10 AU | Planets orbiting star, orbital paths | Point sprites, orbit lines |
 | Galactic | 10 AU+ | Star field, nebulae, travel routes | Procedural star particles, route overlays |
 
-Transitions between levels are continuous — no loading screens. Asset streaming loads the next LOD level in the background as the camera moves.
+Transitions between levels are continuous, no loading screens. Asset streaming loads the next LOD level in the background as the camera moves.
 
 ## Input Mapping
 
 | Input | First-Person | Third-Person | Orbit |
 |-------|-------------|-------------|-------|
-| Mouse move | Look (pitch/yaw) | Look (pitch/yaw) | — |
-| Left-click drag | — | — | Rotate around focal point |
-| Middle-click drag | — | — | Pan (shift focal point) |
-| Right-click | Aim/block | Aim/block | — |
-| Scroll wheel | — | Zoom in/out | Zoom in/out |
+| Mouse move | Look (pitch/yaw) | Look (pitch/yaw) |, |
+| Left-click drag |, |, | Rotate around focal point |
+| Middle-click drag |, |, | Pan (shift focal point) |
+| Right-click | Aim/block | Aim/block |, |
+| Scroll wheel |, | Zoom in/out | Zoom in/out |
 | WASD | Move character | Move character | Pan camera |
-| F or V | Switch to third-person | Switch to first-person | — |
+| F or V | Switch to third-person | Switch to first-person |, |
 | M | Enter orbit mode | Enter orbit mode | Exit orbit mode |
 | Tab | Cycle: first -> third -> orbit -> first | Cycle | Cycle |
-| O (in orbit) | — | — | Toggle orthographic/perspective |
+| O (in orbit) |, |, | Toggle orthographic/perspective |
 
 ## Technical Details
 
@@ -142,8 +142,8 @@ Input abstraction through `winit` handles the platform differences for mouse/key
 
 ## Related Files
 
-- `src/renderer/` — camera implementation (first/third-person, orbit)
-- `src/systems/` — game systems that interact with camera (incl. player controller)
-- `docs/design/engine-architecture.md` — master engine reference
-- `docs/design/engine-wasm.md` — WASM compilation (same camera code runs in browser)
-- `docs/design/maps-multi-scale.md` — multi-scale map rendering (orbit mode zoom levels)
+- `src/renderer/`, camera implementation (first/third-person, orbit)
+- `src/systems/`, game systems that interact with camera (incl. player controller)
+- `docs/design/engine-architecture.md`, master engine reference
+- `docs/design/engine-wasm.md`, WASM compilation (same camera code runs in browser)
+- `docs/design/maps-multi-scale.md`, multi-scale map rendering (orbit mode zoom levels)

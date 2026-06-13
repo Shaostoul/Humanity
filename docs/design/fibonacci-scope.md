@@ -1,5 +1,5 @@
 ---
-title: Fibonacci Civilization Scale — Task Scope Model
+title: Fibonacci Civilization Scale, Task Scope Model
 category: design
 status: active
 updated: 2026-03-13
@@ -9,7 +9,7 @@ updated: 2026-03-13
 
 Tasks and goals are organized by the scale of civilization they affect,
 mapped to the Fibonacci sequence. This mirrors how complexity and coordination
-requirements grow naturally — just as the Fibonacci spiral appears throughout nature.
+requirements grow naturally, just as the Fibonacci spiral appears throughout nature.
 
 ## Why Fibonacci?
 
@@ -33,7 +33,7 @@ structures, each containing and building upon the previous.
 | 8   | `city`   | City    | 21–89        | Project-level, organization, city council |
 | 13  | `region` | Region  | 89–377       | Large org, national, bioregion |
 | 21  | `world`  | World   | 377+         | Civilization-wide, planetary coordination |
-| 34  | `solar`  | Solar   | Multi-planet | Solar system — space stations, Luna, Mars |
+| 34  | `solar`  | Solar   | Multi-planet | Solar system, space stations, Luna, Mars |
 | 55  | `cosmos` | Cosmos  | Interstellar | Interstellar civilization |
 
 ## Implementation
@@ -67,16 +67,16 @@ filters the kanban board to show only tasks at that scale.
 
 | Scope  | Color     | Feeling |
 |--------|-----------|---------|
-| Self   | `#ff6b6b` | Warm red — urgent, personal |
-| Mind   | `#ff9f43` | Orange — energetic |
-| Hearth | `#ffd32a` | Yellow — warmth of home |
-| Circle | `#0be881` | Bright green — growth |
-| Village| `#05c46b` | Deep green — community |
-| City   | `#0fbcf9` | Sky blue — open, collaborative |
-| Region | `#7f8fa6` | Steel — structured |
-| World  | `#a29bfe` | Violet — visionary |
-| Solar  | `#74b9ff` | Space blue — expansive |
-| Cosmos | `#dfe6e9` | Near-white — infinite |
+| Self   | `#ff6b6b` | Warm red, urgent, personal |
+| Mind   | `#ff9f43` | Orange, energetic |
+| Hearth | `#ffd32a` | Yellow, warmth of home |
+| Circle | `#0be881` | Bright green, growth |
+| Village| `#05c46b` | Deep green, community |
+| City   | `#0fbcf9` | Sky blue, open, collaborative |
+| Region | `#7f8fa6` | Steel, structured |
+| World  | `#a29bfe` | Violet, visionary |
+| Solar  | `#74b9ff` | Space blue, expansive |
+| Cosmos | `#dfe6e9` | Near-white, infinite |
 
 **Spiral icon**: Golden/nautilus spiral used as the Tasks page logo and
 as a decorative background element on the scope selector.
@@ -99,5 +99,5 @@ The Fibonacci scope model enforces a design principle: **every feature should
 know what scale it operates at**. A chat message is `circle` or `city` scale.
 A governance vote might be `world` scale. A personal journal entry is `self`.
 
-This prevents scope creep in both directions — personal tools don't accidentally
+This prevents scope creep in both directions, personal tools don't accidentally
 govern civilizations, and civilization tools don't intrude on personal space.

@@ -67,7 +67,7 @@ Backups: Manual for outages; humidity recapture for closed loops.
 
 **NPK Determination**: Stage-based ratios (e.g., vegetative 7:9:5, flowering 5:15:14). PPM targets: Tomatoes 200–250 N, 50–100 P, 300–400 K. Formula: Fertilizer dose (g/L) = Desired PPM / (Label % × Conversion: P₂O₅×0.436=P, K₂O×0.83=K). Per plant: ~1–2% dry weight N; not fixed per gram but via uptake models.
 
-Reliable Organics (Non-Synthetic): Compost tea (nitrates via microbes), vermicompost (worm castings: ~1-1-1 NPK, micros; improves structure but low density—supplement 20–30% soil mix), manure, fish emulsion, blood/bone meal, seaweed, guano, grass clippings, coffee grounds. Aerated tea (AACT): Oxygenated 24–48h, 4x nitrates, microbial boost; non-aerated: Anaerobic, riskier for pathogens—use for non-edibles.
+Reliable Organics (Non-Synthetic): Compost tea (nitrates via microbes), vermicompost (worm castings: ~1-1-1 NPK, micros; improves structure but low density, supplement 20–30% soil mix), manure, fish emulsion, blood/bone meal, seaweed, guano, grass clippings, coffee grounds. Aerated tea (AACT): Oxygenated 24–48h, 4x nitrates, microbial boost; non-aerated: Anaerobic, riskier for pathogens, use for non-edibles.
 
 **Worm Castings Evaluation**: Balanced, disease-suppressive; not perfect (low NPK; pair with teas).
 

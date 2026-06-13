@@ -109,26 +109,26 @@ All keys rebindable.
 
 ## Phased Rollout
 
-## Phase 1 — Greybox Traversal
+## Phase 1: Greybox Traversal
 - simple ship/home blockout
 - first/third movement
 - interactable doors + terminals
 
-## Phase 2 — Transit Core
+## Phase 2: Transit Core
 - elevator + ramp fallback logic
 - monorail route prototype
 - zone transitions and access states
 
-## Phase 3 — Living Spaces
+## Phase 3: Living Spaces
 - home modules functional navigation
 - public park corridors and civic nodes
 - social gathering spaces
 
-## Phase 4 — Utility Coupling
+## Phase 4: Utility Coupling
 - outages affect movement routes and destination access
 - restoration events reopen blocked functions
 
-## Phase 5 — VR/Advanced Camera Prep
+## Phase 5: VR/Advanced Camera Prep
 - camera abstraction hardening
 - comfort options
 - interaction mode parity

@@ -28,13 +28,13 @@ Move other topical markdown into domain folders.
 
 ## Canonical Folder Domains
 
-- `design/` — product/system architecture and specs
-- `knowledge/` — operational and reference knowledge
-- `docs/accord/` — accord/legal-ethical docs (or keep existing `accord/`)
-- `ops/` — deployment, runbooks, checklists
-- `memory/` — session and long-term memory (private/internal)
-- `website/` — web-published markdown content
-- `tools/` — tool/integration docs
+- `design/`, product/system architecture and specs
+- `knowledge/`, operational and reference knowledge
+- `docs/accord/`, accord/legal-ethical docs (or keep existing `accord/`)
+- `ops/`, deployment, runbooks, checklists
+- `memory/`, session and long-term memory (private/internal)
+- `website/`, web-published markdown content
+- `tools/`, tool/integration docs
 
 ---
 

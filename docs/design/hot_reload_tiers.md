@@ -5,7 +5,7 @@ Define what can be updated live vs what requires restart so update behavior is p
 
 ---
 
-## Tier 1 — Live Hot Reload
+## Tier 1: Live Hot Reload
 Safe to apply immediately while app is running:
 - markdown/docs content
 - UI labels/translations/themes
@@ -17,7 +17,7 @@ Mechanism:
 
 ---
 
-## Tier 2 — Module Reload
+## Tier 2: Module Reload
 Requires module/session reload but not full app restart:
 - plugin modules
 - renderer adapters
@@ -28,7 +28,7 @@ Mechanism:
 
 ---
 
-## Tier 3 — Restart Required
+## Tier 3: Restart Required
 Binary/runtime changes:
 - core engine updates
 - protocol internals

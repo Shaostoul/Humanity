@@ -1,4 +1,4 @@
-# Gardening Game — HumanityOS First Minigame
+# Gardening Game: HumanityOS First Minigame
 
 **Status:** Proposed
 **Author:** Shaostoul + Claude
@@ -19,12 +19,12 @@ Players tend a garden plot: planting, watering, harvesting, and selling crops. R
 
 ### Plant → Tend → Harvest → Sell
 
-1. **Prepare soil** — Use the hoe to till a dirt tile into farmable soil.
-2. **Plant seeds** — Select a seed from inventory, click a tilled tile.
-3. **Water** — Water each planted tile daily (or let rain handle it).
-4. **Wait** — Crops grow through stages over real time (configurable speed multiplier).
-5. **Harvest** — Click a mature crop with the harvest basket to collect it.
-6. **Sell or use** — Sell at the market for coins, or use in recipes/gifts.
+1. **Prepare soil**, Use the hoe to till a dirt tile into farmable soil.
+2. **Plant seeds**, Select a seed from inventory, click a tilled tile.
+3. **Water**, Water each planted tile daily (or let rain handle it).
+4. **Wait**, Crops grow through stages over real time (configurable speed multiplier).
+5. **Harvest**, Click a mature crop with the harvest basket to collect it.
+6. **Sell or use**, Sell at the market for coins, or use in recipes/gifts.
 
 ### Soil System
 
@@ -80,10 +80,10 @@ Each crop definition includes:
 ```
 
 Starter crops (unlocked from the beginning):
-- Lettuce (3 days, value 5) — spring
-- Carrot (5 days, value 8) — spring/autumn
-- Tomato (8 days, value 15) — summer
-- Pumpkin (12 days, value 25) — autumn
+- Lettuce (3 days, value 5), spring
+- Carrot (5 days, value 8), spring/autumn
+- Tomato (8 days, value 15), summer
+- Pumpkin (12 days, value 25), autumn
 
 Advanced crops unlock through progression.
 
@@ -101,7 +101,7 @@ Tools are selected from a toolbar; active tool determines what click/tap does on
 
 ---
 
-## Rendering — 2D Isometric Canvas
+## Rendering: 2D Isometric Canvas
 
 ### Tile Grid
 
@@ -120,12 +120,12 @@ All sprites live on a single sprite atlas (`garden-sprites.png`) to minimize dra
 
 **Plant growth stages (per crop):**
 ```
-Stage 0: Seed       — small dot in soil
-Stage 1: Sprout     — tiny green stem
-Stage 2: Growing    — leaves/vine visible
-Stage 3: Flowering  — color appears (optional per crop)
-Stage 4: Ready      — full fruit/vegetable visible, subtle bounce animation
-Stage 5: Withered   — brown/gray, drooped (if neglected)
+Stage 0: Seed       - small dot in soil
+Stage 1: Sprout     - tiny green stem
+Stage 2: Growing    - leaves/vine visible
+Stage 3: Flowering  - color appears (optional per crop)
+Stage 4: Ready      - full fruit/vegetable visible, subtle bounce animation
+Stage 5: Withered   - brown/gray, drooped (if neglected)
 ```
 
 Each stage is a 48x48 sprite frame on the atlas. Crops with fewer visual stages skip flowering.
@@ -212,12 +212,12 @@ Harvest quality depends on care:
 
 ### Unlockables
 
-- **Greenhouse** (500 coins) — grow any-season crops year-round, immune to weather.
-- **Sprinkler** (200 coins) — auto-waters a 3x3 area each day.
-- **Scarecrow** (50 coins) — prevents random crop damage in 5x5 radius.
-- **Beehive** (150 coins) — pollination bonus (+10% yield) in 4x4 radius; produces honey.
-- **Decorations** — flowers, paths, fences, benches, lanterns (cosmetic + garden beauty score).
-- **Recipes** — combine crops into prepared foods (higher sell value).
+- **Greenhouse** (500 coins), grow any-season crops year-round, immune to weather.
+- **Sprinkler** (200 coins), auto-waters a 3x3 area each day.
+- **Scarecrow** (50 coins), prevents random crop damage in 5x5 radius.
+- **Beehive** (150 coins), pollination bonus (+10% yield) in 4x4 radius; produces honey.
+- **Decorations**, flowers, paths, fences, benches, lanterns (cosmetic + garden beauty score).
+- **Recipes**, combine crops into prepared foods (higher sell value).
 
 ---
 
@@ -367,7 +367,7 @@ Moisture depletes per simulated day. If moisture hits 0 and stays there for 2+ d
 5. Draw player character at correct iso depth.
 6. Draw weather particle layer.
 7. Draw day/night overlay.
-8. Draw UI layer (toolbar, info panel, minimap) — these can be HTML overlaid on canvas or drawn on a separate canvas.
+8. Draw UI layer (toolbar, info panel, minimap), these can be HTML overlaid on canvas or drawn on a separate canvas.
 
 Target: 60 FPS on mid-range hardware. The tile grid is small enough that brute-force redraw is fine (no need for dirty-rect optimization at 24x24 max).
 
@@ -483,7 +483,7 @@ Total MVP atlas: roughly 60–80 frames on a 512x512 sprite sheet.
 
 ## Implementation Phases
 
-### Phase 1 — Core (MVP)
+### Phase 1: Core (MVP)
 - Isometric renderer with camera pan/zoom
 - 6x6 tilled grid, 4 starter crops
 - Plant/water/harvest loop
@@ -492,7 +492,7 @@ Total MVP atlas: roughly 60–80 frames on a 512x512 sprite sheet.
 - Save/load to localStorage
 - Day/night cycle overlay
 
-### Phase 2 — Depth
+### Phase 2: Depth
 - Seasons and weather system
 - Soil quality (fertility, moisture, pH)
 - Companion planting bonuses
@@ -501,13 +501,13 @@ Total MVP atlas: roughly 60–80 frames on a 512x512 sprite sheet.
 - Plot expansion (6x6 → 12x12)
 - Inventory screen
 
-### Phase 3 — Multiplayer
+### Phase 3: Multiplayer
 - Garden state sync via relay WebSocket
 - Visit friends' gardens (read-only view)
 - Crop/seed trading
 - Community garden plots (shared server-side state)
 
-### Phase 4 — Polish
+### Phase 4: Polish
 - Full crop catalog (20+ crops across all seasons)
 - Structures (greenhouse, sprinkler, scarecrow, beehive)
 - Decorations and garden beauty score
@@ -516,7 +516,7 @@ Total MVP atlas: roughly 60–80 frames on a 512x512 sprite sheet.
 - Sound effects and ambient audio
 - Tutorial flow for new players
 
-### Phase 5 — 3D Upgrade
+### Phase 5: 3D Upgrade
 - Port game logic to Bevy ECS (reuse `garden-data.js` as JSON data files)
 - 3D voxel or low-poly models replace 2D sprites
 - Same save format, import existing gardens
@@ -526,8 +526,8 @@ Total MVP atlas: roughly 60–80 frames on a 512x512 sprite sheet.
 
 ## Open Questions
 
-1. **Time scale default** — Should 1 in-game day = 1 real day (slow, meditative) or 1 real hour (faster feedback)? Configurable either way, but the default sets expectations.
-2. **Monetization** — Are decorations/cosmetics purchasable with real currency, or purely earned in-game? (Aligns with HumanityOS anti-exploitation values: no pay-to-win.)
-3. **Cross-game items** — Can harvested crops appear in other HumanityOS systems (marketplace listings, gifts in chat, crafting in future games)?
-4. **Sprite creation** — Commission pixel artist, use AI generation as base + manual cleanup, or community-contributed?
-5. **Mobile-first or desktop-first** — Canvas 2D runs everywhere, but touch input design differs from mouse. Pick the primary target for Phase 1 and adapt the other.
+1. **Time scale default**, Should 1 in-game day = 1 real day (slow, meditative) or 1 real hour (faster feedback)? Configurable either way, but the default sets expectations.
+2. **Monetization**, Are decorations/cosmetics purchasable with real currency, or purely earned in-game? (Aligns with HumanityOS anti-exploitation values: no pay-to-win.)
+3. **Cross-game items**, Can harvested crops appear in other HumanityOS systems (marketplace listings, gifts in chat, crafting in future games)?
+4. **Sprite creation**, Commission pixel artist, use AI generation as base + manual cleanup, or community-contributed?
+5. **Mobile-first or desktop-first**, Canvas 2D runs everywhere, but touch input design differs from mouse. Pick the primary target for Phase 1 and adapt the other.

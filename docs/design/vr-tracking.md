@@ -5,7 +5,7 @@ Created: 2026-03-17
 
 ## Overview
 
-This document covers two related capabilities for HumanityOS: VR headset integration via OpenXR, and indoor positioning for placing users in virtual or augmented environments. The goal is to let people inhabit shared 3D spaces — starting with what headsets already provide, then expanding to room-aware experiences and non-VR device tracking.
+This document covers two related capabilities for HumanityOS: VR headset integration via OpenXR, and indoor positioning for placing users in virtual or augmented environments. The goal is to let people inhabit shared 3D spaces, starting with what headsets already provide, then expanding to room-aware experiences and non-VR device tracking.
 
 ---
 
@@ -26,7 +26,7 @@ Using OpenXR means one integration path covers all headsets. No vendor-specific 
 
 ### Rust Integration
 
-- **Crate:** [`openxr`](https://crates.io/crates/openxr) — well-maintained Rust bindings to the OpenXR loader
+- **Crate:** [`openxr`](https://crates.io/crates/openxr), well-maintained Rust bindings to the OpenXR loader
 - **Rendering:** `wgpu` for cross-platform GPU access (Vulkan, DX12, Metal)
 - **Frame loop:** Application renders stereo frames via wgpu, submits them to the OpenXR compositor for display
 
@@ -38,7 +38,7 @@ Using OpenXR means one integration path covers all headsets. No vendor-specific 
 | Controller input | Button state, trigger values, thumbstick axes, 6DoF pose |
 | Hand tracking | Per-joint skeleton data (26 joints per hand) |
 | Eye tracking | Gaze direction vector (hardware-dependent, requires user opt-in) |
-| Reference spaces | LOCAL, STAGE, VIEW — coordinate systems for seated, standing, or head-relative use |
+| Reference spaces | LOCAL, STAGE, VIEW, coordinate systems for seated, standing, or head-relative use |
 | Passthrough | Camera feed composited with rendered content (Quest 3, Varjo, etc.) |
 
 ### Architecture
@@ -60,7 +60,7 @@ The 3D layer runs alongside the existing 2D client. In VR mode, the 2D interface
 
 ## 2. Indoor Positioning Technologies
 
-For placing non-VR devices (phones, tablets, laptops) in a shared spatial context, several technologies exist — each with significant trade-offs.
+For placing non-VR devices (phones, tablets, laptops) in a shared spatial context, several technologies exist, each with significant trade-offs.
 
 ### WiFi RTT (802.11mc / Fine Time Measurement)
 
@@ -92,7 +92,7 @@ For placing non-VR devices (phones, tablets, laptops) in a shared spatial contex
 
 - **Accuracy:** 2-5 meters
 - **How it works:** Signal strength from BLE beacons, mapped to approximate distance
-- **Support:** Universal — every phone and most laptops have BLE
+- **Support:** Universal, every phone and most laptops have BLE
 - **Drawback:** Extremely noisy. Human bodies, walls, and furniture cause multipath interference. Not reliable for sub-room positioning.
 - **Verdict:** Useful for room-level presence detection ("user is in the kitchen"), not for spatial placement.
 
@@ -115,7 +115,7 @@ Three approaches to getting room geometry into HumanityOS:
 
 ### Option A: LiDAR Scan
 
-- **Hardware:** iPhone Pro (12+), iPad Pro (2020+) — these have built-in LiDAR
+- **Hardware:** iPhone Pro (12+), iPad Pro (2020+), these have built-in LiDAR
 - **Workflow:** User scans room with phone app, exports point cloud or mesh (OBJ/USDZ/GLB)
 - **Quality:** Good geometry, ~1cm depth accuracy at room scale
 - **Export tools:** Polycam, 3D Scanner App, RoomPlan API (iOS 16+, outputs parametric room model)
@@ -133,12 +133,12 @@ Three approaches to getting room geometry into HumanityOS:
 - **Hardware:** Quest 3 (or Quest Pro with v62+ firmware)
 - **Workflow:** Automatic. The headset continuously maps the room and exposes geometry via the Scene API
 - **Quality:** Room-scale mesh with wall/floor/ceiling/furniture classification
-- **Advantage:** Zero user effort — the headset does it during normal use
+- **Advantage:** Zero user effort, the headset does it during normal use
 - **Integration:** Access via OpenXR `XR_META_spatial_entity_mesh` extension
 
 ### Mixed Reality / Passthrough
 
-VR headsets with color passthrough cameras (Quest 3, Apple Vision Pro, Varjo XR-4) already solve the "position real person in virtual room" problem. The headset's SLAM tracking places virtual objects in the physical room. This is not something HumanityOS needs to build — it is a runtime capability provided by the headset.
+VR headsets with color passthrough cameras (Quest 3, Apple Vision Pro, Varjo XR-4) already solve the "position real person in virtual room" problem. The headset's SLAM tracking places virtual objects in the physical room. This is not something HumanityOS needs to build, it is a runtime capability provided by the headset.
 
 HumanityOS just needs to:
 1. Define virtual objects and their spatial anchors
@@ -155,7 +155,7 @@ HumanityOS just needs to:
 - Render a basic 3D environment via wgpu with stereo output
 - Support head tracking, controller input, and hand tracking
 - Project the existing 2D chat/task UI onto a virtual panel
-- **Tracking is handled entirely by the headset** — no external hardware needed
+- **Tracking is handled entirely by the headset**, no external hardware needed
 
 ### Phase 2: Room Scanning
 
@@ -171,7 +171,7 @@ HumanityOS just needs to:
 - For phones/tablets: leverage ARKit/ARCore for camera-based 6DoF tracking
 - For dedicated spaces (offices, community centers): UWB anchor installation for centimeter-level tracking of any device
 - WiFi/Bluetooth as fallback for coarse room-level presence detection only
-- **Do not invest in WiFi fingerprinting** — maintenance cost exceeds value for home/small-space use
+- **Do not invest in WiFi fingerprinting**, maintenance cost exceeds value for home/small-space use
 
 ---
 

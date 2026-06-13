@@ -4,4 +4,4 @@ Geographic data architecture and open-source map stack for HumanityOS, serving b
 
 ## Contents
 
-- `geographic-data.md` — Open-source map stack using OSM, USGS elevation, and self-hosted tile servers
+- `geographic-data.md`, Open-source map stack using OSM, USGS elevation, and self-hosted tile servers

@@ -6,7 +6,7 @@ Compile the existing Rust game engine (wgpu) to WebAssembly so the same engine r
 
 - **One codebase**: every feature, every shader, every system is written once in Rust and runs everywhere. No parallel JavaScript implementation to maintain.
 - **No GC pauses**: WASM has deterministic memory management. No garbage collector stalling the render loop mid-frame.
-- **Multithreaded**: Web Workers + SharedArrayBuffer enable parallel ECS systems, physics, and asset loading — same threading model as desktop.
+- **Multithreaded**: Web Workers + SharedArrayBuffer enable parallel ECS systems, physics, and asset loading, same threading model as desktop.
 - **Same performance profile**: desktop and browser builds share identical hot paths. Perf optimizations benefit both targets.
 - **No throwaway code**: everything built contributes to the final product. A Three.js prototype would be discarded once the real engine ships.
 
@@ -49,7 +49,7 @@ The shared `src/` code has zero platform-specific imports. All platform differen
 | ECS (hecs) | Compiles | Pure Rust, no platform deps |
 | Game logic (farming, construction, crafting) | Compiles | Pure Rust game systems |
 | Input handling (winit) | Compiles | winit maps browser events to its event types |
-| Shaders (WGSL) | Compiles | WGSL is the native WebGPU shading language — no translation needed |
+| Shaders (WGSL) | Compiles | WGSL is the native WebGPU shading language, no translation needed |
 | Audio (kira) | Compiles | Web backend available; fallback to web-sys AudioContext |
 | Physics (rapier3d) | Needs testing | WASM support exists but perf budget needs validation |
 | File I/O | Does not compile | Replace with IndexedDB via web-sys |
@@ -161,7 +161,7 @@ This boundary is deliberately thin. The engine owns all 3D rendering, physics, a
 Binary size is managed by:
 - `wasm-opt -Oz` for size optimization
 - `lto = true` in release profile
-- Splitting large assets (textures, models) from the WASM binary — loaded on demand via fetch
+- Splitting large assets (textures, models) from the WASM binary, loaded on demand via fetch
 
 ## Implementation Phases
 
@@ -181,7 +181,7 @@ Load object definitions from data files (CSV/TOML/JSON via fetch). Render trees,
 Character movement and collision. Interaction system (click to harvest, build, craft). Animation playback.
 
 ### Phase 6: Game Systems
-Farming loop (plant, water, grow, harvest). Inventory management. Day/night cycle affecting gameplay. Crafting. These are pure Rust systems — they compile to WASM without changes.
+Farming loop (plant, water, grow, harvest). Inventory management. Day/night cycle affecting gameplay. Crafting. These are pure Rust systems, they compile to WASM without changes.
 
 ### Phase 7: Networking
 WebSocket connection to the relay server. Player position sync. Chat integration. Multiplayer state synchronization.
@@ -191,8 +191,8 @@ Desktop and browser builds are feature-matched. Same game, same experience, same
 
 ## Related Files
 
-- `src/` — the single Rust crate: all shared engine code (renderer, ECS, physics, systems) plus relay/GUI behind feature flags. (The 19 engine sub-crates this doc once referenced under `crates/` were folded into `src/` by the v0.90.0 unified-binary restructure; `crates/` no longer exists.)
-- `assets/shaders/` — 30 WGSL shaders (already WebGPU-compatible)
-- `docs/design/engine-architecture.md` — master engine reference
-- `docs/design/camera-system.md` — camera system (Phase 2)
-- `docs/design/platform-architecture.md` — platform abstraction details
+- `src/`, the single Rust crate: all shared engine code (renderer, ECS, physics, systems) plus relay/GUI behind feature flags. (The 19 engine sub-crates this doc once referenced under `crates/` were folded into `src/` by the v0.90.0 unified-binary restructure; `crates/` no longer exists.)
+- `assets/shaders/`, 30 WGSL shaders (already WebGPU-compatible)
+- `docs/design/engine-architecture.md`, master engine reference
+- `docs/design/camera-system.md`, camera system (Phase 2)
+- `docs/design/platform-architecture.md`, platform abstraction details

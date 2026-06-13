@@ -5,16 +5,16 @@
 > The former `crates/humanity-core` / `crates/humanity-relay` were folded into `src/`;
 > the relay lives at `src/relay/`. Feature flags (`native`, `relay`, `wasm`) select what
 > compiles. The layered multi-crate model below is an **aspirational design target that
-> was not adopted** — kept for reference only.
+> was not adopted**, kept for reference only.
 
-## Current workspace (historical — pre-v0.90)
+## Current workspace (historical: pre-v0.90)
 
 The pre-v0.90 Cargo workspace had these members (now consolidated into `src/`):
 
 - `crates/humanity-core` → folded into `src/`
 - `crates/humanity-relay` → now `src/relay/`
 
-## Target architecture (incremental — aspirational, not adopted)
+## Target architecture (incremental: aspirational, not adopted)
 
 This section proposes a layered modular model that was explored but **not** built; the
 project consolidated to a single crate instead.

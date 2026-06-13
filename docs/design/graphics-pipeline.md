@@ -1,4 +1,4 @@
-# HumanityOS Graphics Pipeline — Design Document
+# HumanityOS Graphics Pipeline: Design Document
 
 **Status:** Draft
 **Target hardware:** RTX 4070 (12 GB VRAM, 3rd-gen RT cores)
@@ -21,7 +21,7 @@
 
 ## Overview
 
-HumanityOS needs a 3D rendering layer for its world/game experience while keeping the existing Tauri webview for UI. The renderer must support AAA-quality raytracing, large outdoor environments, and eventually VR — built incrementally by a solo developer.
+HumanityOS needs a 3D rendering layer for its world/game experience while keeping the existing Tauri webview for UI. The renderer must support AAA-quality raytracing, large outdoor environments, and eventually VR, built incrementally by a solo developer.
 
 ```
  ┌─────────────────────────────────────────────┐
@@ -49,7 +49,7 @@ HumanityOS needs a 3D rendering layer for its world/game experience while keepin
 
 ### Why not Bevy / rend3 / other engines?
 
-Bevy is a full ECS game engine — useful but opinionated. Starting with raw wgpu gives full control over the hybrid Tauri integration and avoids fighting an engine's assumptions. If Bevy's renderer matures its RT support, migrating the render backend is possible since both use wgpu underneath.
+Bevy is a full ECS game engine, useful but opinionated. Starting with raw wgpu gives full control over the hybrid Tauri integration and avoids fighting an engine's assumptions. If Bevy's renderer matures its RT support, migrating the render backend is possible since both use wgpu underneath.
 
 ---
 
@@ -57,7 +57,7 @@ Bevy is a full ECS game engine — useful but opinionated. Starting with raw wgp
 
 Two approaches exist. Start with Option A (simpler); migrate to Option B if latency or compositing issues arise.
 
-### Option A — Two OS windows, composited by the OS
+### Option A: Two OS windows, composited by the OS
 
 ```
 ┌──────────────────────────────┐
@@ -76,7 +76,7 @@ Communication: Tauri IPC commands (invoke/listen)
 **Pros:** Simple. Each surface owns its own rendering. Webview works normally.
 **Cons:** Two windows to keep synchronized (position, resize, minimize). OS compositor overhead.
 
-### Option B — Single window, webview-as-texture
+### Option B: Single window, webview-as-texture
 
 ```
 ┌───────────────────────────────────┐
@@ -135,7 +135,7 @@ Frame N
                                                        Present
 ```
 
-### Phase 1 — G-Buffer pass (deferred rendering)
+### Phase 1: G-Buffer pass (deferred rendering)
 
 Render all opaque geometry into multiple render targets:
 
@@ -169,7 +169,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 }
 ```
 
-### Phase 2 — Lighting pass
+### Phase 2: Lighting pass
 
 Full-screen quad reads G-Buffer textures. Computes direct illumination:
 
@@ -179,7 +179,7 @@ Full-screen quad reads G-Buffer textures. Computes direct illumination:
 
 Output: HDR lit color (RGBA16Float).
 
-### Phase 3 — Ray-traced pass (hardware RT)
+### Phase 3: Ray-traced pass (hardware RT)
 
 Uses `VK_KHR_ray_tracing_pipeline` via wgpu-hal. The RTX 4070's RT cores handle:
 
@@ -206,17 +206,17 @@ TLAS (Top-Level Acceleration Structure)
   └── BLAS: vegetation (simplified proxy geometry)
 ```
 
-### Phase 4 — Post-processing
+### Phase 4: Post-processing
 
 Applied in order:
 
-1. **TAA (Temporal Anti-Aliasing)** — jittered projection + history buffer. Essential for denoising RT output.
-2. **Bloom** — threshold + downsample chain + upsample blend
-3. **Tone mapping** — ACES filmic or AgX
-4. **Motion blur** — per-object velocity buffer, half-res
-5. **Color grading** — LUT-based, artist-controllable
+1. **TAA (Temporal Anti-Aliasing)**, jittered projection + history buffer. Essential for denoising RT output.
+2. **Bloom**, threshold + downsample chain + upsample blend
+3. **Tone mapping**, ACES filmic or AgX
+4. **Motion blur**, per-object velocity buffer, half-res
+5. **Color grading**, LUT-based, artist-controllable
 
-### Phase 5 — UI composite
+### Phase 5: UI composite
 
 - Read webview surface as texture (Option B) or let OS composite (Option A)
 - Alpha-blend UI on top of the post-processed 3D frame
@@ -235,7 +235,7 @@ Material
   ├── albedo_map:     RGBA8 (RGB = base color, A = opacity)
   ├── normal_map:     RG8 or RGB8 (tangent-space normals)
   ├── metallic_roughness_map: RG8 (R = metallic, G = roughness)
-  │                   — packed in one texture per glTF convention
+  │                   - packed in one texture per glTF convention
   ├── ao_map:         R8 (baked ambient occlusion)
   ├── emissive_map:   RGB8 (self-illumination)
   └── parameters:
@@ -366,17 +366,17 @@ Large worlds don't fit in VRAM. Region-based streaming:
 
 Prioritized for a solo developer. Each phase produces something visible and testable.
 
-### Phase 1 — Triangle to screen (weeks 1-3)
+### Phase 1: Triangle to screen (weeks 1-3)
 
 - [ ] wgpu window with clear color
-- [ ] Load a single glTF model (use a free asset — damaged helmet is the PBR test standard)
+- [ ] Load a single glTF model (use a free asset, damaged helmet is the PBR test standard)
 - [ ] Camera controls (orbit, WASD fly)
 - [ ] Forward-rendered PBR shader (no deferred yet, just get lighting right)
 - [ ] Tauri integration: wgpu window + webview window side by side
 
 **Milestone:** Spinning PBR model with mouse orbit, Tauri UI next to it.
 
-### Phase 2 — Deferred + multiple objects (weeks 4-6)
+### Phase 2: Deferred + multiple objects (weeks 4-6)
 
 - [ ] G-Buffer pass (position, normal, albedo, metallic/roughness)
 - [ ] Deferred lighting pass (directional + a few point lights)
@@ -386,7 +386,7 @@ Prioritized for a solo developer. Each phase produces something visible and test
 
 **Milestone:** Lit scene with shadows and multiple objects.
 
-### Phase 3 — Raytracing (weeks 7-10)
+### Phase 3: Raytracing (weeks 7-10)
 
 - [ ] Build BLAS/TLAS acceleration structures
 - [ ] RT reflections (1 ray/pixel, denoise with TAA)
@@ -396,7 +396,7 @@ Prioritized for a solo developer. Each phase produces something visible and test
 
 **Milestone:** Reflective/metallic surfaces with RT reflections, AO on all surfaces.
 
-### Phase 4 — Outdoor environment (weeks 11-15)
+### Phase 4: Outdoor environment (weeks 11-15)
 
 - [ ] Terrain system (clipmap, heightmap, splatmap texturing)
 - [ ] Procedural sky + sun
@@ -406,7 +406,7 @@ Prioritized for a solo developer. Each phase produces something visible and test
 
 **Milestone:** Explorable outdoor terrain with sky, grass, and post-processing.
 
-### Phase 5 — Polish + weather (weeks 16-20)
+### Phase 5: Polish + weather (weeks 16-20)
 
 - [ ] Volumetric clouds (quarter-res raymarch)
 - [ ] Rain/snow particles
@@ -417,7 +417,7 @@ Prioritized for a solo developer. Each phase produces something visible and test
 
 **Milestone:** Full outdoor scene with weather, day/night, and UI overlay.
 
-### Phase 6 — VR (weeks 21-26)
+### Phase 6: VR (weeks 21-26)
 
 - [ ] OpenXR session + swapchain
 - [ ] Stereo rendering (two-pass first, single-pass instanced later)

@@ -1,4 +1,4 @@
-# Homestead self-sufficiency — the variables, and a model for the score
+# Homestead self-sufficiency: the variables, and a model for the score
 
 > Status: **reference + proposal, 2026-06-07.** Written because the operator asked
 > "what all variables are there to consider?" for homestead self-sufficiency, so we
@@ -10,7 +10,7 @@
 
 Self-sufficiency is **not** a single number you read off a spec sheet. It is the
 fraction of your needs you can meet **from inside the homestead, averaged over time,
-through the worst stretch the climate throws at you** — across several **coupled
+through the worst stretch the climate throws at you**, across several **coupled
 loops** (energy, water, food, waste, air, heat), each gated by **where you are** and
 **how many mouths** you feed. You are only as self-sufficient as your **weakest
 loop** (Liebig's law of the minimum: a plant grows only as tall as its scarcest
@@ -35,20 +35,20 @@ For every loop the same five things matter: **supply** (what you make/collect),
 - **Losses:** inverter + wiring + conversion + standby (often 10-20%).
 - **The honest condition:** *average daily generation >= average daily consumption*
   **AND** *storage >= the longest expected lean stretch*. **Nameplate watts are
-  misleading** — a 5 kW array and a 5 kW peak load are not "100%": the array only
+  misleading**, a 5 kW array and a 5 kW peak load are not "100%": the array only
   makes power ~5 sun-hours/day and the load never draws 5 kW continuously. Energy
   (Wh over a day/season), not power (W), is the unit.
 
 ### 2. Water
-- **Supply:** rainwater (catchment area x rainfall x runoff coefficient — and rain is
+- **Supply:** rainwater (catchment area x rainfall x runoff coefficient, and rain is
   *seasonal*, so annual totals lie), well (aquifer yield + pump energy, which couples
   to the energy loop), spring/surface, atmospheric (dew/fog), and **recycling**
   (greywater -> irrigation; blackwater -> compost/biogas) which *reduces net demand*.
 - **Storage:** cistern/tank volume = days of buffer through a dry spell.
 - **Demand:** drinking + cooking + hygiene + laundry, but **irrigation + livestock
-  usually dwarf household use** — the garden is the big draw, linking water to food.
+  usually dwarf household use**, the garden is the big draw, linking water to food.
 - **Quality tiers:** potable vs greywater vs irrigation-grade; treatment (filter, UV,
-  RO — and RO *wastes* a reject stream) costs energy + loses water.
+  RO, and RO *wastes* a reject stream) costs energy + loses water.
 - **Condition:** *collection + recycling >= demand averaged* **AND** *storage >= the
   dry season*. Distribution of rainfall matters more than the annual total.
 
@@ -61,9 +61,9 @@ For every loop the same five things matter: **supply** (what you make/collect),
   compost loop, else imported fertilizer), water (the water loop), light/heat (the
   energy loop, for grow-lights/greenhouses), and **labor**.
 - **Storage/preservation:** root cellar, canning, drying, fermentation, freezing
-  (energy) — needed to carry a seasonal harvest across a year of eating; spoilage is
+  (energy), needed to carry a seasonal harvest across a year of eating; spoilage is
   the loss term.
-- **Demand:** calories **and** completeness — protein, fats, vitamins, minerals, not
+- **Demand:** calories **and** completeness, protein, fats, vitamins, minerals, not
   just kcal (a potato monocrop is "100% calories, 40% nutrition"). Per person/day,
   times occupants, plus livestock feed.
 - **Condition:** *annual production + preservation buffer >= annual nutritional need,
@@ -86,7 +86,7 @@ For every loop the same five things matter: **supply** (what you make/collect),
 - Heating + cooling demand is set by **climate (degree-days)** and the **envelope**:
   insulation (R-value), thermal mass, orientation/passive-solar gain, glazing,
   air-sealing. A superinsulated passive house can need an order of magnitude less
-  energy than a leaky one. **The cheapest kilowatt is the one you never need** — so
+  energy than a leaky one. **The cheapest kilowatt is the one you never need**, so
   envelope quality is a self-sufficiency variable, not just an architecture choice.
 
 ### 7. Materials, maintenance, repair (the long-tail that makes it *permanent*)
@@ -101,7 +101,7 @@ For every loop the same five things matter: **supply** (what you make/collect),
 - **Location + climate (the single biggest driver):** latitude + sun-hours, rainfall
   amount *and seasonal distribution*, wind, temperature range, growing-season length,
   soil quality, water table. The *same* design is self-sufficient in one place and
-  fails in another — which is exactly why homes carry a lat/long (the `Place` model).
+  fails in another, which is exactly why homes carry a lat/long (the `Place` model).
 - **Scale / occupancy:** people (+ livestock) multiply every demand. This is the
   Fibonacci Solo/Family/Community/Colony axis already in the blueprint.
 - **Autonomy / resilience margin:** how long can you run with zero outside input?
@@ -115,7 +115,7 @@ For every loop the same five things matter: **supply** (what you make/collect),
   improving one loop can relieve another (more solar -> run more hydroponics -> more
   food per m2 -> less land/water).
 - **Labor + skills + time:** a homestead needs work; "self-sufficient" includes
-  whether the workload is sustainable for the occupants (or automated — the eventual
+  whether the workload is sustainable for the occupants (or automated, the eventual
   Real-home control layer).
 - **Redundancy:** a backup source per critical loop (generator, second water source)
   so one failure does not break survival.
@@ -132,7 +132,7 @@ Keep it honest and legible:
 2. **Per loop also report an autonomy number:** `storage / daily_demand` (days you
    last with zero input). A loop at 100% supply but 0 storage still fails on the first
    bad day.
-3. **Overall self-sufficiency = the minimum across loops** (Liebig's limiting factor —
+3. **Overall self-sufficiency = the minimum across loops** (Liebig's limiting factor, 
    honest about "what breaks first"), with each loop shown so you see the bottleneck.
    (A weighted blend is friendlier but hides the weak link; show both maybe.)
 4. **Gate everything by location + scale** (data inputs): a design is scored *for a
@@ -143,7 +143,7 @@ Keep it honest and legible:
 
 ### What data we'd add to compute it
 - The blueprint already gives **demand**: each room's `power_watts` and
-  `water_liters_per_day` (today these read as rated/peak — we'd want average draw +
+  `water_liters_per_day` (today these read as rated/peak, we'd want average draw +
   duty cycle for energy-over-time).
 - We'd add a small, **editable** component-output table (infinite-of-X data): for each
   generation/collection/recycling component an output figure + assumptions, e.g.
@@ -155,6 +155,6 @@ Keep it honest and legible:
 ### Deliberately deferred
 Full loop-coupling/network simulation, livestock + soil dynamics, and energy-over-time
 weather modeling are later. The first buildable cut is **per-loop supply/demand + an
-autonomy number + the limiting-factor overall**, with editable component data — enough
+autonomy number + the limiting-factor overall**, with editable component data, enough
 to show an *honest* "this design is energy-limited at 60% for a family in Silverdale,"
 which is already far more useful than a nameplate ratio.

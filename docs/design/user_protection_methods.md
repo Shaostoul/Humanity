@@ -3,9 +3,9 @@
 **Version 1.0**  
 **Date:** February 19, 2026  
 **Author:** Grok (xAI) & Michael Boisson (in collaboration)  
-**Purpose:** This document provides an exhaustive, layered approach to protecting users in a fully decentralized messaging system where cryptographic keys serve as the sole identity (no accounts, no central servers required, optional P2P relays or “meeting zone” servers). It directly addresses the core critique of “reverse cryptography” — the reality that even perfect cryptography fails due to human error, device loss, poor key rotation, or malware.
+**Purpose:** This document provides an exhaustive, layered approach to protecting users in a fully decentralized messaging system where cryptographic keys serve as the sole identity (no accounts, no central servers required, optional P2P relays or “meeting zone” servers). It directly addresses the core critique of “reverse cryptography”, the reality that even perfect cryptography fails due to human error, device loss, poor key rotation, or malware.
 
-The goal is to make user mistakes far less catastrophic through automation, protocol resilience, secure defaults, and education — matching or exceeding the protections in Signal, Briar, and Session while preserving radical decentralization and zero-trust principles.
+The goal is to make user mistakes far less catastrophic through automation, protocol resilience, secure defaults, and education, matching or exceeding the protections in Signal, Briar, and Session while preserving radical decentralization and zero-trust principles.
 
 ---
 
@@ -61,7 +61,7 @@ These features make key-rotation failures irrelevant for past/future messages.
 
 ### 3.3 Distribution/Exchange
 - Public keys only (via P2P discovery or optional servers).
-- Servers/relays see **only ciphertext** — never private keys.
+- Servers/relays see **only ciphertext**, never private keys.
 
 ### 3.4 Rotation & Re-keying
 - **Fully automatic** where possible (Double Ratchet handles session keys).
@@ -70,7 +70,7 @@ These features make key-rotation failures irrelevant for past/future messages.
 
 ### 3.5 Revocation
 - Signed revocation message broadcast via P2P or optional servers.
-- Contacts receive “key changed — verify?” prompt with safety-number comparison.
+- Contacts receive “key changed, verify?” prompt with safety-number comparison.
 
 ### 3.6 Destruction
 - NIST SP 800-88 overwrite (3–7 passes of random data) on app uninstall, logout, or explicit “Wipe keys” command.
@@ -102,8 +102,8 @@ These features make key-rotation failures irrelevant for past/future messages.
 
 - **Zero-knowledge onboarding:** Generate identity on first launch; show mnemonic immediately with mandatory backup prompt.
 - **In-app tutorials & tooltips:** “Why rotation matters”, “How to store your seed safely”.
-- **Periodic nudges:** “Your keys were last rotated X days ago — review?”
-- **Verification flows:** Mandatory safety-number comparison on first contact; “Key changed — scan QR in person?”
+- **Periodic nudges:** “Your keys were last rotated X days ago, review?”
+- **Verification flows:** Mandatory safety-number comparison on first contact; “Key changed, scan QR in person?”
 - **Graceful failure modes:** Lost key → new identity with one-click “notify all contacts” migration helper.
 - **High-security mode:** Stricter rotation, hardware key (YubiKey) support, air-gapped export.
 
@@ -149,14 +149,14 @@ These features make key-rotation failures irrelevant for past/future messages.
 ---
 
 **Conclusion**  
-By combining protocol-level automation (Double Ratchet/MLS), hardware-backed storage, zero-trust architecture, and thoughtful UX, user errors become dramatically less dangerous. “Forgetting to rotate keys” no longer equals total compromise. This design gives users true sovereignty while protecting them from their own mistakes — the gold standard for decentralized, censorship-resistant messaging.
+By combining protocol-level automation (Double Ratchet/MLS), hardware-backed storage, zero-trust architecture, and thoughtful UX, user errors become dramatically less dangerous. “Forgetting to rotate keys” no longer equals total compromise. This design gives users true sovereignty while protecting them from their own mistakes, the gold standard for decentralized, censorship-resistant messaging.
 
 **Next steps for the team:**  
 - Review & comment on GitHub  
 - Prioritize Phase 1 features  
 - Schedule independent audit  
 
-Feedback welcome — this document will evolve with the project.
+Feedback welcome, this document will evolve with the project.
 
 ---
 *References available upon request (NIST SP 800-57, Signal Protocol Spec, OWASP, etc.). All code examples and protocol diagrams will be added to the repo as implementation proceeds.*

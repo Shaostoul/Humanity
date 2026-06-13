@@ -179,7 +179,7 @@ Do NOT use `taskkill /F /IM` from bash (the `/F` flag gets mangled). Always use 
 `target/` is Cargo's build cache. It contains:
 - **Compiled dependencies** (~14GB): Every crate in the dependency tree compiled to `.rlib`/`.d` files, BOTH debug and release profiles, plus build script outputs. This is the bulk.
 - **Incremental compilation data** (~1-3GB): Intermediate artifacts Cargo keeps to speed up recompilation. Only the changed code recompiles instead of everything.
-- **Final binary** (~18MB): `HumanityOS.exe` — single binary. Run with `--headless` for relay-only mode.
+- **Final binary** (~18MB): `HumanityOS.exe`, single binary. Run with `--headless` for relay-only mode.
 - **Build metadata**: `.fingerprint` dirs, dep-info files, examples, tests.
 
 A clean build produces ~1.4GB. After many builds with both debug and release profiles, it balloons to 15GB+ because Cargo never garbage-collects old incremental artifacts.

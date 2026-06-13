@@ -1,7 +1,7 @@
 # Cosmos Architecture
 
 Universal model for player position, ship movement, multi-system navigation,
-and "what's nearby right now" — across scales from a player walking inside
+and "what's nearby right now", across scales from a player walking inside
 a ship to a fleet crossing interstellar distances.
 
 **Status:** Proposal (2026-05-09)
@@ -20,16 +20,16 @@ web-side render hierarchy and continues to apply on top of this model).
 The game spans 30 orders of magnitude: a player walks the bridge of their
 ship at meter scale, the ship orbits at AU scale, the system sits inside a
 galaxy at light-year scale. No single coordinate triple holds that range
-without losing precision somewhere — `f32` breaks past ~10 km, `f64` past
+without losing precision somewhere, `f32` breaks past ~10 km, `f64` past
 ~30 AU, fixed-point integers run out at galactic scales.
 
 Every game that solves this (Star Citizen, Elite Dangerous, KSP) uses the
 same two ideas in combination:
 
-1. **Hierarchical positions** — store position as "what container am I
+1. **Hierarchical positions**, store position as "what container am I
    inside, and where in that container?" Each level uses local coordinates
    relative to its parent, keeping precision tight.
-2. **Floating origin** — for rendering, recenter the visible world around
+2. **Floating origin**, for rendering, recenter the visible world around
    the player periodically so the rendered scene stays near the origin
    regardless of "absolute" galactic position.
 
@@ -40,7 +40,7 @@ wired into `EngineState`). This doc specifies the hierarchy.
 
 ## 2. The container model
 
-Every entity that has a position — players, ships, NPCs, dropped items —
+Every entity that has a position, players, ships, NPCs, dropped items, 
 stores its position as a **container reference + local offset**:
 
 ```rust
@@ -64,7 +64,7 @@ pub enum ContainerRef {
     Vessel(VesselId),
 
     /// On the surface of a celestial body. Asteroids, planets, moons,
-    /// comets — anything you can stand on. local_pos is east/north/up
+    /// comets - anything you can stand on. local_pos is east/north/up
     /// in meters from the body's surface origin (lat/lon → ECEF-style).
     Body { system_id: String, body_id: String },
 
@@ -74,7 +74,7 @@ pub enum ContainerRef {
 
     /// Free-floating in interstellar space. `galaxy_pos_ly` is a
     /// continuous 3D vector in light-years from a chosen galactic
-    /// origin (Sol by default — we can change the origin later
+    /// origin (Sol by default - we can change the origin later
     /// without breaking the data model). f64 at 100 kly distance gives
     /// ~1 mm precision, which is far more than needed for ship-scale
     /// navigation. **No chunks at the data-model level.**
@@ -86,7 +86,7 @@ pub enum ContainerRef {
     /// sparse mutation persistence (§10), never surfaced here.
     Deep { galaxy_pos_ly: glam::DVec3 },
 
-    /// Pocket dimension — an isolated coordinate space disconnected from
+    /// Pocket dimension - an isolated coordinate space disconnected from
     /// the normal galaxy. Use for tutorial spaces, tech demos, instanced
     /// quest areas, or any "outside the main universe" gameplay. The
     /// dimension's id selects which pocket. Travel into/out of a Pocket
@@ -101,7 +101,7 @@ pub enum ContainerRef {
 pub type VesselId = String;        // e.g. "pioneer-001", "ford-f150-abc"
 pub type PocketId  = String;       // e.g. "tutorial-cave", "boss-arena-42"
 
-// (GalaxyChunkCoord removed in 2026-05-10 revision — Deep now uses
+// (GalaxyChunkCoord removed in 2026-05-10 revision - Deep now uses
 //  continuous galaxy_pos_ly: DVec3. Chunks are an internal detail of
 //  the procedural rogue generator only.)
 ```
@@ -135,11 +135,11 @@ fn world_position(pos: &PositionInUniverse, world: &World, sim_time: SimTime) ->
 
 Notes:
 - `body_position(system, body, t)` is deterministic from orbital elements
-  (Kepler) — anyone with the system data + sim_time computes the same
+  (Kepler), anyone with the system data + sim_time computes the same
   answer. No need to sync body positions.
 - `world.ships[id].position` recurses; ship-in-ship (drone bay → fighter)
   works naturally up to whatever nesting depth we allow.
-- The chain terminates at `Deep` — its `galaxy_pos_ly` IS the absolute
+- The chain terminates at `Deep`, its `galaxy_pos_ly` IS the absolute
   galactic position. No further unwrapping needed.
 
 ---
@@ -170,9 +170,9 @@ Notes:
 
 ### 4d. Fleet jumps to deep space
 - Each ship's container transitions `Space { system: "sol" }` → `Deep { galaxy_pos_ly: ... }`.
-- Players' containers are still `Vessel(...)` — no per-player update needed.
+- Players' containers are still `Vessel(...)`, no per-player update needed.
 - During transit, the ship's `galaxy_pos_ly` updates continuously as it
-  moves through interstellar space. No discrete chunk crossings — the
+  moves through interstellar space. No discrete chunk crossings, the
   vector just changes over time like any continuous physics simulation.
 
 ### 4e. Ship arrives at a new system
@@ -203,8 +203,8 @@ appropriate scale:
 The same UI handles all four cases by branching on `container` type. Zoom
 gestures cross the scale boundaries per `docs/design/maps-multi-scale.md`.
 
-There is also an **Indoor Map** widget — a small panel showing the player's
-ship interior with the player's `local_pos` as a dot — that's persistent
+There is also an **Indoor Map** widget, a small panel showing the player's
+ship interior with the player's `local_pos` as a dot, that's persistent
 regardless of which container the ship itself is in. This is the "Ship Bridge
 viewscreen" the operator described.
 
@@ -234,13 +234,13 @@ The relay is the source of truth. Clients receive `(sim_time_ms, sim_speed)`
 periodically; clients interpolate between updates.
 
 **Trade-off accepted:** a single global time means players can't be on
-different "speeds" at once. This is a deliberate simplification — relativistic
+different "speeds" at once. This is a deliberate simplification, relativistic
 time dilation is out of scope. All players in a fleet experience the same
 sim seconds.
 
 ---
 
-## 7. Authority — who owns what mutable state
+## 7. Authority: who owns what mutable state
 
 | State | Authority | Sync model |
 |-------|-----------|------------|
@@ -254,7 +254,7 @@ sim seconds.
 | NPC ships | Relay-authoritative | Relay broadcasts |
 | Sim time + speed | Relay | Periodic gossip + on-change events |
 
-**Rule of thumb:** if it's deterministic, don't sync it — re-derive it. If
+**Rule of thumb:** if it's deterministic, don't sync it, re-derive it. If
 multiple humans can mutate it, the relay validates and is the source of truth.
 
 ---
@@ -264,8 +264,8 @@ multiple humans can mutate it, the relay validates and is the source of truth.
 Three frequency tiers:
 
 **High-frequency (per-frame-ish):**
-- Player local_pos within container — only sent to peers in the same container.
-- Ship position when manually piloted — sent to all subscribers of that ship.
+- Player local_pos within container, only sent to peers in the same container.
+- Ship position when manually piloted, sent to all subscribers of that ship.
 
 **Medium-frequency (~1 Hz):**
 - Ship orbital state when on autopilot.
@@ -285,7 +285,7 @@ By default a client subscribes to:
 
 **Bandwidth scaling:**
 - N players in one ship = N × N high-freq position updates if everyone
-  subscribes to everyone. Mitigation: spatial culling within the ship —
+  subscribes to everyone. Mitigation: spatial culling within the ship, 
   only subscribe to peers within visible range or same room.
 - Many ships in a system: subscribe coarsely to ship positions, finely
   only to the ship the player is on.
@@ -304,7 +304,7 @@ By default a client subscribes to:
   permissions).
 
 **Stored per-system / per-body:**
-- Static data: name, mass, orbital elements, atmosphere, etc. — all in
+- Static data: name, mass, orbital elements, atmosphere, etc., all in
   `data/star_systems/{system}.json`. Never mutated at runtime.
 
 **Computed, NOT stored:**
@@ -328,17 +328,17 @@ For "what's near my fleet right now in deep space" queries we need
 efficient lookups. Two layers, each with its own internal indexing
 strategy:
 
-**Layer 1 — Known bodies (bound to systems):**
+**Layer 1, Known bodies (bound to systems):**
 - Source: `data/star_systems/index.json` lists every system with its
   `galaxy_position_ly` (continuous DVec3).
 - Loaded into an **octree at startup**. Fast point / sphere / k-nearest
   queries with O(log N) cost. Octree is right here because systems
   cluster non-uniformly (most near the galactic plane / spiral arms;
-  empty void elsewhere) — adaptive subdivision matches the data.
+  empty void elsewhere), adaptive subdivision matches the data.
 - The octree is an internal index structure, not a data-model concept.
   The system positions themselves are still continuous DVec3 values.
 
-**Layer 2 — Rogue interstellar bodies (NOT bound to any system):**
+**Layer 2, Rogue interstellar bodies (NOT bound to any system):**
 - Position is continuous; we never store the universe as a grid of
   chunks. But the procedural generator needs a deterministic function
   `bodies_near(p, r) → Vec<RogueBody>` that two different clients
@@ -355,10 +355,10 @@ strategy:
 
 **Persistence of rogue mutations** (when a player mines a rogue):
 - Stored as `(quantized_position, mutation_payload)` rows in the relay's
-  `rogue_state` table — sparse, only mutated positions get a row.
+  `rogue_state` table, sparse, only mutated positions get a row.
 - The quantization (e.g. round to 0.01 ly = ~94 billion km) is fine
   enough that no two real rogues collide, but coarse enough to keep
-  the row count bounded. Pure internal addressing — players see only
+  the row count bounded. Pure internal addressing, players see only
   continuous galactic positions.
 
 **"What's nearby" query** (called when player container is `Deep`):
@@ -379,7 +379,7 @@ made chunks part of the data model, which:
 - conflated "procedural seeding bucket" with "position addressing".
 
 Continuous positions in light-years (f64 DVec3) give ~1 mm precision
-even at 100 kly galactic radius — far more than ship navigation needs.
+even at 100 kly galactic radius, far more than ship navigation needs.
 Procedural generation still needs SOME bucketing internally for cache
 efficiency and deterministic seeding, but that's a private detail of
 the generator, not part of the position model. Orbital motion, smooth
@@ -391,7 +391,7 @@ with no special-case "what chunk am I in?" bookkeeping.
 ## 11. Edge cases
 
 ### Container destroyed (ship blows up)
-- All entities inside the ship transition to `Body(emergency_pod)` — a
+- All entities inside the ship transition to `Body(emergency_pod)`, a
   default escape vessel that drifts at the ship's last position.
 - If no emergency pod available, transition to a `Void` container that
   schedules respawn at a player-chosen home location after N seconds.
@@ -420,7 +420,7 @@ with no special-case "what chunk am I in?" bookkeeping.
 ### Cross-server fleet movement (federation)
 - A ship in `Space { system: "sol" }` on relay A can transit to a system
   hosted on relay B.
-- Mid-transit, the ship's container is `Deep` — no relay authority needed
+- Mid-transit, the ship's container is `Deep`, no relay authority needed
   for the spatial position.
 - On arrival, ship + crew migrate to relay B's authority. Federation
   handshake transfers ship state.
@@ -440,7 +440,7 @@ the "keep render coordinates near zero" half. With this model:
   origin shifts them to the same render frame.
 - LOD: nearby bodies render with detail, distant bodies as billboards.
 - Skybox: in `Space` or `Deep` containers, the skybox is "what's far away"
-  — paint stars from `data/galaxy/skybox_catalog.json` plus large nearby
+, paint stars from `data/galaxy/skybox_catalog.json` plus large nearby
   bodies as proper geometry.
 
 ---
@@ -451,7 +451,7 @@ the "keep render coordinates near zero" half. With this model:
 data/star_systems/
   index.json             # registry of all known bound systems with galaxy positions
   sol.json               # all bodies bound to Sol
-  alpha_centauri.json    # placeholder — empty bodies list, just metadata
+  alpha_centauri.json    # placeholder - empty bodies list, just metadata
   trappist_1.json
   ...
   README.md              # schema docs so anyone can drop in new systems
@@ -525,14 +525,14 @@ data/ships/
 
 This is multi-month work. Phases sized to ship in 1–3 release cycles each.
 
-**Phase 1 — Data restructure (no code change to position model yet)**
+**Phase 1, Data restructure (no code change to position model yet)**
 - Move `data/solar_system/bodies.json` → `data/star_systems/sol.json`
   with the wrapper schema above.
 - Create `data/star_systems/index.json` with Sol entry.
 - Update existing `parse_bodies()` loader to read from new paths.
 - Verify: nothing visible to the user changes.
 
-**Phase 2 — Position model in ECS**
+**Phase 2, Position model in ECS**
 - Add `PositionInUniverse` component.
 - Add `Container` resource (the container graph: ship → parent, etc.).
 - Refactor existing player position to use `PositionInUniverse` with
@@ -540,36 +540,36 @@ This is multi-month work. Phases sized to ship in 1–3 release cycles each.
 - World-position resolver function.
 - No UI change yet.
 
-**Phase 3 — Cosmos page (context-aware)**
+**Phase 3, Cosmos page (context-aware)**
 - New `pages/cosmos.rs`. Renders based on player's container.
 - Replaces the dead-code orbit visualization in `maps.rs`.
 - Multi-system data already loaded; system switcher dropdown for testing.
 - Indoor Map widget for ship interior view.
 
-**Phase 4 — Ship as a container**
+**Phase 4, Ship as a container**
 - Add `ShipId` + `Ship` storage.
 - Layout-driven interior (RON file → walkable rooms).
 - Player can transition `Body(earth) ↔ Ship(pioneer)` via airlock event.
 
-**Phase 5 — Ship movement + sync**
+**Phase 5, Ship movement + sync**
 - ECS system updates ship `local_pos` based on velocity / orbital state.
 - WS messages for `ship_position_update`, `container_transition`.
 - Multiple clients see the same ship motion.
 
-**Phase 6 — Deep space + galaxy octree**
+**Phase 6, Deep space + galaxy octree**
 - Galaxy octree built at startup from `index.json`.
 - `Deep` container support.
 - Rogue body procedural generation.
 - Ship transit between systems.
 
-**Phase 7 — Time controls**
+**Phase 7, Time controls**
 - Sim time gossip.
 - Sim speed control + voting.
 
-**Phase 8 — Edge cases + polish**
+**Phase 8, Edge cases + polish**
 - Ship destruction, escape pods, cross-server transit, etc.
 
-Each phase is independently shippable — the model degrades gracefully.
+Each phase is independently shippable, the model degrades gracefully.
 
 ---
 
@@ -606,7 +606,7 @@ implementation; capturing them here so we don't pretend they're settled.
    model doesn't preclude it.
 
 8. **Coordinate precision strategy at the edges.** `f64` for `local_pos`
-   inside `Space` (~AU scale) is fine — 15 digits gives meter precision at
+   inside `Space` (~AU scale) is fine, 15 digits gives meter precision at
    AU. Inside `Deep`, `galaxy_pos_ly` is f64 ly; at galactic radius
    (100 kly) f64 still gives ~1 mm precision. Inside `Body` surface,
    `f64` gives sub-millimeter at planetary radii. **All good.**
@@ -649,8 +649,8 @@ implementation; capturing them here so we don't pretend they're settled.
 - **Economy / trade between fleets.** Marketplace model already exists for
   flat goods; ship-to-ship trade across systems is unspecified.
 - **Stargate / wormhole / warp drive.** Faster-than-light specifics. The
-  architecture supports any FTL model — it's just "ship transitions to
-  Deep, eventually transitions out" — but the in-game mechanics aren't
+  architecture supports any FTL model, it's just "ship transitions to
+  Deep, eventually transitions out", but the in-game mechanics aren't
   defined.
 - **AI agents living in the world.** AI agents are first-class citizens
   per the platform mission; their position model is the same as players,
@@ -673,11 +673,11 @@ sprite→mesh seamless-scale plan, the pill-style body labels with
 expand-to-card, the AR FPS-mode overlay plan, and the conjunction +
 eclipse detection plan.
 
-### Universal sim_time clock — landed in v0.208.0
+### Universal sim_time clock: landed in v0.208.0
 
 The cosmos page owns a `sim_time_seconds` clock measured in **seconds
 since the J2000.0 epoch** (2000-01-01 12:00:00 UTC = UNIX timestamp
-946,728,000). J2000 is the standard astronomical epoch — every orbital
+946,728,000). J2000 is the standard astronomical epoch, every orbital
 element in `data/star_systems/sol.json` references it, so position math
 is "advance the body's mean anomaly by `n × sim_time`" where `n = 360°
 / (period_days × 86,400)` is the mean motion.
@@ -707,25 +707,25 @@ Pause = `sim_speed = 0`. Reverse = negative speed. Step = bump
 `sim_time`, so changing it freely re-renders the whole system without
 any state to invalidate.
 
-### Time-controls UI — landed in v0.208.0
+### Time-controls UI: landed in v0.208.0
 
 A horizontal control strip at the top of the System view contains:
 
-1. **Date display** — formatted via Howard Hinnant's days-from-civil
+1. **Date display**, formatted via Howard Hinnant's days-from-civil
    algorithm (no `chrono` dependency, accurate for any proleptic-
    Gregorian date). Shows `YYYY-MM-DD HH:MM UTC` with a hairline
    monospace render.
-2. **Now button** — snaps `sim_time` back to real-world wall clock.
+2. **Now button**, snaps `sim_time` back to real-world wall clock.
    Critical for the operator's stated use case ("see what it looks
    like today, May 12 2026").
-3. **Transport** — ⏮ rewind 1 yr / ⏪ rewind 1 mo / Play|Pause / ⏩
+3. **Transport**, ⏮ rewind 1 yr / ⏪ rewind 1 mo / Play|Pause / ⏩
    advance 1 mo / ⏭ advance 1 yr (using only **lint-safe glyphs**:
    plain ASCII ←/→ via the keyboard fallback when needed).
-4. **Speed presets** — 1 h/s · 1 d/s · 1 mo/s · 1 y/s · 10 y/s. Each
+4. **Speed presets**, 1 h/s · 1 d/s · 1 mo/s · 1 y/s · 10 y/s. Each
    button sets `sim_speed` directly; the current preset highlights.
-5. **Reverse toggle** — flips the sign of `sim_speed` (works with any
+5. **Reverse toggle**, flips the sign of `sim_speed` (works with any
    preset, so "Reverse + 1 y/s" reads as "−1 year per real second").
-6. **Scrubber slider** — drag along a ±10-year range centered on today
+6. **Scrubber slider**, drag along a ±10-year range centered on today
    to seek to any date. Releases of the drag snap `sim_time` to the
    chosen offset from real-now. Hold Shift to drag at hour-precision;
    default is day-precision.
@@ -754,16 +754,16 @@ Follow-up sketch 2026-05-12 (after seeing v0.214): the details panel should sit 
 
 In v0.215.0 the panel is rendered BEFORE the pill border (so the pill border layers on top in the overlap region). Phase ordering is now:
 
-  1. `paint_pill_backgrounds` (pill fills — bodies render on top).
+  1. `paint_pill_backgrounds` (pill fills, bodies render on top).
   2. caller draws bodies + decorations.
-  3. `paint_card_extension` (panel BEHIND pill — fill + soft gray border).
+  3. `paint_card_extension` (panel BEHIND pill, fill + soft gray border).
   4. `paint_pill_overlays` (pill borders + name on top of panel).
 
 The pill's top-left and the panel's top-left are the same point. The panel width = `max(pill_width, panel_min_width 240)` so the panel can extend further right than the pill when the name is short. The panel's top-right corner is rounded (8 px). If the panel would clip the canvas bottom, it flips: pill goes to the panel's BOTTOM edge instead of its top, and content renders above the pill.
 
 Also widened the scope: *"We could use it for viewing loot on the ground and vehicles in the distance and whatever else. Mostly in the FPS mode."*
 
-The widget now treats the three states as **one continuous outline anchored to the body's own rendered position** — circle → pill → card — with no duplicate visual elements at any state:
+The widget now treats the three states as **one continuous outline anchored to the body's own rendered position**, circle → pill → card, with no duplicate visual elements at any state:
 
 - **Circle state**: just the body's own dot in the canvas (no widget output yet).
 - **Pill state**: the body becomes the pill's left semicircular cap. Pill height = `max(body_diameter + 2, MIN_PILL_HEIGHT)` so the body fits exactly in the cap when large enough; small bodies sit centered inside a slightly larger cap. The pill extends rightward to fit the name. **No second dot is drawn inside the pill.**
@@ -782,14 +782,14 @@ Three target surfaces for cosmic bodies + four for general world objects (operat
 | FPS vehicle markers | Vehicles in distance | Painter over FPS viewport | FPS camera + projection |
 | FPS NPC/player nameplates | Entities in view | Painter over FPS viewport | FPS camera + projection |
 
-In every case the compute is identical — project a world position to a 2D screen position, render dot → pill → card at that anchor — only the source of `screen_pos` and the contents of the card differ.
+In every case the compute is identical, project a world position to a 2D screen position, render dot → pill → card at that anchor, only the source of `screen_pos` and the contents of the card differ.
 
 #### Two-phase rendering
 
 For the "body is the pill's left cap" trick to work, the body circle must be drawn **on top of** the pill background. The widget therefore exposes two phases that the caller invokes around its body draw:
 
 ```rust
-// PHASE 1 — paint pill backgrounds (filled rounded-rects, no border, no text).
+// PHASE 1 - paint pill backgrounds (filled rounded-rects, no border, no text).
 // Returns layout with placed rects.
 let layout = body_pill::paint_pill_backgrounds(painter, theme, &pills);
 
@@ -797,11 +797,11 @@ let layout = body_pill::paint_pill_backgrounds(painter, theme, &pills);
 // rings, eclipse highlights, etc.) on top of the backgrounds.
 for body in bodies { painter.circle_filled(body.screen, body.radius, body.color); /* ... */ }
 
-// PHASE 2 — paint pill borders + name text + handle clicks.
+// PHASE 2 - paint pill borders + name text + handle clicks.
 // Returns Option<id> of the clicked pill this frame.
 let clicked_id = body_pill::paint_pill_overlays(ui, painter, theme, &layout, "cosmos_pill");
 
-// PHASE 3 — for the expanded pill (if any), paint the card extension.
+// PHASE 3 - for the expanded pill (if any), paint the card extension.
 for pp in &layout.placed {
     if pp.expanded {
         let card_data = make_card_data_for(pp.id);
@@ -822,7 +822,7 @@ pub struct BodyPill<'a> {
     pub body_screen: Pos2,               // pill's left-cap is centered here
     pub body_radius_px: f32,             // pill height matches when possible
     pub priority: u8,                    // 0 = always shown, higher = collision-dodged
-    pub forced: bool,                    // hover/select/expanded — never hidden
+    pub forced: bool,                    // hover/select/expanded - never hidden
     pub expanded: bool,                  // styling differs (accent border)
 }
 
@@ -844,7 +844,7 @@ pub fn paint_card_extension(ui: &mut Ui, painter: &Painter, theme: &Theme,
 
 #### Why this matters for *infinite-of-x*
 
-A label widget hardcoded to one surface is the start of a UI maintenance nightmare. By the time we ship six "label a world object" surfaces (cosmos / map room / AR sky / loot / vehicles / NPCs), any inconsistency between them (different border radius here, different connector-line angle there) becomes user-visible noise. One widget = one source of truth, restyleable via the theme editor. The widget knows nothing about SolBody, ECS components, AR metadata, or loot stacks — it's pure presentation.
+A label widget hardcoded to one surface is the start of a UI maintenance nightmare. By the time we ship six "label a world object" surfaces (cosmos / map room / AR sky / loot / vehicles / NPCs), any inconsistency between them (different border radius here, different connector-line angle there) becomes user-visible noise. One widget = one source of truth, restyleable via the theme editor. The widget knows nothing about SolBody, ECS components, AR metadata, or loot stacks, it's pure presentation.
 
 ### Universal "body pill + info card" widget (Phase 4d-bis + extraction in v0.213.0)
 
@@ -855,7 +855,7 @@ The pill-to-card pattern was first built inline on the Cosmos page (v0.209.0), b
 | Surface | Canvas | Screen-position source |
 |---------|--------|------------------------|
 | Cosmos page (shipped) | egui Painter on the page's central rect | `project_to_screen` via the 3D camera (yaw/pitch/distance + perspective) |
-| In-ship Map Room HUD (planned) | egui Painter on top of the FPS viewport | Player's first-person camera view + projection (the room is a hologram tank — bodies project onto a contained volume around the player) |
+| In-ship Map Room HUD (planned) | egui Painter on top of the FPS viewport | Player's first-person camera view + projection (the room is a hologram tank, bodies project onto a contained volume around the player) |
 | AR-glasses sky overlay (planned, Phase 4g) | Painter on a camera-passthrough texture | AR headset's pose + projection matrices |
 
 In every case the compute is identical: project a body's world position to 2D screen, render a pill at that anchor, hit-test, optionally expand into an info card. Only the source of `screen_pos` differs.
@@ -872,7 +872,7 @@ pub struct BodyPill<'a> {
     pub body_screen: Pos2,
     pub body_radius_px: f32,
     pub priority: u8,     // collision-dodge sort key
-    pub forced: bool,     // hover/select/expanded — never hidden
+    pub forced: bool,     // hover/select/expanded - never hidden
     pub expanded: bool,   // styling differs (accent border)
 }
 
@@ -910,7 +910,7 @@ Why this matters for *infinite-of-x*: a label widget that's hardcoded to one sur
 
 ### Pill-style body labels with expand-to-card (Phase 4d-bis)
 
-Operator: each label should be a **pill UI — planet sprite on the
+Operator: each label should be a **pill UI, planet sprite on the
 left, name on the right, click expands to an info card.**
 
 Current Phase 4 renders each body as a colored dot plus a text label
@@ -939,7 +939,7 @@ pill expands at a time. The card content reuses the existing sidebar
 detail-panel renderer (DRY). `Open page` jumps to a body-specific
 wiki page if available.
 
-Pills also avoid label-overlap collisions — when two bodies are
+Pills also avoid label-overlap collisions, when two bodies are
 within label-bbox of each other on screen, the smaller-magnitude
 body's pill hides until the camera pans or one of them is clicked
 (similar to KSP's overlap dodge). Implementation uses egui's painter
@@ -958,7 +958,7 @@ Bodies render in three regimes depending on **screen-space radius**
 |--------|---------------|--------|
 | Far | < 2 px | A single bright dot, magnitude-scaled. ~119k stars from `data/cosmos/stars.csv` (Hipparcos catalog, planned Phase 4b) render exclusively in this regime. |
 | Sprite | 2 – 64 px | Pre-rendered RGBA texture of the body (round disk with shading, low-cost). Loaded from `assets/bodies/<id>.png`, falls back to procedural disk colored by `SolBody::color`. Lit by the Sun's screen-position via a single directional-light shader uniform. |
-| Mesh | ≥ 64 px | Full 3D textured sphere mesh — wgpu pipeline, PBR shader, planet texture + normal + roughness maps, sun-as-directional-light. |
+| Mesh | ≥ 64 px | Full 3D textured sphere mesh, wgpu pipeline, PBR shader, planet texture + normal + roughness maps, sun-as-directional-light. |
 
 The transition zone (around 64 px) cross-fades sprite-α down to 0 as
 mesh-α ramps to 1 over ~10 frames, hiding the swap. Below ~4 px the
@@ -967,7 +967,7 @@ sprite also cross-fades into the bright dot.
 Mesh data is **streamed**: first time a body crosses the 64-px
 threshold, the engine kicks off an async load of its mesh + textures
 from `assets/bodies/<id>/`. While loading, the sprite continues to
-render. Once loaded, the cross-fade begins. Unloads are lazy —
+render. Once loaded, the cross-fade begins. Unloads are lazy, 
 meshes outside a ring of ~3× their pop-in radius get evicted after
 30 s of inactivity.
 
@@ -975,10 +975,10 @@ This integrates with **Phase 4b's wgpu-in-egui-canvas integration**
 (currently the System view is pure egui `Painter` 2D, no wgpu). Two
 viable paths:
 
-1. **Render to texture, blit into egui** — render wgpu scene to an
+1. **Render to texture, blit into egui**, render wgpu scene to an
    offscreen texture, then `Painter::image()` it as a layer. Egui
    draws pills + labels on top. Simpler, slight latency cost.
-2. **Custom egui callback** — `egui_wgpu::CallbackTrait` lets us
+2. **Custom egui callback**, `egui_wgpu::CallbackTrait` lets us
    inject a wgpu pass mid-paint. Lower latency, more wiring.
 
 Path 1 ships first because it's strictly simpler and the latency cost
@@ -986,7 +986,7 @@ is invisible at 60 fps. Path 2 is a later optimization if needed.
 
 ### FPS AR-glasses overlays (Phase 4g)
 
-Operator: *"FPS AR-glasses style overlays — faintly see orbital paths
+Operator: *"FPS AR-glasses style overlays, faintly see orbital paths
 while in FPS mode, with asteroid trajectories highlighted (no Blender-
 style controls, just there visually)."*
 
@@ -996,7 +996,7 @@ HUD overlays:
 - **Orbital paths** of nearby bodies, projected onto the player's
   screen via the camera transform. Drawn with **low alpha** (~10%)
   and a **subtle pulse** so they don't fight the scene. The same
-  Kepler solve that draws the Cosmos page generates these — the
+  Kepler solve that draws the Cosmos page generates these, the
   shader just projects (x,y,z)_sim into (u,v)_screen using the
   player camera's view + projection matrices.
 - **Asteroid trajectories highlighted** when an NEA or other tracked
@@ -1005,11 +1005,11 @@ HUD overlays:
 - **Conjunction predictions** (see next section) shown as a discrete
   "next event" badge with a countdown timer.
 
-No controls — overlays are purely informational. A single FPS HUD
+No controls, overlays are purely informational. A single FPS HUD
 toggle (`H` key, already used for the HUD) cycles: full HUD → minimal
 HUD → no HUD. Orbit overlays are part of the full HUD only.
 
-Performance: nearby orbital paths only — never the full ~10k Tier-1
+Performance: nearby orbital paths only, never the full ~10k Tier-1
 asteroids, only those within 0.5 AU of the player. Filter by
 sphere-of-influence (Phase 4d): only show bodies whose SoI we're in
 or adjacent to.
@@ -1020,8 +1020,8 @@ A **conjunction** is when two bodies appear close in the sky from a
 third observer's viewpoint. Two key angles:
 
 1. **Geocentric angular separation** between two bodies as seen
-   from Earth — for a great conjunction (Jupiter-Saturn 2020, etc.)
-2. **Heliocentric longitude** — when planets are at the same orbital
+   from Earth, for a great conjunction (Jupiter-Saturn 2020, etc.)
+2. **Heliocentric longitude**, when planets are at the same orbital
    longitude (true syzygy)
 
 A **solar eclipse** is the special case where the Moon's angular size
@@ -1085,31 +1085,31 @@ that millions of people will be experiencing on the same day.*
 
 ### Phase 4d-ref implementation notes (landed v0.212.0)
 
-- `reference_orbits_for(body_id)` returns a `&'static [ReferenceOrbit]` for any body that has named navigation orbits. Currently Earth (LEO low/high, MEO, GEO, HEO, Lunar TLI), Mars (LMO, areostationary), Jupiter (low Jovian, Jovo-stationary), and the Moon (low lunar orbit, NRHO apoapsis). Empty for everything else — no rings draw on Pluto, the Sun, asteroids, etc.
+- `reference_orbits_for(body_id)` returns a `&'static [ReferenceOrbit]` for any body that has named navigation orbits. Currently Earth (LEO low/high, MEO, GEO, HEO, Lunar TLI), Mars (LMO, areostationary), Jupiter (low Jovian, Jovo-stationary), and the Moon (low lunar orbit, NRHO apoapsis). Empty for everything else, no rings draw on Pluto, the Sun, asteroids, etc.
 - Rings render as 96-segment polylines in the body's local XY plane (currently approximated as the ecliptic plane; real equatorial planes for tilted bodies like Earth's 23.4° obliquity are a later refinement).
-- Each ring is labeled at the screen-position of its theta=0 (right-side) point. Hovering near any ring segment surfaces a tooltip with the ring name and a one-line blurb explaining its role ("ISS altitude — 90 min period", "GPS / GNSS satellite belt — 12 h period", etc.).
-- Threshold: rings only render when the body's apparent radius is > 12 px on screen — below that the rings would overlap the body itself or be sub-pixel.
+- Each ring is labeled at the screen-position of its theta=0 (right-side) point. Hovering near any ring segment surfaces a tooltip with the ring name and a one-line blurb explaining its role ("ISS altitude, 90 min period", "GPS / GNSS satellite belt, 12 h period", etc.).
+- Threshold: rings only render when the body's apparent radius is > 12 px on screen, below that the rings would overlap the body itself or be sub-pixel.
 - Toggle button next to the Lagrange toggle in the top-right of the canvas, off by default.
 - All theme tokens (info color for rings + labels).
-- **Note**: Phase 4d-soi (SoI-based dynamic categorization in the sidebar) was originally bundled with this work but split out — SoI sort only matters for transient objects (ships, stations, dropped items) which don't exist in the cosmos data yet. The infrastructure (`compute_lagrange_points` already uses mass ratios — same math as `r_hill = a * cbrt(mu/3)` from which the SoI parent walk derives) is in place; the sidebar grouping just doesn't need to change today.
+- **Note**: Phase 4d-soi (SoI-based dynamic categorization in the sidebar) was originally bundled with this work but split out, SoI sort only matters for transient objects (ships, stations, dropped items) which don't exist in the cosmos data yet. The infrastructure (`compute_lagrange_points` already uses mass ratios, same math as `r_hill = a * cbrt(mu/3)` from which the SoI parent walk derives) is in place; the sidebar grouping just doesn't need to change today.
 
 ### Phase 4d-lag implementation notes (landed v0.211.0)
 
 - Five Lagrange-pair entries hardcoded at the top of `cosmos.rs` (`LAGRANGE_PAIRS`): Sun-Earth, Earth-Moon, Sun-Mars, Sun-Jupiter, Sun-Saturn. Each entry carries a `pair_label`, the `parent_id`/`child_id`, and a small list of `notable` parking (JWST at Sun-Earth L2, Greek Trojans at Sun-Jupiter L4, etc.). Could move to a data file when the list grows past ~10 pairs; for now a const is fine.
-- `compute_lagrange_points(parent, child, sim_time)` returns `[DVec3; 5]` in heliocentric AU. L1/L2/L3 use the cube-root-of-mass-ratio approximation (accurate to ~1% for μ < 0.01, covers all current pairs). L4/L5 are exact 60°-ahead/behind equilateral points; rotation uses Rodrigues' formula about the orbit-plane normal (approximated as the ecliptic normal for now — sub-arcminute error for the ~5° tilted Earth-Moon).
-- Toggle button overlaid in the top-right of the canvas — "Lagrange: ON/OFF". Default OFF so the wide view stays clean.
+- `compute_lagrange_points(parent, child, sim_time)` returns `[DVec3; 5]` in heliocentric AU. L1/L2/L3 use the cube-root-of-mass-ratio approximation (accurate to ~1% for μ < 0.01, covers all current pairs). L4/L5 are exact 60°-ahead/behind equilateral points; rotation uses Rodrigues' formula about the orbit-plane normal (approximated as the ecliptic normal for now, sub-arcminute error for the ~5° tilted Earth-Moon).
+- Toggle button overlaid in the top-right of the canvas, "Lagrange: ON/OFF". Default OFF so the wide view stays clean.
 - Each point renders as a small `×` (two crossed line segments) + a center dot + label when zoomed in (parent-child screen-space distance > 50 px, otherwise labels overlap). Hover gives a tooltip with the pair label, notable parking, and a one-line explainer of what that L-point is.
 - All theme tokens; no hardcoded colors.
-- **Limitation**: orbit-plane normal is approximated as ecliptic for L4/L5. For tilted orbits (lunar, asteroid systems) the L4/L5 markers will be a few arcminutes off true. Trivial to fix later by deriving normal from the body's `inclination_deg` + `longitude_ascending_node_deg` — deferred until it's visibly wrong.
+- **Limitation**: orbit-plane normal is approximated as ecliptic for L4/L5. For tilted orbits (lunar, asteroid systems) the L4/L5 markers will be a few arcminutes off true. Trivial to fix later by deriving normal from the body's `inclination_deg` + `longitude_ascending_node_deg`, deferred until it's visibly wrong.
 
 ### Phase 4d-tri implementation notes (landed v0.210.0)
 
 - O(n²) pairwise scan of 11 named bodies (~55 pairs) per render frame. Each pair computes one acos for angular separation from Earth's barycentric position. Cheap enough to run every frame even as the user scrubs.
-- Conjunction tightness tiers — Close (< 5°), Conjunction (< 1°), Tight (< 0.5°), Occultation (< 0.1°). The tightest one any body is involved in drives its highlight ring color (warning tone) and ring thickness.
+- Conjunction tightness tiers, Close (< 5°), Conjunction (< 1°), Tight (< 0.5°), Occultation (< 0.1°). The tightest one any body is involved in drives its highlight ring color (warning tone) and ring thickness.
 - Solar eclipse detector: Sun-Moon apparent-radius math from Earth's POV. If disks overlap, classify Partial / Annular / Total based on whether the Moon disk is fully inside the Sun disk and whose apparent radius is larger. Coverage fraction approximated linearly from separation/(sum-of-apparent-radii); good enough for the HUD.
-- Visual treatments — Sun gets a dark disc overlay scaled by sqrt(coverage); Moon gets a danger-tone outline; Earth gets a thick danger-tone ring + "ECLIPSE" badge.
+- Visual treatments, Sun gets a dark disc overlay scaled by sqrt(coverage); Moon gets a danger-tone outline; Earth gets a thick danger-tone ring + "ECLIPSE" badge.
 - HUD readout in the bottom-right corner of the canvas: section header "Sky events (from Earth's POV)" + up to 3 tightest conjunctions + any eclipse line. Empty state reads "Sky is quiet (no conjunctions within 5°)".
-- **Limitation**: detection is current-moment only — there's no scan for "next eclipse" or "next great conjunction". Users have to scrub sim_time manually to find events. Phase 4d-quad will add a forward-search button + Sky Events panel listing upcoming events within a user-set window.
+- **Limitation**: detection is current-moment only, there's no scan for "next eclipse" or "next great conjunction". Users have to scrub sim_time manually to find events. Phase 4d-quad will add a forward-search button + Sky Events panel listing upcoming events within a user-set window.
 - **Limitation**: eclipse detection is "is the Moon shadow geometry such that an eclipse exists somewhere on Earth?", not "is the umbra over this lat/lon?". The latter requires Earth's rotation phase + the observer's surface position; that ships in Phase 4d-quad along with in-game day/night system integration (sky-darkening over the umbra during real-world events).
 
 ---
@@ -1124,7 +1124,7 @@ list based on distance from main gravitational body ... include
 theoretically infinite planets/asteroids/etc. ... include all the
 real-life asteroids ... seamless."
 
-### Real orbital mechanics — landed in v0.207.0
+### Real orbital mechanics: landed in v0.207.0
 
 Every body's position is now computed from its real orbital elements:
 **semi-major axis, eccentricity, inclination, longitude of ascending
@@ -1135,13 +1135,13 @@ solved via Newton-Raphson per render. Orbit ellipses now show real
 eccentricity and inclination (Pluto's tilted ~17° orbit, Ryugu's
 elongated path that crosses Earth's orbit at perihelion, etc.).
 
-### Asteroid sub-categorization — landed in v0.207.0
+### Asteroid sub-categorization: landed in v0.207.0
 
-Sidebar groups asteroids by region — **Near-Earth Asteroids** (a < 1.3 AU,
-e.g. Ryugu, Bennu, Itokawa, Eros — these were what confused users when
+Sidebar groups asteroids by region, **Near-Earth Asteroids** (a < 1.3 AU,
+e.g. Ryugu, Bennu, Itokawa, Eros, these were what confused users when
 lumped with main-belt rocks), **Main Belt** (1.3 ≤ a < 4 AU, e.g. Vesta,
 Pallas, Juno, Psyche, Hygiea), **Trans-Neptunian** (a ≥ 4 AU, currently
-empty — will populate when we add Kuiper Belt objects + scattered disk
+empty, will populate when we add Kuiper Belt objects + scattered disk
 + Sedna-class bodies). Buckets follow standard planetary-science
 convention. Empty sub-regions are hidden so the sidebar doesn't grow
 to show categories we have no data for.
@@ -1150,7 +1150,7 @@ to show categories we have no data for.
 
 Currently bodies are categorized by their direct parent (Sun for most,
 the planet for moons). The operator's request: "sort them in a nested
-list based on distance from main gravitational body — if near Earth,
+list based on distance from main gravitational body, if near Earth,
 it'd be Earth but out far enough it'd just become the sun."
 
 This is the **Hill sphere / sphere of influence (SoI)** concept from
@@ -1174,14 +1174,14 @@ Implementation plan for Phase 4d:
   3. The deepest match is P's effective gravitational parent
 - The sidebar then groups dynamically: each entry's category is its
   SoI-parent, not its fixed orbital parent
-- Useful for ships, stations, missions, marker buoys, dropped items —
+- Useful for ships, stations, missions, marker buoys, dropped items, 
   anything that moves
 
 ### Lagrange points (planned Phase 4d)
 
 Five gravitational sweet spots in any two-body system (Sun-Earth, Earth-
 Moon, Sun-Jupiter, etc.). L1/L2/L3 are unstable (need active station-
-keeping); L4/L5 are stable (objects naturally accumulate there — Jupiter's
+keeping); L4/L5 are stable (objects naturally accumulate there, Jupiter's
 **Trojan asteroids** at Sun-Jupiter L4 and L5 are the classic example).
 
 For HumanityOS this is a navigation + content opportunity. JWST sits at
@@ -1195,11 +1195,11 @@ Phase 4d will:
 1. Add a "Lagrange Points" overlay toggle in the Cosmos page
 2. Compute L1-L5 for selected interesting pairs (Sun-Earth, Earth-Moon, Sun-Mars, Sun-Jupiter)
 3. Render them as small × markers with labels
-4. Make them clickable (open details: "Sun-Earth L2 — JWST's home, ~1.5M km from Earth")
+4. Make them clickable (open details: "Sun-Earth L2, JWST's home, ~1.5M km from Earth")
 
 ### Reference orbits (planned Phase 4d)
 
-Standard altitudes / orbits commonly used IRL — show them as concentric
+Standard altitudes / orbits commonly used IRL, show them as concentric
 rings around a focused planet when the camera is close enough:
 
 | Orbit | Altitude above Earth | Period |
@@ -1223,8 +1223,8 @@ what places people end up establishing permanent bases in game
 throughout our solar system."
 
 The JPL Small-Body Database has **~1.3 million known asteroids** with
-catalogued orbits. Bundling all 1.3M is impractical — the data alone
-is hundreds of MB, render cost is huge — but we don't have to bundle
+catalogued orbits. Bundling all 1.3M is impractical, the data alone
+is hundreds of MB, render cost is huge, but we don't have to bundle
 or render them all at once. Streaming strategy:
 
 1. **Tier-0 (always loaded, ~64 bodies)**: planets, moons, dwarf
@@ -1237,7 +1237,7 @@ or render them all at once. Streaming strategy:
 3. **Tier-2 (full catalog, ~1.3M bodies)**: full JPL SBDB. Stored as a
    separate downloadable asset bundle (`humanity-asteroids.tar.zst`,
    ~50-100 MB). User opts in via Settings. Loaded into a chunked
-   spatial index — only chunks near the camera get bodies loaded.
+   spatial index, only chunks near the camera get bodies loaded.
 4. **Tier-3 (procedural fill)**: between tier-2 catalogued bodies,
    procedural minor bodies generated from `hash(seed, position)` so
    density looks physically reasonable (BAO correlation baked in for
@@ -1252,14 +1252,14 @@ transition from "the asteroid belt is a vague cloud" at wide zoom to
 close zoom.**
 
 Gameplay payoff: players establish bases on real asteroids (Ryugu has
-real-world significance — JAXA visited it; Psyche is a planned NASA
+real-world significance, JAXA visited it; Psyche is a planned NASA
 target; Ceres might harbor sub-surface water ice). Test-flight + FTL
 training between named locations becomes real navigation practice.
 
 ### Trajectory overrides for story arcs (planned Phase 4f)
 
 Operator: "an alien species redirecting a planet to crash into another
-planet" — supported by treating orbital elements as **mutable per-body
+planet", supported by treating orbital elements as **mutable per-body
 state**, not immutable physics constants.
 
 Data model: each body has its *default* orbital elements from the data
@@ -1288,10 +1288,10 @@ table so a fresh connect catches up.
 For the actual "planet crashes into planet" arc: we'd add
 **N-body simulation** for the affected bodies during the impact window
 (~weeks of sim_time), then snap back to Kepler orbits for the survivors.
-Computationally expensive but bounded — only the 2-3 bodies in the
+Computationally expensive but bounded, only the 2-3 bodies in the
 collision region need N-body; everything else stays Kepler.
 
-This whole subsystem is **infinite-of-x compatible** — story arcs are
+This whole subsystem is **infinite-of-x compatible**, story arcs are
 just data files describing trajectory overrides keyed by sim_time. New
 arcs ship as JSON, no code change.
 
@@ -1322,7 +1322,7 @@ the planet and be unclickable. Same for any spaceship at an inclined
 orbit, or anything off the ecliptic plane.
 
 **Mitigation in Phase 3:** moons render in a small **cosmetic ring**
-around their parent planet rather than at scaled true positions —
+around their parent planet rather than at scaled true positions, 
 guarantees every moon is visible and clickable regardless of the
 real orbital geometry. This loses positional accuracy on purpose
 (scale would put moons sub-pixel close to their planet anyway) but
@@ -1331,17 +1331,17 @@ their parent's frame land in Phase 7 alongside live sim_time gossip,
 and are presented via planet-zoom (clicking a planet zooms into its
 moon system at AU-fraction scale).
 
-### Phase 4 (v0.206.0) — pseudo-3D System view shipped
+### Phase 4 (v0.206.0): pseudo-3D System view shipped
 
 The System view is now a true 3D scene:
-- **`Cosmos3DCamera`** with target / yaw / pitch / distance — turntable
+- **`Cosmos3DCamera`** with target / yaw / pitch / distance, turntable
   camera matching Blender / KSP / Star Citizen conventions.
-- **Real 3D body positions** — planets at their actual semi-major-axis
+- **Real 3D body positions**, planets at their actual semi-major-axis
   distances + slight inclination wobbles. Moons at their actual
   km-scale offsets relative to their parent planet (Earth-Moon = 384,400 km
   = 0.00257 AU = sub-pixel at solar-system scale, but visible as soon
   as you zoom in close).
-- **Perspective projection** — apparent body size scales with depth.
+- **Perspective projection**, apparent body size scales with depth.
   Pluto looks tiny when viewed from above the ecliptic; Earth looks
   big when you zoom into it.
 - **Mouse interaction:**
@@ -1350,29 +1350,29 @@ The System view is now a true 3D scene:
   - Shift+drag or middle-drag = pan target across the scene
 - **Orbit ellipses** drawn as 96-segment polylines through 3D-projected
   points (so they correctly tilt as the camera rotates).
-- **Auto-zoom on focus** — clicking Phobos in the sidebar moves the
+- **Auto-zoom on focus**, clicking Phobos in the sidebar moves the
   camera to Mars + zooms to 8× Phobos's orbital radius (so the moon
   is meaningfully visible). Clicking Earth zooms to ~0.3 AU view.
-- **Depth-sorted draw order** — bodies sorted back-to-front so closer
+- **Depth-sorted draw order**, bodies sorted back-to-front so closer
   ones occlude farther ones.
 
-The 2D Galactic + Night Sky views stay in 2D — those are inherently
+The 2D Galactic + Night Sky views stay in 2D, those are inherently
 flat presentations (galactic plane projection, celestial sphere
 projection). 3D would add nothing.
 
-### What's still missing — Phase 4b (textures + lighting)
+### What's still missing: Phase 4b (textures + lighting)
 
 The current implementation uses egui's 2D `Painter` with perspective
 math. Bodies are flat-shaded colored disks. Phase 4b adds:
-- **wgpu-in-egui-canvas integration** — render a real 3D scene to a
+- **wgpu-in-egui-canvas integration**, render a real 3D scene to a
   texture inside the cosmos canvas using egui's `PaintCallback`
-- **Textured planets** — Earth's coastlines, Mars's surface, Jupiter's
+- **Textured planets**, Earth's coastlines, Mars's surface, Jupiter's
   bands. The existing renderer pipeline already has these; just needs
   to be hooked into the cosmos panel.
-- **Sun lighting** — phase shadows (the night side of Earth is dark).
-- **True skybox** — the 119k stars from `data/stars.csv` rendered as
+- **Sun lighting**, phase shadows (the night side of Earth is dark).
+- **True skybox**, the 119k stars from `data/stars.csv` rendered as
   a backdrop sphere instead of a flat dark color.
-- **Real orbital mechanics** — Kepler's equations evolved over sim_time
+- **Real orbital mechanics**, Kepler's equations evolved over sim_time
   so planets actually move along their orbits.
 
 ## 17a. Locked decisions (2026-05-10)
@@ -1389,7 +1389,7 @@ fleet-controlled time, no fast-forward. Operator: *"We should stay synced
 with Earth regardless of the speed we're going or how close to the black
 hole we are."*
 
-Fast travel between systems still works — but via FTL drives that decouple
+Fast travel between systems still works, but via FTL drives that decouple
 **real-time journey duration** from **sim-time advance**:
 
 | FTL type | Real-time journey | Sim-time advance | Notes |
@@ -1408,7 +1408,7 @@ giant mothership. However each home has a bunch of rooms. And each
 mothership has tons of rooms."*
 
 Resolution: **homes are sub-Vessels of the mothership.** Rooms within a
-home are NOT separate containers — they're spatial subdivisions of the
+home are NOT separate containers, they're spatial subdivisions of the
 home's layout file.
 
 ```
@@ -1441,7 +1441,7 @@ swaps containers atomically.
 - Each home is its own RON file at `data/homes/<player-key>/layout.ron`
 - Adding a home = drop in a file, no code change
 - Players customize their home freely without touching anyone else's
-- Homes are portable — transfer your home from Mothership-A to Mothership-B
+- Homes are portable, transfer your home from Mothership-A to Mothership-B
   by reparenting the Vessel
 - Mothership procedural generator allocates N "home slots" of bounded
   volume; each slot mounts a home Vessel
@@ -1458,15 +1458,15 @@ The hierarchical container model preserves precision because every
 `local_pos` stays small. f64 has ~16 significant decimal digits. Local
 distances at every scale fit well within that:
 
-**Revised 2026-05-10 — continuous positions everywhere.** Earlier draft
+**Revised 2026-05-10, continuous positions everywhere.** Earlier draft
 used chunk coordinates in Deep; that's gone. Every position is now a
 continuous DVec3 in its parent frame.
 
 | Scale | Local frame | f64 precision available |
 |-------|-------------|------------------------|
 | Inside a vessel (room → corridor) | meters from vessel origin (< 1 km) | sub-nanometer (10⁻¹³ m) |
-| Within a system (Space) — outer planets | meters from barycenter (< 100 AU = 1.5 × 10¹³ m) | sub-millimeter (10⁻³ m) |
-| In Deep — interstellar | light-years from galactic origin (< 100 kly) | sub-millimeter (~10⁻³ m) at galactic radius |
+| Within a system (Space), outer planets | meters from barycenter (< 100 AU = 1.5 × 10¹³ m) | sub-millimeter (10⁻³ m) |
+| In Deep, interstellar | light-years from galactic origin (< 100 kly) | sub-millimeter (~10⁻³ m) at galactic radius |
 | Pocket dimensions | local coordinate space, semantics per-Pocket | configurable |
 
 **The precision budget works at every scale because every local_pos is
@@ -1482,21 +1482,21 @@ The 4-light-year trip from Sol to Alpha Centauri:
   Sol's position toward Alpha Centauri's. No boundary crossings, no
   special bookkeeping.
 - During blink drive: container_swap directly from `Space{"sol"}` to
-  `Space{"alpha_centauri"}` — never enters Deep at all.
+  `Space{"alpha_centauri"}`, never enters Deep at all.
 
 Floating origin handles render-side precision separately (everything
 visible gets re-centered around the player to keep render coordinates
-near zero — so even at 100 kly galactic position, what gets passed to
+near zero, so even at 100 kly galactic position, what gets passed to
 the GPU is small numbers near zero).
 
 ## 17a-ter. Cosmological structure + intergalactic frame (2026-05-10 part 3)
 
 For the eventual move to intergalactic gameplay (when Sol-frame
 coordinates become awkwardly large), here's what real cosmology gives
-us. Most of this also has a teaching role — these concepts get
+us. Most of this also has a teaching role, these concepts get
 glossary entries so the UX/UI can surface them naturally on hover.
 
-### Comoving coordinates — the intergalactic frame
+### Comoving coordinates: the intergalactic frame
 
 In an expanding universe, two galaxies' physical distance grows over
 time even when neither is "moving." The standard solution is **comoving
@@ -1505,11 +1505,11 @@ expansion, so a galaxy at fixed comoving position stays at that
 position even as the physical distance to other galaxies grows.
 
 We adopt comoving coordinates whenever multi-galaxy gameplay arrives.
-The data model is unchanged — `galaxy_pos_ly: DVec3` still works; we
+The data model is unchanged, `galaxy_pos_ly: DVec3` still works; we
 just interpret the values as comoving distances and apply the cosmic
 scale factor `a(t)` when converting to physical distance for any
 particular sim_time. For everything inside a single galaxy (where we
-work today), the distinction doesn't matter — Hubble expansion is
+work today), the distinction doesn't matter, Hubble expansion is
 negligible at galactic scale.
 
 ### Baryon Acoustic Oscillations (BAO)
@@ -1518,12 +1518,12 @@ In the first ~380,000 years after the Big Bang, the universe was a
 hot dense plasma where pressure waves (literal sound) propagated.
 When the universe cooled enough for atoms to form, photons decoupled
 from matter, the pressure dropped to ~zero, and the sound waves
-froze in place at their then-current radius — about 150 megaparsecs
+froze in place at their then-current radius, about 150 megaparsecs
 in today's expanded coordinates.
 
 Galaxies today show a slight statistical preference (~1%) for being
 that distance apart from each other. **BAO are not navigable
-structures** — they're a statistical correlation pattern across the
+structures**, they're a statistical correlation pattern across the
 entire galaxy distribution, not bubbles you can fly into. They're
 useful as a "standard ruler" for measuring the expansion of the
 universe at different epochs.
@@ -1540,7 +1540,7 @@ function; ours should too.
 The visible bubble-like structure of the universe: galaxies cluster
 in **filaments** and **walls** around vast underdense **voids**.
 Examples: Boötes Void (~330 Mly across), Local Void (~150 Mly).
-Together they form the **cosmic web** — the largest visible structure
+Together they form the **cosmic web**, the largest visible structure
 in the universe.
 
 These look like bubbles in 3D maps, but they don't have well-defined
@@ -1551,7 +1551,7 @@ in the multi-scale map; not useful as coordinate origins.
 ### CMB rest frame
 
 The cosmic microwave background looks isotropic (the same in every
-direction) only from one particular reference frame — the **CMB rest
+direction) only from one particular reference frame, the **CMB rest
 frame**. Earth is moving relative to it at ~370 km/s, which we can
 measure from the CMB's dipole anisotropy.
 
@@ -1570,7 +1570,7 @@ wherever they appear in the UI. When the user opens a galaxy map
 and sees "Local Group" or "Boötes Void" or "comoving coordinate frame"
 in a label, holding Alt + hovering should give them a 2-3 sentence
 explanation. This is part of the broader "teach naturally through UX"
-goal — every novel concept the app exposes should be one hover away
+goal, every novel concept the app exposes should be one hover away
 from a definition.
 
 ## 17a-bis. Locked decisions (2026-05-10 part 2)
@@ -1595,7 +1595,7 @@ expects (Earth, their ship, anywhere). They don't have to be the same.
 For intergalactic (far future): when Sol-frame coordinates become
 inconvenient (e.g. travel toward Andromeda where Sol-relative numbers
 get awkwardly large), shift the technical frame to **CMB rest frame**
-or **Local Group barycenter** — both are standard cosmology conventions.
+or **Local Group barycenter**, both are standard cosmology conventions.
 The data model already supports this; only the loader needs an updated
 frame-of-reference field.
 
@@ -1610,14 +1610,14 @@ with something simpler and more practical:
 
 - **Star systems**: persistent, in `data/star_systems/{id}.json`.
 - **Persistent interstellar bodies**: small hand-authored set (named
-  probes — Voyager 1/2, Pioneer 10/11; named drifting asteroids if
+  probes, Voyager 1/2, Pioneer 10/11; named drifting asteroids if
   astronomers find any; flavor content). Stored in
   `data/galaxy/persistent_drifters.json`. Small file, ~dozens of
   entries, not procedural.
 - **Transient travel encounters**: when a vessel is in
   `Deep { galaxy_pos_ly }` actively transiting between systems, the
   FTL/travel system spawns ephemeral encounter content along the
-  route — asteroids, debris, signal anomalies, derelicts. **Not
+  route, asteroids, debris, signal anomalies, derelicts. **Not
   persisted.** Each journey can have its own encounter density and
   difficulty.
 
@@ -1625,26 +1625,26 @@ Implications for the model:
 - **No `rogue_state` mutation table needed.** A "mined" rogue during
   travel just yields its resources and the encounter is over.
 - **No infinite-procedural-field complexity** for free-floating bodies.
-- **Mark-and-return doesn't work for transients** — by design. Players
+- **Mark-and-return doesn't work for transients**, by design. Players
   who want a permanent reference point in interstellar space have to
   ask astronomers to add an entry to `persistent_drifters.json`
   (Voyager-style probes count) or wait until we ship marker buoys
   (deployable artifacts that anchor a coordinate).
 
 This is in the spirit of the operator's earlier "we want fewer pages,
-condensed simpler experiences" — it cuts a whole subsystem of
+condensed simpler experiences", it cuts a whole subsystem of
 persistent-procedural-content that wasn't earning its complexity.
 
 ## 17b. Operator decisions (2026-05-09 session)
 
 Locked in during the design discussion that produced this doc:
 
-- **`ContainerRef` variants finalized**: `Vessel` (renamed from Ship —
+- **`ContainerRef` variants finalized**: `Vessel` (renamed from Ship, 
   covers spaceships, cars, trucks, tanks, fighter jets, walking mechs,
   stations, buildings), `Body` (planet/asteroid/moon surface), `Space`
   (free-floating in a system), `Deep` (interstellar), `Pocket` (isolated
   dimension for tutorials / quest instances / tech demos). Alternate
-  universes with their own galaxies are deliberately deferred — could
+  universes with their own galaxies are deliberately deferred, could
   add a `Dimension` variant at the top of the chain later.
 - **Procedural + hand-authored bodies both supported** per body. Default
   is procedural (cheap, immediate); hand-authoring overrides procedural
@@ -1655,21 +1655,21 @@ Locked in during the design discussion that produced this doc:
   use meters / seconds / kg throughout. Display layer (UI strings,
   tooltips, value formatters) converts to AU / ly / km / lightseconds /
   whatever reads naturally. Eliminates conversion bugs.
-- **Sol restructure is safe** — operator confirmed nothing else depends
+- **Sol restructure is safe**, operator confirmed nothing else depends
   on `data/solar_system/bodies.json`. Phase 1 already shipped (v0.199.0).
 
 ## 18. Pre-implementation checklist
 
 Phase 1 status (2026-05-09):
 
-- [x] **`ContainerRef` variants** — confirmed + extended: Vessel, Body,
+- [x] **`ContainerRef` variants**, confirmed + extended: Vessel, Body,
       Space, Deep, Pocket (see §17b).
-- [x] **Unit convention** — SI internally, display layer converts.
-- [x] **Hand-authored AND procedural bodies** — both supported per body
+- [x] **Unit convention**, SI internally, display layer converts.
+- [x] **Hand-authored AND procedural bodies**, both supported per body
       (procedural default, hand-authoring overrides field-by-field).
-- [x] **Sol restructure safe** — no dependencies on the old path. Phase 1
+- [x] **Sol restructure safe**, no dependencies on the old path. Phase 1
       shipped in v0.199.0.
-- [ ] **Universal sim_time vs fleet-controlled time** — under
+- [ ] **Universal sim_time vs fleet-controlled time**, under
       discussion; operator leaning toward universal. Pros/cons:
       | Universal | Fleet-controlled |
       |-----------|------------------|
@@ -1677,17 +1677,17 @@ Phase 1 status (2026-05-09):
       | Deterministic; replays / records work cleanly | More expressive (warp drive engaged → time accelerates for the crew) |
       | Fast travel still works via region-based speed multipliers | Hard sync; "what time is Mars?" depends on observer perspective |
       | Combat / shared scenes "just work" | Cross-fleet interaction across different speeds is undefined |
-- [ ] **Anything missing** — see §17c for results of the doc audit.
+- [ ] **Anything missing**, see §17c for results of the doc audit.
 
 ---
 
 ## 19. References
 
-- `docs/design/maps-multi-scale.md` — web-side render hierarchy (galaxy →
+- `docs/design/maps-multi-scale.md`, web-side render hierarchy (galaxy →
   street); continues to apply on top of this model
-- `docs/design/infinite-of-x.md` — design rule this whole doc is in service of
-- `src/renderer/floating_origin.rs` — existing floating origin
-- `src/ship/` — ship layout parser (Fibonacci spiral generator)
-- `src/ecs/` — hecs ECS where the position component will live
-- `data/solar_system/bodies.json` — current single-system data, slated for
+- `docs/design/infinite-of-x.md`, design rule this whole doc is in service of
+- `src/renderer/floating_origin.rs`, existing floating origin
+- `src/ship/`, ship layout parser (Fibonacci spiral generator)
+- `src/ecs/`, hecs ECS where the position component will live
+- `data/solar_system/bodies.json`, current single-system data, slated for
   restructure in Phase 1

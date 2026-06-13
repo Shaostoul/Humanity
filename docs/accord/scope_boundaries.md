@@ -65,7 +65,7 @@ They are always:
 - approximate
 - context-dependent
 
-When models conflict with observation, the model must change—not reality.
+When models conflict with observation, the model must change, not reality.
 
 ---
 
@@ -93,7 +93,7 @@ They exist for:
 - imaginative experimentation
 - cultural expression
 
-Fiction is powerful and valuable—but it is **not evidence**.
+Fiction is powerful and valuable, but it is **not evidence**.
 
 Fiction must never be presented as reality or used to justify real-world decisions without explicit translation back into observed or modeled reality.
 
@@ -149,7 +149,7 @@ They are **labels** that preserve clarity while allowing growth.
 
 ## Closing Statement
 
-Humanity advances by understanding what is real, what is uncertain, and what is imagined—and by refusing to confuse them.
+Humanity advances by understanding what is real, what is uncertain, and what is imagined, and by refusing to confuse them.
 
 Clarity is not limitation.
 

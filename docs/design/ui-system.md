@@ -161,7 +161,7 @@ Each widget below must exist in both native (`src/gui/widgets/`) and web (CSS cl
 
 ### Widgets planned but not yet shared
 
-- **Toast notification** (`hosToast` on web, `toast` widget in native) — transient feedback.
+- **Toast notification** (`hosToast` on web, `toast` widget in native), transient feedback.
 - **Confirmation dialog** (replaces `window.confirm()` web and `modal_dialog` with Confirm/Cancel in native).
 - **Context menu** (color-coded sections for role-based actions).
 - **Inline tooltip** (hover-triggered, web has it partially in `shell.js`).
@@ -177,7 +177,7 @@ These do not need native equivalents until there is a clear user benefit. When o
 
 ## The universal button (v0.113.0)
 
-Every button across the app — chat back-arrows, marketplace Buy, settings Cancel, governance Vote, recovery Approve, the entire desktop nav, even the small inline `+ Create Channel` ghost links — should go through `widgets::Button`. **One source of truth.** Edit the builder once, every site updates.
+Every button across the app, chat back-arrows, marketplace Buy, settings Cancel, governance Vote, recovery Approve, the entire desktop nav, even the small inline `+ Create Channel` ghost links, should go through `widgets::Button`. **One source of truth.** Edit the builder once, every site updates.
 
 ```rust
 use crate::gui::widgets::{self, Button, ButtonSize, ButtonVariant};
@@ -198,19 +198,19 @@ Button::primary("Save").icon_trailing("\u{2192}").show(ui, theme);
 ```
 
 **Five variants:**
-- `Primary` — filled accent, primary CTA
-- `Secondary` — outlined, secondary action
-- `Danger` — red filled, destructive
-- `Success` — green filled, confirm
-- `Ghost` — transparent, inline links / nav back / icon-only
+- `Primary`, filled accent, primary CTA
+- `Secondary`, outlined, secondary action
+- `Danger`, red filled, destructive
+- `Success`, green filled, confirm
+- `Ghost`, transparent, inline links / nav back / icon-only
 
-**Three sizes:** `Small`, `Medium` (default), `Large` — drives both font size and min-height from theme tokens.
+**Three sizes:** `Small`, `Medium` (default), `Large`, drives both font size and min-height from theme tokens.
 
 **No literal colors, no magic numbers.** All styling derives from `Theme`. Want different button corners app-wide? Edit `border_radius` in `data/gui/theme.ron`. Want all primaries to be tighter? Adjust `button_height`. Settings-page theming works for free.
 
 **Icon support** is unicode glyphs in the `label` text run (e.g., `\u{2190}` for `←`, `\u{2699}` for `⚙`). For painted icons, compose your own horizontal layout using `widgets::icons::paint_*`.
 
-**Backward compatibility:** the older free functions `primary_button(ui, theme, "Save")`, `secondary_button(...)`, `danger_button(...)`, `btn_primary(...)`, etc. are preserved as thin wrappers and will keep working forever. New code should prefer `Button::primary("Save").show(ui, theme)` for the more flexible builder API. The duplication that previously existed between `widgets/mod.rs` and `widgets/button.rs` is gone — there's one definition now.
+**Backward compatibility:** the older free functions `primary_button(ui, theme, "Save")`, `secondary_button(...)`, `danger_button(...)`, `btn_primary(...)`, etc. are preserved as thin wrappers and will keep working forever. New code should prefer `Button::primary("Save").show(ui, theme)` for the more flexible builder API. The duplication that previously existed between `widgets/mod.rs` and `widgets/button.rs` is gone, there's one definition now.
 
 ## How to add a new widget
 
@@ -298,7 +298,7 @@ and surface the same data. Changes to one should land in the other.
 
 | Page | Reason for exception |
 |------|----------------------|
-| `index.html`, `home.html` | Landing pages — entry points before identity, render server-name + onboarding CTA. Not meaningful in the native client (which jumps straight to chat). |
+| `index.html`, `home.html` | Landing pages, entry points before identity, render server-name + onboarding CTA. Not meaningful in the native client (which jumps straight to chat). |
 | `dashboard.html` | Operator-facing live metrics view, web-rendered for at-a-glance check-ins. The native equivalent is the in-game HUD. |
 | `download.html` | Install links for the desktop binary. Trivially redundant inside the desktop binary. |
 | `web.html` | About-the-web-version explainer. Native users don't need it. |
@@ -306,7 +306,7 @@ and surface the same data. Changes to one should land in the other.
 | `projects.html` | Project Universe historical timeline. Marketing-shaped; not gameplay. |
 | `data.html` | Local-storage management for the browser tab (saves, USB import/export). Native has its own data flow via `%APPDATA%\HumanityOS\`. |
 
-### Web-only (parity gap — port to native if a native admin emerges)
+### Web-only (parity gap: port to native if a native admin emerges)
 
 | Page | Notes |
 |------|-------|
@@ -320,10 +320,10 @@ and surface the same data. Changes to one should land in the other.
 | Page | Reason for exception |
 |------|----------------------|
 | `main_menu.rs`, `escape_menu.rs`, `hud.rs` | In-game overlays. The web client doesn't have a 3D world to overlay onto. |
-| `chat.rs` | Desktop 3-panel chat. The web version is the multi-page client at `web/chat/` (different shape — split across `app.js`, `chat-*.js` modules). Both surface the same relay API; the native version is not a 1:1 mirror of any single web HTML page. |
+| `chat.rs` | Desktop 3-panel chat. The web version is the multi-page client at `web/chat/` (different shape, split across `app.js`, `chat-*.js` modules). Both surface the same relay API; the native version is not a 1:1 mirror of any single web HTML page. |
 | `studio.rs` | Streaming/broadcasting studio. Bound to local OS capture devices (camera, screen, microphone) which the browser sandbox cannot access in the same way. Not portable as-is. |
 | `server_settings.rs` | Local relay configuration for self-hosters running the desktop binary in `--headless` mode on the same machine. Duplicates `/admin` for the local operator. |
-| `placeholder.rs` | Template for new pages — not user-visible. |
+| `placeholder.rs` | Template for new pages, not user-visible. |
 
 ### Maintenance rule
 

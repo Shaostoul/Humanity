@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define how users discover, follow, befriend, and privately communicate with each other across servers — transitioning from server-mediated communication to peer-to-peer direct connections.
+Define how users discover, follow, befriend, and privately communicate with each other across servers, transitioning from server-mediated communication to peer-to-peer direct connections.
 
 ## Principles
 
@@ -19,7 +19,7 @@ Define how users discover, follow, befriend, and privately communicate with each
 A unidirectional relationship: "I want to know when this person is around."
 
 - Stored locally on the follower's device(s)
-- The followed person is NOT notified (no "X followed you" — privacy first)
+- The followed person is NOT notified (no "X followed you", privacy first)
 - Represented as: `{ public_key, display_name, added_at, servers_seen_on[] }`
 - Synced across the user's own linked devices (encrypted, via their own relay or backup)
 
@@ -29,7 +29,7 @@ A bidirectional follow: both parties follow each other.
 
 - Unlocks: direct messaging, presence sharing, P2P connections
 - Discovery: when you follow someone, your client can optionally signal availability for friendship (see Handshake below)
-- Neither party can force friendship — either can unfollow at any time
+- Neither party can force friendship, either can unfollow at any time
 
 ### Friend Handshake
 
@@ -78,22 +78,22 @@ On becoming friends, clients perform an X25519 key exchange:
 1. Each party derives an X25519 public key from their Ed25519 key (per RFC 8032 / libsodium)
 2. Shared secret computed via X25519 Diffie-Hellman
 3. Session keys derived via BLAKE3 KDF from the shared secret
-4. Keys are rotated periodically (ratchet protocol — future spec)
+4. Keys are rotated periodically (ratchet protocol, future spec)
 
 ### Message Routing (3-tier)
 
-**Tier 1 — Direct P2P:**
+**Tier 1, Direct P2P:**
 - If both parties are online and reachable (same LAN, or public IP, or hole-punched)
 - Lowest latency, no third party involved
 - Connection negotiated via ICE-like signaling through the relay
 
-**Tier 2 — Relay-forwarded:**
+**Tier 2, Relay-forwarded:**
 - If direct connection fails (NAT, firewalls)
 - Messages sent through a relay server both parties trust
-- Relay sees encrypted blobs only — cannot read content
+- Relay sees encrypted blobs only, cannot read content
 - Relay stores messages for offline delivery (encrypted, time-limited)
 
-**Tier 3 — Store-and-forward:**
+**Tier 3, Store-and-forward:**
 - If recipient is offline
 - Sender's relay (or a mutually trusted relay) stores the encrypted message
 - Recipient retrieves on next connect
@@ -130,7 +130,7 @@ Servers provide:
 - Community channels (public/private)
 - User discovery (see who's in the server)
 - Friend handshake relay (forwarding encrypted offers)
-- Presence aggregation (who's online — for server members only)
+- Presence aggregation (who's online, for server members only)
 - Moderation within their space
 
 Servers do NOT provide:
@@ -145,7 +145,7 @@ A user connected to servers A, B, and C appears online on all three. Their clien
 
 ### Server discovery
 
-Users can share server URLs. Servers can optionally publish to a public directory (future spec). No central registry — servers are autonomous.
+Users can share server URLs. Servers can optionally publish to a public directory (future spec). No central registry, servers are autonomous.
 
 ## Scaling Considerations
 
@@ -169,7 +169,7 @@ Users can share server URLs. Servers can optionally publish to a public director
 - Federated server mesh for discovery
 - DHT-based friend routing (find which relay a friend is connected to)
 - Client-side social graph means no single point has the full picture
-- Servers are leaves, not roots — the network is the platform
+- Servers are leaves, not roots, the network is the platform
 
 ## Privacy Guarantees
 
@@ -192,7 +192,7 @@ Users can share server URLs. Servers can optionally publish to a public director
 
 ## Open Questions
 
-- Should follow counts be public? (Leans no — avoid popularity metrics)
+- Should follow counts be public? (Leans no, avoid popularity metrics)
 - Should there be a "request to follow" mode for private accounts? (Possible future addition)
-- Group DMs: separate spec or extension of this one? (Separate — different key management)
+- Group DMs: separate spec or extension of this one? (Separate, different key management)
 - Should relays charge for store-and-forward? (Possible sustainability model)

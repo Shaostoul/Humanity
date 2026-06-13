@@ -1,4 +1,4 @@
-# Humanity 1 — The Mothership
+# Humanity 1: The Mothership
 
 ## Scale
 - **Population capacity**: 10 billion (entire humanity if needed)
@@ -12,7 +12,7 @@
 - Lunar and asteroid mining at scale: ~2070s
 - Construction of Humanity 1 begins: ~2080s (50+ year project)
 - Fleet departure: ~2140s
-- The game takes place well after departure — the ship is established, lived-in, home
+- The game takes place well after departure, the ship is established, lived-in, home
 
 ## Ship Sections (Hub Tab Mapping)
 
@@ -46,11 +46,11 @@ Humanity1 > Ring3 > Sector7 > Deck42 > Block15 > Room2847
 ```
 
 ### Navigation Methods
-1. **Rail car system** — fast travel between major sections (like a subway map)
-2. **Elevator shafts** — move between decks vertically
-3. **Walking** — local navigation within blocks
-4. **Teleport (dev tools)** — instant travel for testing/admin
-5. **2D map overlay** — top-down deck view with room labels, searchable
+1. **Rail car system**, fast travel between major sections (like a subway map)
+2. **Elevator shafts**, move between decks vertically
+3. **Walking**, local navigation within blocks
+4. **Teleport (dev tools)**, instant travel for testing/admin
+5. **2D map overlay**, top-down deck view with room labels, searchable
 
 ### Performance Strategy
 - Only render the current section + adjacent sections
@@ -74,14 +74,14 @@ Humanity1 > Ring3 > Sector7 > Deck42 > Block15 > Room2847
 - Each federated server's ship has a unique but procedurally consistent design
 
 ## Districts (within the ship)
-- **Residential towers** — apartments, houses, penthouses (player homes)
-- **Agricultural rings** — massive hydroponic/aeroponic farms (garden tracker)
-- **Industrial sector** — manufacturing, 3D printing, repair (Skill DNA)
-- **Commercial district** — shops, kiosks, marketplace stalls
-- **Recreation** — parks, theaters, sports, holodeck access
-- **Medical** — hospitals, research labs
-- **Education** — schools, libraries, training facilities
-- **Docking bay** — shuttle arrivals/departures, cargo loading
+- **Residential towers**, apartments, houses, penthouses (player homes)
+- **Agricultural rings**, massive hydroponic/aeroponic farms (garden tracker)
+- **Industrial sector**, manufacturing, 3D printing, repair (Skill DNA)
+- **Commercial district**, shops, kiosks, marketplace stalls
+- **Recreation**, parks, theaters, sports, holodeck access
+- **Medical**, hospitals, research labs
+- **Education**, schools, libraries, training facilities
+- **Docking bay**, shuttle arrivals/departures, cargo loading
 
 ## Population Density Math
 - 500 km × 100 km diameter = enormous habitable volume
@@ -92,10 +92,10 @@ Humanity1 > Ring3 > Sector7 > Deck42 > Block15 > Room2847
 
 ## Lore Tab Concept
 A dedicated "Lore" or "Archives" tab in the hub:
-- **Ship's Log** — timeline of key events (construction, launch, milestones)
-- **Mission Brief** — why humanity left, where we're going
-- **Universe Encyclopedia** — star systems, species (if any), physics
-- **Personal Journal** — player's own story entries
-- **Crew Manifest** — all registered users on this ship/server
-- **Dream Archive** — collected "nightmares" (the intro) with community interpretations
+- **Ship's Log**, timeline of key events (construction, launch, milestones)
+- **Mission Brief**, why humanity left, where we're going
+- **Universe Encyclopedia**, star systems, species (if any), physics
+- **Personal Journal**, player's own story entries
+- **Crew Manifest**, all registered users on this ship/server
+- **Dream Archive**, collected "nightmares" (the intro) with community interpretations
 - Could replace or supplement the existing Info tab

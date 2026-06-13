@@ -12,13 +12,13 @@ inventory/container tree, garden, crafting, vitals, map) renders every home.
 What differs between homes is a single **kind** toggle that says what the home
 is *for*:
 
-1. **Real home** — bound to real-world monitoring/automation hardware. The app
+1. **Real home**, bound to real-world monitoring/automation hardware. The app
    becomes the control + monitoring layer for an actual autonomous homestead
    (e.g. real aeroponics at the operator's house). This is the payoff of the
    project's north star, and it is built **last**.
-2. **Server home** — a home you play on a multiplayer server (the relay). Shared
+2. **Server home**, a home you play on a multiplayer server (the relay). Shared
    world, other players, server-authoritative state.
-3. **Offline home** — local single-player. **The first offline home is special:**
+3. **Offline home**, local single-player. **The first offline home is special:**
    it is the first homestead we design to be **100% self-sustaining if at all
    possible**, and it doubles as the **gamified blueprint** every other home can
    copy.
@@ -78,7 +78,7 @@ Design (= blueprint, infinite-of-X data, not code)
 ```
 
 The **Play** button (added v0.377) enters the 3D world. In this model, Play
-enters the world **for the currently selected home** — so the same button does
+enters the world **for the currently selected home**, so the same button does
 the right thing whether you are in an offline sim, joined to a server, or (later)
 looking at your real homestead.
 
@@ -135,25 +135,25 @@ Real-life integration stays **last** but shapes every step (each game system is
 designed as a real buildable system with a parts list). Multiplayer/server/Real are
 **deferred** (operator 2026-06-07) until offline single-player is solid.
 
-1. **Play button** — dedicated FPS-mode entry. **DONE v0.377.** (Was: Esc only,
+1. **Play button**, dedicated FPS-mode entry. **DONE v0.377.** (Was: Esc only,
    no on-screen indicator.)
-2. **Home model + save/load** — **MODEL DONE v0.380** (`WorldSave` gained `kind` +
+2. **Home model + save/load**, **MODEL DONE v0.380** (`WorldSave` gained `kind` +
    `design`, backward-compatible via serde defaults) and the **save/load lifecycle
    DONE v0.381** (`src/save_load.rs`: player inventory + skills persist to a single
    `offline_home.json`, applied at startup, saved on window-close + periodically;
    the game persisted nothing between sessions before). One offline home for now
    (progressive disclosure). Remaining: persist health/position/game_time/vitals/
    crops/quests; multi-home select comes with multiplayer.
-3. **Offline Fibonacci design** — **browsable Design view DONE v0.379**: the existing
+3. **Offline Fibonacci design**, **browsable Design view DONE v0.379**: the existing
    `data/blueprints/fibonacci_homestead.ron` is surfaced on the Home page
    (`pages/homes.rs`) with its bill of materials, power/water demand, and a
    self-sufficiency summary, by build scale (Solo/Family/Community/Colony).
    Remaining: spawn the world from the design (playable) + the closure-score layer.
-4. **Server homes** — bind a home to a relay; reuse the server-authoritative
+4. **Server homes**, bind a home to a relay; reuse the server-authoritative
    multiplayer already in place.
-5. **Parts list from design** — each design's systems enumerate the real parts
+5. **Parts list from design**, each design's systems enumerate the real parts
    to 3D-print / buy / trade (the bridge artifact between game and reality).
-6. **Real homes (LAST)** — bind a home to real monitoring/automation devices; the
+6. **Real homes (LAST)**, bind a home to real monitoring/automation devices; the
    homestead UI becomes the live control/monitoring dashboard.
 
 ## Characters (the other profile axis)

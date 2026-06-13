@@ -214,4 +214,4 @@ AI is permitted as a tool of comprehension.
 
 It is forbidden as a tool of domination.
 
-Humanity remains human-governed, constraint-governed, and reality-governed—whether AI is present or not.
+Humanity remains human-governed, constraint-governed, and reality-governed, whether AI is present or not.

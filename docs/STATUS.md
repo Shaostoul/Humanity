@@ -1,13 +1,13 @@
-# HumanityOS — Feature Status
+# HumanityOS: Feature Status
 
 > **Last updated:** 2026-06-11 | **Version:** v0.416.0 (inventory/garden UI overhaul on universal expandable_row v0.400-414; homes-as-profiles + aeroponic towers + seed economy v0.379-399; retired-page cleanup + the relay-build fix v0.416)
 >
-> This is a **feature inventory** — what is built, partial, or planned.
+> This is a **feature inventory**, what is built, partial, or planned.
 > Update this file every time features are added or status changes.
 >
 > **⚠️ This file is NOT the backlog.** The authoritative, strict-ranked "what gets
 > worked on next" lives in **`docs/PRIORITIES.md`** (TIER 0 → TIER 4). If STATUS.md
-> and PRIORITIES.md ever disagree, **PRIORITIES.md wins** — it is kept current every
+> and PRIORITIES.md ever disagree, **PRIORITIES.md wins**, it is kept current every
 > session; this file is a slower-moving inventory. See the "What's NOT done" section
 > at the bottom for the gap list, which is a summary of PRIORITIES, not a replacement.
 
@@ -16,7 +16,7 @@
 > **Truthfulness rule:** A feature is ✅ only when its behaviour runs end-to-end.
 > "Module exists and ticks" without behaviour is ⚠️, not ✅. A ✅ that is not actually
 > verified end-to-end should be downgraded to ⚠️ (partial / unverified) rather than
-> left as a false "done" — lying to STATUS.md means future agents skip work that
+> left as a false "done", lying to STATUS.md means future agents skip work that
 > wasn't done. **Many ✅ rows below predate v0.132 and have not been re-verified
 > against the current binary; treat older ✅ rows as "claimed built," not "audited."**
 
@@ -39,7 +39,7 @@ described mechanism is stale). The current ground truth:
 - **DM E2EE is pure Kyber768 / ML-KEM-768 → BLAKE3-KDF → AES-256-GCM, not ECDH.**
   The ECDH P-256 DM path was **deleted** (web v0.263.4, native v0.264.0). Any row
   or note below mentioning "ECDH P-256" for DMs is stale.
-- **Native vault PBKDF2 is 600,000 iterations** (v0.277.0), matching web — not the
+- **Native vault PBKDF2 is 600,000 iterations** (v0.277.0), matching web, not the
   100k "pending upgrade" some notes still claim.
 - **Full crypto inventory:** `CLAUDE.md` → "Cryptography (canonical)" table is the
   authority. Read it before quoting any algorithm. Activation note: the PQ stack is
@@ -65,7 +65,7 @@ purely additive (existing chat untouched). See
 | **AI-as-citizen** | ✅ | v0.104.0 | Mandatory `subject_class_v1` (`human`/`ai_agent`/`institution`) and `controlled_by_v1` operator binding. AI silently excluded from governance voting per Accord. Same trust curve as humans (no flag discount). `src/relay/storage/ai_status.rs`. `GET /api/v2/ai-status/{did}`. |
 | **Social key recovery** | ✅ | v0.105.0 + v0.109.0 | Shamir share storage (PR 1) + recovery_request_v1 / recovery_approval_v1 with guardian-auth flow (PR 2). Server stores opaque ciphertext only; reassembly is client-side. Auto-flips request status to "ready" when threshold met. `src/relay/storage/recovery.rs`. `GET /api/v2/recovery/setup/{holder_did}`. |
 | **Federation v2** | ✅ | v0.107.0 + v0.108.0 | `SignedObjectGossip` RelayMessage federates ANY post-quantum object across servers (PR 1). Per-observer per-issuer continuous trust + dispute_v1 auto-discount + multi-hop gossip with cycle-breaking via dedup (PR 2). `src/relay/handlers/federation.rs`, `src/relay/storage/issuer_trust.rs`. |
-| **Schema registry** | ✅ | v0.98.0+ | `data/identity/schemas.ron` — hot-reloadable, infinite-of-X compliant. 4 active substrate schemas, 22 reserved per-phase schemas. |
+| **Schema registry** | ✅ | v0.98.0+ | `data/identity/schemas.ron`, hot-reloadable, infinite-of-X compliant. 4 active substrate schemas, 22 reserved per-phase schemas. |
 | **Documentation pages** | ✅ | v0.106.0 | `/`, `/onboarding`, `/download` web pages + native `main_menu.rs`/`onboarding.rs` updated to describe new architecture (PQ + DIDs + VCs + trust + governance + AI + recovery). |
 | **Quest chains** | ✅ | v0.110.0 | `data/onboarding/quests.json` schema_version 2: 6 chains covering identity & trust, civic participation, interaction preferences. Teach the new layers by doing. |
 
@@ -74,13 +74,13 @@ purely additive (existing chat untouched). See
 - 144 unit tests passing
 - ~5000 LOC added across crypto/identity/credentials/trust/governance/recovery/federation
 - 14 new REST endpoints under `/api/v2/`
-- 0 changes to existing chat — all additive
+- 0 changes to existing chat, all additive
 - 13 production releases shipped this session
 
 ### Still in flight:
 
 - ⚠️ Phase 6c liveness: schemas wired, no signaling integration yet
-- ⚠️ Phase 6a Solana RPC: read-only balance proxy ships (v0.110.0); no transaction signing in relay (intentional — client-side per BIP39 path)
+- ⚠️ Phase 6a Solana RPC: read-only balance proxy ships (v0.110.0); no transaction signing in relay (intentional, client-side per BIP39 path)
 - ⚠️ Phase 6b STARK selective disclosure: scaffold + Merkle disclosure verifier wired (v0.111.0–v0.112.0); full STARK verifier circuit deferred
 - ⚠️ Phase 7a Litestream replication: ops doc shipped (v0.110.0), VPS deployment is operator action
 - ⚠️ Phase 7b LoRa mesh: serial driver landed (v0.112.0), real radio integration deferred
@@ -108,9 +108,9 @@ purely additive (existing chat untouched). See
 | v0.121.0 | 21/21 scopes audited + native onboarding styling fix + native AI Usage form | Full agent-coordination audit pass |
 | v0.121.2 | README rewrite | Current architecture, accessible language |
 | v0.121.3 | Worker agent expands items-game scope | 500-item milestone hit |
-| v0.131.0 | AI Perception API — headless gameplay for AI agents | `game_perceive`/`game_interact`/`game_query_inventory`/`game_query_entity` WebSocket messages; ship layout loading; spatial queries. AI experiences the game world as JSON instead of pixels. (`docs/ai-onboarding.md` §"Playing the Game"; `docs/design/ai_interface.md` §5 Game Participation) |
-| v0.131.1 | Version sync after `just build-game` | No code changes — version-string-only patch |
-| v0.132.0 | Perception API bug fix — typed RON deserialization | Caught via new unit tests: `room_type: bridge` (unquoted RON enum identifier) was parsing as `Value::Unit` not String, so all room equipment lists came up empty. Now uses typed `ShipDef` from `src/ship/layout.rs`. 6 new GameWorld tests prevent regression. |
+| v0.131.0 | AI Perception API, headless gameplay for AI agents | `game_perceive`/`game_interact`/`game_query_inventory`/`game_query_entity` WebSocket messages; ship layout loading; spatial queries. AI experiences the game world as JSON instead of pixels. (`docs/ai-onboarding.md` §"Playing the Game"; `docs/design/ai_interface.md` §5 Game Participation) |
+| v0.131.1 | Version sync after `just build-game` | No code changes, version-string-only patch |
+| v0.132.0 | Perception API bug fix, typed RON deserialization | Caught via new unit tests: `room_type: bridge` (unquoted RON enum identifier) was parsing as `Value::Unit` not String, so all room equipment lists came up empty. Now uses typed `ShipDef` from `src/ship/layout.rs`. 6 new GameWorld tests prevent regression. |
 
 See `git log --oneline` for the per-commit detail; the rows above call out
 the user-facing theme.
@@ -144,7 +144,7 @@ Everything in this section is **built and working**.
 |---------|--------|---------|
 | WebSocket relay | ✅ | relay.rs ~5800 LOC, message routing, Fibonacci rate limiting, Dilithium3 identify (proof-of-possession nonce challenge, v0.274.0) |
 | Channels | ✅ | Create, switch, ordering, read-only, invite codes, auto-lockdown |
-| Direct messages | ✅ | E2E encrypted — **pure Kyber768/ML-KEM-768 → BLAKE3-KDF → AES-256-GCM** dual-seal (web v0.263.0, native v0.264.0; ECDH P-256 deleted), @mentions, notifications. KAT-locked web↔native |
+| Direct messages | ✅ | E2E encrypted, **pure Kyber768/ML-KEM-768 → BLAKE3-KDF → AES-256-GCM** dual-seal (web v0.263.0, native v0.264.0; ECDH P-256 deleted), @mentions, notifications. KAT-locked web↔native |
 | Threaded replies | ✅ | Thread view panel, reply indicators, reply count tracking |
 | Message editing | ✅ | Server-side edit history, client UI |
 | Pins | ✅ | Server-side + client UI, per-channel |
@@ -256,18 +256,18 @@ Everything in this section is **built and working**.
 | Icosphere planet terrain | ✅ | Icosahedron subdivision, PlanetDef (RON), LOD levels, PlanetRenderer (v0.30.0) |
 | Voxel asteroid system | ✅ | Sparse octree, greedy meshing, ore veins (C/S/M-type), mining (v0.31.0) |
 | Rapier3d physics | ✅ | Rigid bodies, colliders, raycasting, step simulation (v0.31.0) |
-| Player controller | ✅ | Registered + ticks; WASD look/move works (camera-driven). NOTE: the ECS physics path (gravity/jump/ground via a `PhysicsBody`) is inert — `physics_world` is never inserted into the DataStore and the player entity has no `PhysicsBody`. |
+| Player controller | ✅ | Registered + ticks; WASD look/move works (camera-driven). NOTE: the ECS physics path (gravity/jump/ground via a `PhysicsBody`) is inert, `physics_world` is never inserted into the DataStore and the player entity has no `PhysicsBody`. |
 | Interaction system | ✅ | Raycast from camera, find interactables within range (v0.31.0) |
 | Day/night cycle | ✅ | GameTime with seasons, sun direction/color (v0.31.0) |
 | Inventory system | ✅ | ItemStack slots, add/remove/transfer (v0.31.0) |
 | Crafting system | ✅ | Recipe matching from recipes.csv (v0.31.0) |
-| Farming / gardening loop | ✅ | `FarmingSystem` registered + ticking: growth (game_time + water/health) **plus the full loop (v0.331.0)** — Plant a seed (Plant button → spawn CropInstance), Water, Harvest a mature crop → produce into inventory → despawn. Garden panel on the inventory page + a "Dev: grow all" affordance. Proven by `farming::gardening_tests`. **#4b** (tracked in gameplay-loops.md): data-driven `harvest_item` column (124/129 plants have no produce item yet), soil/irrigation entities, 3D crop placement/visuals. |
+| Farming / gardening loop | ✅ | `FarmingSystem` registered + ticking: growth (game_time + water/health) **plus the full loop (v0.331.0)**, Plant a seed (Plant button → spawn CropInstance), Water, Harvest a mature crop → produce into inventory → despawn. Garden panel on the inventory page + a "Dev: grow all" affordance. Proven by `farming::gardening_tests`. **#4b** (tracked in gameplay-loops.md): data-driven `harvest_item` column (124/129 plants have no produce item yet), soil/irrigation entities, 3D crop placement/visuals. |
 | InputState | ✅ | Cross-system input sharing (v0.31.0) |
 | Ship interior system | ✅ | ShipDef/DeckDef/RoomDef from RON, room mesh generation, BFS pathfinding (v0.33.0) |
-| AI behavior system | ⚠️ | Native `AISystem` (state machines) implemented but **NOT registered** — never ticks in the native runtime. (The relay drives ambient NPC wander separately, server-side.) See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
-| Vehicle/mech system | ⚠️ | `VehicleSystem` implemented but **NOT registered** — never ticks. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
-| Ecology simulation | ⚠️ | `EcologySystem` implemented but **NOT registered** — never ticks. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
-| Quest system | ✅ | **Registered + ticking since v0.342.0** (this row predated that; see the detailed "Quests" row further down). The relay still runs its separate authoritative chain for MMO — native-vs-relay reconciliation is the #8c-tail. |
+| AI behavior system | ⚠️ | Native `AISystem` (state machines) implemented but **NOT registered**, never ticks in the native runtime. (The relay drives ambient NPC wander separately, server-side.) See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Vehicle/mech system | ⚠️ | `VehicleSystem` implemented but **NOT registered**, never ticks. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Ecology simulation | ⚠️ | `EcologySystem` implemented but **NOT registered**, never ticks. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Quest system | ✅ | **Registered + ticking since v0.342.0** (this row predated that; see the detailed "Quests" row further down). The relay still runs its separate authoritative chain for MMO, native-vs-relay reconciliation is the #8c-tail. |
 | GLTF model loading | ✅ | Load .glb models via gltf crate, mesh caching in AssetManager (v0.34.0) |
 | Instanced rendering | ✅ | InstanceBatch, pre-allocated uniform buffer, no per-frame GPU alloc (v0.34.0) |
 | Global error boundary | ✅ | window.onerror + unhandledrejection, toast UI instead of white screen (v0.35.0) |
@@ -277,24 +277,24 @@ Everything in this section is **built and working**.
 | Day/night sky renderer | ✅ | Procedural sky with stars, sun, moon, atmospheric scattering (v0.40.0) |
 | Audio system | ✅ | kira crate, spatial 3D audio, music, SFX (v0.39.0) |
 | Multiplayer networking | ✅ | WebSocket client, ECS state sync, server authority (v0.39.0) |
-| Construction system | ⚠️ | `ConstructionSystem` + `PlacementSystem` implemented but **NOT registered** — never tick; need build-mode UI + placement-event wiring. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
-| Skills progression | ✅ | `SkillSystem` **registered + ticking** (v0.340.0): `SkillRegistry` loads `data/skills/skills.csv` (20 skills, exponential `level^1.5` curve); `PlayerSkills` on the player; XP earned from actions via a shared `xp_grants` channel — **craft → the recipe's skill** (scaled by skill_level), **harvest → farming**, **mine-deliver → mining**; level-ups apply live. recipes.csv `skill_required` was reconciled to canonical skill ids (a non-canonical vocabulary would have silently no-op'd every craft XP) + locked by a drift lint (`skills::skill_tests::every_recipe_skill_is_a_real_skill`). Live levels + XP render in the profile **Skills** panel. **#8b tech-unlock ✅ (v0.341.0):** skills GATE crafting — `CraftingSystem` authoritatively rejects a craft when the crafter is under the recipe's `skill_level`; the crafting page shows "Requires {skill} Lv N (you: Lv M)" + locks the button; a **Dev: max skills** button preserves the 100%-unlocked testing posture. (v0.342.0 fixed a fresh-player deadlock: skill_level 0/1 recipes are the free starter tier; gating begins at level 2.) |
-| Quests | ✅ | `QuestSystem` **registered + ticking** (v0.342.0): `QuestRegistry::from_ron_dir` loads `data/quests/*.ron`; the player auto-accepts the **Getting Started** chain. Gather objectives check live inventory; Craft/Harvest advance via a shared `quest_events` channel the action systems push to on completion; completion grants item rewards + **auto-accepts prerequisite-chained** quests. A profile **Quests** panel shows active steps + completed. (The older tutorial/farming/construction chains load but use Build objectives needing the deferred ConstructionSystem.) The relay runs a separate authoritative quest chain for MMO — native-vs-relay reconciliation is the #8c-tail. |
+| Construction system | ⚠️ | `ConstructionSystem` + `PlacementSystem` implemented but **NOT registered**, never tick; need build-mode UI + placement-event wiring. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Skills progression | ✅ | `SkillSystem` **registered + ticking** (v0.340.0): `SkillRegistry` loads `data/skills/skills.csv` (20 skills, exponential `level^1.5` curve); `PlayerSkills` on the player; XP earned from actions via a shared `xp_grants` channel, **craft → the recipe's skill** (scaled by skill_level), **harvest → farming**, **mine-deliver → mining**; level-ups apply live. recipes.csv `skill_required` was reconciled to canonical skill ids (a non-canonical vocabulary would have silently no-op'd every craft XP) + locked by a drift lint (`skills::skill_tests::every_recipe_skill_is_a_real_skill`). Live levels + XP render in the profile **Skills** panel. **#8b tech-unlock ✅ (v0.341.0):** skills GATE crafting, `CraftingSystem` authoritatively rejects a craft when the crafter is under the recipe's `skill_level`; the crafting page shows "Requires {skill} Lv N (you: Lv M)" + locks the button; a **Dev: max skills** button preserves the 100%-unlocked testing posture. (v0.342.0 fixed a fresh-player deadlock: skill_level 0/1 recipes are the free starter tier; gating begins at level 2.) |
+| Quests | ✅ | `QuestSystem` **registered + ticking** (v0.342.0): `QuestRegistry::from_ron_dir` loads `data/quests/*.ron`; the player auto-accepts the **Getting Started** chain. Gather objectives check live inventory; Craft/Harvest advance via a shared `quest_events` channel the action systems push to on completion; completion grants item rewards + **auto-accepts prerequisite-chained** quests. A profile **Quests** panel shows active steps + completed. (The older tutorial/farming/construction chains load but use Build objectives needing the deferred ConstructionSystem.) The relay runs a separate authoritative quest chain for MMO, native-vs-relay reconciliation is the #8c-tail. |
 | Mod support framework | ✅ | Mod manifest, load order, data override system (v0.40.0) |
 | Heightmap terrain | ✅ | Procedural terrain generation with 16 biome types (v0.42.0) |
-| Hydrological system | ⚠️ | `HydrologySystem` implemented but **NOT registered** — never ticks; operates on WaterBody entities not yet spawned. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
-| Atmospheric system | ⚠️ | `AtmosphereSystem` implemented but **NOT registered** — never ticks; operates on EnclosedSpace entities not yet spawned. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
-| Disaster system | ⚠️ | `DisasterSystem` implemented but **NOT registered** — never ticks; spawn is manual + operates on Disaster entities not yet spawned. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Hydrological system | ⚠️ | `HydrologySystem` implemented but **NOT registered**, never ticks; operates on WaterBody entities not yet spawned. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Atmospheric system | ⚠️ | `AtmosphereSystem` implemented but **NOT registered**, never ticks; operates on EnclosedSpace entities not yet spawned. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Disaster system | ⚠️ | `DisasterSystem` implemented but **NOT registered**, never ticks; spawn is manual + operates on Disaster entities not yet spawned. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
 | World persistence | ✅ | Save/load game world state, entities, terrain (v0.42.0) |
 | Data-driven tools | ✅ | tools.rs loads from data/tools/catalog.json, not hardcoded (v0.90.7) |
 | Data-driven sounds | ✅ | sounds.rs loads from data/sounds.toml, not hardcoded (v0.90.7) |
 | Chat tint colors in theme | ✅ | Moved from hardcoded to theme.ron (v0.90.7) |
 | Server config externalized | ✅ | Constants moved to data/server-config.json (v0.90.7) |
-| 16 scaffolded system modules | ⚠️ | `aging`, `astronomy`, `creative_arts`, `docking`, `fire`, `genetics`, `geology`, `governance` (system, not the trust-layer governance), `hvac`, `manufacturing`, `medical`, `oceanography`, `offline`, `plumbing`, `transportation`, `waste` — implemented but **NOT registered, so they never tick** (corrected 2026-05-29 game-code audit; the earlier "registered and ticking" was wrong — only 7 systems are actually registered in the runtime). Deferred with reasons in `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
-| ⚠️ SYSTEMS-TABLE ACCURACY (2026-05-29 audit) | ⚠️ | Many ✅ rows above mean "implemented in code," NOT "registered + running." Only 12 systems actually tick: Time, PlayerController, Interaction, Farming, Inventory, ContainerCompatibility, Crafting, Food (nutrition/hunger/energy/oxygen/temp, v0.330–0.336), Drone (asteroid mining, v0.332.0), Weather (season-driven; drives exposed-env temperature, v0.337.0), Skill (skills/XP from craft/harvest/mine, v0.340.0), Quest (data-driven quests; Gather/Craft/Harvest objectives + rewards + prerequisite chaining, v0.342.0). The rest (ecology, hydrology, atmosphere, disasters, AI, vehicles, construction + the 16 scaffolds) compile but are unregistered — they never run. **`tests/engine_wiring_lint.rs` is the authoritative registered-vs-deferred list** (build fails if a system is neither). The individual system rows above/below are now downgraded to ⚠️ accordingly (done 2026-05-29). |
-| Electrical system | ⚠️ | `src/systems/electrical.rs` (~120 LOC) — partial AND **NOT registered** (never ticks); needs `PowerGenerator` / `PowerConsumer` ECS components. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
-| Psychology system | ⚠️ | `src/systems/psychology.rs` (~144 LOC) — partial AND **NOT registered** (never ticks); `Needs` lives as side state instead of a proper ECS component. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
-| Nutrition / food system | ✅ | `FoodSystem` **registered + ticking** (v0.330.0): Eat → satiation/hydration from `food_system.ron` nutrition profiles, raw food rolls `raw_consumption_risk`→`food_poisoning`, full meal→`well_fed`; hunger/thirst decay → `hungry`/`thirsty` conditions → starvation/dehydration health drain; timed effects expire; plus the original spoilage. `Vitals`+`StatusEffects` ECS components; `StatusEffectRegistry` (status_effects.csv) keeps durations/mods in data. Inventory page shows vitals bars + effect chips. **#3b (v0.334.0):** SPEED modifiers now mechanically applied — the camera scales movement by the player's active effects (`well_nourished` +10% from a good meal, `thirsty`/`flu` −20%); `stamina_regen` + `vision_range` mods still pending (need a stamina system / renderer wiring). **#7a (v0.335.0):** `Vitals.energy` drains while awake → `fatigued` (−15% speed) below 25% → a **Rest** button refills it. **#7b (v0.336.0):** oxygen + body-temperature are environment-coupled — an `EnvironmentContext` from player-position-vs-homestead-AABB drives oxygen drain (hypoxia → suffocation) + body-temp drift (hypothermia / heat exhaustion) when exposed to vacuum/cold, with Health loss; re-entering recovers. Hunger is now tangible (speed) too. **#7c (v0.338.0):** sanitation — organic `waste` accrues → `unsanitary` debuff → **Compost** → `fertilizer_0` → a **Fertilize** crop action boosts growth (closes food→waste→compost→soil→food). Survival baseline = satiation + hydration + energy + oxygen + temperature + waste/sanitation (all 5 listed needs live). See `docs/design/gameplay-loops.md`. |
+| 16 scaffolded system modules | ⚠️ | `aging`, `astronomy`, `creative_arts`, `docking`, `fire`, `genetics`, `geology`, `governance` (system, not the trust-layer governance), `hvac`, `manufacturing`, `medical`, `oceanography`, `offline`, `plumbing`, `transportation`, `waste`, implemented but **NOT registered, so they never tick** (corrected 2026-05-29 game-code audit; the earlier "registered and ticking" was wrong, only 7 systems are actually registered in the runtime). Deferred with reasons in `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| ⚠️ SYSTEMS-TABLE ACCURACY (2026-05-29 audit) | ⚠️ | Many ✅ rows above mean "implemented in code," NOT "registered + running." Only 12 systems actually tick: Time, PlayerController, Interaction, Farming, Inventory, ContainerCompatibility, Crafting, Food (nutrition/hunger/energy/oxygen/temp, v0.330–0.336), Drone (asteroid mining, v0.332.0), Weather (season-driven; drives exposed-env temperature, v0.337.0), Skill (skills/XP from craft/harvest/mine, v0.340.0), Quest (data-driven quests; Gather/Craft/Harvest objectives + rewards + prerequisite chaining, v0.342.0). The rest (ecology, hydrology, atmosphere, disasters, AI, vehicles, construction + the 16 scaffolds) compile but are unregistered, they never run. **`tests/engine_wiring_lint.rs` is the authoritative registered-vs-deferred list** (build fails if a system is neither). The individual system rows above/below are now downgraded to ⚠️ accordingly (done 2026-05-29). |
+| Electrical system | ⚠️ | `src/systems/electrical.rs` (~120 LOC), partial AND **NOT registered** (never ticks); needs `PowerGenerator` / `PowerConsumer` ECS components. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Psychology system | ⚠️ | `src/systems/psychology.rs` (~144 LOC), partial AND **NOT registered** (never ticks); `Needs` lives as side state instead of a proper ECS component. See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
+| Nutrition / food system | ✅ | `FoodSystem` **registered + ticking** (v0.330.0): Eat → satiation/hydration from `food_system.ron` nutrition profiles, raw food rolls `raw_consumption_risk`→`food_poisoning`, full meal→`well_fed`; hunger/thirst decay → `hungry`/`thirsty` conditions → starvation/dehydration health drain; timed effects expire; plus the original spoilage. `Vitals`+`StatusEffects` ECS components; `StatusEffectRegistry` (status_effects.csv) keeps durations/mods in data. Inventory page shows vitals bars + effect chips. **#3b (v0.334.0):** SPEED modifiers now mechanically applied, the camera scales movement by the player's active effects (`well_nourished` +10% from a good meal, `thirsty`/`flu` −20%); `stamina_regen` + `vision_range` mods still pending (need a stamina system / renderer wiring). **#7a (v0.335.0):** `Vitals.energy` drains while awake → `fatigued` (−15% speed) below 25% → a **Rest** button refills it. **#7b (v0.336.0):** oxygen + body-temperature are environment-coupled, an `EnvironmentContext` from player-position-vs-homestead-AABB drives oxygen drain (hypoxia → suffocation) + body-temp drift (hypothermia / heat exhaustion) when exposed to vacuum/cold, with Health loss; re-entering recovers. Hunger is now tangible (speed) too. **#7c (v0.338.0):** sanitation, organic `waste` accrues → `unsanitary` debuff → **Compost** → `fertilizer_0` → a **Fertilize** crop action boosts growth (closes food→waste→compost→soil→food). Survival baseline = satiation + hydration + energy + oxygen + temperature + waste/sanitation (all 5 listed needs live). See `docs/design/gameplay-loops.md`. |
 | Drone↔asteroid mining | ✅ | `DroneSystem` **registered + ticking** (v0.332.0): commission a drone for an ore → Outbound→Mining→Returning state machine → delivers mined ore to the player; an asteroid mined empty is deleted. `AsteroidBody` (finite multi-ore) + `Drone` ECS components; Mining panel on the inventory page. Proven by `mining::drone_tests`. **#5b** (tracked in gameplay-loops.md): server-authoritative MMO asteroids + swarm/abandoned-deletion, 3D voxel asteroid visuals + drone flight, nickel/platinum refine recipes. |
 | Emissive materials | ✅ | PBR shader emissive support (params.w = emissive_strength) (v0.90.0) |
 | 12 procedural materials | ✅ | Glass, ice, water, leather, crystal, rust, moss, lava + original brick, metal, wood, concrete (v0.90.0) |
@@ -399,7 +399,7 @@ Everything in this section is **built and working**.
 | Feature | Status | Details |
 |---------|--------|---------|
 | OS-standard data dir | ✅ | `%APPDATA%\HumanityOS\` with identity, saves, settings, cache, backups |
-| Save slots | ⚠️ | The full multi-slot model (profile/farm/quests/world) is design + test-only. What actually persists between sessions today (v0.381 `src/save_load.rs`, single `offline_home.json`): **inventory + skills** — applied at startup, saved on close + periodically. Health/position/game-time/vitals/crops/quests still reset every launch (the next persistence increment). |
+| Save slots | ⚠️ | The full multi-slot model (profile/farm/quests/world) is design + test-only. What actually persists between sessions today (v0.381 `src/save_load.rs`, single `offline_home.json`): **inventory + skills**, applied at startup, saved on close + periodically. Health/position/game-time/vitals/crops/quests still reset every launch (the next persistence increment). |
 | Auto-rotating backups | ✅ | Keeps last 5 timestamped snapshots |
 | USB drive detection | ✅ | Detects removable drives for export/import |
 | Tiered sync config | ✅ | Configurable sync levels |
@@ -443,31 +443,31 @@ Everything in this section is **built and working**.
 ## What to Build Next
 
 **This section is a pointer, not a plan.** The authoritative ranked backlog is
-**`docs/PRIORITIES.md`** — read it for the current top item and full ordering.
+**`docs/PRIORITIES.md`**, read it for the current top item and full ordering.
 The summary below reflects PRIORITIES as of 2026-05-28; if it has drifted from
 PRIORITIES.md, trust PRIORITIES.md.
 
 - **Currently active (Track W):** clean rebuild of the web chat *view* to mirror
   native 1:1, keeping the proven JS engine (WS/crypto/WebRTC). Spec:
   `docs/design/chat-layout.md`.
-- **TIER 0 — pre-public-launch blockers:** the only open item is fixing nginx
+- **TIER 0, pre-public-launch blockers:** the only open item is fixing nginx
   `/health` routing (public `https://united-humanity.us/health` returns 404 while
   internal returns 200). Everything else in TIER 0 is DONE (off-site backup,
   release-mirror retention, Inc6 wipe, orphan-admin cleanup, TLS auto-renew, etc.).
-- **TIER 1 — hardening:** effectively closed (fail2ban, watchdog+alerting,
+- **TIER 1, hardening:** effectively closed (fail2ban, watchdog+alerting,
   SQLite corruption recovery all shipped; off-box monitor skipped by operator).
-- **TIER 2 — big-feature gaps (weeks each):** web↔native parity (Track W),
+- **TIER 2, big-feature gaps (weeks each):** web↔native parity (Track W),
   Studio+streaming, in-app ops console, **native voice (no WebRTC stack at all
   today)**, federation *activation* (designed, dormant=safe, not turned on),
   native trade UI completion (events not dispatched), Litestream continuous
   backup, mobile clients (Android/iOS), device mesh, federated Library, and
-  **P2P groups phases 3–5** (P2P transport / relay-independence / mDNS-DHT —
+  **P2P groups phases 3–5** (P2P transport / relay-independence / mDNS-DHT, 
   phases 1–2 are done: create/invite/join/E2EE-chat/leave/disband work on both
   clients as of v0.301–v0.304).
-- **TIER 3 — ELI5 accessibility mandate:** tooltip pass, first-5-minutes
+- **TIER 3, ELI5 accessibility mandate:** tooltip pass, first-5-minutes
   onboarding flow, localization expansion (5→11+ languages), full WCAG 2.1 AA
   audit, native glossary widget. Largely NOT done.
-- **TIER 4 — long horizon:** LoRa hardware, STARK selective disclosure, deep
+- **TIER 4, long horizon:** LoRa hardware, STARK selective disclosure, deep
   game-world simulation, AI-agent governance enforcement, distribution beyond
   GitHub/Forgejo.
 
@@ -476,7 +476,7 @@ PRIORITIES.md, trust PRIORITIES.md.
 ## What's NOT done (corrective summary)
 
 > **The previous version of this file claimed "0 missing" across every category.
-> That was wrong and dangerously misleading** — it contradicted the live backlog.
+> That was wrong and dangerously misleading**, it contradicted the live backlog.
 > HumanityOS has a large amount of built infrastructure AND a large amount of
 > remaining work. The honest high-level picture:
 
@@ -485,7 +485,7 @@ PRIORITIES.md, trust PRIORITIES.md.
   stack → native voice, video, screen-share, and streaming are stubs/observer-only
   (web has them). (PRIORITIES TIER 2 #2, #4, #6.)
 - Native **trade UI** page exists but trade events aren't dispatched (TIER 2 #7).
-- **Federation** code is fail-closed and dormant — designed, not activated; no
+- **Federation** code is fail-closed and dormant, designed, not activated; no
   admin UI to add/trust peers yet (TIER 2 #5).
 - **Bloom post-process** scaffolding built, render-loop integration unverified.
 - **16+ scaffolded game systems** (aging, astronomy, fire, genetics, geology,
@@ -494,19 +494,19 @@ PRIORITIES.md, trust PRIORITIES.md.
   were flipped ✅→⚠️ in the v0.122 truthfulness pass; the "Game Engine" rows below
   still over-count them as built.)
 - **Most ops/config is CLI/SSH-only** (alerts, backups, fail2ban, relay control,
-  secrets) — violates the GUI-first mandate; tracked as debt in
+  secrets), violates the GUI-first mandate; tracked as debt in
   `docs/design/in-app-ops.md` (TIER 2 #3).
 - Many ✅ rows below predate v0.132 and have **not been re-verified** against the
   current binary.
 
 **Known missing / not built:**
-- Mobile clients (Android, iOS) — TIER 2 #5.
-- Device mesh (system-info reporting, designate-backup, restore, LAN sync) — TIER 2 #6.
-- Federated Library (files/software/web catalog) — TIER 2 #7.
+- Mobile clients (Android, iOS), TIER 2 #5.
+- Device mesh (system-info reporting, designate-backup, restore, LAN sync), TIER 2 #6.
+- Federated Library (files/software/web catalog), TIER 2 #7.
 - P2P groups phases 3–5 (true P2P transport + relay-independence + serverless
-  discovery) — TIER 2 #8.
+  discovery), TIER 2 #8.
 - The entire TIER 3 accessibility layer (tooltips, onboarding flow polish,
-  expanded localization, WCAG audit, native glossary) — mission-critical, mostly
+  expanded localization, WCAG audit, native glossary), mission-critical, mostly
   not started.
 
 **Do not treat the per-category counts in old revisions of this file as a

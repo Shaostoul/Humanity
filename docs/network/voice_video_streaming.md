@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the architecture for real-time audio, video, and livestreaming across the Humanity Network — from 1-on-1 calls to broadcasts serving thousands of concurrent viewers — without centralizing cost or control.
+Define the architecture for real-time audio, video, and livestreaming across the Humanity Network, from 1-on-1 calls to broadcasts serving thousands of concurrent viewers, without centralizing cost or control.
 
 ## Principles
 
@@ -21,13 +21,13 @@ All real-time media uses WebRTC:
 - Adaptive bitrate and congestion control
 - Works on web, mobile, and native clients
 
-The relay server provides **signaling only** (exchanging SDP offers/answers and ICE candidates via the existing WebSocket connection). Media flows peer-to-peer or through an SFU — never through the chat relay.
+The relay server provides **signaling only** (exchanging SDP offers/answers and ICE candidates via the existing WebSocket connection). Media flows peer-to-peer or through an SFU, never through the chat relay.
 
 ## Tier 1: Voice Calls
 
 ### 1-on-1 Voice
 - Pure WebRTC P2P between two friends
-- Relay does signaling only — zero audio data touches the server
+- Relay does signaling only, zero audio data touches the server
 - Bandwidth: ~50kbps per direction (Opus codec)
 - Latency: typically <100ms
 - Requirement: mutual friends (same as DM requirement)
@@ -35,7 +35,7 @@ The relay server provides **signaling only** (exchanging SDP offers/answers and 
 ### Group Voice (2-8 participants)
 - Full mesh P2P: each participant sends their audio to every other participant
 - Works well up to ~6-8 people (upload = N-1 streams × 50kbps)
-- At 8 people: ~350kbps upload per person — manageable for most connections
+- At 8 people: ~350kbps upload per person, manageable for most connections
 - Relay does signaling for all peer connections
 
 ### Group Voice (8+ participants)
@@ -99,7 +99,7 @@ Streamer (source)
 1. **Streamer** sends one video stream to the SFU (~3-8Mbps upload)
 2. **SFU** distributes to **Tier 1 viewers** (direct connections, ~20-100 depending on server bandwidth)
 3. **Each viewer re-relays to other viewers** via WebRTC data channels
-4. Viewers form a **dynamic mesh** — not a rigid tree
+4. Viewers form a **dynamic mesh**, not a rigid tree
 5. Each viewer connects to **multiple peers** for redundancy (not just one parent)
 
 ### Many Seeds, Small Slices
@@ -120,7 +120,7 @@ Rather than each viewer relaying the full stream to 2-3 others (high per-peer lo
 | 2Mbps         | ~50% of stream | Significant contributor |
 | 4Mbps+        | Full relay | Can be a full seed |
 
-This means someone on a 10Mbps connection gaming (using ~5Mbps) can still contribute 500kbps of relay capacity. Every little bit helps. A viewer with terrible upload (200kbps) still contributes — they just serve fewer chunks.
+This means someone on a 10Mbps connection gaming (using ~5Mbps) can still contribute 500kbps of relay capacity. Every little bit helps. A viewer with terrible upload (200kbps) still contributes, they just serve fewer chunks.
 
 ### Bandwidth Allocation
 
@@ -135,7 +135,7 @@ Bandwidth Settings
 ├── Available for Humanity: [calculated]        (e.g., 5 Mbps)
 │
 ├── Relay contribution: [off | low | medium | high | custom]
-│   ├── Off:    0 — receive only, never relay
+│   ├── Off:    0 - receive only, never relay
 │   ├── Low:    10% of available  (500kbps)
 │   ├── Medium: 25% of available  (1.25Mbps)
 │   ├── High:   50% of available  (2.5Mbps)
@@ -195,9 +195,9 @@ Streamer produces multiple quality layers via simulcast or SVC (Scalable Video C
 | High | 1080p | 4-6Mbps | Full quality viewers |
 | Medium | 720p | 1.5-2.5Mbps | Default |
 | Low | 480p | 500-800kbps | Bandwidth-constrained |
-| Audio-only | — | 64kbps | Extreme constraints |
+| Audio-only |, | 64kbps | Extreme constraints |
 
-Peers relay whichever layers they can afford. A low-bandwidth peer might only relay the audio layer — still helpful.
+Peers relay whichever layers they can afford. A low-bandwidth peer might only relay the audio layer, still helpful.
 
 ### Server Cost at Scale
 
@@ -229,17 +229,17 @@ The server only needs to feed enough Tier 1 viewers to seed the mesh. Everything
 - IP addresses visible to direct peers (standard WebRTC limitation)
   - TURN relay available for users who want IP privacy (at cost of latency)
 - Stream recordings require streamer consent
-- Viewers cannot record without client modification (no DRM — intentional)
+- Viewers cannot record without client modification (no DRM, intentional)
 
 ## Implementation Phases
 
-1. **Phase 1 — Voice P2P:** WebRTC signaling through existing WebSocket relay. 1-on-1 voice between friends. Browser + native.
-2. **Phase 2 — Group voice:** Full mesh for small groups. Voice channels in server UI.
-3. **Phase 3 — Video calls:** Add video tracks to existing WebRTC connections. Simulcast.
-4. **Phase 4 — SFU integration:** Self-hosted LiveKit or similar for larger groups.
-5. **Phase 5 — Livestreaming MVP:** SFU + basic peer relay tree. Bandwidth settings UI.
-6. **Phase 6 — Chunked mesh delivery:** BitTorrent-style chunk distribution for streams. Many-seed architecture.
-7. **Phase 7 — Adaptive optimization:** Dynamic throttling, geo-aware peer selection, congestion avoidance.
+1. **Phase 1, Voice P2P:** WebRTC signaling through existing WebSocket relay. 1-on-1 voice between friends. Browser + native.
+2. **Phase 2, Group voice:** Full mesh for small groups. Voice channels in server UI.
+3. **Phase 3, Video calls:** Add video tracks to existing WebRTC connections. Simulcast.
+4. **Phase 4, SFU integration:** Self-hosted LiveKit or similar for larger groups.
+5. **Phase 5, Livestreaming MVP:** SFU + basic peer relay tree. Bandwidth settings UI.
+6. **Phase 6, Chunked mesh delivery:** BitTorrent-style chunk distribution for streams. Many-seed architecture.
+7. **Phase 7, Adaptive optimization:** Dynamic throttling, geo-aware peer selection, congestion avoidance.
 
 ## Open Questions
 

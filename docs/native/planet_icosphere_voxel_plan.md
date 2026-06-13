@@ -1,6 +1,6 @@
 # Planet Runtime Plan: Icosahedral + Procedural Voxel/Field Hybrid
 
-## Yes — this is the right direction
+## Yes: this is the right direction
 
 Use an icosphere-based planetary surface (20 -> 80 -> 320 -> 1280 faces...) as the top-level spatial partition, then adaptive subdivision + procedural generation per patch.
 

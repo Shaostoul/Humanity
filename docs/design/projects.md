@@ -32,7 +32,7 @@ Every server has an implicit `default` project (never stored in the table, alway
 | `members-only` | Owner + explicitly added members (future: `project_members` table) |
 | `private` | Owner only |
 
-Private projects and their tasks are excluded from all queries for non-owners. This is enforced server-side — the client never receives data it shouldn't.
+Private projects and their tasks are excluded from all queries for non-owners. This is enforced server-side, the client never receives data it shouldn't.
 
 ## API
 
@@ -86,7 +86,7 @@ If `project` is omitted on GET, return tasks across all visible projects. If omi
 ]
 ```
 
-`task_count` is computed via subquery — no denormalized counter.
+`task_count` is computed via subquery, no denormalized counter.
 
 ## WebSocket Messages
 
@@ -191,7 +191,7 @@ The roadmap page (`web/pages/tasks.html`) gets the same project dropdown. Select
 
 ## Migration path
 
-1. **Server**: Add `projects` table + `project` column to `tasks` (SQLite `ALTER TABLE` — no downtime needed)
+1. **Server**: Add `projects` table + `project` column to `tasks` (SQLite `ALTER TABLE`, no downtime needed)
 2. **Server**: Add storage functions, API routes, WS message handlers
 3. **UI**: Add project selector dropdown + create dialog to task board
 4. **UI**: Wire up project filtering in task list and roadmap

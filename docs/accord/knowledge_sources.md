@@ -100,7 +100,7 @@ This includes:
 
 Such knowledge is valuable but must remain open to examination and integration with broader evidence.
 
-Tradition explains what worked—not necessarily why.
+Tradition explains what worked, not necessarily why.
 
 ---
 

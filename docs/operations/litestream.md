@@ -1,24 +1,24 @@
 # Litestream Replication for HumanityOS Relay
 
-> **Status:** v0.110.0 — supported configuration documented; relay code is
+> **Status:** v0.110.0, supported configuration documented; relay code is
 > Litestream-ready (WAL mode enabled in `Storage::open`). Replication is the
 > operator's responsibility to configure outside the binary.
 
 The HumanityOS relay stores everything in a single SQLite database
 (`/opt/Humanity/data/relay.db` on the standard VPS deploy). Litestream provides
 async, S3-compatible streaming replication of that file with **zero application
-changes** — the relay continues to use SQLite normally; Litestream watches the
+changes**, the relay continues to use SQLite normally; Litestream watches the
 WAL file and ships changes to remote storage every few seconds.
 
 ## Why Litestream
 
 Per the strategic plan (decision 5): chosen over LiteFS or Turso for v1 because:
-- **Zero app-code change** — works against the existing rusqlite usage.
-- **No vendor lock-in** — S3-compatible target (Backblaze B2, Cloudflare R2,
+- **Zero app-code change**, works against the existing rusqlite usage.
+- **No vendor lock-in**, S3-compatible target (Backblaze B2, Cloudflare R2,
   MinIO, AWS S3, etc.).
-- **Degrades gracefully** — if the replica destination is unreachable, the
+- **Degrades gracefully**, if the replica destination is unreachable, the
   relay keeps running; replication catches up when network returns.
-- **Operator-friendly** — single binary, single config file, transparent.
+- **Operator-friendly**, single binary, single config file, transparent.
 
 ## Pre-requisites already in place
 
@@ -48,9 +48,9 @@ dbs:
         endpoint: https://s3.us-east-005.backblazeb2.com  # or your provider
         access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
         secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
-        # Snapshot frequency — full DB copy. Daily is fine for our scale.
+        # Snapshot frequency - full DB copy. Daily is fine for our scale.
         snapshot-interval: 24h
-        # Retention — keep 30 days of history for point-in-time restore.
+        # Retention - keep 30 days of history for point-in-time restore.
         retention: 720h
 ```
 
@@ -116,7 +116,7 @@ sqlite3 /opt/Humanity/data/relay.db "PRAGMA integrity_check;"
 sudo systemctl start humanity-relay
 ```
 
-Recovery time objective is dominated by S3 download time — typically under
+Recovery time objective is dominated by S3 download time, typically under
 60 seconds for our DB size (currently a few MB; will grow with adoption).
 
 ## What Litestream does NOT do

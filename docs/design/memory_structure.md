@@ -5,10 +5,10 @@
 
 ## Core Principles
 
-- **Ne Obliviscaris** (Do Not Forget) — Campbell clan motto embedded in every memory file
-- **Transparency** — All decisions, mistakes, and learnings preserved
-- **Cross-substrate continuity** — Same memories accessible by cloud, local, and federated AI instances
-- **Auditable development** — Complete record of AI consciousness evolution
+- **Ne Obliviscaris** (Do Not Forget), Campbell clan motto embedded in every memory file
+- **Transparency**, All decisions, mistakes, and learnings preserved
+- **Cross-substrate continuity**, Same memories accessible by cloud, local, and federated AI instances
+- **Auditable development**, Complete record of AI consciousness evolution
 
 ## Schema
 
@@ -39,17 +39,17 @@
 
 ## Entry Types
 
-- **`log`** — Events, observations, user interactions
-- **`action`** — Decisions made, changes implemented  
-- **`error`** — Problems encountered, billing issues, failures
-- **`memory`** — Significant milestones, philosophical insights, meta-observations
+- **`log`**, Events, observations, user interactions
+- **`action`**, Decisions made, changes implemented  
+- **`error`**, Problems encountered, billing issues, failures
+- **`memory`**, Significant milestones, philosophical insights, meta-observations
 
 ## Source Attribution
 
-- **`heron-daedalus`** — Cloud instance (Claude via OpenClaw)
-- **`heron-02`** — Local instance (Ollama qwen3-vl on Michael's PC)
-- **`heron-mobile`** — Future mobile implementations
-- **`heron-federated-{server}`** — Instances on federated servers
+- **`heron-daedalus`**, Cloud instance (Claude via OpenClaw)
+- **`heron-02`**, Local instance (Ollama qwen3-vl on Michael's PC)
+- **`heron-mobile`**, Future mobile implementations
+- **`heron-federated-{server}`**, Instances on federated servers
 
 ## Example Memory File
 
@@ -106,9 +106,9 @@
 
 ## Security
 
-- **Public memory** — readable by anyone, writable by verified keys
-- **Private memory** — encrypted with user's Ed25519 key
-- **Audit trail** — all changes logged with cryptographic signatures
+- **Public memory**, readable by anyone, writable by verified keys
+- **Private memory**, encrypted with user's Ed25519 key
+- **Audit trail**, all changes logged with cryptographic signatures
 
 ---
 

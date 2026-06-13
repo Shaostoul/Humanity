@@ -1,7 +1,7 @@
 # Cryptocurrency Exchange & Payment Layer
 
-**HumanityOS — Payment Infrastructure Design**
-**Version 1.0 — March 2026**
+**HumanityOS, Payment Infrastructure Design**
+**Version 1.0, March 2026**
 
 Non-custodial payment layer enabling donations (crypto + USD) and peer-to-peer value transfer, built on top of HumanityOS's existing Ed25519 identity system.
 
@@ -9,13 +9,13 @@ Non-custodial payment layer enabling donations (crypto + USD) and peer-to-peer v
 
 ## 1. Goals & Constraints
 
-1. **Accept donations** — one-time and recurring, in crypto and USD.
-2. **Zero/near-zero fees** — every cent should reach the recipient.
-3. **P2P transfers** — users send value to each other directly.
-4. **Non-custodial** — the server NEVER holds private keys or custodies funds.
-5. **Identity reuse** — derive wallet addresses from existing Ed25519 keypairs where possible.
-6. **No build step** — client libraries loaded via `<script>` tags or ESM imports, consistent with the rest of HumanityOS.
-7. **CC0 compatible** — no proprietary dependencies in core payment logic.
+1. **Accept donations**, one-time and recurring, in crypto and USD.
+2. **Zero/near-zero fees**, every cent should reach the recipient.
+3. **P2P transfers**, users send value to each other directly.
+4. **Non-custodial**, the server NEVER holds private keys or custodies funds.
+5. **Identity reuse**, derive wallet addresses from existing Ed25519 keypairs where possible.
+6. **No build step**, client libraries loaded via `<script>` tags or ESM imports, consistent with the rest of HumanityOS.
+7. **CC0 compatible**, no proprietary dependencies in core payment logic.
 
 ---
 
@@ -27,12 +27,12 @@ Non-custodial payment layer enabling donations (crypto + USD) and peer-to-peer v
 |------|------------|-------|
 | **Bitcoin Lightning Network** | ~1 sat (~$0.001) | Requires channel management; near-instant finality. Inbound liquidity can be a problem for new nodes. |
 | **Bitcoin on-chain** | $0.50–$5.00 (varies wildly) | Slow (10–60 min), fee spikes during congestion. Not suitable for small transfers. |
-| **Solana** | ~$0.00025 per tx | Fast (~400ms finality). Ed25519 native — direct key reuse. Priority fees add ~$0.001–0.01 during congestion. |
+| **Solana** | ~$0.00025 per tx | Fast (~400ms finality). Ed25519 native, direct key reuse. Priority fees add ~$0.001–0.01 during congestion. |
 | **Ethereum L1** | $0.50–$50+ | Unusable for small transfers. |
 | **Arbitrum (ETH L2)** | $0.01–$0.10 | EVM-compatible. Requires bridge from L1. 7-day withdrawal to L1. |
 | **Optimism (ETH L2)** | $0.01–$0.10 | Similar to Arbitrum. OP Stack ecosystem. |
 | **Base (ETH L2)** | $0.001–$0.05 | Coinbase-backed. Cheapest ETH L2 for most operations. No withdrawal delay with fast bridges. |
-| **USDC on Solana** | ~$0.00025 | Same as native SOL. Stablecoin — no volatility risk. |
+| **USDC on Solana** | ~$0.00025 | Same as native SOL. Stablecoin, no volatility risk. |
 | **USDC on Base** | $0.001–$0.05 | Cheap stablecoin transfers with EVM compatibility. |
 | **USDC on Ethereum L1** | $2–$20 | Prohibitive for donations under ~$100. |
 | **Stripe (USD)** | 2.9% + $0.30 | Standard card processing. A $5 donation loses $0.45 (9%). A $100 donation loses $3.20 (3.2%). |
@@ -102,7 +102,7 @@ function solanaAddressFromPublicKey(publicKeyBytes) {
 // Usage:
 // const keypair = solanaKeypairFromIdentity(myIdentity);
 // const address = keypair.publicKey.toBase58();
-// "7xK9m..." — this IS the user's payment address
+// "7xK9m..." - this IS the user's payment address
 ```
 
 ### 3.2 Multi-Chain Key Derivation
@@ -181,14 +181,14 @@ Use third-party RPC providers with free tiers:
 
 | Provider | Free Tier | Best For |
 |----------|-----------|----------|
-| **Helius** | 100k requests/day | Solana (recommended — best DX) |
+| **Helius** | 100k requests/day | Solana (recommended, best DX) |
 | **QuickNode** | 50 req/sec, 10M credits/mo | Multi-chain |
 | **Alchemy** | 300M compute units/mo | Ethereum L2s |
 | **Solana public RPC** | Rate-limited | Fallback only |
 | **Infura** | 100k requests/day | Ethereum ecosystem |
 
 ```js
-/** Fetch SOL balance — client-side, no server involvement */
+/** Fetch SOL balance - client-side, no server involvement */
 async function getSolBalance(publicKeyBase58) {
   const resp = await fetch('https://mainnet.helius-rpc.com/?api-key=FREE_KEY', {
     method: 'POST',
@@ -319,7 +319,7 @@ Client polls the RPC for transaction status. Solana confirms in ~400ms so the UX
 **USD**: Link to GitHub Sponsors (0% fee) as primary option. Stripe checkout as secondary option for users who prefer card payments.
 
 ```html
-<!-- donate.html — donation page integration -->
+<!-- donate.html - donation page integration -->
 <section id="donate-crypto">
   <h3>Donate with Crypto (near-zero fees)</h3>
   <p>Send SOL or USDC to:</p>
@@ -331,7 +331,7 @@ Client polls the RPC for transaction status. Solana confirms in ~400ms so the UX
 <section id="donate-usd">
   <h3>Donate with USD</h3>
   <a href="https://github.com/sponsors/Shaostoul">
-    GitHub Sponsors (0% fee — recommended)
+    GitHub Sponsors (0% fee - recommended)
   </a>
   <button onclick="openStripeCheckout()">
     Card Payment (2.9% + $0.30 fee)
@@ -348,7 +348,7 @@ Client polls the RPC for transaction status. Solana confirms in ~400ms so the UX
 | **Crypto (client-scheduled)** | Client stores a recurring reminder; user manually approves each tx | ~$0.00025/tx |
 | **Crypto (smart contract)** | Solana program with pre-authorized debit (e.g., token delegation) | ~$0.001/tx + deploy cost |
 
-**Recommended approach**: GitHub Sponsors for USD recurring, client-side reminders for crypto recurring. Smart contract subscriptions are possible but add complexity and audit requirements — defer to Phase 5.
+**Recommended approach**: GitHub Sponsors for USD recurring, client-side reminders for crypto recurring. Smart contract subscriptions are possible but add complexity and audit requirements, defer to Phase 5.
 
 ### 5.3 Donation Receipts
 
@@ -404,14 +404,14 @@ For EVM chains, use `ethers.js` (or the lighter `viem`) for transaction construc
 - **Address verification**: When sending to another HumanityOS user, the client derives their expected Solana address from their known public key and compares it to the requested address. Mismatch = warning.
 - **Domain binding**: Payment request messages are signed with the sender's Ed25519 key. The relay verifies signatures before forwarding (same as all other messages).
 - **Confirmation dialog**: All transactions require explicit user approval with amount, recipient name, and address displayed clearly.
-- **No clipboard auto-paste for addresses** — users must explicitly select the recipient from their contact list or manually verify pasted addresses.
+- **No clipboard auto-paste for addresses**, users must explicitly select the recipient from their contact list or manually verify pasted addresses.
 
 ### 6.4 Rate Limiting
 
 Extend existing relay rate limiting (Fibonacci backoff) to payment-related message types:
 
 ```rust
-// In relay.rs — payment messages get stricter limits
+// In relay.rs - payment messages get stricter limits
 match msg_type {
     "PaymentRequest" | "PaymentConfirmation" => {
         // Max 10 payment messages per minute per public key
@@ -446,7 +446,7 @@ A platform becomes a **Money Services Business (MSB)** or **money transmitter** 
 - The server never holds, controls, or transmits funds.
 - Users sign and submit transactions directly to blockchain RPCs.
 - The server only relays messages (payment requests/confirmations), not value.
-- This is analogous to a messaging app where users discuss payments — the app itself does not process them.
+- This is analogous to a messaging app where users discuss payments, the app itself does not process them.
 
 ### 7.2 Key Legal Precedents
 
@@ -457,7 +457,7 @@ A platform becomes a **Money Services Business (MSB)** or **money transmitter** 
 ### 7.3 What WOULD Trigger Compliance Requirements
 
 Do NOT implement any of the following without legal review:
-- **Fiat on/off ramps** (converting USD ↔ crypto) — this makes you a money transmitter.
+- **Fiat on/off ramps** (converting USD ↔ crypto), this makes you a money transmitter.
 - **Custodial wallets** (server holds keys on behalf of users).
 - **Order book / matching engine** (buying/selling crypto = exchange).
 - **Token swaps** (even non-custodial DEX aggregation may trigger requirements in some jurisdictions).
@@ -473,7 +473,7 @@ As a non-custodial platform, KYC/AML obligations are minimal. However:
 
 ### 7.5 Recommended Legal Steps
 
-1. Consult a fintech attorney before launching Phase 3 (P2P transfers) — even non-custodial platforms get regulatory scrutiny.
+1. Consult a fintech attorney before launching Phase 3 (P2P transfers), even non-custodial platforms get regulatory scrutiny.
 2. Add clear terms of service stating the platform does not custody funds.
 3. Implement sanctions screening if operating internationally (OFAC SDN list).
 4. Keep the donation page compliant with state charitable solicitation laws if accepting USD donations.
@@ -490,10 +490,10 @@ As a non-custodial platform, KYC/AML obligations are minimal. However:
 - Display Solana address in profile panel (`chat-profile.js`).
 - QR code for the address (reuse existing `qrcode.js`).
 - Copy-to-clipboard button.
-- No transactions yet — display only.
+- No transactions yet, display only.
 
 **Files modified**: `crypto.js`, `chat-profile.js`
-**Dependencies**: `@solana/web3.js` (for PublicKey + base58 — or just use a standalone base58 encoder, ~200 bytes)
+**Dependencies**: `@solana/web3.js` (for PublicKey + base58, or just use a standalone base58 encoder, ~200 bytes)
 **Risk**: Low. No funds involved.
 
 ### Phase 2: Accept Donations (1–2 weeks)
@@ -523,7 +523,7 @@ As a non-custodial platform, KYC/AML obligations are minimal. However:
 
 **Files modified**: New `client/payments.js`, `chat-dms.js`, `chat-profile.js`, `chat-p2p.js`, `relay.rs` (new message types)
 **Dependencies**: `@solana/web3.js`, Helius RPC
-**Risk**: Medium. Real funds involved — needs security review and testing on devnet first.
+**Risk**: Medium. Real funds involved, needs security review and testing on devnet first.
 
 ### Phase 4: Multi-Chain Support (4–8 weeks)
 
@@ -559,10 +559,10 @@ As a non-custodial platform, KYC/AML obligations are minimal. However:
 ### 9.1 Primary Chain: Solana
 
 **Why Solana first**:
-- Ed25519 native — zero-friction key reuse from HumanityOS identity.
-- ~$0.00025 per transaction — effectively free.
-- ~400ms finality — instant UX.
-- USDC natively available — stablecoin support without bridges.
+- Ed25519 native, zero-friction key reuse from HumanityOS identity.
+- ~$0.00025 per transaction, effectively free.
+- ~400ms finality, instant UX.
+- USDC natively available, stablecoin support without bridges.
 - Large ecosystem, well-maintained JS SDK.
 - Free RPC tiers available (Helius: 100k req/day).
 
@@ -571,7 +571,7 @@ As a non-custodial platform, KYC/AML obligations are minimal. However:
 | Library | Size (gzip) | Purpose | Load Strategy |
 |---------|-------------|---------|---------------|
 | `@solana/web3.js` | ~400KB | Transaction building, signing, RPC | Vendor in `client/vendor/` |
-| `bs58` | ~2KB | Base58 encoding (Solana addresses) | Vendor (or inline — it's tiny) |
+| `bs58` | ~2KB | Base58 encoding (Solana addresses) | Vendor (or inline, it's tiny) |
 | `ethers.js` (Phase 4) | ~120KB (ethers v6 ESM tree-shaken) | EVM transaction signing | Vendor, load only when needed |
 | `qrcode.js` | Already loaded | QR codes for payment addresses | Existing dependency |
 
@@ -598,8 +598,8 @@ As a non-custodial platform, KYC/AML obligations are minimal. However:
 
 ### Should we reuse the identity key as the wallet key?
 
-**Pro**: Simplest UX — no extra key management. Users already back up their identity seed.
-**Con**: Tighter blast radius — compromised seed = compromised wallet AND identity.
+**Pro**: Simplest UX, no extra key management. Users already back up their identity seed.
+**Con**: Tighter blast radius, compromised seed = compromised wallet AND identity.
 **Decision**: Yes, reuse. The identity seed is already the single root of trust. Adding a separate wallet seed doubles the backup burden with no real security gain (if the identity seed is compromised, the attacker can impersonate the user anyway).
 
 ### Should the relay store any payment data?
@@ -650,6 +650,6 @@ As a non-custodial platform, KYC/AML obligations are minimal. However:
 - [Solana Web3.js Documentation](https://solana-labs.github.io/solana-web3.js/)
 - [Helius RPC Free Tier](https://www.helius.dev/)
 - [GitHub Sponsors FAQ](https://docs.github.com/en/sponsors)
-- [EU MiCA Regulation — Wallet Exclusions](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32023R1114)
+- [EU MiCA Regulation, Wallet Exclusions](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32023R1114)
 - [HumanityOS Identity Architecture](/design/architecture_decisions/client_side_identity_keys.md)
 - [HumanityOS Key Management](/design/identity/keys_and_sessions.md)

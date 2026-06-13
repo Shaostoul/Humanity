@@ -19,13 +19,13 @@ point of failure.
 | systemd unit | `/etc/systemd/system/forgejo.service` | `User=forgejo`, hardening flags |
 | nginx vhost | `/etc/nginx/sites-available/git.united-humanity.us` | reverse proxy `127.0.0.1:3000`, `client_max_body_size 1024m` for LFS |
 | TLS | `/etc/letsencrypt/live/git.united-humanity.us/` | Let's Encrypt, auto-renews via certbot timer |
-| Git | `/usr/local/bin/git` | 2.45.2 built from source — Debian 11's bundled 2.30.2 was too old for Forgejo (needs ≥2.34.1) |
+| Git | `/usr/local/bin/git` | 2.45.2 built from source, Debian 11's bundled 2.30.2 was too old for Forgejo (needs ≥2.34.1) |
 
 ## What's the public surface
 
 - **Web UI**: https://git.united-humanity.us
 - **HTTPS clone**: `https://git.united-humanity.us/shaostoul/humanity.git`
-- **SSH clone**: `forgejo@git.united-humanity.us:shaostoul/humanity.git` (system sshd on port 22; Forgejo's `RUN_USER=forgejo` so SSH user is `forgejo`, NOT `git` — there is no `git` system user on the VPS)
+- **SSH clone**: `forgejo@git.united-humanity.us:shaostoul/humanity.git` (system sshd on port 22; Forgejo's `RUN_USER=forgejo` so SSH user is `forgejo`, NOT `git`, there is no `git` system user on the VPS)
 - **Self-registration**: disabled. Only the admin (`shaostoul`) can create accounts.
 - **OpenID sign-in**: disabled.
 - **API**: anonymous read access on public repos via `https://git.united-humanity.us/api/v1/...`
@@ -36,14 +36,14 @@ The `_commit` recipe in the Justfile now pushes to both remotes:
 
 ```
 git push origin main      # required (GitHub)
-git push forge main       # best-effort (Forgejo) — `-` prefix so it doesn't block ship
+git push forge main       # best-effort (Forgejo) - `-` prefix so it doesn't block ship
 ```
 
 Tag push works the same way: tags go to `origin` first (GitHub Actions Build
 Desktop App workflow keys off this), then to `forge`. A transient Forgejo
 outage doesn't block a ship.
 
-To register the second remote on a fresh clone, **prefer SSH** — credentials never expire, no token rotation, no GCM cache invalidation. HTTPS is supported but is fragile; see "Why SSH" below.
+To register the second remote on a fresh clone, **prefer SSH**, credentials never expire, no token rotation, no GCM cache invalidation. HTTPS is supported but is fragile; see "Why SSH" below.
 
 ```bash
 # SSH (recommended)
@@ -76,7 +76,7 @@ git remote add forge forgejo@git.united-humanity.us:<user>/humanity.git
 
 HTTPS to Forgejo uses Windows Git Credential Manager via browser SSO. The cached
 token expires/invalidates without warning, and `git push forge main` then dies
-with `Credentials are incorrect or have expired`. Recovery is non-obvious — you
+with `Credentials are incorrect or have expired`. Recovery is non-obvious, you
 have to manually erase the cached creds before the next push will re-prompt:
 
 ```bash
@@ -141,7 +141,7 @@ tar xzf git-2.45.2.tar.gz && cd git-2.45.2
 make prefix=/usr/local NO_TCLTK=1 NO_GETTEXT=1 NO_PERL=1 -j4 all
 sudo make prefix=/usr/local NO_TCLTK=1 NO_GETTEXT=1 NO_PERL=1 install
 
-# 4. app.ini (see /etc/forgejo/app.ini for current contents — pre-configured paths,
+# 4. app.ini (see /etc/forgejo/app.ini for current contents - pre-configured paths,
 # git binary path, server domain, root URL, disable self-registration, SQLite3)
 
 # 5. systemd unit (see /etc/systemd/system/forgejo.service)
@@ -174,10 +174,10 @@ git push forge --tags
 
 - Wire CI on Forgejo (Forgejo Actions or external Woodpecker) so the build
   doesn't depend on GitHub Actions exclusively.
-- ForgeFed — when Forgejo's federation protocol implementation ships, federate
+- ForgeFed, when Forgejo's federation protocol implementation ships, federate
   with Codeberg + other community Forgejo instances. Step beyond mere
   mirroring into actual federated source distribution.
 - Mirror-mode pull from `Shaostoul/Humanity` on GitHub as a backstop, in case
   a `just ship` push to forge fails silently and isn't noticed.
 - SSH push key setup for Linux/macOS contributors who don't get GCM's free
-  browser SSO (mostly cosmetic — PAT works fine).
+  browser SSO (mostly cosmetic, PAT works fine).

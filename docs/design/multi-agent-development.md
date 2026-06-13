@@ -8,11 +8,11 @@
 
 Architecture for automated, parallelized development using specialized AI agents coordinated through:
 
-1. **Static registry** (`data/coordination/agent_registry.ron`) — declares who
+1. **Static registry** (`data/coordination/agent_registry.ron`), declares who
    owns what, what they must NOT touch, and how to detect "no work to do"
-2. **Runtime state** (`agent_sessions` SQLite table) — live claim / heartbeat /
+2. **Runtime state** (`agent_sessions` SQLite table), live claim / heartbeat /
    release of scopes so multiple AI sessions don't trample each other
-3. **Documentation** (this dir + STATUS.md + FEATURES.md) — the long-term
+3. **Documentation** (this dir + STATUS.md + FEATURES.md), the long-term
    memory that survives across sessions
 
 Designed to survive across chat sessions, enabling any new AI session to pick up where others left off without nuking work or missing context.
@@ -23,7 +23,7 @@ Designed to survive across chat sessions, enabling any new AI session to pick up
 
 Every freshly spun-up AI session, before touching any code, MUST:
 
-1. **Read `agent_registry.ron`** — find the entry matching its assigned scope.
+1. **Read `agent_registry.ron`**, find the entry matching its assigned scope.
 2. **Check `agent_sessions` row** for that scope_id:
    - `GET /api/v2/agents/sessions/{scope_id}` (when the API endpoint ships) OR
    - direct SQLite query during local dev
@@ -35,11 +35,11 @@ Every freshly spun-up AI session, before touching any code, MUST:
    - Otherwise → **claim the scope** via `agent_claim_scope`, set initial
      state notes describing the planned work
 4. **Heartbeat every 5–10 minutes** with progress notes via `agent_heartbeat`
-5. **On exit** — call `agent_release_scope` with one of:
-   - `paused` — work in progress, will resume later
-   - `completed` — scope at its stop state for now (e.g., elements DB has all
+5. **On exit**, call `agent_release_scope` with one of:
+   - `paused`, work in progress, will resume later
+   - `completed`, scope at its stop state for now (e.g., elements DB has all
      ~118 elements, no new work until a new element is discovered)
-   - `blocked` — waiting on input or another agent
+   - `blocked`, waiting on input or another agent
 
 The coordinator (the human-talking-to-AI middleman) sees aggregated status by
 listing `agent_sessions` and only dispatches work to scopes that are not

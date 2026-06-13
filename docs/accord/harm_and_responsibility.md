@@ -16,7 +16,7 @@ Harm is not defined by intent alone.
 
 Harm is defined by **impact on dignity, wellbeing, agency, trust, and long-term viability**.
 
-Responsibility arises wherever action—or inaction—predictably affects others.
+Responsibility arises wherever action, or inaction, predictably affects others.
 
 ---
 

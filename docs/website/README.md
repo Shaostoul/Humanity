@@ -12,9 +12,9 @@ The website is a presentation layer only.
 The website is **not authoritative**.
 
 Canonical truth lives in:
-- `accord/` — civilizational principles and human-facing law
-- `design/` — technical constraints, systems, schemas
-- `data/` — structured, machine- and human-readable truth
+- `accord/`, civilizational principles and human-facing law
+- `design/`, technical constraints, systems, schemas
+- `data/`, structured, machine- and human-readable truth
 
 The website must reflect those sources, not redefine them.
 

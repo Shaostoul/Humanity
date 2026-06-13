@@ -1,10 +1,10 @@
-# Engagement Modes — How Players Meet Their Needs
+# Engagement Modes: How Players Meet Their Needs
 
 > **Status:** Proposed (2026-05-04). Drafted from in-session design discussion. Supersedes the earlier "tier framework" idea, which had combinatorial mod-failure problems and did not solve the accessibility goal.
 
 ## The problem this solves
 
-HumanityOS simulates real-world systems — water, food, fertilizer, energy — at meaningful depth. But not every player wants to engage with every system. A player who loves gardening might hate electrical engineering. A player who wants to focus on social or governance work might want to ignore survival production entirely. Two failure modes to avoid:
+HumanityOS simulates real-world systems, water, food, fertilizer, energy, at meaningful depth. But not every player wants to engage with every system. A player who loves gardening might hate electrical engineering. A player who wants to focus on social or governance work might want to ignore survival production entirely. Two failure modes to avoid:
 
 - **Forcing every player through every system** kills accessibility.
 - **Making the simulation shallow enough for everyone** kills depth.
@@ -36,7 +36,7 @@ Player joins a guild or community that pools production. They contribute one thi
 ### 5. Background
 Needs met automatically (late-game, post-scarcity, fully-automated homestead). Player engages with whatever they enjoy. UI exposes the survival domain only on request.
 
-A single player typically MIXES modes — Direct for what they enjoy, Trade for what they don't. The mode is chosen per-domain (water, food, fertilizer, energy), not globally.
+A single player typically MIXES modes, Direct for what they enjoy, Trade for what they don't. The mode is chosen per-domain (water, food, fertilizer, energy), not globally.
 
 ## Why this works
 
@@ -51,10 +51,10 @@ A single player typically MIXES modes — Direct for what they enjoy, Trade for 
 
 When a player chooses Direct mode for a domain, the UI must support an exploratory, comparative decision flow. The unit of design is **diagnostic + education + options + economics + idle-resource awareness**.
 
-Worked example — player notices a problem with a tomato plant:
+Worked example, player notices a problem with a tomato plant:
 
 ```
-Tomato plant — Status: Underperforming
+Tomato plant - Status: Underperforming
 
 Soil sample:
   N (Nitrogen):     12 ppm   ← LOW (need 30-50)
@@ -68,26 +68,26 @@ Why N matters:
   stalls, fruit yield drops by ~40%.
 
 Options to add N (cheapest first):
-  • Compost (slow, free)          — you have 12 kg ready ✓
-  • Urine diversion (fast, free)  — your bathroom produces 1.5 L/day
-  • Wood ash (very slow)          — N-low, mostly K — skip for this
-  • Biochar charge (medium)       — needs pre-soaking in N source
-  • Ammonium sulfate (instant)    — Market: 8 cr/kg | you have: 4 cr
+  • Compost (slow, free)          - you have 12 kg ready ✓
+  • Urine diversion (fast, free)  - your bathroom produces 1.5 L/day
+  • Wood ash (very slow)          - N-low, mostly K - skip for this
+  • Biochar charge (medium)       - needs pre-soaking in N source
+  • Ammonium sulfate (instant)    - Market: 8 cr/kg | you have: 4 cr
 
 Idle resources flagged:
-  • Mining drone (idle 3 days)    — could be hauling compost
-  • Compost pile #2 (ready 2d ago) — apply now for free fix
+  • Mining drone (idle 3 days)    - could be hauling compost
+  • Compost pile #2 (ready 2d ago) - apply now for free fix
 ```
 
 This is the unit of UI design for Direct mode. Each plant, each system, each domain gets its own version. The pattern is consistent; the data varies.
 
-Players in Trade / Automation / Cooperative / Background modes for this domain do **not** see this view. They see their preferred interface — market UI, automation config, guild dashboard, or nothing. The simulation still runs underneath; they just don't touch it.
+Players in Trade / Automation / Cooperative / Background modes for this domain do **not** see this view. They see their preferred interface, market UI, automation config, guild dashboard, or nothing. The simulation still runs underneath; they just don't touch it.
 
 ## Implementation pattern
 
-- ECS components hold simulation state at consistent depth (one tier — roughly equivalent to "properties and ratios": NPK values, watts/kWh, calories+macros, contaminant categories).
+- ECS components hold simulation state at consistent depth (one tier, roughly equivalent to "properties and ratios": NPK values, watts/kWh, calories+macros, contaminant categories).
 - UI panels filter what to expose based on the player's chosen mode for that domain.
-- The simulation itself doesn't know which mode the player picked — it always runs at full depth.
+- The simulation itself doesn't know which mode the player picked, it always runs at full depth.
 - Settings page exposes per-domain mode choice.
 - Real/Sim toggle informs defaults (Real mode tends Direct; Sim mode tends Background).
 - Mode transitions need narrative/UX care (e.g., player abandons their garden → NPCs or automation take over; what happens to their crops in transition?).
@@ -102,7 +102,7 @@ Players in Trade / Automation / Cooperative / Background modes for this domain d
 
 ## Relationship to existing design rules
 
-- **Infinite-of-X:** modes 2, 4, 5 require lots of NPCs, lots of guilds, lots of automation — all of which must be data-driven.
+- **Infinite-of-X:** modes 2, 4, 5 require lots of NPCs, lots of guilds, lots of automation, all of which must be data-driven.
 - **Universal widgets:** the diagnostic+options panel becomes a reusable widget that adapts to any domain (water, food, fertilizer, energy).
 - **Real/Sim toggle:** informs default mode per domain, but doesn't override player choice.
 - **AI-as-citizens:** AI agents can occupy any of the five modes alongside humans. An AI agent might Direct-produce food while trading services with human players.
@@ -110,6 +110,6 @@ Players in Trade / Automation / Cooperative / Background modes for this domain d
 
 ## Related docs
 
-- `docs/design/ui-system.md` — universal widget contract
-- `docs/design/infinite-of-x.md` — data-driven content rule
-- `docs/design/educational-gameplay.md` — teach real survival skills through simulation
+- `docs/design/ui-system.md`, universal widget contract
+- `docs/design/infinite-of-x.md`, data-driven content rule
+- `docs/design/educational-gameplay.md`, teach real survival skills through simulation

@@ -1,6 +1,6 @@
 # Pages Registry
 
-> **Audited 2026-05-03.** This is the canonical inventory of every UI page in HumanityOS — native (Rust + egui) and web (HTML). Update this file in the same commit as adding/removing/renaming a page so the registry never drifts. The Pages section in MEMORY.md and CLAUDE.md should defer to this file rather than re-listing.
+> **Audited 2026-05-03.** This is the canonical inventory of every UI page in HumanityOS, native (Rust + egui) and web (HTML). Update this file in the same commit as adding/removing/renaming a page so the registry never drifts. The Pages section in MEMORY.md and CLAUDE.md should defer to this file rather than re-listing.
 
 ## How to use this file
 
@@ -8,7 +8,7 @@
 - **Removing/renaming**: update the table, update `GuiPage`, update `src/gui/pages/escape_menu.rs::sub_pages_for()` if the page was nav-listed.
 - **Audit drift**: run `cargo test --test theme_editor_coverage` to confirm no orphan pages and no enum variants without files. (TODO v0.180+: add `tests/page_registry_coverage.rs` to verify this file matches the actual filesystem.)
 
-## Native pages (32 — `src/gui/pages/`)
+## Native pages (32: `src/gui/pages/`)
 
 Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 
@@ -47,14 +47,14 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | Browser | `browser.rs` | Curated bookmarks (5 categories). Foundation for in-app browser. | everyone | ✓ working | web-only |
 
 **Component files in `src/gui/pages/` (NOT pages):**
-- `mod.rs` — module root
-- `escape_menu.rs` — RGB-coloured nav bar (shared across all tool pages)
-- `hud.rs` — in-game HUD (health, hotbar, crosshair, compass, FPS, weather)
-- `placeholder.rs` — utility for unbuilt pages
+- `mod.rs`, module root
+- `escape_menu.rs`, RGB-coloured nav bar (shared across all tool pages)
+- `hud.rs`, in-game HUD (health, hotbar, crosshair, compass, FPS, weather)
+- `placeholder.rs`, utility for unbuilt pages
 
-## Web pages (`web/pages/*.html` — 38 standalone)
+## Web pages (`web/pages/*.html`: 38 standalone)
 
-Web is a superset of native — adds marketing/landing/dev pages that don't need a native counterpart.
+Web is a superset of native, adds marketing/landing/dev pages that don't need a native counterpart.
 
 | Name | File | Purpose | Audience | Web-only? |
 |------|------|---------|----------|-----------|
@@ -70,7 +70,7 @@ Web is a superset of native — adds marketing/landing/dev pages that don't need
 | Data | `data.html` | Data management UI (saves, backups, sync, USB). | dev | yes |
 | Ops | `ops.html` | Operations / monitoring. | admin | yes |
 | Admin | `admin.html` | Admin dashboard. | admin | yes |
-| Web | `web.html` | (purpose unclear — TODO audit) | unknown | yes |
+| Web | `web.html` | (purpose unclear, TODO audit) | unknown | yes |
 
 Plus mirrors of every native page: `chat.html`, `inventory.html`, `tasks.html`, `maps.html`, `market.html`, `profile.html`, `civilization.html`, `calculator.html`, `notes.html`, `calendar.html`, `crafting.html`, `wallet.html`, `guilds.html`, `trade.html`, `files.html`, `bugs.html`, `resources.html`, `donate.html`, `tools.html`, `identity.html`, `governance.html`, `recovery.html`, `agents.html`, `ai-usage.html`, `settings.html`.
 
@@ -86,18 +86,18 @@ Plus mirrors of every native page: `chat.html`, `inventory.html`, `tasks.html`, 
 
 ## Pages mentioned in docs as "needed but not built"
 
-(Low confidence — based on grep of CLAUDE.md / STATUS.md / FEATURES.md / roadmap. Verify before scheduling work.)
+(Low confidence, based on grep of CLAUDE.md / STATUS.md / FEATURES.md / roadmap. Verify before scheduling work.)
 
-- **Welcome page** — replace the welcome system channel (deleted in v0.126); HOS-managed page with editable content.
-- **Rules page** — same shape as Welcome, replaces deleted rules channel.
-- **Accord page** — Humanity Accord rendered as a navigable page (currently linked as a doc).
-- **Features page** — auto-generated from a data file; landing page audit recommended this to substantiate the "150+ features" claim.
-- **Releases / Changelog page** — public version history.
-- **Federation page** — peer server browser.
-- **Backups page** — backup history + manual trigger.
-- **In-app browser page** — full webview (CEF/wry/tauri-style). Currently the `Browser` page is a bookmarks-only stub.
-- **Window/chrome custom title bar** — settings or independent overlay (operator-requested, deferred).
-- **Multi-monitor manager** — settings sub-page (future).
+- **Welcome page**, replace the welcome system channel (deleted in v0.126); HOS-managed page with editable content.
+- **Rules page**, same shape as Welcome, replaces deleted rules channel.
+- **Accord page**, Humanity Accord rendered as a navigable page (currently linked as a doc).
+- **Features page**, auto-generated from a data file; landing page audit recommended this to substantiate the "150+ features" claim.
+- **Releases / Changelog page**, public version history.
+- **Federation page**, peer server browser.
+- **Backups page**, backup history + manual trigger.
+- **In-app browser page**, full webview (CEF/wry/tauri-style). Currently the `Browser` page is a bookmarks-only stub.
+- **Window/chrome custom title bar**, settings or independent overlay (operator-requested, deferred).
+- **Multi-monitor manager**, settings sub-page (future).
 
 ## Natural groupings (used by two-tier nav, landed v0.179.0)
 

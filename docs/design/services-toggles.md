@@ -1,7 +1,7 @@
 # Server → Services (operator feature + daemon toggles)
 
 **Status:** BUILT v0.262.16
-**Affects:** `src/relay/services.rs` (new — the privilege bridge),
+**Affects:** `src/relay/services.rs` (new, the privilege bridge),
 `src/relay/relay.rs` (`ServiceControl`/`ServiceState` WS + handler),
 `src/relay/storage/server_settings.rs` + `storage/mod.rs`
 (`p2p_distribution_enabled` column + migration),
@@ -27,12 +27,12 @@ The operator wants one-click control in the native Server Settings
 page, consistent with the master∧capability model already shipped
 (`docs/design/roles-system.md`).
 
-## 2. The boundary — two layers, one panel
+## 2. The boundary: two layers, one panel
 
 | Layer | What | Persists? | Mechanism |
 |-------|------|-----------|-----------|
-| **Soft** (app) | The relay stops *offering* the feature instantly — no restart, broadcast to clients. | **Yes** (DB) | a `server_settings` bool the relay reads at runtime |
-| **Hard** (OS) | Start/stop the backing daemon to reclaim RAM. | **No (v1)** — see §5 | the allowlisted privilege bridge → `sudo systemctl` |
+| **Soft** (app) | The relay stops *offering* the feature instantly, no restart, broadcast to clients. | **Yes** (DB) | a `server_settings` bool the relay reads at runtime |
+| **Hard** (OS) | Start/stop the backing daemon to reclaim RAM. | **No (v1)**, see §5 | the allowlisted privilege bridge → `sudo systemctl` |
 
 **Effective = soft gate ON.** The hard layer is a resource
 optimisation, not the feature decision. A stopped-then-rebooted
@@ -48,7 +48,7 @@ add a second voice bool. The Services panel **reuses**
 would be exactly the "two detached toggles for the same thing" the
 operator rejected during the roles-table consolidation. One field,
 one shared `send_server_settings_update` builder, two entry points
-(Server-master row + Services panel) — coherent, not duplicated logic.
+(Server-master row + Services panel), coherent, not duplicated logic.
 
 For P2P there was no existing gate, so v0.262.16 adds
 `server_settings.p2p_distribution_enabled` (**default OFF**). The P2P
@@ -63,24 +63,24 @@ The relay runs as the **non-root** user `humanity`. The bridge
 (`src/relay/services.rs`) is the entire trust boundary; defence in
 depth, every layer independently blocks escalation:
 
-1. **Authorization** — the WS handler verifies the caller is
+1. **Authorization**, the WS handler verifies the caller is
    `admin`/`owner` (`db.get_role(&my_key_for_recv)`, identical to
    `ServerSettingsUpdate`) *before* the privileged call; `control()`
    re-checks the role.
-2. **Allowlist** — `ALLOWLIST` is a compile-time table. `resolve()`
+2. **Allowlist**, `ALLOWLIST` is a compile-time table. `resolve()`
    does **exact-equality** lookup of the client `service` string. The
    unit + systemctl subcommand handed onward are ALWAYS `&'static`
-   constants from that table — **never** a client-derived string.
+   constants from that table, **never** a client-derived string.
    `ServiceAction::parse` accepts only `"start"`/`"stop"`.
-3. **No shell** — `std::process::Command` with an argv vector; `sudo`
+3. **No shell**, `std::process::Command` with an argv vector; `sudo`
    / `systemctl` exec'd directly. No `sh -c`, no interpolation →
    injection is structurally impossible.
-4. **`sudo -n`** — non-interactive: a missing/wrong sudoers rule fails
+4. **`sudo -n`**, non-interactive: a missing/wrong sudoers rule fails
    immediately instead of hanging a relay thread (fails closed).
-5. **Kernel/sudoers** — `scripts/sudoers.d/humanity-relay-services`
+5. **Kernel/sudoers**, `scripts/sudoers.d/humanity-relay-services`
    grants `humanity` NOPASSWD for EXACTLY four commands
    (`/usr/bin/systemctl start|stop` × `coturn.service` |
-   `transmission-daemon.service`) — no wildcards, no
+   `transmission-daemon.service`), no wildcards, no
    enable/disable/mask. Installed only after `visudo -cf` validation,
    mode `0440 root:root`, with a fail-safe "not installed" branch
    (a malformed drop-in can break ALL sudo, so validate-first).
@@ -92,7 +92,7 @@ targeted-delivery filter as `banned_list`; never broadcast).
 Audited by the `security-review` skill at v0.262.16: **no HIGH/MEDIUM
 findings**. The review noted a *pre-existing, relay-wide* property
 (WS session identity is client-asserted; every admin handler shares
-it) — out of scope for this feature, queued separately as
+it), out of scope for this feature, queued separately as
 "Harden relay WS session identity (signed-nonce auth)".
 
 To add a service: one row in `ALLOWLIST` **and** the matching two
@@ -104,7 +104,7 @@ lines in the sudoers drop-in, then re-run the security review.
   `action` ∈ `start` | `stop` | (anything else ⇒ refresh only).
 - `service_state` (server → admin, targeted): `{ services: [{ id,
   label, soft_enabled, daemon_active, daemon_enabled }], target }`.
-  Built by `services::snapshot(&server_settings)` — the soft-gate ↔
+  Built by `services::snapshot(&server_settings)`, the soft-gate ↔
   service mapping lives there (one place).
 
 ## 5. Known v1 limitation + roadmap

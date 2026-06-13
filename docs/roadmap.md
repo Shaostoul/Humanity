@@ -1,5 +1,5 @@
 ---
-title: HumanityOS — Feature Roadmap
+title: HumanityOS, Feature Roadmap
 category: design
 status: living document
 updated: 2026-03-15
@@ -10,28 +10,30 @@ updated: 2026-03-15
 This document is the canonical priority list for HumanityOS development.
 Update it when priorities shift. It lives in git so it survives any local failure.
 
+> Cryptography note: for the authoritative, current crypto state (post-quantum chat identity, DM encryption, signing algorithms), see the "Cryptography" section in `CLAUDE.md`. That table is the single source of truth; the algorithm names referenced below are kept in sync with it.
+
 ---
 
-## Tier 1 — Foundational (blocks real adoption)
+## Tier 1: Foundational (blocks real adoption)
 
 ### ① Identity Recovery
-Users have no way to recover their Ed25519 identity if they lose their device.
+Users have no way to recover their Dilithium3 / ML-DSA-65 identity if they lose their device.
 This is the single largest trust barrier.
 
-**Approach**: BIP39 12-word mnemonic → PBKDF2 stretch → AES-GCM wrap private key.
-Store only the wrapped key. On recovery: enter seed → unwrap → restore identity.
+**Approach**: BIP39 24-word mnemonic → PBKDF2 stretch → AES-GCM wrap the BIP39 seed.
+Store only the wrapped seed (the Dilithium3 + Kyber768 keys re-derive from it). On recovery: enter seed → unwrap → restore identity.
 
 **Files**: `crypto.js` (wrap/unwrap), `chat-profile.js` (recovery UI modal)
 **Complexity**: Medium (2–3 days)
 
 ---
 
-### ② Federation — Server Network
+### ② Federation: Server Network
 One server is not a civilization OS. Servers need to discover each other,
 establish trust (Humanity Accord verification), and route messages between networks.
 
 **Approach**: Server-signed identity cards, gossip-based discovery, tier-based trust.
-Skeleton exists in `handlers/federation.rs` — needs protocol definition + UI.
+Skeleton exists in `handlers/federation.rs`, needs protocol definition + UI.
 
 **Files**: `handlers/federation.rs`, `relay.rs`, new `federation.html` page
 **Complexity**: High (1–2 weeks)
@@ -39,7 +41,7 @@ Skeleton exists in `handlers/federation.rs` — needs protocol definition + UI.
 ---
 
 ### ③ Multi-Device Key Sync
-Same identity on phone + desktop. ECDH-based secure channel between owned devices.
+Same identity on phone + desktop. Kyber768 / ML-KEM-768-based secure channel between owned devices.
 QR scan or short numeric code to authorize the second device.
 
 **Files**: `crypto.js`, `chat-p2p.js` (reuse WebRTC DataChannel)
@@ -47,7 +49,7 @@ QR scan or short numeric code to authorize the second device.
 
 ---
 
-## Tier 2 — Core OS Layer
+## Tier 2: Core OS Layer
 
 ### ④ Task / Mission Control System *(in progress)*
 Fibonacci-scoped kanban board for coordinating work at every civilization scale.
@@ -67,7 +69,7 @@ Time coordination is fundamental to any OS. `calendar.html` exists as stub.
 ---
 
 ### ⑥ Skills + Verifiable Reputation
-Self-sovereign résumé. Skills claimed by user, endorsed by peers with Ed25519 signatures.
+Self-sovereign résumé. Skills claimed by user, endorsed by peers with Dilithium3 / ML-DSA-65 signatures.
 Turns the identity system into something economically useful.
 
 **Files**: `skills.html`, relay profile storage extension
@@ -82,11 +84,11 @@ Local-first, encrypted at rest with identity key.
 
 ---
 
-## Tier 3 — Civilization Scale
+## Tier 3: Civilization Scale
 
 ### ⑧ Group Governance / Voting
 Turns chat groups into cooperatives. Proposals, ranked-choice votes, quorum rules.
-All votes signed with Ed25519 — verifiable, tamper-evident.
+All votes signed with Dilithium3 / ML-DSA-65, verifiable, tamper-evident.
 
 ---
 
@@ -102,7 +104,7 @@ Design detail in `design/education_model.md`.
 
 ---
 
-## Tier 4 — Reach
+## Tier 4: Reach
 
 ### ⑪ Progressive Web App (PWA)
 Service worker + manifest.json + offline cache + push notifications.
@@ -119,8 +121,8 @@ Full native app. Lower priority than PWA given Tauri desktop already works.
 
 ## Completed
 
-- ✅ Chat — voice, video, DMs (E2E encrypted), reactions, pins, threads, search
-- ✅ P2P contact cards (Ed25519-signed, QR code, WebRTC DataChannel)
+- ✅ Chat, voice, video, DMs (E2E encrypted), reactions, pins, threads, search
+- ✅ P2P contact cards (Dilithium3 / ML-DSA-65-signed, carries Kyber768 key, QR code, WebRTC DataChannel)
 - ✅ Profile system with privacy controls
 - ✅ Group system with roles
 - ✅ Federation skeleton (handlers/federation.rs)
@@ -130,7 +132,7 @@ Full native app. Lower priority than PWA given Tauri desktop already works.
 - ✅ Desktop app (Tauri, Windows/Mac/Linux)
 - ✅ Task API backend (/api/tasks CRUD + WebSocket broadcast)
 - ✅ Fibonacci-scoped task board (tasks.html)
-- ✅ System Context Awareness — hardware detection, server sync, "Copy for AI" export (v0.4.0)
-- ✅ ELI5 purpose hints on all standalone pages — 5-year-old navigable (v0.4.0)
-- ✅ Settings overhaul — 13 sections: rebindable keyboard shortcuts, accessibility, A/V device preview, security, DND, storage management (v0.4.0)
-- ✅ Feature-complete studio panel — live WebRTC metrics, BRB timer, bitrate control, scene presets (v0.4.0)
+- ✅ System Context Awareness, hardware detection, server sync, "Copy for AI" export (v0.4.0)
+- ✅ ELI5 purpose hints on all standalone pages, 5-year-old navigable (v0.4.0)
+- ✅ Settings overhaul, 13 sections: rebindable keyboard shortcuts, accessibility, A/V device preview, security, DND, storage management (v0.4.0)
+- ✅ Feature-complete studio panel, live WebRTC metrics, BRB timer, bitrate control, scene presets (v0.4.0)
