@@ -55,6 +55,26 @@ pub struct MachineInstance {
     pub offset: (f32, f32, f32),
 }
 
+/// A grid of identical machines, expanded into instances at load time. Lets a dense
+/// array (e.g. an indoor garden packed with aeroponic towers) be ONE data line instead
+/// of hundreds of hand-typed instances. Infinite-of-X: the array IS the data.
+#[derive(Debug, Clone, Deserialize)]
+pub struct MachineArray {
+    /// Catalog type to repeat.
+    pub machine: String,
+    /// Room id to place the grid in.
+    pub room: String,
+    /// (x, y, z) meters from the room center for the grid's first (row 0, col 0) cell.
+    pub origin: (f32, f32, f32),
+    /// Number of rows (stepped along +z) and columns (stepped along +x).
+    pub rows: u32,
+    pub cols: u32,
+    /// (x_step, z_step) meters between adjacent cells.
+    pub spacing: (f32, f32),
+    /// Id prefix for the generated instances (e.g. "tower" -> "tower_0", "tower_1", ...).
+    pub id_prefix: String,
+}
+
 /// A pipe / cable / tube between two machines.
 #[derive(Debug, Clone, Deserialize)]
 pub struct MachineConnection {
@@ -84,6 +104,9 @@ pub struct HomeLoop {
 pub struct MachineHome {
     pub catalog: HashMap<String, MachineDef>,
     pub instances: Vec<MachineInstance>,
+    /// Dense grids expanded into instances at load time. Optional so an older RON parses.
+    #[serde(default)]
+    pub arrays: Vec<MachineArray>,
     pub connections: Vec<MachineConnection>,
     /// The coupled self-sufficiency loops (energy/water/food/nutrients). Optional so an
     /// older RON without it still parses.
@@ -106,6 +129,31 @@ impl MachineHome {
                 None
             }
         }
+    }
+
+    /// All placed machines: the explicit `instances` plus every `arrays` grid expanded
+    /// row-major into individual instances. This is what the renderer should iterate.
+    pub fn all_instances(&self) -> Vec<MachineInstance> {
+        let mut out = self.instances.clone();
+        for arr in &self.arrays {
+            let mut idx = 0usize;
+            for r in 0..arr.rows {
+                for c in 0..arr.cols {
+                    out.push(MachineInstance {
+                        id: format!("{}_{}", arr.id_prefix, idx),
+                        machine: arr.machine.clone(),
+                        room: arr.room.clone(),
+                        offset: (
+                            arr.origin.0 + c as f32 * arr.spacing.0,
+                            arr.origin.1,
+                            arr.origin.2 + r as f32 * arr.spacing.1,
+                        ),
+                    });
+                    idx += 1;
+                }
+            }
+        }
+        out
     }
 
     /// Color (rgba) for a connection kind.
@@ -135,21 +183,34 @@ mod tests {
         assert!(!home.catalog.is_empty(), "catalog non-empty");
         assert!(!home.instances.is_empty(), "instances non-empty");
         assert!(!home.connections.is_empty(), "connections non-empty");
-        // Every instance references a known catalog type.
-        for inst in &home.instances {
+        // Every array references a known catalog type.
+        for arr in &home.arrays {
+            assert!(
+                home.catalog.contains_key(&arr.machine),
+                "array {} references unknown machine type {}",
+                arr.id_prefix,
+                arr.machine
+            );
+        }
+        // Expanded instances = explicit + every array grid, all referencing known types.
+        let all = home.all_instances();
+        let expected: usize = home.instances.len()
+            + home.arrays.iter().map(|a| (a.rows * a.cols) as usize).sum::<usize>();
+        assert_eq!(all.len(), expected, "all_instances() should expand every array grid");
+        let mut seen_ids = std::collections::HashSet::new();
+        for inst in &all {
             assert!(
                 home.catalog.contains_key(&inst.machine),
                 "instance {} references unknown machine type {}",
                 inst.id,
                 inst.machine
             );
+            assert!(seen_ids.insert(inst.id.clone()), "duplicate instance id {}", inst.id);
         }
-        // Every connection references defined instances.
-        let ids: std::collections::HashSet<&str> =
-            home.instances.iter().map(|i| i.id.as_str()).collect();
+        // Every connection references a defined instance (explicit or array-expanded).
         for c in &home.connections {
-            assert!(ids.contains(c.from.as_str()), "connection from unknown {}", c.from);
-            assert!(ids.contains(c.to.as_str()), "connection to unknown {}", c.to);
+            assert!(seen_ids.contains(c.from.as_str()), "connection from unknown {}", c.from);
+            assert!(seen_ids.contains(c.to.as_str()), "connection to unknown {}", c.to);
         }
     }
 }

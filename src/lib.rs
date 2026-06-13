@@ -459,7 +459,9 @@ mod native_app {
                     })
                     .collect();
                 let mut placed = 0usize;
-                for inst in &home.instances {
+                // Explicit instances + every `arrays` grid expanded (dense garden towers).
+                let all_instances = home.all_instances();
+                for inst in &all_instances {
                     let Some(&(center, floor_y)) = rooms.get(inst.room.as_str()) else { continue };
                     let Some(def) = home.catalog.get(&inst.machine) else { continue };
                     let pos = Vec3::new(
