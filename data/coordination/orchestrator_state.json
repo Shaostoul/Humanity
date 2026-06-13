@@ -3,11 +3,23 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "FIRST-PLAYABLE / 3D-home arc in progress. Machines placed (v0.427) + world-space LOD labels (v0.428) + hold-Tab reveal & room occlusion (v0.429). NEXT (operator views v0.429 first, then feedback): swap the stat-kind TEXT for painted status ICONS (lightning bolt greying out when power off, droplet, gauge) + a Settings UI for the label distances. FUTURE (design-doc filed): the expedition/stealth/awareness gameplay layer. Security sprint done (only GitHub branch protection remains, operator). v0.426.0 release built + awaiting operator signature.",
+  "current_focus": "FIRST-PLAYABLE / 3D-home arc: machines placed (v0.427), world-space LOD labels with room occlusion + Tab x-ray + status icons + Settings sliders COMPLETE (v0.428-0.430). NEXT (recommended): WALK-UP INTERACTION, approach a machine + press E to use/inspect it (the First-Playable \"stations become real\" milestone). Other arc options: wire machine stats to the live sim (real power/water/progress), add the rest of the blueprint machines to data/machines/home.ron (trivial). Security sprint done bar GitHub branch protection; v0.426.0 release awaits operator signature.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
   "recent_decisions": [
+    {
+      "at": "2026-06-13",
+      "decision": "MACHINE-LABEL FEATURE COMPLETE (v0.429.1 + v0.430.0). v0.429.1 fixed the Tab-freezes-movement bug (Tab was reaching egui in FPS mode -> egui grabbed keyboard focus via focus-traversal and swallowed WASD; fix: do not feed Tab to egui while in GuiPage::None). v0.430.0: distances retuned to Fibonacci 21/13/8; the info card now shows painted STATUS ICONS instead of kind text (new widgets/icons.rs: paint_bolt/droplet/flame/leaf + reused box/cog), colored by status (ok green / warn-low amber / off red), two-column row icon+value; Settings>Graphics gained live sliders for the 3 distances; keybinds list shows Inventory=I, Reveal(hold)=Tab. Occlusion is room-based (operator confirmed fine, no raycast wanted).",
+      "why": "Operator iterated the labels to completion. Each increment built + pushed origin+forge + local exe (SOP). The machine-label/LOD feature is now done: dot->name->card LOD, room occlusion, Tab x-ray peek, status icons, configurable distances.",
+      "files": [
+        "src/lib.rs",
+        "src/gui/pages/hud.rs",
+        "src/gui/widgets/icons.rs",
+        "src/gui/pages/settings.rs",
+        "src/gui/mod.rs"
+      ]
+    },
     {
       "at": "2026-06-13",
       "decision": "WORLD-SPACE MACHINE LABELS arc (v0.428 -> v0.429). v0.428: floating labels over each machine with distance level-of-detail, dot (far) -> +name -> +info card (clean two-column stat rows colored by status). world_to_screen projection in hud.rs using the camera view_projection_matrix (verified against the reverse-Z perspective_rh: NDC stays [0,1], x/y standard). Each machine type got a display label + demo stats (kind/value/status) in data/machines/home.ron; GuiState.machine_labels populated by load_world. v0.429 (operator feedback): smaller dots (1.7px), distances retuned to dot 8 / name 5 / card 3 (GuiState fields), ROOM-BASED OCCLUSION (default shows only machines in the camera-current room; GuiState.room_bounds from the homestead rooms), and HOLD-TAB reveal peek (markers through walls across all rooms + x3 distance). Tab was the inventory key -> moved inventory to the I key. SOP followed correctly this time: pushed origin + forge + built the local exe each release.",
@@ -1435,7 +1447,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.429.0. Local exe building (v0.429.0). v0.426.0 RELEASE awaits operator just sign-release. Each release v0.423-0.429 pushed to BOTH origin + forge + local exe built (SOP corrected 2026-06-13 after the operator caught forge + local-exe drift). Deploy-to-VPS + Pages green.",
+  "version_state": "main==origin==forge: v0.430.0; local exe building. v0.426.0 RELEASE awaits operator just sign-release. Every release v0.427-0.430 pushed origin+forge + local exe built (SOP). Deploy-to-VPS + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
