@@ -2351,6 +2351,12 @@ pub async fn vault_sync_put(
     if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
+    // Anti-replay (audit 2026-06-12): reject a duplicate (key, purpose,
+    // timestamp) inside the freshness window so a captured signed PUT cannot be
+    // replayed to re-overwrite the vault.
+    if !state.auth_nonce_fresh(&body.key, "vault_sync", body.timestamp) {
+        return Err((StatusCode::CONFLICT, "Duplicate request rejected (replay).".into()));
+    }
 
     // Cap blob size at 512 KB to prevent abuse.
     if body.blob.len() > 512 * 1024 {
@@ -2395,6 +2401,9 @@ pub async fn vault_sync_get(
     if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
+    if !state.auth_nonce_fresh(&q.key, "vault_sync", q.timestamp) {
+        return Err((StatusCode::CONFLICT, "Duplicate request rejected (replay).".into()));
+    }
 
     match state.db.get_vault_blob(&q.key) {
         Some((blob, updated_at)) => Ok(Json(serde_json::json!({ "blob": blob, "updated_at": updated_at }))),
@@ -2425,6 +2434,9 @@ pub async fn vault_sync_delete(
     }).await.unwrap_or(false);
     if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+    if !state.auth_nonce_fresh(&body.key, "vault_sync", body.timestamp) {
+        return Err((StatusCode::CONFLICT, "Duplicate request rejected (replay).".into()));
     }
     state.db.delete_vault_blob(&body.key)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;

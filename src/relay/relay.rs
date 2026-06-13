@@ -168,6 +168,13 @@ pub struct RelayState {
     /// high-impact. Legit use is ~1 per deploy, so a generous global cap bounds
     /// the blast radius without affecting normal operation.
     pub announce_rate: std::sync::Mutex<Vec<Instant>>,
+    /// Audit 2026-06-12: anti-replay for signed REST auth requests (vault sync
+    /// etc.). The signature proves key ownership over "purpose\ntimestamp", but
+    /// within the 5-min freshness window a captured request could be replayed
+    /// (e.g. to re-overwrite a vault). We record each (key, purpose, timestamp)
+    /// that verifies, and reject a second sighting. Map: short id -> first-seen
+    /// Instant; pruned to the window on access + size-capped.
+    pub seen_auth_nonces: std::sync::Mutex<HashMap<String, Instant>>,
     /// VAPID keypair for WebPush notifications (P-256/ES256).
     pub vapid_key: Option<ES256KeyPair>,
     /// Server configuration loaded from data/server-config.json (funding, membership, etc.).
@@ -181,6 +188,35 @@ pub struct RelayState {
 }
 
 impl RelayState {
+    /// Anti-replay gate for signed REST auth requests (audit 2026-06-12).
+    /// Returns true if this (pubkey, purpose, timestamp) tuple is FRESH (record
+    /// it and proceed), false if it is a REPLAY already seen within the window.
+    /// Call only AFTER the signature has verified. Keyed by a short hash of the
+    /// pubkey so map keys stay small; pruned to the window + size-capped.
+    pub fn auth_nonce_fresh(&self, pubkey_hex: &str, purpose: &str, timestamp: u64) -> bool {
+        const WINDOW_SECS: u64 = 6 * 60; // slightly wider than the 5-min freshness check
+        const MAP_CAP: usize = 100_000;
+        let fp = {
+            use sha2::{Digest, Sha256};
+            let mut h = Sha256::new();
+            h.update(pubkey_hex.as_bytes());
+            hex::encode(&h.finalize()[..8])
+        };
+        let id = format!("{fp}:{purpose}:{timestamp}");
+        let mut map = self.seen_auth_nonces.lock().unwrap();
+        let now = Instant::now();
+        if map.len() > MAP_CAP {
+            map.retain(|_, t| now.duration_since(*t).as_secs() < WINDOW_SECS);
+        }
+        if let Some(t) = map.get(&id) {
+            if now.duration_since(*t).as_secs() < WINDOW_SECS {
+                return false; // replay
+            }
+        }
+        map.insert(id, now);
+        true
+    }
+
     pub fn new(db: Storage) -> Self {
         // Read webhook config from environment.
         let webhook = std::env::var("WEBHOOK_URL").ok().map(|url| {
@@ -279,6 +315,7 @@ impl RelayState {
             new_identity_per_ip: std::sync::Mutex::new(HashMap::new()),
             object_submit_rate: std::sync::Mutex::new(HashMap::new()),
             announce_rate: std::sync::Mutex::new(Vec::new()),
+            seen_auth_nonces: std::sync::Mutex::new(HashMap::new()),
             vapid_key: None,
             server_config,
             game_world: RwLock::new(GameWorld::new()),
