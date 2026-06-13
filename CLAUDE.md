@@ -369,6 +369,7 @@ OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
 2. Commit the version bump IN the same commit (not separate)
 3. Push to main
 4. Tag and release: `git tag vX.Y.Z && git push origin vX.Y.Z && gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`
+5. **SIGN THE RELEASE (release signing is ACTIVE as of v0.421.0).** After the tag's Build-Desktop workflow uploads the platform binaries, the operator runs `export HUMANITY_SIGNING_PASSPHRASE=... && just sign-release vX.Y.Z`. The desktop updater + the local launcher only trust SIGNED releases — an unsigned release is invisible to auto-update (not an error, just not offered). So every release from v0.421.0 onward MUST be signed or v0.421+ desktop users won't see it. Signing is operator-only (needs the passphrase + `release-signing-key.enc`); an AI/CI cannot sign. Full procedure: `docs/release-signing.md`.
 
 **Session end: Verify sync**
 - If any changes were made, confirm GitHub release matches local `Cargo.toml` version

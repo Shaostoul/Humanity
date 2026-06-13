@@ -1347,9 +1347,9 @@
     },
     {
       "path": "/download.html",
-      "hash": "sha256:ee28b3ba9524c9adee9ad1657d070991b5694e91d33c0649526ff90c3514e1c9",
+      "hash": "sha256:dc23025b380047ffd5eec9d50226704798f9a3b93ae2ad514b983c724ce903af",
       "size": 40161,
-      "modified": 1781310470
+      "modified": 1781317556
     },
     {
       "path": "/files.html",
@@ -1419,9 +1419,9 @@
     },
     {
       "path": "/ops.html",
-      "hash": "sha256:0367bc38aafbe063198d1a2b983722ed8e1cd43d7a12597e3efe48e82be632a9",
+      "hash": "sha256:b12d86b5f94d515045ca217a0733bd5eeb3652134a50303cfca744ebca80a10a",
       "size": 18092,
-      "modified": 1781310470
+      "modified": 1781317556
     },
     {
       "path": "/pages/admin-app.js",
@@ -1485,9 +1485,9 @@
     },
     {
       "path": "/pages/settings-app.js",
-      "hash": "sha256:cf36dca771ad8d22b29c57b04da0ce3f71ea8e444d913771b56b73d3ecba0539",
+      "hash": "sha256:7905cde24a38444681d921626bcbbfc2f24ea28919315846cf4e06e78b400cec",
       "size": 95749,
-      "modified": 1781310470
+      "modified": 1781317556
     },
     {
       "path": "/pages/tasks-app.js",
@@ -1701,15 +1701,15 @@
     },
     {
       "path": "/shared/shell.js",
-      "hash": "sha256:123a8834dea04e894e3cb2744590d23ea389875aa2f275e50f267c12492223c5",
+      "hash": "sha256:083fa27b960204d61351bf54b8ef25ea25b121713eaf2faa6c254cda4976c5c8",
       "size": 63561,
-      "modified": 1781310470
+      "modified": 1781317556
     },
     {
       "path": "/shared/sw.js",
-      "hash": "sha256:d1182e0f9b3edcc2bf33b98c1926c1e751f5c1771d88ba56afb5eb4be1e5fc65",
+      "hash": "sha256:556e67328c1a15568b4c2d046c6c6fe9c01d25ce144501c329fcf51f76a95c78",
       "size": 4489,
-      "modified": 1781310470
+      "modified": 1781317556
     },
     {
       "path": "/shared/theme.css",
@@ -1763,7 +1763,7 @@
       "path": "/index.html",
       "hash": "sha256:807ef9ccfde6574793792f240c8ca2fbab9472f7b7c766a7804bff183fa12a23",
       "size": 208,
-      "modified": 1781310473
+      "modified": 1781317559
     }
   ],
   "total_size": 15891340,
