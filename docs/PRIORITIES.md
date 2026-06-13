@@ -11,6 +11,25 @@
 
 ## Active focus
 
+**ACTIVE 2026-06-13: HEADLINE ARC, 3D home machines + connections (First Playable
+groundwork).** Operator: populate the home with rudimentary cubes/spheres/pyramids/
+pipes for ALL the machines + the connections between them. **v0.427.0 shipped the
+foundation:** 3 new renderer primitives (`box_xyz`, `pyramid`, `segment` tube) +
+a data-driven layout (`data/machines/home.ron` + `src/machines.rs`, infinite-of-X:
+catalog -> instances -> connections) placing 15 key machines (garage power+water,
+garden food, study fabrication, ranch storage) wired by 13 colored connection pipes
+(power/water/nutrient/fuel). load_world reads the RON, places a primitive per machine
+on its room floor, draws a pipe per connection. **NEXT (operator views via `just play`
+first):** expand to the rest of the blueprint machines (trivial, add RON instances),
+tune positions/sizes/colors from the screenshot, then walk-up interactivity. The data
+file makes machines + links editable with no code change.
+
+**Sign step pending:** the v0.426.0 release is built + waiting for `just sign-release
+v0.426.0` (operator passphrase). Security sprint code-complete; only the GitHub
+branch-protection click remains (docs/admin/security-hardening-tasks.md item 2).
+
+---
+
 **DONE 2026-06-13: SECURITY SPRINT TAIL (v0.423.0->.426.0).** Continued + largely
 closed the 2026-06-12 audit. A scoping workflow (9 agents) re-verified ALL prior shipped
 fixes still hold (SVG-XSS, vault-replay, object/announce quotas, headers, twemoji,
