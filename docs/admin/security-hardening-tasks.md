@@ -8,7 +8,35 @@ Do them when convenient; none blocks day-to-day use.
 
 ---
 
-## 1. Rate-limit `/api/send` at the nginx edge (low priority)
+## 1. Rate-limit `/api/send` at the nginx edge (low priority) — DONE 2026-06-13
+
+**Applied live and verified.** The `send_limit` zone was added to
+`/etc/nginx/conf.d/rate-limits.conf` and a `location = /api/send` block to both server
+blocks in `/etc/nginx/sites-enabled/humanity`; `nginx -t` passed and nginx was reloaded.
+Verified: health 200, `/api/send` still proxies (415 without a JSON content-type, the
+relay's normal response), and a 10-request burst returned 6 OK + 4 rate-limited (503,
+nginx `limit_req`'s default over-limit status). Live config backups:
+`*.bak-sendlimit`. NOTE: the VPS site config drifted from the repo's
+`scripts/nginx/humanity.conf` during the 2026-06-12 audit, so the VPS config is the
+source of truth; the exact change applied is recorded below.
+
+Applied zone (`conf.d/rate-limits.conf`):
+```nginx
+limit_req_zone $binary_remote_addr zone=send_limit:10m rate=30r/m;
+```
+Applied location (before each `location /api/` in `sites-enabled/humanity`):
+```nginx
+location = /api/send {
+    limit_req zone=send_limit burst=5 nodelay;
+    proxy_pass http://127.0.0.1:3210;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+<details><summary>Original how-to (kept for reference)</summary>
 
 **Why:** `POST /api/send` is already hard-gated by the `API_SECRET` bearer token, so
 there is no untrusted caller to throttle. The only real benefit is dropping a flood
@@ -48,6 +76,8 @@ own memory-amplification vector. The edge limit is the right tool.
 **Caution:** if step 2 lands without step 1, `nginx -t` fails on the undefined zone and a
 reload can take the site down. Always do the zone first. Pick a generous rate so you do
 not throttle your own CI deploy announcements.
+
+</details>
 
 ---
 
