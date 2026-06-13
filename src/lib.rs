@@ -1383,9 +1383,22 @@ mod native_app {
                 None => return,
             };
 
-            // Pass events to egui first
-            let egui_response = state.egui_state.on_window_event(&state.window, &event);
-            let egui_consumed = egui_response.consumed;
+            // Pass events to egui first, EXCEPT the Tab key while in-game (GuiPage::None).
+            // Tab is egui's focus-traversal key; letting egui see it in FPS mode makes egui
+            // grab keyboard focus and then swallow WASD, freezing movement until a menu
+            // round-trip resets focus (v0.429 bug). In-game, Tab is our reveal-peek (handled
+            // in the KeyboardInput arm below), so egui never needs it there.
+            let ingame_tab = state.gui_state.active_page == GuiPage::None
+                && matches!(
+                    &event,
+                    WindowEvent::KeyboardInput { event: ke, .. }
+                        if ke.physical_key == PhysicalKey::Code(KeyCode::Tab)
+                );
+            let egui_consumed = if ingame_tab {
+                false
+            } else {
+                state.egui_state.on_window_event(&state.window, &event).consumed
+            };
 
             match event {
                 WindowEvent::CloseRequested => {
