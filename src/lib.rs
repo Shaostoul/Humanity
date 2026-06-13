@@ -16,6 +16,9 @@ pub mod embedded_data;
 pub mod platform;
 pub mod terrain;
 pub mod ship;
+// Data-driven machine layout for the 3D home (pure data, relay-safe). The renderer
+// placement lives in load_world (native); the structs + RON loader compile everywhere.
+pub mod machines;
 
 /// Canonical Sol-system model (one `SolBody` set + one Kepler
 /// propagator) shared by the Maps page, the FPS world spawn, and the
@@ -425,6 +428,77 @@ mod native_app {
                 // No configs: still drop one bare tower so the garden spot is visible.
                 let cyl_mesh = state.renderer.add_mesh(Mesh::cylinder(&state.renderer.device, 0.2, 2.0, 20));
                 state.placeholder_objects.push((cyl_mesh, tower_mat, Vec3::new(gx, floor_y, gz)));
+            }
+        }
+
+        // ── Machine layout (data-driven, v0.427) ──
+        // Rudimentary primitives for the homestead machines + pipes/tubes for the
+        // connections between them (data/machines/home.ron). Falls back silently if the
+        // file is absent (distributed builds); the tower placeholders above still show.
+        {
+            let path = state.data_dir.join("machines").join("home.ron");
+            if let Some(home) = crate::machines::MachineHome::load(&path) {
+                use std::collections::HashMap;
+                // room id -> (center, floor_y).
+                let rooms: HashMap<&str, (Vec3, f32)> = homestead
+                    .room_info
+                    .iter()
+                    .map(|r| (r.id.as_str(), (r.center, r.center.y - r.dimensions.y * 0.5)))
+                    .collect();
+                // Anchor (low pipe height) per instance, so connection tubes line up.
+                let mut anchors: HashMap<String, Vec3> = HashMap::new();
+                let mut placed = 0usize;
+                for inst in &home.instances {
+                    let Some(&(center, floor_y)) = rooms.get(inst.room.as_str()) else { continue };
+                    let Some(def) = home.catalog.get(&inst.machine) else { continue };
+                    let pos = Vec3::new(
+                        center.x + inst.offset.0,
+                        floor_y + inst.offset.1,
+                        center.z + inst.offset.2,
+                    );
+                    let (sx, sy, sz) = def.size;
+                    let mesh = match def.shape.as_str() {
+                        "cylinder" => Mesh::cylinder(&state.renderer.device, sx.max(0.02), sy.max(0.05), 16),
+                        "sphere" => Mesh::sphere(&state.renderer.device, sx.max(0.02), 10, 12),
+                        "pyramid" => Mesh::pyramid(&state.renderer.device, sx.max(0.05), sy.max(0.05)),
+                        _ => Mesh::box_xyz(&state.renderer.device, sx.max(0.02), sy.max(0.02), sz.max(0.02)),
+                    };
+                    let mesh_idx = state.renderer.add_mesh(mesh);
+                    let mat = state.renderer.add_material_typed(
+                        [def.color.0, def.color.1, def.color.2, 1.0],
+                        0.1,
+                        0.7,
+                        0.0,
+                    );
+                    // sphere is center-origin; lift it so it rests on the floor.
+                    let draw_pos = if def.shape == "sphere" {
+                        Vec3::new(pos.x, pos.y + sx, pos.z)
+                    } else {
+                        pos
+                    };
+                    state.placeholder_objects.push((mesh_idx, mat, draw_pos));
+                    anchors.insert(inst.id.clone(), Vec3::new(pos.x, floor_y + 0.35, pos.z));
+                    placed += 1;
+                }
+                // Connections as colored pipes/tubes between machine anchors.
+                let mut linked = 0usize;
+                for conn in &home.connections {
+                    let (Some(&a), Some(&b)) = (anchors.get(&conn.from), anchors.get(&conn.to))
+                    else {
+                        continue;
+                    };
+                    let mesh_idx =
+                        state.renderer.add_mesh(Mesh::segment(&state.renderer.device, a, b, 0.04));
+                    let mat = state.renderer.add_material_typed(
+                        crate::machines::MachineHome::connection_color(&conn.kind),
+                        0.2,
+                        0.6,
+                        0.0,
+                    );
+                    state.placeholder_objects.push((mesh_idx, mat, Vec3::ZERO));
+                    linked += 1;
+                }
+                log::info!("Machines: placed {placed} machines + {linked} connections");
             }
         }
 

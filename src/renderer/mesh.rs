@@ -228,4 +228,139 @@ impl Mesh {
         }
         Self::from_vertices(device, &v, &idx)
     }
+
+    /// Axis-aligned box of size (w, h, d) meters, centered in x/z with its BASE at
+    /// y=0 so it sits on a floor when placed at a floor position. Per-face normals,
+    /// same winding as `cube`. A rudimentary machine stand-in (audit/First-Playable
+    /// home population, 2026-06-13).
+    pub fn box_xyz(device: &wgpu::Device, w: f32, h: f32, d: f32) -> Self {
+        let (x, z) = (w * 0.5, d * 0.5);
+        let (y0, y1) = (0.0, h);
+        #[rustfmt::skip]
+        let vertices: &[Vertex] = &[
+            // +Z
+            Vertex { position: [-x, y0,  z], normal: [0.0, 0.0,  1.0], uv: [0.0, 1.0] },
+            Vertex { position: [ x, y0,  z], normal: [0.0, 0.0,  1.0], uv: [1.0, 1.0] },
+            Vertex { position: [ x, y1,  z], normal: [0.0, 0.0,  1.0], uv: [1.0, 0.0] },
+            Vertex { position: [-x, y1,  z], normal: [0.0, 0.0,  1.0], uv: [0.0, 0.0] },
+            // -Z
+            Vertex { position: [ x, y0, -z], normal: [0.0, 0.0, -1.0], uv: [0.0, 1.0] },
+            Vertex { position: [-x, y0, -z], normal: [0.0, 0.0, -1.0], uv: [1.0, 1.0] },
+            Vertex { position: [-x, y1, -z], normal: [0.0, 0.0, -1.0], uv: [1.0, 0.0] },
+            Vertex { position: [ x, y1, -z], normal: [0.0, 0.0, -1.0], uv: [0.0, 0.0] },
+            // +X
+            Vertex { position: [ x, y0,  z], normal: [1.0, 0.0, 0.0], uv: [0.0, 1.0] },
+            Vertex { position: [ x, y0, -z], normal: [1.0, 0.0, 0.0], uv: [1.0, 1.0] },
+            Vertex { position: [ x, y1, -z], normal: [1.0, 0.0, 0.0], uv: [1.0, 0.0] },
+            Vertex { position: [ x, y1,  z], normal: [1.0, 0.0, 0.0], uv: [0.0, 0.0] },
+            // -X
+            Vertex { position: [-x, y0, -z], normal: [-1.0, 0.0, 0.0], uv: [0.0, 1.0] },
+            Vertex { position: [-x, y0,  z], normal: [-1.0, 0.0, 0.0], uv: [1.0, 1.0] },
+            Vertex { position: [-x, y1,  z], normal: [-1.0, 0.0, 0.0], uv: [1.0, 0.0] },
+            Vertex { position: [-x, y1, -z], normal: [-1.0, 0.0, 0.0], uv: [0.0, 0.0] },
+            // +Y (top)
+            Vertex { position: [-x, y1,  z], normal: [0.0, 1.0, 0.0], uv: [0.0, 1.0] },
+            Vertex { position: [ x, y1,  z], normal: [0.0, 1.0, 0.0], uv: [1.0, 1.0] },
+            Vertex { position: [ x, y1, -z], normal: [0.0, 1.0, 0.0], uv: [1.0, 0.0] },
+            Vertex { position: [-x, y1, -z], normal: [0.0, 1.0, 0.0], uv: [0.0, 0.0] },
+            // -Y (bottom)
+            Vertex { position: [-x, y0, -z], normal: [0.0, -1.0, 0.0], uv: [0.0, 1.0] },
+            Vertex { position: [ x, y0, -z], normal: [0.0, -1.0, 0.0], uv: [1.0, 1.0] },
+            Vertex { position: [ x, y0,  z], normal: [0.0, -1.0, 0.0], uv: [1.0, 0.0] },
+            Vertex { position: [-x, y0,  z], normal: [0.0, -1.0, 0.0], uv: [0.0, 0.0] },
+        ];
+        #[rustfmt::skip]
+        let indices: &[u32] = &[
+            0,1,2, 2,3,0,    4,5,6, 6,7,4,      8,9,10, 10,11,8,
+            12,13,14, 14,15,12,  16,17,18, 18,19,16,  20,21,22, 22,23,20,
+        ];
+        Self::from_vertices(device, vertices, indices)
+    }
+
+    /// Square-base pyramid: base side `base` centered in x/z at y=0, apex at
+    /// (0, height, 0). Flat per-face normals; each side's winding is chosen so the
+    /// normal points OUTWARD (away from the y-axis), so back-face culling shows the
+    /// outside without needing a visual check. A rudimentary stand-in.
+    pub fn pyramid(device: &wgpu::Device, base: f32, height: f32) -> Self {
+        let h = base * 0.5;
+        let c = [[-h, 0.0, -h], [h, 0.0, -h], [h, 0.0, h], [-h, 0.0, h]];
+        let apex = [0.0, height, 0.0];
+        let mut v: Vec<Vertex> = Vec::new();
+        let mut idx: Vec<u32> = Vec::new();
+        for i in 0..4usize {
+            let mut p0 = c[i];
+            let mut p1 = c[(i + 1) % 4];
+            // Face normal = cross(p1-p0, apex-p0); if it points toward the axis
+            // (inward), swap p0/p1 so the winding + normal both face outward.
+            let cross = |a: [f32; 3], b: [f32; 3]| {
+                [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+            };
+            let face_n = |p0: [f32; 3], p1: [f32; 3]| {
+                let e1 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+                let e2 = [apex[0] - p0[0], apex[1] - p0[1], apex[2] - p0[2]];
+                let n = cross(e1, e2);
+                let l = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt().max(1e-6);
+                [n[0] / l, n[1] / l, n[2] / l]
+            };
+            let mut n = face_n(p0, p1);
+            // Centroid horizontal direction (outward from axis).
+            let cx = (p0[0] + p1[0] + apex[0]) / 3.0;
+            let cz = (p0[2] + p1[2] + apex[2]) / 3.0;
+            if n[0] * cx + n[2] * cz < 0.0 {
+                std::mem::swap(&mut p0, &mut p1);
+                n = face_n(p0, p1);
+            }
+            let bi = v.len() as u32;
+            v.push(Vertex { position: p0, normal: n, uv: [0.0, 1.0] });
+            v.push(Vertex { position: p1, normal: n, uv: [1.0, 1.0] });
+            v.push(Vertex { position: apex, normal: n, uv: [0.5, 0.0] });
+            idx.extend_from_slice(&[bi, bi + 1, bi + 2]);
+        }
+        // Base (downward normal). Wind so the front faces -Y (viewed from below).
+        let bn = [0.0, -1.0, 0.0];
+        let bi = v.len() as u32;
+        for &p in &c {
+            v.push(Vertex { position: p, normal: bn, uv: [0.0, 0.0] });
+        }
+        idx.extend_from_slice(&[bi, bi + 2, bi + 1, bi, bi + 3, bi + 2]);
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// A straight square-section tube (pipe / cable / connection) from world point
+    /// `a` to world point `b` with the given `radius`. Built directly in world space
+    /// and placed at the origin, since the placeholder render path is translation-only
+    /// (no per-object rotation). Used to draw connections between machines.
+    pub fn segment(device: &wgpu::Device, a: glam::Vec3, b: glam::Vec3, radius: f32) -> Self {
+        let dir = (b - a).normalize_or_zero();
+        let dir = if dir.length_squared() < 1e-6 { glam::Vec3::Y } else { dir };
+        // A frame perpendicular to dir.
+        let up = if dir.dot(glam::Vec3::Y).abs() > 0.95 { glam::Vec3::X } else { glam::Vec3::Y };
+        let right = dir.cross(up).normalize_or_zero() * radius;
+        let upn = right.normalize_or_zero().cross(dir).normalize_or_zero() * radius;
+        // 4 corners at each end.
+        let ends = [a, b];
+        let mut v: Vec<Vertex> = Vec::new();
+        for &p in &ends {
+            for &(s0, s1) in &[(1.0f32, 1.0f32), (-1.0, 1.0), (-1.0, -1.0), (1.0, -1.0)] {
+                let off = right * s0 + upn * s1;
+                let pos = p + off;
+                let n = off.normalize_or_zero();
+                v.push(Vertex {
+                    position: [pos.x, pos.y, pos.z],
+                    normal: [n.x, n.y, n.z],
+                    uv: [0.0, 0.0],
+                });
+            }
+        }
+        // 4 side quads connecting end 0 (verts 0..3) to end 1 (verts 4..7).
+        let mut idx: Vec<u32> = Vec::new();
+        for i in 0..4u32 {
+            let a0 = i;
+            let a1 = (i + 1) % 4;
+            let b0 = i + 4;
+            let b1 = (i + 1) % 4 + 4;
+            idx.extend_from_slice(&[a0, b0, a1, a1, b0, b1]);
+        }
+        Self::from_vertices(device, &v, &idx)
+    }
 }
