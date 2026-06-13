@@ -3,11 +3,23 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "FIRST-PLAYABLE / 3D-home arc: machines (v0.427) + LOD labels/occlusion/Tab/icons/sliders (v0.428-0.430) + WALK-UP INTERACTION v1 (v0.431, look->[E]->pinned card) all shipped. NEXT options for the operator: (a) wire machine stats to the LIVE sim (real power/water/progress from systems) so the cards stop showing demo data; (b) add the rest of the blueprint machines to data/machines/home.ron (trivial); (c) fuller interaction actions (toggle/control buttons on the opened station, needs a cursor mode); (d) begin the expedition/stealth/awareness layer (design-doc filed). Security sprint done bar GitHub branch protection; v0.426.0 release awaits operator signature.",
+  "current_focus": "FIRST-PLAYABLE / 3D-home arc: machines + LOD labels + walk-up interaction + CLOSED-LOOP wiring (v0.432) all shipped. The home is now a demonstrable closed-loop self-sustaining homestead (Home-page closure summary; energy/water/nutrients close, food is the honest weakest loop carried by field crops). NEXT options: (a) tune the layout/long cross-room connection tubes from a screenshot; (b) wire the loop numbers to the LIVE sim so they move with play (currently designed-static); (c) an in-world closure HUD; (d) the expedition/stealth layer (design-doc filed). Security sprint done bar GitHub branch protection; v0.426.0 release awaits operator signature.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
   "recent_decisions": [
+    {
+      "at": "2026-06-13",
+      "decision": "CLOSED-LOOP HOMESTEAD wired (v0.432.0). A 4-agent design workflow computed credible balanced numbers (grounded in docs/design/self-sufficiency.md) for the energy/water/food/nutrient loops. Wired into data/machines/home.ron: machine cards show REAL per-loop flows; counts sized to CLOSE (8 solar + 8 battery for 12.2 kWh/d + 2.8d autonomy, 8000 L cistern for 33d water autonomy, 2 composters for the maturation lag, 4 field crops [grain/tuber/legume/oilseed] which are what actually close the calorie loop); recycle connections drawn (greywater->irrigation, compost->growing, fields->silo). New Home-page closure summary (machines::HomeLoop + GuiState.homestead_loops, loaded at startup): the 4 loops with closed/short + demand vs supply + the HONEST weakest-loop callout (Food: towers give variety+vitamins but only ~6% of calories, field crops carry the bulk). Also fixed the pinned-card [E] close to work from anywhere.",
+      "why": "Operator goal: a theoretical 100% closed-loop self-sustaining homestead anyone can load and SEE how a real self-sufficient home is designed. The honest framing (food is the weakest loop, energy needs a real 8-panel array + 8-battery bank, water needs storage not just rainfall) is the educational payoff, not a fake 100%. Verified: native+relay check clean, machines RON test passes, 4 gui lints pass.",
+      "files": [
+        "data/machines/home.ron",
+        "src/machines.rs",
+        "src/gui/pages/homes.rs",
+        "src/gui/mod.rs",
+        "src/lib.rs"
+      ]
+    },
     {
       "at": "2026-06-13",
       "decision": "WALK-UP INTERACTION v1 (v0.431.0). The machine you look at within ~5m (camera.forward() look-cone) becomes GuiState.targeted_machine; the HUD gives it an accent ring + a [E] open <name> crosshair prompt; pressing E pins its info card in a fixed top-left panel (GuiState.selected_machine) that persists until E again. Reuses the machine_labels + card (refactored into machine_card_size + draw_machine_card_body for floating + pinned). No ECS conversion, machines stay GuiState data; E still feeds input.interact so the ECS interaction system is unaffected.",
@@ -1457,7 +1469,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.431.0; local exe building. Every release v0.427-0.431 pushed origin+forge + local exe built (SOP). v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.432.0; local exe building. Releases v0.427-0.432 each pushed origin+forge + local exe built. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
