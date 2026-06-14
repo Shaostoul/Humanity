@@ -1784,6 +1784,24 @@ mod native_app {
                         state.controller.speed_multiplier = mult;
                     }
 
+                    // Keep the player grounded on the floor of whatever room they are in
+                    // (so gravity + jump land on the right deck). Falls back to the last
+                    // floor when outside every room. Room floors are coplanar in the home.
+                    {
+                        let p = state.camera.position;
+                        if let Some(floor) = state
+                            .gui_state
+                            .room_bounds
+                            .iter()
+                            .find(|r| {
+                                p.x >= r.min.x && p.x <= r.max.x && p.z >= r.min.z && p.z <= r.max.z
+                            })
+                            .map(|r| r.min.y)
+                        {
+                            state.controller.set_ground_floor(floor);
+                        }
+                    }
+
                     // Update camera from input
                     state.controller.update_camera(&mut state.camera, dt);
 

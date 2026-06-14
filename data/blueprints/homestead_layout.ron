@@ -96,12 +96,14 @@ HomesteadLayout(
             material_type: 1,
             color: (0.55, 0.55, 0.6, 1.0),
         ),
-        // F233 (233x233): Ranch (open air, no walls)
-        RoomConfig(
-            id: "ranch",
-            dimensions: (233.0, 0.0, 233.0),
-            material_type: 0,
-            color: (0.25, 0.5, 0.2, 1.0),
-        ),
+        // F233 (233x233): Ranch (open air) -- DISABLED v0.438 (operator). It was a 233 m
+        // walk to its centre; everything moved into the garage/garden. Re-enable by
+        // uncommenting (machines reference rooms by id, so nothing else needs changing).
+        // RoomConfig(
+        //     id: "ranch",
+        //     dimensions: (233.0, 0.0, 233.0),
+        //     material_type: 0,
+        //     color: (0.25, 0.5, 0.2, 1.0),
+        // ),
     ],
 )

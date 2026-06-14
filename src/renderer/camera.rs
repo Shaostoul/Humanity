@@ -11,6 +11,10 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{DVec3, Mat4, Quat, Vec3};
 
+/// First-person gravity (m/s^2). Tuned for a snappy game jump rather than realism:
+/// with jump_speed 5.0 it gives a peak height of ~1.0 m.
+const GRAVITY: f32 = 12.0;
+
 // ── GPU uniform ──────────────────────────────────────────────
 
 /// GPU-side camera uniform data (matches shader CameraUniforms).
@@ -431,6 +435,9 @@ pub struct CameraController {
     is_grounded: bool,
     eye_height: f32,
     jump_speed: f32,
+    /// World-Y the camera rests at when grounded (floor_y + eye_height). Set each frame
+    /// by the main loop from the room the player is standing in; defaults to floor 0.
+    ground_y: f32,
 }
 
 impl CameraController {
@@ -459,6 +466,7 @@ impl CameraController {
             is_grounded: true,
             eye_height: 1.7,
             jump_speed: 5.0,
+            ground_y: 1.7,
         }
     }
 
@@ -614,8 +622,16 @@ impl CameraController {
         }
     }
 
-    /// First-person: WASD moves character, mouse rotates view.
-    /// Includes gravity simulation and jump mechanics.
+    /// Set the floor the player is standing on (world Y of the room floor). The grounded
+    /// rest height becomes `floor_y + eye_height`. Called each frame by the main loop from
+    /// the room the player is in, so walking between rooms keeps you on their floors.
+    pub fn set_ground_floor(&mut self, floor_y: f32) {
+        self.ground_y = floor_y + self.eye_height;
+    }
+
+    /// First-person: WASD walks (Shift = sprint), Space = jump, gravity pulls you to the
+    /// floor. Mouse rotates the view. (Was free-fly noclip: Shift floated you down and
+    /// Space up with no sprint, the operator's BUG-039.)
     fn update_first_person(
         &mut self,
         camera: &mut Camera,
@@ -639,38 +655,32 @@ impl CameraController {
         if self.right { velocity += right; }
         if self.left { velocity -= right; }
 
-        // Crouch: slow movement when shift is held. `speed_multiplier` carries
-        // status-effect modifiers (e.g. well_nourished speeds you up, thirsty/flu
-        // slow you down) — set each frame from the player's active effects.
-        let move_speed = if self.descend {
-            self.speed * 0.4
-        } else {
-            self.speed
-        } * self.speed_multiplier;
+        // Shift = SPRINT (hold to move faster). `speed_multiplier` carries status-effect
+        // modifiers (well_nourished speeds up, thirsty/flu slow down).
+        let sprint = if self.descend { 1.9 } else { 1.0 };
+        let move_speed = self.speed * sprint * self.speed_multiplier;
 
         if velocity.length_squared() > 0.0 {
             velocity = velocity.normalize() * move_speed * dt;
-            camera.position += velocity;
+            // Horizontal only — gravity owns Y so a sprint can't cancel a jump.
+            camera.position.x += velocity.x;
+            camera.position.z += velocity.z;
         }
 
-        // ── Gravity and jump ──
-        // Jump: apply upward impulse if grounded and Space is pressed
+        // ── Gravity + jump (grounded on the room floor) ──
+        // Space launches a jump only when grounded.
         if self.ascend && self.is_grounded {
             self.vertical_velocity = self.jump_speed;
             self.is_grounded = false;
         }
-
-        // Gravity disabled for space station (no ground reference)
-        // TODO: re-enable when we have proper collision with ship floors
-        // self.vertical_velocity -= 9.8 * dt;
-        // camera.position.y += self.vertical_velocity * dt;
-
-        // Space/Shift for vertical movement (fly mode in space)
-        if self.ascend {
-            camera.position.y += self.speed * self.speed_multiplier * dt;
-        }
-        if self.descend {
-            camera.position.y -= self.speed * self.speed_multiplier * dt;
+        // Apply gravity and integrate height.
+        self.vertical_velocity -= GRAVITY * dt;
+        camera.position.y += self.vertical_velocity * dt;
+        // Land on the floor.
+        if camera.position.y <= self.ground_y {
+            camera.position.y = self.ground_y;
+            self.vertical_velocity = 0.0;
+            self.is_grounded = true;
         }
     }
 
