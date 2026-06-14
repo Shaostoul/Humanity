@@ -33,6 +33,11 @@ pub struct WorldSave {
     /// to "fibonacci" (the first + only design today).
     #[serde(default = "default_design")]
     pub design: String,
+    /// The GAME character's name (v0.448), DECOUPLED from the chat/network profile name
+    /// (which is the Dilithium identity). A character lives in the save (self-custodial,
+    /// local), separate from who you are in chat. serde-default for old saves.
+    #[serde(default = "default_character_name")]
+    pub character_name: String,
     /// The player's avatar appearance (v0.440). serde-default so pre-v0.440 saves load
     /// unchanged (they get the default blockman).
     #[serde(default)]
@@ -47,6 +52,9 @@ fn default_kind() -> String {
 }
 fn default_design() -> String {
     "fibonacci".to_string()
+}
+fn default_character_name() -> String {
+    "Wanderer".to_string()
 }
 
 impl WorldSave {
@@ -68,6 +76,7 @@ impl WorldSave {
             weather_state: "clear".to_string(),
             kind: "offline".to_string(),
             design: design.into(),
+            character_name: default_character_name(),
             appearance: Default::default(),
             outfit: Default::default(),
         }
@@ -232,6 +241,7 @@ mod tests {
             weather_state: "clear".to_string(),
             kind: "offline".to_string(),
             design: "fibonacci".to_string(),
+            character_name: "Test Character".to_string(),
             appearance: Default::default(),
             outfit: Default::default(),
         }

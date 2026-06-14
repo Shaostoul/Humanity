@@ -1234,6 +1234,10 @@ pub struct GuiState {
     pub showroom_mode: u8,
     /// Cosmetic catalog mirror for the wardrobe UI: (id, name, slot).
     pub cosmetics_list: Vec<(String, String, String)>,
+    /// The GAME character's name being edited in the showroom (v0.448). DECOUPLED from the
+    /// chat profile name (`profile_name` / `user_name`): a character is a local save, not
+    /// your network identity. Synced to the player's ECS Name + saved on confirm.
+    pub character_name: String,
     /// Whether settings were changed this frame (signals lib.rs to apply them).
     pub settings_dirty: bool,
     /// Request to quit the application.
@@ -2078,6 +2082,7 @@ impl Default for GuiState {
             outfit_dirty: false,
             showroom_mode: 0,
             cosmetics_list: Vec::new(),
+            character_name: "Wanderer".to_string(),
             settings_dirty: false,
             quit_requested: false,
             identity_recovered: false,

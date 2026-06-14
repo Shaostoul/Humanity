@@ -371,18 +371,20 @@ mod native_app {
     /// avatar, and frees the cursor. The avatar lives at the respawner; the home is hidden
     /// while the showroom is open, so it does not matter which room you opened it from.
     fn open_showroom(state: &mut EngineState, mode: u8) {
-        let (app, outfit) = state
+        let (name, app, outfit) = state
             .game_world
             .world
             .query::<(
+                &crate::ecs::components::Name,
                 &crate::ecs::components::Appearance,
                 &crate::ecs::components::Outfit,
                 &Controllable,
             )>()
             .iter()
             .next()
-            .map(|(_, (a, o, _))| (a.clone(), o.clone()))
-            .unwrap_or_default();
+            .map(|(_, (n, a, o, _))| (n.0.clone(), a.clone(), o.clone()))
+            .unwrap_or_else(|| ("Wanderer".to_string(), Default::default(), Default::default()));
+        state.gui_state.character_name = name;
         state.gui_state.appearance = app.clone();
         state.gui_state.outfit = outfit;
         state.gui_state.showroom_mode = mode;
@@ -1050,18 +1052,20 @@ mod native_app {
         if let Some(r) = homestead.room_info.iter().find(|r| r.id == "respawner") {
             let floor = r.center.y - r.dimensions.y * 0.5;
             let base = Vec3::new(r.center.x, floor, r.center.z - 0.35);
-            let (app, outfit) = state
+            let (cname, app, outfit) = state
                 .game_world
                 .world
                 .query::<(
+                    &crate::ecs::components::Name,
                     &crate::ecs::components::Appearance,
                     &crate::ecs::components::Outfit,
                     &Controllable,
                 )>()
                 .iter()
                 .next()
-                .map(|(_, (a, o, _))| (a.clone(), o.clone()))
-                .unwrap_or_default();
+                .map(|(_, (n, a, o, _))| (n.0.clone(), a.clone(), o.clone()))
+                .unwrap_or_else(|| ("Wanderer".to_string(), Default::default(), Default::default()));
+            state.gui_state.character_name = cname;
             state.cosmetics = crate::cosmetics::load_cosmetics(&state.data_dir);
             state.gui_state.cosmetics_list = state
                 .cosmetics
@@ -2304,11 +2308,18 @@ mod native_app {
                         state.gui_state.showroom_active = false;
                         let app = state.gui_state.appearance.clone();
                         let outfit = state.gui_state.outfit.clone();
-                        for (_e, (a, o, _c)) in state.game_world.world.query_mut::<(
+                        let cname = if state.gui_state.character_name.trim().is_empty() {
+                            "Wanderer".to_string()
+                        } else {
+                            state.gui_state.character_name.clone()
+                        };
+                        for (_e, (n, a, o, _c)) in state.game_world.world.query_mut::<(
+                            &mut crate::ecs::components::Name,
                             &mut crate::ecs::components::Appearance,
                             &mut crate::ecs::components::Outfit,
                             &Controllable,
                         )>() {
+                            n.0 = cname.clone();
                             *a = app.clone();
                             *o = outfit.clone();
                             break;

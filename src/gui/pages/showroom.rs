@@ -45,6 +45,15 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             );
             ui.add_space(theme.spacing_sm);
 
+            // Character name (the GAME character's name, separate from your chat profile).
+            if state.showroom_mode != 2 {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Name").color(theme.text_secondary()));
+                    ui.text_edit_singleline(&mut state.character_name);
+                });
+                ui.add_space(theme.spacing_sm);
+            }
+
             if state.showroom_mode == 2 {
                 draw_wardrobe(ui, theme, state);
             } else {
@@ -68,10 +77,10 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 /// Left column: the saved-character selector. For now it lists the active character; real
 /// multi-save management (new / load / delete) hangs off the homes-as-saves model later.
 fn draw_character_select(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let name = if state.user_name.trim().is_empty() {
+    let name = if state.character_name.trim().is_empty() {
         "Your Character".to_string()
     } else {
-        state.user_name.clone()
+        state.character_name.clone()
     };
     let _ = ui.selectable_label(true, RichText::new(name).color(theme.text_primary()));
     ui.add_space(theme.spacing_sm);

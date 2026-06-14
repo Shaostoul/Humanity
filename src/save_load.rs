@@ -61,16 +61,18 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     let mut save = WorldSave::new_offline("My Homestead", "fibonacci");
     save.timestamp = now_secs();
     // The player is the single Controllable entity.
-    for (_e, (inv, skills, appearance, outfit, _ctrl)) in world
+    for (_e, (inv, skills, name, appearance, outfit, _ctrl)) in world
         .query::<(
             &Inventory,
             &PlayerSkills,
+            &crate::ecs::components::Name,
             &crate::ecs::components::Appearance,
             &crate::ecs::components::Outfit,
             &Controllable,
         )>()
         .iter()
     {
+        save.character_name = name.0.clone();
         // One (item_id, qty) per occupied slot; apply re-stacks via add_item.
         save.inventory = inv
             .slots
@@ -98,13 +100,17 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     if save.kind != "offline" {
         return;
     }
-    for (_e, (inv, skills, appearance, outfit, _ctrl)) in world.query_mut::<(
+    for (_e, (inv, skills, name, appearance, outfit, _ctrl)) in world.query_mut::<(
         &mut Inventory,
         &mut PlayerSkills,
+        &mut crate::ecs::components::Name,
         &mut crate::ecs::components::Appearance,
         &mut crate::ecs::components::Outfit,
         &Controllable,
     )>() {
+        if !save.character_name.is_empty() {
+            name.0 = save.character_name.clone();
+        }
         // Rebuild inventory: clear every slot, then add_item re-stacks.
         for slot in inv.slots.iter_mut() {
             *slot = None;
@@ -178,11 +184,19 @@ mod tests {
         appearance.height_scale = 1.2;
         let mut outfit = crate::ecs::components::Outfit::default();
         outfit.equipped.insert("chest".to_string(), "work_jacket".to_string());
-        world.spawn((Controllable, inv, skills, appearance, outfit));
+        world.spawn((
+            Controllable,
+            inv,
+            skills,
+            crate::ecs::components::Name("Astra".to_string()),
+            appearance,
+            outfit,
+        ));
 
         let save = extract_world_save(&world);
         assert!(save.inventory.iter().any(|(id, q)| id == "wood_plank_0" && *q == 40));
         assert_eq!(save.skills.get("farming").copied(), Some((3, 450)));
+        assert_eq!(save.character_name, "Astra");
         assert_eq!(save.appearance.skin_tone, [0.4, 0.3, 0.2]);
         assert_eq!(save.outfit.equipped.get("chest").map(|s| s.as_str()), Some("work_jacket"));
 
@@ -208,6 +222,7 @@ mod tests {
         assert_eq!(wood, 40);
         assert_eq!(restored.skills.get("farming").copied(), Some((3, 450)));
         // Appearance + outfit survive the round-trip too (v0.440).
+        assert_eq!(restored.character_name, "Astra");
         assert_eq!(restored.appearance.skin_tone, [0.4, 0.3, 0.2]);
         assert_eq!(restored.appearance.height_scale, 1.2);
         assert_eq!(restored.outfit.equipped.get("chest").map(|s| s.as_str()), Some("work_jacket"));
@@ -222,6 +237,7 @@ mod tests {
             Controllable,
             inv,
             PlayerSkills::new(),
+            crate::ecs::components::Name("X".to_string()),
             crate::ecs::components::Appearance::default(),
             crate::ecs::components::Outfit::default(),
         ));
