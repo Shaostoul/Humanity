@@ -296,6 +296,17 @@ impl Camera {
         }
     }
 
+    /// Camera uniforms for the CELESTIAL pass (v0.450): same view + lighting as `uniforms`,
+    /// but a HUGE far plane (1e13) so the solar system -- Earth (~42,000 km), the Sun + planets
+    /// (AU scale), out to the outer system (tens of AU) -- is not clipped by the gameplay far
+    /// (~500 m). Reverse-Z (near/far swapped) keeps far-field depth precision.
+    pub fn celestial_uniforms(&self) -> CameraUniforms {
+        let proj = Mat4::perspective_rh(self.fov_degrees.to_radians(), self.aspect, 1.0e13, 1.0);
+        let mut u = self.uniforms();
+        u.view_proj = (proj * self.view_matrix()).to_cols_array_2d();
+        u
+    }
+
     /// Build GPU uniform data with point lights.
     /// Each light is (position, color, intensity, radius).
     pub fn uniforms_with_lights(&self, lights: &[(Vec3, [f32; 3], f32, f32)]) -> CameraUniforms {

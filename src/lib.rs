@@ -2368,6 +2368,10 @@ mod native_app {
 
                     // Build render objects from homestead meshes
                     let mut all_objects: Vec<RenderObject> = Vec::new();
+                    // Celestial bodies (planet + Sun + solar bodies): rendered in a SEPARATE
+                    // pass with a huge far plane (v0.450), since they sit at astronomical
+                    // distances the ~500 m gameplay far would clip.
+                    let mut celestial_objects: Vec<RenderObject> = Vec::new();
                     // World-space orbit lines, built this frame, drawn
                     // after the scene so they depth-occlude behind planets.
                     let mut orbit_lines: Vec<crate::renderer::line::LineVertex> = Vec::new();
@@ -2554,10 +2558,10 @@ mod native_app {
                         }
 
                         let rotation = Quat::from_rotation_y(elapsed * 0.01);
-                        // Earth is huge + at GEO below the home; in the showroom its dark
-                        // limb fills the view and hides the stars, so skip it (v0.444).
+                        // Earth -> the CELESTIAL pass (huge far so it is not clipped). Hidden
+                        // in the showroom (its dark limb would fill the view). (v0.450)
                         if !showroom {
-                            all_objects.push(RenderObject {
+                            celestial_objects.push(RenderObject {
                                 position: render_pos,
                                 rotation,
                                 scale: Vec3::splat(scale),
@@ -2639,7 +2643,7 @@ mod native_app {
                                 }
                             };
                             if !showroom {
-                                all_objects.push(RenderObject {
+                                celestial_objects.push(RenderObject {
                                     position: Vec3::new(
                                         render_off.x as f32,
                                         render_off.y as f32,
@@ -4527,7 +4531,10 @@ mod native_app {
                                     state.renderer.set_point_lights(&lights);
                                 }
 
-                                // Pass 2: Scene objects (LoadOp::Load preserves stars)
+                                // Pass 1.5: celestial bodies (planet + Sun + solar bodies)
+                                // with a HUGE far plane, behind the interior. (v0.450)
+                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &view);
+                                // Pass 2: Scene objects (LoadOp::Load preserves stars + bodies)
                                 state.renderer.render_scene_onto(&state.camera, &all_objects, &view);
                                 // Pass 3: orbit lines — after the scene so
                                 // the depth buffer occludes segments behind
