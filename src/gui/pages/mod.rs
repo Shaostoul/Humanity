@@ -6,6 +6,7 @@ pub mod settings;
 pub mod inventory;
 pub mod chat;
 pub mod hud;
+pub mod showroom;
 pub mod placeholder;
 pub mod tasks;
 pub mod profile;

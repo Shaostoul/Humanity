@@ -635,6 +635,16 @@ impl Default for Appearance {
     }
 }
 
+/// The player's equipped cosmetic outfit (v0.440): slot id -> cosmetic item id. Slots are
+/// the ids in data/inventory/equipment_slots.json (head/chest/legs/feet/hands/back) -- reuse,
+/// never fork. Persisted in WorldSave; the public half can later ride the signed-profile
+/// gossip so visitors see what you wear. Empty = the default blockman with no cosmetics.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Outfit {
+    #[serde(default)]
+    pub equipped: std::collections::HashMap<String, String>,
+}
+
 // ── Geology / Mining ────────────────────────────────────────
 
 /// An ore deposit attached to a terrain entity. `GeologySystem` doesn't

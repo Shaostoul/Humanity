@@ -61,8 +61,14 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     let mut save = WorldSave::new_offline("My Homestead", "fibonacci");
     save.timestamp = now_secs();
     // The player is the single Controllable entity.
-    for (_e, (inv, skills, _ctrl)) in world
-        .query::<(&Inventory, &PlayerSkills, &Controllable)>()
+    for (_e, (inv, skills, appearance, outfit, _ctrl)) in world
+        .query::<(
+            &Inventory,
+            &PlayerSkills,
+            &crate::ecs::components::Appearance,
+            &crate::ecs::components::Outfit,
+            &Controllable,
+        )>()
         .iter()
     {
         // One (item_id, qty) per occupied slot; apply re-stacks via add_item.
@@ -76,6 +82,9 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             .iter()
             .map(|(id, p)| (id.clone(), (p.level, p.xp)))
             .collect();
+        // Avatar appearance + equipped outfit (v0.440).
+        save.appearance = appearance.clone();
+        save.outfit = outfit.clone();
         break;
     }
     save
@@ -89,9 +98,13 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     if save.kind != "offline" {
         return;
     }
-    for (_e, (inv, skills, _ctrl)) in
-        world.query_mut::<(&mut Inventory, &mut PlayerSkills, &Controllable)>()
-    {
+    for (_e, (inv, skills, appearance, outfit, _ctrl)) in world.query_mut::<(
+        &mut Inventory,
+        &mut PlayerSkills,
+        &mut crate::ecs::components::Appearance,
+        &mut crate::ecs::components::Outfit,
+        &Controllable,
+    )>() {
         // Rebuild inventory: clear every slot, then add_item re-stacks.
         for slot in inv.slots.iter_mut() {
             *slot = None;
@@ -106,6 +119,9 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
                 .skills
                 .insert(id.clone(), SkillProgress { level: *level, xp: *xp });
         }
+        // Restore avatar appearance + outfit (v0.440).
+        *appearance = save.appearance.clone();
+        *outfit = save.outfit.clone();
         break;
     }
 }
@@ -157,11 +173,18 @@ mod tests {
         skills
             .skills
             .insert("farming".to_string(), SkillProgress { level: 3, xp: 450 });
-        world.spawn((Controllable, inv, skills));
+        let mut appearance = crate::ecs::components::Appearance::default();
+        appearance.skin_tone = [0.4, 0.3, 0.2];
+        appearance.height_scale = 1.2;
+        let mut outfit = crate::ecs::components::Outfit::default();
+        outfit.equipped.insert("chest".to_string(), "work_jacket".to_string());
+        world.spawn((Controllable, inv, skills, appearance, outfit));
 
         let save = extract_world_save(&world);
         assert!(save.inventory.iter().any(|(id, q)| id == "wood_plank_0" && *q == 40));
         assert_eq!(save.skills.get("farming").copied(), Some((3, 450)));
+        assert_eq!(save.appearance.skin_tone, [0.4, 0.3, 0.2]);
+        assert_eq!(save.outfit.equipped.get("chest").map(|s| s.as_str()), Some("work_jacket"));
 
         // Wipe the live state, then apply the save back.
         for (_e, (inv, skills, _c)) in
@@ -184,6 +207,10 @@ mod tests {
             .sum();
         assert_eq!(wood, 40);
         assert_eq!(restored.skills.get("farming").copied(), Some((3, 450)));
+        // Appearance + outfit survive the round-trip too (v0.440).
+        assert_eq!(restored.appearance.skin_tone, [0.4, 0.3, 0.2]);
+        assert_eq!(restored.appearance.height_scale, 1.2);
+        assert_eq!(restored.outfit.equipped.get("chest").map(|s| s.as_str()), Some("work_jacket"));
     }
 
     #[test]
@@ -191,7 +218,13 @@ mod tests {
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(36);
         inv.add_item("wood_plank_0", 5, 99);
-        world.spawn((Controllable, inv, PlayerSkills::new()));
+        world.spawn((
+            Controllable,
+            inv,
+            PlayerSkills::new(),
+            crate::ecs::components::Appearance::default(),
+            crate::ecs::components::Outfit::default(),
+        ));
 
         let mut save = WorldSave::new_offline("X", "fibonacci");
         save.kind = "server".to_string();

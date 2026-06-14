@@ -19,6 +19,7 @@ pub mod ship;
 // Data-driven machine layout for the 3D home (pure data, relay-safe). The renderer
 // placement lives in load_world (native); the structs + RON loader compile everywhere.
 pub mod machines;
+pub mod showroom;
 
 /// Canonical Sol-system model (one `SolBody` set + one Kepler
 /// propagator) shared by the Maps page, the FPS world spawn, and the
@@ -999,10 +1000,12 @@ mod native_app {
         // world opens (idempotent), so editing a data file + re-entering picks it up.
         load_data_registries(&mut state.data_store, state.asset_manager.data_dir());
 
-        // ── Player avatar on the reconstruction podium in the respawn chamber (v0.440) ──
-        // The player has no body mesh, so place a blockman avatar standing on a podium in
-        // the respawner (where you wake). It reflects the player's Appearance and is the
-        // character the future character-select showroom orbits + the wetroom mirror edits.
+        // ── Player avatar + character-select showroom (v0.440/441) ──
+        // Place a blockman avatar on a podium in the respawner (where you wake) and OPEN the
+        // showroom: hide the home, orbit the avatar against a backdrop, let the player edit
+        // appearance, then "Enter your home" to emerge into first-person. The avatar is the
+        // last thing added to placeholder_objects, so `avatar_obj_start` marks where it
+        // begins (the showroom renders + rebuilds only this range).
         if let Some(r) = homestead.room_info.iter().find(|r| r.id == "respawner") {
             let floor = r.center.y - r.dimensions.y * 0.5;
             let base = Vec3::new(r.center.x, floor, r.center.z - 0.35);
@@ -1014,7 +1017,29 @@ mod native_app {
                 .next()
                 .map(|(_, (a, _))| a.clone())
                 .unwrap_or_default();
+            state.gui_state.appearance = app.clone();
+            state.avatar_base = base;
+            state.fps_spawn = state.camera.position; // the first-person spawn set above
+            state.avatar_obj_start = state.placeholder_objects.len();
             place_avatar(state, base, &app);
+
+            // Showroom: load backdrops, build the ground disc, start in orbit + free cursor.
+            state.showroom_backdrops = crate::showroom::load_backdrops(&state.data_dir);
+            state.gui_state.showroom_backdrop_names =
+                state.showroom_backdrops.iter().map(|b| b.name.clone()).collect();
+            state.gui_state.showroom_backdrop = 0;
+            state.showroom_last_backdrop = usize::MAX;
+            let gmesh = state.renderer.add_mesh(Mesh::cylinder(&state.renderer.device, 9.0, 0.06, 32));
+            let gmat = state.renderer.add_material_typed([0.1, 0.1, 0.12, 1.0], 0.1, 0.9, 0.0);
+            state.showroom_ground = Some((gmesh, gmat));
+            state.gui_state.showroom_active = true;
+            state.gui_state.appearance_dirty = false;
+            state.gui_state.showroom_confirm = false;
+            state.camera.switch_mode(crate::renderer::camera::CameraMode::Orbit);
+            state.camera.orbit_target = base + Vec3::new(0.0, 0.9 * app.height_scale, 0.0);
+            state.camera.orbit_distance = 3.0;
+            state.window.set_cursor_visible(true);
+            state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
         }
 
         state.world_loaded = true;
@@ -1163,6 +1188,20 @@ mod native_app {
         /// alongside the homestead. Used for simple-shape stand-ins like the
         /// aeroponic tower cylinders + plant-marker spheres (v0.383).
         placeholder_objects: Vec<(usize, usize, Vec3)>,
+        /// Index in `placeholder_objects` where the player avatar's parts begin (the avatar
+        /// is added last in load_world). Lets the showroom render only the avatar + rebuild
+        /// it on appearance change by truncating to this index. (v0.441)
+        avatar_obj_start: usize,
+        /// Podium floor position the avatar stands on (respawner center). (v0.441)
+        avatar_base: Vec3,
+        /// First-person spawn position to drop the player at when leaving the showroom.
+        fps_spawn: Vec3,
+        /// Loaded character-select showroom backdrops. (v0.441)
+        showroom_backdrops: Vec<crate::showroom::Backdrop>,
+        /// The showroom ground disc (mesh, material), material rebuilt on backdrop change.
+        showroom_ground: Option<(usize, usize)>,
+        /// Last backdrop index the ground material was built for (usize::MAX = none yet).
+        showroom_last_backdrop: usize,
         /// Homestead walls mesh + material.
         homestead_walls: Option<(usize, usize)>,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
@@ -1407,6 +1446,7 @@ mod native_app {
                 crate::ecs::components::Vitals::default(),
                 crate::ecs::components::StatusEffects::default(),
                 crate::ecs::components::Appearance::default(),
+                crate::ecs::components::Outfit::default(),
                 PlayerSkills::new(),
                 player_quests,
             ));
@@ -1598,6 +1638,12 @@ mod native_app {
                 solar_orbit_paths: Vec::new(),
                 homestead_floors: Vec::new(),
                 placeholder_objects: Vec::new(),
+                avatar_obj_start: 0,
+                avatar_base: Vec3::ZERO,
+                fps_spawn: Vec3::new(0.0, 1.7, 0.0),
+                showroom_backdrops: Vec::new(),
+                showroom_ground: None,
+                showroom_last_backdrop: usize::MAX,
                 homestead_walls: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
@@ -2128,35 +2174,102 @@ mod native_app {
                     // where the graceful close-save would not fire.
                     crate::save_load::maybe_periodic_save(&state.game_world.world, 120);
 
+                    // ── Character-select showroom sync (v0.441): apply the panel's edits ──
+                    // Rebuild the avatar when appearance changed (it is the tail of
+                    // placeholder_objects, so truncate to its start + re-place).
+                    if state.gui_state.appearance_dirty {
+                        state.gui_state.appearance_dirty = false;
+                        state.placeholder_objects.truncate(state.avatar_obj_start);
+                        let base = state.avatar_base;
+                        let app = state.gui_state.appearance.clone();
+                        place_avatar(state, base, &app);
+                        state.camera.orbit_target = base + Vec3::new(0.0, 0.9 * app.height_scale, 0.0);
+                    }
+                    // Rebuild the ground material when the backdrop changed.
+                    if state.gui_state.showroom_active
+                        && state.gui_state.showroom_backdrop != state.showroom_last_backdrop
+                    {
+                        state.showroom_last_backdrop = state.gui_state.showroom_backdrop;
+                        if let Some(bd) =
+                            state.showroom_backdrops.get(state.gui_state.showroom_backdrop)
+                        {
+                            let gmat = state.renderer.add_material_typed(
+                                [bd.ground.0, bd.ground.1, bd.ground.2, 1.0],
+                                0.1,
+                                0.9,
+                                0.0,
+                            );
+                            if let Some((gm, _)) = state.showroom_ground {
+                                state.showroom_ground = Some((gm, gmat));
+                            }
+                        }
+                    }
+                    // "Enter your home": persist appearance + emerge into first-person.
+                    if state.gui_state.showroom_confirm {
+                        state.gui_state.showroom_confirm = false;
+                        state.gui_state.showroom_active = false;
+                        let app = state.gui_state.appearance.clone();
+                        for (_e, (a, _c)) in state.game_world.world.query_mut::<(
+                            &mut crate::ecs::components::Appearance,
+                            &Controllable,
+                        )>() {
+                            *a = app.clone();
+                            break;
+                        }
+                        crate::save_load::save_active_home(&state.game_world.world);
+                        state
+                            .camera
+                            .switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
+                        state.camera.position = state.fps_spawn;
+                        state.window.set_cursor_visible(false);
+                        state
+                            .window
+                            .set_cursor_grab(winit::window::CursorGrabMode::Confined)
+                            .or_else(|_| {
+                                state
+                                    .window
+                                    .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+                            })
+                            .ok();
+                    }
+
                     // Build render objects from homestead meshes
                     let mut all_objects: Vec<RenderObject> = Vec::new();
                     // World-space orbit lines, built this frame, drawn
                     // after the scene so they depth-occlude behind planets.
                     let mut orbit_lines: Vec<crate::renderer::line::LineVertex> = Vec::new();
 
-                    // Homestead at origin — vertex positions are in ship-local coords
-                    for &(mesh_idx, mat_idx) in &state.homestead_floors {
-                        all_objects.push(RenderObject {
-                            position: Vec3::ZERO,
-                            rotation: Quat::IDENTITY,
-                            scale: Vec3::ONE,
-                            mesh: mesh_idx,
-                            material: mat_idx,
-                        });
-                    }
-                    if let Some((mesh_idx, mat_idx)) = state.homestead_walls {
-                        all_objects.push(RenderObject {
-                            position: Vec3::ZERO,
-                            rotation: Quat::IDENTITY,
-                            scale: Vec3::ONE,
-                            mesh: mesh_idx,
-                            material: mat_idx,
-                        });
+                    // During the character-select showroom the home is HIDDEN so the avatar
+                    // floats against the backdrop; otherwise draw the full home.
+                    let showroom = state.gui_state.showroom_active;
+                    // Homestead at origin — vertex positions are in ship-local coords.
+                    if !showroom {
+                        for &(mesh_idx, mat_idx) in &state.homestead_floors {
+                            all_objects.push(RenderObject {
+                                position: Vec3::ZERO,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::ONE,
+                                mesh: mesh_idx,
+                                material: mat_idx,
+                            });
+                        }
+                        if let Some((mesh_idx, mat_idx)) = state.homestead_walls {
+                            all_objects.push(RenderObject {
+                                position: Vec3::ZERO,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::ONE,
+                                mesh: mesh_idx,
+                                material: mat_idx,
+                            });
+                        }
                     }
 
-                    // Aeroponic tower placeholders (v0.383): grey cylinders + green
-                    // plant spheres, positioned in the garden via the model matrix.
-                    for &(mesh_idx, mat_idx, pos) in &state.placeholder_objects {
+                    // Placeholder objects: the whole home normally; ONLY the avatar (its
+                    // parts are the tail, from avatar_obj_start) during the showroom.
+                    let pstart = if showroom { state.avatar_obj_start } else { 0 };
+                    for &(mesh_idx, mat_idx, pos) in
+                        state.placeholder_objects.get(pstart..).unwrap_or(&[])
+                    {
                         all_objects.push(RenderObject {
                             position: pos,
                             rotation: Quat::IDENTITY,
@@ -2164,6 +2277,18 @@ mod native_app {
                             mesh: mesh_idx,
                             material: mat_idx,
                         });
+                    }
+                    // Showroom ground disc under the avatar (tinted by the backdrop).
+                    if showroom {
+                        if let Some((gm, gmat)) = state.showroom_ground {
+                            all_objects.push(RenderObject {
+                                position: state.avatar_base,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::ONE,
+                                mesh: gm,
+                                material: gmat,
+                            });
+                        }
                     }
 
                     // Solar system hologram centered in the designated hologram room (1m above floor)
@@ -4377,6 +4502,14 @@ mod native_app {
                                         state.camera.view_projection_matrix(),
                                         state.camera.position,
                                     );
+                                }
+
+                                // Character-select showroom panel (v0.441): appearance +
+                                // backdrop + Enter, over the orbiting avatar.
+                                if state.gui_state.active_page == GuiPage::None
+                                    && state.gui_state.showroom_active
+                                {
+                                    crate::gui::pages::showroom::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
 
                                 // Draw chat overlay if visible (only in-game)

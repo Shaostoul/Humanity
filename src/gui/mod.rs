@@ -1209,6 +1209,21 @@ pub struct GuiState {
     pub power_generation: f32,
     pub power_consumption: f32,
     pub power_balance: f32,
+    /// Character-select showroom (v0.441): when active, the home is hidden and the avatar is
+    /// previewed against a backdrop with an orbit camera + the customization panel.
+    pub showroom_active: bool,
+    /// Index into the backdrop list (the names mirror is `showroom_backdrop_names`).
+    pub showroom_backdrop: usize,
+    /// Backdrop display names, mirrored from the loaded registry for the panel.
+    pub showroom_backdrop_names: Vec<String>,
+    /// Set true by the "Enter your home" button; the main loop consumes it to leave the
+    /// showroom (write appearance/outfit to the player, save, switch to first-person).
+    pub showroom_confirm: bool,
+    /// The avatar appearance being edited (the live preview source). Synced to the ECS
+    /// player Appearance on confirm so it persists in the save.
+    pub appearance: crate::ecs::components::Appearance,
+    /// Set when the appearance edits change; the main loop rebuilds the avatar mesh.
+    pub appearance_dirty: bool,
     /// Whether settings were changed this frame (signals lib.rs to apply them).
     pub settings_dirty: bool,
     /// Request to quit the application.
@@ -2043,6 +2058,12 @@ impl Default for GuiState {
             power_generation: 0.0,
             power_consumption: 0.0,
             power_balance: 0.0,
+            showroom_active: false,
+            showroom_backdrop: 0,
+            showroom_backdrop_names: Vec::new(),
+            showroom_confirm: false,
+            appearance: crate::ecs::components::Appearance::default(),
+            appearance_dirty: false,
             settings_dirty: false,
             quit_requested: false,
             identity_recovered: false,

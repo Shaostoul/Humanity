@@ -33,6 +33,13 @@ pub struct WorldSave {
     /// to "fibonacci" (the first + only design today).
     #[serde(default = "default_design")]
     pub design: String,
+    /// The player's avatar appearance (v0.440). serde-default so pre-v0.440 saves load
+    /// unchanged (they get the default blockman).
+    #[serde(default)]
+    pub appearance: crate::ecs::components::Appearance,
+    /// The player's equipped cosmetic outfit (v0.440). serde-default for old saves.
+    #[serde(default)]
+    pub outfit: crate::ecs::components::Outfit,
 }
 
 fn default_kind() -> String {
@@ -61,6 +68,8 @@ impl WorldSave {
             weather_state: "clear".to_string(),
             kind: "offline".to_string(),
             design: design.into(),
+            appearance: Default::default(),
+            outfit: Default::default(),
         }
     }
 }
@@ -223,6 +232,8 @@ mod tests {
             weather_state: "clear".to_string(),
             kind: "offline".to_string(),
             design: "fibonacci".to_string(),
+            appearance: Default::default(),
+            outfit: Default::default(),
         }
     }
 
