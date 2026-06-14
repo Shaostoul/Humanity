@@ -3,11 +3,22 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "HOME/CHARACTER arc. v0.446: star skybox FIXED (was clipped by far=500; dedicated star projection far=100000) - stars+constellations now show in home(roof off)+showroom. NEXT: (a) CELESTIAL FAR PASS so the planet/solar-bodies/orbit-rings (astronomical distances, currently clipped by the 500m gameplay far) render in FPS - needed for the showroom Earth/Mars teleport too (or use a local placeholder sphere near the avatar); (b) CONSTRUCTION MODE = modular building pieces (standard door+frame+floor/ceiling trim+windows+toggleable roof) replacing hardcoded structure, fixing the varying door sizes; (c) showroom = only player+pedestal+skybox, backdrops teleport to bodies. v0.426.0 RELEASE awaits operator just sign-release.",
+  "current_focus": "HOME/CHARACTER arc. Stars working (v0.446). v0.447: showroom 3-column page + capped pedestal. NEXT renderer increment = CELESTIAL FAR PASS (render planet/sun/solar-bodies/orbit-rings at astronomical distances behind the interior scene, own far plane; stars already have it) - unblocks the planet showing in FPS + the showroom Earth/Mars teleport (or a local placeholder sphere). Then: CONSTRUCTION MODE (modular door+frame+trim+windows+toggleable roof, fix varying door sizes); Milky Way skybox structure; vision filters. Real-scale-universe vision in docs/design/universe-scale.md. v0.426.0 RELEASE awaits operator just sign-release.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
   "recent_decisions": [
+    {
+      "at": "2026-06-14",
+      "decision": "SHOWROOM 3-COLUMN + capped pedestal (v0.447.0). Stars confirmed working by operator. Restructured the showroom into a proper 3-column page: LEFT SidePanel = character selector (lists active character; multi-save later), CENTER = the orbiting avatar (3D in the gap), RIGHT SidePanel = details/customization (appearance|wardrobe + backdrop + Enter). Was a single floating Window. Fixed the invisible pedestal top: Mesh::cylinder is open (no caps) so the top disc was missing; added Mesh::cylinder_capped (filled top+bottom) for the podium. Captured the operators real-scale-universe vision in docs/design/universe-scale.md (real Earth/Sun/star distances, planet generator any-size via LOD, recreate the Milky Way in the skybox, vision filters: naked-eye vs space-helmet/cybernetic-eyes reveal more). The enabling tech = a dedicated CELESTIAL render pass with its own far plane (stars got one in v0.446; planet+solar+orbits still clipped by the 500m gameplay far) = next renderer increment.",
+      "why": "Operator feedback after stars fixed. 3-column is the requested character-select page shape. Pedestal cap was an open-cylinder bug. Verified: native compiles, 3 gui lints pass, doc links 0.",
+      "files": [
+        "src/gui/pages/showroom.rs",
+        "src/renderer/mesh.rs",
+        "src/lib.rs",
+        "docs/design/universe-scale.md"
+      ]
+    },
     {
       "at": "2026-06-14",
       "decision": "FIXED star skybox clipping (v0.446.0, BUG-040). Operator: showroom black void + no stars/orbits/constellations in the roofless home; guessed showroom overrides play. Real root cause: stars.wgsl places stars+constellations at direction*5000, but StarRenderer::update_camera used the GAMEPLAY projection whose far=render_distance (default 500m) -> the whole skybox was beyond the far plane and clipped. Latent forever (roofed home hid it); the showroom + roof-off merely exposed it. Fix: update_camera builds its OWN projection perspective_rh(fov,aspect,1.0,100000) just for the depthless star pass. Stars+constellations now render in home (roof off) + showroom. STILL OPEN: planet (GEO ~42000km) + solar bodies (millions km) + orbit rings (AU) are also clipped by the 500m gameplay far -> need a dedicated celestial far pass; showroom Earth/Mars backdrop should use a LOCAL placeholder sphere near the avatar, not the real distant body.",
@@ -1631,7 +1642,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.446.0; local exe building (b5eyknh0i). v0.439-0.446 character/home arc shipped this session. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.447.0; local exe building (bshrts59r). v0.439-0.447 character/home arc shipped this session. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
