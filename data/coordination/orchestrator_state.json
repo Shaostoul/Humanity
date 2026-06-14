@@ -3,11 +3,26 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "ROOM-PURPOSE / CHARACTER arc. Avatar foundation shipped v0.440.0 (blockman on respawn podium, Appearance component). NEXT (character-select vision, docs/design/room-purpose-architecture.md): (a) SHOWROOM camera state = orbit the avatar + hide room walls + a confirm/enter; (b) BACKDROP scene registry (data-driven skybox+ground+light presets: Mars/Moon/ocean/forest/space...); (c) PORTAL emergence transition (respawner pod -> step out the 2x2 portal into the wetroom); then (d) wetroom mirror APPEARANCE editor + (e) PERSISTENCE (appearance+outfit into WorldSave) + (f) bedroom WARDROBE/cosmetics. Also still open: route in-room [E] actions to existing pages (lights up ~9 rooms); Live-Home-Sim 1b battery SoC. v0.426.0 RELEASE awaits operator just sign-release.",
+  "current_focus": "CHARACTER system arc (operator: build everything, no pausing). Shipped v0.441.0: character-select showroom (orbit avatar, hide home, live appearance editing, backdrops, Enter->emerge) + Appearance/Outfit persistence in WorldSave. CONTINUING next (no rework, data model final): (a) bedroom WARDROBE + data/cosmetics/cosmetics.csv (equip outfit -> Outfit.equipped, render cosmetic colors on avatar slots); (b) [E] ROOM ACTION routing (open the room-action page on E in a room); (c) respawner->wetroom PORTAL emergence; (d) per-backdrop skyboxes; (e) wetroom mirror appearance editor (reuse the showroom panel). v0.426.0 RELEASE awaits operator just sign-release.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
   "recent_decisions": [
+    {
+      "at": "2026-06-13",
+      "decision": "CHARACTER-SELECT SHOWROOM + persistence (v0.441.0). Operator: build everything, stop pausing to discuss order, use judgment, retweak later if wrong. Built a big interconnected chunk. PERSISTENCE (rework-critical, done first+tested): new Outfit component (slots reuse equipment_slots.json); Appearance+Outfit persist in WorldSave (serde-default, old saves load) + round-trip in save_load (extract/apply) with extended test. SHOWROOM: spawn into a character-select showroom - home HIDDEN (render guards on floors/walls/placeholder during showroom_active), avatar on a ground disc, orbit camera + free cursor; right-side egui panel (src/gui/pages/showroom.rs) edits appearance live (skin/hair/eye color pickers + height slider) and the avatar REBUILDS instantly (truncate placeholder_objects to avatar_obj_start + re-place); backdrop selector cycles data-driven scenes (src/showroom.rs + data/showroom/backdrops.ron: space/Earth/Mars/Moon/forest/ocean/mountain/beach/spaceship, tints the ground disc); Enter your home writes appearance->player + saves + emerges to FPS at fps_spawn (cursor re-grabbed). Edit-buffer-then-sync pattern (panel edits gui_state; main loop applies to avatar/camera/backdrop/save).",
+      "why": "Operator directive: build the whole interconnected character system so the save format + data model are final and never retweaked. Verified: native+relay compile, showroom+save+room tests pass, 4 gui lints pass, doc links 0. Runtime/visual the operator tests.",
+      "files": [
+        "src/showroom.rs",
+        "data/showroom/backdrops.ron",
+        "src/gui/pages/showroom.rs",
+        "src/ecs/components.rs",
+        "src/persistence.rs",
+        "src/save_load.rs",
+        "src/gui/mod.rs",
+        "src/lib.rs"
+      ]
+    },
     {
       "at": "2026-06-13",
       "decision": "PLAYER AVATAR foundation (v0.440.0). Operator fleshed out the character-select vision: a showroom where walls vanish and the character is previewed against swappable BACKDROPS (spaceship/Earth/Mars/Moon/space/forest/ocean/mountain/beach), then on select the camera goes FPS and the player EMERGES through a 2x2 portal on the respawner side into the wetroom. Said work in whatever order is most efficient. Every piece needs a VISIBLE AVATAR (player was a bodiless FP camera; the ECS Renderable path is not even wired for the home - everything renders via placeholder_objects). So built the avatar foundation: new Appearance ECS component (body_type/height_scale/skin_tone/hair/eye, on the player, designed to persist + later ride signed-profile gossip); place_avatar builds a blockman (leg/torso/arm boxes + head sphere + hair cap) on a reconstruction podium in the respawner via the existing static-mesh path (cleared+re-added each load, no new render path, no rotation hacks), tinted from Appearance, placed facing the spawn point so you WAKE looking at your character on the pod. Showroom/backdrop/portal vision captured in docs/design/room-purpose-architecture.md.",
@@ -1566,7 +1581,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.440.0; local exe building (bda9dkhzk). v0.439 room-purpose-keystone + v0.440 avatar shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.441.0; local exe building (b9ldnv03b). v0.439 room-purpose + v0.440 avatar + v0.441 showroom/persistence shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
