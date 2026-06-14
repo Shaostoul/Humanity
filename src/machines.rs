@@ -25,6 +25,19 @@ pub struct MachineStat {
     pub status: String,
 }
 
+/// A machine's role in the live electrical simulation. Spawned as ECS components by
+/// `load_world` so the dormant `ElectricalSystem` (and `SolarSystem`) tick against the
+/// home's real machines. Optional, so a machine with no electrical role omits it.
+#[derive(Debug, Clone, Deserialize)]
+pub enum MachinePower {
+    /// Solar panel: output scales with the sun (peak watts at noon, zero at night).
+    Solar { peak_watts: f32 },
+    /// Steady generator (wind, fuel): constant output while active.
+    Generator { watts: f32 },
+    /// Power draw. `priority` 1 = critical (shed last), 5 = optional (shed first).
+    Consumer { watts: f32, priority: u8 },
+}
+
 /// A machine type: which primitive shape to draw it as, its size, color, display name,
 /// and the stat readouts shown on its info card.
 #[derive(Debug, Clone, Deserialize)]
@@ -42,6 +55,9 @@ pub struct MachineDef {
     /// Stat readouts shown on the info card when you are close.
     #[serde(default)]
     pub stats: Vec<MachineStat>,
+    /// Electrical role in the live sim (generator / consumer). None = not on the grid.
+    #[serde(default)]
+    pub power: Option<MachinePower>,
 }
 
 /// One placed machine.

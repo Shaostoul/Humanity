@@ -465,6 +465,20 @@ mod native_app {
                     .map(|r| (r.center - r.dimensions * 0.5, r.center + r.dimensions * 0.5))
                     .collect();
                 state.gui_state.machine_labels.clear();
+                // Despawn any previously-spawned home machine entities so re-entering the
+                // world never duplicates the live power entities (load_world can re-run).
+                {
+                    let old: Vec<hecs::Entity> = state
+                        .game_world
+                        .world
+                        .query::<&crate::ecs::components::HomeMachine>()
+                        .iter()
+                        .map(|(e, _)| e)
+                        .collect();
+                    for e in old {
+                        let _ = state.game_world.world.despawn(e);
+                    }
+                }
                 // Room volumes for label occlusion (which room is the camera in).
                 state.gui_state.room_bounds = homestead
                     .room_info
@@ -518,6 +532,33 @@ mod native_app {
                         stats: def.stats.clone(),
                         room: inst.room.clone(),
                     });
+                    // Spawn the machine's electrical role as a LIVE ECS entity so the
+                    // SolarSystem + ElectricalSystem tick against the real home (v0.437).
+                    if let Some(power) = &def.power {
+                        use crate::ecs::components::{HomeMachine, PowerConsumer, PowerGenerator, SolarPanel};
+                        use crate::machines::MachinePower;
+                        match power {
+                            MachinePower::Solar { peak_watts } => {
+                                state.game_world.world.spawn((
+                                    HomeMachine,
+                                    PowerGenerator { output_watts: *peak_watts, fuel_per_second: 0.0, active: true },
+                                    SolarPanel { peak_watts: *peak_watts },
+                                ));
+                            }
+                            MachinePower::Generator { watts } => {
+                                state.game_world.world.spawn((
+                                    HomeMachine,
+                                    PowerGenerator { output_watts: *watts, fuel_per_second: 0.0, active: true },
+                                ));
+                            }
+                            MachinePower::Consumer { watts, priority } => {
+                                state.game_world.world.spawn((
+                                    HomeMachine,
+                                    PowerConsumer { draw_watts: *watts, priority: *priority, enabled: true },
+                                ));
+                            }
+                        }
+                    }
                     placed += 1;
                 }
                 // Connections as REALISTIC routed pipe runs: orthogonal up-over-down routing
@@ -1170,10 +1211,21 @@ mod native_app {
                 "weather",
                 std::sync::Mutex::new(crate::systems::weather::Weather::default()),
             );
+            // Live home electrical readout (gen/use/balance watts): ElectricalSystem writes
+            // it each tick, the HUD + Home page read it. Same Mutex pattern as game_time.
+            data_store.insert(
+                "power_status",
+                std::sync::Mutex::new(crate::systems::electrical::PowerStatus::default()),
+            );
             system_runner.register(TimeSystem::new());
             // WeatherSystem ticks after TimeSystem (reads the exported season) and
             // exports Weather; the exposed-environment temperature consumes it.
             system_runner.register(WeatherSystem::new());
+            // SolarSystem scales solar PowerGenerators by the time of day, then
+            // ElectricalSystem sums supply/demand and sheds load. These tick the LIVE
+            // home power sim against the machine entities spawned in load_world (v0.437).
+            system_runner.register(crate::systems::solar::SolarSystem::new());
+            system_runner.register(crate::systems::electrical::ElectricalSystem::new(&data_dir));
             system_runner.register(PlayerControllerSystem);
             data_store.insert("interaction_prompt", std::sync::Mutex::new(String::new()));
             // GUI -> ECS command channels (interior-mutable; the main loop writes
@@ -2582,6 +2634,18 @@ mod native_app {
                             temperature: w.temperature,
                             wind_speed: w.wind_speed,
                         });
+                    }
+
+                    // Bridge the live home power readout (ElectricalSystem writes it via
+                    // Mutex). Drives the HUD power line that swings with day/night.
+                    if let Some(ps) = state
+                        .data_store
+                        .get::<std::sync::Mutex<crate::systems::electrical::PowerStatus>>("power_status")
+                        .and_then(|m| m.lock().ok())
+                    {
+                        state.gui_state.power_generation = ps.generation;
+                        state.gui_state.power_consumption = ps.consumption;
+                        state.gui_state.power_balance = ps.balance;
                     }
 
                     // ── Auto-connect to server if configured AND seed unlocked ──

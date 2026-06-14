@@ -92,6 +92,22 @@ pub fn draw(
                 );
             }
 
+            // ── Power balance (live home electrical sim, below weather) ──
+            // Generation climbs at noon, falls to zero at night; net flips green->red.
+            if state.power_generation > 0.0 || state.power_consumption > 0.0 {
+                let col = if state.power_balance >= 0.0 { theme.success() } else { theme.danger() };
+                painter.text(
+                    Pos2::new(screen.right() - 16.0, 60.0),
+                    Align2::RIGHT_TOP,
+                    format!(
+                        "Power: gen {:.0}W  use {:.0}W  net {:+.0}W",
+                        state.power_generation, state.power_consumption, state.power_balance
+                    ),
+                    FontId::proportional(11.0),
+                    col,
+                );
+            }
+
             // ── Crosshair (center) ──
             let center = screen.center();
             painter.circle_filled(center, 3.0, Color32::from_white_alpha(180));

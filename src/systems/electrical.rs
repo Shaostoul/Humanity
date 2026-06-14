@@ -19,6 +19,15 @@ use crate::ecs::components::{PowerConsumer, PowerGenerator};
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
+/// Live power readout, published to the DataStore each tick (key `power_status`) so the
+/// GUI can show the home's running electrical balance. Watts.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PowerStatus {
+    pub generation: f32,
+    pub consumption: f32,
+    pub balance: f32,
+}
+
 /// Top-level RON schema for `data/electrical.ron`.
 #[derive(Debug, Deserialize)]
 pub struct ElectricalData {
@@ -66,7 +75,7 @@ impl ElectricalSystem {
 impl System for ElectricalSystem {
     fn name(&self) -> &str { "ElectricalSystem" }
 
-    fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
+    fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         // Sum supply.
         let total_gen: f32 = world.query::<&PowerGenerator>().iter()
             .filter_map(|(_, g)| if g.active { Some(g.output_watts) } else { None })
@@ -126,6 +135,16 @@ impl System for ElectricalSystem {
         self.total_generation = total_gen;
         self.total_consumption = consumed;
         self.power_balance = total_gen - consumed;
+
+        // Publish the live readout to the DataStore for the GUI (same Mutex pattern as
+        // game_time). The home's electrical balance is now a running number, not a string.
+        if let Some(status) = data.get::<std::sync::Mutex<PowerStatus>>("power_status") {
+            if let Ok(mut s) = status.lock() {
+                s.generation = total_gen;
+                s.consumption = consumed;
+                s.balance = self.power_balance;
+            }
+        }
 
         // Throttle log output.
         self.log_cooldown -= dt;

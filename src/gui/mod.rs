@@ -1199,6 +1199,10 @@ pub struct GuiState {
     pub game_time: Option<GuiGameTime>,
     /// Current weather snapshot.
     pub weather: Option<GuiWeather>,
+    /// Live home electrical readout (watts), mirrored from ElectricalSystem each frame.
+    pub power_generation: f32,
+    pub power_consumption: f32,
+    pub power_balance: f32,
     /// Whether settings were changed this frame (signals lib.rs to apply them).
     pub settings_dirty: bool,
     /// Request to quit the application.
@@ -2030,6 +2034,9 @@ impl Default for GuiState {
             inventory_max_slots: 36,
             game_time: None,
             weather: None,
+            power_generation: 0.0,
+            power_consumption: 0.0,
+            power_balance: 0.0,
             settings_dirty: false,
             quit_requested: false,
             identity_recovered: false,

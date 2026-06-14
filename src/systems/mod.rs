@@ -25,6 +25,7 @@ pub mod atmosphere;
 pub mod disasters;
 pub mod electrical;
 pub mod plumbing;
+pub mod solar;
 pub mod hvac;
 pub mod fire;
 pub mod medical;

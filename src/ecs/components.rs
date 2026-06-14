@@ -592,6 +592,20 @@ impl Default for PowerConsumer {
     }
 }
 
+/// Marks a `PowerGenerator` as solar: its `output_watts` is set each frame to
+/// `peak_watts * sun_factor(hour)` by `SolarSystem`, so it climbs at noon and falls
+/// to zero at night. `peak_watts` is the nameplate output at full sun.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolarPanel {
+    pub peak_watts: f32,
+}
+
+/// Marks an ECS entity as belonging to the placed home layout (spawned from
+/// `data/machines/home.ron`). Used to despawn the old set before re-spawning so
+/// re-entering the world never duplicates the live machine entities.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct HomeMachine;
+
 // ── Geology / Mining ────────────────────────────────────────
 
 /// An ore deposit attached to a terrain entity. `GeologySystem` doesn't
