@@ -4,6 +4,14 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Resolved Bugs
 
+### BUG-040: Star skybox (stars + constellations) entirely invisible in first person
+- **Status**: Fixed
+- **Version Fixed**: v0.446.0
+- **Reported**: 2026-06-14 (operator: showroom is a "black void"; with the homestead roof removed, still no stars/orbits/constellations from inside the home)
+- **Root cause**: The star shader (`assets/shaders/stars.wgsl`) places stars + the constellation figures at `direction * 5000.0`, but `StarRenderer::update_camera` built the star view-projection from the GAMEPLAY camera's `projection_matrix()`, whose far plane is `render_distance` (default 500 m). Every star at 5000 sat beyond the far plane and was clipped, so the entire skybox drew nothing. Latent forever; the always-roofed home hid it until the showroom + roof-off (v0.445) exposed it. Not a showroom-state leak (the operator's guess); the showroom merely revealed it.
+- **Fix**: `update_camera` now builds a DEDICATED projection for the star pass: gameplay fov/aspect but `Mat4::perspective_rh(fov, aspect, 1.0, 100_000.0)` (far = 100k). The star pass is depthless, so the standard non-reverse-Z convention is safe; x/y matches the gameplay camera. Stars + constellations now render. File: `src/renderer/stars.rs`.
+- **Still open (separate, bigger)**: the planet (Earth at GEO ~42,000 km), solar-system bodies (millions of km), and orbit rings (AU-scale) are ALSO clipped by the 500 m gameplay far plane and need a dedicated far/celestial render pass (interior-scale + solar-scale depth-range problem). Tracked as the "celestial far pass" follow-up.
+
 ### BUG-039: Cannot sprint; Shift floats down, Space floats up (free-fly noclip)
 - **Status**: Fixed
 - **Version Fixed**: v0.438.0
