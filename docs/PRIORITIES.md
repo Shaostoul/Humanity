@@ -11,8 +11,29 @@
 
 ## Active focus
 
-**ACTIVE 2026-06-13: HEADLINE ARC, 3D home as a HONEST closed-loop homestead (First
-Playable groundwork).** Operator: populate the home with primitives for ALL machines +
+**ACTIVE 2026-06-13: LIVE HOME SIMULATION arc (operator pick from the content-strategy
+survey).** The survey's finding: the home is a beautiful diorama, not a sim. ~270 LOC of
+real simulation logic (ElectricalSystem, PlumbingSystem, AtmosphereSystem, VehicleSystem,
+ConstructionSystem) is written but ticks for nobody because the entities are never spawned.
+The arc: make the home a LIVE engineering sim. **Increment 1 SHIPPED (v0.437.0):** machines
+declare an optional `power` role in home.ron (Solar/Generator/Consumer); load_world spawns
+them as live ECS entities (PowerGenerator/PowerConsumer/SolarPanel, tagged HomeMachine for
+idempotent re-spawn); a new SolarSystem scales solar by sun_factor(hour) and the now-
+registered ElectricalSystem sums supply/demand + publishes a live PowerStatus to the
+DataStore; the HUD shows a live "Power: gen/use/net W" line that climbs from ~1750 W at 8am
+to ~3350 W at noon and falls to the wind baseload at night. **NEXT increments (this arc):**
+(1b) battery state-of-charge integrating surplus/deficit over time (the "2.8 days autonomy"
+becomes live + the generator kicks in on deep deficit); (1c) the live Home-page loop summary
+reads PowerStatus instead of authored strings; (1d) per-machine-card live stats (solar card
+shows live watts); (1e) register PlumbingSystem against WaterTank/WaterFixture the same way.
+Then arcs 2-6 from the survey: survival stakes, operable machines ([E] runs them), build
+mode, enclosed-space climate, vehicles/drone fleet. Full ranked roadmap in the journal
+(orchestrator_state.json, 2026-06-13 content-strategy decision).
+
+**(Prior groundwork, v0.427-0.436, all shipped):** 3D home populated with data-driven
+machines + LOD labels + [E] interaction; honest closed-loop homestead design + Home-page
+closure summary; realistic orthogonal pipe routing with elbows/collars/brackets/valves/wall-
+penetration-sleeves (data/routing_rules.ron); mouse-sensitivity boot fix (BUG-038). Operator: populate the home with primitives for ALL machines +
 connections, then make it a demonstrable self-sufficient homestead anyone can load and
 learn from. **Shipped v0.427 -> v0.433:** data-driven machine layout (`home.ron` +
 `src/machines.rs`, infinite-of-X catalog/instances/connections) with `box_xyz`/`pyramid`/

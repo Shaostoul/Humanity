@@ -3,11 +3,26 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "FIRST-PLAYABLE / 3D-home arc. v0.434.0: connections now route as realistic orthogonal pipe runs with elbows/collars/brackets/valves (data/routing_rules.ron). NEXT options: (a) the GROW-LIGHT-DRAW vs power-budget meter (still queued, high teaching value); (b) live-sim wiring so loop numbers move with day/night play; (c) pipe polish from operator screenshot (wall-penetration collars where cross-room runs cross bulkheads; tees where multiple pipes share a trunk; per-connection lane de-conflict); (d) expedition/stealth layer. Security sprint done bar GitHub branch protection; v0.426.0 release awaits operator signature.",
+  "current_focus": "LIVE HOME SIMULATION arc (operator pick). Increment 1 shipped v0.437.0: solar power moves with the sun (live ElectricalSystem + SolarSystem against spawned home machine entities; HUD power line). NEXT: 1b battery state-of-charge (live autonomy + generator kick-in on deficit); 1c live Home-page loop summary from PowerStatus; 1d per-machine-card live stats; 1e register PlumbingSystem. Then survey arcs 2-6 (survival stakes, operable machines, build mode, climate, vehicles). v0.426.0 RELEASE awaits operator just sign-release.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
   "recent_decisions": [
+    {
+      "at": "2026-06-13",
+      "decision": "CONTENT STRATEGY + LIVE HOME SIM arc started (v0.437.0). Ran a 4-lens content-strategy workflow (built-but-shallow / first-playable-gap / mission-payoff / multiplayer-social). Finding: the home is a diorama, not a sim - machines.rs:16 admits stats are placeholder strings, the 4 Home-page loops are a frozen spreadsheet, and ~270 LOC of REAL sim logic (ElectricalSystem load-shedding, PlumbingSystem tank-draw, AtmosphereSystem 470 LOC, VehicleSystem, ConstructionSystem) is written but ticks for nobody (entities never spawned). Ranked roadmap: (1) LIVE HOME SIM [picked], (2) survival stakes/vitals HUD+death, (3) operable machines [E], (4) build mode, (5) enclosed-space climate+nutrient, (6) vehicles/drone fleet. Operator chose #1. Increment 1 shipped: machines.rs gains optional `power` role (Solar/Generator/Consumer), home.ron declares it (8 solar @400W, wind, pump/purifier/irrigation consumers); load_world spawns live ECS entities (PowerGenerator/PowerConsumer/SolarPanel + HomeMachine marker, despawn-old for idempotency); new SolarSystem scales solar by sun_factor(hour); registered ElectricalSystem sums + publishes PowerStatus to DataStore (Mutex pattern); main loop bridges to GuiState; HUD shows live Power gen/use/net line that swings with day/night (~1750W at 8am -> ~3350W noon -> wind baseload at night).",
+      "why": "Operator asked for big content chunks to flesh out the game; the survey + operator converged on making the home actually simulate (most on-theme for the to-code/self-sufficiency mission, ~80% already written). This is the seed of the grow-light-vs-power meter. Verified: native+relay compile, machines+solar tests pass, 4 gui lints pass.",
+      "files": [
+        "src/systems/solar.rs",
+        "src/systems/electrical.rs",
+        "src/ecs/components.rs",
+        "src/machines.rs",
+        "data/machines/home.ron",
+        "src/lib.rs",
+        "src/gui/mod.rs",
+        "src/gui/pages/hud.rs"
+      ]
+    },
     {
       "at": "2026-06-13",
       "decision": "PIPE WALL-PENETRATION SLEEVES (v0.436.0). Operator wants to keep the engineering-accurate to-code theme; asked for a wall-penetration collar (scientifically motivated - pipes never just pass through a bare wall). Added generically: routing.rs::wall_crossings() samples each routed leg against room AABBs and PipePart::Penetration is emitted at every transition between which room (if any) contains the line (leaving a room into open space OR crossing into an adjacent room both = a wall; same-room runs pierce nothing). Rendered as a steel sleeve (fat short tube along pipe axis) + a wider escutcheon ring. plan_pipe now takes room AABBs; lib.rs builds them from room_info. Unit test: 2 rooms with a gap -> 2 penetrations, same-room -> 0. Verified native+relay compile, 5 routing tests pass.",
@@ -1513,7 +1528,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.436.0; local exe building (b1vcq9dv8). v0.434 pipe routing + v0.435 sensitivity fix + v0.436 wall sleeves shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.437.0; local exe building (bo1qcgjq1). v0.434 routing + v0.435 sensitivity + v0.436 wall sleeves + v0.437 live solar shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
