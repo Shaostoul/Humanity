@@ -10,6 +10,15 @@
   "recent_decisions": [
     {
       "at": "2026-06-13",
+      "decision": "PIPE WALL-PENETRATION SLEEVES (v0.436.0). Operator wants to keep the engineering-accurate to-code theme; asked for a wall-penetration collar (scientifically motivated - pipes never just pass through a bare wall). Added generically: routing.rs::wall_crossings() samples each routed leg against room AABBs and PipePart::Penetration is emitted at every transition between which room (if any) contains the line (leaving a room into open space OR crossing into an adjacent room both = a wall; same-room runs pierce nothing). Rendered as a steel sleeve (fat short tube along pipe axis) + a wider escutcheon ring. plan_pipe now takes room AABBs; lib.rs builds them from room_info. Unit test: 2 rooms with a gap -> 2 penetrations, same-room -> 0. Verified native+relay compile, 5 routing tests pass.",
+      "why": "Operator directive: every in-game system maps to a real buildable thing; exposed-services ship aesthetic makes code-correct details (sleeves at penetrations) the authentic look. Also kicked off a 4-lens content-strategy workflow (built-but-shallow / first-playable-gap / mission-payoff / multiplayer-social) to propose the next BIG content chunks per the operators ask.",
+      "files": [
+        "src/systems/construction/routing.rs",
+        "src/lib.rs"
+      ]
+    },
+    {
+      "at": "2026-06-13",
       "decision": "FIX mouse sensitivity not applied on boot (v0.435.0, BUG-038). Operator: sensitivity super high on spawn until adjusted; shows 0.0. Diagnosed: config.json DID save the value (0.10948) - not a save bug. Two issues: (1) camera controller booted at CameraController::new(5.0,3.0) hardcoded and only synced from settings in the `if settings_dirty` block (fires only on slider move), so every launch used 3.0 (old default, ~12x operator value) until nudged; FOV+render-distance had the same latent boot bug. (2) shows-0.0 was a DISPLAY artifact: slider max 10.0 selects labeled_slider 1-decimal format so 0.109 -> 0.1 with no low-end precision. Fix: set settings_dirty=true right after config load so the apply block pushes loaded fov+sensitivity+fullscreen+render-distance on frame 1; retune default 3.0->0.25 (3 spots); slider range 0.01..=10 -> 0.02..=1.0 (2-decimal display + usable band); guard apply against <=0 (would freeze the look).",
       "why": "Operator-reported camera bug. Lesson: a settings_dirty-gated apply block silently never runs on boot, so loaded settings dont reach the engine until the user touches each control. Verified: native+relay compile, all 4 gui lints pass.",
       "files": [
@@ -1504,7 +1513,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.435.0; local exe building (bzwwpr5pm). v0.434 (pipe routing) + v0.435 (sensitivity fix) shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.436.0; local exe building (b1vcq9dv8). v0.434 pipe routing + v0.435 sensitivity fix + v0.436 wall sleeves shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
