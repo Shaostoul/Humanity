@@ -1224,6 +1224,16 @@ pub struct GuiState {
     pub appearance: crate::ecs::components::Appearance,
     /// Set when the appearance edits change; the main loop rebuilds the avatar mesh.
     pub appearance_dirty: bool,
+    /// The equipped cosmetic outfit being edited in the wardrobe (synced to the ECS player
+    /// on confirm). slot id -> cosmetic id.
+    pub outfit: crate::ecs::components::Outfit,
+    /// Set when the outfit changes; the main loop rebuilds the avatar.
+    pub outfit_dirty: bool,
+    /// Which showroom panel is shown: 0 = character select (spawn), 1 = appearance editor
+    /// (wetroom mirror), 2 = wardrobe (bedroom).
+    pub showroom_mode: u8,
+    /// Cosmetic catalog mirror for the wardrobe UI: (id, name, slot).
+    pub cosmetics_list: Vec<(String, String, String)>,
     /// Whether settings were changed this frame (signals lib.rs to apply them).
     pub settings_dirty: bool,
     /// Request to quit the application.
@@ -2064,6 +2074,10 @@ impl Default for GuiState {
             showroom_confirm: false,
             appearance: crate::ecs::components::Appearance::default(),
             appearance_dirty: false,
+            outfit: crate::ecs::components::Outfit::default(),
+            outfit_dirty: false,
+            showroom_mode: 0,
+            cosmetics_list: Vec::new(),
             settings_dirty: false,
             quit_requested: false,
             identity_recovered: false,

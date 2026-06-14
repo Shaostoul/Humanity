@@ -1,0 +1,15 @@
+id,name,slot,r,g,b,description
+work_jacket,Work Jacket,chest,0.45,0.30,0.15,A rugged canvas work jacket
+red_tee,Red Tee,chest,0.70,0.18,0.18,A bright red t-shirt
+blue_tee,Blue Tee,chest,0.20,0.32,0.65,A blue t-shirt
+green_tee,Green Tee,chest,0.20,0.45,0.25,A forest-green t-shirt
+lab_coat,Lab Coat,chest,0.88,0.88,0.90,A clean white lab coat
+work_pants,Work Pants,legs,0.25,0.22,0.20,Durable work trousers
+jeans,Jeans,legs,0.22,0.30,0.45,Classic blue jeans
+khakis,Khakis,legs,0.62,0.55,0.40,Tan khaki trousers
+work_boots,Work Boots,feet,0.20,0.15,0.10,Steel-toe work boots
+sneakers,Sneakers,feet,0.85,0.85,0.88,White sneakers
+cap,Cap,head,0.30,0.30,0.35,A simple cap
+hard_hat,Hard Hat,head,0.90,0.75,0.10,A safety hard hat
+work_gloves,Work Gloves,hands,0.35,0.25,0.18,Leather work gloves
+backpack,Backpack,back,0.30,0.35,0.25,A canvas backpack

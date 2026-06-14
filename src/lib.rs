@@ -20,6 +20,7 @@ pub mod ship;
 // placement lives in load_world (native); the structs + RON loader compile everywhere.
 pub mod machines;
 pub mod showroom;
+pub mod cosmetics;
 
 /// Canonical Sol-system model (one `SolBody` set + one Kepler
 /// propagator) shared by the Maps page, the FPS world spawn, and the
@@ -319,12 +320,19 @@ mod native_app {
     /// a head sphere on a podium cylinder, drawn via the static placeholder path (cleared +
     /// re-added each load, so no duplication). The face/limbs use skin tone; later
     /// increments swap this for a skinned mesh with cosmetic slots.
-    fn place_avatar(state: &mut EngineState, base: Vec3, app: &crate::ecs::components::Appearance) {
+    fn place_avatar(
+        state: &mut EngineState,
+        base: Vec3,
+        app: &crate::ecs::components::Appearance,
+        colors: &crate::cosmetics::OutfitColors,
+    ) {
         let s = app.height_scale.clamp(0.5, 2.0);
         let skin = [app.skin_tone[0], app.skin_tone[1], app.skin_tone[2], 1.0];
-        let hair = [app.hair_color[0], app.hair_color[1], app.hair_color[2], 1.0];
-        let shirt = [0.28, 0.38, 0.58, 1.0];
-        let pants = [0.22, 0.22, 0.28, 1.0];
+        let rgba = |c: [f32; 3]| [c[0], c[1], c[2], 1.0];
+        // Equipped cosmetics tint the matching slot; otherwise default body colors.
+        let hair = colors.head.map(rgba).unwrap_or([app.hair_color[0], app.hair_color[1], app.hair_color[2], 1.0]);
+        let shirt = colors.chest.map(rgba).unwrap_or([0.28, 0.38, 0.58, 1.0]);
+        let pants = colors.legs.map(rgba).unwrap_or([0.22, 0.22, 0.28, 1.0]);
         let podium = [0.45, 0.47, 0.50, 1.0];
         // (w, h, d, color, x, y, z) box parts; y/positions scale with height.
         let podium_h = 0.15_f32;
@@ -356,6 +364,37 @@ mod native_app {
         let hm = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, head_r, 12, 14));
         let hmat = state.renderer.add_material_typed(skin, 0.1, 0.7, 0.0);
         state.placeholder_objects.push((hm, hmat, base + Vec3::new(0.0, head_cy, 0.0)));
+    }
+
+    /// Open the character showroom in the given mode (1 = appearance / wetroom mirror,
+    /// 2 = wardrobe / bedroom). Syncs the edit buffers from the live player, orbits the
+    /// avatar, and frees the cursor. The avatar lives at the respawner; the home is hidden
+    /// while the showroom is open, so it does not matter which room you opened it from.
+    fn open_showroom(state: &mut EngineState, mode: u8) {
+        let (app, outfit) = state
+            .game_world
+            .world
+            .query::<(
+                &crate::ecs::components::Appearance,
+                &crate::ecs::components::Outfit,
+                &Controllable,
+            )>()
+            .iter()
+            .next()
+            .map(|(_, (a, o, _))| (a.clone(), o.clone()))
+            .unwrap_or_default();
+        state.gui_state.appearance = app.clone();
+        state.gui_state.outfit = outfit;
+        state.gui_state.showroom_mode = mode;
+        state.gui_state.showroom_active = true;
+        state.gui_state.appearance_dirty = true; // rebuild the avatar to match the player
+        state.gui_state.outfit_dirty = true;
+        state.showroom_return_pos = state.camera.position;
+        state.camera.switch_mode(crate::renderer::camera::CameraMode::Orbit);
+        state.camera.orbit_target = state.avatar_base + Vec3::new(0.0, 0.9 * app.height_scale, 0.0);
+        state.camera.orbit_distance = 3.0;
+        state.window.set_cursor_visible(true);
+        state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
     }
 
     /// Lazy-load the 3D world: homestead, hologram, stars, planet, CSV data.
@@ -1009,19 +1048,33 @@ mod native_app {
         if let Some(r) = homestead.room_info.iter().find(|r| r.id == "respawner") {
             let floor = r.center.y - r.dimensions.y * 0.5;
             let base = Vec3::new(r.center.x, floor, r.center.z - 0.35);
-            let app = state
+            let (app, outfit) = state
                 .game_world
                 .world
-                .query::<(&crate::ecs::components::Appearance, &Controllable)>()
+                .query::<(
+                    &crate::ecs::components::Appearance,
+                    &crate::ecs::components::Outfit,
+                    &Controllable,
+                )>()
                 .iter()
                 .next()
-                .map(|(_, (a, _))| a.clone())
+                .map(|(_, (a, o, _))| (a.clone(), o.clone()))
                 .unwrap_or_default();
+            state.cosmetics = crate::cosmetics::load_cosmetics(&state.data_dir);
+            state.gui_state.cosmetics_list = state
+                .cosmetics
+                .iter()
+                .map(|c| (c.id.clone(), c.name.clone(), c.slot.clone()))
+                .collect();
             state.gui_state.appearance = app.clone();
+            state.gui_state.outfit = outfit.clone();
             state.avatar_base = base;
             state.fps_spawn = state.camera.position; // the first-person spawn set above
+            state.showroom_return_pos = state.camera.position;
+            state.gui_state.showroom_mode = 0; // character select on spawn
             state.avatar_obj_start = state.placeholder_objects.len();
-            place_avatar(state, base, &app);
+            let colors = crate::cosmetics::resolve_outfit_colors(&outfit, &state.cosmetics);
+            place_avatar(state, base, &app, &colors);
 
             // Showroom: load backdrops, build the ground disc, start in orbit + free cursor.
             state.showroom_backdrops = crate::showroom::load_backdrops(&state.data_dir);
@@ -1202,6 +1255,12 @@ mod native_app {
         showroom_ground: Option<(usize, usize)>,
         /// Last backdrop index the ground material was built for (usize::MAX = none yet).
         showroom_last_backdrop: usize,
+        /// Cosmetic outfit catalog (data/cosmetics/cosmetics.csv). (v0.442)
+        cosmetics: Vec<crate::cosmetics::Cosmetic>,
+        /// First-person position to return to when leaving the showroom (the spawn for the
+        /// initial character-select, or where you were standing when you opened the mirror /
+        /// wardrobe from the wetroom / bedroom). (v0.442)
+        showroom_return_pos: Vec3,
         /// Homestead walls mesh + material.
         homestead_walls: Option<(usize, usize)>,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
@@ -1644,6 +1703,8 @@ mod native_app {
                 showroom_backdrops: Vec::new(),
                 showroom_ground: None,
                 showroom_last_backdrop: usize::MAX,
+                cosmetics: Vec::new(),
+                showroom_return_pos: Vec3::new(0.0, 1.7, 0.0),
                 homestead_walls: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
@@ -1823,6 +1884,25 @@ mod native_app {
                                 // Not looking at any machine but a card is pinned: E closes it
                                 // (so "[E] close" works from anywhere, not just at the machine).
                                 state.gui_state.selected_machine = None;
+                            } else if !state.gui_state.showroom_active {
+                                // Walk-up to a character station: the wetroom mirror opens the
+                                // appearance editor, the bedroom opens the wardrobe (v0.442).
+                                let p = state.camera.position;
+                                let room = state
+                                    .gui_state
+                                    .room_bounds
+                                    .iter()
+                                    .find(|r| {
+                                        p.x >= r.min.x && p.x <= r.max.x
+                                            && p.y >= r.min.y && p.y <= r.max.y
+                                            && p.z >= r.min.z && p.z <= r.max.z
+                                    })
+                                    .map(|r| r.id.clone());
+                                match room.as_deref() {
+                                    Some("wetroom") => open_showroom(state, 1),
+                                    Some("bedroom") => open_showroom(state, 2),
+                                    _ => {}
+                                }
                             }
                         }
 
@@ -2177,13 +2257,19 @@ mod native_app {
                     // ── Character-select showroom sync (v0.441): apply the panel's edits ──
                     // Rebuild the avatar when appearance changed (it is the tail of
                     // placeholder_objects, so truncate to its start + re-place).
-                    if state.gui_state.appearance_dirty {
+                    if state.gui_state.appearance_dirty || state.gui_state.outfit_dirty {
                         state.gui_state.appearance_dirty = false;
+                        state.gui_state.outfit_dirty = false;
                         state.placeholder_objects.truncate(state.avatar_obj_start);
                         let base = state.avatar_base;
                         let app = state.gui_state.appearance.clone();
-                        place_avatar(state, base, &app);
-                        state.camera.orbit_target = base + Vec3::new(0.0, 0.9 * app.height_scale, 0.0);
+                        let colors = crate::cosmetics::resolve_outfit_colors(
+                            &state.gui_state.outfit,
+                            &state.cosmetics,
+                        );
+                        place_avatar(state, base, &app, &colors);
+                        state.camera.orbit_target =
+                            base + Vec3::new(0.0, 0.9 * app.height_scale, 0.0);
                     }
                     // Rebuild the ground material when the backdrop changed.
                     if state.gui_state.showroom_active
@@ -2209,18 +2295,21 @@ mod native_app {
                         state.gui_state.showroom_confirm = false;
                         state.gui_state.showroom_active = false;
                         let app = state.gui_state.appearance.clone();
-                        for (_e, (a, _c)) in state.game_world.world.query_mut::<(
+                        let outfit = state.gui_state.outfit.clone();
+                        for (_e, (a, o, _c)) in state.game_world.world.query_mut::<(
                             &mut crate::ecs::components::Appearance,
+                            &mut crate::ecs::components::Outfit,
                             &Controllable,
                         )>() {
                             *a = app.clone();
+                            *o = outfit.clone();
                             break;
                         }
                         crate::save_load::save_active_home(&state.game_world.world);
                         state
                             .camera
                             .switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
-                        state.camera.position = state.fps_spawn;
+                        state.camera.position = state.showroom_return_pos;
                         state.window.set_cursor_visible(false);
                         state
                             .window
