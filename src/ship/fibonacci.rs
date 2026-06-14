@@ -622,18 +622,11 @@ fn build_meshes(
             }
         }
 
-        // Ceiling (visible from below, inside room looking up)
-        let ceil_y = y + wall_height;
-        let ceil_verts = vec![
-            Vertex { position: [x0, ceil_y, z0], normal: [0.0, -1.0, 0.0], uv: [0.0, 0.0] },
-            Vertex { position: [x1, ceil_y, z0], normal: [0.0, -1.0, 0.0], uv: [1.0, 0.0] },
-            Vertex { position: [x1, ceil_y, z1], normal: [0.0, -1.0, 0.0], uv: [1.0, 1.0] },
-            Vertex { position: [x0, ceil_y, z1], normal: [0.0, -1.0, 0.0], uv: [0.0, 1.0] },
-        ];
-        let cb = all_wall_verts.len() as u32;
-        all_wall_verts.extend(ceil_verts);
-        // Ceiling visible from below: normal points -Y (into room)
-        all_wall_indices.extend([cb, cb + 1, cb + 2, cb, cb + 2, cb + 3]);
+        // Ceiling: DISABLED v0.445 (operator) so the sky is visible from inside the home
+        // (also the diagnostic for the showroom black-void: if stars show through the open
+        // roof, the skybox works). Rooms are open-topped for now. The future plan is a
+        // toggleable / transparent roof for atmospheric tests (air transfer + venting), built
+        // with construction mode rather than baked into the wall mesh; see the design doc.
     }
 
     // Also generate floor-only for zero-height rooms (outdoor spaces like ranch)
