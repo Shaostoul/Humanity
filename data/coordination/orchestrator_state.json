@@ -10,6 +10,16 @@
   "recent_decisions": [
     {
       "at": "2026-06-14",
+      "decision": "SHOWROOM PLANET BACKDROPS (v0.449.0). Operator: proceed with as much as you can. Built the contained stand-on-Earth/Mars: Backdrop gains a serde-default `sphere` flag; earth/mars/moon now render the avatar standing on a curved PLANET SPHERE (radius 30, centered 30 below the avatar so the top is the standing surface) tinted by the body color (Earth blue-green, Mars red, Moon grey), instead of a flat disc. Reuses the backdrop material (rebuilt on change). New State.showroom_body sphere mesh. The full version (teleport onto the REAL solar-system body) needs the celestial far pass.",
+      "why": "Operator green-light to keep building; the local-sphere is the reliable, verifiable slice of the stand-on-Earth/Mars want (no astronomical-distance precision/depth risk). Verified: native+relay compile, showroom test passes.",
+      "files": [
+        "src/showroom.rs",
+        "data/showroom/backdrops.ron",
+        "src/lib.rs"
+      ]
+    },
+    {
+      "at": "2026-06-14",
       "decision": "DECOUPLE game character from chat profile + custody model (v0.448.0). Operator: decouple game characters from the chat profile; self-custodial characters; offline/local vs cloud saves; self-custodial server accounts (bring your character, server stores minimal); forced cloud saves for MMO anti-cheat. Investigation: appearance+outfit were ALREADY decoupled (local WorldSave, never referenced by relay or profile.rs); only the name was coupled (player ECS Name hardcoded Player; showroom borrowed the chat user_name). Fixed: WorldSave += character_name (serde-default Wanderer) round-tripped to the player ECS Name in save_load (+test); showroom gains a Name field + the left selector shows the CHARACTER name not user_name. So home name / character name / chat profile name are now 3 independent things. Captured the self-custodial save/identity architecture in docs/design/character-and-save-custody.md building on WorldSave.kind (offline|server|real): identity (Dilithium key from seed) ALWAYS self-custodial; character look+name self-custodial data you present; progress custody per-kind (offline=you own; server=relay owns=forced cloud, server-authoritative for anti-cheat; real=deferred); self-custodial server accounts auth by key + store minimal.",
       "why": "Operator direction on the identity/save architecture. The decoupling was mostly already true (appearance/outfit local); finished it with a character name. The cloud (server kind) is the next arc. Verified: native+relay compile, 11 save/persistence tests pass, 3 gui lints pass, doc links 0.",
       "files": [
@@ -1655,7 +1665,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.448.0; local exe building (bdd00sqsc). v0.439-0.448 character/home arc shipped this session. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.449.0; local exe building (b152m383w). v0.439-0.449 character/home/showroom arc shipped this session. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
