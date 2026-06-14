@@ -3,11 +3,21 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "CHARACTER system arc. Showroom now WORKS (v0.443): locked orbit (drag spins, wheel zooms), clickable panel (cursor reconciliation), hidden hologram, suppressed HUD. Shipped this session: v0.439 room-purpose, v0.440 avatar, v0.441 showroom+persistence, v0.442 wardrobe+cosmetics+wetroom-mirror, v0.443 showroom control fixes. REMAINING (no rework): (a) per-backdrop SKYBOXES (currently ground-disc tint + star sky); backdrops -> REAL in-game locations (Mount Rainier etc.) once planet gen lands; (b) respawner->wetroom PORTAL emergence; (c) broaden [E] to open EVERY room page; (d) skinned avatar mesh + cosmetic gltf models. v0.426.0 RELEASE awaits operator just sign-release.",
+  "current_focus": "CHARACTER/HOME arc. Showroom now correct (v0.444: stars show, controls locked, panel works, outlined HUD text, persistence). NEXT FOCUSED PIECE = FLOOR-PLAN rework (operator spec in docs/design/room-purpose-architecture.md Floor plan section): per-room per-wall config (solid/door/window/open/mirror) replacing doorway-on-every-wall; computer/network 1x1 no doors (abstract); respawner 2x2 no walls; wetroom north-doorway + 3x3 west mirror/portal (shared w/ respawner east); bedroom south+west doors + north/east BAY WINDOWS into study+garden; explicit room positions for the adjacency; new window+mirror mesh kinds (mirror = the showroom emergence portal). Then: per-backdrop skyboxes -> real in-game locations; broaden [E] to all room pages; skinned avatar mesh. v0.426.0 RELEASE awaits operator just sign-release.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
   "recent_decisions": [
+    {
+      "at": "2026-06-14",
+      "decision": "SHOWROOM POLISH (v0.444.0): (1) showroom floating-in-space was a black void - Earth (huge, at GEO below the home) + solar-system bodies were still rendered and Earths dark limb hid the star skybox; now skipped during showroom so the real star field shows. (2) HUD text (FPS/day/weather/power/compass/room-card) now has a black OUTLINE (text_shadowed upgraded from a 1px drop-shadow to an 8-offset stroke) so it is legible over any background with no panel. Captured the operators precise FLOOR-PLAN spec in docs/design/room-purpose-architecture.md as the next piece.",
+      "why": "Operator showroom test feedback. The floor-plan rework (per-wall solid/door/window/open/mirror config + explicit room positions + window/mirror mesh kinds) is intricate + done blind, so capturing the exact spec and doing it as a focused next increment beats rushing a wrong 2D adjacency. Verified: native compiles, gui lints pass, doc links 0.",
+      "files": [
+        "src/gui/pages/hud.rs",
+        "src/lib.rs",
+        "docs/design/room-purpose-architecture.md"
+      ]
+    },
     {
       "at": "2026-06-13",
       "decision": "SHOWROOM CONTROL FIXES (v0.443.0, operator bug report). (1) Camera moved on WASD + two-button pan because update_orbit pans on WASD + middle-drag. Added CameraController.showroom_lock: when set, orbit is FIXED on the avatar - mouse drag (middle/left/right) SPINS, wheel ZOOMS, WASD+pan disabled. Set on showroom entry (load_world + open_showroom), cleared on Enter. (2) Panel unclickable (cant change settings / enter home) because the OS cursor was grabbed for FPS -> egui pointer frozen. Replaced scattered cursor-grab calls with ONE per-frame reconciliation: cursor freed for any menu page OR showroom (egui clicks land), grabbed for FPS. State.cursor_free tracks it. (3) Solar-system hologram (old map) leaked into the showroom void on pan -> now hidden during showroom (with floors/walls/machines). (4) HUD suppressed during showroom. Space backdrop already shows the real star skybox (renders behind the hidden home).",
@@ -1603,7 +1613,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.443.0; local exe building (b9aa3ycvg). v0.439-0.443 character system shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.444.0; local exe building (buxai92ev). v0.439-0.444 character/home arc shipped this session. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
