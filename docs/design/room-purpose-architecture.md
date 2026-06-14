@@ -139,6 +139,38 @@ the better). So `data/showroom/backdrops.ron` is designed as a registry that wil
 render to, replacing the placeholder ground tint. Keep backdrops data-driven so adding a real
 location is a data edit once the terrain it points at exists.
 
+## Floor plan (operator spec, 2026-06-14) -- to implement
+
+The rooms currently auto-place in a Fibonacci spiral with a doorway cut on the center of
+every wall (overlap-detected). The operator specified a PRECISE floor plan instead, which
+needs (a) explicit room positions for the adjacency and (b) a per-room, per-WALL config
+(solid / doorway / window / open / mirror), replacing the auto-doorway-on-every-wall.
+
+Per-wall config needed per room (N/S/E/W each one of: solid, door, window, open, mirror):
+
+- **computer (1x1)** and **network (1x1)**: NO doors on ANY side (all solid). They are
+  ABSTRACT stations, not walked into -- computer = local files/folders/games, network =
+  online services (chat + the rest). You interact, you do not enter.
+- **respawner (2x2, fib #3)**: NO walls at all (fully open). Its EAST side is the shared
+  boundary with the wetroom and IS the 3 m x 3 m mirror/portal (see wetroom).
+- **wetroom (3x3, fib #4)**: only a NORTH doorway (into the bedroom). Its WEST wall is a
+  3 m wide x 3 m tall MIRROR / portal (the shared respawner-east boundary) -- this is the
+  character-customize mirror + the emergence portal. Other walls solid.
+- **bedroom (5x5, fib #5)**: SOUTH door (into the wetroom), WEST door (into the kitchen).
+  NORTH and EAST walls are BAY WINDOWS looking into the study and the garden respectively.
+- **kitchen (8x8, fib #6)**: connects EAST to the bedroom (the bedroom's west door). Other
+  connections per the spiral / later spec.
+- Larger rooms (livingroom, study, garden, garage, depot, hangar): adjacency + windows TBD
+  with the operator; the bedroom's north/east windows imply study is north of the bedroom
+  and garden is east.
+
+Implementation notes: `RoomConfig` already supports `position: Option<[f32;3]>`, so place
+the small core rooms explicitly to realize this adjacency. Add a per-wall enum to the room
+data (data-driven, infinite-of-X) and have the homestead mesh generator honor it instead of
+cutting a doorway on every overlapping wall. New mesh kinds: a WINDOW (transparent/framed
+panel) and a MIRROR (a flat reflective-tinted panel; later a real planar reflection). The
+respawner-east / wetroom-west mirror is also the showroom emergence portal.
+
 ## Appearance / outfit data shapes (locked now, built later)
 
 ```rust

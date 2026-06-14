@@ -43,11 +43,12 @@ pub fn draw(
             );
 
             // ── FPS counter (top-right) ──
-            painter.text(
+            text_shadowed(
+                painter,
                 Pos2::new(screen.right() - 16.0, 16.0),
                 Align2::RIGHT_TOP,
-                format!("{:.0} FPS", state.fps),
-                FontId::proportional(12.0),
+                &format!("{:.0} FPS", state.fps),
+                12.0,
                 theme.text_muted(),
             );
 
@@ -62,11 +63,12 @@ pub fn draw(
                 );
                 let day_icon = if gt.is_daytime { "☀" } else { "☾" };
                 let day_color = if gt.is_daytime { theme.warning() } else { Color32::from_rgb(140, 160, 220) };
-                painter.text(
+                text_shadowed(
+                    painter,
                     Pos2::new(screen.right() - 16.0, 32.0),
                     Align2::RIGHT_TOP,
-                    format!("{} {}", day_icon, time_str),
-                    FontId::proportional(11.0),
+                    &format!("{} {}", day_icon, time_str),
+                    11.0,
                     day_color,
                 );
             }
@@ -83,11 +85,12 @@ pub fn draw(
                     "Sandstorm" => "🌪",
                     _ => "?",
                 };
-                painter.text(
+                text_shadowed(
+                    painter,
                     Pos2::new(screen.right() - 16.0, 46.0),
                     Align2::RIGHT_TOP,
-                    format!("{} {} {:.0}C {:.0}m/s", weather_icon, w.condition, w.temperature, w.wind_speed),
-                    FontId::proportional(11.0),
+                    &format!("{} {} {:.0}C {:.0}m/s", weather_icon, w.condition, w.temperature, w.wind_speed),
+                    11.0,
                     theme.text_secondary(),
                 );
             }
@@ -96,14 +99,15 @@ pub fn draw(
             // Generation climbs at noon, falls to zero at night; net flips green->red.
             if state.power_generation > 0.0 || state.power_consumption > 0.0 {
                 let col = if state.power_balance >= 0.0 { theme.success() } else { theme.danger() };
-                painter.text(
+                text_shadowed(
+                    painter,
                     Pos2::new(screen.right() - 16.0, 60.0),
                     Align2::RIGHT_TOP,
-                    format!(
+                    &format!(
                         "Power: gen {:.0}W  use {:.0}W  net {:+.0}W",
                         state.power_generation, state.power_consumption, state.power_balance
                     ),
-                    FontId::proportional(11.0),
+                    11.0,
                     col,
                 );
             }
@@ -126,7 +130,7 @@ pub fn draw(
                 if diff.abs() < std::f32::consts::FRAC_PI_2 {
                     let x = center.x + diff / std::f32::consts::FRAC_PI_2 * (compass_width / 2.0);
                     let color = if *label == "N" { theme.danger() } else { theme.text_secondary() };
-                    painter.text(Pos2::new(x, compass_y), Align2::CENTER_TOP, *label, FontId::proportional(14.0), color);
+                    text_shadowed(painter, Pos2::new(x, compass_y), Align2::CENTER_TOP, label, 14.0, color);
                 }
             }
 
@@ -153,28 +157,31 @@ pub fn draw(
             if let Some(room) = current_room_info {
                 if !room.display_name.is_empty() {
                     let x = screen.left() + 16.0;
-                    painter.text(
+                    text_shadowed(
+                        painter,
                         Pos2::new(x, screen.bottom() - 48.0),
                         Align2::LEFT_BOTTOM,
                         &room.display_name,
-                        FontId::proportional(15.0),
+                        15.0,
                         theme.text_primary(),
                     );
                     if !room.purpose.is_empty() {
-                        painter.text(
+                        text_shadowed(
+                            painter,
                             Pos2::new(x, screen.bottom() - 30.0),
                             Align2::LEFT_BOTTOM,
                             &room.purpose,
-                            FontId::proportional(11.0),
+                            11.0,
                             theme.text_secondary(),
                         );
                     }
                     if !room.actions.is_empty() {
-                        painter.text(
+                        text_shadowed(
+                            painter,
                             Pos2::new(x, screen.bottom() - 14.0),
                             Align2::LEFT_BOTTOM,
-                            format!("Here: {}", room.actions.join("  /  ")),
-                            FontId::proportional(10.0),
+                            &format!("Here: {}", room.actions.join("  /  ")),
+                            10.0,
                             theme.text_muted(),
                         );
                     }
@@ -320,7 +327,9 @@ fn world_to_screen(world: Vec3, view_proj: Mat4, screen: Rect) -> Option<Pos2> {
     Some(Pos2::new(x, y))
 }
 
-/// Draw text with a 1px black drop-shadow so it stays legible over any 3D background.
+/// Draw text with a black OUTLINE (stroke) so it stays legible over any 3D background
+/// without needing a panel behind it. Renders the text in black at 8 surrounding offsets,
+/// then the colored text on top. (v0.444: was a 1px drop-shadow.)
 fn text_shadowed(
     painter: &egui::Painter,
     pos: Pos2,
@@ -329,8 +338,17 @@ fn text_shadowed(
     size: f32,
     color: Color32,
 ) {
-    painter.text(pos + Vec2::splat(1.0), anchor, text, FontId::proportional(size), Color32::from_black_alpha(170));
-    painter.text(pos, anchor, text, FontId::proportional(size), color);
+    let font = FontId::proportional(size);
+    let outline = Color32::from_black_alpha(200);
+    const O: f32 = 1.2;
+    for (dx, dy) in [
+        (-O, -O), (0.0, -O), (O, -O),
+        (-O, 0.0), (O, 0.0),
+        (-O, O), (0.0, O), (O, O),
+    ] {
+        painter.text(pos + Vec2::new(dx, dy), anchor, text, font.clone(), outline);
+    }
+    painter.text(pos, anchor, text, font, color);
 }
 
 /// Color a stat readout by its status.

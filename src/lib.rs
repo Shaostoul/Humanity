@@ -2516,13 +2516,17 @@ mod native_app {
                         }
 
                         let rotation = Quat::from_rotation_y(elapsed * 0.01);
-                        all_objects.push(RenderObject {
-                            position: render_pos,
-                            rotation,
-                            scale: Vec3::splat(scale),
-                            mesh: mesh_idx,
-                            material: state.planet_material,
-                        });
+                        // Earth is huge + at GEO below the home; in the showroom its dark
+                        // limb fills the view and hides the stars, so skip it (v0.444).
+                        if !showroom {
+                            all_objects.push(RenderObject {
+                                position: render_pos,
+                                rotation,
+                                scale: Vec3::splat(scale),
+                                mesh: mesh_idx,
+                                material: state.planet_material,
+                            });
+                        }
 
                         // ── The real solar system around the home ──
                         // (map sync, increment B). Was: a single hardcoded
@@ -2596,17 +2600,19 @@ mod native_app {
                                     _ => state.solar_body_materials[3],
                                 }
                             };
-                            all_objects.push(RenderObject {
-                                position: Vec3::new(
-                                    render_off.x as f32,
-                                    render_off.y as f32,
-                                    render_off.z as f32,
-                                ),
-                                rotation: Quat::from_rotation_y(elapsed * 0.01),
-                                scale: Vec3::splat(visual_scale),
-                                mesh: mesh_idx,
-                                material,
-                            });
+                            if !showroom {
+                                all_objects.push(RenderObject {
+                                    position: Vec3::new(
+                                        render_off.x as f32,
+                                        render_off.y as f32,
+                                        render_off.z as f32,
+                                    ),
+                                    rotation: Quat::from_rotation_y(elapsed * 0.01),
+                                    scale: Vec3::splat(visual_scale),
+                                    mesh: mesh_idx,
+                                    material,
+                                });
+                            }
                         }
 
                         // ── Orbit paths (v0.262.20 — thin world lines) ──
