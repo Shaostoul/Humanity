@@ -3,11 +3,26 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "LIVE HOME SIMULATION arc (operator pick). Increment 1 shipped v0.437.0: solar power moves with the sun (live ElectricalSystem + SolarSystem against spawned home machine entities; HUD power line). NEXT: 1b battery state-of-charge (live autonomy + generator kick-in on deficit); 1c live Home-page loop summary from PowerStatus; 1d per-machine-card live stats; 1e register PlumbingSystem. Then survey arcs 2-6 (survival stakes, operable machines, build mode, climate, vehicles). v0.426.0 RELEASE awaits operator just sign-release.",
+  "current_focus": "ROOM-PURPOSE ARCHITECTURE arc (operator: rooms have real-world purposes, done right). Keystone shipped v0.439.0: rooms know their purpose from data/rooms.ron (single source of truth, joined by id), HUD room card, spawn in respawner. NEXT (docs/design/room-purpose-architecture.md roadmap): (1) PERSISTENCE unblock = add appearance+outfit to WorldSave serde-default (fixes restart-amnesia BEFORE avatar work); (2) route in-room actions to existing pages via the machine [E] surface (lights up ~9 rooms); (3) VISIBLE AVATAR phases 0-1 (Appearance component + reuse equipment_slots.json + placeholder humanoid mesh); (4) wetroom appearance editor; (5) cosmetics.csv + bedroom wardrobe; (6) federation/multiplayer. PARALLEL track still open: Live-Home-Sim 1b battery state-of-charge. v0.426.0 RELEASE awaits operator just sign-release.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
   "recent_decisions": [
+    {
+      "at": "2026-06-13",
+      "decision": "ROOM-PURPOSE ARCHITECTURE keystone (v0.439.0). Operator: spawn in the bathroom (char select/customize), bedroom=outfits, extrapolate the whole room-purpose scheme deep + reality-grounded, do it right the first time. Ran a 4-lens design workflow (real-function / connect-not-rebuild / data-architecture / depth-future). Key finding: data/rooms.ron ALREADY had all 12 rooms with purposes but was NEVER loaded by code; it is THE single source of truth. Shipped the keystone (no new gameplay, just the right data model): new src/ship/room_types.rs parses rooms.ron + a new data/rooms/room_actions.ron catalog (serde-default new fields actions/access so 38 entries parse); the live world JOINS room id -> registry at load (no purpose dup onto RoomConfig); gui::RoomBounds carries display_name/purpose/actions/access; HUD shows a bottom-left room card (name+purpose+action labels) when inside a room; spawn moved to respawner (the wake/char-select anchor, one-line). Two honest dependencies documented: outfits need a VISIBLE AVATAR (none today - player is a bodiless FP camera) and appearance must be PERSISTED to WorldSave (RAM-only today) - both BEFORE the bathroom/bedroom UIs. Full architecture + 7-step roadmap in docs/design/room-purpose-architecture.md.",
+      "why": "Operator explicitly prioritized correctness over speed here (do it right the first time, less rework). The design pass found the anti-rework move (one source of truth = rooms.ron, join by id) and the real build order (avatar+persistence before the anchor UIs). Verified: native+relay compile, room_types+machines tests pass, 4 gui lints pass, doc links 0.",
+      "files": [
+        "src/ship/room_types.rs",
+        "data/rooms.ron",
+        "data/rooms/room_actions.ron",
+        "src/gui/mod.rs",
+        "src/gui/pages/hud.rs",
+        "src/lib.rs",
+        "data/blueprints/homestead_layout.ron",
+        "docs/design/room-purpose-architecture.md"
+      ]
+    },
     {
       "at": "2026-06-13",
       "decision": "GROUNDED MOVEMENT + RANCH DISABLED/CONSOLIDATED (v0.438.0). (1) BUG-039: first-person camera was free-fly noclip (Shift floated down+slowed, Space floated up, gravity commented out, no sprint). Fixed: Shift=sprint(1.9x), Space=jump(impulse), gravity 12 m/s2 + floor clamp at ground_y; main loop feeds CameraController::set_ground_floor(floor_y) from the room AABB the player is in each frame (home floors coplanar y=0). ThirdPerson/Orbit fly untouched. (2) Operator: ranch was a 233x233 open patch with machines at its far centre (long walk). Disabled ranch (homestead_layout.ron commented out) and consolidated: solar array(8)+wind+cistern+new drone_hangar+defense_turret onto the GARAGE hull (55x55, mothership outer hull); field crops+silo into the GARDEN. Connections are by instance id so pipes re-route automatically (mostly same-room now). New drone_hangar + defense_turret machines (turret = live 20W PowerConsumer priority 4). Turret build/maintain/operate defense minigame captured in docs/game/turret-defense-minigame.md for a later arc.",
@@ -1541,7 +1556,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.438.0; local exe building (bgga5bplp). Live-solar(v437)+grounded-movement+layout-consolidation(v438) shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.439.0; local exe building (bvghqsf26). v0.437 live-solar + v0.438 grounded-movement/layout + v0.439 room-purpose-keystone shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
