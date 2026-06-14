@@ -3,11 +3,21 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "HOME/CHARACTER arc. v0.448: game character decoupled from chat profile (own character_name in the save; showroom Name field). Self-custodial save/identity model captured (docs/design/character-and-save-custody.md). NEXT: (a) CELESTIAL FAR PASS (planet/sun/solar/orbits visible in FPS + Earth/Mars showroom backdrop) - the keystone renderer increment; (b) SERVER (cloud) save kind = relay stores a players WorldSave by public key + client sync + offline-vs-server picker (the self-custodial-server-account flow, MMO anti-cheat); (c) CONSTRUCTION MODE (modular door+frame+trim+windows+toggleable roof); (d) Milky Way skybox + vision filters. v0.426.0 RELEASE awaits operator just sign-release.",
+  "current_focus": "UNIVERSE-SCALE + HOME/CHARACTER arc. v0.450: CELESTIAL FAR PASS shipped (planet+Sun+solar bodies now render in FPS via a huge-far pass between stars+interior). VERIFY: does the operator see the bodies (Earth disc below the home, Sun/planets as discs)? FOLLOW-UPS: (a) orbit rings need a celestial line draw (still clipped); (b) real-Sun-direction lighting on bodies; (c) showroom teleport onto the real Earth/Mars (build on the celestial pass); (d) CONSTRUCTION MODE (modular door/frame/trim/windows/toggleable roof); (e) Milky Way skybox structure + vision filters; (f) SERVER (cloud) save kind. Real-scale-universe vision: docs/design/universe-scale.md. v0.426.0 RELEASE awaits operator just sign-release.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
   "recent_decisions": [
+    {
+      "at": "2026-06-14",
+      "decision": "CELESTIAL FAR PASS (v0.450.0) - keystone for the real-scale-universe vision. The planet (Earth GEO ~42000km), Sun, and solar bodies were clipped by the ~500m gameplay far plane so never showed in FPS. Added: Camera::celestial_uniforms() (same view+lighting, far=1e13, reverse-Z); Renderer::render_celestial_onto() (sibling of render_scene_onto: color LoadOp::Load to preserve stars, own depth clear so bodies sort, drawn between the star pass + the interior scene which clears depth again + draws over the bodies color where geometry exists -> walls occlude sky, open roof shows it); lib.rs splits planet+solar into a celestial_objects list rendered by that pass. Bodies use the existing floored angular size -> read as discs at true positions. FOLLOW-UPS: orbit rings still use the gameplay far (need a celestial line draw); bodies lit by default sun not real Sun direction; showroom teleport-onto-real-Earth/Mars can build on this. Blind renderer change - compiles + mirrors the proven star pass; visual needs an in-app look.",
+      "why": "Operator: proceed with as much as you can + endorsed the celestial pass as the keystone. It is the foundation for the real solar system being visible + the real-scale universe. Verified: native+relay compile, theme_token_lint passes. Visual result the operator verifies (cannot see render).",
+      "files": [
+        "src/renderer/camera.rs",
+        "src/renderer/mod.rs",
+        "src/lib.rs"
+      ]
+    },
     {
       "at": "2026-06-14",
       "decision": "SHOWROOM PLANET BACKDROPS (v0.449.0). Operator: proceed with as much as you can. Built the contained stand-on-Earth/Mars: Backdrop gains a serde-default `sphere` flag; earth/mars/moon now render the avatar standing on a curved PLANET SPHERE (radius 30, centered 30 below the avatar so the top is the standing surface) tinted by the body color (Earth blue-green, Mars red, Moon grey), instead of a flat disc. Reuses the backdrop material (rebuilt on change). New State.showroom_body sphere mesh. The full version (teleport onto the REAL solar-system body) needs the celestial far pass.",
@@ -1665,7 +1675,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.449.0; local exe building (b152m383w). v0.439-0.449 character/home/showroom arc shipped this session. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.450.0; local exe building (bnxewqzst). v0.439-0.450 character/home/showroom/universe arc shipped this session. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
