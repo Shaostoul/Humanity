@@ -105,6 +105,29 @@ from `data/rooms.ron`, surfaced in-world as a bottom-left HUD card. Next:
    logistics, livingroom entertainment. Each its own arc; the rooms already surface their core
    systems from step 2, so these are depth, not blockers.
 
+## Character-select showroom (operator vision, 2026-06-13)
+
+The character-select / customize experience the spawn flow builds toward:
+
+- **Showroom view.** When selecting/creating a character, the room walls + ceiling vanish
+  and the avatar stands on a podium while an orbit camera circles it. The player can swap
+  the BACKDROP environment to preview the character in different places: spaceship interior,
+  Earth, Mars, the Moon, floating in space, a forest, under the ocean, a mountaintop, a
+  beach, etc. Each backdrop is a data-declared scene (skybox + ground + lighting preset) so
+  the list is infinite-of-X, not a hardcoded set. Backdrops reuse the existing sky/stars
+  renderer + terrain/biome assets where possible.
+- **Selection -> emergence.** Once a character is confirmed, the camera transitions from the
+  orbit showroom to first-person, and the player "emerges" into the world: the avatar is
+  re-enclosed in the respawn pod, and the player steps out through a 2x2 m doorway/portal on
+  the side of the respawner into the wetroom. The respawner and wetroom are adjacent; the
+  portal is the shared wall. This makes the wake-up diegetic: reconstructed in the pod ->
+  walk out the portal -> you are in your home.
+
+**Build status (v0.440):** the avatar mesh exists (a blockman on the respawner podium). The
+showroom camera state (orbit + hide walls + backdrop swap + confirm), the backdrop scene
+registry, and the portal-emergence transition are the next increments, in that order. The
+avatar is the shared dependency they all render.
+
 ## Appearance / outfit data shapes (locked now, built later)
 
 ```rust

@@ -313,6 +313,50 @@ mod native_app {
         event_loop.run_app(&mut app).expect("Event loop error");
     }
 
+    /// Place a blockman avatar standing on a podium at `base` (the podium floor position),
+    /// built from the player's `Appearance` (v0.440). A rudimentary humanoid from boxes +
+    /// a head sphere on a podium cylinder, drawn via the static placeholder path (cleared +
+    /// re-added each load, so no duplication). The face/limbs use skin tone; later
+    /// increments swap this for a skinned mesh with cosmetic slots.
+    fn place_avatar(state: &mut EngineState, base: Vec3, app: &crate::ecs::components::Appearance) {
+        let s = app.height_scale.clamp(0.5, 2.0);
+        let skin = [app.skin_tone[0], app.skin_tone[1], app.skin_tone[2], 1.0];
+        let hair = [app.hair_color[0], app.hair_color[1], app.hair_color[2], 1.0];
+        let shirt = [0.28, 0.38, 0.58, 1.0];
+        let pants = [0.22, 0.22, 0.28, 1.0];
+        let podium = [0.45, 0.47, 0.50, 1.0];
+        // (w, h, d, color, x, y, z) box parts; y/positions scale with height.
+        let podium_h = 0.15_f32;
+        let leg_h = 0.85 * s;
+        let torso_h = 0.62 * s;
+        let head_r = 0.14 * s;
+        let leg_base = podium_h;
+        let torso_base = leg_base + leg_h;
+        let head_cy = torso_base + torso_h + head_r;
+        // Helper: push a box part at base + (x,y,z).
+        let mut push_box = |st: &mut EngineState, w: f32, h: f32, d: f32, c: [f32; 4], x: f32, y: f32, z: f32| {
+            let mi = st.renderer.add_mesh(Mesh::box_xyz(&st.renderer.device, w, h, d));
+            let mat = st.renderer.add_material_typed(c, 0.1, 0.75, 0.0);
+            st.placeholder_objects.push((mi, mat, base + Vec3::new(x, y, z)));
+        };
+        // Legs (pants), torso (shirt), arms (skin), at the body's standing pose.
+        push_box(state, 0.16, leg_h, 0.22, pants, -0.12, leg_base, 0.0);
+        push_box(state, 0.16, leg_h, 0.22, pants, 0.12, leg_base, 0.0);
+        push_box(state, 0.46, torso_h, 0.26, shirt, 0.0, torso_base, 0.0);
+        push_box(state, 0.13, torso_h, 0.16, skin, -0.30, torso_base, 0.0);
+        push_box(state, 0.13, torso_h, 0.16, skin, 0.30, torso_base, 0.0);
+        // Hair cap (a thin box sitting on the head).
+        push_box(state, 0.30, 0.10 * s, 0.30, hair, 0.0, head_cy + head_r * 0.4, 0.0);
+        // Podium cylinder.
+        let pm = state.renderer.add_mesh(Mesh::cylinder(&state.renderer.device, 0.5, podium_h, 18));
+        let pmat = state.renderer.add_material_typed(podium, 0.3, 0.5, 0.0);
+        state.placeholder_objects.push((pm, pmat, base));
+        // Head sphere (center-origin; place its center directly).
+        let hm = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, head_r, 12, 14));
+        let hmat = state.renderer.add_material_typed(skin, 0.1, 0.7, 0.0);
+        state.placeholder_objects.push((hm, hmat, base + Vec3::new(0.0, head_cy, 0.0)));
+    }
+
     /// Lazy-load the 3D world: homestead, hologram, stars, planet, CSV data.
     /// Called once on first Enter World. Keeps app startup instant (chat-first).
     fn load_world(state: &mut EngineState) {
@@ -955,6 +999,24 @@ mod native_app {
         // world opens (idempotent), so editing a data file + re-entering picks it up.
         load_data_registries(&mut state.data_store, state.asset_manager.data_dir());
 
+        // ── Player avatar on the reconstruction podium in the respawn chamber (v0.440) ──
+        // The player has no body mesh, so place a blockman avatar standing on a podium in
+        // the respawner (where you wake). It reflects the player's Appearance and is the
+        // character the future character-select showroom orbits + the wetroom mirror edits.
+        if let Some(r) = homestead.room_info.iter().find(|r| r.id == "respawner") {
+            let floor = r.center.y - r.dimensions.y * 0.5;
+            let base = Vec3::new(r.center.x, floor, r.center.z - 0.35);
+            let app = state
+                .game_world
+                .world
+                .query::<(&crate::ecs::components::Appearance, &Controllable)>()
+                .iter()
+                .next()
+                .map(|(_, (a, _))| a.clone())
+                .unwrap_or_default();
+            place_avatar(state, base, &app);
+        }
+
         state.world_loaded = true;
         log::info!("3D world loaded in {:.0}ms", load_start.elapsed().as_millis());
     }
@@ -1344,6 +1406,7 @@ mod native_app {
                 Inventory::new(36),
                 crate::ecs::components::Vitals::default(),
                 crate::ecs::components::StatusEffects::default(),
+                crate::ecs::components::Appearance::default(),
                 PlayerSkills::new(),
                 player_quests,
             ));

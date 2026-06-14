@@ -606,6 +606,35 @@ pub struct SolarPanel {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct HomeMachine;
 
+/// The player's visual appearance (v0.440, the avatar foundation). Drives the blockman
+/// avatar mesh and, later, the character-select showroom + the wetroom mirror editor + the
+/// bedroom wardrobe. `body_type` / `hair_style` are ids into future data/appearance/*.ron;
+/// colors are linear RGB. Designed to persist in WorldSave (the public half can later ride
+/// the signed-profile gossip so visitors render each other).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Appearance {
+    pub body_type: String,
+    /// Avatar height multiplier (1.0 = ~1.7 m).
+    pub height_scale: f32,
+    pub skin_tone: [f32; 3],
+    pub hair_style: String,
+    pub hair_color: [f32; 3],
+    pub eye_color: [f32; 3],
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self {
+            body_type: "default".to_string(),
+            height_scale: 1.0,
+            skin_tone: [0.80, 0.62, 0.50],
+            hair_style: "short".to_string(),
+            hair_color: [0.25, 0.18, 0.10],
+            eye_color: [0.30, 0.45, 0.55],
+        }
+    }
+}
+
 // ── Geology / Mining ────────────────────────────────────────
 
 /// An ore deposit attached to a terrain entity. `GeologySystem` doesn't
