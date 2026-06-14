@@ -356,8 +356,8 @@ mod native_app {
         push_box(state, 0.13, torso_h, 0.16, skin, 0.30, torso_base, 0.0);
         // Hair cap (a thin box sitting on the head).
         push_box(state, 0.30, 0.10 * s, 0.30, hair, 0.0, head_cy + head_r * 0.4, 0.0);
-        // Podium cylinder.
-        let pm = state.renderer.add_mesh(Mesh::cylinder(&state.renderer.device, 0.5, podium_h, 18));
+        // Podium cylinder (capped so the top is a visible disc, not an open tube).
+        let pm = state.renderer.add_mesh(Mesh::cylinder_capped(&state.renderer.device, 0.5, podium_h, 24));
         let pmat = state.renderer.add_material_typed(podium, 0.3, 0.5, 0.0);
         state.placeholder_objects.push((pm, pmat, base));
         // Head sphere (center-origin; place its center directly).

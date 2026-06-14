@@ -195,6 +195,56 @@ impl Mesh {
         Self::from_vertices(device, &v, &idx)
     }
 
+    /// Closed cylinder along +Y (base at y=0, top at y=height) WITH end caps. Like
+    /// `cylinder` but the top + bottom are filled (triangle fans), so it reads as a solid
+    /// pedestal/drum rather than an open tube. (v0.447: the showroom pedestal top was
+    /// invisible because the open cylinder had no top face.)
+    pub fn cylinder_capped(device: &wgpu::Device, radius: f32, height: f32, segments: u32) -> Self {
+        let seg = segments.max(3);
+        let tau = std::f32::consts::TAU;
+        let mut v: Vec<Vertex> = Vec::new();
+        let mut idx: Vec<u32> = Vec::new();
+        // Side wall (same as `cylinder`): two rings, row-major.
+        for ring in 0..2u32 {
+            let y = if ring == 0 { 0.0 } else { height };
+            for i in 0..=seg {
+                let t = i as f32 / seg as f32;
+                let a = t * tau;
+                let (ca, sa) = (a.cos(), a.sin());
+                v.push(Vertex {
+                    position: [radius * ca, y, radius * sa],
+                    normal: [ca, 0.0, sa],
+                    uv: [t, 1.0 - ring as f32],
+                });
+            }
+        }
+        let stride = seg + 1;
+        for i in 0..seg {
+            idx.extend_from_slice(&[i, i + stride, i + 1, i + 1, i + stride, i + stride + 1]);
+        }
+        // Bottom cap (normal -Y): center + ring, wound to face down.
+        let bc = v.len() as u32;
+        v.push(Vertex { position: [0.0, 0.0, 0.0], normal: [0.0, -1.0, 0.0], uv: [0.5, 0.5] });
+        for i in 0..=seg {
+            let a = (i as f32 / seg as f32) * tau;
+            v.push(Vertex { position: [radius * a.cos(), 0.0, radius * a.sin()], normal: [0.0, -1.0, 0.0], uv: [0.0, 0.0] });
+        }
+        for i in 0..seg {
+            idx.extend_from_slice(&[bc, bc + 1 + i + 1, bc + 1 + i]);
+        }
+        // Top cap (normal +Y): center + ring, wound to face up.
+        let tc = v.len() as u32;
+        v.push(Vertex { position: [0.0, height, 0.0], normal: [0.0, 1.0, 0.0], uv: [0.5, 0.5] });
+        for i in 0..=seg {
+            let a = (i as f32 / seg as f32) * tau;
+            v.push(Vertex { position: [radius * a.cos(), height, radius * a.sin()], normal: [0.0, 1.0, 0.0], uv: [0.0, 0.0] });
+        }
+        for i in 0..seg {
+            idx.extend_from_slice(&[tc, tc + 1 + i, tc + 1 + i + 1]);
+        }
+        Self::from_vertices(device, &v, &idx)
+    }
+
     /// UV sphere centered at origin (outward normals). Used as a placeholder plant
     /// marker.
     pub fn sphere(device: &wgpu::Device, radius: f32, stacks: u32, slices: u32) -> Self {

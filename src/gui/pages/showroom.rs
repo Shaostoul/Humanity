@@ -19,13 +19,27 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         2 => ("Wardrobe", "Done"),
         _ => ("Character Creation", "Enter your home"),
     };
-    egui::Window::new(title)
-        .anchor(egui::Align2::RIGHT_CENTER, egui::vec2(-24.0, 0.0))
-        .collapsible(false)
+
+    // ── LEFT column: character selector ──
+    egui::SidePanel::left("showroom_select")
         .resizable(false)
+        .exact_width(210.0)
         .show(ctx, |ui| {
+            ui.add_space(theme.spacing_md);
+            ui.label(RichText::new("Characters").size(theme.font_size_body).strong().color(theme.text_primary()));
+            ui.add_space(theme.spacing_sm);
+            draw_character_select(ui, theme, state);
+        });
+
+    // ── RIGHT column: details + customization ──
+    egui::SidePanel::right("showroom_details")
+        .resizable(false)
+        .exact_width(300.0)
+        .show(ctx, |ui| {
+            ui.add_space(theme.spacing_md);
+            ui.label(RichText::new(title).size(theme.font_size_body).strong().color(theme.text_primary()));
             ui.label(
-                RichText::new("This is you. Drag to orbit.")
+                RichText::new("Drag the center to orbit. Wheel to zoom.")
                     .size(theme.font_size_small)
                     .color(theme.text_secondary()),
             );
@@ -48,6 +62,26 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 state.showroom_confirm = true;
             }
         });
+    // (No CentralPanel: the 3D avatar renders in the center gap between the two columns.)
+}
+
+/// Left column: the saved-character selector. For now it lists the active character; real
+/// multi-save management (new / load / delete) hangs off the homes-as-saves model later.
+fn draw_character_select(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let name = if state.user_name.trim().is_empty() {
+        "Your Character".to_string()
+    } else {
+        state.user_name.clone()
+    };
+    let _ = ui.selectable_label(true, RichText::new(name).color(theme.text_primary()));
+    ui.add_space(theme.spacing_sm);
+    ui.add_enabled(false, egui::Button::new(RichText::new("+ New Character").color(theme.text_muted())));
+    ui.add_space(theme.spacing_xs);
+    ui.label(
+        RichText::new("More save slots are coming. Each is its own home + character.")
+            .size(theme.font_size_small)
+            .color(theme.text_muted()),
+    );
 }
 
 fn draw_appearance(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
