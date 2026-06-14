@@ -438,6 +438,9 @@ pub struct CameraController {
     /// World-Y the camera rests at when grounded (floor_y + eye_height). Set each frame
     /// by the main loop from the room the player is standing in; defaults to floor 0.
     ground_y: f32,
+    /// Character-showroom lock (v0.443): when true the orbit camera is FIXED on the avatar
+    /// -- only a mouse drag spins it and the wheel zooms; WASD and panning are disabled.
+    pub showroom_lock: bool,
 }
 
 impl CameraController {
@@ -467,6 +470,7 @@ impl CameraController {
             eye_height: 1.7,
             jump_speed: 5.0,
             ground_y: 1.7,
+            showroom_lock: false,
         }
     }
 
@@ -737,6 +741,23 @@ impl CameraController {
         mouse_dy: f64,
         scroll: f32,
     ) {
+        // Character showroom: the camera is FIXED on the avatar. A mouse drag (middle, or
+        // left/right) spins it; the wheel zooms. No WASD, no panning. (v0.443)
+        if self.showroom_lock {
+            if self.mouse_middle || self.mouse_left || self.mouse_right {
+                camera.yaw += mouse_dx as f32 * self.mouse_sensitivity * 0.01;
+                camera.pitch -= mouse_dy as f32 * self.mouse_sensitivity * 0.01;
+                let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
+                camera.pitch = camera.pitch.clamp(-max_pitch, max_pitch);
+            }
+            if scroll.abs() > 0.01 {
+                let zoom_factor = 1.0 - scroll * 0.1;
+                camera.orbit_distance = (camera.orbit_distance * zoom_factor)
+                    .clamp(camera.orbit_distance_min, camera.orbit_distance_max);
+            }
+            return;
+        }
+
         // Left-drag or right-drag to rotate
         if self.mouse_left || self.mouse_right {
             camera.yaw += mouse_dx as f32 * self.mouse_sensitivity * 0.01;

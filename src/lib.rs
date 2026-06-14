@@ -392,9 +392,11 @@ mod native_app {
         state.showroom_return_pos = state.camera.position;
         state.camera.switch_mode(crate::renderer::camera::CameraMode::Orbit);
         state.camera.orbit_target = state.avatar_base + Vec3::new(0.0, 0.9 * app.height_scale, 0.0);
-        state.camera.orbit_distance = 3.0;
-        state.window.set_cursor_visible(true);
-        state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
+        state.camera.orbit_distance = 3.2;
+        state.camera.orbit_distance_min = 1.5;
+        state.camera.orbit_distance_max = 8.0;
+        state.controller.showroom_lock = true;
+        // (cursor freed by the per-frame reconciliation in the update loop)
     }
 
     /// Lazy-load the 3D world: homestead, hologram, stars, planet, CSV data.
@@ -1090,9 +1092,11 @@ mod native_app {
             state.gui_state.showroom_confirm = false;
             state.camera.switch_mode(crate::renderer::camera::CameraMode::Orbit);
             state.camera.orbit_target = base + Vec3::new(0.0, 0.9 * app.height_scale, 0.0);
-            state.camera.orbit_distance = 3.0;
-            state.window.set_cursor_visible(true);
-            state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
+            state.camera.orbit_distance = 3.2;
+            state.camera.orbit_distance_min = 1.5;
+            state.camera.orbit_distance_max = 8.0;
+            state.controller.showroom_lock = true; // fixed orbit: drag spins, wheel zooms
+            // (cursor freed by the per-frame reconciliation in the update loop)
         }
 
         state.world_loaded = true;
@@ -1261,6 +1265,9 @@ mod native_app {
         /// initial character-select, or where you were standing when you opened the mirror /
         /// wardrobe from the wetroom / bedroom). (v0.442)
         showroom_return_pos: Vec3,
+        /// Tracks whether the OS cursor is currently freed (visible + ungrabbed), so the
+        /// per-frame reconciliation only toggles grab on a real change. (v0.443)
+        cursor_free: bool,
         /// Homestead walls mesh + material.
         homestead_walls: Option<(usize, usize)>,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
@@ -1705,6 +1712,7 @@ mod native_app {
                 showroom_last_backdrop: usize::MAX,
                 cosmetics: Vec::new(),
                 showroom_return_pos: Vec3::new(0.0, 1.7, 0.0),
+                cursor_free: false,
                 homestead_walls: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
@@ -2306,20 +2314,38 @@ mod native_app {
                             break;
                         }
                         crate::save_load::save_active_home(&state.game_world.world);
+                        state.controller.showroom_lock = false;
                         state
                             .camera
                             .switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
                         state.camera.position = state.showroom_return_pos;
-                        state.window.set_cursor_visible(false);
-                        state
-                            .window
-                            .set_cursor_grab(winit::window::CursorGrabMode::Confined)
-                            .or_else(|_| {
-                                state
-                                    .window
-                                    .set_cursor_grab(winit::window::CursorGrabMode::Locked)
-                            })
-                            .ok();
+                        // (cursor re-grabbed by the per-frame reconciliation below)
+                    }
+
+                    // ── Cursor reconciliation (v0.443): free for any menu page OR the
+                    // showroom (so egui clicks land), grabbed for first-person play. Single
+                    // authority, so the showroom no longer fights the page-transition grab.
+                    let want_cursor_free = state.gui_state.active_page != GuiPage::None
+                        || state.gui_state.showroom_active;
+                    if want_cursor_free != state.cursor_free {
+                        state.cursor_free = want_cursor_free;
+                        state.window.set_cursor_visible(want_cursor_free);
+                        if want_cursor_free {
+                            state
+                                .window
+                                .set_cursor_grab(winit::window::CursorGrabMode::None)
+                                .ok();
+                        } else {
+                            state
+                                .window
+                                .set_cursor_grab(winit::window::CursorGrabMode::Confined)
+                                .or_else(|_| {
+                                    state
+                                        .window
+                                        .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+                                })
+                                .ok();
+                        }
                     }
 
                     // Build render objects from homestead meshes
@@ -2383,37 +2409,41 @@ mod native_app {
                     // Solar system hologram centered in the designated hologram room (1m above floor)
                     let hologram_center = state.hologram_room_center;
 
-                    // Orbit rings (centered on hologram)
-                    for &(mesh_idx, mat_idx) in &state.hologram_orbits {
-                        all_objects.push(RenderObject {
-                            position: hologram_center,
-                            rotation: Quat::IDENTITY,
-                            scale: Vec3::ONE,
-                            mesh: mesh_idx,
-                            material: mat_idx,
-                        });
-                    }
+                    // Hologram (solar-system map) is part of the home, so hide it in the
+                    // showroom too (it was leaking into the void when panning, v0.443).
+                    if !showroom {
+                        // Orbit rings (centered on hologram)
+                        for &(mesh_idx, mat_idx) in &state.hologram_orbits {
+                            all_objects.push(RenderObject {
+                                position: hologram_center,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::ONE,
+                                mesh: mesh_idx,
+                                material: mat_idx,
+                            });
+                        }
 
-                    // Planet bodies
-                    for (mesh_idx, mat_idx, local_pos, _name) in &state.hologram_objects {
-                        all_objects.push(RenderObject {
-                            position: hologram_center + *local_pos,
-                            rotation: Quat::IDENTITY,
-                            scale: Vec3::ONE,
-                            mesh: *mesh_idx,
-                            material: *mat_idx,
-                        });
-                    }
+                        // Planet bodies
+                        for (mesh_idx, mat_idx, local_pos, _name) in &state.hologram_objects {
+                            all_objects.push(RenderObject {
+                                position: hologram_center + *local_pos,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::ONE,
+                                mesh: *mesh_idx,
+                                material: *mat_idx,
+                            });
+                        }
 
-                    // Pin markers above each planet
-                    for (mesh_idx, mat_idx, local_pos, _name) in &state.hologram_pins {
-                        all_objects.push(RenderObject {
-                            position: hologram_center + *local_pos,
-                            rotation: Quat::IDENTITY,
-                            scale: Vec3::ONE,
-                            mesh: *mesh_idx,
-                            material: *mat_idx,
-                        });
+                        // Pin markers above each planet
+                        for (mesh_idx, mat_idx, local_pos, _name) in &state.hologram_pins {
+                            all_objects.push(RenderObject {
+                                position: hologram_center + *local_pos,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::ONE,
+                                mesh: *mesh_idx,
+                                material: *mat_idx,
+                            });
+                        }
                     }
 
                     // Raycast from camera to detect which planet pin is targeted
@@ -4582,7 +4612,10 @@ mod native_app {
                                 );
 
                                 // Always draw HUD when in-game
-                                if state.gui_state.active_page == GuiPage::None && state.gui_state.show_hud {
+                                if state.gui_state.active_page == GuiPage::None
+                                    && state.gui_state.show_hud
+                                    && !state.gui_state.showroom_active
+                                {
                                     hud::draw(
                                         ctx,
                                         &state.theme,

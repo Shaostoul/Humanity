@@ -123,10 +123,21 @@ The character-select / customize experience the spawn flow builds toward:
   portal is the shared wall. This makes the wake-up diegetic: reconstructed in the pod ->
   walk out the portal -> you are in your home.
 
-**Build status (v0.440):** the avatar mesh exists (a blockman on the respawner podium). The
-showroom camera state (orbit + hide walls + backdrop swap + confirm), the backdrop scene
-registry, and the portal-emergence transition are the next increments, in that order. The
-avatar is the shared dependency they all render.
+**Build status (v0.443):** the showroom is live: orbit-locked camera (drag to spin, wheel to
+zoom, no WASD/pan), hidden home, ground-disc backdrops, live appearance + wardrobe editing,
+"Enter your home" emerge, all persisted. Remaining: per-backdrop SKYBOXES + the
+portal-emergence transition.
+
+**Backdrops as REAL in-game locations (operator vision, the renderer showcase).** The
+backdrop list should eventually not be flat color discs but ACTUAL in-game places, so the
+character preview doubles as a tour of the renderer: the spaceship interior, the surface of
+a generated Earth, Mars, the Moon, the ocean floor, a forest, a mountaintop. The north star:
+once planet generation + real-terrain heightmaps land, "mountain" should literally place the
+avatar on Mount Rainier (the closer the in-game Earth terrain matches the real-world terrain,
+the better). So `data/showroom/backdrops.ron` is designed as a registry that will grow a
+`location` field (a world/biome/coordinate reference) the showroom camera teleports a preview
+render to, replacing the placeholder ground tint. Keep backdrops data-driven so adding a real
+location is a data edit once the terrain it points at exists.
 
 ## Appearance / outfit data shapes (locked now, built later)
 
