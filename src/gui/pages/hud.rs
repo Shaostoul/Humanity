@@ -140,13 +140,46 @@ pub fn draw(
             let name_dist = state.machine_label_name_dist.max(0.5) * mul;
             let card_dist = state.machine_label_card_dist.max(0.5) * mul;
             // Which room is the camera in? (None = outside every room.)
-            let current_room: Option<&str> = state.room_bounds.iter()
-                .find(|r| {
-                    cam_pos.x >= r.min.x && cam_pos.x <= r.max.x
-                        && cam_pos.y >= r.min.y && cam_pos.y <= r.max.y
-                        && cam_pos.z >= r.min.z && cam_pos.z <= r.max.z
-                })
-                .map(|r| r.id.as_str());
+            let current_room_info = state.room_bounds.iter().find(|r| {
+                cam_pos.x >= r.min.x && cam_pos.x <= r.max.x
+                    && cam_pos.y >= r.min.y && cam_pos.y <= r.max.y
+                    && cam_pos.z >= r.min.z && cam_pos.z <= r.max.z
+            });
+            let current_room: Option<&str> = current_room_info.map(|r| r.id.as_str());
+
+            // ── Room purpose card (bottom-left): the walkable world now KNOWS what each
+            // room is FOR, joined from data/rooms.ron. Name + purpose + the in-room actions
+            // (the actions are shown as text for now; a later increment routes [E] to them).
+            if let Some(room) = current_room_info {
+                if !room.display_name.is_empty() {
+                    let x = screen.left() + 16.0;
+                    painter.text(
+                        Pos2::new(x, screen.bottom() - 48.0),
+                        Align2::LEFT_BOTTOM,
+                        &room.display_name,
+                        FontId::proportional(15.0),
+                        theme.text_primary(),
+                    );
+                    if !room.purpose.is_empty() {
+                        painter.text(
+                            Pos2::new(x, screen.bottom() - 30.0),
+                            Align2::LEFT_BOTTOM,
+                            &room.purpose,
+                            FontId::proportional(11.0),
+                            theme.text_secondary(),
+                        );
+                    }
+                    if !room.actions.is_empty() {
+                        painter.text(
+                            Pos2::new(x, screen.bottom() - 14.0),
+                            Align2::LEFT_BOTTOM,
+                            format!("Here: {}", room.actions.join("  /  ")),
+                            FontId::proportional(10.0),
+                            theme.text_muted(),
+                        );
+                    }
+                }
+            }
             for (i, label) in state.machine_labels.iter().enumerate() {
                 // Occlusion: by default only the camera's room is visible; Tab reveals all.
                 if !state.reveal_held && current_room != Some(label.room.as_str()) {

@@ -803,6 +803,12 @@ pub struct RoomBounds {
     pub id: String,
     pub min: glam::Vec3,
     pub max: glam::Vec3,
+    /// Function joined from data/rooms.ron at load (v0.439): the room finally knows what it
+    /// is FOR. Display name, purpose text, the in-room action labels, and access class.
+    pub display_name: String,
+    pub purpose: String,
+    pub actions: Vec<String>,
+    pub access: String,
 }
 
 /// Tracks all GUI state for the native app.

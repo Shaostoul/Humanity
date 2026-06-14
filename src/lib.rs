@@ -479,7 +479,11 @@ mod native_app {
                         let _ = state.game_world.world.despawn(e);
                     }
                 }
-                // Room volumes for label occlusion (which room is the camera in).
+                // Room volumes for label occlusion (which room is the camera in), now also
+                // carrying each room's FUNCTION joined by id from data/rooms.ron (v0.439):
+                // the walkable world finally knows what each room is for.
+                let room_types =
+                    crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
                 state.gui_state.room_bounds = homestead
                     .room_info
                     .iter()
@@ -487,6 +491,10 @@ mod native_app {
                         id: r.id.clone(),
                         min: r.center - r.dimensions * 0.5,
                         max: r.center + r.dimensions * 0.5,
+                        display_name: room_types.name(&r.id),
+                        purpose: room_types.purpose(&r.id),
+                        actions: room_types.action_labels(&r.id),
+                        access: room_types.access(&r.id),
                     })
                     .collect();
                 let mut placed = 0usize;

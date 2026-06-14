@@ -15,6 +15,8 @@
     "computer": (
         name: "Computer Room",
         purpose: "Personal workstation for programming, research, and communication",
+        actions: ["use_terminal", "manage_saves", "review_tasks"],
+        access: "private",
         default_color: (0.3, 0.4, 0.5, 1.0),
         default_material: "brushed_metal",
         equipment: ["computer_terminal", "desk", "chair", "monitor_array"],
@@ -27,6 +29,8 @@
     "network": (
         name: "Network Hub",
         purpose: "Central data routing and communications relay for the homestead",
+        actions: ["open_chat", "check_federation", "shop_market"],
+        access: "private",
         default_color: (0.25, 0.35, 0.5, 1.0),
         default_material: "brushed_metal",
         equipment: ["server_rack", "router", "cable_conduit", "ups_battery"],
@@ -39,6 +43,8 @@
     "respawner": (
         name: "Respawn Chamber",
         purpose: "Molecular reconstruction pod for player respawn after death",
+        actions: ["respawn", "select_character", "customize_appearance"],
+        access: "private",
         default_color: (0.5, 0.55, 0.6, 1.0),
         default_material: "polished_metal",
         equipment: ["respawn_pod", "medical_scanner", "status_display"],
@@ -51,6 +57,8 @@
     "wetroom": (
         name: "Wet Room",
         purpose: "Combined shower, sink, and water recycling facility",
+        actions: ["customize_appearance", "shower", "laundry"],
+        access: "private",
         default_color: (0.45, 0.5, 0.55, 1.0),
         default_material: "ceramic_tile",
         equipment: ["shower_unit", "sink", "water_recycler", "mirror"],
@@ -75,6 +83,8 @@
     "bedroom": (
         name: "Bedroom",
         purpose: "Personal sleeping quarters with storage for belongings",
+        actions: ["change_outfit", "sleep", "personal_storage"],
+        access: "private",
         default_color: (0.5, 0.4, 0.3, 1.0),
         default_material: "wood_panel",
         equipment: ["bed", "wardrobe", "nightstand", "reading_light"],
@@ -87,6 +97,8 @@
     "kitchen": (
         name: "Kitchen",
         purpose: "Food preparation, cooking, and nutrition management",
+        actions: ["cook", "store_food", "eat"],
+        access: "shared",
         default_color: (0.6, 0.5, 0.25, 1.0),
         default_material: "stainless_steel",
         equipment: ["stove", "refrigerator", "food_processor", "sink", "counter", "storage_cabinet"],
@@ -99,6 +111,8 @@
     "livingroom": (
         name: "Living Room",
         purpose: "Communal relaxation and social gathering space",
+        actions: ["gather", "community_meeting", "entertainment"],
+        access: "shared",
         default_color: (0.45, 0.35, 0.2, 1.0),
         default_material: "wood_panel",
         equipment: ["couch", "table", "entertainment_screen", "bookshelf"],
@@ -111,6 +125,8 @@
     "study": (
         name: "Study",
         purpose: "Quiet workspace for reading, planning, and focused thought",
+        actions: ["craft", "fabricate", "train_skill"],
+        access: "shared",
         default_color: (0.4, 0.4, 0.45, 1.0),
         default_material: "wood_panel",
         equipment: ["desk", "chair", "bookshelf", "reading_lamp", "writing_supplies"],
@@ -123,6 +139,8 @@
     "garden": (
         name: "Garden",
         purpose: "Indoor growing space for food crops, herbs, and oxygen-producing plants",
+        actions: ["plant", "harvest", "compost"],
+        access: "shared",
         default_color: (0.2, 0.45, 0.2, 1.0),
         default_material: "composite_panel",
         equipment: ["grow_bed", "irrigation_system", "grow_lights", "soil_analyzer", "seed_storage"],
@@ -147,6 +165,8 @@
     "garage": (
         name: "Garage",
         purpose: "Vehicle maintenance, repair bay, and small craft parking",
+        actions: ["manage_power", "dispatch_drone", "operate_turret"],
+        access: "shared",
         default_color: (0.35, 0.35, 0.35, 1.0),
         default_material: "concrete",
         equipment: ["vehicle_lift", "tool_rack", "parts_bin", "diagnostic_terminal", "fuel_pump"],
@@ -159,6 +179,8 @@
     "depot": (
         name: "Depot",
         purpose: "Bulk cargo receiving, sorting, and distribution center",
+        actions: ["bulk_storage", "stage_trade", "route_supplies"],
+        access: "public",
         default_color: (0.25, 0.25, 0.25, 1.0),
         default_material: "concrete",
         equipment: ["cargo_crane", "conveyor_belt", "pallet_rack", "manifest_terminal"],
@@ -171,6 +193,8 @@
     "hangar": (
         name: "Hangar",
         purpose: "Large craft docking, launch, and recovery bay with atmospheric shielding",
+        actions: ["board_ship", "assemble_ship", "launch"],
+        access: "public",
         default_color: (0.55, 0.55, 0.6, 1.0),
         default_material: "reinforced_steel",
         equipment: ["landing_pad", "magnetic_clamp", "fuel_line", "cargo_loader", "atmo_shield_emitter"],

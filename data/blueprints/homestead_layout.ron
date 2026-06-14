@@ -9,7 +9,8 @@
 HomesteadLayout(
     layout_style: Fibonacci,
     hologram_room: Some("kitchen"),
-    spawn_room: Some("kitchen"),
+    // Spawn in the respawn chamber (where the body wakes / character-select anchor, v0.439).
+    spawn_room: Some("respawner"),
 
     rooms: [
         // F1 (1x1): Computer - personal workstation

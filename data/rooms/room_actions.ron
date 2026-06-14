@@ -1,0 +1,56 @@
+// In-room action catalog (v0.439). Maps an action id (referenced from a room's `actions`
+// list in data/rooms.ron) to a human label and the page/action it opens. Data-driven
+// (infinite-of-X): adding an action to a room is a data edit here + in rooms.ron, no code.
+//
+// `page` is the in-app page/action the walk-up [E] surface will open (UNWIRED in the
+// keystone slice v0.439, shown as text only; a later increment routes [E] to it).
+// `filter` narrows a shared page (e.g. cook -> crafting page filtered to cooking recipes).
+{
+    // computer
+    "use_terminal":         (label: "Use Terminal", page: "dashboard"),
+    "manage_saves":         (label: "Manage Saves", page: "data"),
+    "review_tasks":         (label: "Review Tasks", page: "tasks"),
+    // network
+    "open_chat":            (label: "Open Chat", page: "chat"),
+    "check_federation":     (label: "Federation Status", page: "members"),
+    "shop_market":          (label: "Marketplace", page: "market"),
+    // respawner
+    "respawn":              (label: "Respawn", page: "respawn"),
+    "select_character":     (label: "Select Character", page: "character_select"),
+    "customize_appearance": (label: "Customize Appearance", page: "appearance"),
+    // wetroom
+    "shower":               (label: "Shower", page: "hygiene"),
+    "laundry":              (label: "Laundry", page: "laundry"),
+    // bedroom
+    "change_outfit":        (label: "Change Outfit", page: "wardrobe"),
+    "sleep":                (label: "Sleep", page: "sleep"),
+    "personal_storage":     (label: "Personal Storage", page: "inventory"),
+    // kitchen
+    "cook":                 (label: "Cook", page: "crafting", filter: "cooking"),
+    "store_food":           (label: "Store Food", page: "inventory", filter: "food"),
+    "eat":                  (label: "Eat", page: "vitals"),
+    // livingroom
+    "gather":               (label: "Gather", page: "social"),
+    "community_meeting":    (label: "Community Meeting", page: "governance"),
+    "entertainment":        (label: "Entertainment", page: "hologram"),
+    // study
+    "craft":                (label: "Craft", page: "crafting"),
+    "fabricate":            (label: "Fabricate", page: "crafting", filter: "fabrication"),
+    "train_skill":          (label: "Train Skill", page: "skills"),
+    // garden
+    "plant":                (label: "Plant", page: "farming"),
+    "harvest":              (label: "Harvest", page: "farming"),
+    "compost":              (label: "Compost", page: "farming", filter: "compost"),
+    // garage
+    "manage_power":         (label: "Manage Power", page: "power"),
+    "dispatch_drone":       (label: "Dispatch Drone", page: "mining"),
+    "operate_turret":       (label: "Operate Turret", page: "turret"),
+    // depot
+    "bulk_storage":         (label: "Bulk Storage", page: "inventory"),
+    "stage_trade":          (label: "Stage Trade", page: "market"),
+    "route_supplies":       (label: "Route Supplies", page: "logistics"),
+    // hangar
+    "board_ship":           (label: "Board Ship", page: "ship"),
+    "assemble_ship":        (label: "Assemble Ship", page: "shipyard"),
+    "launch":               (label: "Launch", page: "launch"),
+}
