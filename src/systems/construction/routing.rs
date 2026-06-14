@@ -142,13 +142,15 @@ impl RoutingRules {
 
 /// One renderable piece of a routed run. The renderer maps each to a mesh: `Tube` ->
 /// round pipe (also used for the fat short collars), `Elbow` -> sphere, `Bracket` ->
-/// grey clamp box, `Valve` -> a fat body + a lever box.
+/// grey clamp box, `Valve` -> a fat body + a lever box, `Penetration` -> a wall sleeve +
+/// escutcheon ring where the pipe pierces a wall.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PipePart {
     Tube { a: Vec3, b: Vec3, radius: f32 },
     Elbow { at: Vec3, radius: f32 },
     Bracket { at: Vec3 },
     Valve { at: Vec3, axis: Vec3, radius: f32 },
+    Penetration { at: Vec3, axis: Vec3, radius: f32 },
 }
 
 /// The orthogonal "up-over-down" waypoints from machine port `a` to `b`, running through
@@ -172,10 +174,58 @@ pub fn route_orthogonal(a: Vec3, b: Vec3, run_h: f32) -> Vec<Vec3> {
     out
 }
 
+/// The points where a routed polyline crosses a wall: a transition between which room
+/// AABB (if any) contains the line. Returns (crossing_point, leg_direction) for each, so
+/// the renderer can sleeve the pipe where it pierces a wall. Sampled along each leg at
+/// `step` m. `rooms` are (min, max) AABBs; a point in no room (corridor/gap) reads as
+/// room index -1, so leaving a room into open space OR crossing into an adjacent room
+/// both register as a wall.
+pub fn wall_crossings(waypoints: &[Vec3], rooms: &[(Vec3, Vec3)], step: f32) -> Vec<(Vec3, Vec3)> {
+    let containing = |p: Vec3| -> i32 {
+        for (i, (mn, mx)) in rooms.iter().enumerate() {
+            if p.x >= mn.x && p.x <= mx.x && p.y >= mn.y && p.y <= mx.y && p.z >= mn.z && p.z <= mx.z {
+                return i as i32;
+            }
+        }
+        -1
+    };
+    let mut out: Vec<(Vec3, Vec3)> = Vec::new();
+    let step = step.max(0.05);
+    for seg in waypoints.windows(2) {
+        let (a, b) = (seg[0], seg[1]);
+        let len = (b - a).length();
+        if len < 1e-4 {
+            continue;
+        }
+        let dir = (b - a) / len;
+        let n = (len / step).ceil() as i32;
+        let mut prev = containing(a);
+        for k in 1..=n {
+            let t = (k as f32 * step).min(len);
+            let p = a + dir * t;
+            let cur = containing(p);
+            if cur != prev {
+                out.push((p - dir * (step * 0.5), dir)); // midpoint of the crossing step
+                prev = cur;
+            }
+        }
+    }
+    out
+}
+
 /// Plan the full set of renderable parts for one connection: pipe bodies, elbows at the
 /// corners, fitting collars at the two machine ports, support brackets along the
-/// horizontal runs, and (for fluids) a shutoff valve on the destination riser.
-pub fn plan_pipe(a: Vec3, b: Vec3, radius: f32, run_h: f32, is_fluid: bool, rules: &RoutingRules) -> Vec<PipePart> {
+/// horizontal runs, a wall sleeve where the run pierces a wall (`rooms` = room AABBs), and
+/// (for fluids) a shutoff valve on the destination riser.
+pub fn plan_pipe(
+    a: Vec3,
+    b: Vec3,
+    radius: f32,
+    run_h: f32,
+    is_fluid: bool,
+    rooms: &[(Vec3, Vec3)],
+    rules: &RoutingRules,
+) -> Vec<PipePart> {
     let wp = route_orthogonal(a, b, run_h);
     let mut parts: Vec<PipePart> = Vec::new();
     if wp.len() < 2 {
@@ -214,6 +264,11 @@ pub fn plan_pipe(a: Vec3, b: Vec3, radius: f32, run_h: f32, is_fluid: bool, rule
         let riser_dir = (wp[n - 2] - wp[n - 1]).normalize_or_zero();
         let at = wp[n - 1] + riser_dir * 0.3;
         parts.push(PipePart::Valve { at, axis: riser_dir, radius: radius * 1.6 });
+    }
+    // Wall sleeve / escutcheon wherever the run pierces a wall (a real plumbing detail:
+    // pipes never just pass through a wall, they go through a sleeved penetration).
+    for (at, axis) in wall_crossings(&wp, rooms, 0.25) {
+        parts.push(PipePart::Penetration { at, axis, radius: radius * 1.6 });
     }
     parts
 }
@@ -261,7 +316,7 @@ mod tests {
         let rules = RoutingRules::default();
         let a = Vec3::new(0.0, 0.35, 0.0);
         let b = Vec3::new(5.0, 0.35, 3.0);
-        let parts = plan_pipe(a, b, 0.028, 3.0, true, &rules);
+        let parts = plan_pipe(a, b, 0.028, 3.0, true, &[], &rules);
         let tubes = parts.iter().filter(|p| matches!(p, PipePart::Tube { .. })).count();
         let elbows = parts.iter().filter(|p| matches!(p, PipePart::Elbow { .. })).count();
         let valves = parts.iter().filter(|p| matches!(p, PipePart::Valve { .. })).count();
@@ -272,8 +327,38 @@ mod tests {
         // fluid -> exactly one shutoff valve.
         assert_eq!(valves, 1);
         // non-fluid (power) -> no valve.
-        let dry = plan_pipe(a, b, 0.022, 3.0, false, &rules);
+        let dry = plan_pipe(a, b, 0.022, 3.0, false, &[], &rules);
         assert_eq!(dry.iter().filter(|p| matches!(p, PipePart::Valve { .. })).count(), 0);
+    }
+
+    #[test]
+    fn wall_penetration_emitted_when_run_leaves_a_room() {
+        let rules = RoutingRules::default();
+        // Two small rooms with a gap between them along X; the run must exit room A's
+        // wall and enter room B's wall -> 2 penetrations.
+        let room_a = (Vec3::new(-3.0, 0.0, -3.0), Vec3::new(3.0, 6.0, 3.0));
+        let room_b = (Vec3::new(7.0, 0.0, -3.0), Vec3::new(13.0, 6.0, 3.0));
+        let rooms = [room_a, room_b];
+        let a = Vec3::new(0.0, 0.35, 0.0); // inside room A
+        let b = Vec3::new(10.0, 0.35, 0.0); // inside room B
+        let parts = plan_pipe(a, b, 0.028, 3.0, false, &rooms, &rules);
+        let pens = parts.iter().filter(|p| matches!(p, PipePart::Penetration { .. })).count();
+        assert!(pens >= 2, "expected at least 2 wall penetrations (exit A, enter B), got {pens}");
+        // A run that stays entirely inside one room pierces no wall.
+        let inside = plan_pipe(
+            Vec3::new(-2.0, 0.35, -2.0),
+            Vec3::new(2.0, 0.35, 2.0),
+            0.028,
+            3.0,
+            false,
+            &rooms,
+            &rules,
+        );
+        assert_eq!(
+            inside.iter().filter(|p| matches!(p, PipePart::Penetration { .. })).count(),
+            0,
+            "a same-room run pierces no wall"
+        );
     }
 
     #[test]

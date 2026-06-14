@@ -458,6 +458,12 @@ mod native_app {
                 let mut anchors: HashMap<String, Vec3> = HashMap::new();
                 // Per-instance (floor_y, ceiling_y) so the pipe router can size run height.
                 let mut anchor_rooms: HashMap<String, (f32, f32)> = HashMap::new();
+                // Room AABBs (min, max) so the router can sleeve pipes at wall penetrations.
+                let room_aabbs: Vec<(Vec3, Vec3)> = homestead
+                    .room_info
+                    .iter()
+                    .map(|r| (r.center - r.dimensions * 0.5, r.center + r.dimensions * 0.5))
+                    .collect();
                 state.gui_state.machine_labels.clear();
                 // Room volumes for label occlusion (which room is the camera in).
                 state.gui_state.room_bounds = homestead
@@ -527,6 +533,8 @@ mod native_app {
                     state.renderer.add_material_typed([0.45, 0.46, 0.48, 1.0], 0.9, 0.5, 0.0); // steel grey
                 let lever_mat =
                     state.renderer.add_material_typed([0.80, 0.20, 0.16, 1.0], 0.5, 0.5, 0.0); // red valve lever
+                let sleeve_mat =
+                    state.renderer.add_material_typed([0.55, 0.56, 0.58, 1.0], 0.9, 0.45, 0.0); // steel wall sleeve
                 let mut linked = 0usize;
                 for conn in &home.connections {
                     let (Some(&a), Some(&b)) = (anchors.get(&conn.from), anchors.get(&conn.to))
@@ -555,7 +563,8 @@ mod native_app {
                         8,
                         10,
                     ));
-                    let parts = plan_pipe(a, b, pipe_r, run_h, rules.is_fluid(&conn.kind), &rules);
+                    let parts =
+                        plan_pipe(a, b, pipe_r, run_h, rules.is_fluid(&conn.kind), &room_aabbs, &rules);
                     for part in &parts {
                         match part {
                             PipePart::Tube { a, b, radius } => {
@@ -594,6 +603,27 @@ mod native_app {
                                     lever_mat,
                                     Vec3::new(at.x + 0.09, at.y, at.z),
                                 ));
+                            }
+                            PipePart::Penetration { at, axis, radius } => {
+                                // Steel sleeve through the wall + a wider escutcheon ring.
+                                let half = *axis * 0.09;
+                                let sleeve = state.renderer.add_mesh(Mesh::tube(
+                                    &state.renderer.device,
+                                    *at - half,
+                                    *at + half,
+                                    *radius,
+                                    10,
+                                ));
+                                state.placeholder_objects.push((sleeve, sleeve_mat, Vec3::ZERO));
+                                let band = *axis * 0.02;
+                                let ring = state.renderer.add_mesh(Mesh::tube(
+                                    &state.renderer.device,
+                                    *at - band,
+                                    *at + band,
+                                    *radius * 1.5,
+                                    10,
+                                ));
+                                state.placeholder_objects.push((ring, sleeve_mat, Vec3::ZERO));
                             }
                         }
                     }
