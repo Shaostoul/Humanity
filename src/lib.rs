@@ -1091,6 +1091,9 @@ mod native_app {
             let gmesh = state.renderer.add_mesh(Mesh::cylinder(&state.renderer.device, 9.0, 0.06, 32));
             let gmat = state.renderer.add_material_typed([0.1, 0.1, 0.12, 1.0], 0.1, 0.9, 0.0);
             state.showroom_ground = Some((gmesh, gmat));
+            // A planet sphere (radius 30) the avatar stands on for body backdrops (Earth/Mars).
+            let body = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 30.0, 24, 32));
+            state.showroom_body = Some(body);
             state.gui_state.showroom_active = true;
             state.gui_state.appearance_dirty = false;
             state.gui_state.showroom_confirm = false;
@@ -1261,6 +1264,9 @@ mod native_app {
         showroom_backdrops: Vec<crate::showroom::Backdrop>,
         /// The showroom ground disc (mesh, material), material rebuilt on backdrop change.
         showroom_ground: Option<(usize, usize)>,
+        /// The showroom planet-body sphere mesh (v0.449): used instead of the flat disc when
+        /// the backdrop is a body (Earth/Mars/Moon), so the avatar stands on a planet.
+        showroom_body: Option<usize>,
         /// Last backdrop index the ground material was built for (usize::MAX = none yet).
         showroom_last_backdrop: usize,
         /// Cosmetic outfit catalog (data/cosmetics/cosmetics.csv). (v0.442)
@@ -1713,6 +1719,7 @@ mod native_app {
                 fps_spawn: Vec3::new(0.0, 1.7, 0.0),
                 showroom_backdrops: Vec::new(),
                 showroom_ground: None,
+                showroom_body: None,
                 showroom_last_backdrop: usize::MAX,
                 cosmetics: Vec::new(),
                 showroom_return_pos: Vec3::new(0.0, 1.7, 0.0),
@@ -2404,16 +2411,36 @@ mod native_app {
                             material: mat_idx,
                         });
                     }
-                    // Showroom ground disc under the avatar (tinted by the backdrop).
+                    // Showroom ground under the avatar (tinted by the backdrop): a planet
+                    // SPHERE the avatar stands on for body backdrops (Earth/Mars/Moon), else
+                    // a flat disc. The sphere (radius 30) is centered 30 below the avatar so
+                    // its top is the standing surface; you see the surface curve away. (v0.449)
                     if showroom {
                         if let Some((gm, gmat)) = state.showroom_ground {
-                            all_objects.push(RenderObject {
-                                position: state.avatar_base,
-                                rotation: Quat::IDENTITY,
-                                scale: Vec3::ONE,
-                                mesh: gm,
-                                material: gmat,
-                            });
+                            let is_sphere = state
+                                .showroom_backdrops
+                                .get(state.gui_state.showroom_backdrop)
+                                .map(|b| b.sphere)
+                                .unwrap_or(false);
+                            if is_sphere {
+                                if let Some(bm) = state.showroom_body {
+                                    all_objects.push(RenderObject {
+                                        position: state.avatar_base - Vec3::new(0.0, 30.0, 0.0),
+                                        rotation: Quat::IDENTITY,
+                                        scale: Vec3::ONE,
+                                        mesh: bm,
+                                        material: gmat,
+                                    });
+                                }
+                            } else {
+                                all_objects.push(RenderObject {
+                                    position: state.avatar_base,
+                                    rotation: Quat::IDENTITY,
+                                    scale: Vec3::ONE,
+                                    mesh: gm,
+                                    material: gmat,
+                                });
+                            }
                         }
                     }
 

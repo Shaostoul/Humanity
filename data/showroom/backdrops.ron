@@ -4,9 +4,9 @@
 // skyboxes/terrain per backdrop. Ground is linear RGB; ambient 0..1 brightens the scene.
 [
     (id: "space",    name: "Floating in space",   ground: (0.05, 0.05, 0.08), ambient: 0.30),
-    (id: "earth",    name: "Earth meadow",         ground: (0.25, 0.45, 0.20), ambient: 0.75),
-    (id: "mars",     name: "Mars surface",         ground: (0.55, 0.28, 0.15), ambient: 0.55),
-    (id: "moon",     name: "The Moon",             ground: (0.34, 0.34, 0.37), ambient: 0.40),
+    (id: "earth",    name: "Earth (orbit)",        ground: (0.20, 0.42, 0.55), ambient: 0.85, sphere: true),
+    (id: "mars",     name: "Mars",                 ground: (0.55, 0.28, 0.15), ambient: 0.60, sphere: true),
+    (id: "moon",     name: "The Moon",             ground: (0.34, 0.34, 0.37), ambient: 0.45, sphere: true),
     (id: "forest",   name: "Forest floor",         ground: (0.16, 0.30, 0.14), ambient: 0.55),
     (id: "ocean",    name: "Under the ocean",      ground: (0.08, 0.28, 0.40), ambient: 0.45),
     (id: "mountain", name: "Mountaintop",          ground: (0.50, 0.52, 0.55), ambient: 0.80),

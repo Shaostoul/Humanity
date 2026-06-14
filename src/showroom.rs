@@ -10,10 +10,14 @@ use std::path::Path;
 pub struct Backdrop {
     pub id: String,
     pub name: String,
-    /// Linear RGB of the ground disc under the avatar.
+    /// Linear RGB of the ground (disc, or planet sphere) under the avatar.
     pub ground: (f32, f32, f32),
     /// Ambient light level 0..1 (brightens the avatar).
     pub ambient: f32,
+    /// If true, the avatar stands on a planet SPHERE (a body like Earth/Mars/the Moon)
+    /// rather than a flat ground disc. v0.449. serde-default so old data parses.
+    #[serde(default)]
+    pub sphere: bool,
 }
 
 /// Load the backdrop list from `data/showroom/backdrops.ron`. Returns a single neutral
@@ -34,7 +38,7 @@ pub fn load_backdrops(data_dir: &Path) -> Vec<Backdrop> {
 }
 
 fn fallback() -> Vec<Backdrop> {
-    vec![Backdrop { id: "space".into(), name: "Floating in space".into(), ground: (0.05, 0.05, 0.08), ambient: 0.3 }]
+    vec![Backdrop { id: "space".into(), name: "Floating in space".into(), ground: (0.05, 0.05, 0.08), ambient: 0.3, sphere: false }]
 }
 
 #[cfg(test)]
