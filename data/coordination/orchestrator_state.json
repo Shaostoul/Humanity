@@ -10,6 +10,19 @@
   "recent_decisions": [
     {
       "at": "2026-06-13",
+      "decision": "GROUNDED MOVEMENT + RANCH DISABLED/CONSOLIDATED (v0.438.0). (1) BUG-039: first-person camera was free-fly noclip (Shift floated down+slowed, Space floated up, gravity commented out, no sprint). Fixed: Shift=sprint(1.9x), Space=jump(impulse), gravity 12 m/s2 + floor clamp at ground_y; main loop feeds CameraController::set_ground_floor(floor_y) from the room AABB the player is in each frame (home floors coplanar y=0). ThirdPerson/Orbit fly untouched. (2) Operator: ranch was a 233x233 open patch with machines at its far centre (long walk). Disabled ranch (homestead_layout.ron commented out) and consolidated: solar array(8)+wind+cistern+new drone_hangar+defense_turret onto the GARAGE hull (55x55, mothership outer hull); field crops+silo into the GARDEN. Connections are by instance id so pipes re-route automatically (mostly same-room now). New drone_hangar + defense_turret machines (turret = live 20W PowerConsumer priority 4). Turret build/maintain/operate defense minigame captured in docs/game/turret-defense-minigame.md for a later arc.",
+      "why": "Operator-reported movement bug + spatial-layout fix + idea capture, all in their mothership framing. Verified: native+relay compile, machines RON test passes (relocated instances + new catalog + connections resolve), doc links 0, theme_token_lint passes.",
+      "files": [
+        "src/renderer/camera.rs",
+        "src/lib.rs",
+        "data/machines/home.ron",
+        "data/blueprints/homestead_layout.ron",
+        "docs/game/turret-defense-minigame.md",
+        "docs/BUGS.md"
+      ]
+    },
+    {
+      "at": "2026-06-13",
       "decision": "CONTENT STRATEGY + LIVE HOME SIM arc started (v0.437.0). Ran a 4-lens content-strategy workflow (built-but-shallow / first-playable-gap / mission-payoff / multiplayer-social). Finding: the home is a diorama, not a sim - machines.rs:16 admits stats are placeholder strings, the 4 Home-page loops are a frozen spreadsheet, and ~270 LOC of REAL sim logic (ElectricalSystem load-shedding, PlumbingSystem tank-draw, AtmosphereSystem 470 LOC, VehicleSystem, ConstructionSystem) is written but ticks for nobody (entities never spawned). Ranked roadmap: (1) LIVE HOME SIM [picked], (2) survival stakes/vitals HUD+death, (3) operable machines [E], (4) build mode, (5) enclosed-space climate+nutrient, (6) vehicles/drone fleet. Operator chose #1. Increment 1 shipped: machines.rs gains optional `power` role (Solar/Generator/Consumer), home.ron declares it (8 solar @400W, wind, pump/purifier/irrigation consumers); load_world spawns live ECS entities (PowerGenerator/PowerConsumer/SolarPanel + HomeMachine marker, despawn-old for idempotency); new SolarSystem scales solar by sun_factor(hour); registered ElectricalSystem sums + publishes PowerStatus to DataStore (Mutex pattern); main loop bridges to GuiState; HUD shows live Power gen/use/net line that swings with day/night (~1750W at 8am -> ~3350W noon -> wind baseload at night).",
       "why": "Operator asked for big content chunks to flesh out the game; the survey + operator converged on making the home actually simulate (most on-theme for the to-code/self-sufficiency mission, ~80% already written). This is the seed of the grow-light-vs-power meter. Verified: native+relay compile, machines+solar tests pass, 4 gui lints pass.",
       "files": [
@@ -1528,7 +1541,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.437.0; local exe building (bo1qcgjq1). v0.434 routing + v0.435 sensitivity + v0.436 wall sleeves + v0.437 live solar shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.438.0; local exe building (bgga5bplp). Live-solar(v437)+grounded-movement+layout-consolidation(v438) shipped. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",

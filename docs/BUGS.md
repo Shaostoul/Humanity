@@ -4,6 +4,13 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Resolved Bugs
 
+### BUG-039: Cannot sprint; Shift floats down, Space floats up (free-fly noclip)
+- **Status**: Fixed
+- **Version Fixed**: v0.438.0
+- **Reported**: 2026-06-13 (operator: "When I press shift to sprint I instead float down like I have noclip on. When I press space I float up. I can't sprint.")
+- **Root cause**: `update_first_person` (`src/renderer/camera.rs`) was free-fly, not grounded. Shift (`descend`) applied a 0.4x crouch-slow AND `position.y -= speed*dt` (float down); Space (`ascend`) applied `position.y += speed*dt` (float up); gravity was commented out with the note "Gravity disabled for space station (no ground reference)" so the jump impulse did nothing. There was no sprint and no real jump.
+- **Fix**: Grounded first-person movement. Shift = SPRINT (1.9x, no vertical), Space = JUMP (real impulse), gravity (GRAVITY 12 m/s^2) integrates height with a floor clamp at `ground_y`. The main loop sets `ground_y` each frame via `CameraController::set_ground_floor(floor_y)` from the AABB of the room the player stands in (home room floors are coplanar at y=0); falls back to the last floor when outside every room. ThirdPerson/Orbit vertical fly left unchanged. Files: `src/renderer/camera.rs`, `src/lib.rs`.
+
 ### BUG-038: Saved mouse sensitivity ignored on boot (camera too fast, slider showed ~0)
 - **Status**: Fixed
 - **Version Fixed**: v0.435.0
