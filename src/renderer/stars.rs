@@ -272,7 +272,17 @@ impl StarRenderer {
         // Extract 3x3 rotation, discard translation
         let rot = Mat3::from_mat4(view);
         let rot_view = Mat4::from_mat3(rot);
-        let proj = camera.projection_matrix();
+        // DEDICATED star projection (v0.446): the shader puts stars at 5000 units, but the
+        // gameplay far plane is render_distance (default 500), which CLIPPED the entire
+        // skybox (black void). Use a huge far here so the skybox is never clipped; x/y
+        // (fov/aspect) match the gameplay camera, and the star pass is depthless so the
+        // standard (non-reverse-Z) convention is fine.
+        let proj = Mat4::perspective_rh(
+            camera.fov_degrees.to_radians(),
+            camera.aspect.max(0.01),
+            1.0,
+            100_000.0,
+        );
         let star_vp = proj * rot_view;
 
         let uniforms = CameraUniforms {
