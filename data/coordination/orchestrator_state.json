@@ -3,11 +3,24 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "HOME/CHARACTER arc. Stars working (v0.446). v0.447: showroom 3-column page + capped pedestal. NEXT renderer increment = CELESTIAL FAR PASS (render planet/sun/solar-bodies/orbit-rings at astronomical distances behind the interior scene, own far plane; stars already have it) - unblocks the planet showing in FPS + the showroom Earth/Mars teleport (or a local placeholder sphere). Then: CONSTRUCTION MODE (modular door+frame+trim+windows+toggleable roof, fix varying door sizes); Milky Way skybox structure; vision filters. Real-scale-universe vision in docs/design/universe-scale.md. v0.426.0 RELEASE awaits operator just sign-release.",
+  "current_focus": "HOME/CHARACTER arc. v0.448: game character decoupled from chat profile (own character_name in the save; showroom Name field). Self-custodial save/identity model captured (docs/design/character-and-save-custody.md). NEXT: (a) CELESTIAL FAR PASS (planet/sun/solar/orbits visible in FPS + Earth/Mars showroom backdrop) - the keystone renderer increment; (b) SERVER (cloud) save kind = relay stores a players WorldSave by public key + client sync + offline-vs-server picker (the self-custodial-server-account flow, MMO anti-cheat); (c) CONSTRUCTION MODE (modular door+frame+trim+windows+toggleable roof); (d) Milky Way skybox + vision filters. v0.426.0 RELEASE awaits operator just sign-release.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
   "recent_decisions": [
+    {
+      "at": "2026-06-14",
+      "decision": "DECOUPLE game character from chat profile + custody model (v0.448.0). Operator: decouple game characters from the chat profile; self-custodial characters; offline/local vs cloud saves; self-custodial server accounts (bring your character, server stores minimal); forced cloud saves for MMO anti-cheat. Investigation: appearance+outfit were ALREADY decoupled (local WorldSave, never referenced by relay or profile.rs); only the name was coupled (player ECS Name hardcoded Player; showroom borrowed the chat user_name). Fixed: WorldSave += character_name (serde-default Wanderer) round-tripped to the player ECS Name in save_load (+test); showroom gains a Name field + the left selector shows the CHARACTER name not user_name. So home name / character name / chat profile name are now 3 independent things. Captured the self-custodial save/identity architecture in docs/design/character-and-save-custody.md building on WorldSave.kind (offline|server|real): identity (Dilithium key from seed) ALWAYS self-custodial; character look+name self-custodial data you present; progress custody per-kind (offline=you own; server=relay owns=forced cloud, server-authoritative for anti-cheat; real=deferred); self-custodial server accounts auth by key + store minimal.",
+      "why": "Operator direction on the identity/save architecture. The decoupling was mostly already true (appearance/outfit local); finished it with a character name. The cloud (server kind) is the next arc. Verified: native+relay compile, 11 save/persistence tests pass, 3 gui lints pass, doc links 0.",
+      "files": [
+        "src/persistence.rs",
+        "src/save_load.rs",
+        "src/gui/mod.rs",
+        "src/gui/pages/showroom.rs",
+        "src/lib.rs",
+        "docs/design/character-and-save-custody.md"
+      ]
+    },
     {
       "at": "2026-06-14",
       "decision": "SHOWROOM 3-COLUMN + capped pedestal (v0.447.0). Stars confirmed working by operator. Restructured the showroom into a proper 3-column page: LEFT SidePanel = character selector (lists active character; multi-save later), CENTER = the orbiting avatar (3D in the gap), RIGHT SidePanel = details/customization (appearance|wardrobe + backdrop + Enter). Was a single floating Window. Fixed the invisible pedestal top: Mesh::cylinder is open (no caps) so the top disc was missing; added Mesh::cylinder_capped (filled top+bottom) for the podium. Captured the operators real-scale-universe vision in docs/design/universe-scale.md (real Earth/Sun/star distances, planet generator any-size via LOD, recreate the Milky Way in the skybox, vision filters: naked-eye vs space-helmet/cybernetic-eyes reveal more). The enabling tech = a dedicated CELESTIAL render pass with its own far plane (stars got one in v0.446; planet+solar+orbits still clipped by the 500m gameplay far) = next renderer increment.",
@@ -1642,7 +1655,7 @@
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.447.0; local exe building (bshrts59r). v0.439-0.447 character/home arc shipped this session. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
+  "version_state": "main==origin==forge: v0.448.0; local exe building (bdd00sqsc). v0.439-0.448 character/home arc shipped this session. v0.426.0 RELEASE awaits operator just sign-release. Deploy + Pages green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
