@@ -49,24 +49,23 @@ HomesteadLayout(
             color: (0.25, 0.35, 0.5, 1.0),
             walls: (north: Solid, south: Solid, west: Solid, east: Solid),
         ),
-        // F2 (2x2): Respawner / character-select portal. No walls: an open alcove you
-        // emerge into (the body wakes here). (operator)
+        // F2 (2x2): Respawner / character-select portal. SEALED (no doors) -- you enter via
+        // the wetroom's mirror/portal wall, not a door. (operator, v0.458)
         RoomConfig(
             id: "respawner",
             dimensions: (2.0, 3.0, 2.0),
             material_type: 2,
             color: (0.5, 0.55, 0.65, 1.0),
-            walls: (north: Open, south: Open, west: Open, east: Open),
+            walls: (north: Solid, south: Solid, west: Solid, east: Solid),
         ),
-        // F3 (3x3): Wetroom - shower, laundry. A 3x3 mirror/portal on the east wall (the
-        // respawner side). If it lands on the wrong wall after a visual check, move `Mirror`
-        // to the correct side here -- data-driven, no recompile.
+        // F3 (3x3): Wetroom - shower, laundry. A 3x3 mirror/portal on the WEST wall (facing
+        // the respawner + the two 1x1 rooms), facing INTO the wetroom. (operator, v0.458)
         RoomConfig(
             id: "wetroom",
             dimensions: (3.0, 3.0, 3.0),
             material_type: 2,
             color: (0.45, 0.5, 0.55, 1.0),
-            walls: (east: Mirror),
+            walls: (west: Mirror),
         ),
         // F5 (5x5): Bedroom. Bay windows on the north + east walls (looking toward the
         // study + garden). Swap the window sides here if the orientation differs in-app.

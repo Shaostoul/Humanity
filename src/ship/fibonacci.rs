@@ -573,7 +573,7 @@ fn mirror_panel(start: Vec3, end: Vec3, y_base: f32, wall_height: f32, size: f32
     let center = len * 0.5;
     let half = (size * 0.5).min(len * 0.48);
     let n = inward.normalize_or_zero();
-    let off = n * 0.03; // proud of the wall
+    let off = n * 0.055; // proud of the room-facing wall surface (wall is 0.1 thick) (v0.458)
     let p_l = start + norm * (center - half) + off;
     let p_r = start + norm * (center + half) + off;
     let y0 = (y_base + (wall_height - size) * 0.5).max(y_base);
@@ -1020,6 +1020,21 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
             // Direction from this wall toward the room centre (for the mirror to face in).
             let wall_mid = (*start + *end) * 0.5;
             let inward = Vec3::new(center.x - wall_mid.x, 0.0, center.z - wall_mid.z);
+            let inward_n = inward.normalize_or_zero();
+            // Trim sits on the room-facing wall SURFACE, tucked 2 mm in so its back hides
+            // inside the wall (no z-fight with the wall face / the opening reveal). v0.458
+            let surf = inward_n * (wall_thickness * 0.5 - 0.002);
+
+            // Shared walls are drawn ONCE: if a neighbour faces this wall with a Window or a
+            // Mirror, THAT room owns the boundary -- skip drawing a competing wall here, which
+            // otherwise overlaps their glass/portal (the "window looks like a solid wall" +
+            // double-wall z-fight the operator saw). v0.458
+            let neighbor_owns = wall_edges[i][w].iter().any(|(nj, nwb, _, _)| {
+                matches!(rooms[*nj].walls.by_index(*nwb), WallKind::Window | WallKind::Mirror)
+            });
+            if neighbor_owns {
+                continue;
+            }
 
             // Collect the openings to cut: (center_t along the wall, width, height, sill).
             let mut openings: Vec<(f32, f32, f32, f32)> = Vec::new();
@@ -1056,22 +1071,22 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
                 wall_with_openings(*start, *end, y, wall_height, wall_thickness, &openings));
 
             // Glass panes (windows) + wood casing swept around each opening (full surround
-            // incl. the vertical jambs, from the casing profile). (v0.457)
-            let inward_n = inward.normalize_or_zero();
+            // incl. the vertical jambs, from the casing profile, on the wall surface). (v0.457)
             for (center_t, ow, oh, sill) in &openings {
                 if is_window {
                     append_mesh(&mut win_v, &mut win_i,
                         window_panel(*start, norm, y, *center_t, *ow, *oh, *sill));
                 }
                 append_mesh(&mut trim_v, &mut trim_i,
-                    opening_casing(*start, norm, inward, y, *center_t, *ow, *oh, *sill, &profiles.casing, casing_w));
+                    opening_casing(*start + surf, norm, inward_n, y, *center_t, *ow, *oh, *sill, &profiles.casing, casing_w));
             }
 
-            // Crown moulding swept along the top of every built wall (profile -> extrude).
+            // Crown moulding swept along the top of every built wall (profile -> extrude),
+            // sitting on the room-facing surface.
             append_mesh(&mut trim_v, &mut trim_i,
                 sweep_profile(&profiles.crown,
-                    *start + Vec3::new(0.0, wall_height, 0.0),
-                    *end + Vec3::new(0.0, wall_height, 0.0),
+                    *start + Vec3::new(0.0, wall_height, 0.0) + surf,
+                    *end + Vec3::new(0.0, wall_height, 0.0) + surf,
                     inward_n, -Vec3::Y));
 
             // Baseboard swept along the floor of EVERY built wall, broken only at DOOR openings
@@ -1090,13 +1105,13 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
                 let t0 = t0.max(cursor);
                 if t0 - cursor > 0.05 {
                     append_mesh(&mut trim_v, &mut trim_i,
-                        sweep_profile(&profiles.baseboard, *start + norm * cursor, *start + norm * t0, inward_n, Vec3::Y));
+                        sweep_profile(&profiles.baseboard, *start + norm * cursor + surf, *start + norm * t0 + surf, inward_n, Vec3::Y));
                 }
                 cursor = t1.max(cursor);
             }
             if len - cursor > 0.05 {
                 append_mesh(&mut trim_v, &mut trim_i,
-                    sweep_profile(&profiles.baseboard, *start + norm * cursor, *end, inward_n, Vec3::Y));
+                    sweep_profile(&profiles.baseboard, *start + norm * cursor + surf, *end + surf, inward_n, Vec3::Y));
             }
         }
     }
@@ -1291,12 +1306,12 @@ mod tests {
         let find = |id: &str| layout.rooms.iter().find(|r| r.id == id)
             .unwrap_or_else(|| panic!("room {id} present"));
 
-        // Respawner: all four walls open (a doorless, wall-less alcove).
+        // Respawner: SEALED (no doors) -- entered via the wetroom portal. (v0.458)
         let r = find("respawner");
-        for i in 0..4 { assert_eq!(r.walls.by_index(i), WallKind::Open, "respawner wall {i} open"); }
+        for i in 0..4 { assert_eq!(r.walls.by_index(i), WallKind::Solid, "respawner wall {i} solid"); }
 
-        // Wetroom: a mirror/portal on the east wall (index 3).
-        assert_eq!(find("wetroom").walls.east, WallKind::Mirror, "wetroom east = Mirror");
+        // Wetroom: a mirror/portal on the WEST wall (facing the respawner). (v0.458)
+        assert_eq!(find("wetroom").walls.west, WallKind::Mirror, "wetroom west = Mirror");
 
         // Bedroom: bay windows on north + east.
         let b = find("bedroom");
@@ -1337,9 +1352,9 @@ mod tests {
         let back: HomesteadLayout = ron::from_str(&text).expect("re-parses");
         // Wall kinds survived the round-trip.
         let w = back.rooms.iter().find(|r| r.id == "wetroom").expect("wetroom");
-        assert_eq!(w.walls.east, WallKind::Mirror);
+        assert_eq!(w.walls.west, WallKind::Mirror);
         let r = back.rooms.iter().find(|r| r.id == "respawner").expect("respawner");
-        assert_eq!(r.walls.north, WallKind::Open);
+        assert_eq!(r.walls.north, WallKind::Solid);
         assert!((back.default_wall_height - layout.default_wall_height).abs() < 1e-6);
     }
 
