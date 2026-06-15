@@ -229,6 +229,11 @@ Every time a UI button or context menu action is added, verify ALL of the follow
 4. **Borrow checker safe**: In egui, ensure the click handler doesn't try to mutate state that's borrowed elsewhere in the same frame. Use deferred action patterns (collect actions in Phase 1, process in Phase 2) when rendering borrows state immutably.
 5. **State updates propagate**: If the action modifies local state (e.g., removing a message), verify the UI will reflect the change on the next frame.
 6. **Edge cases**: Test with the button's target in different states (e.g., Pin vs Unpin, own message vs others', connected vs disconnected).
+7. **INTERACTABILITY (operator directive 2026-06-15, after this bug recurred on the showroom AND the construction editor):** when you add an in-world egui surface (a `SidePanel`/`Window`/overlay shown while `active_page == None`, e.g. the showroom or construction editor), the panel can RENDER but be un-clickable because the OS cursor is still grabbed for first-person look. BEFORE considering it done, verify ALL of:
+   - The new active-state is added to **`reconcile_cursor`** in `src/lib.rs` (its `want_free` condition). That function is the SINGLE authority for the cursor grab; do NOT call `set_cursor_grab`/`set_cursor_visible` anywhere else (three stray handlers once did, desyncing `cursor_free` so the reconciliation's transition check silently no-opped and panels showed but could not be clicked).
+   - Mouse-look (`DeviceEvent::MouseMotion` -> `process_mouse_motion`) is blocked while the surface is active, or the camera spins instead of the cursor reaching the panel.
+   - The panel `draw(...)` call is INSIDE the `egui_ctx.run(...)` closure (not before/after it).
+   - **It is genuinely un-verifiable from here** (native egui can't be auto-clicked by the harness, and the browser preview tools don't apply). So state the interactability assumption explicitly in the ship note and ask the operator to confirm a click lands. "Shows on screen" is NOT "is interactable."
 
 Common failure patterns to avoid:
 - Sending a custom WS message type that the server doesn't handle (always check server-side first)

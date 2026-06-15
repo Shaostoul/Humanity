@@ -441,6 +441,33 @@ mod native_app {
         }
     }
 
+    /// THE single authority for the OS cursor (v0.460). Free (visible + ungrabbed) for any menu
+    /// page, the showroom, or the construction editor -- so egui clicks land -- and grabbed for
+    /// first-person play. Called every frame AND right after the egui frame (to catch a page
+    /// change made by an egui click without a frame of lag). Keeping this the ONLY place that
+    /// touches the cursor keeps `cursor_free` in sync; earlier, three handlers grabbed/freed the
+    /// cursor directly without updating it, which desynced the flag so a panel could render but
+    /// not be clicked (recurring "I can see the UI but can't interact" bug).
+    fn reconcile_cursor(state: &mut EngineState) {
+        let want_free = state.gui_state.active_page != GuiPage::None
+            || state.gui_state.showroom_active
+            || state.gui_state.construction_active;
+        if want_free == state.cursor_free {
+            return;
+        }
+        state.cursor_free = want_free;
+        state.window.set_cursor_visible(want_free);
+        if want_free {
+            state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
+        } else {
+            state
+                .window
+                .set_cursor_grab(winit::window::CursorGrabMode::Confined)
+                .or_else(|_| state.window.set_cursor_grab(winit::window::CursorGrabMode::Locked))
+                .ok();
+        }
+    }
+
     /// Upload a freshly generated set of homestead meshes into the renderer + state slots
     /// (v0.455). Shared by the initial world load AND the construction editor's live rebuild.
     /// On rebuild this APPENDS new meshes and repoints the slots; the old meshes stay in the
@@ -1983,19 +2010,10 @@ mod native_app {
                                     }
                                 };
                             }
-                            // Update cursor grab based on page transition
-                            let new_page = state.gui_state.active_page;
-                            if old_page == GuiPage::None && new_page != GuiPage::None {
-                                // Entering a menu: release cursor
-                                state.window.set_cursor_visible(true);
-                                state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
-                            } else if old_page != GuiPage::None && new_page == GuiPage::None {
-                                // Returning to FPS mode: grab cursor
-                                state.window.set_cursor_visible(false);
-                                state.window.set_cursor_grab(winit::window::CursorGrabMode::Confined)
-                                    .or_else(|_| state.window.set_cursor_grab(winit::window::CursorGrabMode::Locked))
-                                    .ok();
-                            }
+                            // Cursor grab is handled by the single per-frame reconciliation
+                            // (keys off active_page/showroom/construction). Manipulating it
+                            // here too desynced `cursor_free` and broke later panels. (v0.460)
+                            let _ = old_page;
                             return;
                         }
 
@@ -2021,9 +2039,7 @@ mod native_app {
                             && state.gui_state.active_page == GuiPage::None
                         {
                             state.gui_state.active_page = GuiPage::Inventory;
-                            // Release cursor for inventory page
-                            state.window.set_cursor_visible(true);
-                            state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
+                            // Cursor freed by the per-frame reconciliation (active_page != None).
                             return;
                         }
                         // E opens/pins the targeted machine's info card (walk-up
@@ -2624,32 +2640,9 @@ mod native_app {
                         // (cursor re-grabbed by the per-frame reconciliation below)
                     }
 
-                    // ── Cursor reconciliation (v0.443): free for any menu page OR the
-                    // showroom (so egui clicks land), grabbed for first-person play. Single
-                    // authority, so the showroom no longer fights the page-transition grab.
-                    let want_cursor_free = state.gui_state.active_page != GuiPage::None
-                        || state.gui_state.showroom_active
-                        || state.gui_state.construction_active;
-                    if want_cursor_free != state.cursor_free {
-                        state.cursor_free = want_cursor_free;
-                        state.window.set_cursor_visible(want_cursor_free);
-                        if want_cursor_free {
-                            state
-                                .window
-                                .set_cursor_grab(winit::window::CursorGrabMode::None)
-                                .ok();
-                        } else {
-                            state
-                                .window
-                                .set_cursor_grab(winit::window::CursorGrabMode::Confined)
-                                .or_else(|_| {
-                                    state
-                                        .window
-                                        .set_cursor_grab(winit::window::CursorGrabMode::Locked)
-                                })
-                                .ok();
-                        }
-                    }
+                    // Cursor: free for any menu page / showroom / construction editor (so egui
+                    // clicks land), grabbed for first-person play. Single authority (v0.460).
+                    reconcile_cursor(state);
 
                     // Build render objects from homestead meshes
                     let mut all_objects: Vec<RenderObject> = Vec::new();
@@ -5191,21 +5184,11 @@ mod native_app {
 
                             surface_texture.present();
 
-                            // ── Update cursor grab if page changed during egui frame ──
-                            let page_after_frame = state.gui_state.active_page;
-                            if page_before_frame != page_after_frame {
-                                if page_after_frame == GuiPage::None {
-                                    // Returning to FPS mode: grab cursor
-                                    state.window.set_cursor_visible(false);
-                                    state.window.set_cursor_grab(winit::window::CursorGrabMode::Confined)
-                                        .or_else(|_| state.window.set_cursor_grab(winit::window::CursorGrabMode::Locked))
-                                        .ok();
-                                } else if page_before_frame == GuiPage::None {
-                                    // Leaving FPS mode: release cursor
-                                    state.window.set_cursor_visible(true);
-                                    state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
-                                }
-                            }
+                            // Catch a page change made by an egui click this frame (the
+                            // per-frame reconciliation ran before the egui frame). Same single
+                            // authority, so no `cursor_free` desync. (v0.460)
+                            let _ = page_before_frame;
+                            reconcile_cursor(state);
 
                             // ── Apply settings changes from GUI to engine ──
                             if state.gui_state.settings_dirty {
