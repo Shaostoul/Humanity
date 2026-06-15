@@ -18,8 +18,11 @@ pub fn draw(
 
     Area::new(egui::Id::new("hud_layer"))
         .fixed_pos([0.0, 0.0])
+        // Non-interactable so this full-screen HUD layer never sits in front of an in-world
+        // side panel and eats its clicks (the recurring "panel shows but won't click" bug).
+        // The HUD is paint-only; it needs no input. (v0.461)
+        .interactable(false)
         .show(ctx, |ui| {
-            // Allocate full screen but don't consume input
             ui.allocate_rect(screen, egui::Sense::hover());
             let painter = ui.painter();
 

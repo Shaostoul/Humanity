@@ -4981,10 +4981,16 @@ mod native_app {
                                     &mut state.gui_state,
                                 );
 
-                                // Always draw HUD when in-game
+                                // Draw HUD when in-game. SKIP it during the showroom AND the
+                                // construction editor: the HUD allocates a full-screen Area
+                                // (hud.rs) which sits OVER an in-world side panel and eats its
+                                // clicks -- the real cause of "panel shows but won't click".
+                                // (v0.461; the showroom already skipped it, which is why it
+                                // worked and the editor did not.)
                                 if state.gui_state.active_page == GuiPage::None
                                     && state.gui_state.show_hud
                                     && !state.gui_state.showroom_active
+                                    && !state.gui_state.construction_active
                                 {
                                     hud::draw(
                                         ctx,

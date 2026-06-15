@@ -631,14 +631,24 @@ fn sweep_profile(profile: &[(f32, f32)], a: Vec3, b: Vec3, out_dir: Vec3, up_dir
         let edge = pa1 - pa0;
         let raw = run.cross(edge);
         let nrm = if raw.length_squared() > 1e-9 { raw.normalize() } else { out_dir.normalize_or_zero() };
-        let nrm3 = [nrm.x, nrm.y, nrm.z];
+        // Front side: normal = +nrm, CCW winding.
+        let nf = [nrm.x, nrm.y, nrm.z];
         let base = v.len() as u32;
-        v.push(Vertex { position: pa0.to_array(), normal: nrm3, uv: [0.0, 0.0] });
-        v.push(Vertex { position: pa1.to_array(), normal: nrm3, uv: [1.0, 0.0] });
-        v.push(Vertex { position: pb1.to_array(), normal: nrm3, uv: [1.0, 1.0] });
-        v.push(Vertex { position: pb0.to_array(), normal: nrm3, uv: [0.0, 1.0] });
+        v.push(Vertex { position: pa0.to_array(), normal: nf, uv: [0.0, 0.0] });
+        v.push(Vertex { position: pa1.to_array(), normal: nf, uv: [1.0, 0.0] });
+        v.push(Vertex { position: pb1.to_array(), normal: nf, uv: [1.0, 1.0] });
+        v.push(Vertex { position: pb0.to_array(), normal: nf, uv: [0.0, 1.0] });
         idx.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
-        idx.extend([base, base + 2, base + 1, base, base + 3, base + 2]); // back side
+        // Back side: SEPARATE verts with the FLIPPED normal + reversed winding, so the
+        // back face is lit correctly (the v0.457 bug reused one normal for both windings,
+        // so whichever side faced the room was shaded as if facing away -> black/invisible).
+        let nb = [-nrm.x, -nrm.y, -nrm.z];
+        let base2 = v.len() as u32;
+        v.push(Vertex { position: pa0.to_array(), normal: nb, uv: [0.0, 0.0] });
+        v.push(Vertex { position: pa1.to_array(), normal: nb, uv: [1.0, 0.0] });
+        v.push(Vertex { position: pb1.to_array(), normal: nb, uv: [1.0, 1.0] });
+        v.push(Vertex { position: pb0.to_array(), normal: nb, uv: [0.0, 1.0] });
+        idx.extend([base2, base2 + 2, base2 + 1, base2, base2 + 3, base2 + 2]);
     }
     (v, idx)
 }
