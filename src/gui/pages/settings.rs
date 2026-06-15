@@ -1548,6 +1548,13 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         widgets::labeled_slider(ui, theme, "Dot", &mut state.machine_label_dot_dist, 2.0..=60.0);
         widgets::labeled_slider(ui, theme, "Name", &mut state.machine_label_name_dist, 1.0..=40.0);
         widgets::labeled_slider(ui, theme, "Info card", &mut state.machine_label_card_dist, 1.0..=30.0);
+
+        ui.add_space(theme.spacing_md);
+        ui.label(RichText::new("Home").color(theme.text_secondary()).strong());
+        // Construction mode (v0.453): the home roof. Off by default so the sky shows through
+        // the open top; on seals it. Also toggled with the R key in-world.
+        widgets::toggle(ui, theme, "Show roof (R)", &mut state.show_roof);
+        ui.label(RichText::new("Off shows the sky (stars + the real solar system) through the open top; on seals the home for an interior / atmosphere look.").color(theme.text_muted()).size(theme.font_size_small));
     });
 }
 

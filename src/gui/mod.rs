@@ -1212,6 +1212,10 @@ pub struct GuiState {
     /// Character-select showroom (v0.441): when active, the home is hidden and the avatar is
     /// previewed against a backdrop with an orbit camera + the customization panel.
     pub showroom_active: bool,
+    /// Construction mode (v0.453): show the home's roof/ceiling. Default OFF so the sky
+    /// (stars + the real solar system) stays visible from inside; toggle on for atmosphere
+    /// tests or a sealed look.
+    pub show_roof: bool,
     /// Index into the backdrop list (the names mirror is `showroom_backdrop_names`).
     pub showroom_backdrop: usize,
     /// Backdrop display names, mirrored from the loaded registry for the panel.
@@ -2073,6 +2077,7 @@ impl Default for GuiState {
             power_consumption: 0.0,
             power_balance: 0.0,
             showroom_active: false,
+            show_roof: false,
             showroom_backdrop: 0,
             showroom_backdrop_names: Vec::new(),
             showroom_confirm: false,

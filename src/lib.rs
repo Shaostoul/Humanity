@@ -419,6 +419,31 @@ mod native_app {
             let mat_idx = state.renderer.add_material_typed([0.5, 0.5, 0.5, 1.0], 0.1, 0.6, 0.0);
             state.homestead_walls = Some((mesh_idx, mat_idx));
         }
+        // ── Construction-mode meshes (v0.453): trim, windows, mirror/portal, ceiling ──
+        if !homestead.trim.0.is_empty() {
+            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.trim.0, &homestead.trim.1));
+            // Wood trim (baseboards, crown, door/window frames).
+            let mat_idx = state.renderer.add_material_typed([0.42, 0.30, 0.18, 1.0], 0.0, 0.7, 3.0);
+            state.homestead_trim = Some((mesh_idx, mat_idx));
+        }
+        if !homestead.windows.0.is_empty() {
+            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.windows.0, &homestead.windows.1));
+            // Tinted glass with a slight glow (opaque until a real alpha-blend pass lands).
+            let mat_idx = state.renderer.add_material_full([0.55, 0.72, 0.88, 1.0], 0.05, 0.1, 1.0, 0.25);
+            state.homestead_windows = Some((mesh_idx, mat_idx));
+        }
+        if !homestead.mirrors.0.is_empty() {
+            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.mirrors.0, &homestead.mirrors.1));
+            // Glowing blue portal panel (emissive so it sells "portal" with no real reflection).
+            let mat_idx = state.renderer.add_material_full([0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 1.6);
+            state.homestead_mirrors = Some((mesh_idx, mat_idx));
+        }
+        if !homestead.ceilings.0.is_empty() {
+            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.ceilings.0, &homestead.ceilings.1));
+            // Light concrete ceiling; only drawn when the roof toggle is on.
+            let mat_idx = state.renderer.add_material_typed([0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0);
+            state.homestead_ceiling = Some((mesh_idx, mat_idx));
+        }
 
         // Room ceiling lights
         state.room_lights = homestead.room_info.iter().map(|r| {
@@ -1280,6 +1305,14 @@ mod native_app {
         cursor_free: bool,
         /// Homestead walls mesh + material.
         homestead_walls: Option<(usize, usize)>,
+        /// Homestead trim mesh (baseboards, crown, door/window frames) + material. (v0.453)
+        homestead_trim: Option<(usize, usize)>,
+        /// Homestead window-glass mesh + material. (v0.453)
+        homestead_windows: Option<(usize, usize)>,
+        /// Homestead mirror / portal panel mesh + material. (v0.453)
+        homestead_mirrors: Option<(usize, usize)>,
+        /// Homestead ceiling mesh + material — drawn only when `gui_state.show_roof`. (v0.453)
+        homestead_ceiling: Option<(usize, usize)>,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
         hologram_objects: Vec<(usize, usize, Vec3, String)>,
         /// Hologram orbit rings (mesh_idx, material_idx).
@@ -1725,6 +1758,10 @@ mod native_app {
                 showroom_return_pos: Vec3::new(0.0, 1.7, 0.0),
                 cursor_free: false,
                 homestead_walls: None,
+                homestead_trim: None,
+                homestead_windows: None,
+                homestead_mirrors: None,
+                homestead_ceiling: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
                 hologram_pins: Vec::new(),
@@ -1923,6 +1960,18 @@ mod native_app {
                                     _ => {}
                                 }
                             }
+                        }
+
+                        // R toggles the home roof/ceiling (construction mode, v0.453). Off by
+                        // default so the sky (stars + the real solar system) shows through the
+                        // open top; on for a sealed look or atmosphere tests. Also exposed as a
+                        // checkbox on the Settings page (GUI-first).
+                        if key == KeyCode::KeyR && pressed
+                            && state.gui_state.active_page == GuiPage::None
+                            && !state.gui_state.showroom_active
+                        {
+                            state.gui_state.show_roof = !state.gui_state.show_roof;
+                            return;
                         }
 
                         // Don't pass input to game when egui consumed it or a menu is open
@@ -2390,7 +2439,19 @@ mod native_app {
                                 material: mat_idx,
                             });
                         }
-                        if let Some((mesh_idx, mat_idx)) = state.homestead_walls {
+                        // Walls, trim, windows, mirror/portal — all part of the home shell.
+                        // The roof (ceiling) is gated by the show_roof toggle so the sky stays
+                        // visible by default. (v0.453)
+                        let mut shell = vec![
+                            state.homestead_walls,
+                            state.homestead_trim,
+                            state.homestead_windows,
+                            state.homestead_mirrors,
+                        ];
+                        if state.gui_state.show_roof {
+                            shell.push(state.homestead_ceiling);
+                        }
+                        for (mesh_idx, mat_idx) in shell.into_iter().flatten() {
                             all_objects.push(RenderObject {
                                 position: Vec3::ZERO,
                                 rotation: Quat::IDENTITY,

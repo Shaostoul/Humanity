@@ -29,6 +29,61 @@ pub enum LayoutStyle {
     Studio,
 }
 
+/// What a single wall face does (construction mode, v0.453). This is the per-wall
+/// building block: instead of "every shared wall auto-gets a centred, variable-width
+/// door," each wall is explicitly one of these kinds, read from the RON.
+///
+/// `Auto` is the DEFAULT, which means "behave like before": derive a door from
+/// adjacency (a standard-size door if the neighbouring room is also passable on that
+/// face, otherwise solid). So a room that omits `walls` keeps today's behaviour — zero
+/// regression — while a room CAN override any single wall (a mirror, a window, fully
+/// open, forced solid) without redesigning the whole floor plan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, Default)]
+pub enum WallKind {
+    /// Derive from adjacency: a standard door where a passable neighbour faces this
+    /// wall, otherwise a solid wall. The default for every wall.
+    #[default]
+    Auto,
+    /// Full solid wall, no opening (force solid even where a neighbour exists).
+    Solid,
+    /// A standard-size door opening (only cut if a passable neighbour faces it; a door
+    /// into a solid wall or the void would be a hole to nowhere, so it falls back solid).
+    Door,
+    /// A window: a centred glass opening at sill height, with the wall built around it.
+    Window,
+    /// No wall at all (a fully open side — the respawner uses this on all four walls).
+    Open,
+    /// A reflective / portal panel flush on the wall (the wall stays solid behind it).
+    Mirror,
+}
+
+/// Per-room wall configuration: the kind of each of the four walls. Index order MUST
+/// match the `walls` array in `build_meshes`: 0=North(min Z), 1=South(max Z),
+/// 2=West(min X), 3=East(max X). Any wall omitted in RON defaults to `Auto`.
+#[derive(Debug, Clone, Copy, serde::Deserialize, Default)]
+pub struct WallSet {
+    #[serde(default)]
+    pub north: WallKind,
+    #[serde(default)]
+    pub south: WallKind,
+    #[serde(default)]
+    pub west: WallKind,
+    #[serde(default)]
+    pub east: WallKind,
+}
+
+impl WallSet {
+    /// Kind at the build-loop wall index (0=N, 1=S, 2=W, 3=E).
+    pub fn by_index(&self, i: usize) -> WallKind {
+        match i {
+            0 => self.north,
+            1 => self.south,
+            2 => self.west,
+            _ => self.east,
+        }
+    }
+}
+
 /// Room definition for the layout. Positions can be explicit or computed from LayoutStyle.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct RoomConfig {
@@ -41,6 +96,9 @@ pub struct RoomConfig {
     pub color: [f32; 4],         // RGBA base color for PBR
     #[serde(default)]
     pub wall_height: f32,        // override wall height (0 = use dimensions.y)
+    /// Per-wall construction config. Omitted => all `Auto` (today's auto-door behaviour).
+    #[serde(default)]
+    pub walls: WallSet,
 }
 
 /// Full homestead layout loaded from data/
@@ -53,7 +111,34 @@ pub struct HomesteadLayout {
     pub hologram_room: Option<String>,
     #[serde(default)]
     pub spawn_room: Option<String>,
+    // ── Construction-mode standard dimensions (v0.453) ──
+    // ONE source of truth for every door/window/trim/mirror size, so a door is the SAME
+    // everywhere (fixes the old "doors vary per room" bug) and is tunable in one place.
+    #[serde(default = "default_door_w")]
+    pub door_width: f32,
+    #[serde(default = "default_door_h")]
+    pub door_height: f32,
+    #[serde(default = "default_window_w")]
+    pub window_width: f32,
+    #[serde(default = "default_window_h")]
+    pub window_height: f32,
+    #[serde(default = "default_window_sill")]
+    pub window_sill: f32,
+    #[serde(default = "default_trim_h")]
+    pub baseboard_height: f32,
+    #[serde(default = "default_trim_h")]
+    pub crown_height: f32,
+    #[serde(default = "default_mirror")]
+    pub mirror_size: f32,
 }
+
+fn default_door_w() -> f32 { 0.9 }
+fn default_door_h() -> f32 { 2.1 }
+fn default_window_w() -> f32 { 1.4 }
+fn default_window_h() -> f32 { 1.3 }
+fn default_window_sill() -> f32 { 0.9 }
+fn default_trim_h() -> f32 { 0.12 }
+fn default_mirror() -> f32 { 3.0 }
 
 /// Metadata about a generated room, exposed for gameplay features.
 #[derive(Debug, Clone)]
@@ -75,6 +160,15 @@ pub struct HomesteadMeshes {
     pub floors: Vec<(Vec<Vertex>, Vec<u32>, [f32; 4], u32)>,
     /// (vertices, indices) for all walls combined
     pub walls: (Vec<Vertex>, Vec<u32>),
+    /// (vertices, indices) for all baseboard + crown + frame trim combined (v0.453).
+    pub trim: (Vec<Vertex>, Vec<u32>),
+    /// (vertices, indices) for all window glass panes combined (v0.453).
+    pub windows: (Vec<Vertex>, Vec<u32>),
+    /// (vertices, indices) for all mirror / portal panels combined (v0.453).
+    pub mirrors: (Vec<Vertex>, Vec<u32>),
+    /// (vertices, indices) for all room ceilings combined — drawn only when the roof is
+    /// toggled on (v0.453). Built unconditionally; visibility is gated at render time.
+    pub ceilings: (Vec<Vertex>, Vec<u32>),
     /// Room metadata (id, center, dimensions, flags)
     pub room_info: Vec<RoomInfo>,
 }
@@ -309,6 +403,162 @@ fn wall_box(start: Vec3, end: Vec3, y_base: f32, height: f32, thickness: f32) ->
     (vertices, indices)
 }
 
+/// Append one (verts, indices) piece onto running combined buffers, rebasing indices.
+fn append_mesh(dst_v: &mut Vec<Vertex>, dst_i: &mut Vec<u32>, piece: (Vec<Vertex>, Vec<u32>)) {
+    let base = dst_v.len() as u32;
+    dst_v.extend(piece.0);
+    dst_i.extend(piece.1.iter().map(|i| i + base));
+}
+
+/// A wall span with a centred rectangular opening (door or window): emits the solid wall
+/// AROUND the opening — a left jamb + right jamb (full height), a lintel above, and (for
+/// windows, `sill > 0`) an apron below. `open_w`/`open_h` are the opening size; `sill` is
+/// the height of the opening's bottom off the floor (0 for a door). Same coordinate
+/// convention as `wall_box`. Returns the combined (verts, indices). (v0.453)
+fn wall_with_opening(
+    start: Vec3, end: Vec3, y_base: f32, wall_height: f32, thickness: f32,
+    open_w: f32, open_h: f32, sill: f32,
+) -> (Vec<Vertex>, Vec<u32>) {
+    let mut v = Vec::new();
+    let mut idx = Vec::new();
+    let dir = end - start;
+    let len = dir.length();
+    if len < 0.01 {
+        return (v, idx);
+    }
+    let norm = dir / len;
+    let half = (open_w * 0.5).min(len * 0.45);
+    let center = len * 0.5;
+    let l_edge = (center - half).max(0.0);
+    let r_edge = (center + half).min(len);
+    let p_l = start + norm * l_edge;
+    let p_r = start + norm * r_edge;
+    let top = (sill + open_h).min(wall_height);
+
+    // Left jamb (full height).
+    if l_edge > 0.01 {
+        append_mesh(&mut v, &mut idx, wall_box(start, p_l, y_base, wall_height, thickness));
+    }
+    // Right jamb (full height).
+    if len - r_edge > 0.01 {
+        append_mesh(&mut v, &mut idx, wall_box(p_r, end, y_base, wall_height, thickness));
+    }
+    // Apron below the opening (windows only; sill > 0).
+    if sill > 0.01 {
+        append_mesh(&mut v, &mut idx, wall_box(p_l, p_r, y_base, sill, thickness));
+    }
+    // Lintel above the opening.
+    if wall_height - top > 0.01 {
+        append_mesh(&mut v, &mut idx, wall_box(p_l, p_r, y_base + top, wall_height - top, thickness));
+    }
+    (v, idx)
+}
+
+/// A glass pane filling a window opening: a thin double-sided quad in the wall plane,
+/// centred on the span, sized `open_w` x `open_h` at `sill` height. Goes in the
+/// (tinted-glass) windows mesh so it reads as a window even before a real alpha-blend
+/// pass exists. (v0.453)
+fn window_panel(start: Vec3, end: Vec3, y_base: f32, open_w: f32, open_h: f32, sill: f32) -> (Vec<Vertex>, Vec<u32>) {
+    let dir = end - start;
+    let len = dir.length();
+    if len < 0.01 {
+        return (vec![], vec![]);
+    }
+    let norm = dir / len;
+    let half = (open_w * 0.5).min(len * 0.45);
+    let center = len * 0.5;
+    let p_l = start + norm * (center - half);
+    let p_r = start + norm * (center + half);
+    let perp = Vec3::new(-norm.z, 0.0, norm.x); // wall-facing normal
+    let y0 = y_base + sill;
+    let y1 = y_base + sill + open_h;
+    let verts = vec![
+        Vertex { position: [p_l.x, y0, p_l.z], normal: [perp.x, 0.0, perp.z], uv: [0.0, 0.0] },
+        Vertex { position: [p_r.x, y0, p_r.z], normal: [perp.x, 0.0, perp.z], uv: [1.0, 0.0] },
+        Vertex { position: [p_r.x, y1, p_r.z], normal: [perp.x, 0.0, perp.z], uv: [1.0, 1.0] },
+        Vertex { position: [p_l.x, y1, p_l.z], normal: [perp.x, 0.0, perp.z], uv: [0.0, 1.0] },
+    ];
+    // Double-sided (visible from both rooms).
+    let indices = vec![0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2];
+    (verts, indices)
+}
+
+/// A `size` x `size` mirror / portal panel flush on a wall's inner face, centred on the
+/// span, sitting a hair proud of the wall (no z-fight) and facing into the room along
+/// `inward`. The wall behind stays solid; this is just the reflective/glowing panel. Used
+/// for the wetroom's respawner-side portal. (v0.453)
+fn mirror_panel(start: Vec3, end: Vec3, y_base: f32, wall_height: f32, size: f32, inward: Vec3) -> (Vec<Vertex>, Vec<u32>) {
+    let dir = end - start;
+    let len = dir.length();
+    if len < 0.01 {
+        return (vec![], vec![]);
+    }
+    let norm = dir / len;
+    let center = len * 0.5;
+    let half = (size * 0.5).min(len * 0.48);
+    let n = inward.normalize_or_zero();
+    let off = n * 0.03; // proud of the wall
+    let p_l = start + norm * (center - half) + off;
+    let p_r = start + norm * (center + half) + off;
+    let y0 = (y_base + (wall_height - size) * 0.5).max(y_base);
+    let y1 = (y0 + size).min(y_base + wall_height);
+    let verts = vec![
+        Vertex { position: [p_l.x, y0, p_l.z], normal: [n.x, 0.0, n.z], uv: [0.0, 0.0] },
+        Vertex { position: [p_r.x, y0, p_r.z], normal: [n.x, 0.0, n.z], uv: [1.0, 0.0] },
+        Vertex { position: [p_r.x, y1, p_r.z], normal: [n.x, 0.0, n.z], uv: [1.0, 1.0] },
+        Vertex { position: [p_l.x, y1, p_l.z], normal: [n.x, 0.0, n.z], uv: [0.0, 1.0] },
+    ];
+    // Double-sided so it shows regardless of cull state.
+    let indices = vec![0, 2, 1, 0, 3, 2, 0, 1, 2, 0, 2, 3];
+    (verts, indices)
+}
+
+/// A downward-facing ceiling quad for one room (visible from below). Built for every room
+/// but only drawn when the roof toggle is on. (v0.453)
+fn ceiling_quad(pos: Vec3, dim: Vec3, y: f32) -> (Vec<Vertex>, Vec<u32>) {
+    let x0 = pos.x;
+    let z0 = pos.z;
+    let x1 = pos.x + dim.x;
+    let z1 = pos.z + dim.z;
+    let verts = vec![
+        Vertex { position: [x0, y, z0], normal: [0.0, -1.0, 0.0], uv: [0.0, 0.0] },
+        Vertex { position: [x1, y, z0], normal: [0.0, -1.0, 0.0], uv: [1.0, 0.0] },
+        Vertex { position: [x1, y, z1], normal: [0.0, -1.0, 0.0], uv: [1.0, 1.0] },
+        Vertex { position: [x0, y, z1], normal: [0.0, -1.0, 0.0], uv: [0.0, 1.0] },
+    ];
+    // Front face points DOWN (visible from inside, looking up).
+    let indices = vec![0, 1, 2, 0, 2, 3];
+    (verts, indices)
+}
+
+/// Wood trim framing an opening: a header just above it and (for windows) a sill board
+/// just below, each a thin trim box spanning the opening width. The vertical sides are
+/// the wall jambs. Goes in the trim mesh. (v0.453)
+fn opening_frame(
+    start: Vec3, end: Vec3, y_base: f32, open_w: f32, open_h: f32, sill: f32,
+    frame_thickness: f32, trim_thickness: f32,
+) -> (Vec<Vertex>, Vec<u32>) {
+    let mut v = Vec::new();
+    let mut idx = Vec::new();
+    let dir = end - start;
+    let len = dir.length();
+    if len < 0.01 {
+        return (v, idx);
+    }
+    let norm = dir / len;
+    let half = (open_w * 0.5).min(len * 0.45);
+    let center = len * 0.5;
+    let p_l = start + norm * (center - half);
+    let p_r = start + norm * (center + half);
+    // Header just above the opening.
+    append_mesh(&mut v, &mut idx, wall_box(p_l, p_r, y_base + sill + open_h, frame_thickness, trim_thickness));
+    // Sill board (windows only).
+    if sill > 0.01 {
+        append_mesh(&mut v, &mut idx, wall_box(p_l, p_r, (y_base + sill - frame_thickness).max(y_base), frame_thickness, trim_thickness));
+    }
+    (v, idx)
+}
+
 // ---------------------------------------------------------------------------
 // Doorway detection between adjacent rooms
 // ---------------------------------------------------------------------------
@@ -323,7 +573,7 @@ struct SharedEdge {
     /// Which wall of room A this belongs to (0=north, 1=south, 2=west, 3=east)
     wall_a: usize,
     /// Which wall of room B this belongs to
-    _wall_b: usize,
+    wall_b: usize,
 }
 
 /// Check if two rooms share a wall edge. Returns the shared edge info if they do.
@@ -361,7 +611,7 @@ fn find_shared_edges(
                 start: Vec3::new(x, 0.0, z_start),
                 end: Vec3::new(x, 0.0, z_end),
                 wall_a: 3, // east
-                _wall_b: 2, // west
+                wall_b: 2, // west
             });
         }
     }
@@ -376,7 +626,7 @@ fn find_shared_edges(
                 start: Vec3::new(x, 0.0, z_start),
                 end: Vec3::new(x, 0.0, z_end),
                 wall_a: 2, // west
-                _wall_b: 3, // east
+                wall_b: 3, // east
             });
         }
     }
@@ -391,7 +641,7 @@ fn find_shared_edges(
                 start: Vec3::new(x_start, 0.0, z),
                 end: Vec3::new(x_end, 0.0, z),
                 wall_a: 1, // south
-                _wall_b: 0, // north
+                wall_b: 0, // north
             });
         }
     }
@@ -406,7 +656,7 @@ fn find_shared_edges(
                 start: Vec3::new(x_start, 0.0, z),
                 end: Vec3::new(x_end, 0.0, z),
                 wall_a: 0, // north
-                _wall_b: 1, // south
+                wall_b: 1, // south
             });
         }
     }
@@ -419,6 +669,10 @@ fn find_shared_edges(
 /// Returns a list of (start, end) segments. If no doorway applies, returns
 /// the original wall as a single segment. Also returns lintel info:
 /// (start, end, doorway_height) for each doorway cut.
+///
+/// Superseded by the per-wall `WallKind` path in `build_meshes` (v0.453); kept as the
+/// reference doorway-splitter (it also keeps the `SharedEdge` geometry fields live).
+#[allow(dead_code)]
 fn split_wall_for_doorways(
     wall_start: Vec3,
     wall_end: Vec3,
@@ -514,56 +768,65 @@ fn split_wall_for_doorways(
 // Mesh assembly from resolved room positions
 // ---------------------------------------------------------------------------
 
-/// Generate all floor, wall, and ceiling meshes from a layout with resolved positions.
-fn build_meshes(
-    rooms: &[RoomConfig],
-    positions: &[Vec3],
-    hologram_room: Option<&str>,
-    spawn_room: Option<&str>,
-) -> HomesteadMeshes {
+/// Generate all floor, wall, trim, window, mirror, and ceiling meshes from a layout with
+/// resolved positions. Construction mode (v0.453): each wall is built from its `WallKind`
+/// (Auto/Solid/Door/Window/Open/Mirror) instead of the old "every shared wall auto-gets a
+/// variable-width door." `Auto` reproduces the old behaviour (a STANDARD-size door where a
+/// passable neighbour faces it, else solid), so unconfigured rooms are unchanged.
+fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3]) -> HomesteadMeshes {
+    let rooms = &layout.rooms;
+    let hologram_room = layout.hologram_room.as_deref();
+    let spawn_room = layout.spawn_room.as_deref();
     let wall_thickness = 0.1;
+    let trim_thickness = 0.14; // a touch proud of the wall so trim reads
+    let frame_thickness = 0.08;
 
     let mut floors = Vec::new();
-    let mut all_wall_verts = Vec::new();
-    let mut all_wall_indices = Vec::new();
+    let mut wall_v = Vec::new();
+    let mut wall_i = Vec::new();
+    let mut trim_v = Vec::new();
+    let mut trim_i = Vec::new();
+    let mut win_v = Vec::new();
+    let mut win_i = Vec::new();
+    let mut mir_v = Vec::new();
+    let mut mir_i = Vec::new();
+    let mut ceil_v = Vec::new();
+    let mut ceil_i = Vec::new();
     let mut room_info = Vec::new();
 
-    // Pre-compute dimensions and wall heights for all rooms
+    // Pre-compute dimensions and wall heights for all rooms.
     let room_data: Vec<(Vec3, f32)> = rooms.iter().map(|rc| {
         let dim = Vec3::new(rc.dimensions[0], rc.dimensions[1], rc.dimensions[2]);
-        let wh = if rc.wall_height > 0.0 {
-            rc.wall_height
-        } else {
-            dim.y
-        };
+        let wh = if rc.wall_height > 0.0 { rc.wall_height } else { dim.y };
         (dim, wh)
     }).collect();
 
-    // Pre-compute shared edges for each room: room_shared_edges[i] = all edges for room i
-    let mut room_shared_edges: Vec<Vec<SharedEdge>> = vec![Vec::new(); rooms.len()];
+    // Adjacency: for each room+wall, which neighbour (room j, its wall index) faces it.
+    // This is the oracle for "is there a passable room on the other side of this wall."
+    let mut wall_neighbor: Vec<[Option<(usize, usize)>; 4]> = vec![[None; 4]; rooms.len()];
     for i in 0..rooms.len() {
         let (dim_a, wh_a) = room_data[i];
         if wh_a <= 0.0 { continue; }
         for j in (i + 1)..rooms.len() {
             let (dim_b, wh_b) = room_data[j];
             if wh_b <= 0.0 { continue; }
-            let edges = find_shared_edges(positions[i], dim_a, positions[j], dim_b);
-            for edge in &edges {
-                room_shared_edges[i].push(edge.clone());
-            }
-            // Also compute edges from B's perspective
-            let edges_b = find_shared_edges(positions[j], dim_b, positions[i], dim_a);
-            for edge in &edges_b {
-                room_shared_edges[j].push(edge.clone());
+            for edge in find_shared_edges(positions[i], dim_a, positions[j], dim_b) {
+                wall_neighbor[i][edge.wall_a] = Some((j, edge.wall_b));
+                wall_neighbor[j][edge.wall_b] = Some((i, edge.wall_a));
             }
         }
     }
+
+    // A wall is "passable" (a neighbour may open a door against it) when it is Auto, Door,
+    // or Open. Solid/Window/Mirror block, so a door against them falls back to solid (no
+    // hole-to-nowhere).
+    let passable = |k: WallKind| matches!(k, WallKind::Auto | WallKind::Door | WallKind::Open);
 
     for (i, rc) in rooms.iter().enumerate() {
         let pos = positions[i];
         let (dim, wall_height) = room_data[i];
         if wall_height <= 0.0 {
-            continue; // Skip rooms with zero height (open-air like ranch)
+            continue; // Skip zero-height rooms here (handled below as outdoor floors).
         }
 
         // Floor
@@ -571,16 +834,18 @@ fn build_meshes(
         let color = room_color(&rc.id, Some(rc.color));
         floors.push((verts, indices, color, rc.material_type));
 
-        // Room info
+        let center = pos + Vec3::new(dim.x * 0.5, wall_height * 0.5, dim.z * 0.5);
         room_info.push(RoomInfo {
             id: rc.id.clone(),
-            center: pos + Vec3::new(dim.x * 0.5, wall_height * 0.5, dim.z * 0.5),
+            center,
             dimensions: Vec3::new(dim.x, wall_height, dim.z),
             is_hologram_room: hologram_room == Some(rc.id.as_str()),
             is_spawn_room: spawn_room == Some(rc.id.as_str()),
         });
 
-        // 4 walls with doorway detection
+        // Ceiling (built for every room; only DRAWN when the roof toggle is on).
+        append_mesh(&mut ceil_v, &mut ceil_i, ceiling_quad(pos, dim, pos.y + wall_height));
+
         let x0 = pos.x;
         let z0 = pos.z;
         let x1 = x0 + dim.x;
@@ -594,42 +859,71 @@ fn build_meshes(
             (Vec3::new(x1, y, z0), Vec3::new(x1, y, z1)), // 3: East (max X)
         ];
 
-        for (wall_idx, (start, end)) in walls.iter().enumerate() {
-            let (segments, lintels) = split_wall_for_doorways(
-                *start, *end, wall_idx, &room_shared_edges[i], wall_height,
-            );
+        for (w, (start, end)) in walls.iter().enumerate() {
+            let my = rc.walls.by_index(w);
+            let neighbor_passable = wall_neighbor[i][w]
+                .map_or(false, |(j, wb)| passable(rooms[j].walls.by_index(wb)));
+            // Direction from this wall toward the room centre (for the mirror to face in).
+            let wall_mid = (*start + *end) * 0.5;
+            let inward = Vec3::new(center.x - wall_mid.x, 0.0, center.z - wall_mid.z);
 
-            // Generate wall segments (full height for solid parts)
-            for (seg_start, seg_end) in &segments {
-                let base_idx = all_wall_verts.len() as u32;
-                let (wv, wi) = wall_box(*seg_start, *seg_end, y, wall_height, wall_thickness);
-                all_wall_verts.extend(wv);
-                all_wall_indices.extend(wi.iter().map(|idx| idx + base_idx));
-            }
+            // Does this wall get a full baseboard? Only genuinely solid faces, so the board
+            // doesn't bar a doorway. (Crown runs along every built wall.)
+            let mut full_solid = false;
 
-            // Generate lintels above doorways
-            for (lintel_start, lintel_end, door_h) in &lintels {
-                let lintel_thickness = wall_height - door_h;
-                if lintel_thickness > 0.01 {
-                    let base_idx = all_wall_verts.len() as u32;
-                    let (wv, wi) = wall_box(
-                        *lintel_start, *lintel_end,
-                        y + door_h, lintel_thickness, wall_thickness,
-                    );
-                    all_wall_verts.extend(wv);
-                    all_wall_indices.extend(wi.iter().map(|idx| idx + base_idx));
+            match my {
+                WallKind::Open => {
+                    // No wall, no trim, no crown — a fully open side.
+                    continue;
+                }
+                WallKind::Solid => {
+                    append_mesh(&mut wall_v, &mut wall_i, wall_box(*start, *end, y, wall_height, wall_thickness));
+                    full_solid = true;
+                }
+                WallKind::Mirror => {
+                    append_mesh(&mut wall_v, &mut wall_i, wall_box(*start, *end, y, wall_height, wall_thickness));
+                    append_mesh(&mut mir_v, &mut mir_i,
+                        mirror_panel(*start, *end, y, wall_height, layout.mirror_size, inward));
+                    full_solid = true;
+                }
+                WallKind::Window => {
+                    append_mesh(&mut wall_v, &mut wall_i,
+                        wall_with_opening(*start, *end, y, wall_height, wall_thickness,
+                            layout.window_width, layout.window_height, layout.window_sill));
+                    append_mesh(&mut win_v, &mut win_i,
+                        window_panel(*start, *end, y, layout.window_width, layout.window_height, layout.window_sill));
+                    append_mesh(&mut trim_v, &mut trim_i,
+                        opening_frame(*start, *end, y, layout.window_width, layout.window_height,
+                            layout.window_sill, frame_thickness, trim_thickness));
+                }
+                WallKind::Auto | WallKind::Door => {
+                    if neighbor_passable {
+                        append_mesh(&mut wall_v, &mut wall_i,
+                            wall_with_opening(*start, *end, y, wall_height, wall_thickness,
+                                layout.door_width, layout.door_height, 0.0));
+                        append_mesh(&mut trim_v, &mut trim_i,
+                            opening_frame(*start, *end, y, layout.door_width, layout.door_height,
+                                0.0, frame_thickness, trim_thickness));
+                    } else {
+                        // Door into a solid wall / the void -> render solid (no hole).
+                        append_mesh(&mut wall_v, &mut wall_i, wall_box(*start, *end, y, wall_height, wall_thickness));
+                        full_solid = true;
+                    }
                 }
             }
-        }
 
-        // Ceiling: DISABLED v0.445 (operator) so the sky is visible from inside the home
-        // (also the diagnostic for the showroom black-void: if stars show through the open
-        // roof, the skybox works). Rooms are open-topped for now. The future plan is a
-        // toggleable / transparent roof for atmospheric tests (air transfer + venting), built
-        // with construction mode rather than baked into the wall mesh; see the design doc.
+            // Crown moulding along the top of every built wall.
+            append_mesh(&mut trim_v, &mut trim_i,
+                wall_box(*start, *end, y + wall_height - layout.crown_height, layout.crown_height, trim_thickness));
+            // Baseboard only along full solid faces.
+            if full_solid {
+                append_mesh(&mut trim_v, &mut trim_i,
+                    wall_box(*start, *end, y, layout.baseboard_height, trim_thickness));
+            }
+        }
     }
 
-    // Also generate floor-only for zero-height rooms (outdoor spaces like ranch)
+    // Also generate floor-only for zero-height rooms (outdoor spaces like ranch).
     for (i, rc) in rooms.iter().enumerate() {
         let dim_y = rc.dimensions[1];
         let wh = rc.wall_height;
@@ -652,7 +946,11 @@ fn build_meshes(
 
     HomesteadMeshes {
         floors,
-        walls: (all_wall_verts, all_wall_indices),
+        walls: (wall_v, wall_i),
+        trim: (trim_v, trim_i),
+        windows: (win_v, win_i),
+        mirrors: (mir_v, mir_i),
+        ceilings: (ceil_v, ceil_i),
         room_info,
     }
 }
@@ -716,12 +1014,7 @@ pub fn generate_from_layout(layout: &HomesteadLayout) -> HomesteadMeshes {
             rc.id, p.x, p.y, p.z, rc.dimensions[0], rc.dimensions[1], rc.dimensions[2]);
     }
 
-    build_meshes(
-        &layout.rooms,
-        &positions,
-        layout.hologram_room.as_deref(),
-        layout.spawn_room.as_deref(),
-    )
+    build_meshes(layout, &positions)
 }
 
 // ---------------------------------------------------------------------------
@@ -745,6 +1038,16 @@ fn generate_fallback() -> HomesteadMeshes {
             room_cfg("study",     [21.0, 5.0, 21.0], 1, [0.4, 0.4, 0.45, 1.0]),
             room_cfg("garden",    [34.0, 6.0, 34.0], 2, [0.2, 0.45, 0.2, 1.0]),
         ],
+        // Construction-mode standard dimensions (the RON sets these; the fallback uses the
+        // same defaults so it matches a fresh data load).
+        door_width: default_door_w(),
+        door_height: default_door_h(),
+        window_width: default_window_w(),
+        window_height: default_window_h(),
+        window_sill: default_window_sill(),
+        baseboard_height: default_trim_h(),
+        crown_height: default_trim_h(),
+        mirror_size: default_mirror(),
     };
     generate_from_layout(&layout)
 }
@@ -757,5 +1060,70 @@ fn room_cfg(id: &str, dims: [f32; 3], material: u32, color: [f32; 4]) -> RoomCon
         material_type: material,
         color,
         wall_height: 0.0, // use dimensions.y
+        walls: WallSet::default(), // all Auto (today's auto-door behaviour)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The shipped RON must parse with the v0.453 construction-mode fields, and the special
+    /// rooms must carry the per-wall kinds the operator asked for. If this breaks, the game
+    /// silently falls back to the hardcoded layout and the mirror/windows/no-walls vanish.
+    #[test]
+    fn shipped_ron_parses_with_construction_walls() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let layout = load_homestead_layout(&dir).expect("homestead_layout.ron must parse");
+
+        // Standard dimensions present (one source of truth for door/window/trim sizes).
+        assert!((layout.door_width - 0.9).abs() < 1e-6, "door_width from RON");
+        assert!(layout.mirror_size > 0.0 && layout.window_width > 0.0);
+
+        let find = |id: &str| layout.rooms.iter().find(|r| r.id == id)
+            .unwrap_or_else(|| panic!("room {id} present"));
+
+        // Respawner: all four walls open (a doorless, wall-less alcove).
+        let r = find("respawner");
+        for i in 0..4 { assert_eq!(r.walls.by_index(i), WallKind::Open, "respawner wall {i} open"); }
+
+        // Wetroom: a mirror/portal on the east wall (index 3).
+        assert_eq!(find("wetroom").walls.east, WallKind::Mirror, "wetroom east = Mirror");
+
+        // Bedroom: bay windows on north + east.
+        let b = find("bedroom");
+        assert_eq!(b.walls.north, WallKind::Window, "bedroom north = Window");
+        assert_eq!(b.walls.east, WallKind::Window, "bedroom east = Window");
+
+        // 1x1 closets: fully solid (no doors).
+        for id in ["computer", "network"] {
+            let c = find(id);
+            for i in 0..4 { assert_eq!(c.walls.by_index(i), WallKind::Solid, "{id} wall {i} solid"); }
+        }
+    }
+
+    /// Generating from the shipped layout must produce every construction-mode mesh family,
+    /// proving the special walls actually emit geometry (mirror, windows, trim, ceiling).
+    #[test]
+    fn generation_emits_construction_meshes() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let layout = load_homestead_layout(&dir).expect("layout parses");
+        let m = generate_from_layout(&layout);
+        assert!(!m.walls.0.is_empty(), "walls generated");
+        assert!(!m.trim.0.is_empty(), "trim (baseboards/crown/frames) generated");
+        assert!(!m.windows.0.is_empty(), "bedroom windows generated");
+        assert!(!m.mirrors.0.is_empty(), "wetroom mirror generated");
+        assert!(!m.ceilings.0.is_empty(), "ceilings generated (for the roof toggle)");
+        assert!(!m.room_info.is_empty(), "room info present");
+    }
+
+    /// A room that omits `walls` defaults to all-`Auto`, i.e. today's behaviour: zero
+    /// regression for unconfigured rooms.
+    #[test]
+    fn omitted_walls_default_to_auto() {
+        let rc: RoomConfig = ron::from_str(
+            r#"(id: "x", dimensions: (4.0, 3.0, 4.0), material_type: 0, color: (1.0,1.0,1.0,1.0))"#,
+        ).expect("minimal RoomConfig parses");
+        for i in 0..4 { assert_eq!(rc.walls.by_index(i), WallKind::Auto); }
     }
 }

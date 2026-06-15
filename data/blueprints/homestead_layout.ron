@@ -12,41 +12,66 @@ HomesteadLayout(
     // Spawn in the respawn chamber (where the body wakes / character-select anchor, v0.439).
     spawn_room: Some("respawner"),
 
+    // ── Construction-mode standard dimensions (v0.453) ──
+    // ONE source of truth for every door/window/trim/mirror size, so a door is the SAME
+    // everywhere (fixes the old "doors vary per room" look). Tune here, no recompile.
+    door_width: 0.9,
+    door_height: 2.1,
+    window_width: 1.4,
+    window_height: 1.3,
+    window_sill: 0.9,
+    baseboard_height: 0.12,
+    crown_height: 0.12,
+    mirror_size: 3.0,
+
+    // Per-wall config (v0.453): each wall is Auto | Solid | Door | Window | Open | Mirror.
+    // Wall order is north (min Z), south (max Z), west (min X), east (max X). Omit `walls`
+    // (or a single side) to get Auto = a standard door where a passable room is adjacent,
+    // else solid. Only the rooms with special walls set them; everything else stays Auto.
     rooms: [
-        // F1 (1x1): Computer - personal workstation
+        // F1 (1x1): Computer - personal workstation. Sealed equipment closet: no doors.
         RoomConfig(
             id: "computer",
             dimensions: (1.0, 3.0, 1.0),
             material_type: 1,
             color: (0.3, 0.4, 0.5, 1.0),
+            walls: (north: Solid, south: Solid, west: Solid, east: Solid),
         ),
-        // F1 (1x1): Network Hub - communications
+        // F1 (1x1): Network Hub - communications. Sealed equipment closet: no doors.
         RoomConfig(
             id: "network",
             dimensions: (1.0, 3.0, 1.0),
             material_type: 1,
             color: (0.25, 0.35, 0.5, 1.0),
+            walls: (north: Solid, south: Solid, west: Solid, east: Solid),
         ),
-        // F2 (2x2): Respawner / Medbay
+        // F2 (2x2): Respawner / character-select portal. No walls: an open alcove you
+        // emerge into (the body wakes here). (operator)
         RoomConfig(
             id: "respawner",
             dimensions: (2.0, 3.0, 2.0),
             material_type: 2,
             color: (0.5, 0.55, 0.65, 1.0),
+            walls: (north: Open, south: Open, west: Open, east: Open),
         ),
-        // F3 (3x3): Wetroom - shower, laundry
+        // F3 (3x3): Wetroom - shower, laundry. A 3x3 mirror/portal on the east wall (the
+        // respawner side). If it lands on the wrong wall after a visual check, move `Mirror`
+        // to the correct side here -- data-driven, no recompile.
         RoomConfig(
             id: "wetroom",
             dimensions: (3.0, 3.0, 3.0),
             material_type: 2,
             color: (0.45, 0.5, 0.55, 1.0),
+            walls: (east: Mirror),
         ),
-        // F5 (5x5): Bedroom
+        // F5 (5x5): Bedroom. Bay windows on the north + east walls (looking toward the
+        // study + garden). Swap the window sides here if the orientation differs in-app.
         RoomConfig(
             id: "bedroom",
             dimensions: (5.0, 3.0, 5.0),
             material_type: 3,
             color: (0.5, 0.4, 0.3, 1.0),
+            walls: (north: Window, east: Window),
         ),
         // F8 (8x8): Kitchen (hologram + spawn room)
         RoomConfig(
