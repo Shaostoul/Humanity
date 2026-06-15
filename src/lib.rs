@@ -470,9 +470,10 @@ mod native_app {
         state.homestead_windows = None;
         if !homestead.windows.0.is_empty() {
             let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.windows.0, &homestead.windows.1));
-            // Clear glass: low alpha (base_color.a is the opacity) so you see through it. Rendered
-            // through the transparent pass. (v0.456)
-            let ma = state.renderer.add_material_full([0.62, 0.80, 0.95, 0.28], 0.0, 0.05, 1.0, 0.0);
+            // Tinted glass: alpha 0.45 (base_color.a is the opacity) reads clearly AS glass
+            // while still seeing through, + a faint emissive so a pane catches the eye even in
+            // a dim room. Rendered through the transparent pass. (v0.456, tuned v0.457)
+            let ma = state.renderer.add_material_full([0.50, 0.74, 0.92, 0.45], 0.0, 0.08, 1.0, 0.12);
             state.homestead_windows = Some((mi, ma));
         }
         state.homestead_mirrors = None;

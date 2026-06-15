@@ -1,0 +1,17 @@
+// Trim cross-section profiles (v0.457). Each is a CLOSED 2D polygon in (out, up) metres:
+//   out = how far the trim protrudes from the wall INTO the room
+//   up  = its extent along the run's secondary axis (height for baseboard, drop for crown,
+//         width for casing)
+// The engine SWEEPS (extrudes) the profile along each trim run -- baseboards along the floor,
+// crown along the ceiling, casing around door/window openings. Edit these points (or, later,
+// the in-app node editor) to reshape every piece of that trim at once. This is the
+// "draw the molding silhouette, then extrude it" system. Keep each polygon's winding
+// consistent (listed counter-clockwise from the wall corner). Missing file => built-in defaults.
+TrimProfiles(
+    // Baseboard: 4 cm deep at the floor, 11.5 cm tall, with a small top bevel.
+    baseboard: [(0.0, 0.0), (0.04, 0.0), (0.04, 0.09), (0.02, 0.115), (0.0, 0.115)],
+    // Crown: a cove triangle from the ceiling line out into the room and down the wall.
+    crown: [(0.0, 0.0), (0.08, 0.0), (0.0, 0.12)],
+    // Casing: a flat door/window surround board, 2 cm proud, 6 cm wide.
+    casing: [(0.0, 0.0), (0.02, 0.0), (0.02, 0.06), (0.0, 0.06)],
+)

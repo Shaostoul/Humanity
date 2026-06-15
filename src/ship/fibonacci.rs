@@ -167,6 +167,47 @@ fn default_window_sill() -> f32 { 0.9 }
 fn default_trim_h() -> f32 { 0.12 }
 fn default_mirror() -> f32 { 3.0 }
 
+/// Trim cross-section profiles (v0.457): the SVG-style "draw the molding silhouette, then
+/// extrude it" system. Each profile is a CLOSED 2D polygon in (out, up) metres -- `out` =
+/// how far it protrudes from the wall into the room, `up` = its extent along the run's
+/// secondary axis (height for a baseboard, drop for a crown, width for a casing). Swept along
+/// each trim run by `sweep_profile`. Edit the points (here or, later, an in-app node editor)
+/// to reshape ALL trim of that kind at once. Loaded from data/blueprints/trim_profiles.ron.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TrimProfiles {
+    pub baseboard: Vec<(f32, f32)>,
+    pub crown: Vec<(f32, f32)>,
+    pub casing: Vec<(f32, f32)>,
+}
+
+impl Default for TrimProfiles {
+    fn default() -> Self {
+        Self {
+            // A baseboard: 4 cm deep, 11 cm tall, with a small top bevel.
+            baseboard: vec![(0.0, 0.0), (0.04, 0.0), (0.04, 0.09), (0.02, 0.115), (0.0, 0.115)],
+            // A crown cove: a triangle from the ceiling line into the room + down the wall.
+            crown: vec![(0.0, 0.0), (0.08, 0.0), (0.0, 0.12)],
+            // A casing board: 2 cm proud, 6 cm wide (a flat door/window surround).
+            casing: vec![(0.0, 0.0), (0.02, 0.0), (0.02, 0.06), (0.0, 0.06)],
+        }
+    }
+}
+
+/// The "up" extent (width) of the casing profile, used to extend the header/sill runs past
+/// the jambs so the surround meets at the corners.
+fn casing_width(p: &TrimProfiles) -> f32 {
+    p.casing.iter().map(|(_, u)| *u).fold(0.0_f32, f32::max).max(0.02)
+}
+
+/// Load the trim profiles from data, or the built-in defaults. (v0.457)
+pub fn load_trim_profiles() -> TrimProfiles {
+    let path = data_dir().join("blueprints").join("trim_profiles.ron");
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|t| ron::from_str::<TrimProfiles>(&t).ok())
+        .unwrap_or_default()
+}
+
 /// Metadata about a generated room, exposed for gameplay features.
 #[derive(Debug, Clone)]
 pub struct RoomInfo {
@@ -566,10 +607,77 @@ fn ceiling_quad(pos: Vec3, dim: Vec3, y: f32) -> (Vec<Vertex>, Vec<u32>) {
     (verts, indices)
 }
 
+/// Extrude a 2D cross-section `profile` (a closed polygon in (out, up) metres) along the run
+/// a -> b, producing a swept solid. `out_dir` = the protrusion direction (away from the wall,
+/// into the room); `up_dir` = the profile's secondary axis. This is the SVG-style trim sweep
+/// (v0.457): the same function builds baseboards, crown, and casing -- only the profile + the
+/// run differ. Double-sided so thin trim reads from any angle; end caps are omitted (runs
+/// butt against walls / each other).
+fn sweep_profile(profile: &[(f32, f32)], a: Vec3, b: Vec3, out_dir: Vec3, up_dir: Vec3) -> (Vec<Vertex>, Vec<u32>) {
+    let n = profile.len();
+    let mut v = Vec::new();
+    let mut idx = Vec::new();
+    if n < 2 || (b - a).length() < 0.001 {
+        return (v, idx);
+    }
+    let run = (b - a).normalize();
+    let pt = |base: Vec3, p: (f32, f32)| base + out_dir * p.0 + up_dir * p.1;
+    for i in 0..n {
+        let j = (i + 1) % n;
+        let pa0 = pt(a, profile[i]);
+        let pa1 = pt(a, profile[j]);
+        let pb0 = pt(b, profile[i]);
+        let pb1 = pt(b, profile[j]);
+        let edge = pa1 - pa0;
+        let raw = run.cross(edge);
+        let nrm = if raw.length_squared() > 1e-9 { raw.normalize() } else { out_dir.normalize_or_zero() };
+        let nrm3 = [nrm.x, nrm.y, nrm.z];
+        let base = v.len() as u32;
+        v.push(Vertex { position: pa0.to_array(), normal: nrm3, uv: [0.0, 0.0] });
+        v.push(Vertex { position: pa1.to_array(), normal: nrm3, uv: [1.0, 0.0] });
+        v.push(Vertex { position: pb1.to_array(), normal: nrm3, uv: [1.0, 1.0] });
+        v.push(Vertex { position: pb0.to_array(), normal: nrm3, uv: [0.0, 1.0] });
+        idx.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+        idx.extend([base, base + 2, base + 1, base, base + 3, base + 2]); // back side
+    }
+    (v, idx)
+}
+
+/// Wood casing swept around an opening: left + right JAMBS (the vertical sides) + a header,
+/// plus a sill for windows -- each a `casing` profile swept along that edge. Replaces the old
+/// header-only frame so doors + windows get a full surround. (v0.457)
+fn opening_casing(
+    start: Vec3, norm: Vec3, inward: Vec3, y: f32, center_t: f32,
+    open_w: f32, open_h: f32, sill: f32, casing: &[(f32, f32)], casing_w: f32,
+) -> (Vec<Vertex>, Vec<u32>) {
+    let mut v = Vec::new();
+    let mut idx = Vec::new();
+    let inward = inward.normalize_or_zero();
+    let half = open_w * 0.5;
+    let left = center_t - half;
+    let right = center_t + half;
+    let bottom = y + sill;
+    let top = y + sill + open_h;
+    let wp = |t: f32, yy: f32| start + norm * t + Vec3::new(0.0, yy, 0.0);
+    let mut add = |piece: (Vec<Vertex>, Vec<u32>)| append_mesh(&mut v, &mut idx, piece);
+    // Left jamb: width extends LEFT (-norm) from the opening edge.
+    add(sweep_profile(casing, wp(left, bottom), wp(left, top), inward, -norm));
+    // Right jamb: width extends RIGHT (+norm).
+    add(sweep_profile(casing, wp(right, bottom), wp(right, top), inward, norm));
+    // Header: spans a casing-width past each jamb so the corners meet; width extends UP.
+    add(sweep_profile(casing, wp(left - casing_w, top), wp(right + casing_w, top), inward, Vec3::Y));
+    // Sill (windows only): width extends DOWN.
+    if sill > 0.01 {
+        add(sweep_profile(casing, wp(left - casing_w, bottom), wp(right + casing_w, bottom), inward, -Vec3::Y));
+    }
+    (v, idx)
+}
+
 /// Wood trim framing an opening: a header just above it and (for windows) a sill board
 /// just below, each a thin trim box spanning the opening width, centred at `center_t` along
 /// the wall (from `start`, direction `norm`). The vertical sides are the wall jambs. Goes in
-/// the trim mesh. (v0.453, positioned v0.454)
+/// the trim mesh. (v0.453, positioned v0.454; superseded by opening_casing v0.457)
+#[allow(dead_code)]
 fn opening_frame(
     start: Vec3, norm: Vec3, len: f32, y_base: f32, center_t: f32, open_w: f32, open_h: f32, sill: f32,
     frame_thickness: f32, trim_thickness: f32,
@@ -805,13 +913,12 @@ fn split_wall_for_doorways(
 /// (Auto/Solid/Door/Window/Open/Mirror) instead of the old "every shared wall auto-gets a
 /// variable-width door." `Auto` reproduces the old behaviour (a STANDARD-size door where a
 /// passable neighbour faces it, else solid), so unconfigured rooms are unchanged.
-fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3]) -> HomesteadMeshes {
+fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimProfiles) -> HomesteadMeshes {
     let rooms = &layout.rooms;
     let hologram_room = layout.hologram_room.as_deref();
     let spawn_room = layout.spawn_room.as_deref();
     let wall_thickness = 0.1;
-    let trim_thickness = 0.14; // a touch proud of the wall so trim reads
-    let frame_thickness = 0.08;
+    let casing_w = casing_width(profiles); // header/sill overrun so corners meet
 
     let mut floors = Vec::new();
     let mut wall_v = Vec::new();
@@ -948,24 +1055,27 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3]) -> HomesteadMeshes
             append_mesh(&mut wall_v, &mut wall_i,
                 wall_with_openings(*start, *end, y, wall_height, wall_thickness, &openings));
 
-            // Glass panes (windows) + wood frames for each opening.
+            // Glass panes (windows) + wood casing swept around each opening (full surround
+            // incl. the vertical jambs, from the casing profile). (v0.457)
+            let inward_n = inward.normalize_or_zero();
             for (center_t, ow, oh, sill) in &openings {
                 if is_window {
                     append_mesh(&mut win_v, &mut win_i,
                         window_panel(*start, norm, y, *center_t, *ow, *oh, *sill));
                 }
                 append_mesh(&mut trim_v, &mut trim_i,
-                    opening_frame(*start, norm, len, y, *center_t, *ow, *oh, *sill, frame_thickness, trim_thickness));
+                    opening_casing(*start, norm, inward, y, *center_t, *ow, *oh, *sill, &profiles.casing, casing_w));
             }
 
-            // Crown moulding along the top of every built wall.
+            // Crown moulding swept along the top of every built wall (profile -> extrude).
             append_mesh(&mut trim_v, &mut trim_i,
-                wall_box(*start, *end, y + wall_height - layout.crown_height, layout.crown_height, trim_thickness));
+                sweep_profile(&profiles.crown,
+                    *start + Vec3::new(0.0, wall_height, 0.0),
+                    *end + Vec3::new(0.0, wall_height, 0.0),
+                    inward_n, -Vec3::Y));
 
-            // Baseboard along the floor of EVERY built wall, broken only at DOOR openings
-            // (doors reach the floor; windows have wall below them, so the board runs under a
-            // window). v0.456 -- previously baseboard was skipped on any wall with an opening,
-            // so doorway + window walls had no floor trim.
+            // Baseboard swept along the floor of EVERY built wall, broken only at DOOR openings
+            // (doors reach the floor; the board runs continuously under a window). v0.456/457.
             let mut door_spans: Vec<(f32, f32)> = openings
                 .iter()
                 .filter(|(_, _, _, sill)| *sill < 0.01)
@@ -980,13 +1090,13 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3]) -> HomesteadMeshes
                 let t0 = t0.max(cursor);
                 if t0 - cursor > 0.05 {
                     append_mesh(&mut trim_v, &mut trim_i,
-                        wall_box(*start + norm * cursor, *start + norm * t0, y, layout.baseboard_height, trim_thickness));
+                        sweep_profile(&profiles.baseboard, *start + norm * cursor, *start + norm * t0, inward_n, Vec3::Y));
                 }
                 cursor = t1.max(cursor);
             }
             if len - cursor > 0.05 {
                 append_mesh(&mut trim_v, &mut trim_i,
-                    wall_box(*start + norm * cursor, *end, y, layout.baseboard_height, trim_thickness));
+                    sweep_profile(&profiles.baseboard, *start + norm * cursor, *end, inward_n, Vec3::Y));
             }
         }
     }
@@ -1107,7 +1217,7 @@ pub fn generate_from_layout(layout: &HomesteadLayout) -> HomesteadMeshes {
             rc.id, p.x, p.y, p.z, rc.dimensions[0], rc.dimensions[1], rc.dimensions[2]);
     }
 
-    build_meshes(layout, &positions)
+    build_meshes(layout, &positions, &load_trim_profiles())
 }
 
 // ---------------------------------------------------------------------------
@@ -1231,6 +1341,21 @@ mod tests {
         let r = back.rooms.iter().find(|r| r.id == "respawner").expect("respawner");
         assert_eq!(r.walls.north, WallKind::Open);
         assert!((back.default_wall_height - layout.default_wall_height).abs() < 1e-6);
+    }
+
+    /// The shipped trim profiles parse, and a sweep produces geometry (the SVG-style profile
+    /// trim system). A missing/garbled file must fall back to the built-in defaults.
+    #[test]
+    fn trim_profiles_parse_and_sweep() {
+        // Defaults are always non-empty closed polygons.
+        let d = TrimProfiles::default();
+        assert!(d.baseboard.len() >= 3 && d.crown.len() >= 3 && d.casing.len() >= 3);
+        assert!(casing_width(&d) > 0.0);
+        // Sweeping a profile along a 1 m run yields geometry.
+        let (v, idx) = sweep_profile(&d.baseboard, Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0), Vec3::Z, Vec3::Y);
+        assert!(!v.is_empty() && !idx.is_empty(), "sweep produces a mesh");
+        // The shipped RON, if present, parses (load_trim_profiles never panics).
+        let _ = load_trim_profiles();
     }
 
     /// A room that omits `walls` defaults to all-`Auto`, i.e. today's behaviour: zero
