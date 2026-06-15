@@ -130,6 +130,11 @@ pub struct HomesteadLayout {
     pub crown_height: f32,
     #[serde(default = "default_mirror")]
     pub mirror_size: f32,
+    /// If > 0, every enclosed room uses this UNIFORM ceiling height unless it sets its own
+    /// `wall_height` (so "all rooms N m tall" is one RON line). 0 = use each room's
+    /// `dimensions.y`. (v0.454)
+    #[serde(default)]
+    pub default_wall_height: f32,
 }
 
 fn default_door_w() -> f32 { 0.9 }
@@ -410,14 +415,16 @@ fn append_mesh(dst_v: &mut Vec<Vertex>, dst_i: &mut Vec<u32>, piece: (Vec<Vertex
     dst_i.extend(piece.1.iter().map(|i| i + base));
 }
 
-/// A wall span with a centred rectangular opening (door or window): emits the solid wall
-/// AROUND the opening — a left jamb + right jamb (full height), a lintel above, and (for
-/// windows, `sill > 0`) an apron below. `open_w`/`open_h` are the opening size; `sill` is
-/// the height of the opening's bottom off the floor (0 for a door). Same coordinate
-/// convention as `wall_box`. Returns the combined (verts, indices). (v0.453)
-fn wall_with_opening(
+/// A wall span with zero or more rectangular openings (doors/windows). Each opening is
+/// `(center_t, width, height, sill)` where `center_t` is the distance from `start` ALONG
+/// the wall where the opening centres -- so a door lands on the ACTUAL shared edge with the
+/// neighbouring room, not the middle of the wall (the v0.453 bug that walled off real
+/// connections and scattered the frames). `sill` is the opening's bottom off the floor (0 =
+/// door). Emits the solid wall around every opening: full-height spans between openings, an
+/// apron under each (sill>0), a lintel over each. Same convention as `wall_box`. (v0.454)
+fn wall_with_openings(
     start: Vec3, end: Vec3, y_base: f32, wall_height: f32, thickness: f32,
-    open_w: f32, open_h: f32, sill: f32,
+    openings: &[(f32, f32, f32, f32)],
 ) -> (Vec<Vertex>, Vec<u32>) {
     let mut v = Vec::new();
     let mut idx = Vec::new();
@@ -427,48 +434,54 @@ fn wall_with_opening(
         return (v, idx);
     }
     let norm = dir / len;
-    let half = (open_w * 0.5).min(len * 0.45);
-    let center = len * 0.5;
-    let l_edge = (center - half).max(0.0);
-    let r_edge = (center + half).min(len);
-    let p_l = start + norm * l_edge;
-    let p_r = start + norm * r_edge;
-    let top = (sill + open_h).min(wall_height);
-
-    // Left jamb (full height).
-    if l_edge > 0.01 {
-        append_mesh(&mut v, &mut idx, wall_box(start, p_l, y_base, wall_height, thickness));
+    if openings.is_empty() {
+        return wall_box(start, end, y_base, wall_height, thickness);
     }
-    // Right jamb (full height).
-    if len - r_edge > 0.01 {
-        append_mesh(&mut v, &mut idx, wall_box(p_r, end, y_base, wall_height, thickness));
+    // Resolve each opening to a horizontal [t0, t1] span (clamped) + vertical [sill, top].
+    let mut spans: Vec<(f32, f32, f32, f32)> = Vec::new(); // (t0, t1, sill, top)
+    for &(center_t, w, h, sill) in openings {
+        let half = (w * 0.5).min(len * 0.45);
+        let t0 = (center_t - half).clamp(0.0, len);
+        let t1 = (center_t + half).clamp(0.0, len);
+        if t1 - t0 > 0.05 {
+            spans.push((t0, t1, sill, (sill + h).min(wall_height)));
+        }
     }
-    // Apron below the opening (windows only; sill > 0).
-    if sill > 0.01 {
-        append_mesh(&mut v, &mut idx, wall_box(p_l, p_r, y_base, sill, thickness));
+    spans.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    let mut cursor = 0.0_f32;
+    for (t0, t1, sill, top) in &spans {
+        let t0 = t0.max(cursor);
+        let t1 = t1.max(t0);
+        // Full-height solid wall before this opening.
+        if t0 - cursor > 0.02 {
+            append_mesh(&mut v, &mut idx, wall_box(start + norm * cursor, start + norm * t0, y_base, wall_height, thickness));
+        }
+        let pa = start + norm * t0;
+        let pb = start + norm * t1;
+        // Apron below (windows only).
+        if *sill > 0.01 {
+            append_mesh(&mut v, &mut idx, wall_box(pa, pb, y_base, *sill, thickness));
+        }
+        // Lintel above.
+        if wall_height - *top > 0.01 {
+            append_mesh(&mut v, &mut idx, wall_box(pa, pb, y_base + *top, wall_height - *top, thickness));
+        }
+        cursor = t1;
     }
-    // Lintel above the opening.
-    if wall_height - top > 0.01 {
-        append_mesh(&mut v, &mut idx, wall_box(p_l, p_r, y_base + top, wall_height - top, thickness));
+    // Full-height solid wall after the last opening.
+    if len - cursor > 0.02 {
+        append_mesh(&mut v, &mut idx, wall_box(start + norm * cursor, end, y_base, wall_height, thickness));
     }
     (v, idx)
 }
 
 /// A glass pane filling a window opening: a thin double-sided quad in the wall plane,
-/// centred on the span, sized `open_w` x `open_h` at `sill` height. Goes in the
-/// (tinted-glass) windows mesh so it reads as a window even before a real alpha-blend
-/// pass exists. (v0.453)
-fn window_panel(start: Vec3, end: Vec3, y_base: f32, open_w: f32, open_h: f32, sill: f32) -> (Vec<Vertex>, Vec<u32>) {
-    let dir = end - start;
-    let len = dir.length();
-    if len < 0.01 {
-        return (vec![], vec![]);
-    }
-    let norm = dir / len;
-    let half = (open_w * 0.5).min(len * 0.45);
-    let center = len * 0.5;
-    let p_l = start + norm * (center - half);
-    let p_r = start + norm * (center + half);
+/// centred at `center_t` along the wall (from `start`, direction `norm`), sized
+/// `open_w` x `open_h` at `sill` height. Tinted-glass mesh. (v0.453, positioned v0.454)
+fn window_panel(start: Vec3, norm: Vec3, y_base: f32, center_t: f32, open_w: f32, open_h: f32, sill: f32) -> (Vec<Vertex>, Vec<u32>) {
+    let half = open_w * 0.5;
+    let p_l = start + norm * (center_t - half);
+    let p_r = start + norm * (center_t + half);
     let perp = Vec3::new(-norm.z, 0.0, norm.x); // wall-facing normal
     let y0 = y_base + sill;
     let y1 = y_base + sill + open_h;
@@ -532,24 +545,21 @@ fn ceiling_quad(pos: Vec3, dim: Vec3, y: f32) -> (Vec<Vertex>, Vec<u32>) {
 }
 
 /// Wood trim framing an opening: a header just above it and (for windows) a sill board
-/// just below, each a thin trim box spanning the opening width. The vertical sides are
-/// the wall jambs. Goes in the trim mesh. (v0.453)
+/// just below, each a thin trim box spanning the opening width, centred at `center_t` along
+/// the wall (from `start`, direction `norm`). The vertical sides are the wall jambs. Goes in
+/// the trim mesh. (v0.453, positioned v0.454)
 fn opening_frame(
-    start: Vec3, end: Vec3, y_base: f32, open_w: f32, open_h: f32, sill: f32,
+    start: Vec3, norm: Vec3, len: f32, y_base: f32, center_t: f32, open_w: f32, open_h: f32, sill: f32,
     frame_thickness: f32, trim_thickness: f32,
 ) -> (Vec<Vertex>, Vec<u32>) {
     let mut v = Vec::new();
     let mut idx = Vec::new();
-    let dir = end - start;
-    let len = dir.length();
     if len < 0.01 {
         return (v, idx);
     }
-    let norm = dir / len;
     let half = (open_w * 0.5).min(len * 0.45);
-    let center = len * 0.5;
-    let p_l = start + norm * (center - half);
-    let p_r = start + norm * (center + half);
+    let p_l = start + norm * (center_t - half);
+    let p_r = start + norm * (center_t + half);
     // Header just above the opening.
     append_mesh(&mut v, &mut idx, wall_box(p_l, p_r, y_base + sill + open_h, frame_thickness, trim_thickness));
     // Sill board (windows only).
@@ -794,16 +804,27 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3]) -> HomesteadMeshes
     let mut ceil_i = Vec::new();
     let mut room_info = Vec::new();
 
-    // Pre-compute dimensions and wall heights for all rooms.
+    // Pre-compute dimensions and wall heights for all rooms. A non-zero `default_wall_height`
+    // on the layout gives every ENCLOSED room a UNIFORM ceiling height unless it sets its own
+    // `wall_height` -- so "all rooms 9 m tall" is one RON line, not a per-room edit. (v0.454)
     let room_data: Vec<(Vec3, f32)> = rooms.iter().map(|rc| {
         let dim = Vec3::new(rc.dimensions[0], rc.dimensions[1], rc.dimensions[2]);
-        let wh = if rc.wall_height > 0.0 { rc.wall_height } else { dim.y };
+        let wh = if rc.wall_height > 0.0 {
+            rc.wall_height
+        } else if layout.default_wall_height > 0.0 && dim.y > 0.0 {
+            layout.default_wall_height
+        } else {
+            dim.y
+        };
         (dim, wh)
     }).collect();
 
-    // Adjacency: for each room+wall, which neighbour (room j, its wall index) faces it.
-    // This is the oracle for "is there a passable room on the other side of this wall."
-    let mut wall_neighbor: Vec<[Option<(usize, usize)>; 4]> = vec![[None; 4]; rooms.len()];
+    // Adjacency: for each room+wall (0..4), the LIST of (neighbour_room, neighbour_wall,
+    // overlap_start, overlap_end). A wall can border several rooms, so this is a list -- the
+    // v0.453 single-neighbour map both dropped extra doors AND lost the overlap segment, which
+    // is why doors landed at the wall centre instead of the shared edge. (v0.454)
+    let mut wall_edges: Vec<[Vec<(usize, usize, Vec3, Vec3)>; 4]> =
+        (0..rooms.len()).map(|_| [Vec::new(), Vec::new(), Vec::new(), Vec::new()]).collect();
     for i in 0..rooms.len() {
         let (dim_a, wh_a) = room_data[i];
         if wh_a <= 0.0 { continue; }
@@ -811,8 +832,8 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3]) -> HomesteadMeshes
             let (dim_b, wh_b) = room_data[j];
             if wh_b <= 0.0 { continue; }
             for edge in find_shared_edges(positions[i], dim_a, positions[j], dim_b) {
-                wall_neighbor[i][edge.wall_a] = Some((j, edge.wall_b));
-                wall_neighbor[j][edge.wall_b] = Some((i, edge.wall_a));
+                wall_edges[i][edge.wall_a].push((j, edge.wall_b, edge.start, edge.end));
+                wall_edges[j][edge.wall_b].push((i, edge.wall_a, edge.start, edge.end));
             }
         }
     }
@@ -861,62 +882,65 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3]) -> HomesteadMeshes
 
         for (w, (start, end)) in walls.iter().enumerate() {
             let my = rc.walls.by_index(w);
-            let neighbor_passable = wall_neighbor[i][w]
-                .map_or(false, |(j, wb)| passable(rooms[j].walls.by_index(wb)));
+            if my == WallKind::Open {
+                continue; // No wall, no trim, no crown -- a fully open side.
+            }
+            let dir = *end - *start;
+            let len = dir.length();
+            let norm = if len > 0.01 { dir / len } else { Vec3::ZERO };
             // Direction from this wall toward the room centre (for the mirror to face in).
             let wall_mid = (*start + *end) * 0.5;
             let inward = Vec3::new(center.x - wall_mid.x, 0.0, center.z - wall_mid.z);
 
-            // Does this wall get a full baseboard? Only genuinely solid faces, so the board
-            // doesn't bar a doorway. (Crown runs along every built wall.)
-            let mut full_solid = false;
+            // Collect the openings to cut: (center_t along the wall, width, height, sill).
+            let mut openings: Vec<(f32, f32, f32, f32)> = Vec::new();
+            let mut is_window = false;
 
             match my {
-                WallKind::Open => {
-                    // No wall, no trim, no crown — a fully open side.
-                    continue;
-                }
-                WallKind::Solid => {
-                    append_mesh(&mut wall_v, &mut wall_i, wall_box(*start, *end, y, wall_height, wall_thickness));
-                    full_solid = true;
-                }
-                WallKind::Mirror => {
-                    append_mesh(&mut wall_v, &mut wall_i, wall_box(*start, *end, y, wall_height, wall_thickness));
-                    append_mesh(&mut mir_v, &mut mir_i,
-                        mirror_panel(*start, *end, y, wall_height, layout.mirror_size, inward));
-                    full_solid = true;
-                }
-                WallKind::Window => {
-                    append_mesh(&mut wall_v, &mut wall_i,
-                        wall_with_opening(*start, *end, y, wall_height, wall_thickness,
-                            layout.window_width, layout.window_height, layout.window_sill));
-                    append_mesh(&mut win_v, &mut win_i,
-                        window_panel(*start, *end, y, layout.window_width, layout.window_height, layout.window_sill));
-                    append_mesh(&mut trim_v, &mut trim_i,
-                        opening_frame(*start, *end, y, layout.window_width, layout.window_height,
-                            layout.window_sill, frame_thickness, trim_thickness));
-                }
                 WallKind::Auto | WallKind::Door => {
-                    if neighbor_passable {
-                        append_mesh(&mut wall_v, &mut wall_i,
-                            wall_with_opening(*start, *end, y, wall_height, wall_thickness,
-                                layout.door_width, layout.door_height, 0.0));
-                        append_mesh(&mut trim_v, &mut trim_i,
-                            opening_frame(*start, *end, y, layout.door_width, layout.door_height,
-                                0.0, frame_thickness, trim_thickness));
-                    } else {
-                        // Door into a solid wall / the void -> render solid (no hole).
-                        append_mesh(&mut wall_v, &mut wall_i, wall_box(*start, *end, y, wall_height, wall_thickness));
-                        full_solid = true;
+                    // A door at EACH shared edge whose neighbour is passable, centred on the
+                    // ACTUAL overlap with that room (not the wall middle). This restores
+                    // navigability + can put multiple doors in one long wall.
+                    for (nj, nwb, seg_start, seg_end) in &wall_edges[i][w] {
+                        if passable(rooms[*nj].walls.by_index(*nwb)) {
+                            let mid = (*seg_start + *seg_end) * 0.5;
+                            let center_t = (mid - *start).dot(norm).clamp(0.0, len);
+                            openings.push((center_t, layout.door_width, layout.door_height, 0.0));
+                        }
                     }
                 }
+                WallKind::Window => {
+                    openings.push((len * 0.5, layout.window_width, layout.window_height, layout.window_sill));
+                    is_window = true;
+                }
+                WallKind::Mirror => {
+                    // Solid wall + a flush portal panel (no opening).
+                    append_mesh(&mut mir_v, &mut mir_i,
+                        mirror_panel(*start, *end, y, wall_height, layout.mirror_size, inward));
+                }
+                WallKind::Solid => {}
+                WallKind::Open => unreachable!(),
+            }
+
+            // The wall itself, built around all its openings (solid if there are none).
+            append_mesh(&mut wall_v, &mut wall_i,
+                wall_with_openings(*start, *end, y, wall_height, wall_thickness, &openings));
+
+            // Glass panes (windows) + wood frames for each opening.
+            for (center_t, ow, oh, sill) in &openings {
+                if is_window {
+                    append_mesh(&mut win_v, &mut win_i,
+                        window_panel(*start, norm, y, *center_t, *ow, *oh, *sill));
+                }
+                append_mesh(&mut trim_v, &mut trim_i,
+                    opening_frame(*start, norm, len, y, *center_t, *ow, *oh, *sill, frame_thickness, trim_thickness));
             }
 
             // Crown moulding along the top of every built wall.
             append_mesh(&mut trim_v, &mut trim_i,
                 wall_box(*start, *end, y + wall_height - layout.crown_height, layout.crown_height, trim_thickness));
-            // Baseboard only along full solid faces.
-            if full_solid {
+            // Baseboard only on walls with no opening (so it doesn't bar a doorway).
+            if openings.is_empty() {
                 append_mesh(&mut trim_v, &mut trim_i,
                     wall_box(*start, *end, y, layout.baseboard_height, trim_thickness));
             }
@@ -1048,6 +1072,7 @@ fn generate_fallback() -> HomesteadMeshes {
         baseboard_height: default_trim_h(),
         crown_height: default_trim_h(),
         mirror_size: default_mirror(),
+        default_wall_height: 9.0, // uniform 9 m ceilings (matches the shipped RON)
     };
     generate_from_layout(&layout)
 }

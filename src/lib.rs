@@ -401,6 +401,46 @@ mod native_app {
         // (cursor freed by the per-frame reconciliation in the update loop)
     }
 
+    /// Apply a window presentation mode to the live window (v0.454). Decorations = the OS
+    /// title bar; borderless drops it; the fullscreen variants use winit's Fullscreen.
+    fn apply_window_mode(window: &winit::window::Window, mode: crate::config::WindowMode) {
+        use crate::config::WindowMode;
+        use winit::window::Fullscreen;
+        match mode {
+            WindowMode::Windowed => {
+                window.set_fullscreen(None);
+                window.set_decorations(true);
+                window.set_maximized(false);
+            }
+            WindowMode::WindowedFullscreen => {
+                window.set_fullscreen(None);
+                window.set_decorations(true);
+                window.set_maximized(true);
+            }
+            WindowMode::BorderlessWindowed => {
+                window.set_fullscreen(None);
+                window.set_decorations(false);
+                window.set_maximized(false);
+            }
+            WindowMode::BorderlessFullscreen => {
+                window.set_decorations(false);
+                window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+            }
+            WindowMode::ExclusiveFullscreen => {
+                // Exclusive needs a concrete video mode; fall back to borderless if the
+                // monitor exposes none (some platforms/headless).
+                let vm = window.current_monitor().and_then(|m| m.video_modes().next());
+                match vm {
+                    Some(mode) => {
+                        window.set_decorations(true);
+                        window.set_fullscreen(Some(Fullscreen::Exclusive(mode)));
+                    }
+                    None => window.set_fullscreen(Some(Fullscreen::Borderless(None))),
+                }
+            }
+        }
+    }
+
     /// Lazy-load the 3D world: homestead, hologram, stars, planet, CSV data.
     /// Called once on first Enter World. Keeps app startup instant (chat-first).
     fn load_world(state: &mut EngineState) {
@@ -1363,9 +1403,13 @@ mod native_app {
             // Extract embedded data files on first run (enables modding)
             extract_data_if_needed();
 
+            // Boot MAXIMIZED with decorations = "windowed fullscreen" (title bar + taskbar
+            // still visible), the operator's preferred default (v0.454). The loaded
+            // window_mode is then applied once the config is read (apply_window_mode).
             let window_attrs = Window::default_attributes()
                 .with_title(format!("HumanityOS v{}", env!("CARGO_PKG_VERSION")))
                 .with_inner_size(winit::dpi::LogicalSize::new(1280, 720))
+                .with_maximized(true)
                 .with_visible(false);
 
             let window = Arc::new(
@@ -1697,7 +1741,7 @@ mod native_app {
             // FOV / far-plane stay at their constructor defaults) until the user nudges a
             // slider, so a saved low/high mouse sensitivity never took effect on startup.
             // The settings_dirty block (in the render loop) applies fov + sensitivity +
-            // fullscreen + render distance from gui_state.settings, so trip it once here.
+            // window mode + render distance from gui_state.settings, so trip it once here.
             gui_state.settings_dirty = true;
 
             // Clean up .old files from previous updates
@@ -4956,13 +5000,8 @@ mod native_app {
                                 // Mouse sensitivity
                                 state.controller.mouse_sensitivity = state.gui_state.settings.mouse_sensitivity;
 
-                                // Fullscreen
-                                let fullscreen = if state.gui_state.settings.fullscreen {
-                                    Some(winit::window::Fullscreen::Borderless(None))
-                                } else {
-                                    None
-                                };
-                                state.window.set_fullscreen(fullscreen);
+                                // Window presentation mode (v0.454).
+                                apply_window_mode(&state.window, state.gui_state.settings.window_mode);
 
                                 // Render distance → camera far plane
                                 state.camera.far = state.gui_state.settings.render_distance;

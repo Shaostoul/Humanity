@@ -27,6 +27,43 @@ pub const PBKDF2_ITERATIONS_NEW: u32 = 600_000;
 /// `PBKDF2_ITERATIONS_NEW`, not chase every call site.
 pub const PBKDF2_ITERATIONS_LEGACY: u32 = 100_000;
 
+/// How the desktop window is presented (v0.454). The default is `WindowedFullscreen`: a
+/// maximized window that KEEPS the title bar + the OS taskbar (operator's preferred default).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum WindowMode {
+    /// Normal resizable window with a title bar, not maximized.
+    Windowed,
+    /// Maximized window WITH the title bar + taskbar still showing (the default).
+    #[default]
+    WindowedFullscreen,
+    /// Borderless window (no title bar) at a normal size.
+    BorderlessWindowed,
+    /// Borderless window covering the whole screen (fake fullscreen; taskbar may peek).
+    BorderlessFullscreen,
+    /// Exclusive (true) fullscreen at the monitor's video mode.
+    ExclusiveFullscreen,
+}
+
+impl WindowMode {
+    /// Cycle order for a "next mode" button + display labels.
+    pub const ALL: [WindowMode; 5] = [
+        WindowMode::Windowed,
+        WindowMode::WindowedFullscreen,
+        WindowMode::BorderlessWindowed,
+        WindowMode::BorderlessFullscreen,
+        WindowMode::ExclusiveFullscreen,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            WindowMode::Windowed => "Windowed",
+            WindowMode::WindowedFullscreen => "Windowed fullscreen",
+            WindowMode::BorderlessWindowed => "Borderless windowed",
+            WindowMode::BorderlessFullscreen => "Borderless fullscreen",
+            WindowMode::ExclusiveFullscreen => "Exclusive fullscreen",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     pub server_url: String,
@@ -59,6 +96,10 @@ pub struct AppConfig {
     pub sfx_volume: f32,
     #[serde(default)]
     pub fullscreen: bool,
+    /// How the window is presented (v0.454). Supersedes the legacy `fullscreen` bool.
+    /// Absent in old configs => WindowedFullscreen (the operator's preferred default).
+    #[serde(default)]
+    pub window_mode: WindowMode,
     #[serde(default = "default_true")]
     pub vsync: bool,
 
@@ -417,6 +458,7 @@ impl AppConfig {
             music_volume: state.settings.music_volume,
             sfx_volume: state.settings.sfx_volume,
             fullscreen: state.settings.fullscreen,
+            window_mode: state.settings.window_mode,
             vsync: state.settings.vsync,
             timestamp_format: crate::gui::pages::chat::timestamp_format().as_str().to_string(),
             // Never write plaintext key back; use encrypted fields from state
@@ -482,6 +524,7 @@ impl AppConfig {
         state.settings.music_volume = self.music_volume;
         state.settings.sfx_volume = self.sfx_volume;
         state.settings.fullscreen = self.fullscreen;
+        state.settings.window_mode = self.window_mode;
         state.settings.vsync = self.vsync;
         // Timestamp display format → the app-wide formatter (process global).
         crate::gui::pages::chat::set_timestamp_format(

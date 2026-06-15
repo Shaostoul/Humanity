@@ -3481,6 +3481,8 @@ pub struct SettingsState {
     pub scroll_to_section: Option<SettingsCategory>,
     // Graphics
     pub fullscreen: bool,
+    /// How the desktop window is presented (v0.454). Default = WindowedFullscreen.
+    pub window_mode: crate::config::WindowMode,
     pub vsync: bool,
     pub fov: f32,
     pub render_distance: f32,
@@ -3521,6 +3523,7 @@ impl Default for SettingsState {
             category: SettingsCategory::Graphics,
             scroll_to_section: None,
             fullscreen: false,
+            window_mode: crate::config::WindowMode::default(),
             vsync: true,
             fov: 90.0,
             render_distance: 500.0,

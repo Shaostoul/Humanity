@@ -1526,9 +1526,20 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
 
 pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
-        if widgets::toggle(ui, theme, "Fullscreen", &mut state.settings.fullscreen) {
-            state.settings_dirty = true;
-        }
+        // Window presentation mode (v0.454). Default = Windowed fullscreen (maximized, title
+        // bar + taskbar still visible). Selecting a mode applies it immediately.
+        ui.label(RichText::new("Window mode").color(theme.text_secondary()).strong());
+        ui.horizontal_wrapped(|ui| {
+            for mode in crate::config::WindowMode::ALL {
+                let selected = state.settings.window_mode == mode;
+                if ui.selectable_label(selected, mode.label()).clicked() && !selected {
+                    state.settings.window_mode = mode;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        ui.label(RichText::new("Windowed fullscreen keeps the title bar + taskbar. Borderless drops the title bar. Exclusive is true fullscreen.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.add_space(theme.spacing_sm);
         if widgets::toggle(ui, theme, "VSync", &mut state.settings.vsync) {
             state.settings_dirty = true;
         }
