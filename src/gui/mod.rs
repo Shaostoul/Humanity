@@ -1216,6 +1216,18 @@ pub struct GuiState {
     /// (stars + the real solar system) stays visible from inside; toggle on for atmosphere
     /// tests or a sealed look.
     pub show_roof: bool,
+    /// Construction EDITOR (v0.455): when active, a panel lets the player set each room's
+    /// per-wall kind + the uniform height and rebuild the home live. Toggled with B in-world.
+    pub construction_active: bool,
+    /// Editable mirror of the layout's per-room walls: (room_id, [N,S,W,E] kinds). The engine
+    /// fills this when the editor opens and reads it back when `construction_dirty`.
+    pub construction_rooms: Vec<(String, [crate::ship::fibonacci::WallKind; 4])>,
+    /// Editable uniform ceiling height (mirrors layout.default_wall_height).
+    pub construction_height: f32,
+    /// Set by the panel when a wall/height changed -> the engine rebuilds the home.
+    pub construction_dirty: bool,
+    /// Set by the panel's Save button -> the engine writes the layout back to the RON.
+    pub construction_save: bool,
     /// Index into the backdrop list (the names mirror is `showroom_backdrop_names`).
     pub showroom_backdrop: usize,
     /// Backdrop display names, mirrored from the loaded registry for the panel.
@@ -2078,6 +2090,11 @@ impl Default for GuiState {
             power_balance: 0.0,
             showroom_active: false,
             show_roof: false,
+            construction_active: false,
+            construction_rooms: Vec::new(),
+            construction_height: 9.0,
+            construction_dirty: false,
+            construction_save: false,
             showroom_backdrop: 0,
             showroom_backdrop_names: Vec::new(),
             showroom_confirm: false,

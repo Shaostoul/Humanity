@@ -225,10 +225,15 @@ carries `walls: (north/south/west/east: Kind)` where Kind is one of
   transparency), because the main PBR pipeline is `BlendState::REPLACE`. True see-through
   glass + a translucent roof need an `opacity` material field + a blend pipeline variant.
   Tracked as renderer debt; the per-wall layer does not depend on it.
-- The full placement/snap BUILD-MODE UI (a `construction.rs` page where you click a wall and
-  pick its kind, re-running generation live). The data + generator are ready for it; the
-  in-app editor is the next construction increment. Until it exists, per-wall config is a
-  RON edit -- the one GUI-first gap in this feature, tracked here as the next increment.
+- ~~The build-mode editor~~ **SHIPPED (v0.455).** `src/gui/pages/construction.rs`: press **B**
+  in-world to open a panel listing every room with a per-wall dropdown (N/S/W/E -> WallKind) +
+  a ceiling-height slider. Changing any wall rebuilds the home LIVE (the engine holds the
+  layout in `EngineState.homestead_layout`, watches `construction_dirty`, and re-runs
+  `generate_from_layout` -> `apply_homestead_meshes`). "Save layout" writes the layout back to
+  the RON via `fibonacci::save_layout` (data-only; comments not preserved). The camera freezes
+  + the cursor frees while editing. So per-wall config is now a GUI action, not a RON edit --
+  closing the one GUI-first gap. (Remaining build-mode polish: a full snap/placement grid for
+  arbitrary pieces, per-room height + the "go down" deeper floors, and add/remove rooms.)
 - Explicit floor-plan POSITIONS. Rooms still auto-place in the Fibonacci spiral, so which
   physical wall a `Window`/`Mirror` lands on follows the spiral; if a special wall faces the
   wrong way in-app, move the kind to the correct side in the RON (no recompile). Pinning

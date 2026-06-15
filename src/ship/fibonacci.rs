@@ -15,7 +15,7 @@ use std::path::Path;
 // ---------------------------------------------------------------------------
 
 /// How rooms are spatially arranged.
-#[derive(Debug, Clone, serde::Deserialize, Default)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 pub enum LayoutStyle {
     /// Golden spiral: each room attaches to the growing rectangle, rotating clockwise.
     /// Room sizes should follow Fibonacci sequence for perfect tiling.
@@ -38,7 +38,7 @@ pub enum LayoutStyle {
 /// face, otherwise solid). So a room that omits `walls` keeps today's behaviour — zero
 /// regression — while a room CAN override any single wall (a mirror, a window, fully
 /// open, forced solid) without redesigning the whole floor plan.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub enum WallKind {
     /// Derive from adjacency: a standard door where a passable neighbour faces this
     /// wall, otherwise a solid wall. The default for every wall.
@@ -60,7 +60,7 @@ pub enum WallKind {
 /// Per-room wall configuration: the kind of each of the four walls. Index order MUST
 /// match the `walls` array in `build_meshes`: 0=North(min Z), 1=South(max Z),
 /// 2=West(min X), 3=East(max X). Any wall omitted in RON defaults to `Auto`.
-#[derive(Debug, Clone, Copy, serde::Deserialize, Default)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Default)]
 pub struct WallSet {
     #[serde(default)]
     pub north: WallKind,
@@ -70,6 +70,28 @@ pub struct WallSet {
     pub west: WallKind,
     #[serde(default)]
     pub east: WallKind,
+}
+
+impl WallKind {
+    /// All kinds, for the construction editor's dropdowns. (v0.455)
+    pub const ALL: [WallKind; 6] = [
+        WallKind::Auto,
+        WallKind::Solid,
+        WallKind::Door,
+        WallKind::Window,
+        WallKind::Open,
+        WallKind::Mirror,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            WallKind::Auto => "Auto (door if adjacent)",
+            WallKind::Solid => "Solid",
+            WallKind::Door => "Door",
+            WallKind::Window => "Window",
+            WallKind::Open => "Open (no wall)",
+            WallKind::Mirror => "Mirror / portal",
+        }
+    }
 }
 
 impl WallSet {
@@ -85,7 +107,7 @@ impl WallSet {
 }
 
 /// Room definition for the layout. Positions can be explicit or computed from LayoutStyle.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RoomConfig {
     pub id: String,
     /// Explicit position override. If None/absent, position is computed from LayoutStyle.
@@ -102,7 +124,7 @@ pub struct RoomConfig {
 }
 
 /// Full homestead layout loaded from data/
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HomesteadLayout {
     #[serde(default)]
     pub layout_style: LayoutStyle,
@@ -1004,27 +1026,52 @@ pub fn load_homestead_layout(data_dir: &Path) -> Option<HomesteadLayout> {
 // Public entry point
 // ---------------------------------------------------------------------------
 
+/// Resolve the data directory (next to the exe, or `./data`). Used to load + save the
+/// homestead layout from the same place. (v0.455)
+pub fn data_dir() -> std::path::PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            for candidate in [exe_dir.join("data"), exe_dir.join("..").join("data")] {
+                if candidate.join("blueprints").join("homestead_layout.ron").exists() {
+                    return candidate;
+                }
+            }
+        }
+    }
+    std::path::PathBuf::from("data")
+}
+
+/// Load the homestead layout from data, or the hardcoded fallback. Returns the LAYOUT (not
+/// the meshes) so the construction editor can mutate it + regenerate live. (v0.455)
+pub fn load_layout_or_fallback() -> HomesteadLayout {
+    if let Some(layout) = load_homestead_layout(&data_dir()) {
+        return layout;
+    }
+    log::info!("No homestead_layout.ron found, using fallback layout");
+    fallback_layout()
+}
+
+/// Write a layout back to `data/blueprints/homestead_layout.ron` (the construction editor's
+/// "Save"). Data-only (the file's hand-written comments are not preserved). (v0.455)
+pub fn save_layout(layout: &HomesteadLayout) -> std::io::Result<()> {
+    let dir = data_dir().join("blueprints");
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join("homestead_layout.ron");
+    let cfg = ron::ser::PrettyConfig::new().depth_limit(4);
+    let body = ron::ser::to_string_pretty(layout, cfg)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    let text = format!("// HumanityOS homestead layout -- saved by the in-app construction editor.\n{body}\n");
+    std::fs::write(&path, text)?;
+    log::info!("Saved homestead layout to {}", path.display());
+    Ok(())
+}
+
 /// Generate all floor, wall, and ceiling meshes for the homestead.
 ///
 /// Tries to load from `data/blueprints/homestead_layout.ron` first.
 /// Falls back to hardcoded Fibonacci spiral if the file is missing.
 pub fn generate_homestead() -> HomesteadMeshes {
-    // Try data-driven path
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(exe_dir) = exe.parent() {
-            for candidate in [exe_dir.join("data"), exe_dir.join("..").join("data")] {
-                if let Some(layout) = load_homestead_layout(&candidate) {
-                    return generate_from_layout(&layout);
-                }
-            }
-        }
-    }
-    if let Some(layout) = load_homestead_layout(Path::new("data")) {
-        return generate_from_layout(&layout);
-    }
-
-    log::info!("No homestead_layout.ron found, using fallback");
-    generate_fallback()
+    generate_from_layout(&load_layout_or_fallback())
 }
 
 /// Generate from a loaded layout (computes positions from style, then builds meshes).
@@ -1046,8 +1093,13 @@ pub fn generate_from_layout(layout: &HomesteadLayout) -> HomesteadMeshes {
 // ---------------------------------------------------------------------------
 
 fn generate_fallback() -> HomesteadMeshes {
-    // Build a minimal layout matching the RON format, then use the same pipeline
-    let layout = HomesteadLayout {
+    generate_from_layout(&fallback_layout())
+}
+
+/// The hardcoded fallback layout (used when no RON is present). Returns the LAYOUT so the
+/// editor + `load_layout_or_fallback` share it. (v0.455)
+fn fallback_layout() -> HomesteadLayout {
+    HomesteadLayout {
         layout_style: LayoutStyle::Fibonacci,
         hologram_room: Some("kitchen".into()),
         spawn_room: Some("kitchen".into()),
@@ -1073,8 +1125,7 @@ fn generate_fallback() -> HomesteadMeshes {
         crown_height: default_trim_h(),
         mirror_size: default_mirror(),
         default_wall_height: 9.0, // uniform 9 m ceilings (matches the shipped RON)
-    };
-    generate_from_layout(&layout)
+    }
 }
 
 fn room_cfg(id: &str, dims: [f32; 3], material: u32, color: [f32; 4]) -> RoomConfig {
@@ -1140,6 +1191,24 @@ mod tests {
         assert!(!m.mirrors.0.is_empty(), "wetroom mirror generated");
         assert!(!m.ceilings.0.is_empty(), "ceilings generated (for the roof toggle)");
         assert!(!m.room_info.is_empty(), "room info present");
+    }
+
+    /// The construction editor's Save serializes the layout to RON; it must round-trip back
+    /// with the per-wall kinds intact (so saving + reloading is lossless for the data). Does
+    /// NOT touch the shipped file -- serializes in memory only.
+    #[test]
+    fn layout_serializes_and_round_trips() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let layout = load_homestead_layout(&dir).expect("layout parses");
+        let cfg = ron::ser::PrettyConfig::new().depth_limit(4);
+        let text = ron::ser::to_string_pretty(&layout, cfg).expect("serializes to RON");
+        let back: HomesteadLayout = ron::from_str(&text).expect("re-parses");
+        // Wall kinds survived the round-trip.
+        let w = back.rooms.iter().find(|r| r.id == "wetroom").expect("wetroom");
+        assert_eq!(w.walls.east, WallKind::Mirror);
+        let r = back.rooms.iter().find(|r| r.id == "respawner").expect("respawner");
+        assert_eq!(r.walls.north, WallKind::Open);
+        assert!((back.default_wall_height - layout.default_wall_height).abs() < 1e-6);
     }
 
     /// A room that omits `walls` defaults to all-`Auto`, i.e. today's behaviour: zero

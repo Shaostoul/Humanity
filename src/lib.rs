@@ -441,52 +441,91 @@ mod native_app {
         }
     }
 
+    /// Upload a freshly generated set of homestead meshes into the renderer + state slots
+    /// (v0.455). Shared by the initial world load AND the construction editor's live rebuild.
+    /// On rebuild this APPENDS new meshes and repoints the slots; the old meshes stay in the
+    /// renderer's mesh Vec (a small, bounded leak per edit -- fine for an editor session).
+    fn apply_homestead_meshes(state: &mut EngineState, homestead: crate::ship::fibonacci::HomesteadMeshes) {
+        // Floors (one mesh + material per room).
+        state.homestead_floors.clear();
+        for (verts, indices, color, material_type) in homestead.floors {
+            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &verts, &indices));
+            let mat_idx = state.renderer.add_material_typed(color, 0.0, 0.8, material_type as f32);
+            state.homestead_floors.push((mesh_idx, mat_idx));
+        }
+        // Combined-mesh families. Each is rebuilt only when non-empty (else cleared so a
+        // removed window/mirror disappears on the next rebuild).
+        state.homestead_walls = None;
+        if !homestead.walls.0.is_empty() {
+            let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.walls.0, &homestead.walls.1));
+            let ma = state.renderer.add_material_typed([0.5, 0.5, 0.5, 1.0], 0.1, 0.6, 0.0);
+            state.homestead_walls = Some((mi, ma));
+        }
+        state.homestead_trim = None;
+        if !homestead.trim.0.is_empty() {
+            let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.trim.0, &homestead.trim.1));
+            let ma = state.renderer.add_material_typed([0.42, 0.30, 0.18, 1.0], 0.0, 0.7, 3.0);
+            state.homestead_trim = Some((mi, ma));
+        }
+        state.homestead_windows = None;
+        if !homestead.windows.0.is_empty() {
+            let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.windows.0, &homestead.windows.1));
+            let ma = state.renderer.add_material_full([0.55, 0.72, 0.88, 1.0], 0.05, 0.1, 1.0, 0.25);
+            state.homestead_windows = Some((mi, ma));
+        }
+        state.homestead_mirrors = None;
+        if !homestead.mirrors.0.is_empty() {
+            let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.mirrors.0, &homestead.mirrors.1));
+            let ma = state.renderer.add_material_full([0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 1.6);
+            state.homestead_mirrors = Some((mi, ma));
+        }
+        state.homestead_ceiling = None;
+        if !homestead.ceilings.0.is_empty() {
+            let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.ceilings.0, &homestead.ceilings.1));
+            let ma = state.renderer.add_material_typed([0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0);
+            state.homestead_ceiling = Some((mi, ma));
+        }
+    }
+
+    /// Regenerate the homestead meshes from the live layout (the construction editor's apply).
+    /// Also refreshes room lights + the sealed-volume bounds, since a height/wall edit changes
+    /// them. (v0.455)
+    fn rebuild_homestead(state: &mut EngineState) {
+        let Some(layout) = state.homestead_layout.clone() else { return; };
+        let homestead = crate::ship::fibonacci::generate_from_layout(&layout);
+        let room_info = homestead.room_info.clone();
+        apply_homestead_meshes(state, homestead);
+        // Refresh lights + sealed bounds from the new room_info (height edits move them).
+        state.room_lights = room_info.iter().map(|r| {
+            let light_pos = Vec3::new(r.center.x, r.center.y + r.dimensions.y * 0.5 - 0.1, r.center.z);
+            let room_size = r.dimensions.x.max(r.dimensions.z);
+            let intensity = (room_size * 0.5).clamp(2.0, 15.0);
+            (light_pos, [1.0, 0.95, 0.85], intensity, room_size * 1.5)
+        }).collect();
+        state.homestead_bounds = room_info.iter().fold(None, |acc, r| {
+            let rmin = r.center - r.dimensions * 0.5;
+            let rmax = r.center + r.dimensions * 0.5;
+            Some(match acc { None => (rmin, rmax), Some((mn, mx)) => (mn.min(rmin), mx.max(rmax)) })
+        });
+        log::info!("Homestead rebuilt: {} rooms", room_info.len());
+    }
+
     /// Lazy-load the 3D world: homestead, hologram, stars, planet, CSV data.
     /// Called once on first Enter World. Keeps app startup instant (chat-first).
     fn load_world(state: &mut EngineState) {
         log::info!("Loading 3D world...");
         let load_start = Instant::now();
 
-        // ── Homestead meshes ──
-        let homestead = crate::ship::fibonacci::generate_homestead();
-        for (verts, indices, color, material_type) in homestead.floors {
-            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &verts, &indices));
-            let mat_idx = state.renderer.add_material_typed(color, 0.0, 0.8, material_type as f32);
-            state.homestead_floors.push((mesh_idx, mat_idx));
-        }
-        if !homestead.walls.0.is_empty() {
-            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.walls.0, &homestead.walls.1));
-            let mat_idx = state.renderer.add_material_typed([0.5, 0.5, 0.5, 1.0], 0.1, 0.6, 0.0);
-            state.homestead_walls = Some((mesh_idx, mat_idx));
-        }
-        // ── Construction-mode meshes (v0.453): trim, windows, mirror/portal, ceiling ──
-        if !homestead.trim.0.is_empty() {
-            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.trim.0, &homestead.trim.1));
-            // Wood trim (baseboards, crown, door/window frames).
-            let mat_idx = state.renderer.add_material_typed([0.42, 0.30, 0.18, 1.0], 0.0, 0.7, 3.0);
-            state.homestead_trim = Some((mesh_idx, mat_idx));
-        }
-        if !homestead.windows.0.is_empty() {
-            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.windows.0, &homestead.windows.1));
-            // Tinted glass with a slight glow (opaque until a real alpha-blend pass lands).
-            let mat_idx = state.renderer.add_material_full([0.55, 0.72, 0.88, 1.0], 0.05, 0.1, 1.0, 0.25);
-            state.homestead_windows = Some((mesh_idx, mat_idx));
-        }
-        if !homestead.mirrors.0.is_empty() {
-            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.mirrors.0, &homestead.mirrors.1));
-            // Glowing blue portal panel (emissive so it sells "portal" with no real reflection).
-            let mat_idx = state.renderer.add_material_full([0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 1.6);
-            state.homestead_mirrors = Some((mesh_idx, mat_idx));
-        }
-        if !homestead.ceilings.0.is_empty() {
-            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.ceilings.0, &homestead.ceilings.1));
-            // Light concrete ceiling; only drawn when the roof toggle is on.
-            let mat_idx = state.renderer.add_material_typed([0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0);
-            state.homestead_ceiling = Some((mesh_idx, mat_idx));
-        }
+        // ── Homestead meshes ── (v0.455: load the LAYOUT, keep it for the construction
+        // editor, then generate + upload meshes through the shared path.)
+        let layout = crate::ship::fibonacci::load_layout_or_fallback();
+        let homestead = crate::ship::fibonacci::generate_from_layout(&layout);
+        let room_info = homestead.room_info.clone();
+        state.homestead_layout = Some(layout);
+        apply_homestead_meshes(state, homestead);
 
         // Room ceiling lights
-        state.room_lights = homestead.room_info.iter().map(|r| {
+        state.room_lights = room_info.iter().map(|r| {
             let light_pos = Vec3::new(r.center.x, r.center.y + r.dimensions.y * 0.5 - 0.1, r.center.z);
             let room_size = r.dimensions.x.max(r.dimensions.z);
             let intensity = (room_size * 0.5).clamp(2.0, 15.0);
@@ -496,7 +535,7 @@ mod native_app {
 
         // Sealed-volume AABB (encompasses every room) for the survival environment
         // context — inside it the player is sealed/oxygenated, outside = vacuum.
-        state.homestead_bounds = homestead.room_info.iter().fold(None, |acc, r| {
+        state.homestead_bounds = room_info.iter().fold(None, |acc, r| {
             let rmin = r.center - r.dimensions * 0.5;
             let rmax = r.center + r.dimensions * 0.5;
             Some(match acc {
@@ -506,10 +545,10 @@ mod native_app {
         });
 
         // Hologram + spawn rooms
-        let hologram_room_center = homestead.room_info.iter()
+        let hologram_room_center = room_info.iter()
             .find(|r| r.is_hologram_room)
             .map(|r| r.center);
-        let spawn_room = homestead.room_info.iter()
+        let spawn_room = room_info.iter()
             .find(|r| r.is_spawn_room);
         state.hologram_room_center = hologram_room_center.unwrap_or(Vec3::new(-0.5, 1.0, 2.5));
 
@@ -525,7 +564,7 @@ mod native_app {
         }
 
         log::info!("Homestead: {} rooms, {} floors, walls: {}, {} lights",
-            homestead.room_info.len(), state.homestead_floors.len(),
+            room_info.len(), state.homestead_floors.len(),
             state.homestead_walls.is_some(), state.room_lights.len());
 
         // ── Aeroponic tower placeholders (v0.383) ──
@@ -536,7 +575,7 @@ mod native_app {
         // page list) to stay within the per-frame object budget.
         state.placeholder_objects.clear();
         {
-            let garden = homestead.room_info.iter().find(|r| r.id == "garden");
+            let garden = room_info.iter().find(|r| r.id == "garden");
             let floor_y = garden.map(|r| r.center.y - r.dimensions.y * 0.5).unwrap_or(0.0);
             let gx = garden.map(|r| r.center.x).unwrap_or(0.0);
             let gz = garden.map(|r| r.center.z).unwrap_or(0.0);
@@ -593,8 +632,7 @@ mod native_app {
             if let Some(home) = crate::machines::MachineHome::load(&path) {
                 use std::collections::HashMap;
                 // room id -> (center, floor_y, ceiling_y).
-                let rooms: HashMap<&str, (Vec3, f32, f32)> = homestead
-                    .room_info
+                let rooms: HashMap<&str, (Vec3, f32, f32)> = room_info
                     .iter()
                     .map(|r| {
                         (
@@ -612,8 +650,7 @@ mod native_app {
                 // Per-instance (floor_y, ceiling_y) so the pipe router can size run height.
                 let mut anchor_rooms: HashMap<String, (f32, f32)> = HashMap::new();
                 // Room AABBs (min, max) so the router can sleeve pipes at wall penetrations.
-                let room_aabbs: Vec<(Vec3, Vec3)> = homestead
-                    .room_info
+                let room_aabbs: Vec<(Vec3, Vec3)> = room_info
                     .iter()
                     .map(|r| (r.center - r.dimensions * 0.5, r.center + r.dimensions * 0.5))
                     .collect();
@@ -637,8 +674,7 @@ mod native_app {
                 // the walkable world finally knows what each room is for.
                 let room_types =
                     crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
-                state.gui_state.room_bounds = homestead
-                    .room_info
+                state.gui_state.room_bounds = room_info
                     .iter()
                     .map(|r| crate::gui::RoomBounds {
                         id: r.id.clone(),
@@ -1114,7 +1150,7 @@ mod native_app {
         // appearance, then "Enter your home" to emerge into first-person. The avatar is the
         // last thing added to placeholder_objects, so `avatar_obj_start` marks where it
         // begins (the showroom renders + rebuilds only this range).
-        if let Some(r) = homestead.room_info.iter().find(|r| r.id == "respawner") {
+        if let Some(r) = room_info.iter().find(|r| r.id == "respawner") {
             let floor = r.center.y - r.dimensions.y * 0.5;
             let base = Vec3::new(r.center.x, floor, r.center.z - 0.35);
             let (cname, app, outfit) = state
@@ -1353,6 +1389,9 @@ mod native_app {
         homestead_mirrors: Option<(usize, usize)>,
         /// Homestead ceiling mesh + material — drawn only when `gui_state.show_roof`. (v0.453)
         homestead_ceiling: Option<(usize, usize)>,
+        /// The live homestead layout (v0.455). Held so the construction editor can mutate it
+        /// (per-wall kinds, heights) and regenerate the meshes without a restart.
+        homestead_layout: Option<crate::ship::fibonacci::HomesteadLayout>,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
         hologram_objects: Vec<(usize, usize, Vec3, String)>,
         /// Hologram orbit rings (mesh_idx, material_idx).
@@ -1806,6 +1845,7 @@ mod native_app {
                 homestead_windows: None,
                 homestead_mirrors: None,
                 homestead_ceiling: None,
+                homestead_layout: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
                 hologram_pins: Vec::new(),
@@ -2018,8 +2058,37 @@ mod native_app {
                             return;
                         }
 
-                        // Don't pass input to game when egui consumed it or a menu is open
-                        if egui_consumed || state.gui_state.active_page != GuiPage::None {
+                        // B toggles the construction editor (v0.455): craft each room's walls
+                        // live. On open, mirror the live layout into the editable GuiState.
+                        if key == KeyCode::KeyB && pressed
+                            && state.gui_state.active_page == GuiPage::None
+                            && !state.gui_state.showroom_active
+                        {
+                            state.gui_state.construction_active = !state.gui_state.construction_active;
+                            if state.gui_state.construction_active {
+                                if let Some(layout) = &state.homestead_layout {
+                                    state.gui_state.construction_rooms = layout.rooms.iter()
+                                        .map(|rc| {
+                                            let w = &rc.walls;
+                                            (rc.id.clone(), [w.north, w.south, w.west, w.east])
+                                        })
+                                        .collect();
+                                    state.gui_state.construction_height = if layout.default_wall_height > 0.0 {
+                                        layout.default_wall_height
+                                    } else {
+                                        9.0
+                                    };
+                                }
+                            }
+                            return;
+                        }
+
+                        // Don't pass input to game when egui consumed it, a menu is open, or
+                        // the construction editor is active (camera frozen while editing).
+                        if egui_consumed
+                            || state.gui_state.active_page != GuiPage::None
+                            || state.gui_state.construction_active
+                        {
                             return;
                         }
 
@@ -2402,6 +2471,34 @@ mod native_app {
                             }
                         }
                     }
+                    // Construction editor (v0.455): apply the edited per-wall kinds + ceiling
+                    // height to the live layout and rebuild the home; handle Save-to-RON.
+                    if state.gui_state.construction_dirty {
+                        state.gui_state.construction_dirty = false;
+                        let rooms = state.gui_state.construction_rooms.clone();
+                        let height = state.gui_state.construction_height;
+                        if let Some(layout) = &mut state.homestead_layout {
+                            for (id, kinds) in &rooms {
+                                if let Some(rc) = layout.rooms.iter_mut().find(|r| &r.id == id) {
+                                    rc.walls.north = kinds[0];
+                                    rc.walls.south = kinds[1];
+                                    rc.walls.west = kinds[2];
+                                    rc.walls.east = kinds[3];
+                                }
+                            }
+                            layout.default_wall_height = height;
+                        }
+                        rebuild_homestead(state);
+                    }
+                    if state.gui_state.construction_save {
+                        state.gui_state.construction_save = false;
+                        if let Some(layout) = &state.homestead_layout {
+                            match crate::ship::fibonacci::save_layout(layout) {
+                                Ok(()) => log::info!("Construction: layout saved to RON"),
+                                Err(e) => log::warn!("Construction: save failed: {e}"),
+                            }
+                        }
+                    }
                     // "Enter your home": persist appearance + emerge into first-person.
                     if state.gui_state.showroom_confirm {
                         state.gui_state.showroom_confirm = false;
@@ -2437,7 +2534,8 @@ mod native_app {
                     // showroom (so egui clicks land), grabbed for first-person play. Single
                     // authority, so the showroom no longer fights the page-transition grab.
                     let want_cursor_free = state.gui_state.active_page != GuiPage::None
-                        || state.gui_state.showroom_active;
+                        || state.gui_state.showroom_active
+                        || state.gui_state.construction_active;
                     if want_cursor_free != state.cursor_free {
                         state.cursor_free = want_cursor_free;
                         state.window.set_cursor_visible(want_cursor_free);
@@ -4802,6 +4900,14 @@ mod native_app {
                                     crate::gui::pages::showroom::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
 
+                                // Construction editor panel (v0.455): per-wall kinds + height,
+                                // rebuilds the home live. Toggled with B.
+                                if state.gui_state.active_page == GuiPage::None
+                                    && state.gui_state.construction_active
+                                {
+                                    crate::gui::pages::construction::draw(ctx, &state.theme, &mut state.gui_state);
+                                }
+
                                 // Draw chat overlay if visible (only in-game)
                                 if state.gui_state.active_page == GuiPage::None && state.gui_state.show_chat {
                                     chat::draw(ctx, &state.theme, &mut state.gui_state);
@@ -5039,8 +5145,11 @@ mod native_app {
             };
 
             if let DeviceEvent::MouseMotion { delta } = event {
-                // Only pass mouse motion to camera when no GUI page is active
-                if state.gui_state.active_page == GuiPage::None {
+                // Only pass mouse motion to camera when no GUI page is active and the
+                // construction editor isn't open (its cursor is free for the panel).
+                if state.gui_state.active_page == GuiPage::None
+                    && !state.gui_state.construction_active
+                {
                     state.controller.process_mouse_motion(delta.0, delta.1);
                 }
             }
