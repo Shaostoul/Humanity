@@ -2671,7 +2671,12 @@ mod native_app {
                         // dimness, not the blend.
                         const ORBIT_RGBA: [f32; 4] =
                             [0.0078, 0.0118, 0.0196, 1.0];
-                        for (pts_m, parent_id) in &state.solar_orbit_paths {
+                        // Skip the rings in the showroom (no AU-scale sky-rings in the
+                        // void — they'd reappear now that the celestial pass un-clips
+                        // them). v0.451. The bodies are already showroom-gated above.
+                        for (pts_m, parent_id) in
+                            state.solar_orbit_paths.iter().filter(|_| !showroom)
+                        {
                             let parent_helio_au = if parent_id == "sun" {
                                 glam::DVec3::ZERO
                             } else {
@@ -4532,14 +4537,21 @@ mod native_app {
                                 }
 
                                 // Pass 1.5: celestial bodies (planet + Sun + solar bodies)
-                                // with a HUGE far plane, behind the interior. (v0.450)
-                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &view);
+                                // with a HUGE far plane, behind the interior, lit by the
+                                // REAL Sun direction. (v0.450 bodies, v0.451 lighting)
+                                let sun_dir_f = {
+                                    let d = state.sun_world_pos.normalize_or_zero();
+                                    Vec3::new(d.x as f32, d.y as f32, d.z as f32)
+                                };
+                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, sun_dir_f, &view);
+                                // Pass 1.6: orbit rings at celestial scale — between the
+                                // bodies and the interior so a ring behind a planet is
+                                // occluded by that body, and walls then draw over the
+                                // rings. AU-scale, so the gameplay far would clip them.
+                                // (v0.451; empty in the showroom — build is !showroom-gated.)
+                                state.renderer.draw_celestial_lines_onto(&state.camera, &orbit_lines, &view);
                                 // Pass 2: Scene objects (LoadOp::Load preserves stars + bodies)
                                 state.renderer.render_scene_onto(&state.camera, &all_objects, &view);
-                                // Pass 3: orbit lines — after the scene so
-                                // the depth buffer occludes segments behind
-                                // planets (thin single-edge, not tubes).
-                                state.renderer.draw_lines_onto(&state.camera, &orbit_lines, &view);
                                 Ok((output, view))
                             }
                             Err(e) => Err(e),

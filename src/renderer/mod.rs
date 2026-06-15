@@ -700,6 +700,7 @@ impl Renderer {
         &self,
         camera: &Camera,
         objects: &[RenderObject],
+        sun_dir: Vec3,
         view: &wgpu::TextureView,
     ) {
         if objects.is_empty() {
@@ -710,6 +711,17 @@ impl Renderer {
             0,
             bytemuck::bytes_of(&camera.celestial_uniforms()),
         );
+        // Light the bodies by the REAL Sun (v0.451): the full-uniform write above
+        // stamps the default fake sun [0.3,1,0.5] at offset 352, so re-poke it with
+        // the true Earth->Sun direction. Now the planets' lit hemisphere faces the
+        // visible Sun disc instead of a fixed up-and-right fake light. (The Sun body
+        // itself is emissive, so its own shading is unaffected.)
+        if sun_dir != Vec3::ZERO {
+            let sd = [sun_dir.x, sun_dir.y, sun_dir.z, 2.5_f32];
+            let sc = [1.0_f32, 0.97, 0.92, 0.0];
+            self.queue.write_buffer(&self.camera_buffer, 352, bytemuck::cast_slice(&sd));
+            self.queue.write_buffer(&self.camera_buffer, 368, bytemuck::cast_slice(&sc));
+        }
 
         let mut encoder = self
             .device
@@ -816,6 +828,65 @@ impl Renderer {
                     view: &self.depth_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Load, // test against the planets
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            rp.set_pipeline(&self.line_pipeline);
+            rp.set_bind_group(0, &self.camera_bind_group, &[]);
+            rp.set_vertex_buffer(0, vbuf.slice(..));
+            rp.draw(0..verts.len() as u32, 0..1);
+        }
+        self.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    /// Orbit paths drawn with the CELESTIAL far plane (v0.451) so the AU-scale rings
+    /// are not clipped by the gameplay far (~500 m) the way `draw_lines_onto` clips them.
+    /// Call BETWEEN `render_celestial_onto` and `render_scene_onto`: it loads the
+    /// celestial depth (so a ring passing behind a planet is occluded by that body) and
+    /// the interior scene then clears depth + draws OVER the rings where home geometry
+    /// exists (walls occlude the sky-rings). Same transient-VB approach as `draw_lines_onto`.
+    pub fn draw_celestial_lines_onto(
+        &self,
+        camera: &Camera,
+        verts: &[line::LineVertex],
+        view: &wgpu::TextureView,
+    ) {
+        if verts.len() < 2 {
+            return;
+        }
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&camera.celestial_uniforms()),
+        );
+        let vbuf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Celestial Line VB"),
+            contents: bytemuck::cast_slice(verts),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Celestial Line Encoder"),
+            });
+        {
+            let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Celestial Line Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // preserve stars + bodies
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // test against the celestial bodies
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
