@@ -36,7 +36,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Ceiling height").color(theme.text_secondary()));
                 if ui
-                    .add(egui::Slider::new(&mut state.construction_height, 3.0..=20.0).suffix(" m"))
+                    .add(egui::Slider::new(&mut state.construction_height, 2.5..=12.0).suffix(" m"))
                     .changed()
                 {
                     state.construction_dirty = true;

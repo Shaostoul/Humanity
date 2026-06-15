@@ -470,7 +470,9 @@ mod native_app {
         state.homestead_windows = None;
         if !homestead.windows.0.is_empty() {
             let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.windows.0, &homestead.windows.1));
-            let ma = state.renderer.add_material_full([0.55, 0.72, 0.88, 1.0], 0.05, 0.1, 1.0, 0.25);
+            // Clear glass: low alpha (base_color.a is the opacity) so you see through it. Rendered
+            // through the transparent pass. (v0.456)
+            let ma = state.renderer.add_material_full([0.62, 0.80, 0.95, 0.28], 0.0, 0.05, 1.0, 0.0);
             state.homestead_windows = Some((mi, ma));
         }
         state.homestead_mirrors = None;
@@ -2076,7 +2078,7 @@ mod native_app {
                                     state.gui_state.construction_height = if layout.default_wall_height > 0.0 {
                                         layout.default_wall_height
                                     } else {
-                                        9.0
+                                        3.0
                                     };
                                 }
                             }
@@ -2559,6 +2561,9 @@ mod native_app {
 
                     // Build render objects from homestead meshes
                     let mut all_objects: Vec<RenderObject> = Vec::new();
+                    // Transparent surfaces (glass windows): rendered in a SEPARATE alpha-blend
+                    // pass AFTER the opaque scene so you can see through them. (v0.456)
+                    let mut transparent_objects: Vec<RenderObject> = Vec::new();
                     // Celestial bodies (planet + Sun + solar bodies): rendered in a SEPARATE
                     // pass with a huge far plane (v0.450), since they sit at astronomical
                     // distances the ~500 m gameplay far would clip.
@@ -2584,10 +2589,11 @@ mod native_app {
                         // Walls, trim, windows, mirror/portal — all part of the home shell.
                         // The roof (ceiling) is gated by the show_roof toggle so the sky stays
                         // visible by default. (v0.453)
+                        // Opaque shell (walls, trim, the emissive portal, optional roof).
+                        // Windows are TRANSPARENT, so they go in their own list (below).
                         let mut shell = vec![
                             state.homestead_walls,
                             state.homestead_trim,
-                            state.homestead_windows,
                             state.homestead_mirrors,
                         ];
                         if state.gui_state.show_roof {
@@ -2595,6 +2601,16 @@ mod native_app {
                         }
                         for (mesh_idx, mat_idx) in shell.into_iter().flatten() {
                             all_objects.push(RenderObject {
+                                position: Vec3::ZERO,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::ONE,
+                                mesh: mesh_idx,
+                                material: mat_idx,
+                            });
+                        }
+                        // Glass windows -> the transparent pass.
+                        if let Some((mesh_idx, mat_idx)) = state.homestead_windows {
+                            transparent_objects.push(RenderObject {
                                 position: Vec3::ZERO,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
@@ -4755,6 +4771,9 @@ mod native_app {
                                 state.renderer.draw_celestial_lines_onto(&state.camera, &orbit_lines, &view);
                                 // Pass 2: Scene objects (LoadOp::Load preserves stars + bodies)
                                 state.renderer.render_scene_onto(&state.camera, &all_objects, &view);
+                                // Pass 2.5: transparent surfaces (glass windows) blended over
+                                // the opaque scene so you can see through them. (v0.456)
+                                state.renderer.render_transparent_onto(&state.camera, &transparent_objects, &view);
                                 Ok((output, view))
                             }
                             Err(e) => Err(e),

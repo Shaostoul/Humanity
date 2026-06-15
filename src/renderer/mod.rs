@@ -691,6 +691,84 @@ impl Renderer {
         self.queue.submit(std::iter::once(encoder.finish()));
     }
 
+    /// Render TRANSPARENT objects (glass windows, the portal) over the already-drawn scene,
+    /// alpha-blended (v0.456). Call AFTER `render_scene_onto`: it preserves the colour
+    /// (LoadOp::Load) and LOADS the scene depth (so glass behind a wall is occluded) but does
+    /// not WRITE depth (so you see through it). A material's `base_color.a` is its opacity.
+    pub fn render_transparent_onto(
+        &self,
+        camera: &Camera,
+        objects: &[RenderObject],
+        view: &wgpu::TextureView,
+    ) {
+        if objects.is_empty() {
+            return;
+        }
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&camera.uniforms()),
+        );
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Transparent Encoder"),
+            });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Transparent Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // blend over the scene
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // test against the opaque scene; no write
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+
+            render_pass.set_pipeline(&self.pipeline.transparent_pipeline);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+
+            let uniform_align = 256_u64;
+            for (i, obj) in objects.iter().enumerate() {
+                if i >= 256 { break; }
+                let model = Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position);
+                let normal_matrix = model.inverse().transpose();
+                let uniforms = ObjectUniforms {
+                    model: model.to_cols_array_2d(),
+                    normal_matrix: normal_matrix.to_cols_array_2d(),
+                };
+                self.queue.write_buffer(&self.object_buffer, uniform_align * i as u64, bytemuck::bytes_of(&uniforms));
+            }
+
+            for (i, obj) in objects.iter().enumerate() {
+                if i >= 256 { break; }
+                let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
+                let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
+                let dynamic_offset = (uniform_align as u32) * (i as u32);
+                render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
+                render_pass.set_bind_group(2, &material.bind_group, &[]);
+                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+            }
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+    }
+
     /// Render CELESTIAL bodies (planet + Sun + solar-system bodies) onto the frame with a
     /// HUGE far plane, so they are not clipped by the gameplay far (~500 m). Call BETWEEN the
     /// star pass and `render_scene_onto`: it preserves the stars (LoadOp::Load color) and

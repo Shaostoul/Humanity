@@ -24,6 +24,10 @@ pub struct MaterialUniforms {
 /// PBR-lite render pipeline with three bind group layouts.
 pub struct Pipeline {
     pub render_pipeline: wgpu::RenderPipeline,
+    /// Alpha-blended variant for transparent surfaces (glass windows, the portal). Same
+    /// shader + layout, but blends over the scene and does NOT write depth, so you see
+    /// THROUGH it. (v0.456)
+    pub transparent_pipeline: wgpu::RenderPipeline,
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub object_bind_group_layout: wgpu::BindGroupLayout,
     pub material_bind_group_layout: wgpu::BindGroupLayout,
@@ -144,8 +148,57 @@ impl Pipeline {
             cache: None,
         });
 
+        // Transparent variant (v0.456): alpha-blend over the scene, no depth WRITE (so glass
+        // doesn't occlude what's behind it) but still depth-TEST (so glass behind a wall is
+        // hidden). Double-sided (no cull) so a pane reads from both rooms. The shader already
+        // returns `material.base_color.a` as the fragment alpha.
+        let transparent_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("PBR-lite Transparent Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: shader,
+                entry_point: Some("vs_main"),
+                buffers: &[Vertex::layout()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None, // double-sided glass
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Greater, // reverse-Z, test only
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        });
+
         Self {
             render_pipeline,
+            transparent_pipeline,
             camera_bind_group_layout,
             object_bind_group_layout,
             material_bind_group_layout,

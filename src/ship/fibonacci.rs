@@ -961,10 +961,32 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3]) -> HomesteadMeshes
             // Crown moulding along the top of every built wall.
             append_mesh(&mut trim_v, &mut trim_i,
                 wall_box(*start, *end, y + wall_height - layout.crown_height, layout.crown_height, trim_thickness));
-            // Baseboard only on walls with no opening (so it doesn't bar a doorway).
-            if openings.is_empty() {
+
+            // Baseboard along the floor of EVERY built wall, broken only at DOOR openings
+            // (doors reach the floor; windows have wall below them, so the board runs under a
+            // window). v0.456 -- previously baseboard was skipped on any wall with an opening,
+            // so doorway + window walls had no floor trim.
+            let mut door_spans: Vec<(f32, f32)> = openings
+                .iter()
+                .filter(|(_, _, _, sill)| *sill < 0.01)
+                .map(|(c, w, _, _)| {
+                    let half = (w * 0.5).min(len * 0.45);
+                    ((c - half).clamp(0.0, len), (c + half).clamp(0.0, len))
+                })
+                .collect();
+            door_spans.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+            let mut cursor = 0.0_f32;
+            for (t0, t1) in &door_spans {
+                let t0 = t0.max(cursor);
+                if t0 - cursor > 0.05 {
+                    append_mesh(&mut trim_v, &mut trim_i,
+                        wall_box(*start + norm * cursor, *start + norm * t0, y, layout.baseboard_height, trim_thickness));
+                }
+                cursor = t1.max(cursor);
+            }
+            if len - cursor > 0.05 {
                 append_mesh(&mut trim_v, &mut trim_i,
-                    wall_box(*start, *end, y, layout.baseboard_height, trim_thickness));
+                    wall_box(*start + norm * cursor, *end, y, layout.baseboard_height, trim_thickness));
             }
         }
     }
@@ -1124,7 +1146,7 @@ fn fallback_layout() -> HomesteadLayout {
         baseboard_height: default_trim_h(),
         crown_height: default_trim_h(),
         mirror_size: default_mirror(),
-        default_wall_height: 9.0, // uniform 9 m ceilings (matches the shipped RON)
+        default_wall_height: 3.0, // uniform 3 m ceilings (matches the shipped RON)
     }
 }
 

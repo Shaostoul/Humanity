@@ -2092,7 +2092,7 @@ impl Default for GuiState {
             show_roof: false,
             construction_active: false,
             construction_rooms: Vec::new(),
-            construction_height: 9.0,
+            construction_height: 3.0,
             construction_dirty: false,
             construction_save: false,
             showroom_backdrop: 0,

@@ -23,10 +23,10 @@ HomesteadLayout(
     baseboard_height: 0.12,
     crown_height: 0.12,
     mirror_size: 3.0,
-    // Uniform 9 m ceilings for every enclosed room (operator, v0.454). A room can still
-    // override with its own `wall_height`. Bigger-than-garden rooms going DOWN (deeper floor)
-    // instead of taller is a follow-up for the build-mode tools.
-    default_wall_height: 9.0,
+    // Uniform 3 m ceilings for every enclosed room (operator, v0.456 -- 9 m felt too tall;
+    // 3 m matches a real home). A room can still override with its own `wall_height`.
+    // Bigger-than-garden rooms going DOWN (deeper floor) is a follow-up for the build tools.
+    default_wall_height: 3.0,
 
     // Per-wall config (v0.453): each wall is Auto | Solid | Door | Window | Open | Mirror.
     // Wall order is north (min Z), south (max Z), west (min X), east (max X). Omit `walls`
