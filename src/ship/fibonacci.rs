@@ -363,7 +363,7 @@ fn compute_vertical_positions(rooms: &[RoomConfig]) -> Vec<(f32, f32)> {
 }
 
 /// Apply computed positions to rooms, respecting explicit overrides.
-fn resolve_positions(layout: &HomesteadLayout) -> Vec<Vec3> {
+pub fn resolve_positions(layout: &HomesteadLayout) -> Vec<Vec3> {
     let computed = match layout.layout_style {
         LayoutStyle::Fibonacci => compute_fibonacci_positions(&layout.rooms),
         LayoutStyle::Linear => compute_linear_positions(&layout.rooms),
@@ -1371,6 +1371,31 @@ mod tests {
         assert!(!v.is_empty() && !idx.is_empty(), "sweep produces a mesh");
         // The shipped RON, if present, parses (load_trim_profiles never panics).
         let _ = load_trim_profiles();
+    }
+
+    /// Room placement (v0.459): an explicit per-room position overrides the Fibonacci spiral,
+    /// survives a RON round-trip (what Save -> reload depends on), and a still-computed room
+    /// gets a position elsewhere. Remove-by-index keeps one position per remaining room.
+    #[test]
+    fn explicit_position_overrides_and_round_trips() {
+        let mut layout = fallback_layout();
+        let pin = [12.5, 0.0, -7.0];
+        layout.rooms[3].position = Some(pin);
+        layout.rooms[3].dimensions = [6.0, 3.0, 4.0];
+
+        let resolved = resolve_positions(&layout);
+        assert_eq!(resolved[3], Vec3::new(pin[0], pin[1], pin[2]), "explicit pos used verbatim");
+        assert_ne!(resolved[5], Vec3::new(pin[0], pin[1], pin[2]), "computed room not at the pin");
+
+        let cfg = ron::ser::PrettyConfig::new().depth_limit(4);
+        let body = ron::ser::to_string_pretty(&layout, cfg).expect("serialize");
+        let back: HomesteadLayout = ron::from_str(&body).expect("parse");
+        assert_eq!(back.rooms[3].position, Some(pin));
+        assert_eq!(back.rooms[3].dimensions, [6.0, 3.0, 4.0]);
+
+        layout.rooms.remove(1);
+        let resolved2 = resolve_positions(&layout);
+        assert_eq!(resolved2.len(), layout.rooms.len(), "one position per remaining room");
     }
 
     /// A room that omits `walls` defaults to all-`Auto`, i.e. today's behaviour: zero

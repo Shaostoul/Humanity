@@ -5,7 +5,9 @@
 > from a simple authored boundary, test REAL physics loads, and be DESTRUCTIBLE (blow a hole in a
 > wall, with consequences like decompression). Researched across voxel/grid, SDF/organic,
 > procedural-framing, structural-physics, and hybrid/room approaches; this is the synthesis.
-> Not yet built beyond Step 1 (the v0.455 per-wall editor). See the staged plan in section (e).
+> Built so far: Step 1 (the room-placement editor, v0.459 - per-wall kinds + position/size +
+> add/remove rooms). See the staged plan in section (e); Steps 2+ (framing, structural physics,
+> destruction, non-grid) are designed but not yet built.
 
 ## Decision in one sentence
 
@@ -104,8 +106,19 @@ Type assignment stays explicit/player-set (or auto-suggested from contents); we 
 
 ## (e) Staged implementation plan (each step ships something usable)
 
-**Step 1  -  Boundary becomes editable WallSpecs (near-term, mostly shipped).**
-Keep the v0.455 construction editor. Add **room position + size editing and add/remove room** to `construction.rs` (the operator's explicit near-term ask), writing `RoomConfig.position`/`dimensions`. Internally, refactor the four AABB walls into an explicit `WallSpec` list per room (lossless). **Ships:** the room-placement editor the operator wants. **Generalization guarantee:** a `WallSpec` is an oriented segment from day one, so axis-alignment is a *default*, not a constraint  -  no rewrite to go angled. Save the spec, regenerate meshes (already the pattern).
+**Step 1  -  Room placement editor. SHIPPED (v0.459).**
+The construction editor (B in-world) now edits, per room: the four wall kinds (v0.455), a Pin
+toggle + X/Z position (explicit position overrides the Fibonacci spiral; un-pinned rooms still
+auto-place around the pinned ones), width + depth, Delete room, and an Add-Room picker (types
+from the registry). Edits flow through `gui_state.construction_rooms: Vec<ConstructionRoom>`
+-> the ID-keyed reconcile in `lib.rs` (retain / upsert / reorder, pin seeded from the room's
+resolved position so Pin freezes-in-place) -> `rebuild_homestead` -> Save writes the RON. So
+the operator authors the floor plan directly instead of fighting the auto-layout.
+- Deferred to later slices: mouse-DRAG placement (DragValue only for now); non-grid / angled
+  walls (the `WallSpec` oriented-segment re-encoding); per-room height (the global ceiling
+  slider still owns Y); and live machine/pipe/hologram/spawn refresh on an in-game move
+  (`rebuild_homestead` refreshes meshes + lights + bounds + HUD `room_bounds`; machines + pipes
+  + spawn still resolve at `load_world`, so they refresh on the next relaunch).
 
 **Step 2  -  Framing generator (Layer 2), wall-by-wall.**
 Implement `generate_framing(WallSpec, FramingRuleset)` + a `data/blueprints/framing_rules.ron` (stud spacing, sections, plate config, opening sub-grammar, layer stack). Render members as instanced boxes behind a "show framing" toggle. **Ships:** real studs/plates/headers  -  the "realistic blueprint"  -  visible in-app, plus a generated bill of materials. Rooms/atmosphere untouched.

@@ -510,6 +510,23 @@ mod native_app {
             let rmax = r.center + r.dimensions * 0.5;
             Some(match acc { None => (rmin, rmax), Some((mn, mx)) => (mn.min(rmin), mx.max(rmax)) })
         });
+        // Refresh the HUD room volumes (the "you are in <room>" detection + occlusion) so a
+        // moved/resized/added/removed room is tracked live, not just on restart. (v0.459)
+        // (Machine placement + pipes + hologram/spawn still resolve at load_world; they refresh
+        // on the next relaunch -- a follow-up will make them live too.)
+        let room_types = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
+        state.gui_state.room_bounds = room_info
+            .iter()
+            .map(|r| crate::gui::RoomBounds {
+                id: r.id.clone(),
+                min: r.center - r.dimensions * 0.5,
+                max: r.center + r.dimensions * 0.5,
+                display_name: room_types.name(&r.id),
+                purpose: room_types.purpose(&r.id),
+                actions: room_types.action_labels(&r.id),
+                access: room_types.access(&r.id),
+            })
+            .collect();
         log::info!("Homestead rebuilt: {} rooms", room_info.len());
     }
 
@@ -2073,7 +2090,14 @@ mod native_app {
                                     state.gui_state.construction_rooms = layout.rooms.iter()
                                         .map(|rc| {
                                             let w = &rc.walls;
-                                            (rc.id.clone(), [w.north, w.south, w.west, w.east])
+                                            crate::gui::ConstructionRoom {
+                                                id: rc.id.clone(),
+                                                walls: [w.north, w.south, w.west, w.east],
+                                                position: rc.position,
+                                                dimensions: rc.dimensions,
+                                                material_type: rc.material_type,
+                                                color: rc.color,
+                                            }
                                         })
                                         .collect();
                                     state.gui_state.construction_height = if layout.default_wall_height > 0.0 {
@@ -2082,6 +2106,14 @@ mod native_app {
                                         3.0
                                     };
                                 }
+                                // Add-Room picker options: room-type ids from the registry (sorted).
+                                let reg = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
+                                let mut types: Vec<String> = reg.types.keys().cloned().collect();
+                                types.sort();
+                                if state.gui_state.construction_add_type.is_empty() {
+                                    state.gui_state.construction_add_type = types.first().cloned().unwrap_or_default();
+                                }
+                                state.gui_state.construction_room_types = types;
                             }
                             return;
                         }
@@ -2474,22 +2506,81 @@ mod native_app {
                             }
                         }
                     }
-                    // Construction editor (v0.455): apply the edited per-wall kinds + ceiling
-                    // height to the live layout and rebuild the home; handle Save-to-RON.
+                    // Construction editor (v0.455/459): apply the edited walls + ceiling height
+                    // AND room position/size + add/remove to the live layout, then rebuild.
+                    // Reconcile by ID (both directions) so add/remove/reorder can't desync.
                     if state.gui_state.construction_dirty {
                         state.gui_state.construction_dirty = false;
                         let rooms = state.gui_state.construction_rooms.clone();
                         let height = state.gui_state.construction_height;
                         if let Some(layout) = &mut state.homestead_layout {
-                            for (id, kinds) in &rooms {
-                                if let Some(rc) = layout.rooms.iter_mut().find(|r| &r.id == id) {
-                                    rc.walls.north = kinds[0];
-                                    rc.walls.south = kinds[1];
-                                    rc.walls.west = kinds[2];
-                                    rc.walls.east = kinds[3];
+                            // "Pin" seeds Some([0,0,0]); turn that into the room's CURRENT
+                            // resolved (computed) position so pinning freezes-in-place rather
+                            // than teleporting to the origin.
+                            let resolved = crate::ship::fibonacci::resolve_positions(layout);
+                            let resolved_by_id: std::collections::HashMap<String, Vec3> = layout
+                                .rooms
+                                .iter()
+                                .enumerate()
+                                .map(|(i, rc)| (rc.id.clone(), resolved[i]))
+                                .collect();
+
+                            // 1. Drop layout rooms the editor removed.
+                            let keep: std::collections::HashSet<&str> =
+                                rooms.iter().map(|r| r.id.as_str()).collect();
+                            layout.rooms.retain(|rc| keep.contains(rc.id.as_str()));
+
+                            // 2. Upsert each editor room (patch by id, else append a new one).
+                            for er in &rooms {
+                                let mut pos = er.position;
+                                if pos == Some([0.0, 0.0, 0.0]) {
+                                    // freshly pinned: snap to where it visually sits now.
+                                    if let Some(r) = resolved_by_id.get(&er.id) {
+                                        pos = Some([r.x, r.y, r.z]);
+                                    }
+                                }
+                                if let Some(rc) = layout.rooms.iter_mut().find(|r| r.id == er.id) {
+                                    rc.walls.north = er.walls[0];
+                                    rc.walls.south = er.walls[1];
+                                    rc.walls.west = er.walls[2];
+                                    rc.walls.east = er.walls[3];
+                                    rc.position = pos;
+                                    rc.dimensions = er.dimensions;
+                                } else {
+                                    layout.rooms.push(crate::ship::fibonacci::RoomConfig {
+                                        id: er.id.clone(),
+                                        position: pos,
+                                        dimensions: er.dimensions,
+                                        material_type: er.material_type,
+                                        color: er.color,
+                                        wall_height: 0.0, // global default_wall_height owns Y
+                                        walls: crate::ship::fibonacci::WallSet {
+                                            north: er.walls[0],
+                                            south: er.walls[1],
+                                            west: er.walls[2],
+                                            east: er.walls[3],
+                                        },
+                                    });
                                 }
                             }
+
+                            // 3. Reorder layout.rooms to the editor order (stable spiral attach).
+                            let order: std::collections::HashMap<&str, usize> =
+                                rooms.iter().enumerate().map(|(i, r)| (r.id.as_str(), i)).collect();
+                            layout.rooms.sort_by_key(|rc| *order.get(rc.id.as_str()).unwrap_or(&usize::MAX));
+
                             layout.default_wall_height = height;
+                        }
+                        // Reflect any pin-seeded positions back into the editor mirror so the
+                        // DragValues show the real coordinates next frame.
+                        if let Some(layout) = &state.homestead_layout {
+                            for er in state.gui_state.construction_rooms.iter_mut() {
+                                if er.position == Some([0.0, 0.0, 0.0]) {
+                                    if let Some(rc) = layout.rooms.iter().find(|r| r.id == er.id) {
+                                        er.position = rc.position;
+                                    }
+                                }
+                            }
                         }
                         rebuild_homestead(state);
                     }

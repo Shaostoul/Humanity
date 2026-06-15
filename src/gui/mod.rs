@@ -811,6 +811,20 @@ pub struct RoomBounds {
     pub access: String,
 }
 
+/// One editable room row in the construction editor (v0.459). The engine fills this from the
+/// live layout when the editor opens and reads it back on `construction_dirty`. `position` is
+/// Some(x,y,z) once the room is explicitly placed (which kills the Fibonacci spiral override
+/// for that room); None means "let the auto-layout compute it".
+#[derive(Clone)]
+pub struct ConstructionRoom {
+    pub id: String,
+    pub walls: [crate::ship::fibonacci::WallKind; 4], // N, S, W, E
+    pub position: Option<[f32; 3]>,
+    pub dimensions: [f32; 3], // (width_x, height_y, depth_z) metres
+    pub material_type: u32,
+    pub color: [f32; 4],
+}
+
 /// Tracks all GUI state for the native app.
 #[cfg(feature = "native")]
 pub struct GuiState {
@@ -1219,12 +1233,18 @@ pub struct GuiState {
     /// Construction EDITOR (v0.455): when active, a panel lets the player set each room's
     /// per-wall kind + the uniform height and rebuild the home live. Toggled with B in-world.
     pub construction_active: bool,
-    /// Editable mirror of the layout's per-room walls: (room_id, [N,S,W,E] kinds). The engine
-    /// fills this when the editor opens and reads it back when `construction_dirty`.
-    pub construction_rooms: Vec<(String, [crate::ship::fibonacci::WallKind; 4])>,
+    /// Editable mirror of the layout's rooms (walls + position + size). The engine fills this
+    /// when the editor opens and reads it back when `construction_dirty`. (v0.459)
+    pub construction_rooms: Vec<ConstructionRoom>,
+    /// Room-type ids from the registry, for the Add-Room picker (sorted, stable). (v0.459)
+    pub construction_room_types: Vec<String>,
+    /// Current Add-Room picker selection. (v0.459)
+    pub construction_add_type: String,
+    /// A room index the panel requested to delete; applied after the scroll loop. (v0.459)
+    pub construction_remove: Option<usize>,
     /// Editable uniform ceiling height (mirrors layout.default_wall_height).
     pub construction_height: f32,
-    /// Set by the panel when a wall/height changed -> the engine rebuilds the home.
+    /// Set by the panel when a wall/position/size/add/remove changed -> the engine rebuilds.
     pub construction_dirty: bool,
     /// Set by the panel's Save button -> the engine writes the layout back to the RON.
     pub construction_save: bool,
@@ -2092,6 +2112,9 @@ impl Default for GuiState {
             show_roof: false,
             construction_active: false,
             construction_rooms: Vec::new(),
+            construction_room_types: Vec::new(),
+            construction_add_type: String::new(),
+            construction_remove: None,
             construction_height: 3.0,
             construction_dirty: false,
             construction_save: false,
