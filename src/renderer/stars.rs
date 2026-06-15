@@ -48,13 +48,22 @@ impl StarRenderer {
         surface_format: wgpu::TextureFormat,
         csv_path: &Path,
     ) -> Option<Self> {
-        let vertices = load_stars_csv(csv_path)?;
-        let star_count = vertices.len() as u32;
-        if star_count == 0 {
+        let mut vertices = load_stars_csv(csv_path)?;
+        if vertices.is_empty() {
             log::warn!("No stars loaded from {}", csv_path.display());
             return None;
         }
-        log::info!("Loaded {} stars for skybox", star_count);
+        // Milky Way band (v0.452): the real HYG catalog is only ~120k NEARBY stars, which
+        // do NOT reproduce the galactic band you see in a dark sky (that glow is billions of
+        // far, individually-unresolved stars along the galactic plane). Append a procedural
+        // field of faint points concentrated near the plane, in the SAME equatorial frame as
+        // the catalog, so the band sits where it really is (through Cygnus/Sagittarius) and
+        // brightens toward the galactic centre. Purely cosmetic; it rides the same shader.
+        let band = galactic_band_stars(7000);
+        log::info!("Generated {} Milky Way band points", band.len());
+        vertices.extend(band);
+        let star_count = vertices.len() as u32;
+        log::info!("Loaded {} skybox points (catalog + band)", star_count);
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Star Vertex Buffer"),
@@ -320,6 +329,69 @@ impl StarRenderer {
 }
 
 // ── CSV Loading ──────────────────────────────────────────────
+
+/// Build a procedural Milky Way band: `count` faint points clustered near the galactic
+/// plane (v0.452). Coordinates are in the SAME equatorial J2000 frame as the HYG catalog
+/// (x = vernal equinox, z = north celestial pole), so the band falls where it really does.
+/// We place points by rejection-sampling uniform sphere directions, weighted by a Gaussian
+/// in galactic latitude (how far off the plane), and brighten/warm them toward the galactic
+/// centre (Sgr A*). Deterministic (a tiny xorshift seeded by a constant) so the sky is the
+/// same every launch. No `rand` dependency.
+fn galactic_band_stars(count: usize) -> Vec<StarVertex> {
+    // ra/dec (degrees) -> unit equatorial Cartesian, matching the HYG x,y,z convention.
+    let dir_from = |ra_deg: f64, dec_deg: f64| -> [f64; 3] {
+        let (ra, dec) = (ra_deg.to_radians(), dec_deg.to_radians());
+        [dec.cos() * ra.cos(), dec.cos() * ra.sin(), dec.sin()]
+    };
+    let ngp = dir_from(192.859_5, 27.128_3); // North Galactic Pole
+    let gc = dir_from(266.405, -28.936); // Galactic centre (Sagittarius A*)
+    let dot = |a: &[f64; 3], b: &[f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+    // xorshift64* PRNG -> f64 in [0,1). Seeded by a constant for a stable sky.
+    let mut state: u64 = 0x9E3779B97F4A7C15;
+    let mut next = || -> f64 {
+        state ^= state >> 12;
+        state ^= state << 25;
+        state ^= state >> 27;
+        let x = state.wrapping_mul(0x2545F4914F6CDD1D);
+        // top 53 bits -> [0,1)
+        (x >> 11) as f64 / (1u64 << 53) as f64
+    };
+
+    // Gaussian thickness of the band, in units of sin(galactic latitude). ~0.13 reads as a
+    // soft band a few degrees thick that still has visible feathering at the edges.
+    let sigma = 0.13_f64;
+    let mut out = Vec::with_capacity(count);
+    let mut attempts = 0usize;
+    while out.len() < count && attempts < count * 60 {
+        attempts += 1;
+        // Uniform direction on the sphere.
+        let z = 2.0 * next() - 1.0;
+        let phi = 2.0 * std::f64::consts::PI * next();
+        let r = (1.0 - z * z).max(0.0).sqrt();
+        let dir = [r * phi.cos(), r * phi.sin(), z];
+        // Galactic latitude proxy: component along the pole (0 = on the plane).
+        let b = dot(&dir, &ngp);
+        let accept = (-(b * b) / (sigma * sigma)).exp();
+        if next() > accept {
+            continue;
+        }
+        // Brighten + warm toward the galactic centre; dimmer/cooler in the anti-centre.
+        let center = dot(&dir, &gc).max(0.0); // 0..1
+        let base = 0.018 + 0.045 * center; // faint glow, not bright points
+        // A little per-point variation so the band has texture, not a flat wash.
+        let bright = (base * (0.6 + 0.8 * next())).clamp(0.0, 0.10) as f32;
+        // Color: cool blue-white off-centre, warmer (dustier) toward the centre.
+        let rr = (0.62 + 0.30 * center) as f32;
+        let gg = (0.66 + 0.18 * center) as f32;
+        let bb = (0.78 - 0.10 * center) as f32;
+        out.push(StarVertex {
+            direction: [dir[0] as f32, dir[1] as f32, dir[2] as f32],
+            color_brightness: [rr, gg, bb, bright],
+        });
+    }
+    out
+}
 
 fn load_stars_csv(path: &Path) -> Option<Vec<StarVertex>> {
     let data = std::fs::read_to_string(path).ok()?;
