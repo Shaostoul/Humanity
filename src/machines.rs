@@ -36,6 +36,9 @@ pub enum MachinePower {
     Generator { watts: f32 },
     /// Power draw. `priority` 1 = critical (shed last), 5 = optional (shed first).
     Consumer { watts: f32, priority: u8 },
+    /// Battery bank: buffers surplus / supplies deficit (v0.473). Charges when generation exceeds
+    /// consumption, discharges when it falls short, clamped by capacity + the charge/discharge rates.
+    Battery { capacity_wh: f32, max_charge_w: f32, max_discharge_w: f32 },
 }
 
 /// A machine type: which primitive shape to draw it as, its size, color, display name,

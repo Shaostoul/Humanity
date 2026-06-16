@@ -1108,6 +1108,18 @@ mod native_app {
                                     PowerConsumer { draw_watts: *watts, priority: *priority, enabled: true },
                                 ));
                             }
+                            MachinePower::Battery { capacity_wh, max_charge_w, max_discharge_w } => {
+                                state.game_world.world.spawn((
+                                    HomeMachine,
+                                    crate::ecs::components::Battery {
+                                        // Start half-charged so the swing is visible immediately.
+                                        charge_wh: capacity_wh * 0.5,
+                                        capacity_wh: *capacity_wh,
+                                        max_charge_w: *max_charge_w,
+                                        max_discharge_w: *max_discharge_w,
+                                    },
+                                ));
+                            }
                         }
                     }
                     placed += 1;
@@ -4054,6 +4066,9 @@ mod native_app {
                         state.gui_state.power_generation = ps.generation;
                         state.gui_state.power_consumption = ps.consumption;
                         state.gui_state.power_balance = ps.balance;
+                        state.gui_state.power_battery_wh = ps.battery_wh;
+                        state.gui_state.power_battery_capacity_wh = ps.battery_capacity_wh;
+                        state.gui_state.power_autonomy_hours = ps.autonomy_hours;
                     }
 
                     // ── Auto-connect to server if configured AND seed unlocked ──

@@ -1289,6 +1289,10 @@ pub struct GuiState {
     pub power_generation: f32,
     pub power_consumption: f32,
     pub power_balance: f32,
+    /// Live battery state (v0.473): total charge, capacity (watt-hours), and hours of autonomy.
+    pub power_battery_wh: f32,
+    pub power_battery_capacity_wh: f32,
+    pub power_autonomy_hours: f32,
     /// Character-select showroom (v0.441): when active, the home is hidden and the avatar is
     /// previewed against a backdrop with an orbit camera + the customization panel.
     pub showroom_active: bool,
@@ -2185,6 +2189,9 @@ impl Default for GuiState {
             game_time: None,
             weather: None,
             power_generation: 0.0,
+            power_battery_wh: 0.0,
+            power_battery_capacity_wh: 0.0,
+            power_autonomy_hours: 0.0,
             power_consumption: 0.0,
             power_balance: 0.0,
             showroom_active: false,

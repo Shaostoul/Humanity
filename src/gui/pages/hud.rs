@@ -113,6 +113,26 @@ pub fn draw(
                     11.0,
                     col,
                 );
+                // Battery line (v0.473): live state of charge + hours of autonomy, drawn under
+                // the power line so the day/night swing reads as a draining/refilling number.
+                if state.power_battery_capacity_wh > 0.0 {
+                    let soc = (state.power_battery_wh / state.power_battery_capacity_wh * 100.0)
+                        .clamp(0.0, 100.0);
+                    let bcol = if soc > 20.0 { theme.text_secondary() } else { theme.danger() };
+                    text_shadowed(
+                        painter,
+                        Pos2::new(screen.right() - 16.0, 75.0),
+                        Align2::RIGHT_TOP,
+                        &format!(
+                            "Battery: {:.0}%  {:.1} kWh  ~{:.1} h autonomy",
+                            soc,
+                            state.power_battery_wh / 1000.0,
+                            state.power_autonomy_hours
+                        ),
+                        11.0,
+                        bcol,
+                    );
+                }
             }
 
             // ── Crosshair (center) ──

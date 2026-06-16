@@ -600,6 +600,19 @@ pub struct SolarPanel {
     pub peak_watts: f32,
 }
 
+/// A battery bank that buffers the home's power: it CHARGES from a surplus and DISCHARGES into a
+/// deficit, so the day/night solar swing becomes consequential (the "2.8 days autonomy" stops being
+/// a static string and starts draining). `charge_wh` is the live state of charge in watt-hours;
+/// `ElectricalSystem` integrates the grid balance into it each tick (clamped by capacity + the
+/// charge/discharge power limits). (v0.473, live-home-sim increment 1b)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Battery {
+    pub charge_wh: f32,
+    pub capacity_wh: f32,
+    pub max_charge_w: f32,
+    pub max_discharge_w: f32,
+}
+
 /// Marks an ECS entity as belonging to the placed home layout (spawned from
 /// `data/machines/home.ron`). Used to despawn the old set before re-spawning so
 /// re-entering the world never duplicates the live machine entities.

@@ -20,6 +20,8 @@
             shape: "box", size: (0.6, 0.9, 0.5), color: (0.20, 0.60, 0.32),
             label: "Battery bank",
             stats: [(kind: "storage", value: "~4 kWh", status: "ok"), (kind: "power", value: "charging", status: "ok")],
+            // Live storage (v0.473): buffers the solar swing. Each bank ~4 kWh, 2 kW in/out.
+            power: Some(Battery(capacity_wh: 4000.0, max_charge_w: 2000.0, max_discharge_w: 2000.0)),
         ),
         "wind_turbine_small": (
             shape: "cylinder", size: (0.1, 2.4, 0.1), color: (0.85, 0.86, 0.90),
