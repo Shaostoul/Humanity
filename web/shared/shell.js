@@ -610,26 +610,28 @@
   const nav = document.createElement('div');
   nav.innerHTML =
     '<nav class="hub-nav">' +
-      /* Brand: the H goes to the Humanity landing (the Mission Dashboard), mirroring
-         the app where the H-icon IS the Humanity tab. (v0.469.1) */
-      '<a href="/" class="brand' + (active === 'humanity' ? ' active' : '') + '" data-tip="Humanity">H</a>' +
-
-      '<div class="nav-divider"></div>' +
-
-      /* ── Web header = EXACT MIRROR of the native app's top nav (v0.469.1). Order:
+      /* ── Web header = EXACT MIRROR of the native app's top nav (v0.469.3). Order:
          Play, Humanity, Chat, Studio, Profile, Home, Quests, Tasks, Inventory,
-         Crafting, Map, Platform, Library, Settings. App-only desktop features map to
-         their nearest web target (Play/Studio -> Download, Platform -> Tools, Library
-         -> Resources); the former web-only utility tabs (Wallet, Market, Donate, Ops,
-         Bugs, Dev, Audit, Projects, ...) stay reachable via the mobile drawer + URL. ── */
-      '<span class="nav-group-green">' +
+         Crafting, Map, Platform, Library, Settings. The app has NO separate logo, so
+         neither do we -- the leading "Humanity" tab (with an H mark, like the app) is
+         the single home/Humanity button (this removes the old duplicate "H" brand).
+         App-only desktop features map to their nearest web target (Play/Studio ->
+         Download, Platform -> Tools, Library -> Resources); the former web-only utility
+         tabs (Wallet, Market, Donate, Ops, Bugs, Dev, Audit, ...) stay reachable via
+         the mobile drawer + URL. Colour bars (theme.css) group into three clean blocks:
+         RED = platform entry (Play, Humanity, Chat, Studio), GREEN = your stuff
+         (Profile, Home, Quests, Tasks, Inventory, Crafting, Map), BLUE = system. ── */
+      '<span class="nav-group-red">' +
         navTab('/download', 'games', 'Play', 'play') +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
 
       '<span class="nav-group-red">' +
-        navTab('/',      'globe', 'Humanity', 'humanity') +
+        '<a href="/" class="tab' + (active === 'humanity' ? ' active' : '') + '" data-tip="Humanity">' +
+          '<span class="tab-icon" style="font-weight:900;color:#FF8811;font-size:15px;line-height:1;">H</span>' +
+          '<span class="tab-label">Humanity</span>' +
+        '</a>' +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
@@ -1291,7 +1293,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.469.2';
+    var CURRENT_VERSION = '0.469.3';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
