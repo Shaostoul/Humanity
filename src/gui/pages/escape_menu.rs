@@ -85,11 +85,12 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // nav bar + pages hide and the cursor is grabbed for mouse-look (the
                 // post-egui reconcile in lib.rs); Esc brings the menu back. Leftmost,
                 // so the way into the world is the very first thing in the nav.
-                // Play opens the character launcher (v0.474), not the world
-                // directly -- unless a default character is set, in which case
-                // the click handler in nav_group skips straight to FPS.
+                // Play enters the world (page None). With no default character it
+                // opens the unified character picker (the showroom); with a default
+                // set it skips straight into first-person. The nav_group click
+                // handler does the branching (v0.476).
                 let play_items = [
-                    NavItem { label: "Play", page: GuiPage::Launcher, description: "" },
+                    NavItem { label: "Play", page: GuiPage::None, description: "" },
                 ];
                 nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -525,27 +526,25 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
             // so Esc on the new page goes straight to FPS instead of
             // through stale contextual flow entries.
             state.clear_nav_back();
-            // The "Play" button opens the launcher (GuiPage::Launcher). If a
-            // default character is set, skip the picker and enter the world
-            // directly (load that character via launcher_pending_load). This is
-            // the "don't make me go through select every time" shortcut.
-            if item.page == GuiPage::Launcher && !state.launcher_default_character.is_empty() {
+            if item.page == GuiPage::None {
+                // The "Play" button enters the world (page None). Remember where we
+                // came from so Esc out returns HERE, not a stale last_page.
                 if state.active_page != GuiPage::None {
                     state.last_page = state.active_page;
                 }
-                state.launcher_pending_load = Some(state.launcher_default_character.clone());
-                state.launcher_enter = true;
+                // No default character -> open the unified character picker (the
+                // showroom; load_world + the per-frame handler in lib.rs open it
+                // when launcher_open_select is set). A default IS set -> skip the
+                // picker and load that character straight into first-person. This
+                // is the "don't make me go through select every time" shortcut.
+                if state.launcher_default_character.is_empty() {
+                    state.launcher_open_select = true;
+                    state.launcher_saves_loaded = false; // refresh the save list
+                } else {
+                    state.launcher_pending_load = Some(state.launcher_default_character.clone());
+                }
                 state.active_page = GuiPage::None;
             } else {
-                // Entering FPS mode = page None. Remember where we came from so
-                // Esc out of the world returns HERE, not to a stale last_page.
-                if item.page == GuiPage::None && state.active_page != GuiPage::None {
-                    state.last_page = state.active_page;
-                }
-                // Opening the launcher reloads its save list fresh.
-                if item.page == GuiPage::Launcher {
-                    state.launcher_saves_loaded = false;
-                }
                 state.active_page = item.page.clone();
             }
         }

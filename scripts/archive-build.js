@@ -15,6 +15,11 @@ const { execSync } = require("child_process");
 const BINDIR = path.join(__dirname, "..");
 const EXE_PATTERN = /^v(\d+)\.(\d+)\.(\d+)_HumanityOS\.exe$/;
 const MAX_VERSIONS = 5;
+// Stable, unversioned copy in the repo root. The operator pins THIS to the
+// Windows taskbar once; every build refreshes it in place so the shortcut
+// always launches the latest build, and purgeOld never touches it (it does not
+// match EXE_PATTERN). gitignored (/HumanityOS.exe). (v0.476)
+const STABLE_EXE = path.join(BINDIR, "HumanityOS.exe");
 
 // Semver-aware comparison for filenames like "v0.105.1_HumanityOS.exe".
 // Lexicographic sort is wrong for multi-digit components: "v0.105.1" < "v0.97.0"
@@ -51,9 +56,15 @@ function getLatestExe() {
 }
 
 function killRunning() {
+  // Kill any running build whose exe we are about to overwrite: the versioned
+  // archives (v*HumanityOS*) AND the stable taskbar copy (HumanityOS.exe in the
+  // root). Without releasing the stable one, a build can't refresh it while the
+  // operator has it open from the taskbar. target/release/HumanityOS.exe is NOT
+  // matched (the build owns that; cargo handles its own lock).
+  const stableForPs = STABLE_EXE.replace(/'/g, "''"); // PS single-quote escape
   try {
     execSync(
-      'powershell -Command "Get-Process | Where-Object { $_.Path -like \'C:\\Humanity\\v*HumanityOS*\' } | Stop-Process -Force -ErrorAction SilentlyContinue"',
+      `powershell -Command "Get-Process | Where-Object { $_.Path -like 'C:\\Humanity\\v*HumanityOS*' -or $_.Path -eq '${stableForPs}' } | Stop-Process -Force -ErrorAction SilentlyContinue"`,
       { stdio: "ignore" }
     );
   } catch (e) {
@@ -61,6 +72,50 @@ function killRunning() {
   }
   // Brief pause so Windows releases the file lock
   execSync("ping -n 2 127.0.0.1 > nul", { stdio: "ignore" });
+}
+
+// Refresh the stable, unversioned HumanityOS.exe (+ its signature sidecar) so
+// the operator's pinned taskbar shortcut always points at the latest build.
+// Best-effort: a lock (exe still running) is warned, not fatal.
+function refreshStable(dest) {
+  try {
+    // killRunning() above already stopped a running stable copy, so the fast
+    // path normally works. Fallback for a still-locked target: a running exe on
+    // Windows can be RENAMED even while locked, so move it aside to
+    // HumanityOS.old.exe (gitignored: *.old.exe) and copy the new one in. The
+    // old instance keeps running off the renamed file until the user closes it.
+    try {
+      fs.copyFileSync(dest, STABLE_EXE);
+    } catch (lockErr) {
+      const old = STABLE_EXE.replace(/\.exe$/, ".old.exe");
+      try {
+        fs.unlinkSync(old);
+      } catch (e) {
+        /* none */
+      }
+      fs.renameSync(STABLE_EXE, old);
+      fs.copyFileSync(dest, STABLE_EXE);
+    }
+    // Carry the signature sidecar so the stable copy is trusted by the updater
+    // too (the sig is over file content, which the copy preserves byte-for-byte).
+    const sidecar = dest + ".sig.json";
+    if (fs.existsSync(sidecar)) {
+      fs.copyFileSync(sidecar, STABLE_EXE + ".sig.json");
+    } else {
+      // No signature for this build - drop any stale sidecar so the stable copy
+      // isn't paired with an old, now-invalid signature.
+      try {
+        fs.unlinkSync(STABLE_EXE + ".sig.json");
+      } catch (e) {
+        /* none */
+      }
+    }
+    console.log(`  Stable: HumanityOS.exe refreshed (pin this to your taskbar)`);
+  } catch (e) {
+    console.warn(
+      `  Could not refresh HumanityOS.exe (is it still running?): ${e.message}`
+    );
+  }
 }
 
 function purgeOld() {
@@ -127,6 +182,7 @@ function archive() {
   console.log(`Archived: ${dest} (${mb} MB)`);
 
   signArchive(dest);
+  refreshStable(dest);
   purgeOld();
   return dest;
 }

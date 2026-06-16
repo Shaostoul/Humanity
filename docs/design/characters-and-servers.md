@@ -82,14 +82,28 @@ Native `showroom.rs` is canonical (Rust-first); the web mirror reuses `renderSer
 
 ## The Play launcher + offline editing (operator additions, 2026-06-16)
 
-> **SHIPPED v0.474** (first increment). `GuiPage::Launcher` + `src/gui/pages/launcher.rs`: Play now
-> opens the launcher (`escape_menu.rs` Play nav item -> `GuiPage::Launcher`) with the three sections
-> (Homes / Open-Net / Closed-Net), a per-character "Set default" toggle persisted to
-> `AppConfig.default_character`, a "Customize Look" button that opens the showroom appearance editor
-> offline, and "Enter World". When a default is set, the Play click handler skips the launcher and
-> enters directly (`launcher_pending_load` applies the chosen save after the world loads). The
-> open-net / closed-net sections are labeled placeholders until multiplayer character sync lands. The
-> changing-station gate + `character_v1` signed object below remain future work.
+> **SHIPPED v0.474, then UNIFIED v0.476.** v0.474 added a flat `GuiPage::Launcher` page. v0.476
+> removed it and folded the launcher INTO the showroom (`src/gui/pages/showroom.rs`), which was
+> already a two-pane 3D surface (left character list, right editor, 3D avatar in the center gap) and
+> was the character-select that `load_world` opened on spawn. There were thus TWO character-selects
+> (the flat launcher on Play, the showroom on Esc, showing a stale "Wanderer"); the operator asked
+> for ONE. Now:
+> - **Play** sets `launcher_open_select` + enters the world; a per-frame handler in `lib.rs` opens the
+>   showroom (mode 0) AFTER `load_world` (so it works the first time and every later time). With a
+>   default character set, Play skips the picker (`launcher_pending_load`) and drops straight in.
+> - `load_world` NO LONGER auto-opens the showroom -- that was the root cause of the Esc "Wanderer"
+>   ghost. Esc now enters plain first-person; the picker is opt-in via Play only.
+> - The showroom LEFT pane is the unified list: **Your Homes** (offline saves, with a Set-default
+>   toggle persisted to `AppConfig.default_character`), **Open-Net** + **Closed-Net** characters
+>   (multiplayer placeholders), and **Servers** (from `chat_servers`). The RIGHT pane shows the
+>   appearance/wardrobe editor for a selected character (the existing "Enter your home" confirm,
+>   relabeled "Enter World") OR server details when a server is selected. Rich in-page contextual help
+>   under every section.
+> - **Deferred (tracked):** the server detail pane currently shows name/url/status/channels from the
+>   local `chat_servers`; the richer `GET /api/server-info` fetch (description, member count) + the
+>   admin-editable server description (a `server_settings.server_description` column reusing the
+>   existing admin-gated `server_settings_update` path) + Connect are the next increment. The
+>   changing-station gate + `character_v1` signed object below remain future work.
 
 The **Play button becomes the launcher screen** (not a straight drop into FPS): it opens character
 select, your homes, and an Enter-World button. Concretely:

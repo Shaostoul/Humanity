@@ -42,7 +42,6 @@ pub use crate::gui::widgets::passphrase_modal;
 pub mod onboarding;
 pub mod server_settings;
 pub mod game_admin;
-pub mod launcher;
 pub mod identity;
 pub mod governance;
 pub mod recovery;

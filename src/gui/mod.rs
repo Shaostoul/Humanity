@@ -77,6 +77,22 @@ pub enum PassphraseMode {
 }
 
 /// Which page/overlay is currently active.
+/// Which kind of thing the unified launcher (the showroom in character-select
+/// mode) currently has selected in its left pane. Drives what the right pane
+/// shows: a character editor (Home / OpenNet / ClosedNet) or server details.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LauncherSel {
+    /// A local, self-custodial home/character save (the wired path today).
+    Home,
+    /// A self-custodial character used on an open-net server (multiplayer).
+    OpenNet,
+    /// A server-held, anti-cheat character (multiplayer).
+    ClosedNet,
+    /// A server row: the right pane shows server details instead of a character.
+    Server,
+}
+
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuiPage {
@@ -119,11 +135,6 @@ pub enum GuiPage {
     /// from chat moderation: a game ban blocks a player from the shared 3D
     /// world only and never touches chat. Admin-gated. See pages/game_admin.rs.
     GameAdmin,
-    /// Character launcher (v0.474). What the Play button opens: pick a home /
-    /// character (self-custodial local, open-net, or closed-net server),
-    /// customize your look offline, set a default to skip the picker, then
-    /// Enter World. See pages/launcher.rs + docs/design/characters-and-servers.md.
-    Launcher,
     /// Identity hub: DID, Verifiable Credentials, trust score, AI status.
     /// Mirrors the web `/identity` page.
     Identity,
@@ -1751,13 +1762,20 @@ pub struct GuiState {
     /// launcher). Persisted to AppConfig.default_character. When non-empty,
     /// Play skips the launcher and enters the world with this character.
     pub launcher_default_character: String,
-    /// Request from the launcher: enter the 3D world now (lib.rs handles it).
-    pub launcher_enter: bool,
-    /// Request from the launcher: open the appearance/character editor (showroom).
-    pub launcher_open_showroom: bool,
     /// A non-active save stem the launcher asked to load on Enter World; lib.rs
     /// applies it to the live player after the world loads, then clears this.
     pub launcher_pending_load: Option<String>,
+    /// One-shot signal (v0.476): Play wants the unified character picker (the
+    /// showroom in mode 0). Distinguishes "Play -> show the picker" from "Esc ->
+    /// plain first-person". load_world only opens the showroom when this is set,
+    /// then clears it -- so Esc to FPS never surfaces the old character-select.
+    pub launcher_open_select: bool,
+    /// Which left-pane category the unified launcher has selected, so the right
+    /// pane knows whether to draw the character editor or server details.
+    pub launcher_selected_kind: LauncherSel,
+    /// The id/url of the selected server row (when launcher_selected_kind ==
+    /// Server), so the detail pane knows which server to describe.
+    pub launcher_selected_server: Option<String>,
     /// Currently-muted users for the Server Settings → Muted users mod
     /// panel. Populated by the `muted_list` WS message (mods/admins
     /// only). v0.246.
@@ -2368,9 +2386,10 @@ impl Default for GuiState {
             launcher_saves_loaded: false,
             launcher_selected: String::new(),
             launcher_default_character: String::new(),
-            launcher_enter: false,
-            launcher_open_showroom: false,
             launcher_pending_load: None,
+            launcher_open_select: false,
+            launcher_selected_kind: LauncherSel::Home,
+            launcher_selected_server: None,
             chat_muted_users: Vec::new(),
             chat_muted_requested: false,
             server_settings_draft: None,

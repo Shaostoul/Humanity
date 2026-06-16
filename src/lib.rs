@@ -90,7 +90,7 @@ mod native_app {
         wallet, crafting, guilds, trade, files, bugs, donate, tools, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
         browser, category_overview, settings_pages, cosmos, real,
-        platform, humanity, library, quests, homes, game_admin, launcher,
+        platform, humanity, library, quests, homes, game_admin,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -1598,12 +1598,13 @@ mod native_app {
             state.avatar_base = base;
             state.fps_spawn = state.camera.position; // the first-person spawn set above
             state.showroom_return_pos = state.camera.position;
-            state.gui_state.showroom_mode = 0; // character select on spawn
             state.avatar_obj_start = state.placeholder_objects.len();
             let colors = crate::cosmetics::resolve_outfit_colors(&outfit, &state.cosmetics);
             place_avatar(state, base, &app, &colors);
 
-            // Showroom: load backdrops, build the ground disc, start in orbit + free cursor.
+            // Showroom SCENE ASSETS (backdrops, ground disc, body sphere) are loaded on
+            // every world-load -- cheap, and needed so the wetroom mirror + bedroom
+            // wardrobe can open the showroom later even when Play did not open the picker.
             state.showroom_backdrops = crate::showroom::load_backdrops(&state.data_dir);
             state.gui_state.showroom_backdrop_names =
                 state.showroom_backdrops.iter().map(|b| b.name.clone()).collect();
@@ -1615,16 +1616,22 @@ mod native_app {
             // A planet sphere (radius 30) the avatar stands on for body backdrops (Earth/Mars).
             let body = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 30.0, 24, 32));
             state.showroom_body = Some(body);
-            state.gui_state.showroom_active = true;
             state.gui_state.appearance_dirty = false;
             state.gui_state.showroom_confirm = false;
-            state.camera.switch_mode(crate::renderer::camera::CameraMode::Orbit);
-            state.camera.orbit_target = base + Vec3::new(0.0, 0.9 * app.height_scale, 0.0);
-            state.camera.orbit_distance = 3.2;
-            state.camera.orbit_distance_min = 1.5;
-            state.camera.orbit_distance_max = 8.0;
-            state.controller.showroom_lock = true; // fixed orbit: drag spins, wheel zooms
-            // (cursor freed by the per-frame reconciliation in the update loop)
+
+            // load_world NO LONGER opens the character-select showroom (v0.476).
+            // It just spawns you in first-person at the respawner. The unified
+            // character picker is opened OPT-IN by the Play button, via the
+            // per-frame open_showroom(0) call that runs right AFTER this load when
+            // launcher_open_select is set. Because load_world only runs once (the
+            // world_loaded guard) AND Esc enters the world without that flag, the
+            // old picker (the "Wanderer" duplicate the operator hit on Esc) never
+            // appears on Esc, and Play opens the picker every time, not just the
+            // first. This is THE root-cause fix for the duplicate character-select.
+            state.gui_state.showroom_active = false;
+            state.controller.showroom_lock = false;
+            state.camera.switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
+            state.camera.position = state.fps_spawn;
         }
 
         state.world_loaded = true;
@@ -5585,27 +5592,25 @@ mod native_app {
                     // Track page before egui frame for cursor grab transitions
                     let page_before_frame = state.gui_state.active_page;
 
-                    // ── Character launcher actions (v0.474) ──
-                    // "Enter World": drop into first-person (the lazy world-load
-                    // below picks it up). "Customize Look": load the world if
-                    // needed, then open the appearance editor (the showroom needs
-                    // the player entity + renders only when active_page == None).
-                    if state.gui_state.launcher_enter {
-                        state.gui_state.launcher_enter = false;
-                        state.gui_state.active_page = GuiPage::None;
-                    }
-                    if state.gui_state.launcher_open_showroom {
-                        state.gui_state.launcher_open_showroom = false;
-                        state.gui_state.active_page = GuiPage::None;
-                        if !state.world_loaded {
-                            load_world(state);
-                        }
-                        open_showroom(state, 1);
-                    }
-
                     // Lazy-load 3D world on first Enter World (code LOD: chat loads fast, 3D loads when needed)
                     if state.gui_state.active_page == GuiPage::None && !state.world_loaded {
                         load_world(state);
+                    }
+
+                    // ── Unified character launcher (v0.476) ──
+                    // Play asks for the character picker by setting launcher_open_select
+                    // + active_page = None. We open the showroom (mode 0) here, AFTER
+                    // load_world, so it works the FIRST time (world loads this same frame)
+                    // and EVERY later time (world already loaded, so load_world is skipped
+                    // -- a gate inside load_world would never fire again). The showroom is
+                    // the single unified two-pane character/server surface; the old flat
+                    // launcher page is gone.
+                    if state.gui_state.launcher_open_select && state.world_loaded {
+                        state.gui_state.launcher_open_select = false;
+                        // Always land on the character (Home) tab, not a stale server selection.
+                        state.gui_state.launcher_selected_kind = crate::gui::LauncherSel::Home;
+                        state.gui_state.active_page = GuiPage::None;
+                        open_showroom(state, 0); // mode 0 = character select
                     }
 
                     // Apply a launcher-selected character once the world exists
@@ -5785,7 +5790,6 @@ mod native_app {
                                     // v0.415.0: Play / Resources / Onboarding arms removed with their pages.
                                     GuiPage::ServerSettings => server_settings::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::GameAdmin => game_admin::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Launcher => launcher::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Identity => identity::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Governance => governance::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Recovery => recovery::draw(ctx, &state.theme, &mut state.gui_state),
