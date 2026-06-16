@@ -875,6 +875,8 @@ pub struct ConstructionRoom {
     pub wall_offsets: [f32; 4],
     /// Placed openings (doors/windows/airlocks) on this room's walls (v0.469).
     pub openings: Vec<EditorOpening>,
+    /// Vertical storey this room sits on (v0.471). 0 = ground floor; world Y = level * story_height.
+    pub level: i32,
     pub position: Option<[f32; 3]>,
     pub dimensions: [f32; 3], // (width_x, height_y, depth_z) metres
     pub material_type: u32,
@@ -1318,6 +1320,9 @@ pub struct GuiState {
     pub construction_selected_room: Option<usize>,
     /// Editable uniform ceiling height (mirrors layout.default_wall_height).
     pub construction_height: f32,
+    /// The active storey the editor is focused on (v0.471). The room tree filters to this level
+    /// and new rooms are created on it; the level stepper per room moves a room between storeys.
+    pub construction_level: i32,
     /// Set by the panel when a wall/position/size/add/remove changed -> the engine rebuilds.
     pub construction_dirty: bool,
     /// Set by the panel's Save button -> the engine writes the layout back to the RON.
@@ -2194,6 +2199,7 @@ impl Default for GuiState {
             keymaps: Vec::new(),
             construction_selected_room: None,
             construction_height: 3.0,
+            construction_level: 0,
             construction_dirty: false,
             construction_save: false,
             showroom_backdrop: 0,

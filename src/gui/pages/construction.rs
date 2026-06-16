@@ -25,10 +25,29 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             // Rooms. (terminology locked with the operator, v0.468.)
             ui.label(RichText::new("Structure").size(theme.font_size_body).strong().color(theme.text_primary()));
             ui.label(RichText::new("Home").size(theme.font_size_small).color(theme.text_muted()));
+            ui.add_space(theme.spacing_xs);
+            // ── Level (storey) selector (v0.471): focus the tree on one floor at a time. New
+            //    rooms are created on the active level; multistory homes + the mall stack in Y.
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Level").size(theme.font_size_small).color(theme.text_muted()));
+                if ui.small_button("-").clicked() { state.construction_level -= 1; }
+                let lvl = state.construction_level;
+                let lbl = if lvl == 0 { "Ground".to_string() } else { format!("{lvl}") };
+                ui.label(RichText::new(lbl).strong().color(theme.accent()));
+                if ui.small_button("+").clicked() { state.construction_level += 1; }
+            });
+            let active_level = state.construction_level;
+            let here = state.construction_rooms.iter().filter(|r| r.level == active_level).count();
+            let total = state.construction_rooms.len();
+            ui.label(RichText::new(format!("{here} room(s) on this floor, {total} total"))
+                .size(theme.font_size_small).color(theme.text_muted()));
             ui.add_space(theme.spacing_sm);
             egui::ScrollArea::vertical().id_salt("rooms_tree").show(ui, |ui| {
                 let n = state.construction_rooms.len();
                 for ri in 0..n {
+                    // Filter the tree to the active storey (the room indices stay real, so a
+                    // selection on another level remains valid; the level stepper reveals it).
+                    if state.construction_rooms[ri].level != active_level { continue; }
                     let name = state.construction_rooms[ri].id.clone();
                     let selected = state.construction_selected_room == Some(ri);
                     let label = RichText::new(format!("  {name}"))
@@ -66,6 +85,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         walls: [WallKind::Auto; 4],
                         wall_offsets: [0.0; 4],
                         openings: Vec::new(),
+                        level: active_level, // new rooms land on the floor you are viewing
                         position: Some([0.0, 0.0, 0.0]),
                         dimensions: [4.0, h, 4.0],
                         material_type: 1,
@@ -111,6 +131,23 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 if let Some(ri) = state.construction_selected_room {
                     let name = state.construction_rooms[ri].id.clone();
                     ui.label(RichText::new(name).strong().size(theme.font_size_body).color(theme.text_primary()));
+                    ui.add_space(theme.spacing_xs);
+                    // ---- Storey (v0.471): move this room between floors. World Y = level * story
+                    // height; adjacency is level-aware so a stacked room never cuts a door downward.
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Storey").size(theme.font_size_small).color(theme.text_muted()));
+                        if ui.small_button("-").clicked() {
+                            state.construction_rooms[ri].level -= 1;
+                            state.construction_dirty = true;
+                        }
+                        let rl = state.construction_rooms[ri].level;
+                        let rlbl = if rl == 0 { "Ground".to_string() } else { format!("Level {rl}") };
+                        ui.label(RichText::new(rlbl).color(theme.text_secondary()));
+                        if ui.small_button("+").clicked() {
+                            state.construction_rooms[ri].level += 1;
+                            state.construction_dirty = true;
+                        }
+                    });
                     ui.add_space(theme.spacing_xs);
                     // ---- Wall character (whole-wall): Solid / Auto / Open / Mirror. Doors and
                     // windows are now PLACED OBJECTS (the Openings list below), not wall kinds.
@@ -377,6 +414,8 @@ fn draw_floorplan_canvas(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     let count = state.construction_rooms.len();
     for ri in 0..count {
         let r = &state.construction_rooms[ri];
+        // Multistory (v0.471): the top-down plan shows one storey at a time (the active level).
+        if r.level != state.construction_level { continue; }
         let p = r.position.unwrap_or([0.0, 0.0, 0.0]);
         let room_rect = egui::Rect::from_two_pos(
             to_canvas(p[0], p[2]),

@@ -7,6 +7,7 @@ pub mod csg;
 pub mod blueprint;
 pub mod structural;
 pub mod routing;
+pub mod solver;
 
 use crate::ecs::components::Transform;
 use crate::ecs::systems::System;

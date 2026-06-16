@@ -1123,11 +1123,10 @@
             <strong>Language</strong>
             <span>Display language for the interface</span>
           </div>
-          <select class="setting-select" id="pref-language" onchange="savePref()">
+          <select class="setting-select" id="pref-language" onchange="savePref(); applyLanguagePref();">
             <option value="en">English</option>
             <option value="es">Español</option>
             <option value="fr">Français</option>
-            <option value="de">Deutsch</option>
             <option value="ja">日本語</option>
             <option value="zh">中文</option>
           </select>
@@ -1313,14 +1312,14 @@
             <strong>Reduce Motion</strong>
             <span>Turn off animations and transitions throughout the app</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-reduce-motion" onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-reduce-motion" onchange="savePref(); applyA11yPrefs();"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Disable RGB Effects</strong>
             <span>Turn off all color-cycling and glow effects</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-no-rgb" onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-no-rgb" onchange="savePref(); applyExtraA11yToggles();"><span class="toggle-track"></span></label>
         </div>
       </div>
 
@@ -1331,21 +1330,33 @@
             <strong>High Contrast</strong>
             <span>Increase contrast between text and background</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-high-contrast" onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-high-contrast" onchange="savePref(); applyA11yPrefs();"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Colorblind Mode</strong>
+            <span>Adjust colors for protanopia, deuteranopia, or tritanopia</span>
+          </div>
+          <select class="setting-select" id="pref-colorblind" onchange="savePref(); applyA11yPrefs();">
+            <option value="none">Off</option>
+            <option value="protanopia">Protanopia (red-blind)</option>
+            <option value="deuteranopia">Deuteranopia (green-blind)</option>
+            <option value="tritanopia">Tritanopia (blue-blind)</option>
+          </select>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Large Cursor Focus</strong>
             <span>Show a thick visible outline around the focused element</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-focus-ring" onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-focus-ring" onchange="savePref(); applyExtraA11yToggles();"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Dyslexia-Friendly Font</strong>
             <span>Use a font with more distinct letter shapes</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-dyslexia-font" onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-dyslexia-font" onchange="savePref(); applyExtraA11yToggles();"><span class="toggle-track"></span></label>
         </div>
       </div>
 

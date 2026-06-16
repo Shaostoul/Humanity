@@ -251,6 +251,36 @@ h4 { font-size: var(--text-base); }
 [data-colorblind="deuteranopia"] { filter: url(#deuteranopia); }
 [data-colorblind="tritanopia"] { filter: url(#tritanopia); }
 
+/* Disable RGB Effects: kill the colour-cycling / glow animations on the nav,
+   footer toggle, and separator while leaving other transitions intact. The
+   selectors mirror the animated rules in shell.js (channeling, rgb-separator,
+   footer-toggle-rgb, badgePulse). */
+[data-no-rgb] .hub-nav .tab.active,
+[data-no-rgb] .hub-nav .brand.active,
+[data-no-rgb] .hub-nav .tab.tab-update-ready,
+[data-no-rgb] .hub-nav .tab .tab-update-badge,
+[data-no-rgb] .nav-separator,
+[data-no-rgb] .footer-toggle,
+[data-no-rgb] .mobile-hub-group a.active { animation: none !important; }
+
+/* Large Cursor Focus: thick, high-visibility outline on the focused element. */
+[data-focus-ring] :focus,
+[data-focus-ring] :focus-visible {
+  outline: 3px solid var(--accent, #FF8811) !important;
+  outline-offset: 2px !important;
+  border-radius: 2px;
+}
+
+/* Dyslexia-Friendly Font: switch the whole UI to a high-legibility font stack
+   with wider letter spacing and looser word spacing. Uses widely available
+   system faces (no web-font download needed on old / offline hardware). */
+[data-dyslexia-font],
+[data-dyslexia-font] * {
+  font-family: "Comic Sans MS", "Trebuchet MS", Verdana, Tahoma, sans-serif !important;
+  letter-spacing: 0.03em !important;
+  word-spacing: 0.08em !important;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

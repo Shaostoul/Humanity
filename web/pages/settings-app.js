@@ -130,6 +130,74 @@ function showSection(id) {
   if (sec) sec.classList.add('active');
 }
 
+// ── Accessibility bridge ──────────────────────────────────────────────────
+// The Accessibility toggles used to only write into the `humanity_settings`
+// blob, which NOTHING read, so they were inert. The real engine is
+// shared/accessibility.js (window.a11y), loaded site-wide by shell.js. It owns
+// its own localStorage keys (a11y_high_contrast / a11y_reduced_motion /
+// a11y_colorblind_mode) and applies modes by toggling data-* attributes on
+// <body> (theme.css has the matching rules). These bridges push the control
+// state THROUGH the module so the setting both persists in the module's keys
+// and takes effect instantly on this page and every other page.
+function applyA11yPrefs() {
+  if (!window.a11y) return;
+  var hc = document.getElementById('pref-high-contrast');
+  var rm = document.getElementById('pref-reduce-motion');
+  var cb = document.getElementById('pref-colorblind');
+  if (hc) window.a11y.setHighContrast(hc.checked);
+  if (rm) window.a11y.setReducedMotion(rm.checked);
+  if (cb) window.a11y.setColorblindMode(cb.value);
+}
+
+// Mirror the module's persisted state back into the controls on load, so the
+// switches reflect what is actually applied (a value may have been set on a
+// different page before the settings blob knew about it). Module keys are the
+// source of truth for the three a11y modes.
+function reflectA11yPrefs() {
+  if (!window.a11y) return;
+  var hc = document.getElementById('pref-high-contrast');
+  var rm = document.getElementById('pref-reduce-motion');
+  var cb = document.getElementById('pref-colorblind');
+  if (hc) hc.checked = window.a11y.getHighContrast();
+  if (rm) rm.checked = window.a11y.getReducedMotion();
+  if (cb) cb.value = window.a11y.getColorblindMode();
+}
+
+// ── Language bridge ───────────────────────────────────────────────────────
+// shared/i18n.js (window.i18n) is loaded site-wide by shell.js. setLanguage()
+// persists the choice to `humanity_language`, sets <html lang>/<dir>, and fires
+// a `languagechange` event so any i18n-aware UI re-renders. The settings blob
+// also keeps a copy under `language`, but i18n's key is the one the module
+// reads on every page load.
+function applyLanguagePref() {
+  var sel = document.getElementById('pref-language');
+  if (!sel || !window.i18n || typeof window.i18n.setLanguage !== 'function') return;
+  window.i18n.setLanguage(sel.value).catch(function (e) {
+    console.warn('Language switch failed:', e);
+  });
+}
+
+// Reflect the stored language into the control on load.
+function reflectLanguagePref() {
+  var sel = document.getElementById('pref-language');
+  if (!sel || !window.i18n) return;
+  var lang = window.i18n.getStoredLanguage();
+  // Only override the control if the stored language is one of its options.
+  if (lang && [].some.call(sel.options, function (o) { return o.value === lang; })) {
+    sel.value = lang;
+  }
+}
+
+// ── Extra accessibility toggles (no dedicated module) ─────────────────────
+// Disable RGB Effects, Large Cursor Focus, and Dyslexia-Friendly Font are
+// driven by data-* attributes on <html> with CSS backing in theme.css. The
+// site-wide applier lives in shell.js (window.hosApplyA11yToggles) so the
+// choice takes effect on every page; here we just persist via savePref() (the
+// inline handler already did) and re-run the applier so it updates instantly.
+function applyExtraA11yToggles() {
+  if (typeof window.hosApplyA11yToggles === 'function') window.hosApplyA11yToggles();
+}
+
 // ── Theme Customizer live updates ──
 function applyCustomizerLive() {
   var doc = document.documentElement;
@@ -670,7 +738,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.470.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.471.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -964,6 +1032,38 @@ calculateStorage();
 updateRangeLabels();
 initDndDropdowns();
 loadPushPrefs();
+
+// ── Sync accessibility + language controls with their shared modules ──
+// shell.js loads accessibility.js / i18n.js asynchronously, so window.a11y and
+// window.i18n may not exist yet at this point. Poll briefly until they are, then
+// reflect the modules' persisted state into the controls. We also push the
+// settings blob's saved values INTO the modules on first sight, so a value the
+// user set here (before the modules existed) takes effect, the modules' own keys
+// stay authoritative thereafter.
+(function syncA11yAndLanguage() {
+  var tries = 0;
+  function tick() {
+    tries++;
+    if (window.a11y) {
+      // If the module has no stored high-contrast key yet but the settings blob
+      // does, seed the module from the blob (one-time bridge for legacy prefs).
+      if (localStorage.getItem('a11y_high_contrast') === null && prefs['high-contrast']) {
+        window.a11y.setHighContrast(true);
+      }
+      if (localStorage.getItem('a11y_reduced_motion') === null && prefs['reduce-motion']) {
+        window.a11y.setReducedMotion(true);
+      }
+      if (localStorage.getItem('a11y_colorblind_mode') === null && prefs['colorblind'] && prefs['colorblind'] !== 'none') {
+        window.a11y.setColorblindMode(prefs['colorblind']);
+      }
+      reflectA11yPrefs();
+    }
+    if (window.i18n) reflectLanguagePref();
+    if ((window.a11y && window.i18n) || tries > 40) return; // ~4s max
+    setTimeout(tick, 100);
+  }
+  tick();
+})();
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ── Wallet Settings ──

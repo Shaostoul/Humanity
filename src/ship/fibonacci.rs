@@ -204,6 +204,12 @@ pub struct RoomConfig {
     /// default) => no placed openings, so existing layouts are byte-identical.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub openings: Vec<Opening>,
+    /// Vertical STORY this room sits on (v0.471). 0 = ground floor (today's behaviour). The
+    /// room's world Y is `level * story_height` ADDED to its position/computed Y, so multistory
+    /// homes + the multi-level mall stack cleanly. Adjacency is level-aware (rooms on different
+    /// levels do not share walkable walls), so stacking can never cut a door into a floor.
+    #[serde(default)]
+    pub level: i32,
 }
 
 /// Full homestead layout loaded from data/
@@ -240,6 +246,24 @@ pub struct HomesteadLayout {
     /// `dimensions.y`. (v0.454)
     #[serde(default)]
     pub default_wall_height: f32,
+    /// Metres of world height per `level` step (v0.471). A room on `level` N sits at world Y
+    /// `N * story_height`. 0 (the default) falls back to `default_wall_height` (else 3.0), so
+    /// "each floor is one wall-height tall" needs no RON. Tune for taller/shorter stories.
+    #[serde(default)]
+    pub story_height: f32,
+}
+
+impl HomesteadLayout {
+    /// Metres of world height per `level` step. Falls back to the uniform wall height, then 3 m.
+    pub fn effective_story_height(&self) -> f32 {
+        if self.story_height > 0.0 {
+            self.story_height
+        } else if self.default_wall_height > 0.0 {
+            self.default_wall_height
+        } else {
+            3.0
+        }
+    }
 }
 
 fn default_door_w() -> f32 { 0.9 }
@@ -453,9 +477,10 @@ pub fn resolve_positions(layout: &HomesteadLayout) -> Vec<Vec3> {
         LayoutStyle::Vertical | LayoutStyle::Studio => compute_vertical_positions(&layout.rooms),
     };
 
+    let story = layout.effective_story_height();
     let mut y_offset = 0.0f32;
     layout.rooms.iter().enumerate().map(|(i, rc)| {
-        if let Some(pos) = rc.position {
+        let base = if let Some(pos) = rc.position {
             // Explicit position overrides computation
             Vec3::new(pos[0], pos[1], pos[2])
         } else {
@@ -469,7 +494,10 @@ pub fn resolve_positions(layout: &HomesteadLayout) -> Vec<Vec3> {
                 _ => 0.0,
             };
             Vec3::new(cx, y, cz)
-        }
+        };
+        // Multistory (v0.471): lift the room by its story. level 0 = unchanged, so existing
+        // single-storey layouts are byte-identical; level N stacks it N storeys up.
+        Vec3::new(base.x, base.y + rc.level as f32 * story, base.z)
     }).collect()
 }
 
@@ -817,11 +845,20 @@ struct SharedEdge {
 /// axis (within tolerance for wall thickness) AND they overlap along the
 /// perpendicular axis.
 fn find_shared_edges(
-    pos_a: Vec3, dim_a: Vec3,
-    pos_b: Vec3, dim_b: Vec3,
+    pos_a: Vec3, dim_a: Vec3, height_a: f32,
+    pos_b: Vec3, dim_b: Vec3, height_b: f32,
 ) -> Vec<SharedEdge> {
     let tol = 0.15; // tolerance for wall thickness alignment
     let mut edges = Vec::new();
+
+    // Multistory (v0.471): two rooms only share a WALKABLE wall when their VERTICAL extents
+    // overlap. Rooms on different storeys (or otherwise Y-separated) are NOT adjacent, so
+    // stacking can never phantom-cut a door into a floor or vanish a wall. A room that spans
+    // storeys (the mall atrium) overlaps both bands and correctly neighbours rooms on each.
+    let y_overlap = (pos_a.y + height_a).min(pos_b.y + height_b) - pos_a.y.max(pos_b.y);
+    if y_overlap <= 0.5 {
+        return edges; // empty -- not on the same vertical band
+    }
 
     // Room A bounds
     let a_x0 = pos_a.x;
@@ -1077,7 +1114,7 @@ pub fn opening_handles(layout: &HomesteadLayout, positions: &[Vec3]) -> Vec<Open
         for j in (i + 1)..rooms.len() {
             let (dim_b, wh_b) = room_data[j];
             if wh_b <= 0.0 { continue; }
-            for edge in find_shared_edges(positions[i], dim_a, positions[j], dim_b) {
+            for edge in find_shared_edges(positions[i], dim_a, wh_a, positions[j], dim_b, wh_b) {
                 wall_edges[i][edge.wall_a].push((j, edge.wall_b, edge.start, edge.end));
                 wall_edges[j][edge.wall_b].push((i, edge.wall_a, edge.start, edge.end));
             }
@@ -1277,7 +1314,7 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
         for j in (i + 1)..rooms.len() {
             let (dim_b, wh_b) = room_data[j];
             if wh_b <= 0.0 { continue; }
-            for edge in find_shared_edges(positions[i], dim_a, positions[j], dim_b) {
+            for edge in find_shared_edges(positions[i], dim_a, wh_a, positions[j], dim_b, wh_b) {
                 wall_edges[i][edge.wall_a].push((j, edge.wall_b, edge.start, edge.end));
                 wall_edges[j][edge.wall_b].push((i, edge.wall_a, edge.start, edge.end));
             }
@@ -1645,6 +1682,7 @@ fn fallback_layout() -> HomesteadLayout {
         crown_height: default_trim_h(),
         mirror_size: default_mirror(),
         default_wall_height: 3.0, // uniform 3 m ceilings (matches the shipped RON)
+        story_height: 0.0, // 0 = fall back to default_wall_height (3 m per storey)
     }
 }
 
@@ -1658,6 +1696,7 @@ fn room_cfg(id: &str, dims: [f32; 3], material: u32, color: [f32; 4]) -> RoomCon
         wall_height: 0.0, // use dimensions.y
         walls: WallSet::default(), // all Auto (today's auto-door behaviour)
         openings: Vec::new(),
+        level: 0,
     }
 }
 
@@ -1850,6 +1889,7 @@ mod tests {
             crown_height: default_trim_h(),
             mirror_size: default_mirror(),
             default_wall_height: 3.0,
+            story_height: 0.0,
         }
     }
 
@@ -1964,5 +2004,40 @@ mod tests {
         let all_solid = generate_from_layout(&single_room(solid_walls(), vec![]));
         assert_eq!(opened.walls.0.len(), all_solid.walls.0.len(),
             "a lone Open wall reseals to solid (same wall geometry as all-solid)");
+    }
+
+    // ── Multistory (v0.471) ─────────────────────────────────────────────────────────────────
+
+    /// A2 landmine guard: two identical-footprint rooms on DIFFERENT storeys must NOT register
+    /// as wall-sharing (or stacking would phantom-cut a door into the floor between floors), but
+    /// two same-storey XZ-adjacent rooms still do.
+    #[test]
+    fn stacked_rooms_on_different_levels_dont_share_walls() {
+        let dim = Vec3::new(6.0, 3.0, 4.0);
+        let a = Vec3::new(0.0, 0.0, 0.0);
+        let b_up = Vec3::new(0.0, 3.0, 0.0); // same XZ, one storey up
+        assert!(find_shared_edges(a, dim, 3.0, b_up, dim, 3.0).is_empty(),
+            "rooms on different storeys share no walkable wall");
+        let c_beside = Vec3::new(6.0, 0.0, 0.0); // east of A, same storey, shares the x=6 wall
+        assert!(!find_shared_edges(a, dim, 3.0, c_beside, dim, 3.0).is_empty(),
+            "same-storey XZ-adjacent rooms still share a wall");
+        // A two-storey atrium (tall room) overlaps BOTH bands -> neighbours rooms on each.
+        let tall = Vec3::new(6.0, 0.0, 0.0);
+        assert!(!find_shared_edges(a, dim, 3.0, tall, Vec3::new(6.0, 6.0, 4.0), 6.0).is_empty(),
+            "a room spanning two storeys neighbours a ground-floor room beside it");
+    }
+
+    /// `level` lifts a room by `story_height` (falling back to default_wall_height); level 0 is
+    /// unchanged so existing layouts are byte-identical.
+    #[test]
+    fn level_lifts_room_by_story_height() {
+        let mut layout = single_room(solid_walls(), vec![]); // pinned at y=0, default_wall_height 3
+        layout.rooms[0].level = 2; // story_height 0 -> falls back to 3 m
+        let positions = resolve_positions(&layout);
+        assert!((positions[0].y - 6.0).abs() < 1e-4, "level 2 * 3 m = y 6 (got {})", positions[0].y);
+        layout.story_height = 4.0; // explicit taller storeys
+        assert!((resolve_positions(&layout)[0].y - 8.0).abs() < 1e-4, "level 2 * 4 m = y 8");
+        layout.rooms[0].level = 0;
+        assert!(resolve_positions(&layout)[0].y.abs() < 1e-4, "level 0 stays at y 0 (back-compat)");
     }
 }

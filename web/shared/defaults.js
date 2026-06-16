@@ -64,6 +64,7 @@
     'reduce-motion': false,
     'no-rgb': false,
     'high-contrast': false,
+    'colorblind': 'none',
     'focus-ring': false,
     'dyslexia-font': false,
     'aria-enhanced': false,

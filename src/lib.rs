@@ -2441,6 +2441,7 @@ mod native_app {
                                                         u: o.u, v: o.v, w: o.w, h: o.h,
                                                     }
                                                 }).collect(),
+                                                level: rc.level,
                                                 position: Some(pos),
                                                 dimensions: rc.dimensions,
                                                 material_type: rc.material_type,
@@ -2953,6 +2954,7 @@ mod native_app {
                                     rc.walls.east = er.walls[3];
                                     rc.walls.offsets = er.wall_offsets;
                                     rc.openings = er_openings;
+                                    rc.level = er.level;
                                     rc.position = pos;
                                     rc.dimensions = er.dimensions;
                                 } else {
@@ -2971,6 +2973,7 @@ mod native_app {
                                             offsets: er.wall_offsets,
                                         },
                                         openings: er_openings,
+                                        level: er.level,
                                     });
                                 }
                             }

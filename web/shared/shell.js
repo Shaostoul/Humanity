@@ -137,6 +137,65 @@
     }
   }
 
+  // ── Load shared accessibility / i18n / glossary modules on EVERY page ──
+  // These deliver the landing-page promises (high-contrast, colorblind and
+  // reduced-motion modes; multiple languages; a plain-language glossary) site
+  // wide. Loading them here is the single wiring point: every page loads
+  // shell.js first, so every page gets them for free.
+  //
+  //  - accessibility.js self-applies its saved prefs on DOMContentLoaded
+  //    (a11y.apply), so simply loading it is enough to restore the user's
+  //    high-contrast / reduced-motion / colorblind / font-scale choices.
+  //  - glossary.js self-loads /data/glossary.json and scans the DOM for
+  //    [data-term] elements (it also watches for later additions), so loading
+  //    it is enough.
+  //  - i18n.js does NOT self-init (it exposes load()/setLanguage() only), so we
+  //    call i18n.load() once it is present, reading the saved `humanity_language`
+  //    preference. This sets <html lang>/<dir> and fires `languagechange` early,
+  //    before page content that listens for it renders.
+  function loadSharedModule(src, onload) {
+    var sc = document.createElement('script');
+    sc.src = src;
+    if (onload) sc.onload = onload;
+    document.head.appendChild(sc);
+  }
+  if (!window.a11y) loadSharedModule('/shared/accessibility.js');
+  if (!window.glossary) loadSharedModule('/shared/glossary.js');
+  if (!window.i18n) {
+    loadSharedModule('/shared/i18n.js', function () {
+      // Apply the stored language as early as possible. Falls back to English
+      // inside i18n.load() when a language file is missing, so this never throws.
+      try {
+        if (window.i18n && typeof window.i18n.load === 'function') {
+          window.i18n.load(window.i18n.getStoredLanguage()).catch(function () {});
+        }
+      } catch (e) { /* non-fatal */ }
+    });
+  } else if (typeof window.i18n.load === 'function') {
+    window.i18n.load(window.i18n.getStoredLanguage()).catch(function () {});
+  }
+
+  // ── Extra accessibility toggles applier (site-wide) ──
+  // Three Accessibility settings have no dedicated module: "Disable RGB Effects",
+  // "Large Cursor Focus", and "Dyslexia-Friendly Font". They are applied as
+  // data-* attributes on <html> with matching CSS in theme.css. Read them from
+  // the shared `humanity_settings` blob and apply on every page load so the
+  // choice persists across pages. Exposed globally so the Settings page can
+  // re-run it instantly when a toggle changes.
+  window.hosApplyA11yToggles = function () {
+    var s = {};
+    try { s = JSON.parse(localStorage.getItem('humanity_settings')) || {}; } catch (e) { s = {}; }
+    var root = document.documentElement;
+    function setAttr(name, on) {
+      if (on) root.setAttribute(name, '');
+      else root.removeAttribute(name);
+    }
+    setAttr('data-no-rgb', !!s['no-rgb']);
+    setAttr('data-focus-ring', !!s['focus-ring']);
+    setAttr('data-dyslexia-font', !!s['dyslexia-font']);
+  };
+  window.hosApplyA11yToggles();
+
   // If prior shell artifacts somehow exist, remove them before injecting once.
   // Also remove the old standalone #footer-toggle that existed before the toggle
   // was moved inside .site-footer.
@@ -1293,7 +1352,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.470.0';
+    var CURRENT_VERSION = '0.471.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
