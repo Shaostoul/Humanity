@@ -185,4 +185,111 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     .color(theme.text_muted()),
             );
         });
+
+    // Top-down floor-plan canvas (v0.463): the spatial editor. Drag a room to move it; the 3D
+    // home rebuilds live (and shows faintly through the semi-transparent canvas). Resize +
+    // walls + doors are in the side panel for now; level selector + 3D nudge + door-drag are
+    // the next slices.
+    egui::CentralPanel::default()
+        .frame(egui::Frame::none().fill(egui::Color32::from_black_alpha(150)))
+        .show(ctx, |ui| {
+            draw_floorplan_canvas(ui, theme, state);
+        });
+}
+
+/// Draw the top-down floor plan: every room as a rectangle seen from above (world X -> right,
+/// world Z -> down, so North is up). Dragging a room moves it on a 0.25 m grid and triggers a
+/// live rebuild. (v0.463)
+fn draw_floorplan_canvas(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let rect = ui.available_rect_before_wrap();
+    if rect.width() < 40.0 || rect.height() < 40.0 {
+        return;
+    }
+    let painter = ui.painter_at(rect);
+
+    if state.construction_rooms.is_empty() {
+        painter.text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            "No rooms yet -- use Add room.",
+            egui::FontId::proportional(16.0),
+            theme.text_muted(),
+        );
+        return;
+    }
+
+    // World bounds (x, z) over every room's footprint.
+    let (mut min_x, mut min_z, mut max_x, mut max_z) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+    for r in &state.construction_rooms {
+        let p = r.position.unwrap_or([0.0, 0.0, 0.0]);
+        min_x = min_x.min(p[0]);
+        min_z = min_z.min(p[2]);
+        max_x = max_x.max(p[0] + r.dimensions[0]);
+        max_z = max_z.max(p[2] + r.dimensions[2]);
+    }
+    let world_w = (max_x - min_x).max(1.0);
+    let world_d = (max_z - min_z).max(1.0);
+    let scale = (rect.width() / world_w).min(rect.height() / world_d) * 0.9;
+    let (cx, cz) = ((min_x + max_x) * 0.5, (min_z + max_z) * 0.5);
+    let to_canvas = |wx: f32, wz: f32| -> egui::Pos2 {
+        egui::pos2(
+            rect.center().x + (wx - cx) * scale,
+            rect.center().y + (wz - cz) * scale,
+        )
+    };
+
+    painter.text(
+        rect.left_top() + egui::vec2(10.0, 8.0),
+        egui::Align2::LEFT_TOP,
+        "Top-down plan -- drag a room to move it (North is up).",
+        egui::FontId::proportional(13.0),
+        theme.text_secondary(),
+    );
+
+    // Draw rooms; collect a drag so we mutate state.construction_rooms after the loop.
+    let mut moved: Option<(usize, f32, f32)> = None;
+    let count = state.construction_rooms.len();
+    for ri in 0..count {
+        let r = &state.construction_rooms[ri];
+        let p = r.position.unwrap_or([0.0, 0.0, 0.0]);
+        let room_rect = egui::Rect::from_two_pos(
+            to_canvas(p[0], p[2]),
+            to_canvas(p[0] + r.dimensions[0], p[2] + r.dimensions[2]),
+        );
+        let fill = egui::Color32::from_rgba_unmultiplied(
+            (r.color[0] * 255.0) as u8,
+            (r.color[1] * 255.0) as u8,
+            (r.color[2] * 255.0) as u8,
+            205,
+        );
+        painter.rect_filled(room_rect, egui::Rounding::same(2), fill);
+        let resp = ui.interact(room_rect, egui::Id::new(("plan_room", ri)), egui::Sense::drag());
+        let stroke = if resp.hovered() || resp.dragged() {
+            egui::Stroke::new(2.0, theme.accent())
+        } else {
+            egui::Stroke::new(1.0, theme.border())
+        };
+        painter.rect_stroke(room_rect, egui::Rounding::same(2), stroke, egui::StrokeKind::Inside);
+        painter.text(
+            room_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            &r.id,
+            egui::FontId::proportional(12.0),
+            theme.text_primary(),
+        );
+        if resp.dragged() {
+            let d = resp.drag_delta();
+            moved = Some((ri, d.x / scale, d.y / scale));
+        }
+    }
+
+    if let Some((ri, dwx, dwz)) = moved {
+        let r = &mut state.construction_rooms[ri];
+        let mut p = r.position.unwrap_or([0.0, 0.0, 0.0]);
+        let snap = |v: f32| (v / 0.25).round() * 0.25;
+        p[0] = snap(p[0] + dwx);
+        p[2] = snap(p[2] + dwz);
+        r.position = Some(p);
+        state.construction_dirty = true;
+    }
 }
