@@ -155,6 +155,36 @@ Add the SDF hull sub-model (the now-real `csg.rs`) + dual-contour render + rapie
 
 ---
 
+## (g) Editor UX + multistory (operator direction, 2026-06-15)
+
+The number-field side panel (v0.459-462) is functional but NOT intuitive: editing one room re-shuffled the others (fixed v0.462 by pinning all rooms on open), there is no spatial way to see or move rooms, and doors are always centred. The operator's requirements:
+- SEE + MOVE rooms spatially, not via number fields. "I have no easy way of seeing or interacting with or moving the rooms around."
+- Doors NOT always centred (positionable along a wall).
+- MULTISTORY is a hard requirement: a player home can be several stories; a shopping mall is multiple stories but "technically a giant room aboard the spaceship"; possibly many malls.
+
+### The editor: a top-down floor-plan canvas (the intuitive tool)
+- An egui 2D canvas that shows the CURRENT LEVEL from above (a blueprint). Each room is a rectangle: drag the body to move (snap to a grid), drag edge handles to resize. Click a wall to set its kind; a door shows as a mark on the wall you DRAG to position (non-centred). The 3D home rebuilds live as you edit the plan.
+- A LEVEL selector (floor up / down, add / remove level). You edit one level at a time; the home stacks in Y.
+- The existing per-wall + numeric side panel stays as the fine-tuning surface; the canvas becomes the PRIMARY one.
+- This is The-Sims / Sweet-Home-3D / blueprint-editor idiom -- the proven intuitive model for floor plans.
+
+### Multistory data model (two distinct kinds, both needed)
+A. STACKED ROOMS -- separate rooms on different floors (a house: floor 1 + floor 2). Each `RoomConfig` already has `position.y` + height; add a `level: i32` so the editor can group / filter rooms per floor (y derives from `level * story_height`, or stays explicit). The level selector shows + edits one floor's rooms.
+B. MULTI-LEVEL ROOM (the mall) -- ONE tall room volume with internal floor SLABS at heights (mezzanines), linked by stairs / escalators. Add `floor_levels: Vec<f32>` to a room (slab heights inside its own volume). This is one room spanning levels, NOT stacked rooms; it is the mall / atrium case.
+Both fit the layered model: per-level wall graphs at the boundary layer, and floor slabs become joists in the generated-structure layer. Vertical circulation (stairs / ladders / elevators / escalators) is a new placeable piece type.
+
+### Non-centred doors
+A door opening gains a position-along-the-wall parameter (0..1 of the span, or metres from a corner). The current centre-on-the-shared-edge becomes the DEFAULT, overridden by dragging the door in the canvas. This lives on the boundary `WallSpec` (`openings: [{offset, width, height, sill, kind}]`).
+
+### Build order for this UX layer
+1. Top-down floor-plan canvas: move + resize rooms in 2D, live rebuild. The intuitive editor.
+2. Level selector + STACKED-room multistory (place rooms on floors; the home stacks in Y).
+3. Door positioning (drag the door along a wall; the `offset` parameter).
+4. MULTI-LEVEL rooms (internal floor slabs + vertical circulation) -- the mall.
+This sits ON TOP of the existing layout data (no data thrown away); the number panel stays for numeric fine-tuning.
+
+---
+
 **Relevant files (all absolute):**
 - Boundary + generator + room detection live in `C:\Humanity\src\ship\fibonacci.rs` (`HomesteadLayout`, `RoomConfig`, `WallKind`/`WallSet`, `build_meshes`, `find_shared_edges`, `RoomInfo`).
 - Construction system + stubs to flesh out: `C:\Humanity\src\systems\construction\mod.rs`, `...\structural.rs` (`StructuralResult`), `...\csg.rs` (`CsgBrush`), `...\routing.rs` (the pattern to copy  -  pure, feature-agnostic, data-driven, tested).
