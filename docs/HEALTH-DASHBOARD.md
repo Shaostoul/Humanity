@@ -59,6 +59,14 @@
 - > 10 `tracing::error!` events in the relay log over the last hour.
 - A federation peer that was trusted (trust_tier ≥ 2) has been disconnected for > 24 hours.
 
+### P1: notify next morning (release signing)
+- **The LATEST release is UNSIGNED (no `release-manifest.json.sig.json` asset).** The v0.421+
+  desktop updater enforces signatures and offers nothing when the latest signed version lags, so
+  unsigned releases silently freeze desktop auto-update (this went unnoticed for ~48 releases,
+  v0.421.0 -> v0.469.0). **Check:** `just check-signing` (or `node scripts/check-release-signing.js`);
+  it also runs inside `just status`. **Fix (operator only):** `export HUMANITY_SIGNING_PASSPHRASE=...
+  && just sign-release vX.Y.Z`. Treat an unsigned LATEST as a launch-blocking P1 every release.
+
 ### P2: log and review at next scheduled session
 - A user reports an issue via the chat-side `/report` flow.
 - An admin uses the moderation actions (ban / mute / kick), record but don't alert.

@@ -161,8 +161,15 @@ status:
     @echo "── CI deploy runs ───────────────────────────"
     @gh run list --repo Shaostoul/Humanity --workflow "Deploy to VPS" --limit 5
     @echo ""
+    @node scripts/check-release-signing.js 6 || true
+    @echo ""
     @echo "── Live site ────────────────────────────────"
     @just ping
+
+# Check whether recent releases are signed (the desktop auto-update gate). An unsigned LATEST
+# means the updater offers nothing -- fix with `just sign-release vX.Y.Z` (operator only).
+check-signing:
+    @node scripts/check-release-signing.js
 
 # Check recent CI deploy runs
 ci:
