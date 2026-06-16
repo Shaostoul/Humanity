@@ -1245,6 +1245,10 @@ pub struct GuiState {
     /// Show the top-down floor-plan overlay (v0.464). Default OFF: construction uses the free
     /// orbit "astral" camera (drag/pan/dolly/fly); toggle on for the 2D plan when wanted.
     pub construction_plan_view: bool,
+    /// Keymap reference (v0.465): true while F1 is held; shows the bindings for the current
+    /// screen/mode. Loaded once from data/keymaps.ron.
+    pub keymap_visible: bool,
+    pub keymaps: Vec<crate::gui::pages::keymap::KeymapContext>,
     /// Editable uniform ceiling height (mirrors layout.default_wall_height).
     pub construction_height: f32,
     /// Set by the panel when a wall/position/size/add/remove changed -> the engine rebuilds.
@@ -2119,6 +2123,8 @@ impl Default for GuiState {
             construction_add_type: String::new(),
             construction_remove: None,
             construction_plan_view: false,
+            keymap_visible: false,
+            keymaps: Vec::new(),
             construction_height: 3.0,
             construction_dirty: false,
             construction_save: false,

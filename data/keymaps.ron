@@ -1,0 +1,46 @@
+// Keymap reference (v0.465). Held-F1 shows the bindings for the SCREEN / MODE you are in, so
+// the keys listed are the ones that actually do something where you are (you should not see a
+// world hotkey while a menu is open). Show the full combo incl. modifiers (Shift/Ctrl/Alt) so
+// nobody reads "F" when it is really "Shift+F". This is pure DESCRIPTION; the input handlers
+// are the source of truth for now, so keep these in sync when you add or change a binding.
+// Add a new context block (matched by `context`) to give a specific page its own list; an
+// unmatched page falls back to "Menu".
+[
+    (context: "World", binds: [
+        (action: "Move", keys: "W / A / S / D"),
+        (action: "Sprint", keys: "Shift (hold)"),
+        (action: "Jump", keys: "Space"),
+        (action: "Interact / pin info card", keys: "E"),
+        (action: "Inventory", keys: "I"),
+        (action: "Construction editor", keys: "B"),
+        (action: "Toggle roof", keys: "R"),
+        (action: "Cycle camera mode", keys: "Tab"),
+        (action: "First / third person", keys: "F"),
+        (action: "Orbit camera", keys: "M"),
+        (action: "Open / close chat", keys: "Enter"),
+        (action: "Menu / back", keys: "Esc"),
+        (action: "Peek through walls (hold)", keys: "Tab (hold)"),
+        (action: "Keymap (this list)", keys: "F1 (hold)"),
+        (action: "Debug console", keys: "F12"),
+    ]),
+    (context: "Construction editor", binds: [
+        (action: "Orbit camera", keys: "Middle-mouse drag"),
+        (action: "Pan along floor", keys: "Right-mouse drag"),
+        (action: "Zoom in / out", keys: "Mouse wheel"),
+        (action: "Fly focal point", keys: "W / A / S / D"),
+        (action: "Move up / down (levels)", keys: "Space / Shift"),
+        (action: "Select / move a room", keys: "Left-click (coming soon)"),
+        (action: "Top-down plan overlay", keys: "checkbox in panel"),
+        (action: "Close editor", keys: "B"),
+        (action: "Keymap (this list)", keys: "F1 (hold)"),
+    ]),
+    (context: "Showroom", binds: [
+        (action: "Orbit the avatar", keys: "Drag (any mouse button)"),
+        (action: "Zoom in / out", keys: "Mouse wheel"),
+        (action: "Keymap (this list)", keys: "F1 (hold)"),
+    ]),
+    (context: "Menu", binds: [
+        (action: "Back / close page", keys: "Esc"),
+        (action: "Keymap (this list)", keys: "F1 (hold)"),
+    ]),
+]

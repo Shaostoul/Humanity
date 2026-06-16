@@ -8,6 +8,7 @@ pub mod chat;
 pub mod hud;
 pub mod showroom;
 pub mod construction;
+pub mod keymap;
 pub mod placeholder;
 pub mod tasks;
 pub mod profile;

@@ -1975,6 +1975,17 @@ mod native_app {
                             state.ctrl_held = pressed;
                         }
 
+                        // F1 (hold) shows the keymap for the current screen/mode. Works on every
+                        // page so you can always see what keys do something here. (v0.465)
+                        if key == KeyCode::F1 {
+                            state.gui_state.keymap_visible = pressed;
+                            if pressed && state.gui_state.keymaps.is_empty() {
+                                state.gui_state.keymaps =
+                                    crate::gui::pages::keymap::load_keymaps(&state.data_dir);
+                            }
+                            return;
+                        }
+
                         // Ctrl+V clipboard image paste — detected HERE at the
                         // raw winit layer because egui-winit intercepts the
                         // paste shortcut, reads clipboard TEXT only, and
@@ -5111,6 +5122,11 @@ mod native_app {
                                         egui::Color32::from_white_alpha(180)
                                     };
                                     painter.circle_filled(center, 3.0, color);
+                                }
+
+                                // Keymap reference overlay while F1 is held (v0.465).
+                                if state.gui_state.keymap_visible {
+                                    crate::gui::pages::keymap::draw(ctx, &state.theme, &state.gui_state);
                                 }
 
                                 // Draw debug console overlay (F12 toggle, on top of everything)

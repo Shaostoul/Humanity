@@ -769,21 +769,23 @@ impl CameraController {
             return;
         }
 
-        // Left-drag or right-drag to rotate
-        if self.mouse_left || self.mouse_right {
+        // MIDDLE-drag to ORBIT (rotate). LEFT is reserved for interaction / 3D picking (grab a
+        // room in the orbit view). (operator remap v0.465)
+        if self.mouse_middle {
             camera.yaw += mouse_dx as f32 * self.mouse_sensitivity * 0.01;
             camera.pitch -= mouse_dy as f32 * self.mouse_sensitivity * 0.01;
             let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
             camera.pitch = camera.pitch.clamp(-max_pitch, max_pitch);
         }
 
-        // Middle-drag to pan the focal point
-        if self.mouse_middle {
-            let right = camera.right();
-            let up_dir = Vec3::Y;
-            let pan_speed = camera.orbit_distance * 0.002;
-            camera.orbit_target -= right * mouse_dx as f32 * pan_speed;
-            camera.orbit_target += up_dir * mouse_dy as f32 * pan_speed;
+        // RIGHT-drag to PAN along the FLOOR plane (horizontal), so panning stays level with the
+        // floor you're looking at instead of sliding up/down the screen. (operator remap v0.465)
+        if self.mouse_right {
+            let fwd = camera.forward_xz();
+            let right_h = fwd.cross(Vec3::Y).normalize();
+            let pan_speed = camera.orbit_distance * 0.0015;
+            camera.orbit_target -= right_h * mouse_dx as f32 * pan_speed;
+            camera.orbit_target += fwd * mouse_dy as f32 * pan_speed;
         }
 
         // Scroll to zoom
