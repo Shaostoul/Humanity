@@ -1,6 +1,6 @@
 // Bump version whenever cached assets change.
 // HTML pages are intentionally NEVER cached (they change every deploy).
-const CACHE_NAME = 'humanity-v826';
+const CACHE_NAME = 'humanity-v827';
 const SHELL_URLS = [
   '/shared/shell.js',
   '/shared/theme.css',
@@ -110,9 +110,28 @@ self.addEventListener('fetch', event => {
   // API calls, WebSocket upgrades, uploads
   if (url.includes('/ws') || url.includes('/api/') || url.includes('/uploads/')) return;
 
-  // ── Cache-first for static assets (CSS, JS, images, fonts) ────────────────
-  // These are safe to cache because they change rarely and when they do,
-  // bumping CACHE_NAME above ensures a fresh install wipes the old copies.
+  // ── Network-first for the app shell (shell.js, theme.css, manifest) ───────
+  // These change on web deploys, so serving them cache-first hid new nav/theme
+  // until a full SW reinstall (the v0.469.1 "website didn't change" report). The
+  // server already sends `no-cache, must-revalidate` on them, so prefer the
+  // network (a cheap ETag revalidate -> 304 when unchanged) and fall back to the
+  // cache ONLY when offline. New deploys now appear on the next reload. (v0.469.2)
+  const isShell = SHELL_URLS.some(s => url.endsWith(s));
+  if (isShell) {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response.ok && response.type === 'basic') {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // ── Cache-first for other static assets (images, fonts, icons) ────────────
+  // Safe to cache because they change rarely; bumping CACHE_NAME wipes old copies.
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
