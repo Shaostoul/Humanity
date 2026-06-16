@@ -149,8 +149,11 @@
   let active = scriptTag && scriptTag.getAttribute('data-active');
   if (!active) {
     const p = location.pathname;
-    if (p === '/') active = 'landing';
+    // Active keys mirror the native app's top-nav tabs (v0.469.1): the web header is an
+    // exact mirror of the app header. Web-only pages still light up where sensible.
+    if (p === '/') active = 'humanity';
     else if (p.startsWith('/chat'))      active = 'chat';
+    else if (p.startsWith('/studio'))    active = 'studio';
     else if (p.startsWith('/activities/game')) active = 'games';
     else if (p.startsWith('/dashboard')) active = 'dashboard';
     else if (p.startsWith('/profile'))   active = 'profile';
@@ -161,6 +164,7 @@
     else if (p.startsWith('/ai-usage'))   active = 'ai-usage';
     else if (p.startsWith('/home'))      active = 'home';
     else if (p.startsWith('/inventory')) active = 'gear';
+    else if (p.startsWith('/onboarding')) active = 'quests';
     else if (p.startsWith('/tasks'))     active = 'tasks';
     else if (p.startsWith('/calendar'))  active = 'calendar';
     else if (p.startsWith('/notes'))     active = 'notes';
@@ -168,10 +172,11 @@
     else if (p.startsWith('/maps'))      active = 'map';
     else if (p.startsWith('/market'))    active = 'market';
     else if (p.startsWith('/wallet'))    active = 'wallet';
+    else if (p.startsWith('/tools'))     active = 'platform';
     else if (p.startsWith('/web'))       active = 'web';
     else if (p.startsWith('/settings'))  active = 'settings';
     else if (p.startsWith('/ops') || p.startsWith('/pages/ops'))  active = 'ops';
-    else if (p.startsWith('/download'))  active = 'download';
+    else if (p.startsWith('/download'))  active = 'play';
     else if (p.startsWith('/dev'))       active = 'dev';
     else if (p.startsWith('/roadmap'))   active = 'roadmap';
     else if (p.startsWith('/projects'))  active = 'projects';
@@ -180,7 +185,7 @@
     else if (p.startsWith('/data'))     active = 'data';
     else if (p.startsWith('/crafting')) active = 'crafting';
     else if (p.startsWith('/civilization')) active = 'civilization';
-    else if (p.startsWith('/resources')) active = 'resources';
+    else if (p.startsWith('/resources')) active = 'library';
     else if (p.startsWith('/bugs'))     active = 'bugs';
     else active = '';
   }
@@ -605,46 +610,58 @@
   const nav = document.createElement('div');
   nav.innerHTML =
     '<nav class="hub-nav">' +
-      /* Brand */
-      // v0.196.0: H brand button now goes to /chat (the cooperative
-      // platform's primary surface) instead of the marketing landing
-      // page. Operator: "the H stands for Humanity ... fitting because
-      // chat IS the cooperative platform." Marketing/landing is reached
-      // via the standalone /pages/index.html for unsigned visitors.
-      '<a href="/chat" class="brand' + (active === 'chat' ? ' active' : '') + '" data-tip="Home, Chat">H</a>' +
+      /* Brand: the H goes to the Humanity landing (the Mission Dashboard), mirroring
+         the app where the H-icon IS the Humanity tab. (v0.469.1) */
+      '<a href="/" class="brand' + (active === 'humanity' ? ' active' : '') + '" data-tip="Humanity">H</a>' +
 
       '<div class="nav-divider"></div>' +
 
-      /* Red group: core identity (never changes with context) */
-      '<span class="nav-group-red">' +
-        navTab('/chat',     'network',  'Chat',     'chat') +
-        navTab('/wallet',   'coin',     'Wallet',   'wallet') +
-        navTab('/donate',   'heart',    'Donate',   'donate') +
-      '</span>' +
-
-      '<div class="nav-divider"></div>' +
-
-      /* Green group: context-sensitive (data changes with Real/Game) */
+      /* ── Web header = EXACT MIRROR of the native app's top nav (v0.469.1). Order:
+         Play, Humanity, Chat, Studio, Profile, Home, Quests, Tasks, Inventory,
+         Crafting, Map, Platform, Library, Settings. App-only desktop features map to
+         their nearest web target (Play/Studio -> Download, Platform -> Tools, Library
+         -> Resources); the former web-only utility tabs (Wallet, Market, Donate, Ops,
+         Bugs, Dev, Audit, Projects, ...) stay reachable via the mobile drawer + URL. ── */
       '<span class="nav-group-green">' +
-        navTab('/profile',   'profile',    'Profile',   'profile') +
-        navTab('/civilization', 'globe',   'Civilization', 'civilization') +
-        navTab('/tasks',     'tasklist',   'Tasks',     'tasks') +
-        navTab('/inventory', 'inventory',  'Inventory', 'gear') +
-        navTab('/maps',      'map',        'Maps',      'map') +
-        navTab('/market',    'market',     'Market',    'market') +
+        navTab('/download', 'games', 'Play', 'play') +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
 
-      /* Blue group: system/config */
+      '<span class="nav-group-red">' +
+        navTab('/',      'globe', 'Humanity', 'humanity') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
+      '<span class="nav-group-red">' +
+        navTab('/chat',     'chat',  'Chat',   'chat') +
+        navTab('/download', 'video', 'Studio', 'studio') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
+      '<span class="nav-group-green">' +
+        navTab('/profile', 'profile', 'Profile', 'profile') +
+        navTab('/home',    'home',    'Home',    'home') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
+      '<span class="nav-group-green">' +
+        navTab('/onboarding', 'compass',   'Quests',    'quests') +
+        navTab('/tasks',      'tasklist',  'Tasks',     'tasks') +
+        navTab('/inventory',  'inventory', 'Inventory', 'gear') +
+        navTab('/crafting',   'crafting',  'Crafting',  'crafting') +
+        navTab('/maps',       'map',       'Map',       'map') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
       '<span class="nav-group-blue">' +
-        navTab('/projects', 'folder',    'Projects',  'projects') +
-        navTab('/audit',    'coin',      'Audit',     'audit') +
-        navTab('/settings', 'settings',  'Settings',  'settings') +
-        navTab('/download', 'download', 'Download', 'download') +
-        navTab('/ops',      'ops',       'Ops',       'ops') +
-        navTab('/bugs',     'bug',       'Bugs',      'bugs') +
-        navTab('/dev',      'dev',       'Dev',       'dev') +
+        navTab('/tools',     'grid',     'Platform', 'platform') +
+        navTab('/resources', 'journal',  'Library',  'library') +
+        navTab('/settings',  'settings', 'Settings', 'settings') +
       '</span>' +
 
       /* Spacer pushes hamburger to the right */
@@ -672,30 +689,42 @@
     return '<a href="' + path + '"' + (isActive ? ' class="active"' : '') + '>' + label + '</a>';
   }
 
+  // Mobile drawer holds EVERYTHING: the app-mirrored main tabs PLUS the web-only
+  // utility pages that dropped off the desktop row, so nothing is unreachable. (v0.469.1)
   mobileDrawer.innerHTML =
-    '<div class="mobile-hub-group group-red"><h4>Identity</h4>' +
+    '<div class="mobile-hub-group group-red"><h4>Main (mirrors the app)</h4>' +
+      mobileLink('/',          'Humanity') +
       mobileLink('/chat',      'Chat') +
+      mobileLink('/download',  'Play / Studio (desktop app)') +
       mobileLink('/profile',   'Profile') +
-      mobileLink('/wallet',    'Wallet') +
-      mobileLink('/donate',    'Donate') +
-    '</div>' +
-    '<div class="mobile-hub-group group-green"><h4>Activities</h4>' +
-      mobileLink('/identity',  'Identity') +
-      mobileLink('/governance', 'Governance') +
-      mobileLink('/recovery',  'Recovery') +
-      mobileLink('/civilization', 'Civilization') +
+      mobileLink('/home',      'Home') +
+      mobileLink('/onboarding','Quests') +
       mobileLink('/tasks',     'Tasks') +
       mobileLink('/inventory', 'Inventory') +
-      mobileLink('/maps',      'Maps') +
-      mobileLink('/market',    'Market') +
+      mobileLink('/crafting',  'Crafting') +
+      mobileLink('/maps',      'Map') +
+      mobileLink('/tools',     'Platform') +
+      mobileLink('/resources', 'Library') +
+      mobileLink('/settings',  'Settings') +
     '</div>' +
-    '<div class="mobile-hub-group group-blue"><h4>System</h4>' +
-      mobileLink('/agents',               'Agents') +
-      mobileLink('/ai-usage',             'AI Usage') +
-      mobileLink('/audit',                'Audit') +
-      mobileLink('/settings',             'Settings') +
-      mobileLink('/bugs',                  'Bug Reports') +
-      mobileLink('/download',   'Download') +
+    '<div class="mobile-hub-group group-green"><h4>Community and trade</h4>' +
+      mobileLink('/wallet',    'Wallet') +
+      mobileLink('/market',    'Market') +
+      mobileLink('/donate',    'Donate') +
+      mobileLink('/civilization', 'Civilization') +
+      mobileLink('/governance', 'Governance') +
+      mobileLink('/identity',  'Identity') +
+      mobileLink('/recovery',  'Recovery') +
+      mobileLink('/projects',  'Projects') +
+    '</div>' +
+    '<div class="mobile-hub-group group-blue"><h4>System and dev</h4>' +
+      mobileLink('/audit',     'Audit') +
+      mobileLink('/calendar',  'Calendar') +
+      mobileLink('/notes',     'Notes') +
+      mobileLink('/data',      'Data') +
+      mobileLink('/ops',       'Ops') +
+      mobileLink('/bugs',      'Bug Reports') +
+      mobileLink('/dev',       'Dev') +
     '</div>';
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
@@ -1262,7 +1291,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.469.0';
+    var CURRENT_VERSION = '0.469.1';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

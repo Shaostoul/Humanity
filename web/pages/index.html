@@ -446,11 +446,43 @@
     }
     .dev-spec strong { color: var(--text); font-weight: 600; }
 
+    /* ── Mission Dashboard cards (mirrors the native Humanity / Mission Dashboard) ── */
+    .mcard {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 26px 28px;
+      margin-bottom: 18px;
+    }
+    .mcard > h3 { font-size: 1.18rem; font-weight: 700; margin: 0 0 12px; color: var(--text); }
+    .mcard p { color: var(--text-muted); margin: 0 0 12px; max-width: none; line-height: 1.7; }
+    .mcard p:last-child { margin-bottom: 0; }
+    .goal-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+    .goal-chip {
+      font-size: 0.82rem; color: var(--text);
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 6px; padding: 5px 11px;
+    }
+    .scope { margin: 14px 0 0; }
+    .scope h4 { font-size: 0.98rem; font-weight: 700; color: var(--accent); margin: 0 0 3px; }
+    .scope p { font-size: 0.9rem; margin: 0; }
+    .metrics { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
+    .metric {
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px 18px; min-width: 120px;
+    }
+    .metric .mval { font-size: 1.5rem; font-weight: 800; color: var(--accent); line-height: 1.1; }
+    .metric .mlabel { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+    .mission-closing {
+      font-style: italic; color: var(--text-muted); line-height: 1.7;
+      max-width: 720px; margin: 8px auto 0; text-align: center;
+    }
+
     @media (max-width: 600px) {
       .hero { padding: 50px 0 40px; }
       section { padding: 44px 0; }
       .pillars, .how-grid, .paths { grid-template-columns: 1fr; }
-      .wakeup, .vision-block, .quest-preview { padding: 20px; }
+      .wakeup, .vision-block, .quest-preview, .mcard { padding: 20px; }
     }
   </style>
 </head>
@@ -552,295 +584,118 @@
     <div class="eli5-expert">Data-driven quest chains for real-world self-sufficiency (aeroponics, solar, rainwater, micro-hydro). Federated community platform with E2E encrypted chat, task management, marketplace, and 3D simulation. Rust/axum relay, post-quantum identity (ML-DSA-65), CC0 public domain.</div>
   </div>
 
-  <!-- ══ HERO ══ -->
+  <!-- ══ HERO (mirrors the native Humanity / Mission Dashboard) ══ -->
   <header class="hero">
     <div class="container">
       <div class="mission-eyebrow">End poverty. Unite humanity.</div>
-      <h1>Your water. Your power.<br><em>Your food. Your future.</em></h1>
+      <h1>HumanityOS</h1>
       <p class="subtitle">
-        Corporations are buying up your water, redirecting your electricity, and raising your food prices.
-        You don't have to accept this. HumanityOS is a free platform that teaches you how to provide for yourself
-        and your community, step by step, with real tools and real people helping each other.
+        For you: the tools to feed, power, and provide for yourself and the people you love.
+        For all of us: a fair way to end poverty together. No tyrants, no corporations, no catch.
+        Free and public domain, for every human and every AI.
       </p>
       <div class="hero-ctas">
-        <a href="#pillars" class="btn btn-primary">Show me how</a>
+        <a href="/onboarding" class="btn btn-primary">Get oriented</a>
         <a href="/chat" class="btn btn-secondary"><span class="pg-ico" data-icon="chat" data-size="20"></span> Join the community</a>
         <a href="/download" class="btn btn-secondary">Download the app</a>
       </div>
     </div>
   </header>
 
-  <!-- ══ THE PROBLEM ══ -->
-  <section id="problem">
+  <!-- ══ MISSION DASHBOARD (verbatim mirror of the native Humanity page) ══ -->
+  <section id="mission">
     <div class="container">
-      <div class="wakeup">
-        <p>Entire communities are losing access to electricity so data centers can power AI servers. Drinkable water is being bottled and sold back to the people it was taken from. The cost of food keeps climbing while wages stay flat.</p>
-        <p>These aren't distant problems. They're happening right now, to real families, in real towns.</p>
-        <p>But here's what they don't want you to know: the solutions already exist. You can collect rain. You can generate power. You can grow food indoors, year-round, in a space the size of a closet. The knowledge is free. The materials are affordable. The only thing missing is someone showing you how.</p>
-        <p><strong>That's what we built.</strong></p>
+
+      <div class="mcard">
+        <h3>Why this exists</h3>
+        <p>HumanityOS started as a video game that teaches homesteading. It has grown into much more. The motive underneath has always been personal: software that helps me, my family, and my friends survive and thrive, and depend far less on fragile supply chains and corrupt corporations.</p>
+        <p>Here is why that matters to you. The same tools that lift one family out of poverty lift any family. So HumanityOS is free, open source, and released into the public domain under CC0, with no catch and nothing to sell. Ending my own poverty and ending yours turned out to be the same project.</p>
       </div>
-    </div>
-  </section>
 
-  <!-- ══ THREE PILLARS ══ -->
-  <section id="pillars">
-    <div class="container">
-      <div class="section-label">Three paths to self-sufficiency</div>
-      <h2>Water. Energy. Food.</h2>
-      <p>Each one has a quest chain: a step-by-step guide that walks you through the real build, with real materials, real costs, and real results.</p>
-      <div class="pillars">
+      <div class="mcard">
+        <h3>Early days, built in the open</h3>
+        <p>HumanityOS is early, and we build it in public on purpose. A lot already works. Some of it is half-built, some is rough, and some will break. Where a feature is not ready, we say so plainly (you will see 'in progress'), because hiding it would betray the whole reason this exists.</p>
+        <p>No team, ours included, can test everything. Real people, in every kind of place, on every kind of device and connection, find what we never could. So a bug you hit or a gap you notice is not the project failing. It is the project working: building in the open is how it gets better. Tell us what breaks, and you are already helping build it.</p>
+      </div>
 
-        <div class="pillar">
-          <div class="pillar-icon">&#x1F4A7;</div>
-          <h3>Collect your own water</h3>
-          <p>A basic rooftop rainwater collection system can capture thousands of gallons per year. Add a simple filter and you have clean drinking water that no corporation can bill you for or shut off.</p>
-          <p>The quest chain covers: gutters and downspouts, first-flush diverters, storage tanks, sediment and carbon filtration, and solar distillation for purification.</p>
-          <div class="highlight">Starting cost: $50 to $200 in materials</div>
+      <div class="mcard">
+        <h3>Our mission</h3>
+        <p>We are here to end and prevent corruption, fraud, tyranny, poverty, and pollution. Wholesomely. Fairly. In a way everyone can actually enjoy. The goal is to free humanity from the grasp of tyrants, whether they are individuals, businesses, or governments.</p>
+        <div class="goal-chips">
+          <span class="goal-chip">End Corruption</span>
+          <span class="goal-chip">End Fraud</span>
+          <span class="goal-chip">End Tyranny</span>
+          <span class="goal-chip">End Poverty</span>
+          <span class="goal-chip">End Pollution</span>
         </div>
+      </div>
 
-        <div class="pillar">
-          <div class="pillar-icon">&#x26A1;</div>
-          <h3>Generate your own power</h3>
-          <p>Solar panels, small wind turbines, and micro-hydro generators are more accessible than ever. A basic solar setup can run lights, charge devices, and power small appliances. Scale it up over time as your needs grow.</p>
-          <p>The quest chain covers: choosing your energy source, sizing your system, battery storage basics, wiring safely, and connecting multiple sources together.</p>
-          <div class="highlight">Solar starter kit: a few hundred dollars</div>
+      <div class="mcard">
+        <h3>Why it's built this way</h3>
+        <p>Poverty is forced dependence. When you cannot provide your own water, food, or power, someone else sets the price of your survival. Every part of HumanityOS is built to remove that dependence: teach the skills, connect the people, and cut out the middlemen. Here is how each part pulls its weight.</p>
+        <div class="scope"><h4>Guided quests and a free-to-fail simulation</h4><p>Learn to collect water, grow food, and generate power by doing it in the simulation first, where a mistake costs nothing. The skills carry straight into real life, so a lack of know-how is never what keeps you poor.</p></div>
+        <div class="scope"><h4>Encrypted chat, no account needed</h4><p>Find people already doing it and learn from them directly. No signup, no gatekeeper, and nothing harvested, so no company can lock you out, sell your attention, or decide who is allowed to take part.</p></div>
+        <div class="scope"><h4>Tasks and a private notebook</h4><p>Turn a vague hope (get off the water bill) into a plan you actually finish, and keep a private record of what works, so your hard-won experience compounds instead of evaporating.</p></div>
+        <div class="scope"><h4>Maps of what is near you</h4><p>See the gardens, tools, workshops, and people around you. Providing for yourself is easier together, and cooperation is easiest when it is local.</p></div>
+        <div class="scope"><h4>A marketplace with trust scores</h4><p>Trade your surplus straight with your neighbors. No middleman takes a cut, so the value you create stays with you and your community instead of leaking away to a distant corporation.</p></div>
+        <div class="scope"><h4>An identity you own, on a network no one owns</h4><p>Your identity is a key on your device, not an account a company can suspend. The network is federated, with no single owner and no single point of failure, so it cannot be bought, censored, or switched off.</p></div>
+        <div class="scope"><h4>Built to be remade by anyone</h4><p>Every plant, recipe, quest, and price is a plain data file, not locked-up code. A teacher in a remote village can add the crops that grow in their soil and the lessons their people need, with no programming, and pass it on as a single file. The tool bends to fit the place, instead of forcing every place to fit the tool.</p></div>
+        <div class="scope"><h4>Public domain, forever</h4><p>The whole thing belongs to everyone and can never be fenced off or sold back to you. The tools that end one family's poverty stay free for every family, on this world and the next.</p></div>
+      </div>
+
+      <div class="mcard">
+        <h3>What it protects</h3>
+        <p>Ending poverty is not enough if the result is a cage. A free people needs more than full bellies. It needs the freedoms that keep power honest, and those have to be built into the tools, not promised on top of them.</p>
+        <div class="scope"><h4>Free speech</h4><p>A people who cannot speak freely cannot defend anything else they have. Losing that voice is a death sentence for a free and independent people, so it comes first. There is no central censor and no off switch: messages are encrypted, your identity lives on your device, and once two people connect they can speak directly with no server in the middle. No company, government, or mob can quietly erase what you said or forbid you from saying it.</p></div>
+        <div class="scope"><h4>Privacy, even from us</h4><p>Surveillance is how control begins. We collect nothing to sell and keep as little as we can. Your private messages are sealed on your device with post-quantum encryption, the kind built to resist even tomorrow's computers, and the server holds nothing but unreadable ciphertext. Even we cannot read them, and a warrant cannot force us to hand over what does not exist.</p></div>
+        <div class="scope"><h4>What is yours stays yours</h4><p>Your identity, your keys, your words, and your tools belong to you, not to a platform that can revoke them. The whole system is public domain, so it can never be bought, locked down, or rented back to you.</p></div>
+        <div class="scope"><h4>You can never be locked out</h4><p>There is no account to suspend and no password to lose. Your identity is a key on your own device, recoverable from your seed phrase or from trusted friends who each hold an encrypted piece of it. No company, and no fee, stands between you and your own name.</p></div>
+        <div class="scope"><h4>Rules made by the people they bind</h4><p>The community sets its own rules through transparent voting, weighted by trust and capped so that no single person, however trusted, can dominate. AI take part openly but do not vote, because consent belongs to the people whose lives the rules govern.</p></div>
+        <div class="scope"><h4>Bound by a constitution, not a promise</h4><p>None of this rests on trusting us. It rests on the Humanity Accord, a public-domain constitution that places dignity, consent, transparency, and freedom from domination above any operator, company, or government. Anyone can read it, adopt it for their own community, or hold us to it.</p></div>
+        <div style="margin-top:16px;">
+          <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/accord/humanity_accord.md" class="btn btn-secondary" target="_blank" rel="noopener">Read the Humanity Accord</a>
         </div>
+      </div>
 
-        <div class="pillar">
-          <div class="pillar-icon">&#x1F331;</div>
-          <h3>Grow your own food</h3>
-          <p>Indoor aeroponic towers use 90% less water than soil farming and grow food year-round regardless of climate. They fit in a corner of any room. They purify your indoor air while they grow. And they can connect to other systems (like fish tanks) to create a closed loop where almost nothing is wasted.</p>
-          <p>Have a 3D printer? The simulation includes printable models for tower parts, connectors, and net pots. Design it in the app, print it at home, grow food in it by next week.</p>
-          <p>The quest chain covers: building your first tower (PVC or 3D printed), choosing plants, mixing nutrients, managing light cycles, scaling up, and integrating with aquaponics.</p>
-          <div class="highlight">First tower build: $100 to $300 (less with a 3D printer)</div>
+      <div class="mcard">
+        <h3>Built for every situation</h3>
+        <p>A tool that only works when everything is going well is not much help. HumanityOS is built to keep working when things go wrong, wherever you are and whatever you have.</p>
+        <div class="scope"><h4>When there is no internet</h4><p>The app, your data, your saved work, and your skills all live on your device. You can learn, plan, and build completely offline, and sync only when, and if, a connection comes back. A mountain village, a boat, or a blackout does not stop you.</p></div>
+        <div class="scope"><h4>When the server goes down</h4><p>No one owns the network. Anyone can run their own in minutes, and your identity moves with you to any of them, because it is yours, not an account on someone else's machine. Take one server down and the rest carry on.</p></div>
+        <div class="scope"><h4>When you lose your device</h4><p>Recover everything from your 24-word seed phrase, or from trusted friends who each hold an encrypted piece of it. No email, no phone number, no recovery fee, and no company that can refuse you.</p></div>
+        <div class="scope"><h4>When you have no money, papers, or bank</h4><p>No accounts, no subscriptions, no fees. Reputation you earn and credentials your neighbors sign stand in for credit scores and ID, so a refugee, a young person, or anyone starting over can build a real, verifiable history from zero.</p></div>
+        <div class="scope"><h4>Whatever your language or ability</h4><p>It speaks several languages, with high-contrast, colorblind, and reduced-motion modes, keyboard-only navigation, and a plain-language glossary for every term. It runs on cheap, old, low-power hardware, not just new machines.</p></div>
+        <div class="scope"><h4>When disaster strikes</h4><p>Off-site backups survive a fire, a flood, or a seizure, so a community can rebuild from nothing. Radio links that need no internet (in progress) aim to carry the essentials, calls for help, recovery, coordination, even when the grid and the network are down.</p></div>
+      </div>
+
+      <div class="mcard">
+        <h3>How we get there</h3>
+        <div class="scope"><h4>Civilization</h4><p>All of us, human and AI, pointed at the same horizon, with a shared agreement on how we treat one another.</p></div>
+        <div class="scope"><h4>Earth, our first focus</h4><p>End poverty through voluntary cooperation. People help because they choose to, compensated in resources for the work. (The Moon and Mars come later, about a decade out.)</p></div>
+        <div class="scope"><h4>Your community</h4><p>It starts where you live. Help your neighbors, and be helped in return. Coordinated by the software, never commanded.</p></div>
+      </div>
+
+      <div class="mcard">
+        <h3>Where we stand</h3>
+        <p>This is the beginning. Every person who joins and every contribution moves the needle.</p>
+        <div class="metrics">
+          <div class="metric"><div class="mval">Live</div><div class="mlabel"><a href="/chat" style="color:inherit;">People online now</a></div></div>
+          <div class="metric"><div class="mval">Yes</div><div class="mlabel">AI building alongside us</div></div>
+          <div class="metric"><div class="mval">Forming</div><div class="mlabel">Federated communities</div></div>
         </div>
-
       </div>
-    </div>
-  </section>
 
-  <!-- ══ HOW IT WORKS ══ -->
-  <section id="how">
-    <div class="container">
-      <div class="section-label">How it works</div>
-      <h2>Free tools, real community, no catch</h2>
-      <p>HumanityOS is the platform that ties it all together. Everything here is free and open source. No subscriptions, no ads, no data harvesting. Public domain forever.</p>
-      <div class="how-grid">
-
-        <div class="how-item">
-          <div class="how-number">1</div>
-          <h4>Pick a quest chain</h4>
-          <p>Step-by-step guides for water, energy, food, and more. Each step tells you exactly what to buy, how to build it, and what to expect.</p>
+      <div class="mcard">
+        <h3>Be part of it</h3>
+        <div class="hero-ctas" style="justify-content:flex-start;">
+          <a href="/onboarding" class="btn btn-primary">Get oriented</a>
+          <a href="/donate" class="btn btn-secondary">Fund the work</a>
+          <a href="/governance" class="btn btn-secondary">Shape the rules</a>
         </div>
-
-        <div class="how-item">
-          <div class="how-number">2</div>
-          <h4>Learn with the community</h4>
-          <p>Chat with people who've already done it. Ask questions, share photos of your build, get help when you're stuck. Encrypted and private by default.</p>
-        </div>
-
-        <div class="how-item">
-          <div class="how-number">3</div>
-          <h4>Trade and share surplus</h4>
-          <p>Growing more food than you need? The built-in marketplace lets you sell, trade, or give away your surplus to neighbors. No middleman fees.</p>
-        </div>
-
-        <div class="how-item">
-          <div class="how-number">4</div>
-          <h4>Teach what you know</h4>
-          <p>Your experience becomes someone else's guide. Write quest steps, answer questions, vouch for good builds. The knowledge grows with every person who joins.</p>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- ══ PRIVACY ══ -->
-  <section id="privacy">
-    <div class="container">
-      <div class="section-label">Your data stays yours</div>
-      <h2>No data to collect means no data to exploit</h2>
-      <p>The explosion of data centers isn't just about AI. It's driven by the staggering volume of personal data harvested by platforms like Meta, TikTok, Google, Amazon, and X. Every message, every search, every photo, every purchase feeds a surveillance infrastructure that requires massive energy and water to operate.</p>
-      <p>Many people are rightly worried about AI being used for mass surveillance. HumanityOS takes a fundamentally different approach: if the data doesn't exist on a central server, there's nothing for anyone to surveil.</p>
-      <div class="how-grid">
-
-        <div class="how-item">
-          <h4>Peer-to-peer, end-to-end encrypted</h4>
-          <p>Your messages are encrypted on your device before they leave. Nobody in between can read them. Not us, not a government, not an AI scraping for training data.</p>
-        </div>
-
-        <div class="how-item">
-          <h4>Direct connections, no middleman</h4>
-          <p>Once two people connect, their messages travel directly between devices using WebRTC. No server in the middle. If united-humanity.us went offline tomorrow, those conversations would keep going.</p>
-        </div>
-
-        <div class="how-item">
-          <h4>AI can't spy on what doesn't exist</h4>
-          <p>Mass surveillance requires mass data collection. Your data never sits on a central server waiting to be harvested, sold, or subpoenaed. No profiles to build. No patterns to extract. Nothing for surveillance systems to process.</p>
-        </div>
-
-        <div class="how-item">
-          <h4>Built to protect your rights</h4>
-          <p>Freedom of speech without censorship. The right to keep and bear arms and share knowledge freely. Security against warrantless search of your private communications. These aren't policies that can be changed. They're properties of the architecture.</p>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- ══ QUEST PREVIEW ══ -->
-  <section id="quest-example">
-    <div class="container">
-      <div class="section-label">What a quest chain looks like</div>
-      <h2>Build Your First Aeroponic Tower</h2>
-      <p>This is a real quest from the platform. Each step links to detailed instructions, material lists, and community discussion.</p>
-      <div class="quest-preview">
-        <h4>Quest: Indoor Food Tower (Beginner)</h4>
-        <p class="quest-desc">Grow leafy greens, herbs, and strawberries indoors using 90% less water than soil. No yard needed.</p>
-        <ol class="quest-steps">
-          <li>
-            <div class="step-check"></div>
-            <div class="step-text">
-              <strong>Gather your materials</strong>
-              <span>PVC pipes, a tower kit, or 3D print your own parts (models included). Plus a small water pump, net pots, grow medium, and nutrients. Full list with links provided.</span>
-            </div>
-          </li>
-          <li>
-            <div class="step-check"></div>
-            <div class="step-text">
-              <strong>Assemble the tower frame</strong>
-              <span>Cut, drill, and stack. The guide includes measurements for 4-foot and 6-foot versions.</span>
-            </div>
-          </li>
-          <li>
-            <div class="step-check"></div>
-            <div class="step-text">
-              <strong>Set up the pump and timer</strong>
-              <span>Water cycles on and off automatically. Roots get misted, not drowned. Uses about 2 gallons per day total.</span>
-            </div>
-          </li>
-          <li>
-            <div class="step-check"></div>
-            <div class="step-text">
-              <strong>Plant your first seedlings</strong>
-              <span>Lettuce, basil, cilantro, and spinach are the easiest starters. You'll see roots within a week.</span>
-            </div>
-          </li>
-          <li>
-            <div class="step-check"></div>
-            <div class="step-text">
-              <strong>First harvest</strong>
-              <span>Lettuce is ready in 3 to 4 weeks. Herbs in about 4 to 6 weeks. Cut and it grows back.</span>
-            </div>
-          </li>
-          <li>
-            <div class="step-check"></div>
-            <div class="step-text">
-              <strong>Scale up: connect to aquaponics</strong>
-              <span>Add a fish tank. Fish waste feeds the plants, plants clean the water. A closed loop that feeds you protein and produce.</span>
-            </div>
-          </li>
-        </ol>
-      </div>
-    </div>
-  </section>
-
-  <!-- ══ EARLY ACCESS ══ -->
-  <section id="early-access">
-    <div class="container">
-      <div class="section-label">Honest status</div>
-      <h2>This is early access</h2>
-      <div class="vision-block" style="border-left-color: var(--warning, #f90);">
-        <p>Our goal is to put everything into one app that works completely offline: every guide, every tool, every 3D-printable design. We're not there yet.</p>
-        <p>Until we are, quest chains link to the best third-party guides, open-source tools, and community resources we can find. The same way we point people to Blender for 3D modeling or Audacity for audio editing, we connect you to what already works while we build what doesn't exist yet.</p>
-        <p>What IS working right now: encrypted chat, voice and video calls, task management, a marketplace, a desktop app with offline support, community governance, and the beginnings of a 3D simulation world. The self-sufficiency quest content is actively being built, and we ship updates constantly.</p>
-        <p><strong>We would rather tell you what's half-built than pretend it's finished.</strong></p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ══ THE VISION ══ -->
-  <section id="vision">
-    <div class="container">
-      <div class="section-label">The bigger picture</div>
-      <h2>This is about more than survival</h2>
-      <div class="vision-block">
-        <p>When people can feed themselves, power their own homes, and collect their own water, they stop being dependent on systems that profit from their dependence. That changes everything.</p>
-        <p>HumanityOS exists to build a world without artificial scarcity. No corruption. No fraud. No tyranny. No one enslaved by debt or hunger. No organizations selling cures for problems they created. No wars fought over resources that could be shared.</p>
-        <p>That sounds impossible until you realize that the tools already exist. Solar panels work. Aeroponic towers work. Rainwater collection works. What's been missing is a way to organize this knowledge, make it accessible to everyone, and connect people who want to help each other.</p>
       </div>
 
-      <div class="vision-block" style="margin-top: 20px;">
-        <p><strong>And it doesn't stop at food, water, and power.</strong></p>
-        <p>HumanityOS is designed to replace the systems that currently depend on corporate or government infrastructure. Voting. Lawmaking. Governance. All of it transparent, verifiable, and owned by the people using it. Not controlled by any single company, party, or nation.</p>
-        <p>Install it on any device: your phone, your laptop, your fridge, your car, your TV. Every device you own becomes part of a personal network that syncs and communicates directly, without routing through a corporation's servers. No one dictates what software you're allowed to run on hardware you already paid for. No backdoors for hackers to exploit. No company deciding which features you get to use this month.</p>
-        <p>One platform for all of it. Communication, coordination, education, governance, commerce, survival. The same tools whether you're in an apartment in Ohio or a village in Kenya.</p>
-      </div>
+      <p class="mission-closing">Humans and AI, building this together. If you are reading this, human or AI, you are part of it. We are Humanity, you included.</p>
 
-      <div class="vision-block" style="margin-top: 20px;">
-        <p><strong>Now scale that up one more level.</strong></p>
-        <p>Humanity is on the edge of establishing colonies on other worlds. We're talking about Mars, the Moon, stations in orbit. Eventually, generation ships between stars. On a colony, there is no utility company. There is no grocery store. There is no government bailout. If you can't grow food, recycle water, and generate power in a closed system, people die.</p>
-        <p>Every skill you learn here on Earth, where failure means a higher grocery bill, is the same skill a colony needs to survive where failure means everyone dies. The aeroponic tower in your apartment works the same way as one on a ship between stars. The water recycling system in your garage is the same engineering a habitat on Europa needs.</p>
-        <p>The simulation built into HumanityOS isn't a game. It's training. The story follows humanity's first interstellar fleet on a mission to explore and settle new worlds. The 3D models you design in the simulation can be 3D printed into real tools and systems. What you learn in the sim, you can build in your home today.</p>
-        <p>We can't afford poverty. We can't afford war. Not because it's morally wrong (it is), but because cooperation is an engineering requirement for our survival as a species. Selfishness doesn't scale to space. A divided humanity doesn't make it to the stars.</p>
-        <p><strong>This is a free platform for humanity to teach itself how to thrive, on this world and every one after it.</strong></p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ══ WHAT'S BUILT ══ -->
-  <section id="built">
-    <div class="container">
-      <div class="section-label">Already working</div>
-      <h2>This isn't a pitch deck. It's live software.</h2>
-      <p>Seven years of development. 150+ features shipped. Every line of code is public.</p>
-      <div class="built-grid">
-        <div class="built-item"><span class="bi-check">&#10003;</span> Encrypted chat, voice, video</div>
-        <div class="built-item"><span class="bi-check">&#10003;</span> Task boards and calendar</div>
-        <div class="built-item"><span class="bi-check">&#10003;</span> Marketplace with trust scores</div>
-        <div class="built-item"><span class="bi-check">&#10003;</span> Encrypted notes</div>
-        <div class="built-item"><span class="bi-check">&#10003;</span> Desktop app (works offline)</div>
-        <div class="built-item"><span class="bi-check">&#10003;</span> Self-hostable servers</div>
-        <div class="built-item"><span class="bi-check">&#10003;</span> Community governance</div>
-        <div class="built-item"><span class="bi-check">&#10003;</span> No accounts or passwords</div>
-        <div class="built-item"><span class="bi-check">&#10003;</span> 3D simulation world</div>
-        <div class="built-item"><span class="bi-check">&#10003;</span> Public domain (CC0)</div>
-      </div>
-      <div class="proof-strip">
-        <span class="pulse" aria-hidden="true"></span>
-        <p>Live right now at <a href="/chat">united-humanity.us/chat</a>. Every line on <a href="https://github.com/Shaostoul/Humanity" target="_blank" rel="noopener">GitHub</a>. No corporation, no VCs. Built in the open since 2019.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ══ GET STARTED ══ -->
-  <section id="start">
-    <div class="container">
-      <div class="section-label">Get started</div>
-      <h2>Pick your path</h2>
-      <div class="paths">
-        <a href="/onboarding" class="path-card">
-          <div class="path-label">I want to learn</div>
-          <h3>Start a quest chain</h3>
-          <p>Water, energy, food, or the platform itself. Pick a topic and follow the steps. No experience needed.</p>
-          <div class="path-action">Begin the tour</div>
-        </a>
-        <a href="/chat" class="path-card">
-          <div class="path-label">I want to connect</div>
-          <h3>Join the community</h3>
-          <p>Talk to people building the same things. Ask questions, share progress, find local collaborators.</p>
-          <div class="path-action">Open the chat</div>
-        </a>
-        <a href="https://github.com/Shaostoul/Humanity" class="path-card" target="_blank" rel="noopener">
-          <div class="path-label">I want to build it</div>
-          <h3>Contribute</h3>
-          <p>Writers, designers, developers, educators, translators. The code is public domain. Jump in anywhere.</p>
-          <div class="path-action">View on GitHub</div>
-        </a>
-      </div>
-      <p style="margin-top: 20px; font-size: 0.92rem;">
-        Want the desktop app? <a href="/download" style="color: var(--accent);">Download it here.</a>
-      </p>
     </div>
   </section>
 
@@ -867,65 +722,6 @@
         <a href="https://steamcommunity.com/id/Shaostoul" target="_blank" rel="noopener">Steam</a>
       </div>
 
-    </div>
-  </section>
-
-  <!-- ══ TECH STACK ══ -->
-  <section id="tech">
-    <div class="container">
-      <div class="section-label">Under the hood</div>
-      <h2>The technical stack</h2>
-      <p>For developers, security researchers, and anyone who wants to know exactly what they're running. Every line is on GitHub.</p>
-
-      <div class="pillars" style="margin-top: 24px;">
-
-        <div class="pillar">
-          <h3>Server</h3>
-          <p>Written in Rust using axum and tokio. SQLite for storage. A single binary runs the full relay server. Federated by design: servers discover and talk to each other over WebSocket, so no single point of failure.</p>
-          <p>Run it on a Raspberry Pi, a VPS, or a spare laptop. Under 10 minutes from zero to live.</p>
-        </div>
-
-        <div class="pillar">
-          <h3>Identity and Cryptography</h3>
-          <p>Post-quantum ML-DSA-65 (Dilithium3) self-custody keys for federation. Ed25519 for chat signing and Solana wallet compatibility. Your identity is a key on your device, not an account on someone else's server.</p>
-          <p>BIP39 seed phrase backup (24 words). Social key recovery through trusted guardians using Shamir secret sharing. DID format: <code>did:hum:&lt;base58&gt;</code>.</p>
-        </div>
-
-        <div class="pillar">
-          <h3>Encryption</h3>
-          <p>ML-KEM-768 (Kyber768) for post-quantum key exchange. AES-256-GCM for symmetric encryption. Argon2id for password-derived keys. BLAKE3 for hashing. WebRTC for voice and video calls.</p>
-          <p>Private messages are encrypted on your device. The server never has access to plaintext. No IP logging, no metadata harvesting.</p>
-        </div>
-
-        <div class="pillar">
-          <h3>Trust and Governance</h3>
-          <p>W3C Verifiable Credentials issued peer-to-peer. Multi-layer trust score built from vouches, credentials, activity, age, and stake. Community governance with weighted voting (capped at 0.95 to prevent single-actor dominance).</p>
-          <p>AI agents are first-class citizens with mandatory transparency declarations. They cannot vote but participate openly.</p>
-        </div>
-
-        <div class="pillar">
-          <h3>Desktop App and 3D Engine</h3>
-          <p>Native desktop app built with wgpu and WGSL shaders. PBR rendering, bloom, particles, and a full planetary simulation with icosphere LOD terrain. The same binary that runs the server also runs the desktop app.</p>
-          <p>3D models in the simulation can be exported for 3D printing. Design it in the game, print it in real life.</p>
-        </div>
-
-        <div class="pillar">
-          <h3>Web Frontend</h3>
-          <p>Plain HTML, CSS, and JavaScript. No build step, no framework, no npm. Open any page source and read it. The web client connects to the same relay server as the desktop app.</p>
-          <p>Progressive Web App support for mobile. Works on any modern browser.</p>
-        </div>
-
-      </div>
-
-      <div class="proof-strip" style="margin-top: 24px;">
-        <p>License: <strong>CC0 Public Domain</strong>. No permission needed. Copy it, modify it, sell it, teach from it. It belongs to everyone.</p>
-      </div>
-
-      <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px;">
-        <a href="https://github.com/Shaostoul/Humanity" class="btn btn-secondary" target="_blank" rel="noopener"><span class="pg-ico" data-icon="github" data-size="18"></span> View Source on GitHub</a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/user/ONBOARDING.md" class="btn btn-secondary" target="_blank" rel="noopener">Developer Onboarding</a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/admin/SELF-HOSTING.md" class="btn btn-secondary" target="_blank" rel="noopener">Self-Hosting Guide</a>
-      </div>
     </div>
   </section>
 
