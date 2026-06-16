@@ -69,9 +69,32 @@ impl System for NetSyncSystem {
                 NetMessage::Welcome { player_id, .. } => {
                     self.local_player_id = Some(player_id);
                     log::info!("Connected as player {}", player_id);
+                    // The relay broadcasts our own join + position back to us; if a remote-player
+                    // entity was spawned for our own id before the Welcome arrived (a race), drop it.
+                    let mut me = Vec::new();
+                    for (entity, remote) in world.query_mut::<&RemotePlayer>() {
+                        if remote.player_id == player_id {
+                            me.push(entity);
+                        }
+                    }
+                    for entity in me {
+                        let _ = world.despawn(entity);
+                    }
                 }
 
                 NetMessage::PlayerJoined { player_id, name, position } => {
+                    // Never spawn a remote avatar for ourselves (the relay echoes our join).
+                    if self.local_player_id == Some(player_id) {
+                        continue;
+                    }
+                    // Idempotent: a duplicate join (e.g. after the world snapshot) must not stack.
+                    let exists = world
+                        .query_mut::<&RemotePlayer>()
+                        .into_iter()
+                        .any(|(_, r)| r.player_id == player_id);
+                    if exists {
+                        continue;
+                    }
                     let pos = Vec3::from_array(position);
                     // Spawn a remote player entity
                     world.spawn((
@@ -116,7 +139,12 @@ impl System for NetSyncSystem {
                     velocity,
                     ..
                 } => {
-                    // Update remote player's target for interpolation
+                    // Never track ourselves (the relay echoes our own updates back).
+                    if self.local_player_id == Some(player_id) {
+                        continue;
+                    }
+                    // Update the matching remote player's target for interpolation.
+                    let mut found = false;
                     for (_entity, (transform, remote)) in
                         world.query_mut::<(&mut Transform, &mut RemotePlayer)>()
                     {
@@ -127,8 +155,30 @@ impl System for NetSyncSystem {
                             remote.target_rotation = Quat::from_array(rotation);
                             remote.velocity = Vec3::from_array(velocity);
                             remote.interpolation_t = 0.0;
+                            found = true;
                             break;
                         }
+                    }
+                    // Lazy-spawn: a player already in the world when we joined never sent us a
+                    // PlayerJoined (it fired before we connected), so their first position update
+                    // is where we first learn of them. Spawn them so co-presence is join-order
+                    // independent.
+                    if !found {
+                        let pos = Vec3::from_array(position);
+                        world.spawn((
+                            Transform { position: pos, rotation: Quat::from_array(rotation), scale: Vec3::ONE },
+                            RemotePlayer {
+                                player_id,
+                                name: format!("Player {player_id}"),
+                                last_position: pos,
+                                target_position: pos,
+                                last_rotation: Quat::from_array(rotation),
+                                target_rotation: Quat::from_array(rotation),
+                                velocity: Vec3::from_array(velocity),
+                                interpolation_t: 1.0,
+                                last_update_time: 0.0,
+                            },
+                        ));
                     }
                 }
 

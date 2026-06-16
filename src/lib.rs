@@ -780,6 +780,90 @@ mod native_app {
         }
     }
 
+    /// Route a `__game__:`-tagged relay message into the multiplayer sync system (v0.472).
+    /// `payload` is the JSON AFTER the `__game__:` prefix. Maps the relay's `game_*` wire types
+    /// (game_welcome / game_player_joined / game_position_update / game_player_left) to NetMessage
+    /// and queues them for `net_sync` to apply. Other game_* events (quests, perception) are
+    /// ignored here -- they are not part of co-presence. Reuses the authenticated chat socket.
+    fn route_game_message(state: &mut EngineState, payload: &str) {
+        use crate::net::protocol::NetMessage;
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) else { return; };
+        let arr3 = |val: &serde_json::Value| -> Option<[f32; 3]> {
+            let a = val.as_array()?;
+            if a.len() != 3 { return None; }
+            Some([a[0].as_f64()? as f32, a[1].as_f64()? as f32, a[2].as_f64()? as f32])
+        };
+        let arr4 = |val: &serde_json::Value| -> Option<[f32; 4]> {
+            let a = val.as_array()?;
+            if a.len() != 4 { return None; }
+            Some([a[0].as_f64()? as f32, a[1].as_f64()? as f32, a[2].as_f64()? as f32, a[3].as_f64()? as f32])
+        };
+        match v.get("type").and_then(|t| t.as_str()) {
+            Some("game_welcome") => {
+                if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
+                    state.net_sync.queue_messages(vec![NetMessage::Welcome {
+                        player_id: id as u32,
+                        world_snapshot: Vec::new(),
+                    }]);
+                }
+            }
+            Some("game_player_joined") => {
+                if let (Some(id), Some(pos)) = (
+                    v.get("player_id").and_then(|x| x.as_u64()),
+                    v.get("position").and_then(&arr3),
+                ) {
+                    let name = v.get("name").and_then(|x| x.as_str()).unwrap_or("Player").to_string();
+                    state.net_sync.queue_messages(vec![NetMessage::PlayerJoined {
+                        player_id: id as u32,
+                        name,
+                        position: pos,
+                    }]);
+                }
+            }
+            Some("game_position_update") => {
+                if let (Some(id), Some(pos)) = (
+                    v.get("player_id").and_then(|x| x.as_u64()),
+                    v.get("position").and_then(&arr3),
+                ) {
+                    let rotation = v.get("rotation").and_then(&arr4).unwrap_or([0.0, 0.0, 0.0, 1.0]);
+                    let velocity = v.get("velocity").and_then(&arr3).unwrap_or([0.0, 0.0, 0.0]);
+                    let timestamp = v.get("timestamp").and_then(|x| x.as_f64()).unwrap_or(0.0);
+                    state.net_sync.queue_messages(vec![NetMessage::PositionUpdate {
+                        player_id: id as u32,
+                        position: pos,
+                        rotation,
+                        velocity,
+                        timestamp,
+                    }]);
+                }
+            }
+            Some("game_player_left") => {
+                if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
+                    state.net_sync.queue_messages(vec![NetMessage::PlayerLeft { player_id: id as u32 }]);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Send the local player's position to the relay (reused chat socket). Throttled by the caller.
+    /// The relay validates (anti-teleport) and broadcasts `game_position_update` to other clients.
+    fn send_game_position(state: &EngineState) {
+        let Some(ref ws) = state.gui_state.ws_client else { return; };
+        let p = state.camera.position;
+        // Yaw-only facing quaternion (rotation about Y): enough for avatars to face their heading.
+        let half = state.camera.yaw * 0.5;
+        let (qy, qw) = (half.sin(), half.cos());
+        let msg = serde_json::json!({
+            "type": "game_position_update",
+            "position": [p.x, p.y, p.z],
+            "rotation": [0.0, qy, 0.0, qw],
+            "velocity": [0.0, 0.0, 0.0],
+            "timestamp": 0.0,
+        });
+        ws.send(&msg.to_string());
+    }
+
     /// Lazy-load the 3D world: homestead, hologram, stars, planet, CSV data.
     /// Called once on first Enter World. Keeps app startup instant (chat-first).
     fn load_world(state: &mut EngineState) {
@@ -1728,6 +1812,16 @@ mod native_app {
         construction_gizmo_resize_handle: Option<(usize, usize)>,
         /// Cached (mesh, material) for the selected-room highlight quad, built once. (v0.466)
         construction_hilite: Option<(usize, usize)>,
+        // ── Multiplayer co-presence (v0.472) ──
+        /// Processes inbound game messages + interpolates remote players. Reuses the authenticated
+        /// chat WebSocket (`gui_state.ws_client`) -- no second socket, no second auth.
+        net_sync: crate::net::sync::NetSyncSystem,
+        /// True once we have sent `game_join` for this world session (cleared on leave/disconnect).
+        game_joined: bool,
+        /// Throttle for outbound position updates (send ~15/sec).
+        game_pos_timer: f32,
+        /// Cached (body_mesh, head_mesh, material) for the remote-player avatar marker, built once.
+        remote_avatar: Option<(usize, usize, usize)>,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
         hologram_objects: Vec<(usize, usize, Vec3, String)>,
         /// Hologram orbit rings (mesh_idx, material_idx).
@@ -2190,6 +2284,10 @@ mod native_app {
                 construction_gizmo_handle: None,
                 construction_gizmo_resize_handle: None,
                 construction_hilite: None,
+                net_sync: crate::net::sync::NetSyncSystem::new(),
+                game_joined: false,
+                game_pos_timer: 0.0,
+                remote_avatar: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
                 hologram_pins: Vec::new(),
@@ -2831,6 +2929,68 @@ mod native_app {
                         &state.data_store,
                     );
 
+                    // ── Multiplayer co-presence (v0.472) ──────────────────────────────────────
+                    // While actually in the 3D world AND connected to a relay, join the shared game
+                    // world once (over the existing authenticated chat socket), stream our position,
+                    // and apply remote players. The relay validates + broadcasts; net_sync spawns /
+                    // moves / interpolates RemotePlayer entities, which the render pass draws.
+                    {
+                        let in_world = state.gui_state.active_page == GuiPage::None
+                            && !state.gui_state.showroom_active
+                            && !state.gui_state.construction_active;
+                        let connected = state
+                            .gui_state
+                            .ws_client
+                            .as_ref()
+                            .map_or(false, |w| w.is_connected());
+                        if in_world && connected {
+                            if !state.game_joined {
+                                let name = if state.gui_state.character_name.trim().is_empty() {
+                                    "Wanderer".to_string()
+                                } else {
+                                    state.gui_state.character_name.clone()
+                                };
+                                if let Some(ref ws) = state.gui_state.ws_client {
+                                    // character_mode is reserved for the open/closed-server model
+                                    // (relay ignores extra fields today; envelope right from day one).
+                                    let join = serde_json::json!({
+                                        "type": "game_join",
+                                        "player_name": name,
+                                        "character_mode": "local",
+                                    });
+                                    ws.send(&join.to_string());
+                                }
+                                state.game_joined = true;
+                                state.game_pos_timer = 0.0;
+                            }
+                            state.game_pos_timer += dt;
+                            if state.game_pos_timer >= 1.0 / 15.0 {
+                                state.game_pos_timer = 0.0;
+                                send_game_position(state);
+                            }
+                            // `tick` is the System trait method; call it fully-qualified.
+                            crate::ecs::systems::System::tick(
+                                &mut state.net_sync,
+                                &mut state.game_world.world,
+                                dt,
+                                &state.data_store,
+                            );
+                        } else if state.game_joined {
+                            // Left the world: allow a fresh join next time + clear remote avatars.
+                            state.game_joined = false;
+                            let remotes: Vec<hecs::Entity> = state
+                                .game_world
+                                .world
+                                .query::<&crate::net::sync::RemotePlayer>()
+                                .iter()
+                                .map(|(e, _)| e)
+                                .collect();
+                            for e in remotes {
+                                let _ = state.game_world.world.despawn(e);
+                            }
+                        }
+                    }
+
                     // Periodic auto-save of the offline home (v0.381). Self-throttles
                     // to every 2 minutes; robust to any exit path (in-app quit, crash)
                     // where the graceful close-save would not fire.
@@ -3236,6 +3396,46 @@ mod native_app {
                             mesh: mesh_idx,
                             material: mat_idx,
                         });
+                    }
+
+                    // ── Remote players (multiplayer co-presence, v0.472) ──
+                    // Draw a simple humanoid marker (body + head, a distinct teal) at each remote
+                    // player's interpolated position. The sent position is the eye/camera height, so
+                    // the head sits there and the body hangs below it. (Nameplates are a follow-up.)
+                    if !showroom {
+                        if state.remote_avatar.is_none() {
+                            let body = state.renderer.add_mesh(
+                                Mesh::box_xyz(&state.renderer.device, 0.42, 1.4, 0.26));
+                            let head = state.renderer.add_mesh(
+                                Mesh::sphere(&state.renderer.device, 0.17, 12, 14));
+                            // Teal, slightly emissive so a remote player reads at a glance.
+                            let mat = state.renderer.add_material_full(
+                                [0.15, 0.75, 0.85, 1.0], 0.0, 0.5, 1.0, 0.25);
+                            state.remote_avatar = Some((body, head, mat));
+                        }
+                        if let Some((body, head, mat)) = state.remote_avatar {
+                            for (_e, (t, _r)) in state
+                                .game_world
+                                .world
+                                .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemotePlayer)>()
+                                .iter()
+                            {
+                                all_objects.push(RenderObject {
+                                    position: t.position - Vec3::new(0.0, 0.85, 0.0),
+                                    rotation: t.rotation,
+                                    scale: Vec3::ONE,
+                                    mesh: body,
+                                    material: mat,
+                                });
+                                all_objects.push(RenderObject {
+                                    position: t.position + Vec3::new(0.0, 0.05, 0.0),
+                                    rotation: t.rotation,
+                                    scale: Vec3::ONE,
+                                    mesh: head,
+                                    material: mat,
+                                });
+                            }
+                        }
                     }
                     // Showroom ground under the avatar (tinted by the backdrop): a planet
                     // SPHERE the avatar stands on for body backdrops (Earth/Mars/Moon), else
@@ -4263,8 +4463,15 @@ mod native_app {
                                             // chatter, quest events, NPC dialog, world ticks) — those
                                             // belong on the game/perception channel, NOT in #general
                                             // where humans are talking. (Bug fix 2026-05-03.)
+                                            // Multiplayer (v0.472): route game traffic into the sync
+                                            // system (remote players join / move / leave) instead of
+                                            // discarding it, then skip the chat display.
+                                            if let Some(payload) = msg.strip_prefix("__game__:") {
+                                                let payload = payload.to_string();
+                                                route_game_message(state, &payload);
+                                                continue;
+                                            }
                                             if msg.starts_with("__sync_data__")
-                                                || msg.starts_with("__game__:")
                                                 || msg == "sync_ack"
                                             {
                                                 continue;
@@ -5005,6 +5212,13 @@ mod native_app {
                                         // Private server-to-user message (rate limit, errors, command responses)
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
                                             crate::debug::push_debug(format!("Private: {}", msg));
+                                            // Multiplayer (v0.472): the game_welcome (our player id +
+                                            // world snapshot) arrives as a private __game__ message.
+                                            if let Some(payload) = msg.strip_prefix("__game__:") {
+                                                let payload = payload.to_string();
+                                                route_game_message(state, &payload);
+                                                continue;
+                                            }
                                             // Filter out profile validation noise (not relevant to chat)
                                             let is_profile_noise = msg.contains("Profile URL")
                                                 || msg.contains("must start with https://")
