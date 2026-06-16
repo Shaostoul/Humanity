@@ -50,6 +50,24 @@ A minimal, honest co-presence loop, in order:
    joined players in the same world (add the broadcast if it is missing -- the spike says which).
 5. Verify with two real clients on the VPS: each sees the other move. That is "first playable."
 
+## The character dimension MUST be designed into the join envelope (do not retrofit)
+The very first `game_join` the client ever sends is also where character-select threads in (operator
+requirement, 2026-06-16): a player joins with a character that belongs to the server, from a LOCAL
+self-custodial section or a SERVER-held section, with servers declaring open/closed/hybrid policy
+(Diablo II open vs closed Battle.net). Full design + the grounded data model:
+[characters-and-servers.md](characters-and-servers.md). The good news: most of it already exists (the
+relay's `player_progress` row keyed by pubkey, which `handle_game_join` re-seeds from and never trusts
+client stats). **Three things must be decided BEFORE step 1 above, because they shape the wire and
+cannot be cleanly bolted on later:**
+1. The `game_join` envelope must carry `character_mode` + (`character` bytes | `character_id`) so the
+   relay can branch open vs closed on day one. (Step 1's "reconciled format" IS this envelope.)
+2. Identity at join derives from the identify-bound socket key, NOT the client-supplied `player_name`
+   (`msg_handlers.rs:3281` currently trusts the name).
+3. `character_policy` (default "open") must exist on `ServerInfoResponse` before the client can render
+   the right selector for a server.
+Everything else (the `server_characters` table, multi-character, intent-based inventory) defers until
+after first co-presence -- the single `player_progress` row suffices for the first slice.
+
 ## Watchouts
 - Reuse the existing chat WebSocket for game traffic (the `__game__:` tag already separates it). Do
   NOT open a second socket or duplicate auth.
