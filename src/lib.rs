@@ -557,6 +557,79 @@ mod native_app {
         log::info!("Homestead rebuilt: {} rooms", room_info.len());
     }
 
+    /// Left-click in the construction astral editor: cast a pick ray from the cursor, hit-test
+    /// each room's floor rectangle, select + grab the nearest. (v0.466)
+    fn try_begin_room_grab(state: &mut EngineState) {
+        let sz = state.window.inner_size();
+        let viewport = (sz.width as f32, sz.height as f32);
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, viewport);
+        if dir.y.abs() < 1e-6 {
+            return;
+        }
+        // Nearest room whose floor plane (y = bounds.min.y) the ray hits within the footprint.
+        let mut best: Option<(usize, f32, f32, f32)> = None; // (rb_index, t, hit_x, hit_z)
+        for (i, rb) in state.gui_state.room_bounds.iter().enumerate() {
+            let t = (rb.min.y - origin.y) / dir.y;
+            if t <= 0.0 {
+                continue;
+            }
+            let hx = origin.x + dir.x * t;
+            let hz = origin.z + dir.z * t;
+            if hx >= rb.min.x && hx <= rb.max.x && hz >= rb.min.z && hz <= rb.max.z {
+                if best.map_or(true, |(_, bt, _, _)| t < bt) {
+                    best = Some((i, t, hx, hz));
+                }
+            }
+        }
+        let Some((rb_index, _, hit_x, hit_z)) = best else {
+            state.gui_state.construction_selected_room = None; // clicked empty space
+            return;
+        };
+        // room_bounds and construction_rooms cross-walk by id.
+        let id = state.gui_state.room_bounds[rb_index].id.clone();
+        let Some(ri) = state.gui_state.construction_rooms.iter().position(|r| r.id == id) else {
+            return;
+        };
+        let pos = state.gui_state.construction_rooms[ri].position.unwrap_or([0.0, 0.0, 0.0]);
+        state.gui_state.construction_selected_room = Some(ri);
+        state.construction_grab = Some(ConstructionGrab {
+            room_index: ri,
+            floor_y: state.gui_state.room_bounds[rb_index].min.y,
+            offset_x: hit_x - pos[0],
+            offset_z: hit_z - pos[2],
+        });
+    }
+
+    /// Per-frame: while a room is grabbed, intersect the pick ray with its floor plane, move
+    /// the room so it follows the cursor (minus the grab offset), snap to 0.25 m, and flag a
+    /// rebuild. Computed from the live cursor (not deltas) so it never drifts. (v0.466)
+    fn apply_room_drag(state: &mut EngineState) {
+        let Some(grab) = state.construction_grab else { return; };
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        if dir.y.abs() < 1e-6 {
+            return;
+        }
+        let t = (grab.floor_y - origin.y) / dir.y;
+        if t <= 0.0 {
+            return;
+        }
+        let hit_x = origin.x + dir.x * t;
+        let hit_z = origin.z + dir.z * t;
+        let snap = |v: f32| (v / 0.25).round() * 0.25;
+        let new_x = snap(hit_x - grab.offset_x);
+        let new_z = snap(hit_z - grab.offset_z);
+        if let Some(room) = state.gui_state.construction_rooms.get_mut(grab.room_index) {
+            let mut p = room.position.unwrap_or([0.0, 0.0, 0.0]);
+            if (p[0] - new_x).abs() > f32::EPSILON || (p[2] - new_z).abs() > f32::EPSILON {
+                p[0] = new_x;
+                p[2] = new_z;
+                room.position = Some(p);
+                state.gui_state.construction_dirty = true;
+            }
+        }
+    }
+
     /// Lazy-load the 3D world: homestead, hologram, stars, planet, CSV data.
     /// Called once on first Enter World. Keeps app startup instant (chat-first).
     fn load_world(state: &mut EngineState) {
@@ -1360,6 +1433,17 @@ mod native_app {
         }
     }
 
+    /// Construction 3D drag state (v0.466): which editor room is grabbed + the world floor
+    /// plane and the offset from the room's min-corner to the grab hit point, so the room
+    /// tracks the cursor without jumping.
+    #[derive(Clone, Copy)]
+    struct ConstructionGrab {
+        room_index: usize,
+        floor_y: f32,
+        offset_x: f32,
+        offset_z: f32,
+    }
+
     struct EngineState {
         window: Arc<Window>,
         renderer: Renderer,
@@ -1444,6 +1528,12 @@ mod native_app {
         construction_cam_active: bool,
         /// First-person position to return to when leaving the construction editor. (v0.464)
         construction_return_pos: Vec3,
+        /// Last cursor position in physical pixels (top-left origin), for 3D picking. (v0.466)
+        cursor_pos: (f32, f32),
+        /// The room currently grabbed (left-drag) in the 3D astral editor. (v0.466)
+        construction_grab: Option<ConstructionGrab>,
+        /// Cached (mesh, material) for the selected-room highlight quad, built once. (v0.466)
+        construction_hilite: Option<(usize, usize)>,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
         hologram_objects: Vec<(usize, usize, Vec3, String)>,
         /// Hologram orbit rings (mesh_idx, material_idx).
@@ -1900,6 +1990,9 @@ mod native_app {
                 homestead_layout: None,
                 construction_cam_active: false,
                 construction_return_pos: Vec3::new(0.0, 1.7, 0.0),
+                cursor_pos: (0.0, 0.0),
+                construction_grab: None,
+                construction_hilite: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
                 hologram_pins: Vec::new(),
@@ -2189,8 +2282,25 @@ mod native_app {
                         state.data_store.insert("input_state", input);
                     }
                 }
+                WindowEvent::CursorMoved { position, .. } => {
+                    // Cache the cursor pixel position for 3D picking (v0.466). Unconditional so
+                    // it stays fresh regardless of which mode we're in.
+                    state.cursor_pos = (position.x as f32, position.y as f32);
+                }
                 WindowEvent::MouseInput { button, state: btn_state, .. } => {
-                    if !egui_consumed && state.gui_state.active_page == GuiPage::None {
+                    use winit::event::{ElementState, MouseButton};
+                    let left = button == MouseButton::Left;
+                    let pressed = btn_state == ElementState::Pressed;
+                    // Construction astral editor: LEFT grabs/drops a room (left is a no-op in the
+                    // orbit cam, so we own it). Gated on !egui_consumed so panel clicks never
+                    // start a grab. (v0.466)
+                    if state.gui_state.construction_active && left && !egui_consumed {
+                        if pressed {
+                            try_begin_room_grab(state);
+                        } else {
+                            state.construction_grab = None; // release; keep the selection highlighted
+                        }
+                    } else if !egui_consumed && state.gui_state.active_page == GuiPage::None {
                         state.controller.process_mouse_button(button, btn_state);
                     }
                 }
@@ -2569,7 +2679,11 @@ mod native_app {
                         state.construction_cam_active = false;
                         state.camera.switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
                         state.camera.position = state.construction_return_pos;
+                        state.gui_state.construction_selected_room = None;
+                        state.construction_grab = None;
                     }
+                    // 3D room drag (v0.466): a grabbed room follows the cursor on its floor.
+                    apply_room_drag(state);
                     // Construction editor (v0.455/459): apply the edited walls + ceiling height
                     // AND room position/size + add/remove to the live layout, then rebuild.
                     // Reconcile by ID (both directions) so add/remove/reorder can't desync.
@@ -2718,6 +2832,42 @@ mod native_app {
                                 mesh: mesh_idx,
                                 material: mat_idx,
                             });
+                        }
+                        // Selected-room highlight (v0.466): a translucent accent quad over the
+                        // selected room's floor, drawn in the transparent pass so the alpha
+                        // shows. Built once + cached; scaled per frame; survives rebuilds.
+                        if let Some(ri) = state.gui_state.construction_selected_room {
+                            if state.construction_hilite.is_none() {
+                                let v = vec![
+                                    crate::renderer::mesh::Vertex { position: [-0.5, 0.0, -0.5], normal: [0.0, 1.0, 0.0], uv: [0.0, 0.0] },
+                                    crate::renderer::mesh::Vertex { position: [0.5, 0.0, -0.5], normal: [0.0, 1.0, 0.0], uv: [1.0, 0.0] },
+                                    crate::renderer::mesh::Vertex { position: [0.5, 0.0, 0.5], normal: [0.0, 1.0, 0.0], uv: [1.0, 1.0] },
+                                    crate::renderer::mesh::Vertex { position: [-0.5, 0.0, 0.5], normal: [0.0, 1.0, 0.0], uv: [0.0, 1.0] },
+                                ];
+                                let idx = vec![0u32, 2, 1, 0, 3, 2];
+                                let m = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &v, &idx));
+                                let a = state.theme.accent();
+                                let mat = state.renderer.add_material_full(
+                                    [a.r() as f32 / 255.0, a.g() as f32 / 255.0, a.b() as f32 / 255.0, 0.4],
+                                    0.0, 0.4, 1.0, 0.3,
+                                );
+                                state.construction_hilite = Some((m, mat));
+                            }
+                            if let Some((hm, hmat)) = state.construction_hilite {
+                                if let Some(id) = state.gui_state.construction_rooms.get(ri).map(|r| r.id.clone()) {
+                                    if let Some(rb) = state.gui_state.room_bounds.iter().find(|b| b.id == id) {
+                                        let center = (rb.min + rb.max) * 0.5;
+                                        let size = rb.max - rb.min;
+                                        transparent_objects.push(RenderObject {
+                                            position: Vec3::new(center.x, rb.min.y + 0.03, center.z),
+                                            rotation: Quat::IDENTITY,
+                                            scale: Vec3::new(size.x, 1.0, size.z),
+                                            mesh: hm,
+                                            material: hmat,
+                                        });
+                                    }
+                                }
+                            }
                         }
                         // Walls, trim, windows, mirror/portal — all part of the home shell.
                         // The roof (ceiling) is gated by the show_roof toggle so the sky stays

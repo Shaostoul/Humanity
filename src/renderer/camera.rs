@@ -277,6 +277,23 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
+    /// Build a world-space PICK RAY from a cursor pixel (for 3D selection). `cursor` is (x, y)
+    /// in physical pixels (top-left origin); `viewport` is (width, height) in the same units.
+    /// Returns (origin, direction-normalized). Unprojects the near + far clip points through
+    /// the inverse view-projection; works in every camera mode (and for orthographic, the rays
+    /// come out parallel). Reverse-Z aware: the near plane is clip z = 1.0, far is z = 0.0.
+    /// (v0.466)
+    pub fn pick_ray(&self, cursor: (f32, f32), viewport: (f32, f32)) -> (Vec3, Vec3) {
+        let ndc_x = (cursor.0 / viewport.0.max(1.0)) * 2.0 - 1.0;
+        let ndc_y = 1.0 - (cursor.1 / viewport.1.max(1.0)) * 2.0; // screen Y is flipped
+        let inv = self.view_projection_matrix().inverse();
+        let near = inv * glam::Vec4::new(ndc_x, ndc_y, 1.0, 1.0);
+        let far = inv * glam::Vec4::new(ndc_x, ndc_y, 0.0, 1.0);
+        let near = near.truncate() / near.w;
+        let far = far.truncate() / far.w;
+        (near, (far - near).normalize_or_zero())
+    }
+
     /// Build GPU uniform data from current state (no point lights).
     /// Uses default directional sun/fill lights matching the former shader constants.
     pub fn uniforms(&self) -> CameraUniforms {

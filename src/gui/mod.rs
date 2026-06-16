@@ -1249,6 +1249,9 @@ pub struct GuiState {
     /// screen/mode. Loaded once from data/keymaps.ron.
     pub keymap_visible: bool,
     pub keymaps: Vec<crate::gui::pages::keymap::KeymapContext>,
+    /// Index into construction_rooms of the room selected/grabbed in the 3D astral editor, for
+    /// the highlight tint. None = no selection. (v0.466)
+    pub construction_selected_room: Option<usize>,
     /// Editable uniform ceiling height (mirrors layout.default_wall_height).
     pub construction_height: f32,
     /// Set by the panel when a wall/position/size/add/remove changed -> the engine rebuilds.
@@ -2125,6 +2128,7 @@ impl Default for GuiState {
             construction_plan_view: false,
             keymap_visible: false,
             keymaps: Vec::new(),
+            construction_selected_room: None,
             construction_height: 3.0,
             construction_dirty: false,
             construction_save: false,
