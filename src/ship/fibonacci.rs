@@ -620,7 +620,6 @@ fn sweep_profile(profile: &[(f32, f32)], a: Vec3, b: Vec3, out_dir: Vec3, up_dir
     if n < 2 || (b - a).length() < 0.001 {
         return (v, idx);
     }
-    let run = (b - a).normalize();
     let pt = |base: Vec3, p: (f32, f32)| base + out_dir * p.0 + up_dir * p.1;
     for i in 0..n {
         let j = (i + 1) % n;
@@ -628,9 +627,12 @@ fn sweep_profile(profile: &[(f32, f32)], a: Vec3, b: Vec3, out_dir: Vec3, up_dir
         let pa1 = pt(a, profile[j]);
         let pb0 = pt(b, profile[i]);
         let pb1 = pt(b, profile[j]);
-        let edge = pa1 - pa0;
-        let raw = run.cross(edge);
-        let nrm = if raw.length_squared() > 1e-9 { raw.normalize() } else { out_dir.normalize_or_zero() };
+        // Normal taken from the ACTUAL triangle winding (pa0->pa1->pb1) so the normal and the
+        // front face always AGREE -- the v0.457/461 bug derived the normal from run.cross(edge)
+        // which disagreed with the index winding, so the visible side got a back-pointing
+        // normal (inverted / black). (v0.462)
+        let gn = (pa1 - pa0).cross(pb1 - pa0);
+        let nrm = if gn.length_squared() > 1e-9 { gn.normalize() } else { out_dir.normalize_or_zero() };
         // Front side: normal = +nrm, CCW winding.
         let nf = [nrm.x, nrm.y, nrm.z];
         let base = v.len() as u32;

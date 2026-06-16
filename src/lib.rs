@@ -2103,13 +2103,23 @@ mod native_app {
                             state.gui_state.construction_active = !state.gui_state.construction_active;
                             if state.gui_state.construction_active {
                                 if let Some(layout) = &state.homestead_layout {
+                                    // PIN EVERY room to its current resolved position on open, so
+                                    // editing one room no longer reshuffles the auto-laid-out
+                                    // others (the operator's "I felt lost as the rooms rearranged
+                                    // themselves"). The whole home becomes an explicit floor plan.
+                                    let resolved = crate::ship::fibonacci::resolve_positions(layout);
                                     state.gui_state.construction_rooms = layout.rooms.iter()
-                                        .map(|rc| {
+                                        .enumerate()
+                                        .map(|(i, rc)| {
                                             let w = &rc.walls;
+                                            let pos = rc.position.unwrap_or_else(|| {
+                                                let r = resolved[i];
+                                                [r.x, r.y, r.z]
+                                            });
                                             crate::gui::ConstructionRoom {
                                                 id: rc.id.clone(),
                                                 walls: [w.north, w.south, w.west, w.east],
-                                                position: rc.position,
+                                                position: Some(pos),
                                                 dimensions: rc.dimensions,
                                                 material_type: rc.material_type,
                                                 color: rc.color,
