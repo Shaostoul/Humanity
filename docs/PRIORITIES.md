@@ -13,16 +13,19 @@
 
 **ACTIVE 2026-06-15: CONSTRUCTION EDITOR arc (operator-directed detour, paused the LIVE HOME
 SIM arc below).** The operator is building the in-app homestead editor by rapid screenshot
-feedback. SHIPPED: v0.463 top-down canvas -> v0.466 3D room grab (pick_ray + drag-on-floor) ->
-v0.467 3-column layout (room tree | viewport | details) -> **v0.468 door/window SLIDE GIZMO**
-(`WallSet.offsets`; `fibonacci::opening_handles`; a glowing handle at each opening's base you
-click + slide along the wall, plus a numeric "slide" field) + the "Structure" terminology lock.
-**NEXT construction slice = LEVEL selector + STACKED-room multistory** (build-order step 2 in
-`docs/design/construction-architecture.md` (g)) - the big multistory unlock the operator flagged
-as a hard requirement (homes several stories; the mall is multiple stories aboard the ship).
-Then: drag-to-resize in 3D, multi-level rooms (the mall), lock Tab/F/M out of construction,
-make the keymap the real input source, the framing generator (architecture Step 2). Resume the
-LIVE HOME SIM arc after the editor reaches multistory.
+feedback. SHIPPED: v0.463 top-down canvas -> v0.466 3D room grab -> v0.467 3-column layout ->
+v0.468 door/window slide gizmo -> **v0.469 OPENINGS AS PLACED OBJECTS** (the v0.468 wall-kind
+model was unintuitive; redesigned). Now: a door/window/airlock is an additive `Opening` object
+(`RoomConfig.openings: Vec<Opening>`) placed on a still-solid wall -- add multiple per wall,
+move via a 3D wall-plane handle (door snaps to floor; window free up/down/left/right), RESIZE via
+edge handles or numeric W/H, every value clamped to the real wall (the 20m-vs-2m bug is gone).
+Also fixed the garden-wall regen bug (Open self-heals to Solid; `neighbor_owns` never hides a
+wall that owns a placed opening). Legacy WallKind windows still work + a `promote_walls_to_openings`
+path. **NEXT construction slice = LEVEL selector + STACKED-room multistory** (build-order step 2
+in `docs/design/construction-architecture.md` (g)) - the big multistory unlock the operator
+flagged as a hard requirement (homes several stories; the mall is multiple stories aboard the
+ship). Then: Stage 2 SVG/curved cutouts (`Opening.profile` hook reserved), click-on-wall-to-place,
+multi-level rooms (the mall). Resume the LIVE HOME SIM arc after the editor reaches multistory.
 
 **ACTIVE 2026-06-13: LIVE HOME SIMULATION arc (operator pick from the content-strategy
 survey).** The survey's finding: the home is a beautiful diorama, not a sim. ~270 LOC of

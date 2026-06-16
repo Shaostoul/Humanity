@@ -581,38 +581,60 @@ mod native_app {
         let sz = state.window.inner_size();
         let viewport = (sz.width as f32, sz.height as f32);
         let (origin, dir) = state.camera.pick_ray(state.cursor_pos, viewport);
-        if dir.y.abs() < 1e-6 {
-            return;
-        }
-        // 1. Slide-gizmo handles of the selected room (drawn at each opening's base centre).
-        //    A handle sits on the floor plane, so intersect the ray with that plane and grab
-        //    the nearest handle within a forgiving pick radius. (v0.468)
+        // 1. Opening gizmo handles of the selected room. Walls are VERTICAL, so intersect the
+        //    pick ray with each handle's wall-FACE plane (no dir.y needed) and classify the
+        //    nearest of {Move, and -- for a placed resizable opening -- the edge handles}. (v0.469)
         let handles = selected_room_handles(state);
-        let mut best_h: Option<(usize, usize, f32, f32, Vec3, Vec3, f32)> = None; // ri,w,base_t,half,start,end,dist
+        // (ri, handle, role, dist)
+        let mut best_h: Option<(usize, crate::ship::fibonacci::OpeningHandle, GizmoRole, f32)> = None;
         for (ri, h) in &handles {
-            let t = (h.base_center.y - origin.y) / dir.y;
-            if t <= 0.0 { continue; }
-            let hx = origin.x + dir.x * t;
-            let hz = origin.z + dir.z * t;
-            let d = ((hx - h.base_center.x).powi(2) + (hz - h.base_center.z).powi(2)).sqrt();
-            let pick_r = h.half.max(0.35); // grab radius in metres
-            if d <= pick_r && best_h.map_or(true, |b| d < b.6) {
-                best_h = Some((*ri, h.wall_index, h.base_t, h.half, h.wall_start, h.wall_end, d));
+            let denom = dir.dot(h.n);
+            if denom.abs() < 1e-6 { continue; } // ray parallel to the wall face
+            let t = (h.wall_start - origin).dot(h.n) / denom;
+            if t <= 0.0 { continue; } // plane behind the camera
+            let hit = origin + dir * t;
+            // Move always; placed openings add edge handles (width-only when floor-snapped).
+            let mut cands: Vec<(GizmoRole, Vec3)> = vec![(GizmoRole::Move, h.base_center)];
+            if h.opening_index.is_some() {
+                cands.push((GizmoRole::ResizeLeft, h.handle_left));
+                cands.push((GizmoRole::ResizeRight, h.handle_right));
+                if !h.kind.floor_snapped() {
+                    cands.push((GizmoRole::ResizeBottom, h.handle_bottom));
+                    cands.push((GizmoRole::ResizeTop, h.handle_top));
+                }
+            }
+            for (role, p) in cands {
+                let d = (hit - p).length();
+                let pick_r = if role == GizmoRole::Move { 0.3 } else { 0.18 };
+                if d <= pick_r && best_h.map_or(true, |b| d < b.3) {
+                    best_h = Some((*ri, *h, role, d));
+                }
             }
         }
-        if let Some((ri, w, base_t, half, ws, we, _)) = best_h {
+        if let Some((ri, h, role, _)) = best_h {
             state.construction_gizmo_grab = Some(ConstructionGizmoGrab {
                 room_index: ri,
-                wall_index: w,
-                floor_y: ws.y,
-                wall_start: ws,
-                wall_end: we,
-                base_t,
-                half,
+                opening_index: h.opening_index,
+                wall_index: h.wall_index,
+                role,
+                snap_floor: h.kind.floor_snapped(),
+                wall_start: h.wall_start,
+                u_hat: h.u_hat,
+                n: h.n,
+                wall_len: h.wall_len,
+                wall_height: h.wall_height,
+                base_t: h.base_t,
+                grab_u: h.u,
+                grab_v: h.v,
+                grab_w: h.w,
+                grab_h: h.h,
             });
             return; // grabbed a handle; don't also grab the room
         }
-        // Nearest room whose floor plane (y = bounds.min.y) the ray hits within the footprint.
+        // 2. Nearest room floor rect (needs dir.y; a horizontal-ish ray can't hit the floor plane).
+        if dir.y.abs() < 1e-6 {
+            return;
+        }
         let mut best: Option<(usize, f32, f32, f32)> = None; // (rb_index, t, hit_x, hit_z)
         for (i, rb) in state.gui_state.room_bounds.iter().enumerate() {
             let t = (rb.min.y - origin.y) / dir.y;
@@ -676,38 +698,85 @@ mod native_app {
         }
     }
 
-    /// Per-frame: while a door/window handle is grabbed, intersect the pick ray with the wall's
-    /// floor line, project that hit onto the wall axis, and write the resulting slide offset
-    /// (`projected_t - base_t`, snapped to 0.1 m, clamped inside the wall) back to the editor
-    /// mirror's `wall_offsets`. Computed from the live cursor so it never drifts. (v0.468)
+    /// Per-frame: while an opening handle is grabbed, intersect the pick ray with the wall-FACE
+    /// plane, decompose the hit into (u along the wall, v up the wall), and apply the grab role.
+    /// A placed opening (Some) moves/resizes its `openings[i]`; a legacy face (None) slides its
+    /// `wall_offsets`. Everything clamps to the wall, so the panel value equals the real on-wall
+    /// placement (the 20m-vs-2m fix). Computed from the live cursor so it never drifts. (v0.469)
     fn apply_gizmo_drag(state: &mut EngineState) {
-        let Some(grab) = state.construction_gizmo_grab else { return; };
+        let Some(g) = state.construction_gizmo_grab else { return; };
         let sz = state.window.inner_size();
         let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
-        if dir.y.abs() < 1e-6 {
+        // Ray vs the wall's vertical plane through wall_start with normal n.
+        let denom = dir.dot(g.n);
+        if denom.abs() < 1e-6 {
             return;
         }
-        let t = (grab.floor_y - origin.y) / dir.y;
+        let t = (g.wall_start - origin).dot(g.n) / denom;
         if t <= 0.0 {
             return;
         }
-        let hit = Vec3::new(origin.x + dir.x * t, grab.floor_y, origin.z + dir.z * t);
-        let axis = grab.wall_end - grab.wall_start;
-        let len = axis.length();
-        if len < 0.01 {
-            return;
-        }
-        let norm = axis / len;
-        // Distance of the hit along the wall from the start corner.
-        let proj_t = (hit - grab.wall_start).dot(norm).clamp(grab.half, len - grab.half);
-        // Offset relative to the opening's base position, snapped to 10 cm.
-        let snap = |v: f32| (v / 0.1).round() * 0.1;
-        let new_off = snap(proj_t - grab.base_t);
-        if let Some(room) = state.gui_state.construction_rooms.get_mut(grab.room_index) {
-            if (room.wall_offsets[grab.wall_index] - new_off).abs() > f32::EPSILON {
-                room.wall_offsets[grab.wall_index] = new_off;
+        let hit = origin + dir * t;
+        let rel = hit - g.wall_start;
+        let u_raw = rel.dot(g.u_hat); // metres along the wall from the start corner
+        let v_raw = rel.y; // metres up from the floor (wall_start is at floor y)
+        let snap = |x: f32| (x / 0.1).round() * 0.1;
+        let len = g.wall_len;
+        let wh = g.wall_height;
+
+        let Some(room) = state.gui_state.construction_rooms.get_mut(g.room_index) else { return; };
+
+        // Legacy WallKind slide (no placed opening): write wall_offsets, build clamps the rest.
+        let Some(oi) = g.opening_index else {
+            let u_clamped = u_raw.clamp(g.grab_w * 0.5, (len - g.grab_w * 0.5).max(g.grab_w * 0.5));
+            let new_off = snap(u_clamped - g.base_t);
+            if (room.wall_offsets[g.wall_index] - new_off).abs() > f32::EPSILON {
+                room.wall_offsets[g.wall_index] = new_off;
                 state.gui_state.construction_dirty = true;
             }
+            return;
+        };
+        let Some(op) = room.openings.get_mut(oi) else { return; };
+
+        let before = *op;
+        match g.role {
+            GizmoRole::Move => {
+                let hw = op.w * 0.5;
+                op.u = snap(u_raw).clamp(hw, (len - hw).max(hw));
+                if g.snap_floor {
+                    op.v = op.h * 0.5;
+                } else {
+                    let hh = op.h * 0.5;
+                    op.v = snap(v_raw).clamp(hh, (wh - hh).max(hh));
+                }
+            }
+            GizmoRole::ResizeRight => {
+                let left = (g.grab_u - g.grab_w * 0.5).max(0.0);
+                let right = snap(u_raw).clamp(left + 0.3, len);
+                op.w = right - left;
+                op.u = left + op.w * 0.5;
+            }
+            GizmoRole::ResizeLeft => {
+                let right = (g.grab_u + g.grab_w * 0.5).min(len);
+                let left = snap(u_raw).clamp(0.0, right - 0.3);
+                op.w = right - left;
+                op.u = left + op.w * 0.5;
+            }
+            GizmoRole::ResizeTop => {
+                let bottom = (g.grab_v - g.grab_h * 0.5).max(0.0);
+                let top = snap(v_raw).clamp(bottom + 0.3, wh);
+                op.h = top - bottom;
+                op.v = bottom + op.h * 0.5;
+            }
+            GizmoRole::ResizeBottom => {
+                let top = (g.grab_v + g.grab_h * 0.5).min(wh);
+                let bottom = snap(v_raw).clamp(0.0, top - 0.3);
+                op.h = top - bottom;
+                op.v = bottom + op.h * 0.5;
+            }
+        }
+        if *op != before {
+            state.gui_state.construction_dirty = true;
         }
     }
 
@@ -1525,20 +1594,42 @@ mod native_app {
         offset_z: f32,
     }
 
-    /// Construction door/window slide-gizmo drag (v0.468): which room+wall's opening is grabbed
-    /// + the wall line (captured at grab) to project the cursor onto. `room_index` indexes
-    /// `gui_state.construction_rooms` (the editor mirror we write the new offset back into).
+    /// Which part of an opening gizmo is grabbed. (v0.469)
+    #[derive(Clone, Copy, PartialEq)]
+    enum GizmoRole {
+        Move,
+        ResizeLeft,
+        ResizeRight,
+        ResizeBottom,
+        ResizeTop,
+    }
+
+    /// Construction opening-gizmo drag (v0.468, rebuilt v0.469): which room+opening is grabbed,
+    /// the captured wall-face plane (so the cursor projects onto the VERTICAL wall, giving u along
+    /// + v up), and the grab role. `room_index` indexes `gui_state.construction_rooms` (the editor
+    /// mirror). `opening_index` Some(i) drives `rooms[ri].openings[i]` (move + resize); None is a
+    /// legacy `WallSet.offsets` slide (back-compat, Move only).
     #[derive(Clone, Copy)]
     struct ConstructionGizmoGrab {
         room_index: usize,
+        opening_index: Option<usize>,
         wall_index: usize,
-        floor_y: f32,
+        role: GizmoRole,
+        snap_floor: bool,
         wall_start: Vec3,
-        wall_end: Vec3,
-        /// Position along the wall (from start) that offset is measured from.
+        /// Unit vector along the wall (start -> end).
+        u_hat: Vec3,
+        /// Wall-face plane normal (horizontal) the pick ray intersects.
+        n: Vec3,
+        wall_len: f32,
+        wall_height: f32,
+        /// Legacy slide base (offset = u - base_t); only used when `opening_index` is None.
         base_t: f32,
-        /// Opening half-width: clamp margin so the opening stays inside the wall.
-        half: f32,
+        /// Opening extents captured at grab time (for resize anchoring).
+        grab_u: f32,
+        grab_v: f32,
+        grab_w: f32,
+        grab_h: f32,
     }
 
     struct EngineState {
@@ -1631,8 +1722,10 @@ mod native_app {
         construction_grab: Option<ConstructionGrab>,
         /// The door/window slide-gizmo handle currently grabbed in the 3D editor. (v0.468)
         construction_gizmo_grab: Option<ConstructionGizmoGrab>,
-        /// Cached (mesh, material) for the gizmo handle marker, built once. (v0.468)
+        /// Cached (mesh, material) for the gizmo MOVE handle marker, built once. (v0.468)
         construction_gizmo_handle: Option<(usize, usize)>,
+        /// Cached (mesh, material) for the gizmo RESIZE handle markers (warning-tinted). (v0.469)
+        construction_gizmo_resize_handle: Option<(usize, usize)>,
         /// Cached (mesh, material) for the selected-room highlight quad, built once. (v0.466)
         construction_hilite: Option<(usize, usize)>,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
@@ -2095,6 +2188,7 @@ mod native_app {
                 construction_grab: None,
                 construction_gizmo_grab: None,
                 construction_gizmo_handle: None,
+                construction_gizmo_resize_handle: None,
                 construction_hilite: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
@@ -2334,6 +2428,19 @@ mod native_app {
                                                 id: rc.id.clone(),
                                                 walls: [w.north, w.south, w.west, w.east],
                                                 wall_offsets: w.offsets,
+                                                openings: rc.openings.iter().map(|o| {
+                                                    use crate::ship::fibonacci::OpeningKind as OK;
+                                                    crate::gui::EditorOpening {
+                                                        kind: match o.kind {
+                                                            OK::Door => crate::gui::EditorOpeningKind::Door,
+                                                            OK::Airlock => crate::gui::EditorOpeningKind::Airlock,
+                                                            // Window + Hatch both edit as Window in the mirror.
+                                                            _ => crate::gui::EditorOpeningKind::Window,
+                                                        },
+                                                        wall: (o.wall as usize).min(3),
+                                                        u: o.u, v: o.v, w: o.w, h: o.h,
+                                                    }
+                                                }).collect(),
                                                 position: Some(pos),
                                                 dimensions: rc.dimensions,
                                                 material_type: rc.material_type,
@@ -2829,12 +2936,23 @@ mod native_app {
                                         pos = Some([r.x, r.y, r.z]);
                                     }
                                 }
+                                // Map the editor's placed openings to engine Openings (v0.469).
+                                let er_openings: Vec<crate::ship::fibonacci::Opening> = er.openings.iter().map(|eo| {
+                                    use crate::gui::EditorOpeningKind as EK;
+                                    use crate::ship::fibonacci::OpeningKind as OK;
+                                    crate::ship::fibonacci::Opening {
+                                        wall: eo.wall as u8,
+                                        kind: match eo.kind { EK::Door => OK::Door, EK::Airlock => OK::Airlock, EK::Window => OK::Window },
+                                        u: eo.u, v: eo.v, w: eo.w, h: eo.h, profile: None,
+                                    }
+                                }).collect();
                                 if let Some(rc) = layout.rooms.iter_mut().find(|r| r.id == er.id) {
                                     rc.walls.north = er.walls[0];
                                     rc.walls.south = er.walls[1];
                                     rc.walls.west = er.walls[2];
                                     rc.walls.east = er.walls[3];
                                     rc.walls.offsets = er.wall_offsets;
+                                    rc.openings = er_openings;
                                     rc.position = pos;
                                     rc.dimensions = er.dimensions;
                                 } else {
@@ -2852,6 +2970,7 @@ mod native_app {
                                             east: er.walls[3],
                                             offsets: er.wall_offsets,
                                         },
+                                        openings: er_openings,
                                     });
                                 }
                             }
@@ -2982,9 +3101,10 @@ mod native_app {
                                     }
                                 }
                             }
-                            // Door/window slide-gizmo handles (v0.468): a small glowing cube at
-                            // the base centre of each movable opening on the selected room. Click +
-                            // drag one along its wall to slide the door/window. Cached cube mesh.
+                            // Opening gizmo handles (v0.468, resize v0.469): a glowing accent MOVE
+                            // cube at each opening's centre, plus warning-tinted RESIZE cubes at the
+                            // edges of placed (non-floor) openings. Handles float proud of the wall
+                            // toward the camera so they never z-fight the glass. Cached cube mesh.
                             let gizmo_handles = selected_room_handles(state);
                             if !gizmo_handles.is_empty() {
                                 if state.construction_gizmo_handle.is_none() {
@@ -3014,19 +3134,54 @@ mod native_app {
                                     let a = state.theme.accent();
                                     let mat = state.renderer.add_material_full(
                                         [a.r() as f32 / 255.0, a.g() as f32 / 255.0, a.b() as f32 / 255.0, 0.95],
-                                        0.0, 0.3, 1.0, 0.9, // emissive so it pops against the floor
+                                        0.0, 0.3, 1.0, 0.9, // emissive so it pops against the wall
                                     );
                                     state.construction_gizmo_handle = Some((m, mat));
                                 }
+                                // Resize-handle material (warning tint), sharing the move cube mesh.
+                                if state.construction_gizmo_resize_handle.is_none() {
+                                    if let Some((gm, _)) = state.construction_gizmo_handle {
+                                        let wcol = state.theme.warning();
+                                        let wmat = state.renderer.add_material_full(
+                                            [wcol.r() as f32 / 255.0, wcol.g() as f32 / 255.0, wcol.b() as f32 / 255.0, 0.95],
+                                            0.0, 0.3, 1.0, 0.9,
+                                        );
+                                        state.construction_gizmo_resize_handle = Some((gm, wmat));
+                                    }
+                                }
+                                let cam = state.camera.position;
                                 if let Some((gm, gmat)) = state.construction_gizmo_handle {
                                     for (_ri, h) in &gizmo_handles {
+                                        // Nudge proud of the wall toward the camera (anti z-fight).
+                                        let s = (cam - h.base_center).dot(h.n);
+                                        let face = h.n * (if s >= 0.0 { 1.0 } else { -1.0 }) * 0.06;
                                         transparent_objects.push(RenderObject {
-                                            position: h.base_center + Vec3::new(0.0, 0.15, 0.0),
+                                            position: h.base_center + face,
                                             rotation: Quat::IDENTITY,
                                             scale: Vec3::splat(0.22),
                                             mesh: gm,
                                             material: gmat,
                                         });
+                                        // Resize handles for placed openings (width for all; height
+                                        // too for non-floor-snapped kinds). Doors show move-only.
+                                        if h.opening_index.is_some() {
+                                            if let Some((rm, rmat)) = state.construction_gizmo_resize_handle {
+                                                let mut spots = vec![h.handle_left, h.handle_right];
+                                                if !h.kind.floor_snapped() {
+                                                    spots.push(h.handle_bottom);
+                                                    spots.push(h.handle_top);
+                                                }
+                                                for p in spots {
+                                                    transparent_objects.push(RenderObject {
+                                                        position: p + face,
+                                                        rotation: Quat::IDENTITY,
+                                                        scale: Vec3::splat(0.14),
+                                                        mesh: rm,
+                                                        material: rmat,
+                                                    });
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

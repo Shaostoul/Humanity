@@ -811,20 +811,82 @@ pub struct RoomBounds {
     pub access: String,
 }
 
+/// Kind of a placed opening in the editor mirror (v0.469). Mirrors a subset of
+/// `fibonacci::OpeningKind` (Hatch is engine-only for now -- the editor offers the three the
+/// operator named: door, window, airlock).
+#[cfg(feature = "native")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum EditorOpeningKind {
+    Door,
+    Window,
+    Airlock,
+}
+
+#[cfg(feature = "native")]
+impl EditorOpeningKind {
+    pub const ALL: [EditorOpeningKind; 3] =
+        [EditorOpeningKind::Door, EditorOpeningKind::Window, EditorOpeningKind::Airlock];
+    pub fn label(self) -> &'static str {
+        match self {
+            EditorOpeningKind::Door => "Door",
+            EditorOpeningKind::Window => "Window",
+            EditorOpeningKind::Airlock => "Airlock",
+        }
+    }
+    /// Doors + airlocks sit on the floor (no vertical move, no resize); windows float + resize.
+    pub fn floor_pinned(self) -> bool {
+        matches!(self, EditorOpeningKind::Door | EditorOpeningKind::Airlock)
+    }
+    /// Sensible default (width, height) in metres when a new opening of this kind is added.
+    pub fn default_size(self) -> (f32, f32) {
+        match self {
+            EditorOpeningKind::Door => (0.95, 2.1),
+            EditorOpeningKind::Window => (1.4, 1.3),
+            EditorOpeningKind::Airlock => (1.2, 2.1),
+        }
+    }
+}
+
+/// One placed opening in the editor mirror (v0.469): an additive door/window/airlock on a
+/// still-solid wall. `wall` is the build-loop index (0=N,1=S,2=W,3=E); `u` is the centre along
+/// that wall (metres from its start corner); `v` is the centre height up the wall (metres;
+/// pinned to h/2 for floor kinds); `w`/`h` are the size.
+#[cfg(feature = "native")]
+#[derive(Clone, Copy, PartialEq)]
+pub struct EditorOpening {
+    pub kind: EditorOpeningKind,
+    pub wall: usize,
+    pub u: f32,
+    pub v: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
 /// One editable room row in the construction editor (v0.459). The engine fills this from the
 /// live layout when the editor opens and reads it back on `construction_dirty`. `position` is
 /// Some(x,y,z) once the room is explicitly placed (which kills the Fibonacci spiral override
 /// for that room); None means "let the auto-layout compute it".
+#[cfg(feature = "native")]
 #[derive(Clone)]
 pub struct ConstructionRoom {
     pub id: String,
     pub walls: [crate::ship::fibonacci::WallKind; 4], // N, S, W, E
     /// Per-wall opening slide offset (metres along the wall, signed; 0 = centred). (v0.468)
     pub wall_offsets: [f32; 4],
+    /// Placed openings (doors/windows/airlocks) on this room's walls (v0.469).
+    pub openings: Vec<EditorOpening>,
     pub position: Option<[f32; 3]>,
     pub dimensions: [f32; 3], // (width_x, height_y, depth_z) metres
     pub material_type: u32,
     pub color: [f32; 4],
+}
+
+#[cfg(feature = "native")]
+impl ConstructionRoom {
+    /// Length (metres) of wall `wi` (0=N,1=S along X; 2=W,3=E along Z).
+    pub fn wall_len(&self, wi: usize) -> f32 {
+        if wi < 2 { self.dimensions[0] } else { self.dimensions[2] }
+    }
 }
 
 /// Tracks all GUI state for the native app.

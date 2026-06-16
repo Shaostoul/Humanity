@@ -115,6 +115,75 @@ impl WallSet {
     }
 }
 
+/// What kind of thing a placed `Opening` is. (v0.469) Drives whether it snaps to the floor
+/// (a door/airlock reaches the ground) and whether it gets glass (a window). Unlike `WallKind`,
+/// these are ADDITIVE objects placed on an otherwise-solid wall, not a whole-wall character.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+pub enum OpeningKind {
+    #[default]
+    Door,
+    Window,
+    Airlock,
+    Hatch,
+}
+
+impl OpeningKind {
+    pub const ALL: [OpeningKind; 4] = [
+        OpeningKind::Door,
+        OpeningKind::Window,
+        OpeningKind::Airlock,
+        OpeningKind::Hatch,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            OpeningKind::Door => "Door",
+            OpeningKind::Window => "Window",
+            OpeningKind::Airlock => "Airlock",
+            OpeningKind::Hatch => "Hatch",
+        }
+    }
+    /// Doors + airlocks reach the floor (their bottom sits on the ground). A window or hatch
+    /// floats freely up the wall.
+    pub fn floor_snapped(self) -> bool {
+        matches!(self, OpeningKind::Door | OpeningKind::Airlock)
+    }
+    /// Only a window gets a glass pane.
+    pub fn glazed(self) -> bool {
+        matches!(self, OpeningKind::Window)
+    }
+}
+
+/// A door/window/airlock/hatch placed at a SPECIFIC SPOT on a wall (v0.469). The wall stays
+/// solid; `build_meshes` cuts this hole where the object sits. `wall` is the build-loop wall
+/// index (0=N,1=S,2=W,3=E); `u` is the centre along the wall from its start corner (metres);
+/// `v` is the centre height up the wall (metres; ignored for floor-snapped kinds, which force
+/// their base to the floor); `w`/`h` are the opening size. `profile` is the Stage-2 SVG-cutout
+/// hook (a key into a future cutout-profiles file); None = a plain rectangle.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Opening {
+    pub wall: u8,
+    #[serde(default)]
+    pub kind: OpeningKind,
+    pub u: f32,
+    #[serde(default)]
+    pub v: f32,
+    pub w: f32,
+    pub h: f32,
+    #[serde(default)]
+    pub profile: Option<String>,
+}
+
+impl Opening {
+    /// A floor-snapped door (its base on the ground, so the stored centre height is h/2).
+    pub fn door(wall: u8, u: f32, w: f32, h: f32) -> Self {
+        Self { wall, kind: OpeningKind::Door, u, v: h * 0.5, w, h, profile: None }
+    }
+    /// A window at a free centre height `v` up the wall.
+    pub fn window(wall: u8, u: f32, v: f32, w: f32, h: f32) -> Self {
+        Self { wall, kind: OpeningKind::Window, u, v, w, h, profile: None }
+    }
+}
+
 /// Room definition for the layout. Positions can be explicit or computed from LayoutStyle.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RoomConfig {
@@ -130,6 +199,11 @@ pub struct RoomConfig {
     /// Per-wall construction config. Omitted => all `Auto` (today's auto-door behaviour).
     #[serde(default)]
     pub walls: WallSet,
+    /// Placed openings (doors/windows/airlocks/hatches) cut into otherwise-solid walls (v0.469).
+    /// Additive objects -- the wall stays solid except where one sits. Omitted (the shipped
+    /// default) => no placed openings, so existing layouts are byte-identical.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub openings: Vec<Opening>,
 }
 
 /// Full homestead layout loaded from data/
@@ -929,28 +1003,51 @@ fn split_wall_for_doorways(
 // Slide-gizmo handles (construction editor)
 // ---------------------------------------------------------------------------
 
-/// A door/window slide-gizmo handle (v0.468): one per movable opening (explicit `Door` /
-/// `Window` walls). Carries the world position where the handle marker is drawn plus the
-/// wall line and the "base" position the offset is measured from, so the editor can project
-/// the cursor onto the wall and re-derive `WallSet.offsets`.
+/// A gizmo handle for one opening of a room (v0.468, extended v0.469). Two flavours, told
+/// apart by `opening_index`:
+/// - `None`: a LEGACY whole-wall `WallKind::Door`/`Window` face -- the editor slides it along
+///   the wall and writes `WallSet.offsets` (the v0.468 behaviour, kept for back-compat).
+/// - `Some(i)`: a PLACED `rooms[room_index].openings[i]` object -- the editor moves it freely
+///   on the wall plane and (for non-floor-snapped kinds) resizes it via the corner handles.
+/// All world positions sit on the wall's vertical plane, so the editor hit-tests that plane.
 #[derive(Debug, Clone, Copy)]
 pub struct OpeningHandle {
     /// Index into `layout.rooms` of the room this opening belongs to.
     pub room_index: usize,
     /// Build-loop wall index (0=N, 1=S, 2=W, 3=E).
     pub wall_index: usize,
-    /// World position at the base centre of the opening (where the marker sits, at floor y).
+    /// `Some(i)` => a placed `openings[i]` (move + resize); `None` => a legacy WallKind slide.
+    pub opening_index: Option<usize>,
+    pub kind: OpeningKind,
+    /// World position at the CENTRE of the opening (where the move handle sits).
     pub base_center: Vec3,
-    /// Wall start corner in world space (the slide axis origin).
+    /// Wall start corner in world space (the along-wall axis origin, at floor y).
     pub wall_start: Vec3,
-    /// Wall end corner in world space.
+    /// Wall end corner in world space (at floor y).
     pub wall_end: Vec3,
-    /// "Base" position in metres along the wall from `wall_start` that the offset adds to:
-    /// `center_t = clamp(base_t + offset, half, len - half)`. The editor sets a dragged
-    /// handle's offset to `projected_t - base_t`.
+    /// Unit vector ALONG the wall (from start to end).
+    pub u_hat: Vec3,
+    /// Wall-face plane normal (horizontal; `u_hat x Y`). The editor intersects the pick ray
+    /// with the plane through `wall_start` with this normal.
+    pub n: Vec3,
+    pub wall_len: f32,
+    pub wall_height: f32,
+    /// Centre position along the wall from `wall_start` (metres).
+    pub u: f32,
+    /// Centre height up the wall from the floor (metres; 0-based bottom for floor-snapped).
+    pub v: f32,
+    pub w: f32,
+    pub h: f32,
+    /// Legacy slide base: `offset = u - base_t` (only meaningful when `opening_index` is None).
     pub base_t: f32,
     /// Opening half-width along the wall (clamp margin + handle size hint).
     pub half: f32,
+    /// World positions of the four resize handles (used only when `opening_index` is Some and
+    /// the kind is not floor-snapped).
+    pub handle_left: Vec3,
+    pub handle_right: Vec3,
+    pub handle_bottom: Vec3,
+    pub handle_top: Vec3,
 }
 
 /// Compute the slide-gizmo handles for every movable opening in the layout. Mirrors the
@@ -1001,24 +1098,30 @@ pub fn opening_handles(layout: &HomesteadLayout, positions: &[Vec3]) -> Vec<Open
             (Vec3::new(x0, y, z0), Vec3::new(x0, y, z1)), // 2: West (min X)
             (Vec3::new(x1, y, z0), Vec3::new(x1, y, z1)), // 3: East (max X)
         ];
+        // Legacy WallKind::Door/Window slide handles (v0.468): one per such face, slid along
+        // the wall (writes WallSet.offsets). Kept for back-compat with shipped layouts.
         for (w, (start, end)) in walls.iter().enumerate() {
             let dir = *end - *start;
             let len = dir.length();
             if len < 0.01 { continue; }
-            let norm = dir / len;
+            let u_hat = dir / len;
+            let nrm = u_hat.cross(Vec3::Y).normalize();
             let wall_off = rc.walls.offset_by_index(w);
-            let (base_t, half) = match rc.walls.by_index(w) {
+            let (base_t, half, kind, ow, oh, vc) = match rc.walls.by_index(w) {
                 WallKind::Door => {
                     let base = wall_edges[i][w]
                         .iter()
                         .filter(|(nj, nwb, _, _)| passable(rooms[*nj].walls.by_index(*nwb)))
-                        .map(|(_, _, ss, se)| ((*ss + *se) * 0.5 - *start).dot(norm))
+                        .map(|(_, _, ss, se)| ((*ss + *se) * 0.5 - *start).dot(u_hat))
                         .next()
                         .unwrap_or(len * 0.5);
-                    (base, (layout.door_width * 0.5).min(len * 0.45))
+                    (base, (layout.door_width * 0.5).min(len * 0.45), OpeningKind::Door,
+                     layout.door_width, layout.door_height, layout.door_height * 0.5)
                 }
-                WallKind::Window => (len * 0.5, (layout.window_width * 0.5).min(len * 0.45)),
-                _ => continue, // Only explicit Door/Window walls slide.
+                WallKind::Window => (len * 0.5, (layout.window_width * 0.5).min(len * 0.45),
+                    OpeningKind::Window, layout.window_width, layout.window_height,
+                    layout.window_sill + layout.window_height * 0.5),
+                _ => continue, // Only explicit Door/Window walls have a legacy slide handle.
             };
             // Skip a wall the neighbour owns (their Window/Mirror) -- matches build_meshes so
             // we never draw a handle on a wall that isn't actually built here.
@@ -1027,18 +1130,95 @@ pub fn opening_handles(layout: &HomesteadLayout, positions: &[Vec3]) -> Vec<Open
             });
             if neighbor_owns { continue; }
             let center_t = (base_t + wall_off).clamp(half, len - half);
+            let centre = *start + u_hat * center_t + Vec3::Y * vc;
             handles.push(OpeningHandle {
-                room_index: i,
-                wall_index: w,
-                base_center: *start + norm * center_t,
-                wall_start: *start,
-                wall_end: *end,
-                base_t,
-                half,
+                room_index: i, wall_index: w, opening_index: None, kind,
+                base_center: centre, wall_start: *start, wall_end: *end,
+                u_hat, n: nrm, wall_len: len, wall_height,
+                u: center_t, v: vc, w: ow, h: oh, base_t, half,
+                handle_left: centre - u_hat * (ow * 0.5),
+                handle_right: centre + u_hat * (ow * 0.5),
+                handle_bottom: centre - Vec3::Y * (oh * 0.5),
+                handle_top: centre + Vec3::Y * (oh * 0.5),
+            });
+        }
+        // Placed openings (v0.469): a move + resize handle for each object on this room.
+        for (oi, op) in rc.openings.iter().enumerate() {
+            let w = op.wall as usize;
+            if w >= 4 { continue; }
+            let (start, end) = walls[w];
+            let dir = end - start;
+            let len = dir.length();
+            if len < 0.01 { continue; }
+            let u_hat = dir / len;
+            let nrm = u_hat.cross(Vec3::Y).normalize();
+            let ow = op.w.max(0.1).min(len * 0.9);
+            let oh = op.h.max(0.1).min(wall_height);
+            let half = ow * 0.5;
+            let center_t = op.u.clamp(half, (len - half).max(half));
+            let vc = if op.kind.floor_snapped() {
+                oh * 0.5
+            } else {
+                op.v.clamp(oh * 0.5, (wall_height - oh * 0.5).max(oh * 0.5))
+            };
+            let centre = start + u_hat * center_t + Vec3::Y * vc;
+            handles.push(OpeningHandle {
+                room_index: i, wall_index: w, opening_index: Some(oi), kind: op.kind,
+                base_center: centre, wall_start: start, wall_end: end,
+                u_hat, n: nrm, wall_len: len, wall_height,
+                u: center_t, v: vc, w: ow, h: oh, base_t: 0.0, half,
+                handle_left: centre - u_hat * half,
+                handle_right: centre + u_hat * half,
+                handle_bottom: centre - Vec3::Y * (oh * 0.5),
+                handle_top: centre + Vec3::Y * (oh * 0.5),
             });
         }
     }
     handles
+}
+
+/// Promote every legacy `WallKind::Window`/`Door` FACE to a placed `Opening` object and demote
+/// that face to `Solid` (v0.469). Editor-button only -- NEVER called by the loader, so the
+/// shipped RON is never auto-rewritten. Lets an operator freely move/resize a legacy window.
+/// Returns the number of faces promoted. Auto/Mirror/Solid/Open are left untouched.
+pub fn promote_walls_to_openings(layout: &mut HomesteadLayout) -> usize {
+    let (dw, dh, ww, wh, ws) = (
+        layout.door_width, layout.door_height,
+        layout.window_width, layout.window_height, layout.window_sill,
+    );
+    let mut promoted = 0;
+    for rc in layout.rooms.iter_mut() {
+        for wi in 0..4usize {
+            let len = if wi < 2 { rc.dimensions[0] } else { rc.dimensions[2] };
+            let off = rc.walls.offset_by_index(wi);
+            match rc.walls.by_index(wi) {
+                WallKind::Window => {
+                    let u = (len * 0.5 + off).clamp(ww * 0.5, (len - ww * 0.5).max(ww * 0.5));
+                    rc.openings.push(Opening::window(wi as u8, u, ws + wh * 0.5, ww, wh));
+                    set_wall(&mut rc.walls, wi, WallKind::Solid);
+                    promoted += 1;
+                }
+                WallKind::Door => {
+                    let u = (len * 0.5 + off).clamp(dw * 0.5, (len - dw * 0.5).max(dw * 0.5));
+                    rc.openings.push(Opening::door(wi as u8, u, dw, dh));
+                    set_wall(&mut rc.walls, wi, WallKind::Solid);
+                    promoted += 1;
+                }
+                _ => {}
+            }
+        }
+    }
+    promoted
+}
+
+/// Set a `WallSet` face by build-loop index (0=N,1=S,2=W,3=E).
+fn set_wall(walls: &mut WallSet, wi: usize, kind: WallKind) {
+    match wi {
+        0 => walls.north = kind,
+        1 => walls.south = kind,
+        2 => walls.west = kind,
+        _ => walls.east = kind,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1147,9 +1327,20 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
         ];
 
         for (w, (start, end)) in walls.iter().enumerate() {
-            let my = rc.walls.by_index(w);
+            // Open self-heals to Solid when no passable neighbour faces it (v0.469): a wall's
+            // EXISTENCE must NOT silently depend on adjacency, or disconnecting a neighbour
+            // leaves a permanent gap (the garden-wall regen bug). Only a still-adjacent,
+            // still-passable neighbour keeps an Open side actually open.
+            let open_has_neighbor = wall_edges[i][w].iter().any(|(nj, nwb, _, _)| {
+                let (_, wh) = room_data[*nj];
+                wh > 0.0 && rooms[*nj].walls.by_index(*nwb) != WallKind::Solid
+            });
+            let mut my = rc.walls.by_index(w);
+            if my == WallKind::Open && !open_has_neighbor {
+                my = WallKind::Solid;
+            }
             if my == WallKind::Open {
-                continue; // No wall, no trim, no crown -- a fully open side.
+                continue; // Still an open passage to an adjacent room.
             }
             let dir = *end - *start;
             let len = dir.length();
@@ -1166,16 +1357,19 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
             // Mirror, THAT room owns the boundary -- skip drawing a competing wall here, which
             // otherwise overlaps their glass/portal (the "window looks like a solid wall" +
             // double-wall z-fight the operator saw). v0.458
-            let neighbor_owns = wall_edges[i][w].iter().any(|(nj, nwb, _, _)| {
+            // ...but never suppress a wall that carries its OWN placed opening (v0.469): a door
+            // the operator dropped here always wins over a neighbour's window/mirror, so the
+            // wall is still drawn (with the hole) instead of vanishing.
+            let has_own_opening = rc.openings.iter().any(|o| o.wall as usize == w);
+            let neighbor_owns = !has_own_opening && wall_edges[i][w].iter().any(|(nj, nwb, _, _)| {
                 matches!(rooms[*nj].walls.by_index(*nwb), WallKind::Window | WallKind::Mirror)
             });
             if neighbor_owns {
                 continue;
             }
 
-            // Collect the openings to cut: (center_t along the wall, width, height, sill).
-            let mut openings: Vec<(f32, f32, f32, f32)> = Vec::new();
-            let mut is_window = false;
+            // Collect the openings to cut: (center_t along the wall, width, height, sill, glazed).
+            let mut openings: Vec<(f32, f32, f32, f32, bool)> = Vec::new();
             // Slide-gizmo offset for this wall (metres along it; 0 = centred). Honoured for
             // explicit Door + Window (single-opening) walls. (v0.468)
             let wall_off = rc.walls.offset_by_index(w);
@@ -1190,7 +1384,7 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
                         if passable(rooms[*nj].walls.by_index(*nwb)) {
                             let mid = (*seg_start + *seg_end) * 0.5;
                             let center_t = (mid - *start).dot(norm).clamp(0.0, len);
-                            openings.push((center_t, layout.door_width, layout.door_height, 0.0));
+                            openings.push((center_t, layout.door_width, layout.door_height, 0.0, false));
                         }
                     }
                 }
@@ -1205,13 +1399,12 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
                         .unwrap_or(len * 0.5);
                     let half = (layout.door_width * 0.5).min(len * 0.45);
                     let center_t = (base + wall_off).clamp(half, len - half);
-                    openings.push((center_t, layout.door_width, layout.door_height, 0.0));
+                    openings.push((center_t, layout.door_width, layout.door_height, 0.0, false));
                 }
                 WallKind::Window => {
                     let half = (layout.window_width * 0.5).min(len * 0.45);
                     let center_t = (len * 0.5 + wall_off).clamp(half, len - half);
-                    openings.push((center_t, layout.window_width, layout.window_height, layout.window_sill));
-                    is_window = true;
+                    openings.push((center_t, layout.window_width, layout.window_height, layout.window_sill, true));
                 }
                 WallKind::Mirror => {
                     // Solid wall + a flush portal panel (no opening).
@@ -1222,14 +1415,38 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
                 WallKind::Open => unreachable!(),
             }
 
+            // Placed openings (v0.469): additive objects cut into THIS wall regardless of its
+            // WallKind -- so a plain Solid wall can carry a dropped door/window and the wall
+            // stays solid everywhere else. The free centre-height `v` maps to the sill the
+            // downstream geometry already speaks (sill = v - h/2); floor-snapped kinds force the
+            // base to the floor. Multiple per wall already work (wall_with_openings loops spans).
+            if len >= 0.01 {
+                for op in rc.openings.iter().filter(|o| o.wall as usize == w) {
+                    let ow = op.w.max(0.1).min(len * 0.9);
+                    let oh = op.h.max(0.1).min(wall_height);
+                    let half = ow * 0.5;
+                    let center_t = op.u.clamp(half, (len - half).max(half));
+                    let sill = if op.kind.floor_snapped() {
+                        0.0
+                    } else {
+                        let vc = op.v.clamp(oh * 0.5, (wall_height - oh * 0.5).max(oh * 0.5));
+                        (vc - oh * 0.5).max(0.0)
+                    };
+                    openings.push((center_t, ow, oh, sill, op.kind.glazed()));
+                }
+            }
+
             // The wall itself, built around all its openings (solid if there are none).
+            let wall_cuts: Vec<(f32, f32, f32, f32)> =
+                openings.iter().map(|&(c, w, h, s, _)| (c, w, h, s)).collect();
             append_mesh(&mut wall_v, &mut wall_i,
-                wall_with_openings(*start, *end, y, wall_height, wall_thickness, &openings));
+                wall_with_openings(*start, *end, y, wall_height, wall_thickness, &wall_cuts));
 
             // Glass panes (windows) + wood casing swept around each opening (full surround
             // incl. the vertical jambs, from the casing profile, on the wall surface). (v0.457)
-            for (center_t, ow, oh, sill) in &openings {
-                if is_window {
+            // `glazed` is now PER-OPENING, so a wall can mix a door + a window. (v0.469)
+            for (center_t, ow, oh, sill, glazed) in &openings {
+                if *glazed {
                     append_mesh(&mut win_v, &mut win_i,
                         window_panel(*start, norm, y, *center_t, *ow, *oh, *sill));
                 }
@@ -1249,8 +1466,8 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
             // (doors reach the floor; the board runs continuously under a window). v0.456/457.
             let mut door_spans: Vec<(f32, f32)> = openings
                 .iter()
-                .filter(|(_, _, _, sill)| *sill < 0.01)
-                .map(|(c, w, _, _)| {
+                .filter(|(_, _, _, sill, _)| *sill < 0.01)
+                .map(|(c, w, _, _, _)| {
                     let half = (w * 0.5).min(len * 0.45);
                     ((c - half).clamp(0.0, len), (c + half).clamp(0.0, len))
                 })
@@ -1440,6 +1657,7 @@ fn room_cfg(id: &str, dims: [f32; 3], material: u32, color: [f32; 4]) -> RoomCon
         color,
         wall_height: 0.0, // use dimensions.y
         walls: WallSet::default(), // all Auto (today's auto-door behaviour)
+        openings: Vec::new(),
     }
 }
 
@@ -1599,5 +1817,152 @@ mod tests {
             r#"(id: "x", dimensions: (4.0, 3.0, 4.0), material_type: 0, color: (1.0,1.0,1.0,1.0))"#,
         ).expect("minimal RoomConfig parses");
         for i in 0..4 { assert_eq!(rc.walls.by_index(i), WallKind::Auto); }
+    }
+
+    // ── Placed-opening object model (v0.469) ───────────────────────────────────────────────
+
+    fn solid_walls() -> WallSet {
+        WallSet {
+            north: WallKind::Solid, south: WallKind::Solid,
+            west: WallKind::Solid, east: WallKind::Solid,
+            offsets: [0.0; 4],
+        }
+    }
+
+    /// One explicitly-positioned 6 x 3 x 4 m room (N/S walls run 6 m along X; W/E run 4 m along
+    /// Z; 3 m ceiling) with the given walls + placed openings -- a deterministic test fixture.
+    fn single_room(walls: WallSet, openings: Vec<Opening>) -> HomesteadLayout {
+        let mut rc = room_cfg("test", [6.0, 3.0, 4.0], 1, [0.5, 0.5, 0.5, 1.0]);
+        rc.position = Some([0.0, 0.0, 0.0]);
+        rc.walls = walls;
+        rc.openings = openings;
+        HomesteadLayout {
+            layout_style: LayoutStyle::Fibonacci,
+            hologram_room: None,
+            spawn_room: None,
+            rooms: vec![rc],
+            door_width: default_door_w(),
+            door_height: default_door_h(),
+            window_width: default_window_w(),
+            window_height: default_window_h(),
+            window_sill: default_window_sill(),
+            baseboard_height: default_trim_h(),
+            crown_height: default_trim_h(),
+            mirror_size: default_mirror(),
+            default_wall_height: 3.0,
+        }
+    }
+
+    /// A placed door is cut into an otherwise-SOLID wall (the wall stays solid everywhere else):
+    /// generating with a door yields strictly more wall segments than the bare solid wall, and a
+    /// door is not glazed.
+    #[test]
+    fn opening_cuts_solid_wall_and_stays_solid_elsewhere() {
+        let solid = generate_from_layout(&single_room(solid_walls(), vec![]));
+        let with_door = generate_from_layout(&single_room(solid_walls(),
+            vec![Opening::door(0, 3.0, 0.9, 2.1)]));
+        assert!(with_door.walls.0.len() > solid.walls.0.len(),
+            "the door cut adds wall segments (was {}, now {})", solid.walls.0.len(), with_door.walls.0.len());
+        assert!(with_door.windows.0.is_empty(), "a door is not glazed");
+        assert!(!with_door.trim.0.is_empty(), "casing/baseboard still emitted");
+    }
+
+    /// A placed window emits glass, positioned at its FREE centre height v (not the default sill).
+    #[test]
+    fn placed_window_emits_glass_at_free_v() {
+        // v = 2.0, h = 1.0 -> the pane spans y 1.5 .. 2.5 (sill = v - h/2 = 1.5).
+        let m = generate_from_layout(&single_room(solid_walls(),
+            vec![Opening::window(0, 3.0, 2.0, 1.4, 1.0)]));
+        assert!(!m.windows.0.is_empty(), "glass emitted for the placed window");
+        let hit = m.windows.0.iter().any(|v| (v.position[1] - 1.5).abs() < 0.01 || (v.position[1] - 2.5).abs() < 0.01);
+        assert!(hit, "glass sits at the requested free height (1.5..2.5 m), not the default sill");
+    }
+
+    /// Multiple openings cut the SAME wall (a door + a window on the north wall both appear).
+    #[test]
+    fn two_openings_one_wall() {
+        let one = generate_from_layout(&single_room(solid_walls(),
+            vec![Opening::door(0, 1.5, 0.9, 2.1)]));
+        let two = generate_from_layout(&single_room(solid_walls(),
+            vec![Opening::door(0, 1.5, 0.9, 2.1), Opening::window(0, 4.5, 1.5, 1.0, 1.0)]));
+        assert!(two.walls.0.len() > one.walls.0.len(), "the second opening adds more wall segments");
+        assert!(!two.windows.0.is_empty(), "the window pane is present alongside the door");
+    }
+
+    /// An opening placed wildly out of bounds is CLAMPED to the wall in BOTH axes (the 20m-vs-2m
+    /// fix): the handle's u stays within the wall length and v within the wall height.
+    #[test]
+    fn opening_clamps_u_and_v_to_wall() {
+        let layout = single_room(solid_walls(),
+            vec![Opening::window(0, 999.0, 999.0, 1.4, 1.3)]);
+        let positions = resolve_positions(&layout);
+        let h = opening_handles(&layout, &positions).into_iter()
+            .find(|h| h.opening_index == Some(0)).expect("placed window handle");
+        assert!(h.u <= 6.0 - 1.4 * 0.5 + 1e-3, "u clamped within the 6 m wall (got {})", h.u);
+        assert!(h.v <= 3.0 - 1.3 * 0.5 + 1e-3, "v clamped within the 3 m wall height (got {})", h.v);
+    }
+
+    /// A door is floor-snapped no matter what `v` it stores: its handle centre is forced to h/2.
+    #[test]
+    fn door_is_floor_snapped_regardless_of_v() {
+        let layout = single_room(solid_walls(),
+            vec![Opening { wall: 0, kind: OpeningKind::Door, u: 3.0, v: 5.0, w: 0.9, h: 2.1, profile: None }]);
+        let positions = resolve_positions(&layout);
+        let h = opening_handles(&layout, &positions).into_iter()
+            .find(|h| h.opening_index == Some(0)).expect("door handle");
+        assert!((h.v - 2.1 * 0.5).abs() < 1e-4, "door base on the floor -> centre at h/2 (got {})", h.v);
+    }
+
+    /// Placed openings round-trip through RON with kind/u/v/w/h intact and profile None.
+    #[test]
+    fn openings_round_trip() {
+        let layout = single_room(solid_walls(),
+            vec![Opening::window(1, 2.0, 1.5, 1.2, 1.1), Opening::door(2, 1.5, 0.9, 2.1)]);
+        let body = ron::ser::to_string(&layout).expect("serialize");
+        let back: HomesteadLayout = ron::from_str(&body).expect("parse");
+        let ops = &back.rooms[0].openings;
+        assert_eq!(ops.len(), 2, "both openings survive");
+        assert_eq!(ops[0].kind, OpeningKind::Window);
+        assert!((ops[0].v - 1.5).abs() < 1e-6 && (ops[0].w - 1.2).abs() < 1e-6);
+        assert_eq!(ops[1].kind, OpeningKind::Door);
+        assert!(ops[0].profile.is_none(), "profile defaults to None");
+    }
+
+    /// The shipped layout serializes WITHOUT an `openings:` field (skip_serializing_if keeps the
+    /// 12 untouched rooms byte-stable, so the existing round-trip tests stay green).
+    #[test]
+    fn empty_openings_not_serialized() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let layout = load_homestead_layout(&dir).expect("layout parses");
+        let body = ron::ser::to_string(&layout).expect("serialize");
+        assert!(!body.contains("openings:"), "no room emits an empty openings list");
+    }
+
+    /// `promote_walls_to_openings` converts the bedroom's two legacy Window FACES into Opening
+    /// objects + demotes those faces to Solid, and geometry is preserved (glass still emitted).
+    #[test]
+    fn legacy_window_promotes_to_opening() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let mut layout = load_homestead_layout(&dir).expect("layout parses");
+        let n = promote_walls_to_openings(&mut layout);
+        assert!(n >= 2, "at least the bedroom's 2 windows promoted (got {n})");
+        let b = layout.rooms.iter().find(|r| r.id == "bedroom").expect("bedroom");
+        assert_eq!(b.walls.north, WallKind::Solid, "promoted face demoted to Solid");
+        assert_eq!(b.walls.east, WallKind::Solid, "promoted face demoted to Solid");
+        assert_eq!(b.openings.iter().filter(|o| o.kind == OpeningKind::Window).count(), 2,
+            "two window objects on the bedroom now");
+        assert!(!generate_from_layout(&layout).windows.0.is_empty(), "windows still emitted after promotion");
+    }
+
+    /// Garden-bug self-heal: a lone room with one Open wall + no passable neighbour builds that
+    /// wall SOLID (so disconnecting a neighbour can never leave a permanent gap).
+    #[test]
+    fn open_wall_reseals_without_neighbor() {
+        let mut walls = solid_walls();
+        walls.north = WallKind::Open;
+        let opened = generate_from_layout(&single_room(walls, vec![]));
+        let all_solid = generate_from_layout(&single_room(solid_walls(), vec![]));
+        assert_eq!(opened.walls.0.len(), all_solid.walls.0.len(),
+            "a lone Open wall reseals to solid (same wall geometry as all-solid)");
     }
 }

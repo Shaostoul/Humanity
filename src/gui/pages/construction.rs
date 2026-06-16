@@ -9,7 +9,7 @@
 use egui::{Context, RichText};
 
 use crate::gui::theme::Theme;
-use crate::gui::GuiState;
+use crate::gui::{EditorOpening, EditorOpeningKind, GuiState};
 use crate::ship::fibonacci::WallKind;
 
 const WALL_LABELS: [&str; 4] = ["North", "South", "West", "East"];
@@ -65,6 +65,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         id,
                         walls: [WallKind::Auto; 4],
                         wall_offsets: [0.0; 4],
+                        openings: Vec::new(),
                         position: Some([0.0, 0.0, 0.0]),
                         dimensions: [4.0, h, 4.0],
                         material_type: 1,
@@ -111,12 +112,11 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     let name = state.construction_rooms[ri].id.clone();
                     ui.label(RichText::new(name).strong().size(theme.font_size_body).color(theme.text_primary()));
                     ui.add_space(theme.spacing_xs);
-                    ui.label(
-                        RichText::new("Doors/windows: drag the glowing handle in the view to slide, or set it here.")
-                            .size(theme.font_size_small)
-                            .color(theme.text_muted()),
-                    );
-                    // Per-wall kinds (+ a slide offset for Door/Window walls, the gizmo's value).
+                    // ---- Wall character (whole-wall): Solid / Auto / Open / Mirror. Doors and
+                    // windows are now PLACED OBJECTS (the Openings list below), not wall kinds.
+                    ui.label(RichText::new("Walls").strong().color(theme.text_primary()));
+                    const WALL_CHOICES: [WallKind; 4] =
+                        [WallKind::Solid, WallKind::Auto, WallKind::Open, WallKind::Mirror];
                     for wi in 0..4 {
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(WALL_LABELS[wi]).size(theme.font_size_small).color(theme.text_muted()));
@@ -124,26 +124,133 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             egui::ComboBox::from_id_salt(("wall", ri, wi))
                                 .selected_text(cur.label())
                                 .show_ui(ui, |ui| {
-                                    for kd in WallKind::ALL {
+                                    for kd in WALL_CHOICES {
                                         if ui.selectable_value(&mut state.construction_rooms[ri].walls[wi], kd, kd.label()).changed() {
                                             state.construction_dirty = true;
                                         }
                                     }
                                 });
-                            // Slide offset (metres along the wall, 0 = centred) for openings only.
-                            if matches!(state.construction_rooms[ri].walls[wi], WallKind::Door | WallKind::Window) {
-                                ui.label(RichText::new("slide").size(theme.font_size_small).color(theme.text_muted()));
-                                let off = &mut state.construction_rooms[ri].wall_offsets[wi];
-                                if ui.add(egui::DragValue::new(off).speed(0.05).suffix(" m").range(-40.0..=40.0)).changed() {
-                                    state.construction_dirty = true;
-                                }
-                                if *off != 0.0 && ui.small_button("Center").clicked() {
-                                    state.construction_rooms[ri].wall_offsets[wi] = 0.0;
+                        });
+                    }
+                    ui.add_space(theme.spacing_xs);
+                    ui.separator();
+                    // ---- Openings (placed objects cut into otherwise-solid walls) ----
+                    // Re-clamp every opening to its wall first: a room resize can shrink a wall,
+                    // so this keeps the stored value equal to the real on-wall placement.
+                    {
+                        let ceiling = state.construction_height.max(2.5);
+                        let room = &mut state.construction_rooms[ri];
+                        for op in room.openings.iter_mut() {
+                            let len = if op.wall < 2 { room.dimensions[0] } else { room.dimensions[2] };
+                            op.w = op.w.clamp(0.4, len.max(0.4));
+                            op.h = op.h.clamp(0.4, ceiling.max(0.4));
+                            let hw = op.w * 0.5;
+                            op.u = op.u.clamp(hw, (len - hw).max(hw));
+                            if op.kind.floor_pinned() {
+                                op.v = op.h * 0.5;
+                            } else {
+                                let hh = op.h * 0.5;
+                                op.v = op.v.clamp(hh, (ceiling - hh).max(hh));
+                            }
+                        }
+                    }
+                    ui.label(RichText::new("Openings").strong().color(theme.text_primary()));
+                    ui.label(
+                        RichText::new("Add one, then drag its glowing handle in the view (or set the numbers). Doors sit on the floor; windows move up/down and resize.")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                    ui.horizontal(|ui| {
+                        for kind in EditorOpeningKind::ALL {
+                            if ui.button(format!("Add {}", kind.label())).clicked() {
+                                let (w, h) = kind.default_size();
+                                let room = &state.construction_rooms[ri];
+                                let wall = (0..4).find(|&wi| room.walls[wi] != WallKind::Open).unwrap_or(0);
+                                let len = if wall < 2 { room.dimensions[0] } else { room.dimensions[2] };
+                                let ceiling = state.construction_height.max(2.5);
+                                let u = (len * 0.5).clamp(w * 0.5, (len - w * 0.5).max(w * 0.5));
+                                let v = if kind.floor_pinned() {
+                                    h * 0.5
+                                } else {
+                                    (0.9 + h * 0.5).min(ceiling - h * 0.5).max(h * 0.5)
+                                };
+                                state.construction_rooms[ri].openings.push(EditorOpening { kind, wall, u, v, w, h });
+                                state.construction_dirty = true;
+                            }
+                        }
+                    });
+                    let mut remove_op: Option<usize> = None;
+                    let n_op = state.construction_rooms[ri].openings.len();
+                    for oi in 0..n_op {
+                        let ceiling = state.construction_height.max(2.5);
+                        ui.separator();
+                        ui.horizontal(|ui| {
+                            let cur = state.construction_rooms[ri].openings[oi].kind;
+                            egui::ComboBox::from_id_salt(("op_kind", ri, oi))
+                                .selected_text(cur.label())
+                                .show_ui(ui, |ui| {
+                                    for k in EditorOpeningKind::ALL {
+                                        if ui.selectable_value(&mut state.construction_rooms[ri].openings[oi].kind, k, k.label()).changed() {
+                                            if k.floor_pinned() {
+                                                let oh = state.construction_rooms[ri].openings[oi].h;
+                                                state.construction_rooms[ri].openings[oi].v = oh * 0.5;
+                                            }
+                                            state.construction_dirty = true;
+                                        }
+                                    }
+                                });
+                            let cur_wall = state.construction_rooms[ri].openings[oi].wall;
+                            egui::ComboBox::from_id_salt(("op_wall", ri, oi))
+                                .selected_text(WALL_LABELS[cur_wall])
+                                .show_ui(ui, |ui| {
+                                    for wi in 0..4 {
+                                        if ui.selectable_value(&mut state.construction_rooms[ri].openings[oi].wall, wi, WALL_LABELS[wi]).changed() {
+                                            state.construction_dirty = true;
+                                        }
+                                    }
+                                });
+                            if ui.small_button(RichText::new("Remove").color(theme.danger())).clicked() {
+                                remove_op = Some(oi);
+                            }
+                        });
+                        let wall = state.construction_rooms[ri].openings[oi].wall;
+                        let len = state.construction_rooms[ri].wall_len(wall);
+                        let floor = state.construction_rooms[ri].openings[oi].kind.floor_pinned();
+                        ui.horizontal(|ui| {
+                            let op = &mut state.construction_rooms[ri].openings[oi];
+                            let hw = (op.w * 0.5).min(len * 0.5);
+                            ui.label(RichText::new("Along").size(theme.font_size_small).color(theme.text_muted()));
+                            if ui.add(egui::DragValue::new(&mut op.u).speed(0.05).suffix(" m").range(hw..=(len - hw).max(hw))).changed() {
+                                state.construction_dirty = true;
+                            }
+                            if !floor {
+                                let hh = (op.h * 0.5).min(ceiling * 0.5);
+                                ui.label(RichText::new("Up").size(theme.font_size_small).color(theme.text_muted()));
+                                if ui.add(egui::DragValue::new(&mut op.v).speed(0.05).suffix(" m").range(hh..=(ceiling - hh).max(hh))).changed() {
                                     state.construction_dirty = true;
                                 }
                             }
                         });
+                        ui.horizontal(|ui| {
+                            let op = &mut state.construction_rooms[ri].openings[oi];
+                            ui.label(RichText::new("W").size(theme.font_size_small).color(theme.text_muted()));
+                            if ui.add(egui::DragValue::new(&mut op.w).speed(0.05).suffix(" m").range(0.4..=len.max(0.4))).changed() {
+                                state.construction_dirty = true;
+                            }
+                            ui.label(RichText::new("H").size(theme.font_size_small).color(theme.text_muted()));
+                            if ui.add(egui::DragValue::new(&mut op.h).speed(0.05).suffix(" m").range(0.4..=ceiling.max(0.4))).changed() {
+                                state.construction_dirty = true;
+                            }
+                        });
                     }
+                    if let Some(oi) = remove_op {
+                        if oi < state.construction_rooms[ri].openings.len() {
+                            state.construction_rooms[ri].openings.remove(oi);
+                            state.construction_dirty = true;
+                        }
+                    }
+                    ui.add_space(theme.spacing_xs);
+                    ui.separator();
                     // Position: pin (explicit) vs computed.
                     ui.horizontal(|ui| {
                         let mut pinned = state.construction_rooms[ri].position.is_some();
