@@ -801,10 +801,36 @@ mod native_app {
         match v.get("type").and_then(|t| t.as_str()) {
             Some("game_welcome") => {
                 if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
-                    state.net_sync.queue_messages(vec![NetMessage::Welcome {
-                        player_id: id as u32,
+                    let own_id = id as u32;
+                    // Welcome first (sets our local_player_id so the self-filter +
+                    // idempotency in NetSyncSystem work for the entries below).
+                    let mut msgs = vec![NetMessage::Welcome {
+                        player_id: own_id,
                         world_snapshot: Vec::new(),
-                    }]);
+                    }];
+                    // World-snapshot prefill (v0.474): the relay's welcome carries
+                    // every current entity. Spawn the OTHER players right away so a
+                    // joiner sees players who are already present even if they never
+                    // move (previously they only appeared on their next position
+                    // update -- two stationary players were invisible to each other).
+                    if let Some(snap) = v.get("world_snapshot").and_then(|s| s.as_array()) {
+                        for e in snap {
+                            if e.get("entity_type").and_then(|t| t.as_str()) != Some("player") {
+                                continue;
+                            }
+                            let Some(eid) = e.get("entity_id").and_then(|x| x.as_u64()) else { continue; };
+                            if eid as u32 == own_id {
+                                continue; // skip ourselves
+                            }
+                            let Some(pos) = e.get("position").and_then(&arr3) else { continue; };
+                            msgs.push(NetMessage::PlayerJoined {
+                                player_id: eid as u32,
+                                name: "Player".to_string(),
+                                position: pos,
+                            });
+                        }
+                    }
+                    state.net_sync.queue_messages(msgs);
                 }
             }
             Some("game_player_joined") => {
