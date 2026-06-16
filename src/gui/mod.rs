@@ -1776,6 +1776,9 @@ pub struct GuiState {
     /// The id/url of the selected server row (when launcher_selected_kind ==
     /// Server), so the detail pane knows which server to describe.
     pub launcher_selected_server: Option<String>,
+    /// Set by the picker's "Back" button to cancel the showroom and return to
+    /// the menu without entering the world (lib.rs handles it, same as Esc).
+    pub showroom_cancel: bool,
     /// Currently-muted users for the Server Settings → Muted users mod
     /// panel. Populated by the `muted_list` WS message (mods/admins
     /// only). v0.246.
@@ -2390,6 +2393,7 @@ impl Default for GuiState {
             launcher_open_select: false,
             launcher_selected_kind: LauncherSel::Home,
             launcher_selected_server: None,
+            showroom_cancel: false,
             chat_muted_users: Vec::new(),
             chat_muted_requested: false,
             server_settings_draft: None,

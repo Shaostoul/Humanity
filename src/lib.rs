@@ -2475,6 +2475,25 @@ mod native_app {
                         //   4. MainMenu always stays put — operator can't
                         //      Esc out of the title screen.
                         if key == KeyCode::Escape && pressed {
+                            // Esc cancels the showroom cleanly. Leaving showroom_active
+                            // set would make the next Play render the showroom instead
+                            // of the world. The character picker (mode 0, opened from a
+                            // menu via Play/Characters) returns to that menu; the
+                            // in-world mirror/wardrobe (modes 1/2, opened from FPS)
+                            // returns to first-person. (v0.476.1)
+                            if state.gui_state.showroom_active {
+                                let was_picker = state.gui_state.showroom_mode == 0;
+                                state.gui_state.showroom_active = false;
+                                state.gui_state.showroom_confirm = false;
+                                state.controller.showroom_lock = false;
+                                state.camera.switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
+                                state.camera.position = state.showroom_return_pos;
+                                if was_picker {
+                                    state.gui_state.active_page = state.gui_state.last_page;
+                                }
+                                return;
+                            }
+
                             let old_page = state.gui_state.active_page;
 
                             if state.gui_state.pop_nav_back() {
@@ -3238,6 +3257,21 @@ mod native_app {
                                 Ok(()) => log::info!("Construction: layout saved to RON"),
                                 Err(e) => log::warn!("Construction: save failed: {e}"),
                             }
+                        }
+                    }
+                    // Picker "Back": cancel the showroom and return to the menu WITHOUT
+                    // entering the world (same as Esc in the picker). Mirrors the Esc
+                    // handler so the visible Back button and the Esc key agree. (v0.476.1)
+                    if state.gui_state.showroom_cancel {
+                        state.gui_state.showroom_cancel = false;
+                        let was_picker = state.gui_state.showroom_mode == 0;
+                        state.gui_state.showroom_active = false;
+                        state.gui_state.showroom_confirm = false;
+                        state.controller.showroom_lock = false;
+                        state.camera.switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
+                        state.camera.position = state.showroom_return_pos;
+                        if was_picker {
+                            state.gui_state.active_page = state.gui_state.last_page;
                         }
                     }
                     // "Enter your home": persist appearance + emerge into first-person.

@@ -87,10 +87,14 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // so the way into the world is the very first thing in the nav.
                 // Play enters the world (page None). With no default character it
                 // opens the unified character picker (the showroom); with a default
-                // set it skips straight into first-person. The nav_group click
-                // handler does the branching (v0.476).
+                // set it skips straight into first-person. "Characters" ALWAYS opens
+                // the picker (even when a default is set) so there is always a way
+                // back to change homes/characters or clear the default -- otherwise
+                // a default is a dead-end (operator, 2026-06-16). The nav_group click
+                // handler branches on the label (v0.476.1).
                 let play_items = [
                     NavItem { label: "Play", page: GuiPage::None, description: "" },
+                    NavItem { label: "Characters", page: GuiPage::None, description: "Choose a home, character, or server. Always opens the picker." },
                 ];
                 nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -527,17 +531,18 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
             // through stale contextual flow entries.
             state.clear_nav_back();
             if item.page == GuiPage::None {
-                // The "Play" button enters the world (page None). Remember where we
-                // came from so Esc out returns HERE, not a stale last_page.
+                // "Play" and "Characters" both enter the world (page None). Remember
+                // where we came from so Esc out returns HERE, not a stale last_page.
                 if state.active_page != GuiPage::None {
                     state.last_page = state.active_page;
                 }
-                // No default character -> open the unified character picker (the
-                // showroom; load_world + the per-frame handler in lib.rs open it
-                // when launcher_open_select is set). A default IS set -> skip the
-                // picker and load that character straight into first-person. This
-                // is the "don't make me go through select every time" shortcut.
-                if state.launcher_default_character.is_empty() {
+                // "Characters" ALWAYS opens the picker (the way back when a default
+                // is set). "Play" honors the default: with one set it skips the
+                // picker and loads that character straight into first-person; with
+                // none it opens the picker too. (The showroom is opened by the
+                // per-frame handler in lib.rs when launcher_open_select is set.)
+                let force_picker = item.label == "Characters";
+                if force_picker || state.launcher_default_character.is_empty() {
                     state.launcher_open_select = true;
                     state.launcher_saves_loaded = false; // refresh the save list
                 } else {

@@ -36,6 +36,16 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .exact_width(230.0)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
+            // In the Play picker (mode 0) a visible Back returns to the menu without
+            // entering the world -- the nav bar is hidden here, so Esc alone is not
+            // discoverable. (v0.476.1)
+            if state.showroom_mode == 0
+                && widgets::Button::secondary("< Back")
+                    .tooltip("Return to the menu without entering the world. Same as Esc.")
+                    .show(ui, theme)
+            {
+                state.showroom_cancel = true;
+            }
             ui.label(RichText::new(left_title).size(theme.font_size_body).strong().color(theme.text_primary()));
             ui.add_space(theme.spacing_sm);
             draw_character_select(ui, theme, state);
