@@ -20,13 +20,22 @@
 > from v0.421 onward MUST be signed; `scripts/check-release-signing.js` (in `just status`) flags it.
 >
 > **SHIPPED 2026-06-16:** website parity (v0.469.x), the security patch + signing pipeline verified
-> (v0.470.0), and the multistory editor + structural de-risk spike + web accessibility (v0.471.0).
-> **NEXT (top of the queue): multiplayer co-presence + the character selector** -- the relay game
-> world is LIVE but the client never wires `NetSyncSystem`
-> ([first-playable.md](design/first-playable.md)); the character/server model (self-custodial local
-> vs server-authoritative, open vs closed Battle.net) + the Play launcher are designed in
-> [characters-and-servers.md](design/characters-and-servers.md). Then First Playable / live-home-sim
-> depth (battery SoC), and GitHub branch protection.
+> (v0.470.0), multistory editor + structural de-risk spike + web accessibility (v0.471.0),
+> **multiplayer co-presence client wiring (v0.472.0)** (NetSyncSystem reuses the authenticated chat
+> WS; remote players render as teal avatars), **battery state-of-charge sim (v0.473.0)**, and
+> **the character launcher + Game Admin page (v0.474.0)**: Play opens a character/home picker
+> (Homes wired; Open-Net/Closed-Net placeholders) with a persisted default that skips the picker and
+> a Customize-Look button; Game Admin issues game-world bans that are STRUCTURALLY SEPARATE from chat
+> bans (free speech is a right, MMO play is a privilege).
+> **NEXT (top of the queue):**
+> 1. Operator visually verifies the v0.474.0 launcher + Game Admin layout (run `just launch`; egui
+>    can't be auto-verified). 2. The scheduled two-player co-presence test on the VPS (operator's
+>    tester, later today). 3. Multiplayer polish for that test: remote-player NAMEPLATES +
+>    WORLD-SNAPSHOT PREFILL (a joiner should see already-present players immediately, not only on
+>    their next move). 4. Then server-side character persistence (the Open-Net/Closed-Net launcher
+>    sections + `character_v1` signed object + `character_policy` per server), and GitHub branch
+>    protection. See [characters-and-servers.md](design/characters-and-servers.md) +
+>    [first-playable.md](design/first-playable.md).
 
 **ACTIVE 2026-06-15: CONSTRUCTION EDITOR arc (operator-directed detour, paused the LIVE HOME
 SIM arc below).** The operator is building the in-app homestead editor by rapid screenshot
