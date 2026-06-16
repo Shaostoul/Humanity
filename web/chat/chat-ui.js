@@ -1798,6 +1798,7 @@ const CMD_PALETTE_ACTIONS = {
   sendFriendCodeRequest: function() { sendFriendCodeRequest(); },
   toggleSearch:          function() { toggleSearch(); },
   openServerStats:       function() { window.open('/info', '_blank'); },
+  openGameAdmin:         function() { if (typeof openGameAdminModal === 'function') openGameAdminModal(); },
 };
 fetch('/data/commands.json', { cache: 'no-cache' })
   .then(function(r) { return r.ok ? r.json() : null; })

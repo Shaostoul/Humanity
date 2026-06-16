@@ -1015,6 +1015,23 @@ async function handleMessage(msg) {
       if (msg.message && msg.message.startsWith('__game__:')) {
         try {
           const game = JSON.parse(msg.message.slice('__game__:'.length));
+          // Game-admin replies ride here too (the relay rewrites its private
+          // reply to a system message). game_banned_list = the current bans,
+          // game_admin_error = a refusal/error to surface to the admin.
+          switch (game.type) {
+            case 'game_banned_list':
+              // users: [{public_key, character_id, reason, banned_by, banned_at}]
+              window.gameBans = Array.isArray(game.users) ? game.users : [];
+              if (typeof renderGameAdminList === 'function') renderGameAdminList();
+              break;
+            case 'game_admin_error':
+              if (typeof showGameAdminError === 'function') showGameAdminError(game.message || 'Game admin error.');
+              else console.warn('game_admin_error:', game.message);
+              break;
+            default:
+              break;
+          }
+          // Keep the co-presence hook intact (native/web 3D listeners).
           if (typeof window.onGameMessage === 'function') window.onGameMessage(game);
         } catch (e) { console.warn('Bad __game__ payload', e); }
         break;
@@ -1258,6 +1275,39 @@ function requestSkillEndorsement(peerName, skillId, level) {
 function requestSkillEndorsements(userKey) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({ type: 'skill_endorsements_request', user_key: userKey || myKey }));
+}
+
+// ── Game-world admin (game bans, STRUCTURALLY SEPARATE from chat bans) ──
+// These hit the relay's disjoint game_banned_keys table: a game ban blocks a
+// player from the shared 3D world only and never touches chat (free speech is a
+// right; MMO play is a privilege). The relay admin-gates every message on the
+// socket's already-authenticated identity and replies privately, so a non-admin
+// who sends these is ignored. Payloads are byte-identical to the native Game
+// Admin page (src/gui/pages/game_admin.rs). The UI lives in chat-game-admin.js.
+
+/**
+ * Ban a player from the game world only. Chat is unaffected.
+ * @param {string} targetKey Player public key (their identity), NOT a display name.
+ * @param {string} reason    Operator-visible reason (may be empty).
+ */
+function sendGameBan(targetKey, reason) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'game_ban', target: targetKey, reason: reason || '' }));
+}
+
+/**
+ * Lift a game-world ban for a player. Admin-gated server-side.
+ * @param {string} targetKey Player public key.
+ */
+function sendGameUnban(targetKey) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'game_unban', target: targetKey }));
+}
+
+/** Request the current game-ban list. The relay replies privately (admins only). */
+function sendGameBannedListRequest() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'game_banned_list_request' }));
 }
 
 async function sendChatCommand(command, channelOverride) {
