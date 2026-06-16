@@ -26,10 +26,12 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     .color(theme.text_primary()),
             );
             ui.label(
-                RichText::new("Set each wall; the home rebuilds live. Press B to close.")
+                RichText::new("Drag to orbit, middle-drag to pan, wheel to zoom, WASD to fly, Space/Shift up+down. Press B to close.")
                     .size(theme.font_size_small)
                     .color(theme.text_secondary()),
             );
+            ui.checkbox(&mut state.construction_plan_view,
+                RichText::new("Top-down plan overlay").size(theme.font_size_small).color(theme.text_muted()));
             ui.add_space(theme.spacing_sm);
 
             // Uniform ceiling height (mirrors layout.default_wall_height).
@@ -186,15 +188,16 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             );
         });
 
-    // Top-down floor-plan canvas (v0.463): the spatial editor. Drag a room to move it; the 3D
-    // home rebuilds live (and shows faintly through the semi-transparent canvas). Resize +
-    // walls + doors are in the side panel for now; level selector + 3D nudge + door-drag are
-    // the next slices.
-    egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(egui::Color32::from_black_alpha(150)))
-        .show(ctx, |ui| {
-            draw_floorplan_canvas(ui, theme, state);
-        });
+    // Top-down floor-plan overlay (v0.463), shown only when toggled on (v0.464). By default the
+    // construction view is the free ORBIT "astral" camera (drag/pan/dolly/fly) so you can
+    // navigate the whole structure incl. multiple stories; the 2D plan is an optional overlay.
+    if state.construction_plan_view {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(egui::Color32::from_black_alpha(150)))
+            .show(ctx, |ui| {
+                draw_floorplan_canvas(ui, theme, state);
+            });
+    }
 }
 
 /// Draw the top-down floor plan: every room as a rectangle seen from above (world X -> right,

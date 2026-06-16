@@ -1242,6 +1242,9 @@ pub struct GuiState {
     pub construction_add_type: String,
     /// A room index the panel requested to delete; applied after the scroll loop. (v0.459)
     pub construction_remove: Option<usize>,
+    /// Show the top-down floor-plan overlay (v0.464). Default OFF: construction uses the free
+    /// orbit "astral" camera (drag/pan/dolly/fly); toggle on for the 2D plan when wanted.
+    pub construction_plan_view: bool,
     /// Editable uniform ceiling height (mirrors layout.default_wall_height).
     pub construction_height: f32,
     /// Set by the panel when a wall/position/size/add/remove changed -> the engine rebuilds.
@@ -2115,6 +2118,7 @@ impl Default for GuiState {
             construction_room_types: Vec::new(),
             construction_add_type: String::new(),
             construction_remove: None,
+            construction_plan_view: false,
             construction_height: 3.0,
             construction_dirty: false,
             construction_save: false,

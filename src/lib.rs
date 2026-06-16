@@ -1439,6 +1439,11 @@ mod native_app {
         /// The live homestead layout (v0.455). Held so the construction editor can mutate it
         /// (per-wall kinds, heights) and regenerate the meshes without a restart.
         homestead_layout: Option<crate::ship::fibonacci::HomesteadLayout>,
+        /// Astral-projection construction camera (v0.464): true while the orbit cam is engaged
+        /// for the editor, so we switch in/out exactly once (works for B AND the panel Close).
+        construction_cam_active: bool,
+        /// First-person position to return to when leaving the construction editor. (v0.464)
+        construction_return_pos: Vec3,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
         hologram_objects: Vec<(usize, usize, Vec3, String)>,
         /// Hologram orbit rings (mesh_idx, material_idx).
@@ -1893,6 +1898,8 @@ mod native_app {
                 homestead_mirrors: None,
                 homestead_ceiling: None,
                 homestead_layout: None,
+                construction_cam_active: false,
+                construction_return_pos: Vec3::new(0.0, 1.7, 0.0),
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
                 hologram_pins: Vec::new(),
@@ -2144,12 +2151,11 @@ mod native_app {
                             return;
                         }
 
-                        // Don't pass input to game when egui consumed it, a menu is open, or
-                        // the construction editor is active (camera frozen while editing).
-                        if egui_consumed
-                            || state.gui_state.active_page != GuiPage::None
-                            || state.gui_state.construction_active
-                        {
+                        // Don't pass input to the game when egui consumed it or a menu is open.
+                        // During construction we DO pass it: WASD flies the orbit focal point,
+                        // Space/Shift change level (egui_consumed still wins, so typing in a
+                        // field never moves the camera). (v0.464)
+                        if egui_consumed || state.gui_state.active_page != GuiPage::None {
                             return;
                         }
 
@@ -2531,6 +2537,27 @@ mod native_app {
                                 state.showroom_ground = Some((gm, gmat));
                             }
                         }
+                    }
+                    // Astral-projection camera (v0.464): when the construction editor opens, lift
+                    // into a free ORBIT camera around the home (drag to orbit, middle-drag to
+                    // pan, wheel to dolly, WASD to fly the focal point, Space/Shift up/down for
+                    // levels). Reconciled here (not in the B handler) so the panel's Close button
+                    // restores first person too.
+                    if state.gui_state.construction_active && !state.construction_cam_active {
+                        state.construction_cam_active = true;
+                        state.controller.showroom_lock = false; // full orbit controls, not the fixed showroom orbit
+                        state.construction_return_pos = state.camera.position;
+                        let (center, size) = state.homestead_bounds
+                            .map(|(mn, mx)| ((mn + mx) * 0.5, (mx - mn).length()))
+                            .unwrap_or((Vec3::new(0.0, 1.5, 0.0), 20.0));
+                        state.camera.switch_mode(crate::renderer::camera::CameraMode::Orbit);
+                        state.camera.orbit_target = center;
+                        state.camera.orbit_distance = (size * 0.7).clamp(5.0, 400.0);
+                        state.camera.orbit_distance_max = (size * 4.0).max(400.0);
+                    } else if !state.gui_state.construction_active && state.construction_cam_active {
+                        state.construction_cam_active = false;
+                        state.camera.switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
+                        state.camera.position = state.construction_return_pos;
                     }
                     // Construction editor (v0.455/459): apply the edited walls + ceiling height
                     // AND room position/size + add/remove to the live layout, then rebuild.
@@ -5255,11 +5282,10 @@ mod native_app {
             };
 
             if let DeviceEvent::MouseMotion { delta } = event {
-                // Only pass mouse motion to camera when no GUI page is active and the
-                // construction editor isn't open (its cursor is free for the panel).
-                if state.gui_state.active_page == GuiPage::None
-                    && !state.gui_state.construction_active
-                {
+                // Pass mouse motion to the camera when no GUI page is active. In FPS this is
+                // look; in the showroom / construction orbit cam it only rotates while a mouse
+                // button is held (so moving over a panel does nothing). (v0.464)
+                if state.gui_state.active_page == GuiPage::None {
                     state.controller.process_mouse_motion(delta.0, delta.1);
                 }
             }
