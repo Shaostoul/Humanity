@@ -3449,6 +3449,21 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_game_query_entity(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
+                            // Game admin (v0.474): game-world bans, SEPARATE from
+                            // chat moderation. Admin-gated inside each handler via
+                            // get_role; replies go privately to the requester.
+                            Some("game_ban") => {
+                                handle_game_ban(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
+                            Some("game_unban") => {
+                                handle_game_unban(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
+                            Some("game_banned_list_request") => {
+                                handle_game_banned_list(&state_clone, &my_key_for_recv).await;
+                                continue;
+                            }
                             _ => {} // Fall through to normal RelayMessage handling
                         }
                     }

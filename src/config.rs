@@ -218,6 +218,12 @@ pub struct AppConfig {
     /// existing configs without this field also get "onboarding".
     #[serde(default = "default_boot_page")]
     pub default_page: String,
+    /// Default character/home the launcher loads on Play (v0.474). A local save
+    /// stem ("" = no default, always show the launcher's character picker).
+    /// When non-empty, Play skips the launcher and enters the world with this
+    /// character. See gui/pages/launcher.rs.
+    #[serde(default)]
+    pub default_character: String,
 }
 
 fn default_nav_top_category() -> String { "reality".to_string() }
@@ -494,6 +500,7 @@ impl AppConfig {
             nav_two_tier: state.nav_two_tier,
             nav_top_category: state.nav_top_category.clone(),
             default_page: crate::gui::page_to_config_str(state.default_page).to_string(),
+            default_character: state.launcher_default_character.clone(),
         }
     }
 
@@ -553,6 +560,8 @@ impl AppConfig {
         if !self.default_page.is_empty() {
             state.default_page = crate::gui::config_str_to_page(&self.default_page);
         }
+        // Default launcher character (v0.474). Empty = no default (show picker).
+        state.launcher_default_character = self.default_character.clone();
         state.donate_addresses = self.donate_addresses.iter().map(|a| crate::gui::DonateAddress {
             network: a.network.clone(),
             addr_type: a.addr_type.clone(),

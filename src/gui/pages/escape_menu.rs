@@ -85,8 +85,11 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // nav bar + pages hide and the cursor is grabbed for mouse-look (the
                 // post-egui reconcile in lib.rs); Esc brings the menu back. Leftmost,
                 // so the way into the world is the very first thing in the nav.
+                // Play opens the character launcher (v0.474), not the world
+                // directly -- unless a default character is set, in which case
+                // the click handler in nav_group skips straight to FPS.
                 let play_items = [
-                    NavItem { label: "Play", page: GuiPage::None, description: "" },
+                    NavItem { label: "Play", page: GuiPage::Launcher, description: "" },
                 ];
                 nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -251,6 +254,23 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     NavItem { label: "Settings", page: GuiPage::Settings, description: "" },
                 ];
                 nav_group(ui, &settings_items, theme.nav_settings(), text_muted, theme, state);
+
+                // Game Admin (v0.474): admin/owner only. Game-world moderation,
+                // kept separate from chat. Compute the gate BEFORE nav_group so
+                // the immutable borrow of state ends before nav_group's &mut.
+                let is_game_admin = state.chat_users.iter()
+                    .find(|u| u.public_key == state.profile_public_key)
+                    .map(|u| matches!(u.role.as_str(), "admin" | "owner"))
+                    .unwrap_or(false);
+                if is_game_admin {
+                    ui.add_space(6.0);
+                    separator_dot(ui, border);
+                    ui.add_space(6.0);
+                    let game_admin_items = [
+                        NavItem { label: "Game Admin", page: GuiPage::GameAdmin, description: "" },
+                    ];
+                    nav_group(ui, &game_admin_items, theme.nav_settings(), text_muted, theme, state);
+                }
             });
         });
 
@@ -505,13 +525,29 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
             // so Esc on the new page goes straight to FPS instead of
             // through stale contextual flow entries.
             state.clear_nav_back();
-            // The "Play" button enters FPS mode (page = None). Remember the page
-            // we came from so Esc out of the world returns HERE, not to a stale
-            // last_page from an earlier toggle.
-            if item.page == GuiPage::None && state.active_page != GuiPage::None {
-                state.last_page = state.active_page;
+            // The "Play" button opens the launcher (GuiPage::Launcher). If a
+            // default character is set, skip the picker and enter the world
+            // directly (load that character via launcher_pending_load). This is
+            // the "don't make me go through select every time" shortcut.
+            if item.page == GuiPage::Launcher && !state.launcher_default_character.is_empty() {
+                if state.active_page != GuiPage::None {
+                    state.last_page = state.active_page;
+                }
+                state.launcher_pending_load = Some(state.launcher_default_character.clone());
+                state.launcher_enter = true;
+                state.active_page = GuiPage::None;
+            } else {
+                // Entering FPS mode = page None. Remember where we came from so
+                // Esc out of the world returns HERE, not to a stale last_page.
+                if item.page == GuiPage::None && state.active_page != GuiPage::None {
+                    state.last_page = state.active_page;
+                }
+                // Opening the launcher reloads its save list fresh.
+                if item.page == GuiPage::Launcher {
+                    state.launcher_saves_loaded = false;
+                }
+                state.active_page = item.page.clone();
             }
-            state.active_page = item.page.clone();
         }
     }
 }

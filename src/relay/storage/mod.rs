@@ -663,6 +663,22 @@ impl Storage {
             );"
         )?;
 
+        // Game-world bans (v0.474), DELIBERATELY SEPARATE from chat's
+        // banned_keys (above). A game ban blocks a player from the shared 3D
+        // world only; chat stays fully accessible. character_id NULL = an
+        // account-wide game ban (the v1 default); the composite PK leaves room
+        // for per-character bans (SQLite treats NULL as distinct in a PK).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS game_banned_keys (
+                public_key   TEXT NOT NULL,
+                character_id TEXT,
+                reason       TEXT NOT NULL DEFAULT '',
+                banned_by    TEXT NOT NULL DEFAULT '',
+                banned_at    INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (public_key, character_id)
+            );"
+        )?;
+
         // Federation: federated server registry.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS federated_servers (
@@ -2110,6 +2126,7 @@ mod bugs;
 mod guilds;
 mod reputation;
 mod game_persistence;
+mod game_bans;
 
 pub use civilization::CivilizationStats;
 pub use guilds::{GuildRecord, GuildMemberRecord, GuildInviteRecord};
@@ -2121,6 +2138,9 @@ pub use trading::TradeRecord;
 // Durable game-world snapshot + per-player progress (relay game-state
 // persistence). See game_persistence.rs for the rationale + schema.
 pub use game_persistence::{GameWorldSnapshot, PlayerProgress};
+// Game-world bans, structurally SEPARATE from chat bans (free speech is a
+// right; play is a privilege). See game_bans.rs.
+pub use game_bans::GameBan;
 
 #[cfg(test)]
 mod resilient_open_tests {

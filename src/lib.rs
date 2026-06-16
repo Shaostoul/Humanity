@@ -90,7 +90,7 @@ mod native_app {
         wallet, crafting, guilds, trade, files, bugs, donate, tools, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
         browser, category_overview, settings_pages, cosmos, real,
-        platform, humanity, library, quests, homes,
+        platform, humanity, library, quests, homes, game_admin, launcher,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -840,6 +840,34 @@ mod native_app {
             Some("game_player_left") => {
                 if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
                     state.net_sync.queue_messages(vec![NetMessage::PlayerLeft { player_id: id as u32 }]);
+                }
+            }
+            // Game admin (v0.474): the relay's private reply to a
+            // game_banned_list_request. Admin-only by construction (targeted at
+            // the requesting admin). Populates the Game Admin page list.
+            Some("game_banned_list") => {
+                if let Some(arr) = v.get("users") {
+                    if let Ok(bans) = serde_json::from_value::<Vec<crate::relay::storage::GameBan>>(arr.clone()) {
+                        state.gui_state.game_bans = bans;
+                    }
+                }
+            }
+            // The relay refused our own join (we are game-banned). Surface it; do
+            // NOT touch chat (it stays connected by design).
+            Some("game_join_denied") => {
+                let reason = v.get("reason").and_then(|x| x.as_str()).unwrap_or("");
+                let msg = v.get("message").and_then(|x| x.as_str())
+                    .unwrap_or("You are banned from the game world. Chat is unaffected.");
+                state.gui_state.game_admin_status = if reason.is_empty() {
+                    msg.to_string()
+                } else {
+                    format!("{msg} ({reason})")
+                };
+                log::warn!("Game-join denied: {msg} (reason: {reason})");
+            }
+            Some("game_admin_error") => {
+                if let Some(m) = v.get("message").and_then(|x| x.as_str()) {
+                    state.gui_state.game_admin_status = m.to_string();
                 }
             }
             _ => {}
@@ -5286,6 +5314,8 @@ mod native_app {
                         // cached list itself is harmless to keep until then.
                         state.gui_state.chat_banned_requested = false;
                         state.gui_state.chat_muted_requested = false;
+                        // Same for the Game Admin game-ban list (v0.474).
+                        state.gui_state.game_bans_requested = false;
                         if !state.gui_state.ws_manually_disconnected {
                             log::info!("WebSocket disconnected, will reconnect in {}s (attempt {})",
                                 state.gui_state.ws_reconnect_delay as u32,
@@ -5529,9 +5559,63 @@ mod native_app {
                     // Track page before egui frame for cursor grab transitions
                     let page_before_frame = state.gui_state.active_page;
 
+                    // ── Character launcher actions (v0.474) ──
+                    // "Enter World": drop into first-person (the lazy world-load
+                    // below picks it up). "Customize Look": load the world if
+                    // needed, then open the appearance editor (the showroom needs
+                    // the player entity + renders only when active_page == None).
+                    if state.gui_state.launcher_enter {
+                        state.gui_state.launcher_enter = false;
+                        state.gui_state.active_page = GuiPage::None;
+                    }
+                    if state.gui_state.launcher_open_showroom {
+                        state.gui_state.launcher_open_showroom = false;
+                        state.gui_state.active_page = GuiPage::None;
+                        if !state.world_loaded {
+                            load_world(state);
+                        }
+                        open_showroom(state, 1);
+                    }
+
                     // Lazy-load 3D world on first Enter World (code LOD: chat loads fast, 3D loads when needed)
                     if state.gui_state.active_page == GuiPage::None && !state.world_loaded {
                         load_world(state);
+                    }
+
+                    // Apply a launcher-selected character once the world exists
+                    // (v0.474). Finds the local save by its display name and
+                    // applies its inventory + skills + name + look to the live
+                    // player. Idempotent: re-applying the active home is harmless.
+                    if state.world_loaded {
+                        if let Some(name) = state.gui_state.launcher_pending_load.take() {
+                            let dir = crate::persistence::saves_dir();
+                            if let Ok(entries) = std::fs::read_dir(&dir) {
+                                for entry in entries.filter_map(|e| e.ok()) {
+                                    let path = entry.path();
+                                    if path.extension().and_then(|x| x.to_str()) != Some("json") {
+                                        continue;
+                                    }
+                                    if let Ok(save) = crate::persistence::load_world(&path) {
+                                        if save.name == name {
+                                            crate::save_load::apply_save_to_world(
+                                                &mut state.game_world.world,
+                                                &save,
+                                            );
+                                            // Sync the editing copies + rebuild the avatar.
+                                            state.gui_state.appearance = save.appearance.clone();
+                                            state.gui_state.outfit = save.outfit.clone();
+                                            if !save.character_name.is_empty() {
+                                                state.gui_state.character_name = save.character_name.clone();
+                                            }
+                                            state.gui_state.appearance_dirty = true;
+                                            state.gui_state.outfit_dirty = true;
+                                            log::info!("Launcher: loaded character '{name}'");
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // Decide whether to render 3D scene or just a cleared surface
@@ -5674,6 +5758,8 @@ mod native_app {
                                     GuiPage::Homes => homes::draw(ctx, &state.theme, &mut state.gui_state),
                                     // v0.415.0: Play / Resources / Onboarding arms removed with their pages.
                                     GuiPage::ServerSettings => server_settings::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::GameAdmin => game_admin::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Launcher => launcher::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Identity => identity::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Governance => governance::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Recovery => recovery::draw(ctx, &state.theme, &mut state.gui_state),

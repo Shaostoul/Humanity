@@ -81,6 +81,16 @@ Native `showroom.rs` is canonical (Rust-first); the web mirror reuses `renderSer
 `trust_tier` -- the policy badge slots beside it).
 
 ## The Play launcher + offline editing (operator additions, 2026-06-16)
+
+> **SHIPPED v0.474** (first increment). `GuiPage::Launcher` + `src/gui/pages/launcher.rs`: Play now
+> opens the launcher (`escape_menu.rs` Play nav item -> `GuiPage::Launcher`) with the three sections
+> (Homes / Open-Net / Closed-Net), a per-character "Set default" toggle persisted to
+> `AppConfig.default_character`, a "Customize Look" button that opens the showroom appearance editor
+> offline, and "Enter World". When a default is set, the Play click handler skips the launcher and
+> enters directly (`launcher_pending_load` applies the chosen save after the world loads). The
+> open-net / closed-net sections are labeled placeholders until multiplayer character sync lands. The
+> changing-station gate + `character_v1` signed object below remain future work.
+
 The **Play button becomes the launcher screen** (not a straight drop into FPS): it opens character
 select, your homes, and an Enter-World button. Concretely:
 - **Section order, top to bottom:** HOMES, then LOCAL / open-net characters, then closed-net
@@ -189,3 +199,33 @@ may assert.
 7. **(Later, gated by gameplay)** generalize to the `server_characters` table with server-written
    stats/inventory, N characters per realm, and intent-based mutation handlers. The full closed-Bnet
    anti-cheat ledger; lands when pickup/craft/trade gameplay does. The select UI does not change.
+
+## Game moderation is separate from chat moderation (operator directive, 2026-06-16)
+
+> **SHIPPED v0.474.** Game-world bans are a STRUCTURALLY SEPARATE system from chat bans.
+
+Operator: *"Bans for characters shouldn't ban users from chat. The comms is the most important aspect
+of HumanityOS, I want to guarantee free speech. Being able to play video games with each other on the
+official MMO server is a privilege."*
+
+Two rights tiers, two disjoint systems that can never collide:
+- **Chat is a RIGHT.** The chat ban path (`banned_keys` table, `is_banned` at the identify handshake)
+  is never widened to silence anyone for in-game behavior. A game-banned key still passes `is_banned`,
+  so its socket stays open and chat + DMs flow normally.
+- **Play is a PRIVILEGE.** A game ban lives in its own `game_banned_keys` table (struct `GameBan` with
+  `reason` + `banned_by` audit fields) with one enforcement point: `is_game_banned` inside
+  `handle_game_join` (`msg_handlers.rs`), checked BEFORE the world lock so a banned player never spawns
+  and never broadcasts a join. It **fails closed** (a DB error denies the join) because it is a
+  moderation gate, unlike the fail-open chat connect check.
+
+The two systems share zero code: separate tables, structs (`GameBan` vs `BannedUser`), storage methods
+(`game_ban`/`game_unban`/`is_game_banned`/`list_game_bans`), message names (`game_ban`/`game_unban`/
+`game_banned_list*`), and GuiState fields. This mirrors the existing precedent of `muted_members` being
+a separate table from `banned_keys`. Auth reuses the proven `get_role(my_key) == admin|owner` gate (no
+new auth surface; `my_key` is already proven by the two-phase Dilithium identify challenge); replies go
+out privately via `send_game_private` so the ban list never leaks to non-admins.
+
+The admin surface is **`GuiPage::GameAdmin`** + `src/gui/pages/game_admin.rs`, reachable from an
+admin-only nav entry. It carries a prominent disclaimer ("Game bans do NOT affect chat") and a ban
+form + list with per-row Unban. v1 bans are account-wide (`character_id` NULL); the composite PK leaves
+room for per-character bans later.

@@ -115,6 +115,15 @@ pub enum GuiPage {
     /// Server / group administration settings page. Opened from the cog
     /// menu on the server or group row in the chat sidebar.
     ServerSettings,
+    /// Game admin page (v0.474). Game-world bans, kept STRUCTURALLY SEPARATE
+    /// from chat moderation: a game ban blocks a player from the shared 3D
+    /// world only and never touches chat. Admin-gated. See pages/game_admin.rs.
+    GameAdmin,
+    /// Character launcher (v0.474). What the Play button opens: pick a home /
+    /// character (self-custodial local, open-net, or closed-net server),
+    /// customize your look offline, set a default to skip the picker, then
+    /// Enter World. See pages/launcher.rs + docs/design/characters-and-servers.md.
+    Launcher,
     /// Identity hub: DID, Verifiable Credentials, trust score, AI status.
     /// Mirrors the web `/identity` page.
     Identity,
@@ -1706,6 +1715,49 @@ pub struct GuiState {
     /// True once a `banned_list_request` has been sent this session so
     /// the panel doesn't re-request every repaint. Reset on disconnect.
     pub chat_banned_requested: bool,
+
+    // ── Game admin: game-world bans, STRUCTURALLY SEPARATE from chat bans
+    //    (v0.474). Free speech is a right (chat is never affected); playing on
+    //    the shared MMO world is a privilege. These read the relay's
+    //    `game_banned_keys` table, never `banned_keys`. See pages/game_admin.rs
+    //    + docs/design/characters-and-servers.md.
+    /// Players banned from the 3D game world only. Populated by the
+    /// `game_banned_list` reply (admins only). Empty until requested.
+    pub game_bans: Vec<crate::relay::storage::GameBan>,
+    /// True once a `game_banned_list_request` was sent this session so the
+    /// page doesn't re-request every repaint. Reset on disconnect.
+    pub game_bans_requested: bool,
+    /// The target public key typed into the Game Admin ban form.
+    pub game_admin_target_key: String,
+    /// The reason typed into the Game Admin ban form.
+    pub game_admin_ban_reason: String,
+    /// Last status / error line shown on the Game Admin page.
+    pub game_admin_status: String,
+
+    // ── Character launcher (v0.474). Play opens this screen: pick a home /
+    //    character, customize your look offline, set a default to skip the
+    //    picker next time, then Enter World. See pages/launcher.rs.
+    /// Cached local save list (filename stem, modified-unix-secs), refreshed
+    /// when the launcher opens. Each save is a self-custodial home+character.
+    pub launcher_saves: Vec<(String, u64)>,
+    /// False until the launcher has loaded `launcher_saves` once this opening.
+    /// Reset to false every time the launcher page is entered so the list is
+    /// fresh (a new save made in-session shows up).
+    pub launcher_saves_loaded: bool,
+    /// The save stem currently highlighted in the launcher ("" = the active
+    /// offline home / default character).
+    pub launcher_selected: String,
+    /// The default character's save stem ("" = no default, always show the
+    /// launcher). Persisted to AppConfig.default_character. When non-empty,
+    /// Play skips the launcher and enters the world with this character.
+    pub launcher_default_character: String,
+    /// Request from the launcher: enter the 3D world now (lib.rs handles it).
+    pub launcher_enter: bool,
+    /// Request from the launcher: open the appearance/character editor (showroom).
+    pub launcher_open_showroom: bool,
+    /// A non-active save stem the launcher asked to load on Enter World; lib.rs
+    /// applies it to the live player after the world loads, then clears this.
+    pub launcher_pending_load: Option<String>,
     /// Currently-muted users for the Server Settings → Muted users mod
     /// panel. Populated by the `muted_list` WS message (mods/admins
     /// only). v0.246.
@@ -2305,6 +2357,20 @@ impl Default for GuiState {
             },
             chat_banned_users: Vec::new(),
             chat_banned_requested: false,
+            // Game admin (game-world bans, separate from chat bans)
+            game_bans: Vec::new(),
+            game_bans_requested: false,
+            game_admin_target_key: String::new(),
+            game_admin_ban_reason: String::new(),
+            game_admin_status: String::new(),
+            // Character launcher
+            launcher_saves: Vec::new(),
+            launcher_saves_loaded: false,
+            launcher_selected: String::new(),
+            launcher_default_character: String::new(),
+            launcher_enter: false,
+            launcher_open_showroom: false,
+            launcher_pending_load: None,
             chat_muted_users: Vec::new(),
             chat_muted_requested: false,
             server_settings_draft: None,

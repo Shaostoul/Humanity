@@ -3283,6 +3283,40 @@ pub async fn handle_game_join(
         .unwrap_or("Anonymous")
         .to_string();
 
+    // ── Game-world ban gate (v0.474) ──
+    // Playing on the shared world is a PRIVILEGE; a game ban blocks the spawn
+    // here, BEFORE the world lock, so a banned player never gets an entity and
+    // never broadcasts a join. This reads ONLY game_banned_keys and never the
+    // chat banned_keys table -- a game-banned user keeps full chat + DM access
+    // (free speech is a right). Bots (key starts with "bot_") are exempt, same
+    // carve-out as the identify gate. FAIL CLOSED: a DB error denies the join
+    // (this is a moderation gate, unlike the fail-open chat connect check).
+    if !my_key.starts_with("bot_") {
+        match state.db.is_game_banned(my_key) {
+            Ok(Some(ban)) => {
+                send_game_private(state, my_key, &serde_json::json!({
+                    "type": "game_join_denied",
+                    "reason": ban.reason,
+                    "chat_unaffected": true,
+                    "message": "You are banned from the game world. Chat is unaffected.",
+                })).await;
+                tracing::info!("Game-join denied for banned key {} (chat unaffected)", my_key);
+                return;
+            }
+            Ok(None) => {}
+            Err(e) => {
+                tracing::error!("is_game_banned failed for {}: {} -- denying join (fail closed)", my_key, e);
+                send_game_private(state, my_key, &serde_json::json!({
+                    "type": "game_join_denied",
+                    "reason": "server error",
+                    "chat_unaffected": true,
+                    "message": "Could not verify game access right now. Chat is unaffected; try again shortly.",
+                })).await;
+                return;
+            }
+        }
+    }
+
     let mut world = state.game_world.write().await;
 
     // Don't create duplicate player entities.
@@ -3388,6 +3422,116 @@ pub async fn handle_game_join(
     });
 
     tracing::info!("Game: player '{}' ({}) joined as entity {}", player_name, my_key, player_id);
+}
+
+// ── Game admin: game-world bans (v0.474), SEPARATE from chat moderation ──
+//
+// These three handlers mirror the chat ban handlers (relay.rs BannedListRequest
+// / Unban) but operate ONLY on the game_banned_keys table. They reuse the exact
+// same authoritative gate -- `state.db.get_role(my_key)` must be "admin" or
+// "owner" -- so there is no new auth surface. The socket's `my_key` is already
+// proven by the two-phase Dilithium identify challenge. Replies go out via
+// `send_game_private` (a Private targeted to the requesting admin), so the ban
+// list never leaks to non-admins and no broadcast-loop edit is needed.
+
+/// True if this key is an admin or owner (the game-admin gate). Defaults to
+/// false (deny) on any DB error -- consistent with refusing the action.
+fn is_game_admin(state: &Arc<RelayState>, my_key: &str) -> bool {
+    let r = state.db.get_role(my_key).unwrap_or_default();
+    r == "admin" || r == "owner"
+}
+
+/// Admin issues a game-world ban. Refuses non-admins, self-targets, and
+/// protected (admin/owner) targets. Records `banned_by = my_key` for audit,
+/// evicts the target from the live WORLD only (chat untouched), then pushes the
+/// refreshed ban list back to the requesting admin.
+pub async fn handle_game_ban(state: &Arc<RelayState>, my_key: &str, raw: &serde_json::Value) {
+    if !is_game_admin(state, my_key) {
+        send_game_private(state, my_key, &serde_json::json!({
+            "type": "game_admin_error",
+            "message": "Not authorized: game bans require an admin or owner role.",
+        })).await;
+        return;
+    }
+    let target = raw.get("target").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    let reason = raw.get("reason").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    if target.is_empty() {
+        send_game_private(state, my_key, &serde_json::json!({
+            "type": "game_admin_error",
+            "message": "No target public key provided.",
+        })).await;
+        return;
+    }
+    if target == my_key {
+        send_game_private(state, my_key, &serde_json::json!({
+            "type": "game_admin_error",
+            "message": "You can't game-ban yourself.",
+        })).await;
+        return;
+    }
+    // Don't let an admin game-ban another admin/owner.
+    let target_role = state.db.get_role(&target).unwrap_or_default();
+    if target_role == "admin" || target_role == "owner" {
+        send_game_private(state, my_key, &serde_json::json!({
+            "type": "game_admin_error",
+            "message": "That account is protected (admin/owner) and can't be game-banned.",
+        })).await;
+        return;
+    }
+    // v1: account-wide game ban (character_id = None).
+    if let Err(e) = state.db.game_ban(&target, None, &reason, my_key) {
+        tracing::error!("game_ban({}) failed: {}", target, e);
+        send_game_private(state, my_key, &serde_json::json!({
+            "type": "game_admin_error",
+            "message": "Failed to record the game ban.",
+        })).await;
+        return;
+    }
+    tracing::info!("Game-ban issued by {} against {} (reason: {})", my_key, target, reason);
+    // Evict from the live world only -- this despawns + broadcasts
+    // game_player_left; it must NOT close the chat socket. handle_game_disconnect
+    // is exactly that world-scoped eviction.
+    handle_game_disconnect(state, &target).await;
+    // Push the refreshed list back to the issuing admin.
+    handle_game_banned_list(state, my_key).await;
+}
+
+/// Admin lifts a game-world ban (account-wide). Refuses non-admins.
+pub async fn handle_game_unban(state: &Arc<RelayState>, my_key: &str, raw: &serde_json::Value) {
+    if !is_game_admin(state, my_key) {
+        send_game_private(state, my_key, &serde_json::json!({
+            "type": "game_admin_error",
+            "message": "Not authorized: game unbans require an admin or owner role.",
+        })).await;
+        return;
+    }
+    let target = raw.get("target").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    if target.is_empty() {
+        return;
+    }
+    if let Err(e) = state.db.game_unban(&target, None) {
+        tracing::error!("game_unban({}) failed: {}", target, e);
+    } else {
+        tracing::info!("Game-unban issued by {} for {}", my_key, target);
+    }
+    handle_game_banned_list(state, my_key).await;
+}
+
+/// Admin requests the current game-ban list. Refuses non-admins. The reply is
+/// targeted privately to the requesting admin (never broadcast).
+pub async fn handle_game_banned_list(state: &Arc<RelayState>, my_key: &str) {
+    if !is_game_admin(state, my_key) {
+        send_game_private(state, my_key, &serde_json::json!({
+            "type": "game_admin_error",
+            "message": "Not authorized: the game-ban list is admin/owner only.",
+        })).await;
+        return;
+    }
+    let bans = state.db.list_game_bans().unwrap_or_default();
+    send_game_private(state, my_key, &serde_json::json!({
+        "type": "game_banned_list",
+        "users": bans,
+    })).await;
 }
 
 /// Handle a position update from a game client.
