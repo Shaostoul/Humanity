@@ -557,14 +557,60 @@ mod native_app {
         log::info!("Homestead rebuilt: {} rooms", room_info.len());
     }
 
-    /// Left-click in the construction astral editor: cast a pick ray from the cursor, hit-test
-    /// each room's floor rectangle, select + grab the nearest. (v0.466)
+    /// The slide-gizmo handles for the currently-selected room, with each handle's owning
+    /// `construction_rooms` index resolved (so a drag writes the offset back to the mirror).
+    /// Empty when nothing is selected. (v0.468)
+    fn selected_room_handles(state: &EngineState)
+        -> Vec<(usize, crate::ship::fibonacci::OpeningHandle)> {
+        let Some(sel) = state.gui_state.construction_selected_room else { return Vec::new(); };
+        let Some(sel_room) = state.gui_state.construction_rooms.get(sel) else { return Vec::new(); };
+        let sel_id = sel_room.id.clone();
+        let Some(layout) = &state.homestead_layout else { return Vec::new(); };
+        let positions = crate::ship::fibonacci::resolve_positions(layout);
+        crate::ship::fibonacci::opening_handles(layout, &positions)
+            .into_iter()
+            .filter(|h| layout.rooms.get(h.room_index).map_or(false, |r| r.id == sel_id))
+            .map(|h| (sel, h)) // all belong to the selected room -> selected mirror index
+            .collect()
+    }
+
+    /// Left-click in the construction astral editor: cast a pick ray from the cursor. First try
+    /// the selected room's door/window slide handles (so they take precedence over the room
+    /// grab); otherwise hit-test each room's floor rectangle, select + grab the nearest. (v0.466)
     fn try_begin_room_grab(state: &mut EngineState) {
         let sz = state.window.inner_size();
         let viewport = (sz.width as f32, sz.height as f32);
         let (origin, dir) = state.camera.pick_ray(state.cursor_pos, viewport);
         if dir.y.abs() < 1e-6 {
             return;
+        }
+        // 1. Slide-gizmo handles of the selected room (drawn at each opening's base centre).
+        //    A handle sits on the floor plane, so intersect the ray with that plane and grab
+        //    the nearest handle within a forgiving pick radius. (v0.468)
+        let handles = selected_room_handles(state);
+        let mut best_h: Option<(usize, usize, f32, f32, Vec3, Vec3, f32)> = None; // ri,w,base_t,half,start,end,dist
+        for (ri, h) in &handles {
+            let t = (h.base_center.y - origin.y) / dir.y;
+            if t <= 0.0 { continue; }
+            let hx = origin.x + dir.x * t;
+            let hz = origin.z + dir.z * t;
+            let d = ((hx - h.base_center.x).powi(2) + (hz - h.base_center.z).powi(2)).sqrt();
+            let pick_r = h.half.max(0.35); // grab radius in metres
+            if d <= pick_r && best_h.map_or(true, |b| d < b.6) {
+                best_h = Some((*ri, h.wall_index, h.base_t, h.half, h.wall_start, h.wall_end, d));
+            }
+        }
+        if let Some((ri, w, base_t, half, ws, we, _)) = best_h {
+            state.construction_gizmo_grab = Some(ConstructionGizmoGrab {
+                room_index: ri,
+                wall_index: w,
+                floor_y: ws.y,
+                wall_start: ws,
+                wall_end: we,
+                base_t,
+                half,
+            });
+            return; // grabbed a handle; don't also grab the room
         }
         // Nearest room whose floor plane (y = bounds.min.y) the ray hits within the footprint.
         let mut best: Option<(usize, f32, f32, f32)> = None; // (rb_index, t, hit_x, hit_z)
@@ -625,6 +671,41 @@ mod native_app {
                 p[0] = new_x;
                 p[2] = new_z;
                 room.position = Some(p);
+                state.gui_state.construction_dirty = true;
+            }
+        }
+    }
+
+    /// Per-frame: while a door/window handle is grabbed, intersect the pick ray with the wall's
+    /// floor line, project that hit onto the wall axis, and write the resulting slide offset
+    /// (`projected_t - base_t`, snapped to 0.1 m, clamped inside the wall) back to the editor
+    /// mirror's `wall_offsets`. Computed from the live cursor so it never drifts. (v0.468)
+    fn apply_gizmo_drag(state: &mut EngineState) {
+        let Some(grab) = state.construction_gizmo_grab else { return; };
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        if dir.y.abs() < 1e-6 {
+            return;
+        }
+        let t = (grab.floor_y - origin.y) / dir.y;
+        if t <= 0.0 {
+            return;
+        }
+        let hit = Vec3::new(origin.x + dir.x * t, grab.floor_y, origin.z + dir.z * t);
+        let axis = grab.wall_end - grab.wall_start;
+        let len = axis.length();
+        if len < 0.01 {
+            return;
+        }
+        let norm = axis / len;
+        // Distance of the hit along the wall from the start corner.
+        let proj_t = (hit - grab.wall_start).dot(norm).clamp(grab.half, len - grab.half);
+        // Offset relative to the opening's base position, snapped to 10 cm.
+        let snap = |v: f32| (v / 0.1).round() * 0.1;
+        let new_off = snap(proj_t - grab.base_t);
+        if let Some(room) = state.gui_state.construction_rooms.get_mut(grab.room_index) {
+            if (room.wall_offsets[grab.wall_index] - new_off).abs() > f32::EPSILON {
+                room.wall_offsets[grab.wall_index] = new_off;
                 state.gui_state.construction_dirty = true;
             }
         }
@@ -1444,6 +1525,22 @@ mod native_app {
         offset_z: f32,
     }
 
+    /// Construction door/window slide-gizmo drag (v0.468): which room+wall's opening is grabbed
+    /// + the wall line (captured at grab) to project the cursor onto. `room_index` indexes
+    /// `gui_state.construction_rooms` (the editor mirror we write the new offset back into).
+    #[derive(Clone, Copy)]
+    struct ConstructionGizmoGrab {
+        room_index: usize,
+        wall_index: usize,
+        floor_y: f32,
+        wall_start: Vec3,
+        wall_end: Vec3,
+        /// Position along the wall (from start) that offset is measured from.
+        base_t: f32,
+        /// Opening half-width: clamp margin so the opening stays inside the wall.
+        half: f32,
+    }
+
     struct EngineState {
         window: Arc<Window>,
         renderer: Renderer,
@@ -1532,6 +1629,10 @@ mod native_app {
         cursor_pos: (f32, f32),
         /// The room currently grabbed (left-drag) in the 3D astral editor. (v0.466)
         construction_grab: Option<ConstructionGrab>,
+        /// The door/window slide-gizmo handle currently grabbed in the 3D editor. (v0.468)
+        construction_gizmo_grab: Option<ConstructionGizmoGrab>,
+        /// Cached (mesh, material) for the gizmo handle marker, built once. (v0.468)
+        construction_gizmo_handle: Option<(usize, usize)>,
         /// Cached (mesh, material) for the selected-room highlight quad, built once. (v0.466)
         construction_hilite: Option<(usize, usize)>,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
@@ -1992,6 +2093,8 @@ mod native_app {
                 construction_return_pos: Vec3::new(0.0, 1.7, 0.0),
                 cursor_pos: (0.0, 0.0),
                 construction_grab: None,
+                construction_gizmo_grab: None,
+                construction_gizmo_handle: None,
                 construction_hilite: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
@@ -2230,6 +2333,7 @@ mod native_app {
                                             crate::gui::ConstructionRoom {
                                                 id: rc.id.clone(),
                                                 walls: [w.north, w.south, w.west, w.east],
+                                                wall_offsets: w.offsets,
                                                 position: Some(pos),
                                                 dimensions: rc.dimensions,
                                                 material_type: rc.material_type,
@@ -2299,6 +2403,7 @@ mod native_app {
                             try_begin_room_grab(state);
                         } else {
                             state.construction_grab = None; // release; keep the selection highlighted
+                            state.construction_gizmo_grab = None; // release a slid handle too
                         }
                     } else if !egui_consumed && state.gui_state.active_page == GuiPage::None {
                         state.controller.process_mouse_button(button, btn_state);
@@ -2681,9 +2786,16 @@ mod native_app {
                         state.camera.position = state.construction_return_pos;
                         state.gui_state.construction_selected_room = None;
                         state.construction_grab = None;
+                        state.construction_gizmo_grab = None;
                     }
                     // 3D room drag (v0.466): a grabbed room follows the cursor on its floor.
-                    apply_room_drag(state);
+                    // Slide-gizmo drag (v0.468) takes precedence: a grabbed door/window handle
+                    // slides along its wall; a grabbed room follows the cursor on its floor.
+                    if state.construction_gizmo_grab.is_some() {
+                        apply_gizmo_drag(state);
+                    } else {
+                        apply_room_drag(state);
+                    }
                     // Construction editor (v0.455/459): apply the edited walls + ceiling height
                     // AND room position/size + add/remove to the live layout, then rebuild.
                     // Reconcile by ID (both directions) so add/remove/reorder can't desync.
@@ -2722,6 +2834,7 @@ mod native_app {
                                     rc.walls.south = er.walls[1];
                                     rc.walls.west = er.walls[2];
                                     rc.walls.east = er.walls[3];
+                                    rc.walls.offsets = er.wall_offsets;
                                     rc.position = pos;
                                     rc.dimensions = er.dimensions;
                                 } else {
@@ -2737,6 +2850,7 @@ mod native_app {
                                             south: er.walls[1],
                                             west: er.walls[2],
                                             east: er.walls[3],
+                                            offsets: er.wall_offsets,
                                         },
                                     });
                                 }
@@ -2864,6 +2978,54 @@ mod native_app {
                                             scale: Vec3::new(size.x, 1.0, size.z),
                                             mesh: hm,
                                             material: hmat,
+                                        });
+                                    }
+                                }
+                            }
+                            // Door/window slide-gizmo handles (v0.468): a small glowing cube at
+                            // the base centre of each movable opening on the selected room. Click +
+                            // drag one along its wall to slide the door/window. Cached cube mesh.
+                            let gizmo_handles = selected_room_handles(state);
+                            if !gizmo_handles.is_empty() {
+                                if state.construction_gizmo_handle.is_none() {
+                                    // Unit cube centred at origin; normals = outward corner dirs
+                                    // (good enough -- the marker is emissive, so it glows flatly).
+                                    let c = |x: f32, y: f32, z: f32| {
+                                        let n = Vec3::new(x, y, z).normalize_or_zero();
+                                        crate::renderer::mesh::Vertex {
+                                            position: [x, y, z],
+                                            normal: [n.x, n.y, n.z],
+                                            uv: [0.0, 0.0],
+                                        }
+                                    };
+                                    let v = vec![
+                                        c(-0.5, -0.5, -0.5), c(0.5, -0.5, -0.5), c(0.5, 0.5, -0.5), c(-0.5, 0.5, -0.5),
+                                        c(-0.5, -0.5, 0.5), c(0.5, -0.5, 0.5), c(0.5, 0.5, 0.5), c(-0.5, 0.5, 0.5),
+                                    ];
+                                    let idx = vec![
+                                        4, 5, 6, 4, 6, 7, // +Z
+                                        1, 0, 3, 1, 3, 2, // -Z
+                                        5, 1, 2, 5, 2, 6, // +X
+                                        0, 4, 7, 0, 7, 3, // -X
+                                        3, 7, 6, 3, 6, 2, // +Y
+                                        0, 1, 5, 0, 5, 4, // -Y
+                                    ];
+                                    let m = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &v, &idx));
+                                    let a = state.theme.accent();
+                                    let mat = state.renderer.add_material_full(
+                                        [a.r() as f32 / 255.0, a.g() as f32 / 255.0, a.b() as f32 / 255.0, 0.95],
+                                        0.0, 0.3, 1.0, 0.9, // emissive so it pops against the floor
+                                    );
+                                    state.construction_gizmo_handle = Some((m, mat));
+                                }
+                                if let Some((gm, gmat)) = state.construction_gizmo_handle {
+                                    for (_ri, h) in &gizmo_handles {
+                                        transparent_objects.push(RenderObject {
+                                            position: h.base_center + Vec3::new(0.0, 0.15, 0.0),
+                                            rotation: Quat::IDENTITY,
+                                            scale: Vec3::splat(0.22),
+                                            mesh: gm,
+                                            material: gmat,
                                         });
                                     }
                                 }

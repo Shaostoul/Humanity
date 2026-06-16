@@ -70,6 +70,11 @@ pub struct WallSet {
     pub west: WallKind,
     #[serde(default)]
     pub east: WallKind,
+    /// Per-wall opening slide offset in metres along the wall, signed (0=N,1=S,2=W,3=E).
+    /// 0.0 = centred (today's behaviour); only honoured for explicit Door + Window walls
+    /// (the slide gizmo's data). Omitted in old RON -> [0;4]. (v0.468)
+    #[serde(default)]
+    pub offsets: [f32; 4],
 }
 
 impl WallKind {
@@ -103,6 +108,10 @@ impl WallSet {
             2 => self.west,
             _ => self.east,
         }
+    }
+    /// Slide offset (metres along the wall) at the build-loop wall index. (v0.468)
+    pub fn offset_by_index(&self, i: usize) -> f32 {
+        *self.offsets.get(i).unwrap_or(&0.0)
     }
 }
 
@@ -917,6 +926,122 @@ fn split_wall_for_doorways(
 }
 
 // ---------------------------------------------------------------------------
+// Slide-gizmo handles (construction editor)
+// ---------------------------------------------------------------------------
+
+/// A door/window slide-gizmo handle (v0.468): one per movable opening (explicit `Door` /
+/// `Window` walls). Carries the world position where the handle marker is drawn plus the
+/// wall line and the "base" position the offset is measured from, so the editor can project
+/// the cursor onto the wall and re-derive `WallSet.offsets`.
+#[derive(Debug, Clone, Copy)]
+pub struct OpeningHandle {
+    /// Index into `layout.rooms` of the room this opening belongs to.
+    pub room_index: usize,
+    /// Build-loop wall index (0=N, 1=S, 2=W, 3=E).
+    pub wall_index: usize,
+    /// World position at the base centre of the opening (where the marker sits, at floor y).
+    pub base_center: Vec3,
+    /// Wall start corner in world space (the slide axis origin).
+    pub wall_start: Vec3,
+    /// Wall end corner in world space.
+    pub wall_end: Vec3,
+    /// "Base" position in metres along the wall from `wall_start` that the offset adds to:
+    /// `center_t = clamp(base_t + offset, half, len - half)`. The editor sets a dragged
+    /// handle's offset to `projected_t - base_t`.
+    pub base_t: f32,
+    /// Opening half-width along the wall (clamp margin + handle size hint).
+    pub half: f32,
+}
+
+/// Compute the slide-gizmo handles for every movable opening in the layout. Mirrors the
+/// `center_t` maths in `build_meshes` (incl. the door's nearest-shared-edge base and the
+/// shared-wall "neighbour owns it" skip) so each handle sits exactly on its opening. The
+/// construction editor drags these along the wall and writes back `WallSet.offsets`. (v0.468)
+pub fn opening_handles(layout: &HomesteadLayout, positions: &[Vec3]) -> Vec<OpeningHandle> {
+    let rooms = &layout.rooms;
+    let room_data: Vec<(Vec3, f32)> = rooms.iter().map(|rc| {
+        let dim = Vec3::new(rc.dimensions[0], rc.dimensions[1], rc.dimensions[2]);
+        let wh = if rc.wall_height > 0.0 {
+            rc.wall_height
+        } else if layout.default_wall_height > 0.0 && dim.y > 0.0 {
+            layout.default_wall_height
+        } else {
+            dim.y
+        };
+        (dim, wh)
+    }).collect();
+
+    // Same adjacency as build_meshes (a door's base = the nearest passable shared edge).
+    let mut wall_edges: Vec<[Vec<(usize, usize, Vec3, Vec3)>; 4]> =
+        (0..rooms.len()).map(|_| [Vec::new(), Vec::new(), Vec::new(), Vec::new()]).collect();
+    for i in 0..rooms.len() {
+        let (dim_a, wh_a) = room_data[i];
+        if wh_a <= 0.0 { continue; }
+        for j in (i + 1)..rooms.len() {
+            let (dim_b, wh_b) = room_data[j];
+            if wh_b <= 0.0 { continue; }
+            for edge in find_shared_edges(positions[i], dim_a, positions[j], dim_b) {
+                wall_edges[i][edge.wall_a].push((j, edge.wall_b, edge.start, edge.end));
+                wall_edges[j][edge.wall_b].push((i, edge.wall_a, edge.start, edge.end));
+            }
+        }
+    }
+    let passable = |k: WallKind| matches!(k, WallKind::Auto | WallKind::Door | WallKind::Open);
+
+    let mut handles = Vec::new();
+    for (i, rc) in rooms.iter().enumerate() {
+        let (dim, wall_height) = room_data[i];
+        if wall_height <= 0.0 { continue; }
+        let pos = positions[i];
+        let (x0, z0, y) = (pos.x, pos.z, pos.y);
+        let (x1, z1) = (x0 + dim.x, z0 + dim.z);
+        let walls = [
+            (Vec3::new(x0, y, z0), Vec3::new(x1, y, z0)), // 0: North (min Z)
+            (Vec3::new(x0, y, z1), Vec3::new(x1, y, z1)), // 1: South (max Z)
+            (Vec3::new(x0, y, z0), Vec3::new(x0, y, z1)), // 2: West (min X)
+            (Vec3::new(x1, y, z0), Vec3::new(x1, y, z1)), // 3: East (max X)
+        ];
+        for (w, (start, end)) in walls.iter().enumerate() {
+            let dir = *end - *start;
+            let len = dir.length();
+            if len < 0.01 { continue; }
+            let norm = dir / len;
+            let wall_off = rc.walls.offset_by_index(w);
+            let (base_t, half) = match rc.walls.by_index(w) {
+                WallKind::Door => {
+                    let base = wall_edges[i][w]
+                        .iter()
+                        .filter(|(nj, nwb, _, _)| passable(rooms[*nj].walls.by_index(*nwb)))
+                        .map(|(_, _, ss, se)| ((*ss + *se) * 0.5 - *start).dot(norm))
+                        .next()
+                        .unwrap_or(len * 0.5);
+                    (base, (layout.door_width * 0.5).min(len * 0.45))
+                }
+                WallKind::Window => (len * 0.5, (layout.window_width * 0.5).min(len * 0.45)),
+                _ => continue, // Only explicit Door/Window walls slide.
+            };
+            // Skip a wall the neighbour owns (their Window/Mirror) -- matches build_meshes so
+            // we never draw a handle on a wall that isn't actually built here.
+            let neighbor_owns = wall_edges[i][w].iter().any(|(nj, nwb, _, _)| {
+                matches!(rooms[*nj].walls.by_index(*nwb), WallKind::Window | WallKind::Mirror)
+            });
+            if neighbor_owns { continue; }
+            let center_t = (base_t + wall_off).clamp(half, len - half);
+            handles.push(OpeningHandle {
+                room_index: i,
+                wall_index: w,
+                base_center: *start + norm * center_t,
+                wall_start: *start,
+                wall_end: *end,
+                base_t,
+                half,
+            });
+        }
+    }
+    handles
+}
+
+// ---------------------------------------------------------------------------
 // Mesh assembly from resolved room positions
 // ---------------------------------------------------------------------------
 
@@ -1051,12 +1176,16 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
             // Collect the openings to cut: (center_t along the wall, width, height, sill).
             let mut openings: Vec<(f32, f32, f32, f32)> = Vec::new();
             let mut is_window = false;
+            // Slide-gizmo offset for this wall (metres along it; 0 = centred). Honoured for
+            // explicit Door + Window (single-opening) walls. (v0.468)
+            let wall_off = rc.walls.offset_by_index(w);
 
             match my {
-                WallKind::Auto | WallKind::Door => {
+                WallKind::Auto => {
                     // A door at EACH shared edge whose neighbour is passable, centred on the
                     // ACTUAL overlap with that room (not the wall middle). This restores
-                    // navigability + can put multiple doors in one long wall.
+                    // navigability + can put multiple doors in one long wall. (No offset: Auto
+                    // is multi-door, so a single offset would be ambiguous.)
                     for (nj, nwb, seg_start, seg_end) in &wall_edges[i][w] {
                         if passable(rooms[*nj].walls.by_index(*nwb)) {
                             let mid = (*seg_start + *seg_end) * 0.5;
@@ -1065,8 +1194,23 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
                         }
                     }
                 }
+                WallKind::Door => {
+                    // ONE explicit door: base centre = nearest passable shared edge (else wall
+                    // centre), then slide by the gizmo offset, clamped inside the wall. (v0.468)
+                    let base = wall_edges[i][w]
+                        .iter()
+                        .filter(|(nj, nwb, _, _)| passable(rooms[*nj].walls.by_index(*nwb)))
+                        .map(|(_, _, ss, se)| ((*ss + *se) * 0.5 - *start).dot(norm))
+                        .next()
+                        .unwrap_or(len * 0.5);
+                    let half = (layout.door_width * 0.5).min(len * 0.45);
+                    let center_t = (base + wall_off).clamp(half, len - half);
+                    openings.push((center_t, layout.door_width, layout.door_height, 0.0));
+                }
                 WallKind::Window => {
-                    openings.push((len * 0.5, layout.window_width, layout.window_height, layout.window_sill));
+                    let half = (layout.window_width * 0.5).min(len * 0.45);
+                    let center_t = (len * 0.5 + wall_off).clamp(half, len - half);
+                    openings.push((center_t, layout.window_width, layout.window_height, layout.window_sill));
                     is_window = true;
                 }
                 WallKind::Mirror => {
@@ -1337,6 +1481,37 @@ mod tests {
         }
     }
 
+    /// The slide-gizmo (v0.468): `opening_handles` must emit a handle for each Window/Door
+    /// wall, sat at the opening centre, and that centre must shift by the wall offset along the
+    /// wall axis (so dragging the handle visibly slides the door/window). North wall runs along
+    /// +X, so a positive offset moves the handle's X and leaves Z on the wall line.
+    #[test]
+    fn opening_handles_track_wall_offset() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let mut layout = load_homestead_layout(&dir).expect("layout parses");
+        let positions = resolve_positions(&layout);
+
+        // Bedroom north is a Window. Grab its handle at offset 0.
+        let bi = layout.rooms.iter().position(|r| r.id == "bedroom").expect("bedroom");
+        let h0 = opening_handles(&layout, &positions)
+            .into_iter()
+            .find(|h| h.room_index == bi && h.wall_index == 0)
+            .expect("bedroom north window handle present");
+        // Handle sits on the north wall line (its Z equals the wall's Z).
+        assert!((h0.base_center.z - h0.wall_start.z).abs() < 1e-4, "handle on the wall line");
+
+        // Slide it +0.7 m and the handle's X must advance by 0.7 (same wall, same Z).
+        layout.rooms[bi].walls.offsets[0] = 0.7;
+        let positions = resolve_positions(&layout);
+        let h1 = opening_handles(&layout, &positions)
+            .into_iter()
+            .find(|h| h.room_index == bi && h.wall_index == 0)
+            .expect("handle still present after offset");
+        assert!((h1.base_center.x - h0.base_center.x - 0.7).abs() < 1e-3,
+            "north window handle slid +0.7 m along +X (was {}, now {})", h0.base_center.x, h1.base_center.x);
+        assert!((h1.base_center.z - h0.base_center.z).abs() < 1e-4, "stayed on the wall line");
+    }
+
     /// Generating from the shipped layout must produce every construction-mode mesh family,
     /// proving the special walls actually emit geometry (mirror, windows, trim, ceiling).
     #[test]
@@ -1358,7 +1533,11 @@ mod tests {
     #[test]
     fn layout_serializes_and_round_trips() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let layout = load_homestead_layout(&dir).expect("layout parses");
+        let mut layout = load_homestead_layout(&dir).expect("layout parses");
+        // A non-zero slide-gizmo offset must survive the round-trip (v0.468).
+        if let Some(b) = layout.rooms.iter_mut().find(|r| r.id == "bedroom") {
+            b.walls.offsets[0] = 0.7; // slide the north window 0.7 m
+        }
         let cfg = ron::ser::PrettyConfig::new().depth_limit(4);
         let text = ron::ser::to_string_pretty(&layout, cfg).expect("serializes to RON");
         let back: HomesteadLayout = ron::from_str(&text).expect("re-parses");
@@ -1367,6 +1546,8 @@ mod tests {
         assert_eq!(w.walls.west, WallKind::Mirror);
         let r = back.rooms.iter().find(|r| r.id == "respawner").expect("respawner");
         assert_eq!(r.walls.north, WallKind::Solid);
+        let b = back.rooms.iter().find(|r| r.id == "bedroom").expect("bedroom");
+        assert!((b.walls.offsets[0] - 0.7).abs() < 1e-6, "offset survives round-trip");
         assert!((back.default_wall_height - layout.default_wall_height).abs() < 1e-6);
     }
 

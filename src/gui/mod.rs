@@ -819,6 +819,8 @@ pub struct RoomBounds {
 pub struct ConstructionRoom {
     pub id: String,
     pub walls: [crate::ship::fibonacci::WallKind; 4], // N, S, W, E
+    /// Per-wall opening slide offset (metres along the wall, signed; 0 = centred). (v0.468)
+    pub wall_offsets: [f32; 4],
     pub position: Option<[f32; 3]>,
     pub dimensions: [f32; 3], // (width_x, height_y, depth_z) metres
     pub material_type: u32,

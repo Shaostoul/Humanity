@@ -21,7 +21,9 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .default_width(190.0)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
-            ui.label(RichText::new("Rooms").size(theme.font_size_body).strong().color(theme.text_primary()));
+            // The top-level container is a STRUCTURE (a home / mall / ship / base); it contains
+            // Rooms. (terminology locked with the operator, v0.468.)
+            ui.label(RichText::new("Structure").size(theme.font_size_body).strong().color(theme.text_primary()));
             ui.label(RichText::new("Home").size(theme.font_size_small).color(theme.text_muted()));
             ui.add_space(theme.spacing_sm);
             egui::ScrollArea::vertical().id_salt("rooms_tree").show(ui, |ui| {
@@ -62,6 +64,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     state.construction_rooms.push(crate::gui::ConstructionRoom {
                         id,
                         walls: [WallKind::Auto; 4],
+                        wall_offsets: [0.0; 4],
                         position: Some([0.0, 0.0, 0.0]),
                         dimensions: [4.0, h, 4.0],
                         material_type: 1,
@@ -108,7 +111,12 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     let name = state.construction_rooms[ri].id.clone();
                     ui.label(RichText::new(name).strong().size(theme.font_size_body).color(theme.text_primary()));
                     ui.add_space(theme.spacing_xs);
-                    // Per-wall kinds.
+                    ui.label(
+                        RichText::new("Doors/windows: drag the glowing handle in the view to slide, or set it here.")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                    // Per-wall kinds (+ a slide offset for Door/Window walls, the gizmo's value).
                     for wi in 0..4 {
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(WALL_LABELS[wi]).size(theme.font_size_small).color(theme.text_muted()));
@@ -122,6 +130,18 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                         }
                                     }
                                 });
+                            // Slide offset (metres along the wall, 0 = centred) for openings only.
+                            if matches!(state.construction_rooms[ri].walls[wi], WallKind::Door | WallKind::Window) {
+                                ui.label(RichText::new("slide").size(theme.font_size_small).color(theme.text_muted()));
+                                let off = &mut state.construction_rooms[ri].wall_offsets[wi];
+                                if ui.add(egui::DragValue::new(off).speed(0.05).suffix(" m").range(-40.0..=40.0)).changed() {
+                                    state.construction_dirty = true;
+                                }
+                                if *off != 0.0 && ui.small_button("Center").clicked() {
+                                    state.construction_rooms[ri].wall_offsets[wi] = 0.0;
+                                    state.construction_dirty = true;
+                                }
+                            }
                         });
                     }
                     // Position: pin (explicit) vs computed.

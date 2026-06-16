@@ -177,11 +177,17 @@ Both fit the layered model: per-level wall graphs at the boundary layer, and flo
 A door opening gains a position-along-the-wall parameter (0..1 of the span, or metres from a corner). The current centre-on-the-shared-edge becomes the DEFAULT, overridden by dragging the door in the canvas. This lives on the boundary `WallSpec` (`openings: [{offset, width, height, sill, kind}]`).
 
 ### Build order for this UX layer
-1. Top-down floor-plan canvas: move + resize rooms in 2D, live rebuild. The intuitive editor.
-2. Level selector + STACKED-room multistory (place rooms on floors; the home stacks in Y).
-3. Door positioning (drag the door along a wall; the `offset` parameter).
+1. Top-down floor-plan canvas: move + resize rooms in 2D, live rebuild. The intuitive editor. **SHIPPED v0.463 (canvas) + v0.466 (3D room grab) + v0.467 (3-column layout).**
+2. Level selector + STACKED-room multistory (place rooms on floors; the home stacks in Y). **NEXT (the big multistory unlock).**
+3. Door positioning (drag the door along a wall; the `offset` parameter). **SHIPPED v0.468 (slide gizmo).**
 4. MULTI-LEVEL rooms (internal floor slabs + vertical circulation) -- the mall.
 This sits ON TOP of the existing layout data (no data thrown away); the number panel stays for numeric fine-tuning.
+
+### Door/window slide gizmo (SHIPPED v0.468)
+The non-centred-door parameter landed as `WallSet.offsets: [f32; 4]` (signed metres along each wall N/S/W/E; `#[serde(default)]` so old RON loads as `[0;4]`; only honoured for explicit `Door`/`Window` walls). `build_meshes` adds the offset to the opening's `center_t` (a `Door`'s base is still the nearest passable shared edge, so a pinned door stays in its doorway until you slide it; a `Window`'s base is the wall centre), clamped to keep the opening inside the wall. The editor exposes it two ways, both writing the same `gui_state.construction_rooms[..].wall_offsets`:
+- **3D handle (the gizmo the operator asked for):** `fibonacci::opening_handles(layout, positions)` mirrors the `center_t` maths (incl. the door base + the "neighbour owns the shared wall" skip) and returns one `OpeningHandle` per movable opening on the SELECTED room. `lib.rs` draws each as a small glowing accent cube at the opening's base centre (transparent pass) and, on left-click, hit-tests the handles BEFORE the room-grab (ray vs the floor plane, forgiving pick radius). A grabbed handle (`ConstructionGizmoGrab`) slides along its captured wall line: project the cursor's floor-hit onto the wall axis, `offset = projected_t - base_t`, snapped to 10 cm, clamped. Drag precedence: a held handle suppresses the room grab.
+- **Numeric "slide" field** in the details pane per Door/Window wall (+ a "Center" reset), for keyboard-precise placement.
+Locked by `fibonacci::tests::opening_handles_track_wall_offset` (a +0.7 m offset slides the bedroom's north window handle +0.7 m along +X, staying on the wall line) and the round-trip test asserting `offsets` survives RON serialize/load.
 
 ---
 
