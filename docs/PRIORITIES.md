@@ -11,22 +11,22 @@
 
 ## Active focus
 
-> **P0 (verified 2026-06-16) -- DESKTOP AUTO-UPDATE IS SILENTLY DEAD.** No release from v0.421.0
-> through v0.469.0 carries a `release-manifest.json.sig.json` (verified via `gh release view`), so
-> the v0.421+ updater (enforce mode) has offered NOTHING for ~48 releases. **One operator-only fix:**
-> `export HUMANITY_SIGNING_PASSPHRASE=... && just sign-release v0.469.0` (signing the latest carries
-> all prior changes). Then diagnose why signing lapsed. A solo `scripts/check-release-signing.js`
-> (wired into `just status`) now surfaces this so it can never recur silently.
+> **The strategic, public planning doc is now [ROADMAP.md](ROADMAP.md)** (it renders to the app +
+> website via `data/roadmap.json`). PRIORITIES stays the tactical "very next thing"; the roadmap is
+> "where we are going" + the full themed backlog. Keep them consistent.
 >
-> **TODAY'S PLAN (2026-06-16):** full survey-synthesized menu in
-> [docs/history/2026-06-16-rest-of-day-plan.md](history/2026-06-16-rest-of-day-plan.md). Top picks:
-> (1) sign v0.469.0 [operator]; (2) multiplayer co-presence scoping ->
-> [docs/design/first-playable.md](design/first-playable.md) -- the relay game world is LIVE but the
-> client never wires `NetSyncSystem` (the #1 near-term goal, never actually connected); (3) the
-> pure-Rust construction structural-solver de-risk spike; (4) wire the dead web a11y/i18n/glossary
-> modules (loaded by 0 of 38 pages while the landing promises them); (5) Battery state-of-charge
-> (live-home-sim 1b). Multistory's HARD prereq: make `find_shared_edges` (fibonacci.rs:819) Y-aware
-> before any level stacking, or rooms phantom-cut doors into floors.
+> **Signing P0 RESOLVED (2026-06-16):** desktop auto-update was dead since v0.421 (no signed
+> release); the operator signed v0.470.0 and `just check-signing` confirms it green. Every release
+> from v0.421 onward MUST be signed; `scripts/check-release-signing.js` (in `just status`) flags it.
+>
+> **SHIPPED 2026-06-16:** website parity (v0.469.x), the security patch + signing pipeline verified
+> (v0.470.0), and the multistory editor + structural de-risk spike + web accessibility (v0.471.0).
+> **NEXT (top of the queue): multiplayer co-presence + the character selector** -- the relay game
+> world is LIVE but the client never wires `NetSyncSystem`
+> ([first-playable.md](design/first-playable.md)); the character/server model (self-custodial local
+> vs server-authoritative, open vs closed Battle.net) + the Play launcher are designed in
+> [characters-and-servers.md](design/characters-and-servers.md). Then First Playable / live-home-sim
+> depth (battery SoC), and GitHub branch protection.
 
 **ACTIVE 2026-06-15: CONSTRUCTION EDITOR arc (operator-directed detour, paused the LIVE HOME
 SIM arc below).** The operator is building the in-app homestead editor by rapid screenshot

@@ -36,15 +36,18 @@ this hour" detail lives in the maintainers' journal
 
 The active queue, strict-ranked. The top item is what is being worked on next.
 
-1. `[building]` **Documentation refactor.** Audience-first structure (separate clear
-   paths for users, admins, AI, and contributors), an em-dash-free content sweep,
-   and this roadmap becoming the one canonical to-do list. In progress this session.
-2. `[next]` **Next gameplay arc (operator's pick):** either the garden plot-types
-   registry (soil / sand / pots / trays / direct-sow as data-driven growing methods)
-   or the First Playable arc (walk-up crafting stations, a 3D heads-up vitals
-   display, death and respawn, a guided first day).
-3. `[next]` **Security sprint tail.** Sign each published release; ship the
-   member-directory opt-out toggle; enable GitHub branch protection.
+1. `[next]` **Multiplayer co-presence + the character selector.** Two players sharing
+   the world on the VPS (the relay game world is live; the native client wiring is
+   the gap, scoped in `docs/design/first-playable.md`), plus the character model:
+   self-custodial LOCAL characters vs server-authoritative SERVER characters, with
+   servers declaring open / closed / hybrid policy (Diablo II open vs closed
+   Battle.net). The Play button becomes a launcher (character select, homes, a default
+   so you can skip it). Full design in `docs/design/characters-and-servers.md`.
+2. `[next]` **First Playable / live home sim depth.** Walk-up stations, a 3D vitals
+   HUD, battery state-of-charge so the day/night power swing bites, death and respawn,
+   a guided first day.
+3. `[next]` **GitHub branch + tag protection on `main`** (deploy auto-pushes to the live
+   relay with no approval gate) and the backup-restore drill.
 
 ---
 
@@ -79,6 +82,12 @@ automating the real thing.
 - `[future]` Real-hardware control layer: bind a home to real monitoring and
   automation hardware (for example real aeroponics, solar, water), the north star
   where the game becomes the control panel for your actual homestead.
+- `[future]` Open sensor protocol: a simple JSON-over-HTTP spec so a 5-dollar ESP32
+  feeds your real pH / EC / temperature / water readings into the live home sim, the
+  exact moment the game becomes the control panel for your actual homestead.
+- `[future]` Disaster Mode: aim the disaster / weather / hydrology / atmosphere systems
+  at real preparedness, a location-personalized prep plan computed from the codex and
+  your battery days-of-autonomy.
 - `[future]` Parts-list-to-real: for every buildable system, a refined bill of
   materials you can 3D-print, buy, or trade for.
 
@@ -102,8 +111,15 @@ server operator cannot read your private messages.
   your machine (v0.418 to v0.421).
 - `[next]` Member-directory opt-out: a privacy setting so you can join a server
   without appearing in its public member list, with a user-facing toggle.
+- `[planned]` Self-custodial vs server-authoritative characters: your identity and look
+  are always yours; a server holds your in-world progression only when you choose its
+  closed realm (open vs closed Battle.net). Designed in
+  `docs/design/characters-and-servers.md`.
 - `[future]` Multi-device key sync: authorize a second device by QR or short code over
   an encrypted channel (part of the device mesh).
+- `[future]` Skill Passport: a portable, offline-verifiable, post-quantum proof of
+  competence (W3C-style credential, but federated and PQ), direct infrastructure for
+  the unbanked and undocumented.
 - `[future]` STARK selective disclosure: prove a fact about yourself without revealing
   the underlying data.
 
@@ -147,6 +163,13 @@ constitution rather than a promise.
 - `[planned]` Native trade UI completion (the page exists; the trade events need
   wiring).
 - `[future]` Learning paths: complete a module, get peer-endorsed, unlock the next.
+- `[future]` Time-Bank: log and exchange hours of help as the on-ramp economy before
+  anyone has money, so the poorest can participate from day one with skills and time.
+- `[future]` Build-It-For-Real: a structured bill of materials with local sourcing and
+  a neighbor group-buy button on every survival system, because poverty is often a
+  minimum-order-quantity problem, not a knowledge one.
+- `[future]` Mission Pulse: a federated, privacy-preserving, aggregate-only impact
+  dashboard (each server publishes signed counts, no per-user data leaves home).
 - `[future]` AI agent governance: evolve Article 14 of the Accord from documented
   intent into enforced rules with appeals as more AI participants join.
 
@@ -160,10 +183,25 @@ The game teaches the homestead; the homestead is real.
   ship-at-origin starting world.
 - `[done]` The full production, survival, and progression sandbox (the gameplay-loop
   arc, v0.329 to v0.342).
-- `[building]` UI consolidation: a slim top navigation, universal reusable widgets,
-  the Humanity Mission Dashboard, and the in-app Library.
+- `[done]` UI consolidation: a slim top navigation, universal reusable widgets, the
+  Humanity Mission Dashboard, and the in-app Library.
+- `[done]` In-app construction editor: build the homestead from inside the app: a
+  top-down plan, a 3D astral camera + room grab, a three-column editor, doors and
+  windows as placed objects you add / move / resize on still-solid walls, and
+  multistory with level-aware adjacency so stacked rooms never cut doors into floors
+  (v0.463 to v0.471).
+- `[done]` Structural de-risk spike: a pure node-beam solver (load routing, cascade
+  failure, disconnected-island detection) so the structural-integrity pass is proven
+  before it is wired to geometry (v0.471).
+- `[next]` Multiplayer co-presence + the character / server model: two players in one
+  world on the VPS; self-custodial local characters vs server-authoritative ones (open
+  vs closed Battle.net); the Play launcher with character select, homes, and a default.
 - `[planned]` First Playable: walk-up stations, a 3D vitals HUD, and a guided first
   day (shared with the survival theme above).
+- `[future]` Generation-Ship co-op: a shared life-support habitat where selfishness
+  literally collapses the colony, the first mission-shaped multiplayer scenario.
+- `[future]` AI Mentor "Sage": a first-class NPC citizen with its own identity and a
+  scripted-fallback decision tree (ships with zero LLM dependency, pluggable later).
 - `[future]` Game-world depth: more content, characters, and deeper coupled systems.
 - `[future]` Real-terrain world generation from real elevation data (USGS / SRTM /
   Copernicus) keyed to a place's latitude and longitude.
@@ -174,7 +212,9 @@ The game teaches the homestead; the homestead is real.
 The mission requires that anyone, of any age or background or ability, can use this.
 This layer is not optional.
 
-- `[done]` Accessibility modes: high-contrast, colorblind, and reduced-motion.
+- `[done]` Accessibility modes: high-contrast, colorblind, and reduced-motion (now
+  wired and applying on every WEB page too, not only native, with the Settings toggles
+  actually taking effect, v0.471).
 - `[done]` Glossary overlay on the web (150-plus plain-language term definitions).
 - `[done]` Localization in 5 languages (English, Spanish, French, Japanese, Chinese).
 - `[done]` The Mission Dashboard: makes "what I am doing" and "what we are doing
@@ -187,6 +227,11 @@ This layer is not optional.
   Swahili, and more.
 - `[planned]` A native glossary widget to match the web.
 - `[planned]` A full WCAG 2.1 AA accessibility audit with fixes.
+- `[future]` Schema-driven in-app "Make-a-Thing" editor: a form generated from each
+  data schema so a teacher anywhere can add local crops, recipes, and lessons with no
+  code (the keystone for community content and against founder-dependence).
+- `[future]` Offline Survival Codex: the chemistry / biome / water-and-nutrient corpus
+  bundled, printable, and with built-in calculators that work with no internet.
 
 ## Infrastructure and sovereignty
 
@@ -201,12 +246,24 @@ Every operator gets the same sovereignty tools, not just the original.
   and per-author submission quotas (the security sprint, v0.420 to v0.422).
 - `[done]` Distribution: GitHub plus a self-hosted Forgejo mirror plus a BitTorrent
   seeder.
+- `[done]` Release-signing pipeline verified end to end (a release dual-signed
+  Ed25519 + Dilithium3, the fail-closed updater offering it) plus a `check-signing`
+  health gate so an unsigned latest release can never again silently freeze auto-update
+  (v0.470).
+- `[done]` First dependency security audit (`cargo audit` on the cadence): three TLS
+  certificate-validation advisories patched via a rustls-webpki upgrade (v0.470).
 - `[building]` In-app ops console: bring every admin action into the app (the GUI-first
   mandate), paying down the CLI-only debt.
 - `[planned]` Device mesh: a "My Devices" dashboard, backup designation, restore flow,
   and direct LAN sync, so your own devices back each other up.
-- `[planned]` Litestream continuous replication (roughly 1-minute recovery point).
-- `[planned]` GitHub branch protection and required signed commits on `main`.
+- `[planned]` Litestream continuous replication (roughly 1-minute recovery point) and
+  a quarterly backup-restore drill.
+- `[planned]` GitHub branch + tag protection and required signed commits on `main`
+  (deploy auto-pushes to the live relay today with no approval gate).
+- `[future]` FederationBundle: one signed-object bundle that travels over any medium
+  (USB, QR, LoRa, sneakernet), so identity and knowledge move with no internet at all.
+- `[future]` Continuity Capsule: self-sovereign succession via a Shamir-split seed
+  across trusted contacts, for every citizen, not just the operator.
 - `[future]` LoRa mesh radio integration (needs hardware on hand).
 - `[future]` Distribution beyond GitHub: Codeberg, Software Heritage, a WinGet
   manifest, and IPFS.
@@ -217,6 +274,17 @@ Every operator gets the same sovereignty tools, not just the original.
 
 Newest first. For older history see `docs/history/` and `git log`.
 
+- `v0.471` Multistory editor (level-aware adjacency), the structural de-risk spike, and
+  the web accessibility modes wired into every page.
+- `v0.470` First `cargo audit` on the cadence (TLS advisories patched) and the
+  release-signing pipeline verified end to end with a `check-signing` health gate.
+- `v0.469` Website parity: the landing became the app Mission Dashboard, the header
+  mirrors the app nav, the service worker went network-first, plus openings as placed
+  objects in the construction editor.
+- `v0.463 to v0.468` The construction editor arc: top-down plan, 3D astral camera and
+  room grab, the three-column editor, and the door/window slide gizmo.
+- `v0.437` Live home sim, increment 1: machines spawn as ECS entities and a live power
+  budget (solar + electrical) drives a HUD readout.
 - `v0.422` Vault-sync anti-replay; release signing activated and independently verified.
 - `v0.421` Release signing ACTIVATED: hybrid Ed25519 + Dilithium3, fail-closed updater.
 - `v0.420` Security sprint: relay rate limits, per-author object quotas, gossip-flood

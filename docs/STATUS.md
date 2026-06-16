@@ -2,11 +2,12 @@
 
 > **Last updated:** 2026-06-16 | **Version:** v0.469.3 (construction editor arc v0.463-469: 3D room grab, 3-column layout, openings as placed objects + garden-wall regen fix; website parity v0.469.1-3: landing = app Mission Dashboard, header = app nav, SW network-first; inventory/garden UI overhaul on universal expandable_row v0.400-414; homes-as-profiles + aeroponic towers + seed economy v0.379-399)
 >
-> **⚠️ KNOWN GAPS surfaced 2026-06-16 (see docs/history/2026-06-16-rest-of-day-plan.md):** desktop
-> auto-update is dead (no signed release since v0.421 -- operator must `just sign-release`);
-> multiplayer co-presence is NOT wired on the client (relay game world is live, `NetSyncSystem` is
-> never instantiated -- see docs/design/first-playable.md); web a11y/i18n/glossary modules are loaded
-> by 0 of 38 pages despite the landing promising them.
+> **⚠️ KNOWN GAPS (the strategic backlog lives in [ROADMAP.md](ROADMAP.md)):** multiplayer
+> co-presence is NOT wired on the client (the relay game world is live, but `NetSyncSystem` is never
+> instantiated -- see [docs/design/first-playable.md](design/first-playable.md) +
+> [characters-and-servers.md](design/characters-and-servers.md)). RESOLVED 2026-06-16: desktop
+> auto-update (v0.470.0 now signed) and the web a11y/i18n/glossary modules (now wired into every
+> page, v0.471.0).
 >
 > This is a **feature inventory**, what is built, partial, or planned.
 > Update this file every time features are added or status changes.

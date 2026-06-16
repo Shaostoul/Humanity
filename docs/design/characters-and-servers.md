@@ -80,6 +80,35 @@ Native `showroom.rs` is canonical (Rust-first); the web mirror reuses `renderSer
 (`web/chat/chat-ui.js:1368-1488`, which already fetches `/api/federation/servers` and badges
 `trust_tier` -- the policy badge slots beside it).
 
+## The Play launcher + offline editing (operator additions, 2026-06-16)
+The **Play button becomes the launcher screen** (not a straight drop into FPS): it opens character
+select, your homes, and an Enter-World button. Concretely:
+- **Section order, top to bottom:** HOMES, then LOCAL / open-net characters, then closed-net
+  characters/homes. (Homes are first because you pick where to live, then who you are there.)
+- **Default checkbox.** Each character/home has a "default" checkbox. When a default is set, Play
+  skips the launcher and drops you straight into the world with it ("so I don't always have to go
+  through character select"); a "manage / pick another" affordance stays on the launcher. With no
+  default, Play shows the launcher to choose. Stored as a local pref (a `default_save` slot name),
+  honored by the Play handler in `lib.rs`.
+- **Save / character editor lives in the menu.** You can customize how you look any time in OFFLINE
+  mode -- the appearance/wardrobe editor (today's `showroom.rs` `draw_appearance`/`draw_wardrobe`)
+  is reachable from the menu, not just at first creation. There is no reason offline customization
+  should be gated.
+- **Changing station (anti-exploit, server-side, optional).** On a SERVER, changing your look may
+  optionally require visiting a "changing station" (a placeable in-world entity/zone), so a player
+  cannot swap outfits mid-expedition to dodge a penalty or gain an advantage. This is a per-server
+  rule: open/casual servers allow free changes; a competitive/closed server gates cosmetic changes
+  to the station. It composes the existing "closed server is sole writer + accepts only intents"
+  model -- a `change_appearance` intent is rejected unless the player entity is within a
+  changing-station zone the relay knows about. Cosmetics-while-offline are always free.
+- **Multi-save is the precondition.** The save infra exists (`persistence::list_saves`,
+  `save_world`/`load_world`; `save_load::{load_active_home,save_active_home}`) but the Play flow
+  uses a single active home today and `showroom.rs::draw_character_select:79` is a single disabled
+  stub. The first build increment is: enumerate `list_saves`, render the three sections, the default
+  checkbox, load-the-selected-into-active, and the Play-skips-when-default flow -- all OFFLINE and
+  fully verifiable before any networking. The SERVER sections stay placeholders until co-presence
+  (first-playable.md) lands.
+
 ## Data-model changes (grounded; mostly additive)
 - **`character_v1` signed object** via `ObjectBuilder` (`src/relay/core/object.rs`): payload =
   `{schema:'character_v1', character_name, appearance, outfit, design, home_layout_ref?, updated_at}`;
