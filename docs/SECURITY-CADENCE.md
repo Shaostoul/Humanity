@@ -37,6 +37,7 @@ cd web && npm audit --omit=dev 2>&1 | tail -20  # JS deps (when web has package.
 | Date | `cargo audit` | `npm audit` | Notes |
 |---|---|---|---|
 | 2026-05-20 | _scheduled_ | _scheduled_ | First run pending. Set calendar reminder. |
+| 2026-06-16 | 4 vuln -> **1 after fix** | not run (no package.json) | First actual run. **FIXED:** rustls-webpki 0.103.10 -> 0.103.13 cleared 3 TLS cert-validation advisories (RUSTSEC-2026-0098/0099/0104, incl. a reachable CRL-parsing panic) via `cargo update -p rustls-webpki`; both feature sets compile + 437 lib tests pass. **REMAINING (no upstream fix, accept+monitor):** rsa 0.9.10 RUSTSEC-2023-0071 (Marvin timing key-recovery) -- transitive via web-push-native -> jwt-simple -> superboring; the project uses NO RSA keys (identity = Ed25519/Dilithium/Kyber), so it is not exercised for our key material. Low exposure. Warnings (unmaintained/yanked, not vulns): core2, instant, paste, rand-unsound (only with a custom logger using `rand::rng()` -- not our usage). Re-audit when web-push-native updates or a fixed rsa ships. |
 
 ## 2. Pre-release smoke test: every minor release (0.X.0)
 
