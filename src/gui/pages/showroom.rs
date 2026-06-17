@@ -17,6 +17,8 @@ const SLOTS: [&str; 6] = ["head", "chest", "legs", "feet", "hands", "back"];
 const NEW_HOMESTEAD: &str = "My Homestead";
 
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
+    // Land any finished server-info fetch into the cache (v0.478).
+    drain_server_info(state);
     // mode 0 (Play) is the UNIFIED launcher: the left pane lists homes/characters
     // AND servers, and the right pane shows the character editor OR server details
     // depending on what's selected. Modes 1/2 (in-world mirror/wardrobe) are the
@@ -231,9 +233,10 @@ fn draw_character_select(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     }
 }
 
-/// Right pane when a Server is selected in the launcher: what we know about it,
-/// plus a Connect action (multiplayer-future). Richer info (description, member
-/// count, channels) and an admin description editor land with the server browser.
+/// Right pane when a Server is selected in the launcher: live metadata fetched
+/// from the server's /api/server-info (name, description, version, members,
+/// online, accord, channels), an admin-only description editor for the server
+/// you are connected to, and a Connect action (multiplayer-future). (v0.478)
 fn draw_server_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let Some(id) = state.launcher_selected_server.clone() else {
         ui.label(RichText::new("Pick a server on the left.").color(theme.text_muted()));
@@ -244,23 +247,150 @@ fn draw_server_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         return;
     };
 
-    ui.label(RichText::new(&server.name).size(theme.font_size_heading).strong().color(theme.text_primary()));
+    // Kick off a one-time fetch of this server's info if we don't have it.
+    if !state.server_info_cache.contains_key(&id) {
+        fetch_server_info(state, &id, &server.url);
+    }
+    let info = state.server_info_cache.get(&id).cloned();
+
+    // Name: the fetched name if we have it, else the locally-known one.
+    let title = info.as_ref().map(|i| i.name.clone()).filter(|n| !n.is_empty()).unwrap_or_else(|| server.name.clone());
+    ui.label(RichText::new(title).size(theme.font_size_heading).strong().color(theme.text_primary()));
     ui.add_space(theme.spacing_xs);
+
     detail_row(ui, theme, "Address", &server.url);
     detail_row(ui, theme, "Status", if server.connected { "Connected" } else { "Not connected" });
-    detail_row(ui, theme, "Channels", &server.channels.len().to_string());
-    ui.add_space(theme.spacing_sm);
-    hint(
-        ui, theme,
-        "Joining a server with your character arrives with multiplayer. Server descriptions, \
-         member counts, and an admin description editor land with the full server browser.",
-    );
+
+    match &info {
+        None => {
+            ui.add_space(theme.spacing_xs);
+            hint(ui, theme, "Loading server info...");
+        }
+        Some(i) => {
+            ui.add_space(theme.spacing_xs);
+            if !i.description.trim().is_empty() {
+                ui.label(RichText::new(&i.description).size(theme.font_size_small).color(theme.text_secondary()));
+                ui.add_space(theme.spacing_xs);
+            }
+            if !i.version.is_empty() { detail_row(ui, theme, "Version", &i.version); }
+            detail_row(ui, theme, "Members", &i.member_count.to_string());
+            detail_row(ui, theme, "Online now", &i.users_online.to_string());
+            detail_row(ui, theme, "Channels", &i.channels.len().to_string());
+            detail_row(ui, theme, "Accord", if i.accord_compliant { "Compliant" } else { "Not declared" });
+        }
+    }
+
+    // Admin description editor: only for the server you are CONNECTED to (the one
+    // your authenticated socket can update) AND only if you are admin/owner. The
+    // relay is the authoritative gate; this is defense-in-depth.
+    let connected_here = !state.server_url.is_empty()
+        && server.url.trim_end_matches('/') == state.server_url.trim_end_matches('/');
+    if connected_here && current_user_is_admin(state) {
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        widgets::section_header(ui, theme, "Server description");
+        hint(ui, theme, "Shown to everyone who views this server. Admins only.");
+        // Reload the draft from the fetched description when switching servers.
+        // Only mark it synced once the info has actually loaded, so the editor
+        // doesn't lock in an empty draft while the fetch is still in flight.
+        if state.server_desc_draft_for != id {
+            if let Some(i) = &info {
+                state.server_desc_draft = i.description.clone();
+                state.server_desc_draft_for = id.clone();
+                state.server_desc_status.clear();
+            } else {
+                state.server_desc_draft.clear();
+            }
+        }
+        ui.add(egui::TextEdit::multiline(&mut state.server_desc_draft).desired_rows(3).desired_width(f32::INFINITY));
+        ui.add_space(theme.spacing_xs);
+        if widgets::Button::primary("Save description").show(ui, theme) {
+            let desc = state.server_desc_draft.clone();
+            send_server_description(state, &desc);
+            // Optimistically reflect it locally so the pane updates immediately.
+            if let Some(i) = state.server_info_cache.get_mut(&id) {
+                i.description = desc;
+            }
+            state.server_desc_status = "Saved. The new description is live.".to_string();
+        }
+        if !state.server_desc_status.is_empty() {
+            ui.label(RichText::new(state.server_desc_status.clone()).size(theme.font_size_small).color(theme.accent()));
+        }
+    }
+
     ui.add_space(theme.spacing_md);
     ui.add_enabled(
         false,
         egui::Button::new(RichText::new("Connect").size(theme.font_size_body).strong()),
     )
     .on_disabled_hover_text("Joining servers in-game arrives with multiplayer.");
+}
+
+/// Is the current user an admin/owner (from the chat user list)? Defense-in-depth
+/// only; the relay is authoritative. Mirrors game_admin's gate.
+fn current_user_is_admin(state: &GuiState) -> bool {
+    state
+        .chat_users
+        .iter()
+        .find(|u| u.public_key == state.profile_public_key)
+        .map(|u| matches!(u.role.as_str(), "admin" | "owner"))
+        .unwrap_or(false)
+}
+
+/// Spawn a background blocking fetch of GET {url}/api/server-info. Stores the
+/// result channel in state; drain_server_info lands it into the cache. No-op if
+/// already cached or a fetch for this id is already in flight.
+fn fetch_server_info(state: &mut GuiState, server_id: &str, url: &str) {
+    if state.server_info_cache.contains_key(server_id) {
+        return;
+    }
+    if state.server_info_loader.as_ref().map_or(false, |(id, _)| id == server_id) {
+        return;
+    }
+    let api = format!("{}/api/server-info", url.trim_end_matches('/'));
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = (|| -> Result<crate::gui::ServerInfo, String> {
+            let resp = ureq::get(&api).call().map_err(|e| e.to_string())?;
+            let body = resp.into_string().map_err(|e| e.to_string())?;
+            serde_json::from_str::<crate::gui::ServerInfo>(&body).map_err(|e| e.to_string())
+        })();
+        let _ = tx.send(result);
+    });
+    state.server_info_loader = Some((server_id.to_string(), rx));
+}
+
+/// Land a finished server-info fetch into the cache. Called once per frame.
+fn drain_server_info(state: &mut GuiState) {
+    let mut done: Option<(String, Result<crate::gui::ServerInfo, String>)> = None;
+    if let Some((id, rx)) = &state.server_info_loader {
+        match rx.try_recv() {
+            Ok(res) => done = Some((id.clone(), res)),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                done = Some((id.clone(), Err("fetch worker exited".to_string())));
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+        }
+    }
+    if let Some((id, res)) = done {
+        state.server_info_loader = None;
+        if let Ok(info) = res {
+            state.server_info_cache.insert(id, info);
+        }
+        // On error we just leave it uncached; a later reselect retries.
+    }
+}
+
+/// Send a partial server_settings_update carrying ONLY the description. The
+/// relay treats every other field as None (unchanged), so this never clobbers
+/// other settings. Admin-gated server-side.
+fn send_server_description(state: &GuiState, desc: &str) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            let msg = serde_json::json!({ "type": "server_settings_update", "server_description": desc });
+            client.send(&msg.to_string());
+        }
+    }
 }
 
 /// A small section header used by the launcher left pane.

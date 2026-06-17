@@ -99,11 +99,16 @@ Native `showroom.rs` is canonical (Rust-first); the web mirror reuses `renderSer
 >   appearance/wardrobe editor for a selected character (the existing "Enter your home" confirm,
 >   relabeled "Enter World") OR server details when a server is selected. Rich in-page contextual help
 >   under every section.
-> - **Deferred (tracked):** the server detail pane currently shows name/url/status/channels from the
->   local `chat_servers`; the richer `GET /api/server-info` fetch (description, member count) + the
->   admin-editable server description (a `server_settings.server_description` column reusing the
->   existing admin-gated `server_settings_update` path) + Connect are the next increment. The
->   changing-station gate + `character_v1` signed object below remain future work.
+> - **Server detail + admin description editor (SHIPPED v0.478).** The server-detail pane now fetches
+>   `GET {url}/api/server-info` on a background thread (`ureq` + an `mpsc` channel drained each frame,
+>   cached per server id) and shows name, description, version, member count, online count, channel
+>   count, and Accord status. For the server you are CONNECTED to, an admin/owner also gets an inline
+>   description editor that sends a PARTIAL `server_settings_update` (only `server_description`, so it
+>   never clobbers other settings) over the authenticated chat WS. Backend: a new
+>   `server_settings.server_description` column (guarded ALTER migration) + the field on the
+>   `ServerSettingsUpdate` WS variant + `get_server_info` preferring the DB value over the boot-time
+>   `server-config.json` default. No new page, no new endpoint. Connect (joining a server in-game)
+>   remains future work, as do the changing-station gate + `character_v1` signed object below.
 
 The **Play button becomes the launcher screen** (not a straight drop into FPS): it opens character
 select, your homes, and an Enter-World button. Concretely:

@@ -884,6 +884,9 @@ pub enum RelayMessage {
         /// content-distribution feature. Optional/partial like the rest.
         #[serde(default)]
         p2p_distribution_enabled: Option<bool>,
+        /// Operator-set server description shown in the launcher (v0.478).
+        #[serde(default)]
+        server_description: Option<String>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -5452,6 +5455,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 max_uploads_per_user_mod, max_uploads_per_user_admin,
                                 require_pq_signatures,
                                 p2p_distribution_enabled,
+                                server_description,
                             } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if role != "admin" && role != "owner" {
@@ -5525,6 +5529,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     if let Some(v) = require_pq_signatures { current.require_pq_signatures = v; }
                                     // Server→Services: P2P soft gate.
                                     if let Some(v) = p2p_distribution_enabled { current.p2p_distribution_enabled = v; }
+                                    // Operator-set server description (launcher detail pane, v0.478).
+                                    // Bounded so a huge paste can't bloat the row.
+                                    if let Some(v) = server_description { current.server_description = v.chars().take(2000).collect(); }
                                     match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
                                         Ok(true) => {
                                             // Broadcast new state to everyone.

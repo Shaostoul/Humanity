@@ -970,6 +970,7 @@ impl Storage {
                 max_uploads_per_user_admin      INTEGER NOT NULL DEFAULT 500,
                 require_pq_signatures           INTEGER NOT NULL DEFAULT 0,
                 p2p_distribution_enabled        INTEGER NOT NULL DEFAULT 0,
+                server_description        TEXT    NOT NULL DEFAULT '',
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -1017,6 +1018,17 @@ impl Storage {
                 "ALTER TABLE server_settings ADD COLUMN p2p_distribution_enabled INTEGER NOT NULL DEFAULT 0;"
             )?;
             info!("Migration: added p2p_distribution_enabled (server_settings)");
+        }
+
+        // ── v0.478.0 — operator-set server description (shown in the launcher
+        // server-detail pane). DEFAULT '' so existing relays are unaffected.
+        // Guarded ALTER for pre-v0.478 databases, run before get_server_settings
+        // reads the column (the migration-ordering lesson).
+        if conn.prepare("SELECT server_description FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN server_description TEXT NOT NULL DEFAULT '';"
+            )?;
+            info!("Migration: added server_description (server_settings)");
         }
 
         // ── v0.238.0 — per-role FIFO retention ──

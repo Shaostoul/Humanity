@@ -1405,10 +1405,17 @@ pub async fn get_server_info(
         .unwrap_or_else(|| {
             std::env::var("SERVER_NAME").unwrap_or_else(|_| "Humanity Relay".to_string())
         });
-    let server_description = config.get("server_description")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+    // Prefer the admin-editable DB description (set via the launcher's server
+    // detail pane, v0.478); fall back to the boot-time server-config.json value
+    // so existing deployments keep their configured description as the default.
+    let server_description = {
+        let db_desc = state.db.get_server_settings().map(|s| s.server_description).unwrap_or_default();
+        if db_desc.trim().is_empty() {
+            config.get("server_description").and_then(|v| v.as_str()).unwrap_or("").to_string()
+        } else {
+            db_desc
+        }
+    };
     let owner_key = config.get("owner_key")
         .and_then(|v| v.as_str())
         .unwrap_or("")

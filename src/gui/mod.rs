@@ -77,6 +77,30 @@ pub enum PassphraseMode {
 }
 
 /// Which page/overlay is currently active.
+/// Server metadata fetched from a relay's GET /api/server-info, shown in the
+/// launcher's server-detail pane (v0.478). A subset of the relay's
+/// ServerInfoResponse; serde ignores fields we don't render.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct ServerInfo {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub version: String,
+    #[serde(default)]
+    pub users_online: u64,
+    #[serde(default)]
+    pub member_count: u64,
+    #[serde(default)]
+    pub accord_compliant: bool,
+    #[serde(default)]
+    pub channels: Vec<String>,
+    #[serde(default)]
+    pub owner_key: String,
+}
+
 /// Which kind of thing the unified launcher (the showroom in character-select
 /// mode) currently has selected in its left pane. Drives what the right pane
 /// shows: a character editor (Home / OpenNet / ClosedNet) or server details.
@@ -1779,6 +1803,17 @@ pub struct GuiState {
     /// Set by the picker's "Back" button to cancel the showroom and return to
     /// the menu without entering the world (lib.rs handles it, same as Esc).
     pub showroom_cancel: bool,
+    /// Cache of fetched server metadata (GET /api/server-info), keyed by server
+    /// id, for the launcher's server-detail pane (v0.478). Avoids refetching.
+    pub server_info_cache: std::collections::HashMap<String, ServerInfo>,
+    /// In-flight server-info fetch: (server id, result channel). One at a time.
+    pub server_info_loader: Option<(String, std::sync::mpsc::Receiver<Result<ServerInfo, String>>)>,
+    /// The admin's edit buffer for the connected server's description, and which
+    /// server id it currently reflects (so switching servers reloads the draft).
+    pub server_desc_draft: String,
+    pub server_desc_draft_for: String,
+    /// Transient status line under the server-description editor.
+    pub server_desc_status: String,
     /// Currently-muted users for the Server Settings → Muted users mod
     /// panel. Populated by the `muted_list` WS message (mods/admins
     /// only). v0.246.
@@ -2394,6 +2429,11 @@ impl Default for GuiState {
             launcher_selected_kind: LauncherSel::Home,
             launcher_selected_server: None,
             showroom_cancel: false,
+            server_info_cache: std::collections::HashMap::new(),
+            server_info_loader: None,
+            server_desc_draft: String::new(),
+            server_desc_draft_for: String::new(),
+            server_desc_status: String::new(),
             chat_muted_users: Vec::new(),
             chat_muted_requested: false,
             server_settings_draft: None,

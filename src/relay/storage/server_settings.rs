@@ -101,6 +101,11 @@ pub struct ServerSettings {
     /// service-control bridge. v0.262.16.
     #[serde(default)]
     pub p2p_distribution_enabled: bool,
+    /// Operator-set description of this server, shown in the launcher's
+    /// server-detail pane (v0.478). Plain text, empty by default. Editable by
+    /// admins/owners via the same admin-gated server_settings_update path.
+    #[serde(default)]
+    pub server_description: String,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -147,6 +152,7 @@ impl Default for ServerSettings {
             max_total_upload_mb: default_max_total_upload_mb(),
             require_pq_signatures: false, // operator opts in when adoption is confirmed
             p2p_distribution_enabled: false, // feature unbuilt; off until operator + feature ready
+            server_description: String::new(),
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -204,7 +210,8 @@ impl Storage {
                         max_uploads_per_user, max_total_upload_mb,
                         max_uploads_per_user_unverified, max_uploads_per_user_verified,
                         max_uploads_per_user_mod, max_uploads_per_user_admin,
-                        require_pq_signatures, p2p_distribution_enabled
+                        require_pq_signatures, p2p_distribution_enabled,
+                        COALESCE(server_description, '')
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -239,6 +246,7 @@ impl Storage {
                         max_uploads_per_user_admin: row.get(21)?,
                         require_pq_signatures: req_pq != 0,
                         p2p_distribution_enabled: p2p != 0,
+                        server_description: row.get(24)?,
                     })
                 },
             ) {
@@ -288,6 +296,7 @@ impl Storage {
                     max_uploads_per_user_admin      = ?22,
                     require_pq_signatures           = ?23,
                     p2p_distribution_enabled        = ?24,
+                    server_description              = ?25,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -318,6 +327,7 @@ impl Storage {
                     s.max_uploads_per_user_admin,
                     s.require_pq_signatures as i32,
                     s.p2p_distribution_enabled as i32,
+                    s.server_description,
                 ],
             )?;
             Ok(rows > 0)
@@ -393,6 +403,28 @@ mod tests {
         off.p2p_distribution_enabled = false;
         assert!(db.set_server_settings(&off, "admin_key").expect("set3"));
         assert!(!db.get_server_settings().expect("get3").p2p_distribution_enabled);
+    }
+
+    /// v0.478: server_description must default to "" and round-trip through
+    /// the positional set/get SQL (a shifted ?N index would silently corrupt an
+    /// adjacent column, so this also re-checks two neighbors).
+    #[test]
+    fn server_description_roundtrips_and_defaults_empty() {
+        let db = fresh_db();
+        let s = db.get_server_settings().expect("get");
+        assert_eq!(s.server_description, "", "MUST default empty");
+
+        let mut updated = s.clone();
+        updated.server_description = "A cooperative homestead world. Be kind.".to_string();
+        updated.p2p_distribution_enabled = true; // adjacent bool, catch index bleed
+        updated.max_total_upload_mb = 777;       // an int, same row
+        assert!(db.set_server_settings(&updated, "admin_key").expect("set"));
+
+        let got = db.get_server_settings().expect("get2");
+        assert_eq!(got.server_description, "A cooperative homestead world. Be kind.");
+        assert!(got.p2p_distribution_enabled, "no positional-index bleed");
+        assert_eq!(got.max_total_upload_mb, 777, "no positional-index bleed");
+        assert_eq!(got.updated_by, "admin_key");
     }
 
     /// Incident-class regression (2026-05-17 lesson): a relay whose DB
