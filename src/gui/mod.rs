@@ -1808,12 +1808,6 @@ pub struct GuiState {
     pub server_info_cache: std::collections::HashMap<String, ServerInfo>,
     /// In-flight server-info fetch: (server id, result channel). One at a time.
     pub server_info_loader: Option<(String, std::sync::mpsc::Receiver<Result<ServerInfo, String>>)>,
-    /// The admin's edit buffer for the connected server's description, and which
-    /// server id it currently reflects (so switching servers reloads the draft).
-    pub server_desc_draft: String,
-    pub server_desc_draft_for: String,
-    /// Transient status line under the server-description editor.
-    pub server_desc_status: String,
     /// Currently-muted users for the Server Settings → Muted users mod
     /// panel. Populated by the `muted_list` WS message (mods/admins
     /// only). v0.246.
@@ -2431,9 +2425,6 @@ impl Default for GuiState {
             showroom_cancel: false,
             server_info_cache: std::collections::HashMap::new(),
             server_info_loader: None,
-            server_desc_draft: String::new(),
-            server_desc_draft_for: String::new(),
-            server_desc_status: String::new(),
             chat_muted_users: Vec::new(),
             chat_muted_requested: false,
             server_settings_draft: None,

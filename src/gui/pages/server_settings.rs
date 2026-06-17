@@ -1095,6 +1095,23 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         // the Roles table in R4; the legacy server_settings.max_*_<tier>
         // columns remain only as inert back-compat shadows. What's left
         // here is genuinely server-wide.
+        // Server description (v0.478.1) — the public blurb shown to anyone who
+        // views this server in the launcher's server browser. Edited HERE (the
+        // admin's home for their server); the launcher only displays it.
+        widgets::subsection_label(ui, theme, "Server description");
+        widgets::body_hint(
+            ui, theme,
+            "A short blurb shown to anyone who views this server in the launcher's server \
+             list. Plain text. Saves with the other policy changes below.",
+        );
+        ui.add(
+            egui::TextEdit::multiline(&mut draft.server_description)
+                .desired_rows(3)
+                .desired_width(360.0)
+                .hint_text("Describe your server in a sentence or two."),
+        );
+        ui.add_space(theme.spacing_md);
+
         widgets::form_row(ui, theme, "Total upload disk cap (MB, server-wide)", |ui| {
             int_input(ui, &mut draft.max_total_upload_mb, 1, 1_000_000);
         });
@@ -1660,6 +1677,8 @@ fn send_server_settings_update(
                 "require_pq_signatures":           draft.require_pq_signatures,
                 // Server→Services (v0.262.16): P2P-distribution soft gate.
                 "p2p_distribution_enabled":        draft.p2p_distribution_enabled,
+                // Server description shown in the launcher (v0.478.1).
+                "server_description":              draft.server_description,
             });
             client.send(&msg.to_string());
             state.server_settings_status = "Server policy update sent.".into();

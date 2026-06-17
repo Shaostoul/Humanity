@@ -280,42 +280,13 @@ fn draw_server_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     }
 
-    // Admin description editor: only for the server you are CONNECTED to (the one
-    // your authenticated socket can update) AND only if you are admin/owner. The
-    // relay is the authoritative gate; this is defense-in-depth.
+    // The description is EDITED in Server Settings (the admin's home for their
+    // server), not here. For the server you are connected to, point the way.
     let connected_here = !state.server_url.is_empty()
         && server.url.trim_end_matches('/') == state.server_url.trim_end_matches('/');
-    if connected_here && current_user_is_admin(state) {
-        ui.add_space(theme.spacing_md);
-        ui.separator();
-        widgets::section_header(ui, theme, "Server description");
-        hint(ui, theme, "Shown to everyone who views this server. Admins only.");
-        // Reload the draft from the fetched description when switching servers.
-        // Only mark it synced once the info has actually loaded, so the editor
-        // doesn't lock in an empty draft while the fetch is still in flight.
-        if state.server_desc_draft_for != id {
-            if let Some(i) = &info {
-                state.server_desc_draft = i.description.clone();
-                state.server_desc_draft_for = id.clone();
-                state.server_desc_status.clear();
-            } else {
-                state.server_desc_draft.clear();
-            }
-        }
-        ui.add(egui::TextEdit::multiline(&mut state.server_desc_draft).desired_rows(3).desired_width(f32::INFINITY));
-        ui.add_space(theme.spacing_xs);
-        if widgets::Button::primary("Save description").show(ui, theme) {
-            let desc = state.server_desc_draft.clone();
-            send_server_description(state, &desc);
-            // Optimistically reflect it locally so the pane updates immediately.
-            if let Some(i) = state.server_info_cache.get_mut(&id) {
-                i.description = desc;
-            }
-            state.server_desc_status = "Saved. The new description is live.".to_string();
-        }
-        if !state.server_desc_status.is_empty() {
-            ui.label(RichText::new(state.server_desc_status.clone()).size(theme.font_size_small).color(theme.accent()));
-        }
+    if connected_here {
+        ui.add_space(theme.spacing_sm);
+        hint(ui, theme, "Admins: edit this server's description in Server Settings (server cog in Chat).");
     }
 
     ui.add_space(theme.spacing_md);
@@ -324,17 +295,6 @@ fn draw_server_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         egui::Button::new(RichText::new("Connect").size(theme.font_size_body).strong()),
     )
     .on_disabled_hover_text("Joining servers in-game arrives with multiplayer.");
-}
-
-/// Is the current user an admin/owner (from the chat user list)? Defense-in-depth
-/// only; the relay is authoritative. Mirrors game_admin's gate.
-fn current_user_is_admin(state: &GuiState) -> bool {
-    state
-        .chat_users
-        .iter()
-        .find(|u| u.public_key == state.profile_public_key)
-        .map(|u| matches!(u.role.as_str(), "admin" | "owner"))
-        .unwrap_or(false)
 }
 
 /// Spawn a background blocking fetch of GET {url}/api/server-info. Stores the
@@ -378,18 +338,6 @@ fn drain_server_info(state: &mut GuiState) {
             state.server_info_cache.insert(id, info);
         }
         // On error we just leave it uncached; a later reselect retries.
-    }
-}
-
-/// Send a partial server_settings_update carrying ONLY the description. The
-/// relay treats every other field as None (unchanged), so this never clobbers
-/// other settings. Admin-gated server-side.
-fn send_server_description(state: &GuiState, desc: &str) {
-    if let Some(ref client) = state.ws_client {
-        if client.is_connected() {
-            let msg = serde_json::json!({ "type": "server_settings_update", "server_description": desc });
-            client.send(&msg.to_string());
-        }
     }
 }
 
