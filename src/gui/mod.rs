@@ -155,10 +155,10 @@ pub enum GuiPage {
     /// Server / group administration settings page. Opened from the cog
     /// menu on the server or group row in the chat sidebar.
     ServerSettings,
-    /// Game admin page (v0.474). Game-world bans, kept STRUCTURALLY SEPARATE
-    /// from chat moderation: a game ban blocks a player from the shared 3D
-    /// world only and never touches chat. Admin-gated. See pages/game_admin.rs.
-    GameAdmin,
+    // v0.479: GuiPage::GameAdmin removed. Game-world bans folded into a
+    // subsection of Server Settings > ADMIN (game_admin::draw_section), so the
+    // nav has one fewer button. The two ban systems stay structurally separate
+    // (disjoint tables + a distinct subsection with the free-speech disclaimer).
     /// Identity hub: DID, Verifiable Credentials, trust score, AI status.
     /// Mirrors the web `/identity` page.
     Identity,

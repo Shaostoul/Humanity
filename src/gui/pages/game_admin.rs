@@ -14,89 +14,32 @@
 //! authoritative on the relay (get_role must be admin/owner); the role check
 //! here is defense-in-depth so the page renders an honest message to non-admins.
 
-use egui::{RichText, ScrollArea, Frame, Align, Layout};
-use crate::gui::{GuiState, GuiPage};
+use egui::{RichText, Layout, Align};
+use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
-pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
-        .show(ctx, |ui| {
-            ScrollArea::vertical().show(ui, |ui| {
-                draw_header(ui, theme, state);
-                ui.add_space(theme.spacing_md);
-                draw_disclaimer(ui, theme);
-                ui.add_space(theme.spacing_md);
-
-                let role = current_game_admin_role(state);
-                let is_admin = matches!(role.as_str(), "admin" | "owner");
-                if !is_admin {
-                    widgets::card(ui, theme, |ui| {
-                        ui.label(
-                            RichText::new("Admins only")
-                                .size(theme.font_size_heading)
-                                .strong()
-                                .color(theme.text_primary()),
-                        );
-                        ui.label(
-                            RichText::new(
-                                "Game moderation is limited to server admins and owners. You are \
-                                 signed in without that role, so the ban controls are hidden. The \
-                                 relay enforces this regardless of the client.",
-                            )
-                            .size(theme.font_size_small)
-                            .color(theme.text_muted()),
-                        );
-                    });
-                    return;
-                }
-
-                draw_ban_form(ui, theme, state);
-                ui.add_space(theme.spacing_md);
-                draw_ban_list(ui, theme, state);
-
-                if !state.game_admin_status.is_empty() {
-                    ui.add_space(theme.spacing_sm);
-                    ui.label(
-                        RichText::new(state.game_admin_status.clone())
-                            .size(theme.font_size_small)
-                            .color(theme.accent()),
-                    );
-                }
-            });
-        });
-}
-
-fn draw_header(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.add_space(theme.spacing_lg);
-    ui.vertical_centered(|ui| {
-        if widgets::Button::secondary("< Back")
-            .tooltip("Return to the previous page. Same as pressing Esc.")
-            .show(ui, theme)
-        {
-            if !state.pop_nav_back() {
-                state.active_page = GuiPage::Chat;
-            }
-            state.game_admin_status.clear();
-        }
-    });
+/// Draw the game-world bans admin controls as a SUBSECTION of Server Settings >
+/// ADMIN (v0.479: folded in from a dedicated page so the nav has one fewer
+/// button -- operator's fold-don't-proliferate preference). It stays a clearly
+/// DISTINCT subsection with the free-speech disclaimer, so game bans remain
+/// obviously separate from chat moderation. The caller (the ADMIN tinted_section)
+/// is already admin-gated, like the sibling "Banned users" (chat) panel.
+pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    widgets::subsection_label(ui, theme, "Game world bans");
+    draw_disclaimer(ui, theme);
+    ui.add_space(theme.spacing_sm);
+    draw_ban_form(ui, theme, state);
     ui.add_space(theme.spacing_md);
-    ui.with_layout(Layout::top_down(Align::Center), |ui| {
+    draw_ban_list(ui, theme, state);
+    if !state.game_admin_status.is_empty() {
+        ui.add_space(theme.spacing_sm);
         ui.label(
-            RichText::new("GAME ADMIN")
+            RichText::new(state.game_admin_status.clone())
                 .size(theme.font_size_small)
-                .color(theme.accent())
-                .strong(),
+                .color(theme.accent()),
         );
-        ui.add_space(theme.spacing_xs);
-        ui.label(
-            RichText::new("Game-world moderation")
-                .size(theme.font_size_title)
-                .color(theme.text_primary())
-                .strong(),
-        );
-    });
+    }
 }
 
 /// The free-speech guarantee, stated plainly + prominently. This is the whole
@@ -257,17 +200,6 @@ fn draw_ban_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         send_game_unban(state, &key);
         state.game_admin_status = "Sent a game unban; the list will refresh.".into();
     }
-}
-
-/// Current user's role from the chat user list (defense-in-depth; the relay is
-/// authoritative). Mirrors server_settings::current_user_role.
-fn current_game_admin_role(state: &GuiState) -> String {
-    state
-        .chat_users
-        .iter()
-        .find(|u| u.public_key == state.profile_public_key)
-        .map(|u| u.role.clone())
-        .unwrap_or_default()
 }
 
 /// Send a `game_ban` (admin-gated server-side; relay replies privately).

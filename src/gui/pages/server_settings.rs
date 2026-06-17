@@ -539,6 +539,17 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // ── Banned users (v0.245): list + per-row Unban ──
         draw_banned_admin(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
+        // ── Game world bans (v0.479): folded in from the former dedicated Game
+        // Admin page. STRUCTURALLY SEPARATE from the chat "Banned users" panel
+        // above (its own table + disclaimer) -- chat is a right, MMO play is a
+        // privilege. Placed adjacent so an admin manages all bans in one place,
+        // but clearly distinct.
+        super::game_admin::draw_section(ui, theme, state);
     });
 }
 
@@ -1095,9 +1106,23 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         // the Roles table in R4; the legacy server_settings.max_*_<tier>
         // columns remain only as inert back-compat shadows. What's left
         // here is genuinely server-wide.
-        // Server description (v0.478.1) — the public blurb shown to anyone who
-        // views this server in the launcher's server browser. Edited HERE (the
-        // admin's home for their server); the launcher only displays it.
+        // Server name + description (v0.478.1 / v0.480) — the server's public
+        // identity, shown in the launcher's server browser + chat. Edited HERE
+        // (the admin's home for their server).
+        widgets::subsection_label(ui, theme, "Server name");
+        widgets::body_hint(
+            ui, theme,
+            "The display name for this server. Blank keeps the configured default.",
+        );
+        widgets::form_row(ui, theme, "Name", |ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut draft.server_name)
+                    .desired_width(280.0)
+                    .hint_text("My Server"),
+            );
+        });
+        ui.add_space(theme.spacing_md);
+
         widgets::subsection_label(ui, theme, "Server description");
         widgets::body_hint(
             ui, theme,
@@ -1679,6 +1704,8 @@ fn send_server_settings_update(
                 "p2p_distribution_enabled":        draft.p2p_distribution_enabled,
                 // Server description shown in the launcher (v0.478.1).
                 "server_description":              draft.server_description,
+                // Server display name (v0.480).
+                "server_name":                    draft.server_name,
             });
             client.send(&msg.to_string());
             state.server_settings_status = "Server policy update sent.".into();

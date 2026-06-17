@@ -106,6 +106,11 @@ pub struct ServerSettings {
     /// admins/owners via the same admin-gated server_settings_update path.
     #[serde(default)]
     pub server_description: String,
+    /// Operator-set display name of this server (v0.480). Empty = fall back to
+    /// the boot-time server-config.json / SERVER_NAME env default. Editable by
+    /// admins/owners via the same admin-gated server_settings_update path.
+    #[serde(default)]
+    pub server_name: String,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -153,6 +158,7 @@ impl Default for ServerSettings {
             require_pq_signatures: false, // operator opts in when adoption is confirmed
             p2p_distribution_enabled: false, // feature unbuilt; off until operator + feature ready
             server_description: String::new(),
+            server_name: String::new(),
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -211,7 +217,7 @@ impl Storage {
                         max_uploads_per_user_unverified, max_uploads_per_user_verified,
                         max_uploads_per_user_mod, max_uploads_per_user_admin,
                         require_pq_signatures, p2p_distribution_enabled,
-                        COALESCE(server_description, '')
+                        COALESCE(server_description, ''), COALESCE(server_name, '')
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -247,6 +253,7 @@ impl Storage {
                         require_pq_signatures: req_pq != 0,
                         p2p_distribution_enabled: p2p != 0,
                         server_description: row.get(24)?,
+                        server_name: row.get(25)?,
                     })
                 },
             ) {
@@ -297,6 +304,7 @@ impl Storage {
                     require_pq_signatures           = ?23,
                     p2p_distribution_enabled        = ?24,
                     server_description              = ?25,
+                    server_name                     = ?26,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -328,6 +336,7 @@ impl Storage {
                     s.require_pq_signatures as i32,
                     s.p2p_distribution_enabled as i32,
                     s.server_description,
+                    s.server_name,
                 ],
             )?;
             Ok(rows > 0)
@@ -414,14 +423,18 @@ mod tests {
         let s = db.get_server_settings().expect("get");
         assert_eq!(s.server_description, "", "MUST default empty");
 
+        assert_eq!(s.server_name, "", "server_name MUST default empty too");
+
         let mut updated = s.clone();
         updated.server_description = "A cooperative homestead world. Be kind.".to_string();
+        updated.server_name = "United Humanity".to_string();
         updated.p2p_distribution_enabled = true; // adjacent bool, catch index bleed
         updated.max_total_upload_mb = 777;       // an int, same row
         assert!(db.set_server_settings(&updated, "admin_key").expect("set"));
 
         let got = db.get_server_settings().expect("get2");
         assert_eq!(got.server_description, "A cooperative homestead world. Be kind.");
+        assert_eq!(got.server_name, "United Humanity", "server_name must round-trip");
         assert!(got.p2p_distribution_enabled, "no positional-index bleed");
         assert_eq!(got.max_total_upload_mb, 777, "no positional-index bleed");
         assert_eq!(got.updated_by, "admin_key");

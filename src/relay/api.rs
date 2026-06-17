@@ -1399,12 +1399,19 @@ pub async fn get_server_info(
 
     // Pull server name/description from config, fall back to env then defaults.
     let config = &state.server_config;
-    let server_name = config.get("server_name")
-        .and_then(|v| v.as_str())
-        .map(String::from)
-        .unwrap_or_else(|| {
-            std::env::var("SERVER_NAME").unwrap_or_else(|_| "Humanity Relay".to_string())
-        });
+    // Prefer the admin-editable DB name (set in Server Settings, v0.480), then
+    // server-config.json, then SERVER_NAME env, then a default.
+    let db_name = state.db.get_server_settings().map(|s| s.server_name).unwrap_or_default();
+    let server_name = if !db_name.trim().is_empty() {
+        db_name
+    } else {
+        config.get("server_name")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .unwrap_or_else(|| {
+                std::env::var("SERVER_NAME").unwrap_or_else(|_| "Humanity Relay".to_string())
+            })
+    };
     // Prefer the admin-editable DB description (set via the launcher's server
     // detail pane, v0.478); fall back to the boot-time server-config.json value
     // so existing deployments keep their configured description as the default.

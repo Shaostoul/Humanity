@@ -259,23 +259,8 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     NavItem { label: "Settings", page: GuiPage::Settings, description: "" },
                 ];
                 nav_group(ui, &settings_items, theme.nav_settings(), text_muted, theme, state);
-
-                // Game Admin (v0.474): admin/owner only. Game-world moderation,
-                // kept separate from chat. Compute the gate BEFORE nav_group so
-                // the immutable borrow of state ends before nav_group's &mut.
-                let is_game_admin = state.chat_users.iter()
-                    .find(|u| u.public_key == state.profile_public_key)
-                    .map(|u| matches!(u.role.as_str(), "admin" | "owner"))
-                    .unwrap_or(false);
-                if is_game_admin {
-                    ui.add_space(6.0);
-                    separator_dot(ui, border);
-                    ui.add_space(6.0);
-                    let game_admin_items = [
-                        NavItem { label: "Game Admin", page: GuiPage::GameAdmin, description: "" },
-                    ];
-                    nav_group(ui, &game_admin_items, theme.nav_settings(), text_muted, theme, state);
-                }
+                // v0.479: the "Game Admin" nav button was removed -- game-world
+                // bans are now a subsection of Server Settings > ADMIN.
             });
         });
 

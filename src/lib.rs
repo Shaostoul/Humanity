@@ -90,7 +90,7 @@ mod native_app {
         wallet, crafting, guilds, trade, files, bugs, donate, tools, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
         browser, category_overview, settings_pages, cosmos, real,
-        platform, humanity, library, quests, homes, game_admin,
+        platform, humanity, library, quests, homes,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -5823,7 +5823,6 @@ mod native_app {
                                     GuiPage::Homes => homes::draw(ctx, &state.theme, &mut state.gui_state),
                                     // v0.415.0: Play / Resources / Onboarding arms removed with their pages.
                                     GuiPage::ServerSettings => server_settings::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::GameAdmin => game_admin::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Identity => identity::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Governance => governance::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Recovery => recovery::draw(ctx, &state.theme, &mut state.gui_state),

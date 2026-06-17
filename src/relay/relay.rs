@@ -887,6 +887,9 @@ pub enum RelayMessage {
         /// Operator-set server description shown in the launcher (v0.478).
         #[serde(default)]
         server_description: Option<String>,
+        /// Operator-set server display name (v0.480).
+        #[serde(default)]
+        server_name: Option<String>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -5456,6 +5459,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 require_pq_signatures,
                                 p2p_distribution_enabled,
                                 server_description,
+                                server_name,
                             } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if role != "admin" && role != "owner" {
@@ -5532,6 +5536,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     // Operator-set server description (launcher detail pane, v0.478).
                                     // Bounded so a huge paste can't bloat the row.
                                     if let Some(v) = server_description { current.server_description = v.chars().take(2000).collect(); }
+                                    // Operator-set server name (v0.480). Tighter cap than the description.
+                                    if let Some(v) = server_name { current.server_name = v.chars().take(120).collect(); }
                                     match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
                                         Ok(true) => {
                                             // Broadcast new state to everyone.

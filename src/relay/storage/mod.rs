@@ -971,6 +971,7 @@ impl Storage {
                 require_pq_signatures           INTEGER NOT NULL DEFAULT 0,
                 p2p_distribution_enabled        INTEGER NOT NULL DEFAULT 0,
                 server_description        TEXT    NOT NULL DEFAULT '',
+                server_name               TEXT    NOT NULL DEFAULT '',
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -1029,6 +1030,16 @@ impl Storage {
                 "ALTER TABLE server_settings ADD COLUMN server_description TEXT NOT NULL DEFAULT '';"
             )?;
             info!("Migration: added server_description (server_settings)");
+        }
+
+        // ── v0.480.0 — operator-set server NAME (shown in the launcher + chat).
+        // DEFAULT '' so existing relays keep their config/env name. Guarded ALTER
+        // before any read of the column (migration-ordering rule).
+        if conn.prepare("SELECT server_name FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN server_name TEXT NOT NULL DEFAULT '';"
+            )?;
+            info!("Migration: added server_name (server_settings)");
         }
 
         // ── v0.238.0 — per-role FIFO retention ──
