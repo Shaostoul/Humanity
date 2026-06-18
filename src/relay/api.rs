@@ -248,8 +248,14 @@ pub async fn upload_file(
     Query(query): Query<UploadQuery>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    const MAX_SIZE_DEFAULT: usize = 10 * 1024 * 1024; // 10MB for most files (images, docs)
-    const MAX_SIZE_MEDIA: usize = 20 * 1024 * 1024; // 20MB for audio/video
+    // Absolute safety backstop on a SINGLE upload (v0.482). The real per-upload
+    // limit is the uploader's per-role max_upload_mb (set in Server Settings ->
+    // Roles); this 1 GB ceiling only stops a misconfigured role from requesting
+    // something absurd. Disk exhaustion is separately prevented by the
+    // server-wide max_total_upload_mb check below. Previously a hardcoded 10/20
+    // MB wall silently capped the per-role value, so raising a role above 10/20
+    // MB did nothing -- that dead wall is removed here.
+    const HARD_UPLOAD_CEILING: usize = 1024 * 1024 * 1024; // 1 GB
     const ALLOWED_TYPES: &[&str] = &[
         "image/png", "image/jpeg", "image/gif", "image/webp",
         "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm", "audio/mp4",
@@ -379,23 +385,19 @@ pub async fn upload_file(
             (StatusCode::BAD_REQUEST, format!("Failed to read file: {e}"))
         })?;
 
-        // Determine file category and max size. The MAX_SIZE_* consts
-        // are an absolute safety CEILING; the per-role max_upload_mb
-        // (R4, v0.262) is the tunable cap — effective = min(the two).
-        // NOTE: per-role/per-tier upload size was NEVER enforced
-        // server-side before R4 (only the hard const) — closing that
-        // latent gap is the no-bandaid part of this change.
-        let is_media = content_type.starts_with("audio/") || content_type.starts_with("video/")
-            || ["mp3", "ogg", "wav", "mp4", "webm"].contains(&file_ext.as_str());
-        let hard_ceiling = if is_media { MAX_SIZE_MEDIA } else { MAX_SIZE_DEFAULT };
+        // Max size for THIS upload = the uploader's per-role max_upload_mb,
+        // bounded only by the 1 GB hard backstop. The admin-set per-role cap is
+        // now the effective limit for every file type (the old 10/20 MB wall that
+        // silently overrode it is gone). The server-wide disk cap below still
+        // prevents total exhaustion.
         let role_cap = (uploader_rdef.max_upload_mb.max(1) as usize)
             .saturating_mul(1024 * 1024);
-        let max_size = hard_ceiling.min(role_cap);
+        let max_size = role_cap.min(HARD_UPLOAD_CEILING);
 
         if data.len() > max_size {
             return Err((StatusCode::BAD_REQUEST, format!(
-                "File too large ({} bytes, max {} for your role — an admin can raise it in Server Settings → Roles).",
-                data.len(), max_size
+                "File too large ({} bytes, max {} MB for your role — an admin can raise it in Server Settings -> Roles).",
+                data.len(), max_size / (1024 * 1024)
             )));
         }
 
