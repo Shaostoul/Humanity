@@ -690,6 +690,21 @@
 .voice-room-item .vr-participant.speaking::before { content: '🟢 '; }
 .voice-room-item.in-room { border-color: var(--success); background: rgba(68,170,153,0.08); }
 
+/* Live voice roster under a SERVER channel (v0.481): who is currently connected
+   to that channel's voice, listed below the channel row in the sidebar. The
+   legacy .voice-room-item rules above are more specific and still win for the
+   old standalone rooms UI. .in-voice marks the channel you are connected to. */
+.channel-item.in-voice { box-shadow: inset 2px 0 0 var(--accent); }
+.channel-item.srv-chan + .vr-participant,
+.vr-participant + .vr-participant {
+  padding: 1px 0 2px 38px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vr-participant.speaking { color: var(--success); font-weight: 600; }
+
 /* ── Channel Settings Cog ── */
 .channel-cog {
   display: none;

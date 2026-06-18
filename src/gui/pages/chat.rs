@@ -1746,6 +1746,40 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 ui.close_menu();
                             }
                         });
+
+                        // Voice roster (v0.481): who is currently connected to this
+                        // channel's voice, indented under the row. Populated from the
+                        // relay's voice_channel_list broadcast (the relay tracks the
+                        // authoritative roster; this is purely a display).
+                        for (_pk, pname) in &ch.voice_participants {
+                            let pw = ui.available_width();
+                            let (prect, _presp) = ui.allocate_exact_size(
+                                Vec2::new(pw, theme.row_height * 0.78),
+                                egui::Sense::hover(),
+                            );
+                            if ui.is_rect_visible(prect) {
+                                let isz = 10.0;
+                                let pcy = prect.center().y;
+                                let pix = prect.left() + theme.item_padding + 18.0; // indent under the name
+                                let irect = egui::Rect::from_min_size(
+                                    egui::pos2(pix, pcy - isz * 0.5), Vec2::splat(isz),
+                                );
+                                crate::gui::widgets::icons::paint_person(
+                                    ui.painter(), irect, theme.text_muted());
+                                let dn = if pname.trim().is_empty() {
+                                    "(in voice)".to_string()
+                                } else {
+                                    pname.clone()
+                                };
+                                ui.painter().text(
+                                    egui::pos2(pix + isz + 6.0, pcy),
+                                    egui::Align2::LEFT_CENTER,
+                                    &dn,
+                                    egui::FontId::proportional(theme.body_size * 0.9),
+                                    theme.text_secondary(),
+                                );
+                            }
+                        }
                     }
 
                     // Apply gear click (open edit modal for that channel)

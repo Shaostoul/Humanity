@@ -1399,15 +1399,24 @@ var federatedServersFetched = false;
       const title = ch.description ? ` title="${esc(ch.description)}"` : '';
       const badges = (ch.read_only ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
       // Mic sits LEFT of the # (native order: mic, cog, #name). Clickable -
-      // toggles voice join/leave for the channel; joined = accent + filled.
-      const voiceJoined = !!(window._voiceJoinedChannels && window._voiceJoinedChannels.has(ch.name));
+      // joins/leaves the REAL relay voice room for the channel. "joined" reflects
+      // the actual mesh connection (_currentRoomId), not the old dead per-channel
+      // toggle. (v0.481: collapsed the two voice systems into one.)
+      const vc = (window._voiceChannels || []).find(c => c.name === ch.name);
+      const voiceJoined = !!(vc && String(vc.id) === String(window._currentRoomId));
       const micHtml = ch.voice_enabled
         ? `<span class="ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.name)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
         : '';
       const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
+      // Live voice roster under the channel: who is connected to voice here
+      // (from the relay's voice_channel_list broadcast). (v0.481)
+      const vpHtml = (vc && vc.participants) ? vc.participants.map(p =>
+        `<div class="vr-participant" data-participant-key="${esc(p.public_key)}">${esc(p.display_name || '(in voice)')}</div>`
+      ).join('') : '';
       // .srv-chan suppresses the auto "# " ::before so the mic can sit before the
-      // hash; the hash is rendered as part of the label instead.
-      return `<div class="channel-item srv-chan${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label"># ${esc(ch.name)}</span>${badges}</div>`;
+      // hash; the hash is rendered as part of the label instead. .in-voice marks
+      // the channel whose voice you are currently connected to.
+      return `<div class="channel-item srv-chan${isActive ? ' active' : ''}${voiceJoined ? ' in-voice' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label"># ${esc(ch.name)}</span>${badges}</div>${vpHtml}`;
     }).join('');
 
     // Text channel create button (admin/mod only)
@@ -1516,11 +1525,20 @@ var federatedServersFetched = false;
       saveCollapsedServers(collapsed);
       return;
     }
-    // Channel mic, toggle voice join/leave for this channel (don't switch to it).
+    // Channel mic: join/leave the REAL relay voice room for this channel (don't
+    // switch to it). v0.481: repointed from the dead per-channel toggle
+    // (toggleChannelVoice / voice_join, which the relay never handled) to the
+    // live mesh join/leave, so clicking the mic actually connects you.
     const micEl = e.target.closest('.ch-mic');
     if (micEl) {
       const vch = micEl.getAttribute('data-voice-channel');
-      if (vch) toggleChannelVoice(vch);
+      if (vch) {
+        const vc = (window._voiceChannels || []).find(c => c.name === vch);
+        if (vc && typeof joinVoiceRoom === 'function' && typeof leaveVoiceRoom === 'function') {
+          if (String(vc.id) === String(window._currentRoomId)) leaveVoiceRoom();
+          else joinVoiceRoom(vc.id);
+        }
+      }
       return;
     }
     // Channel click (skip if clicking the settings cog)

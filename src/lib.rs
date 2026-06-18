@@ -4478,6 +4478,7 @@ mod native_app {
                                                         voice_enabled,
                                                         read_only,
                                                         federated,
+                                                        voice_participants: Vec::new(),
                                                     },
                                                 );
                                             }
@@ -4660,9 +4661,23 @@ mod native_app {
                                                     .unwrap_or("")
                                                     .to_string();
                                                 if vc_name.is_empty() { continue; }
-                                                // If a text channel with same name exists, skip (voice is merged in UI)
-                                                let exists = state.gui_state.chat_channels.iter().any(|c| c.name == vc_name || c.id == vc_name);
-                                                if !exists {
+                                                // Live voice roster (public_key, display_name), v0.481.
+                                                let roster: Vec<(String, String)> = vc.get("participants")
+                                                    .and_then(|v| v.as_array())
+                                                    .map(|arr| arr.iter().filter_map(|p| {
+                                                        let k = p.get("public_key").and_then(|v| v.as_str())?.to_string();
+                                                        let n = p.get("display_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                        Some((k, n))
+                                                    }).collect())
+                                                    .unwrap_or_default();
+                                                // Assign the roster onto the matching channel (a text channel
+                                                // with the same name, voice merged in UI) OR push a new one.
+                                                if let Some(c) = state.gui_state.chat_channels.iter_mut()
+                                                    .find(|c| c.name == vc_name || c.id == vc_name)
+                                                {
+                                                    c.voice_enabled = true;
+                                                    c.voice_participants = roster;
+                                                } else {
                                                     let vc_id = vc.get("id")
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or(&vc_name)
@@ -4677,6 +4692,7 @@ mod native_app {
                                                             voice_enabled: true,
                                                             read_only: false,
                                                             federated: false,
+                                                            voice_participants: roster,
                                                         },
                                                     );
                                                 }
@@ -4776,6 +4792,7 @@ mod native_app {
                                                         voice_enabled: true,
                                                         read_only: false,
                                                         federated: false,
+                                                        voice_participants: Vec::new(),
                                                     }],
                                                     collapsed: false,
                                                 });

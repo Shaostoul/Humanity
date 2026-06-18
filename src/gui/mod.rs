@@ -670,6 +670,10 @@ pub struct ChatChannel {
     /// Whether the channel federates to peer servers. Settable from
     /// Server Settings → Channels; persisted via `channel_update`.
     pub federated: bool,
+    /// Live voice roster for this channel: (public_key, display_name), populated
+    /// from the relay's voice_channel_list broadcast (v0.481). Empty when no one
+    /// is connected to voice here. Not persisted; refreshed on every broadcast.
+    pub voice_participants: Vec<(String, String)>,
 }
 
 /// In-flight edit state for one row of the Server Settings → Channels
