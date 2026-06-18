@@ -684,3 +684,38 @@
 }
 .gameadmin-unban-btn:hover { color: var(--text); border-color: var(--text-muted); }
 .gameadmin-status { color: var(--accent); font-size: var(--text-sm); margin-top: var(--space-md); min-height: 1.2em; }
+
+/* ---- Per-user voice control modal (v0.484) ----
+   Three role-tiered sections, colored by tier: standard red, mod green, admin
+   blue (matching the ci() context-menu tiers). Theme vars only. */
+.vmodal .vmodal-section {
+  border-left: 3px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+.vmodal .vmodal-section h3 { margin: 0 0 var(--space-sm); font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.04em; }
+.vmodal .vmodal-tier-standard { border-left-color: var(--danger); }
+.vmodal .vmodal-tier-standard h3 { color: var(--danger); }
+.vmodal .vmodal-tier-mod { border-left-color: var(--success); }
+.vmodal .vmodal-tier-mod h3 { color: var(--success); }
+.vmodal .vmodal-tier-admin { border-left-color: #56b; }
+.vmodal .vmodal-tier-admin h3 { color: #88f; }
+.vmodal .vmodal-action {
+  display: block; width: 100%; text-align: left;
+  background: var(--bg-input); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-md); margin: 3px 0;
+  font-size: var(--text-sm); cursor: pointer;
+}
+.vmodal .vmodal-action:hover { border-color: var(--text-muted); background: var(--bg-hover); }
+.vmodal .vmodal-action:disabled { opacity: 0.45; cursor: not-allowed; }
+.vmodal .vmodal-action.vmodal-danger { color: var(--danger); }
+.vmodal .vmodal-slider { display: flex; align-items: center; gap: var(--space-sm); margin: var(--space-xs) 0; }
+.vmodal .vmodal-slider label { font-size: var(--text-sm); color: var(--text-secondary); min-width: 52px; }
+.vmodal .vmodal-slider input[type="range"] { flex: 1; accent-color: var(--accent); }
+.vmodal .vmodal-slider .vmodal-val { font-size: var(--text-sm); color: var(--text); min-width: 42px; text-align: right; }
+.vmodal .vmodal-toggle { display: flex; align-items: center; gap: var(--space-sm); margin: var(--space-xs) 0; font-size: var(--text-sm); color: var(--text-secondary); cursor: pointer; }
+.vmodal .vmodal-toggle input { accent-color: var(--accent); }
+.vmodal .vmodal-note { font-size: var(--text-xs); color: var(--text-muted); margin: var(--space-xs) 0 0; line-height: 1.4; }

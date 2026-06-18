@@ -116,6 +116,8 @@ function cleanupRoomAudio() {
   }
   window._roomPeerConnections = {};
   window._currentRoomId = null;
+  // Tear down the per-peer gain graphs (v0.484).
+  if (typeof window.teardownAllPeerAudio === 'function') window.teardownAllPeerAudio();
   // Remove room audio elements
   document.querySelectorAll('.room-remote-audio').forEach(el => el.remove());
   // Hide peer video viewer in right sidebar
@@ -140,6 +142,13 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
     audio.className = 'room-remote-audio';
     audio.dataset.peerKey = peerKey;
     document.body.appendChild(audio);
+    // Per-peer Web Audio gain graph (v0.484) so the per-user voice modal can set
+    // volume 0-200%, mute, and squelch for THIS peer. All the audio logic lives
+    // in chat-voice-modal.js; this just hands it the element + stream. If that
+    // module is not loaded the element plays normally (0-100% only).
+    if (typeof window.setupPeerAudio === 'function') {
+      window.setupPeerAudio(peerKey, audio, event.streams[0]);
+    }
     // Mobile browsers block autoplay, explicitly play with user gesture fallback
     const playPromise = audio.play();
     if (playPromise) {
