@@ -2026,6 +2026,12 @@
       "decision": "SHIPPED v0.486.0 -- mic test UX rebuild (operator: no sign it was running). Settings>Audio>Voice now: TOGGLE button (runs until stopped), animated RGB channeling border while active (escape_menu::channeling_color), live mic LEVEL METER (peak from the cpal callback via an atomic, decayed in lib.rs), STATUS line (Listening/Failed surfaced in-UI not just F12), and INPUT/OUTPUT device selectors (cpal enumeration cached + Refresh). voice.rs: loopback became a RUNNING-atomic toggle with device-by-name lookup + peak + status. Session-only device selection (no config persistence yet).",
       "why": "Operator could not tell the mic test was doing anything (and it may have been failing silently into the F12 console). Needed clear live feedback + device choice.",
       "verification": "native+relay builds clean; 3 GUI lints pass; build-game produced v0.486.1 exe. Operator tests: Settings>Audio>Voice, pick devices, toggle Test microphone, watch the meter + RGB border, listen on headphones."
+    },
+    {
+      "at": "2026-06-18",
+      "decision": "SHIPPED v0.487.0 -- mic test now accepts any device format+rate (operator screenshot: Failed: does not support 48 kHz f32, status flickering). Root causes: (1) the audio path hardcoded 48 kHz f32; real WASAPI shared-mode mics are commonly 48 kHz i16 or 44.1 kHz. voice.rs now reads default_input_config/default_output_config, builds streams generic over the sample type (i16/u16/f32 via cpal from_sample), and resamples device-rate<->48 kHz with a streaming linear Resampler (exact passthrough at 48 kHz). (2) the toggle re-tried a failing start every frame, flickering Starting/Failed; lib.rs now starts/stops only on the toggle EDGE (GuiState.mic_test_prev) and flips the toggle off if the start fails so the Failed reason stays readable.",
+      "why": "Operator could not test the mic at all -- their device is not 48 kHz f32, and the failure flickered too fast to read.",
+      "verification": "native+relay builds clean; 3 GUI lints pass; build-game produced v0.487.1 exe. Operator re-tests: Settings>Audio>Voice, toggle Test microphone, the level meter should move when they speak and they should hear themselves on headphones."
     }
   ],
   "active_scopes_to_avoid": [
