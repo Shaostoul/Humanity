@@ -703,6 +703,11 @@
   line-height: 1.3;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.vr-participant { cursor: pointer; }
+.vr-participant:hover { color: var(--text); }
+/* Your own entry in the roster: accent + bold so you can tell at a glance you
+   are in this channel's voice (v0.484). */
+.vr-participant.vr-self { color: var(--accent); font-weight: 600; }
 .vr-participant.speaking { color: var(--success); font-weight: 600; }
 
 /* ── Channel Settings Cog ── */

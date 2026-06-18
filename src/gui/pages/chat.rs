@@ -1615,6 +1615,10 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     let mut voice_toggle_idx: Option<(usize, bool)> = None;
                     // Track which channel had a gear icon click
                     let mut gear_click_id: Option<String> = None;
+                    // Voice roster (v0.484): a clicked participant (name, public_key)
+                    // opens the per-user control modal; local key marks our own row.
+                    let mut voice_user_click: Option<(String, String)> = None;
+                    let my_voice_key = state.profile_public_key.clone();
 
                     let ctx_time = ui.ctx().input(|i| i.time);
                     for (idx, ch) in channels.iter().enumerate() {
@@ -1751,32 +1755,45 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         // channel's voice, indented under the row. Populated from the
                         // relay's voice_channel_list broadcast (the relay tracks the
                         // authoritative roster; this is purely a display).
-                        for (_pk, pname) in &ch.voice_participants {
+                        for (pk, pname) in &ch.voice_participants {
+                            let is_me = pk == &my_voice_key;
                             let pw = ui.available_width();
-                            let (prect, _presp) = ui.allocate_exact_size(
+                            let (prect, presp) = ui.allocate_exact_size(
                                 Vec2::new(pw, theme.row_height * 0.78),
-                                egui::Sense::hover(),
+                                egui::Sense::click(),
                             );
+                            if presp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                            if presp.clicked() {
+                                let nm = if pname.trim().is_empty() { "Player".to_string() } else { pname.clone() };
+                                voice_user_click = Some((nm, pk.clone()));
+                            }
                             if ui.is_rect_visible(prect) {
                                 let isz = 10.0;
                                 let pcy = prect.center().y;
                                 let pix = prect.left() + theme.item_padding + 18.0; // indent under the name
+                                // Your own entry is accent + bold so you can tell at a
+                                // glance you are in this channel's voice. (v0.484)
+                                let col = if is_me { theme.accent() } else { theme.text_secondary() };
                                 let irect = egui::Rect::from_min_size(
                                     egui::pos2(pix, pcy - isz * 0.5), Vec2::splat(isz),
                                 );
-                                crate::gui::widgets::icons::paint_person(
-                                    ui.painter(), irect, theme.text_muted());
-                                let dn = if pname.trim().is_empty() {
+                                crate::gui::widgets::icons::paint_person(ui.painter(), irect, col);
+                                let mut dn = if pname.trim().is_empty() {
                                     "(in voice)".to_string()
                                 } else {
                                     pname.clone()
                                 };
+                                if is_me {
+                                    dn.push_str("  (you)");
+                                }
                                 ui.painter().text(
                                     egui::pos2(pix + isz + 6.0, pcy),
                                     egui::Align2::LEFT_CENTER,
                                     &dn,
                                     egui::FontId::proportional(theme.body_size * 0.9),
-                                    theme.text_secondary(),
+                                    col,
                                 );
                             }
                         }
@@ -1791,6 +1808,14 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             state.edit_channel_description = ch.description.clone();
                             state.edit_channel_confirm_delete = false;
                         }
+                    }
+
+                    // Apply a voice-roster click: open the per-user control modal
+                    // (the same modal reached from the member list). (v0.484)
+                    if let Some((name, key)) = voice_user_click {
+                        state.chat_user_modal_open = true;
+                        state.chat_user_modal_name = name;
+                        state.chat_user_modal_key = key;
                     }
 
                     // Apply voice toggle after the loop

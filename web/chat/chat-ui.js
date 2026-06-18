@@ -1410,9 +1410,11 @@ var federatedServersFetched = false;
       const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
       // Live voice roster under the channel: who is connected to voice here
       // (from the relay's voice_channel_list broadcast). (v0.481)
-      const vpHtml = (vc && vc.participants) ? vc.participants.map(p =>
-        `<div class="vr-participant" data-participant-key="${esc(p.public_key)}">${esc(p.display_name || '(in voice)')}</div>`
-      ).join('') : '';
+      const vpHtml = (vc && vc.participants) ? vc.participants.map(p => {
+        const isMe = p.public_key === myKey;
+        const nm = esc(p.display_name || '(in voice)') + (isMe ? '  (you)' : '');
+        return `<div class="vr-participant${isMe ? ' vr-self' : ''}" data-participant-key="${esc(p.public_key)}" data-participant-name="${esc(p.display_name || 'Player')}">${nm}</div>`;
+      }).join('') : '';
       // .srv-chan suppresses the auto "# " ::before so the mic can sit before the
       // hash; the hash is rendered as part of the label instead. .in-voice marks
       // the channel whose voice you are currently connected to.
@@ -1506,6 +1508,19 @@ var federatedServersFetched = false;
       const url = fedHeader.getAttribute('data-federated-url');
       if (url && confirm(`Switch to server: ${url}?\n\nThis will open the server in a new tab.`)) {
         window.open(url, '_blank');
+      }
+      return;
+    }
+    // Voice roster participant click: open the per-user controls (v0.484).
+    // Prefers the dedicated voice modal (chat-voice-modal.js) once loaded, and
+    // falls back to the existing per-user context menu.
+    const vp = e.target.closest('.vr-participant');
+    if (vp) {
+      const key = vp.getAttribute('data-participant-key');
+      const name = vp.getAttribute('data-participant-name') || 'Player';
+      if (key) {
+        if (typeof openVoiceUserModal === 'function') openVoiceUserModal(name, key);
+        else if (typeof showUserContextMenu === 'function') showUserContextMenu(e, name, key);
       }
       return;
     }
