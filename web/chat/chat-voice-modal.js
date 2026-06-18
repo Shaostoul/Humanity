@@ -254,8 +254,12 @@
       }
       row(std, 'View profile', 'tier-standard', function () { withTarget(name, key, function () { if (typeof requestViewProfile === 'function') requestViewProfile(key); else if (typeof viewProfileFromCtx === 'function') viewProfileFromCtx(); }); });
       row(std, 'Direct message', 'tier-standard', function () { closeVoiceUserModal(); withTarget(name, key, function () { if (typeof dmFromCtx === 'function') dmFromCtx(); else if (typeof openDmConversation === 'function') openDmConversation(key, name); }); });
-      row(std, 'Follow', 'tier-standard', function () { withTarget(name, key, function () { if (typeof followFromCtx === 'function') followFromCtx(true); }); });
-      row(std, 'Block', 'tier-standard', function () { withTarget(name, key, function () { if (typeof blockFromCtx === 'function') blockFromCtx(); }); }, { danger: true });
+      // Follow / Unfollow: same wording + state as the right-side user list and
+      // the right-click menu (operator: keep terminology consistent).
+      var isFollowing = (typeof myFollowing !== 'undefined' && myFollowing.has(key));
+      row(std, isFollowing ? 'Unfollow' : 'Follow', 'tier-standard', function () { withTarget(name, key, function () { if (typeof followFromCtx === 'function') followFromCtx(!isFollowing); }); });
+      var blocked = (typeof isBlocked === 'function' && isBlocked(name));
+      row(std, blocked ? 'Unblock' : 'Block', 'tier-standard', function () { withTarget(name, key, function () { if (blocked) { if (typeof unblockFromCtx === 'function') unblockFromCtx(); } else { if (typeof blockFromCtx === 'function') blockFromCtx(); } }); }, { danger: !blocked });
       row(std, 'Report', 'tier-standard', function () { withTarget(name, key, function () { if (typeof reportUser === 'function') reportUser(); }); }, { danger: true });
     } else {
       var meNote = document.createElement('p');
