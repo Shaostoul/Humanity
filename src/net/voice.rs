@@ -106,8 +106,8 @@ static MIC_STATUS: Mutex<String> = Mutex::new(String::new());
 // up gain / filter / transmit-mode / threshold / push-key changes WITHOUT
 // restarting the audio streams. The worker reads them per 20 ms frame.
 static VOICE_GAIN_BITS: AtomicU32 = AtomicU32::new(0x3f80_0000); // 1.0_f32
-static VOICE_FILTER_MODE: AtomicU8 = AtomicU8::new(1); // 0=Off 1=Light 2=NoiseSuppression
-static VOICE_TRANSMIT_MODE: AtomicU8 = AtomicU8::new(0); // 0=OpenMic 1=PTT 2=VAD 3=PushToMute
+static VOICE_FILTER_MODE: AtomicU8 = AtomicU8::new(2); // 0=Off 1=Light 2=NoiseSuppression (default)
+static VOICE_TRANSMIT_MODE: AtomicU8 = AtomicU8::new(1); // 0=OpenMic 1=PTT(default) 2=VAD 3=PushToMute
 static VOICE_VAD_THRESH_BITS: AtomicU32 = AtomicU32::new(0x3d4c_cccd); // 0.05_f32
 static VOICE_PTT_HELD: AtomicBool = AtomicBool::new(false);
 /// Worker -> UI: is cleaned audio actually being transmitted right now (i.e. the

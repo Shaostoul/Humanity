@@ -2461,6 +2461,29 @@ mod native_app {
                             return;
                         }
 
+                        // Voice push key (v0.490): tracked from RAW winit input so
+                        // it works in-game (where egui isn't focused) AND supports
+                        // keys egui lacks, like CapsLock (the default push key).
+                        // The stored name is the KeyCode debug string (e.g.
+                        // "CapsLock", "KeyV"). Also captures a new binding when the
+                        // Settings UI is waiting for one.
+                        {
+                            let name = format!("{:?}", key);
+                            if state.gui_state.voice_binding_key {
+                                if pressed {
+                                    if key != KeyCode::Escape {
+                                        // Escape cancels; any other key binds.
+                                        state.gui_state.voice_ptt_key = name;
+                                        state.gui_state.settings_dirty = true;
+                                    }
+                                    state.gui_state.voice_binding_key = false;
+                                    return;
+                                }
+                            } else if name == state.gui_state.voice_ptt_key {
+                                state.gui_state.voice_ptt_held = pressed;
+                            }
+                        }
+
                         // Ctrl+V clipboard image paste — detected HERE at the
                         // raw winit layer because egui-winit intercepts the
                         // paste shortcut, reads clipboard TEXT only, and
@@ -3920,29 +3943,18 @@ mod native_app {
                         let lvl = crate::net::voice::mic_level();
                         state.gui_state.mic_meter = (state.gui_state.mic_meter * 0.85).max(lvl);
                     }
-                    // v0.488: push the live voice input params (gain / filter / transmit
-                    // mode / activation threshold) to the worker every frame, so changes
-                    // apply without restarting the test. For push-to-talk / push-to-mute,
-                    // read whether the bound key is held this frame (egui has key state
-                    // while the Settings UI is focused, which is where the test lives).
+                    // v0.488/490: push the live voice input params (gain / filter /
+                    // transmit mode / activation threshold) to the worker every frame, so
+                    // changes apply without restarting the test. `voice_ptt_held` is
+                    // maintained by the raw winit key handler above (works in-game + for
+                    // CapsLock); it only matters for the push-to-talk / push-to-mute modes.
                     {
-                        let uses_key = state.gui_state.voice_transmit_mode.uses_key();
-                        let ptt_held = if uses_key {
-                            let name = state.gui_state.voice_ptt_key.clone();
-                            match egui::Key::ALL.iter().copied().find(|k| k.name().eq_ignore_ascii_case(&name)) {
-                                Some(k) => state.egui_ctx.input(|i| i.key_down(k)),
-                                None => false,
-                            }
-                        } else {
-                            false
-                        };
-                        state.gui_state.voice_ptt_held = ptt_held;
                         crate::net::voice::set_input_params(
                             state.gui_state.voice_gain,
                             state.gui_state.voice_filter_mode,
                             state.gui_state.voice_transmit_mode,
                             state.gui_state.voice_vad_threshold,
-                            ptt_held,
+                            state.gui_state.voice_ptt_held,
                         );
                     }
 

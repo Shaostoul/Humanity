@@ -75,11 +75,11 @@ pub enum VoiceFilterMode {
     /// Always-safe light clean-up: an ~85 Hz high-pass (kills rumble / desk
     /// thumps / AC hum fundamentals) plus a gentle noise gate. Very low CPU,
     /// never distorts speech.
-    #[default]
     Light,
     /// Full noise suppression (RNNoise-class): removes keyboard clicks, coughs,
     /// fans, and steady background noise while preserving the voice. Slightly
-    /// more CPU; the strongest option.
+    /// more CPU; the strongest option. The default (operator choice, v0.490).
+    #[default]
     NoiseSuppression,
 }
 impl VoiceFilterMode {
@@ -106,9 +106,10 @@ impl VoiceFilterMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum VoiceTransmitMode {
     /// Always transmit (classic open mic).
-    #[default]
     OpenMic,
-    /// Transmit only while the push-to-talk key is held.
+    /// Transmit only while the push-to-talk key is held. The default (operator
+    /// choice, v0.490), with CapsLock as the default push key.
+    #[default]
     PushToTalk,
     /// Transmit only when your voice rises above the activation threshold.
     VoiceActivated,
@@ -356,8 +357,22 @@ fn default_sfx_volume() -> f32 { 0.7 }
 fn default_true() -> bool { true }
 fn default_panel_width() -> f32 { 220.0 }
 // v0.488 voice input prefs: unity gain, "V" push key, a modest activation floor.
+/// Prettify a stored winit-KeyCode name for display, e.g. "KeyV" -> "V",
+/// "Digit1" -> "1", "CapsLock" -> "CapsLock", "Space" -> "Space".
+pub fn pretty_ptt_key_name(name: &str) -> String {
+    if let Some(c) = name.strip_prefix("Key") {
+        return c.to_string();
+    }
+    if let Some(d) = name.strip_prefix("Digit") {
+        return d.to_string();
+    }
+    name.to_string()
+}
+
 fn default_voice_gain() -> f32 { 1.0 }
-fn default_voice_ptt_key() -> String { "V".to_string() }
+// CapsLock as the default push-to-talk key (operator choice). Stored as the
+// winit KeyCode debug name so the raw-input PTT reader can match it directly.
+fn default_voice_ptt_key() -> String { "CapsLock".to_string() }
 fn default_voice_vad_threshold() -> f32 { 0.05 }
 
 /// Encrypt a private key with AES-256-GCM using a passphrase.

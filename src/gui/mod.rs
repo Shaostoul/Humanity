@@ -2374,7 +2374,7 @@ impl Default for GuiState {
             voice_gain: 1.0,
             voice_filter_mode: crate::config::VoiceFilterMode::default(),
             voice_transmit_mode: crate::config::VoiceTransmitMode::default(),
-            voice_ptt_key: "V".to_string(),
+            voice_ptt_key: "CapsLock".to_string(),
             voice_vad_threshold: 0.05,
             voice_ptt_held: false,
             voice_binding_key: false,

@@ -1599,35 +1599,30 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         });
         ui.label(RichText::new(state.voice_transmit_mode.hint()).size(theme.font_size_small).color(theme.text_muted()));
 
-        // Push key binding (push-to-talk / push-to-mute only).
+        // Push key binding (push-to-talk / push-to-mute only). The actual key
+        // capture happens in the raw winit handler (so it can bind CapsLock and
+        // any key, and read them in-game); clicking here just arms it.
         if state.voice_transmit_mode.uses_key() {
             ui.add_space(theme.spacing_xs);
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Push key").size(theme.font_size_small).color(theme.text_secondary()));
                 let lbl = if state.voice_binding_key {
-                    "Press a key...".to_string()
+                    "Press any key (Esc cancels)...".to_string()
                 } else if state.voice_ptt_key.is_empty() {
                     "Unbound".to_string()
                 } else {
-                    state.voice_ptt_key.clone()
+                    crate::config::pretty_ptt_key_name(&state.voice_ptt_key)
                 };
                 if ui.selectable_label(state.voice_binding_key, lbl).clicked() {
                     state.voice_binding_key = !state.voice_binding_key;
                 }
             });
-            if state.voice_binding_key {
-                // Capture the next key press as the binding.
-                let captured = ui.input(|i| {
-                    i.events.iter().find_map(|e| match e {
-                        egui::Event::Key { key, pressed: true, .. } => Some(*key),
-                        _ => None,
-                    })
-                });
-                if let Some(k) = captured {
-                    state.voice_ptt_key = k.name().to_string();
-                    state.voice_binding_key = false;
-                    state.settings_dirty = true;
-                }
+            if state.voice_ptt_key == "CapsLock" {
+                ui.label(
+                    RichText::new("Heads up: CapsLock also toggles caps each push. Rebind if that bothers you.")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
             }
         }
 
