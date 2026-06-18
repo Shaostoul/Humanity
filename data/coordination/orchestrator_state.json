@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "DOCS REFACTOR (2026-06-12, Fable 5): finished the security sprint context then did the full docs refactor in 3 docs-only commits — em-dash sweep + stale-crypto fix (v0.422.1), roadmap-as-todo with web rendering (v0.422.2), audience-first structure + router + onboarding + 0-broken-links (v0.422.3). See recent_decisions[0].",
-  "current_focus": "Shipped this session: v0.480 (game-admin fold + server_name), v0.481 (voice presence), v0.482 (F-key diagnostics HUD + keymap fix), v0.483 (A2 upload caps). Remaining audit items (not started): A3 backup cadence/retention, A4 funding editable. Larger deferred: native voice AUDIO transport. Web (game admin v0.477.2, voice v0.481) deploys via CI/sync-web.",
+  "current_focus": "Voice per-user controls inc 1 (self-marker+clickable, both clients, v0.484.0) + inc 2 (web 3-tier modal + audio, v0.484.1) shipped. REMAINING: inc 3 = relay handlers for server voice-mute + kick-from-voice (new handle_voice_mod, mirror game-ban scope-limited eviction NOT kicked_keys; flip the disabled placeholders live); inc 4 (large) = native voice AUDIO transport. Also queued from earlier: A3 backup cadence, A4 funding editable.",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain."
   ],
@@ -2008,6 +2008,12 @@
       "decision": "SHIPPED v0.483.0 -- A2 upload-cap fix: per-role max_upload_mb is now the real per-upload ceiling (was silently capped by a hardcoded 10/20MB wall: min(10/20MB, role_cap)). Now max_size = role_cap.min(1GB backstop); server-wide max_total_upload_mb disk cap still enforced so no exhaustion risk. Removed dead consts + is_media branch.",
       "why": "Audit Plan A item A2 (greenlit). Raising a role upload cap above 10/20MB previously did nothing.",
       "verification": "relay (CI) + native builds clean. Relay-only change -> deploys via CI, no new exe needed."
+    },
+    {
+      "at": "2026-06-18",
+      "decision": "SHIPPED voice per-user controls inc 1+2. v0.484.0 (native+web): self-presence marker (your own roster entry accent+bold+(you)) + clickable roster rows opening the per-user modal (native draw_user_modal; web new modal). v0.484.1 (web-only): NEW chat-voice-modal.js, a 3-tier per-user control modal (standard red / mod green / admin blue) with per-peer Web Audio gain graph (volume 0-200%, local mute, squelch via shared analyser poll, localStorage prefs) + reused actions (profile/DM/follow/block/report, text mute/kick, ban/unban/game-ban/verify/mod/unmod). Server voice-mute + disconnect-from-voice are disabled placeholders pending relay handlers (inc 3).",
+      "why": "Operator: see my own icon in voice + click users for a control modal with volume/mute/squelch in 3 role-tiered sections, comprehensive.",
+      "verification": "native+relay builds + 3 GUI lints (inc1); web JS syntax valid + reused fns confirmed + no em dashes (inc2). Web audio graph unverifiable locally (no live voice + preview denied); operator verifies on the live site. Defensive fallback if AudioContext stays suspended."
     }
   ],
   "active_scopes_to_avoid": [
