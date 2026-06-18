@@ -1818,20 +1818,29 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         state.chat_user_modal_key = key;
                     }
 
-                    // Apply voice toggle after the loop
+                    // Apply voice toggle after the loop. The relay tracks voice
+                    // rooms by NUMERIC channel id and expects a `voice_room` message
+                    // with action join/leave (the old `voice_join` was ignored by
+                    // the relay, so native join never registered). Phase C, v0.491.
                     if let Some((idx, joining)) = voice_toggle_idx {
-                        if let Some(ch) = state.chat_channels.get_mut(idx) {
-                            let ch_name = ch.name.clone();
-                            ch.voice_joined = joining;
-                            let msg_type = if joining { "voice_join" } else { "voice_leave" };
-                            log::info!("Voice {} requested: {}", msg_type, ch_name);
-                            crate::debug::push_debug(format!("Voice: {} for channel '{}'", msg_type, ch_name));
+                        let ch_name = match state.chat_channels.get_mut(idx) {
+                            Some(ch) => {
+                                ch.voice_joined = joining;
+                                ch.name.clone()
+                            }
+                            None => String::new(),
+                        };
+                        if !ch_name.is_empty() {
+                            let room_id = state.voice_channel_ids.get(&ch_name).cloned();
+                            let action = if joining { "join" } else { "leave" };
+                            log::info!("Voice {} requested: {} (room_id {:?})", action, ch_name, room_id);
+                            crate::debug::push_debug(format!("Voice: {} for '{}' (id {:?})", action, ch_name, room_id));
                             if let Some(ref client) = state.ws_client {
                                 if client.is_connected() {
-                                    let msg = serde_json::json!({
-                                        "type": msg_type,
-                                        "channel": ch_name,
-                                    });
+                                    let mut msg = serde_json::json!({ "type": "voice_room", "action": action });
+                                    if let Some(id) = &room_id {
+                                        msg["room_id"] = serde_json::json!(id);
+                                    }
                                     client.send(&msg.to_string());
                                 }
                             }

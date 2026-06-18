@@ -4768,6 +4768,12 @@ mod native_app {
                                                     .unwrap_or("")
                                                     .to_string();
                                                 if vc_name.is_empty() { continue; }
+                                                // Remember the numeric voice-channel id (i64 on the
+                                                // wire) keyed by name, so join/leave can send the
+                                                // correct room_id the relay expects (Phase C, v0.491).
+                                                if let Some(id_num) = vc.get("id").and_then(|v| v.as_i64()) {
+                                                    state.gui_state.voice_channel_ids.insert(vc_name.clone(), id_num.to_string());
+                                                }
                                                 // Live voice roster (public_key, display_name), v0.481.
                                                 let roster: Vec<(String, String)> = vc.get("participants")
                                                     .and_then(|v| v.as_array())

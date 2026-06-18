@@ -1552,6 +1552,11 @@ pub struct GuiState {
     /// Map of peer Dilithium pubkey hex -> their Kyber768 public base64.
     /// Populated from peer_list, full_user_list, profile_data, peer_joined.
     pub peer_kyber_keys: std::collections::HashMap<String, String>,
+    /// Map of voice-channel NAME -> its numeric relay id (as a string). Populated
+    /// from voice_channel_list (the id is i64 on the wire). Needed because the
+    /// relay tracks voice rooms by numeric id, but the chat UI keys channels by
+    /// name; this lets the join/leave send the correct room_id. (Phase C, v0.491.)
+    pub voice_channel_ids: std::collections::HashMap<String, String>,
 
     // ── Donation address config ──
 
@@ -2436,6 +2441,7 @@ impl Default for GuiState {
             pin_status: String::new(),
             kyber_public_b64: String::new(),
             peer_kyber_keys: std::collections::HashMap::new(),
+            voice_channel_ids: std::collections::HashMap::new(),
             donate_solana_address: String::new(),
             donate_btc_address: String::new(),
             donate_addresses: Vec::new(),
