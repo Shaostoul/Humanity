@@ -5625,6 +5625,11 @@ mod native_app {
                                             ));
                                         }
                                     }
+                                    crate::net::webrtc::WebrtcEvent::VoiceFrame { peer: _peer, opus: _opus } => {
+                                        // Phase B: inbound Opus from a voice peer.
+                                        // Decode + mix + playback is wired in a
+                                        // later phase (Phase D); dropped for now.
+                                    }
                                     crate::net::webrtc::WebrtcEvent::Closed { peer } => {
                                         crate::debug::push_debug(format!(
                                             "WebRTC: channel CLOSED with {}", short(&peer)

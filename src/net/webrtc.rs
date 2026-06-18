@@ -157,6 +157,8 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 use str0m::change::{SdpAnswer, SdpOffer, SdpPendingOffer};
 use str0m::channel::ChannelId;
+use str0m::format::Codec;
+use str0m::media::{Direction, Frequency, MediaKind, MediaTime, Mid};
 use str0m::net::{Protocol, Receive};
 use str0m::{Candidate, Event, Input, Output, Rtc};
 
@@ -228,6 +230,9 @@ pub enum WebrtcEvent {
     ChannelOpen { peer: String },
     /// A text frame arrived from `peer` over its DataChannel.
     Frame { peer: String, text: String },
+    /// One depayloaded Opus frame arrived from `peer` over its voice m-line
+    /// (Phase B). Decode + playback is wired in a later phase.
+    VoiceFrame { peer: String, opus: Vec<u8> },
     /// The connection / channel to `peer` closed (ICE disconnect or SCTP close).
     Closed { peer: String },
 }
@@ -244,9 +249,13 @@ enum Command {
         data: Value,
     },
     /// Application request: start a connection to `peer` (offerer side).
-    OfferTo { peer: String },
+    /// `wants_voice` negotiates an Opus audio m-line too (Phase B).
+    OfferTo { peer: String, wants_voice: bool },
     /// Application request: send `text` to `peer` over its open channel.
     SendText { peer: String, text: String },
+    /// Application request: send one encoded Opus frame to `peer` over its voice
+    /// m-line (Phase B). Dropped if the peer has no negotiated audio m-line.
+    SendVoice { peer: String, opus: Vec<u8> },
 }
 
 /// Handle the GUI holds to talk to the WebRTC thread. All methods are
@@ -288,7 +297,20 @@ impl WebrtcHandle {
     /// a no-op on the wire — we wait for the peer's offer and answer it. (The
     /// thread enforces this too, so a mistaken caller can't cause glare.)
     pub fn offer_to(&self, peer: String) {
-        let _ = self.tx_cmd.send(Command::OfferTo { peer });
+        let _ = self.tx_cmd.send(Command::OfferTo { peer, wants_voice: false });
+    }
+
+    /// Like [`offer_to`](Self::offer_to), but also negotiates a bidirectional
+    /// Opus audio m-line so the connection can carry voice (Phase B). Used by the
+    /// voice-room join. Same offerer-rule semantics as `offer_to`.
+    pub fn offer_to_voice(&self, peer: String) {
+        let _ = self.tx_cmd.send(Command::OfferTo { peer, wants_voice: true });
+    }
+
+    /// Send one encoded Opus frame to `peer` over its voice m-line (Phase B).
+    /// Non-blocking; dropped if the peer has no negotiated audio m-line yet.
+    pub fn send_voice(&self, peer: String, opus: Vec<u8>) {
+        let _ = self.tx_cmd.send(Command::SendVoice { peer, opus });
     }
 
     /// Send a UTF-8 text frame to `peer` over its DataChannel. If the channel
@@ -393,6 +415,15 @@ struct PeerConn {
     remote_addr: Option<SocketAddr>,
     /// Whether we've already surfaced `ChannelOpen` to the GUI (dedupe).
     announced_open: bool,
+    /// Voice (Phase B, v0.489): the audio m-line mid, if this connection
+    /// negotiated one. The offerer gets it from `add_media`; the answerer learns
+    /// it from `Event::MediaAdded`. `None` => a data-only connection (the
+    /// default; existing P2P-group connections never request voice, so their SDP
+    /// is unchanged).
+    audio_mid: Option<Mid>,
+    /// Monotonic 48 kHz RTP timestamp for outgoing Opus, advanced 960 per 20 ms
+    /// frame. Never reset mid-stream or the remote jitter buffer misorders.
+    voice_rtp_ts: u64,
 }
 
 impl WebrtcManager {
@@ -871,17 +902,73 @@ impl WebrtcManager {
                 }
                 log::info!("WebRTC: channel closed by {}", short(key));
             }
+            Event::MediaAdded(m) => {
+                // Voice (Phase B): fires on the ANSWERER when the offer's audio
+                // m-line is accepted (the offerer already knows its mid from
+                // add_media). Capture it so cmd_send_voice can find the writer.
+                if m.kind == MediaKind::Audio {
+                    if let Some(p) = self.peers.get_mut(key) {
+                        p.audio_mid = Some(m.mid);
+                    }
+                    log::info!("WebRTC: audio m-line added with {}", short(key));
+                }
+            }
+            Event::MediaData(data) => {
+                // Voice (Phase B): one depayloaded Opus frame arrived. Surface it
+                // to the GUI/voice engine, tagged with the source peer. (Decode +
+                // playback is wired in a later phase; for now consumers may drop it.)
+                let _ = self.tx_event.send(WebrtcEvent::VoiceFrame {
+                    peer: key.to_string(),
+                    opus: data.data.to_vec(),
+                });
+            }
             _ => {
-                // Media / stats events — not used by the data-only transport.
+                // Other media / stats events — not used by this transport.
             }
         }
+    }
+
+    /// Send one encoded Opus frame to `peer` over its negotiated voice m-line
+    /// (Phase B). Drops silently if the peer is unknown or has no audio m-line
+    /// yet. The negotiated Opus payload type is discovered from the writer (str0m
+    /// may reassign it from the default 111 during negotiation), never hardcoded.
+    fn cmd_send_voice(&mut self, peer: String, opus: Vec<u8>) {
+        let p = match self.peers.get_mut(&peer) {
+            Some(p) => p,
+            None => return,
+        };
+        let mid = match p.audio_mid {
+            Some(m) => m,
+            None => return, // not a voice connection (or not negotiated yet)
+        };
+        let ts = p.voice_rtp_ts;
+        let writer = match p.rtc.writer(mid) {
+            Some(w) => w,
+            None => return,
+        };
+        let pt = match writer
+            .payload_params()
+            .find(|pp| pp.spec().codec == Codec::Opus)
+            .map(|pp| pp.pt())
+        {
+            Some(pt) => pt,
+            None => return,
+        };
+        let rtp_time = MediaTime::new(ts, Frequency::FORTY_EIGHT_KHZ);
+        if let Err(e) = writer.write(pt, Instant::now(), rtp_time, opus) {
+            log::trace!("WebRTC: voice write to {} failed: {e}", short(&peer));
+            return;
+        }
+        // Advance the 48 kHz RTP clock by one 20 ms frame (960 samples).
+        p.voice_rtp_ts = ts.wrapping_add(960);
     }
 
     /// Apply a single GUI command (offer / answer-inbound-signal / send).
     fn handle_command(&mut self, cmd: Command) {
         match cmd {
-            Command::OfferTo { peer } => self.cmd_offer_to(peer),
+            Command::OfferTo { peer, wants_voice } => self.cmd_offer_to(peer, wants_voice),
             Command::SendText { peer, text } => self.cmd_send_text(peer, text),
+            Command::SendVoice { peer, opus } => self.cmd_send_voice(peer, opus),
             Command::Signal { from, signal_type, data } => {
                 self.cmd_signal(from, signal_type, data)
             }
@@ -890,7 +977,7 @@ impl WebrtcManager {
 
     /// Begin an outgoing connection to `peer` (offerer side), honoring the
     /// glare-avoidance offerer rule.
-    fn cmd_offer_to(&mut self, peer: String) {
+    fn cmd_offer_to(&mut self, peer: String, wants_voice: bool) {
         if peer == self.my_pubkey_hex {
             return; // never connect to ourselves
         }
@@ -956,7 +1043,18 @@ impl WebrtcManager {
         // but that id is NOT writable yet — we must wait for Event::ChannelOpen
         // (str0m opens it after SCTP/DTLS come up). We store the real id then.
         let mut api = rtc.sdp_api();
+        // Data channel FIRST so the application m-line stays at SDP index 0 (keeps
+        // the existing ICE index assumptions valid; see emit_ice_candidate).
         let _cid = api.add_channel(CHANNEL_LABEL.to_string());
+        // Voice (Phase B): add a SendRecv Opus audio m-line ONLY when this
+        // connection is requested for voice. Opus (48 kHz) is enabled by default
+        // in Rtc::builder(). Data-only connections (every existing caller) skip
+        // this entirely, so their offer SDP is byte-identical to before.
+        let audio_mid = if wants_voice {
+            Some(api.add_media(MediaKind::Audio, Direction::SendRecv, None, None, None))
+        } else {
+            None
+        };
         let (offer, pending) = match api.apply() {
             Some(pair) => pair,
             None => {
@@ -986,6 +1084,8 @@ impl WebrtcManager {
                 channel: None,
                 remote_addr: None,
                 announced_open: false,
+                audio_mid,
+                voice_rtp_ts: 0,
             },
         );
         log::info!("WebRTC: sent dc_offer to {}", short(&peer));
@@ -1120,6 +1220,10 @@ impl WebrtcManager {
                 channel: None,
                 remote_addr: None,
                 announced_open: false,
+                // Voice (Phase B): accept_offer auto-mirrors any audio m-line the
+                // offer carried; we learn its mid from Event::MediaAdded.
+                audio_mid: None,
+                voice_rtp_ts: 0,
             },
         );
         self.emit_signal(&from, "dc_answer", answer_json);
@@ -2978,5 +3082,48 @@ mod turn {
             assert!((0x4000u16 >> 8) as u8 == 0x40);
             assert!((0x7FFFu16 >> 8) as u8 == 0x7F);
         }
+    }
+}
+
+/// Phase B (v0.489): str0m audio-media negotiation tests. These are pure SDP
+/// operations (no network), so they deterministically verify that the voice path
+/// adds an Opus audio m-line AND that the default data-only path is unchanged
+/// (the regression guard for existing P2P-group connections).
+#[cfg(test)]
+mod phase_b_voice_tests {
+    use super::*;
+    use std::time::Instant;
+
+    #[test]
+    fn voice_offer_negotiates_opus_audio_mline() {
+        // Offerer: data channel first (keeps it at SDP index 0), then voice audio.
+        let mut offerer = Rtc::builder().build(Instant::now());
+        let mut api = offerer.sdp_api();
+        let _cid = api.add_channel(CHANNEL_LABEL.to_string());
+        let audio_mid = api.add_media(MediaKind::Audio, Direction::SendRecv, None, None, None);
+        let (offer, _pending) = api.apply().expect("offer produced");
+        let offer_json = serde_json::to_string(&offer).unwrap();
+        assert!(offer_json.contains("m=audio"), "offer should carry an audio m-line");
+        assert!(offer_json.to_lowercase().contains("opus"), "offer should advertise Opus");
+        assert!(!audio_mid.to_string().is_empty(), "add_media should return a usable mid");
+
+        // Answerer: accept_offer auto-mirrors the audio m-line into the answer.
+        let mut answerer = Rtc::builder().build(Instant::now());
+        let answer = answerer.sdp_api().accept_offer(offer).expect("answer produced");
+        let answer_json = serde_json::to_string(&answer).unwrap();
+        assert!(answer_json.contains("m=audio"), "answer should mirror the audio m-line");
+        assert!(answer_json.to_lowercase().contains("opus"), "answer should advertise Opus");
+    }
+
+    #[test]
+    fn data_only_offer_has_no_audio_mline() {
+        // The default path (wants_voice = false) must NOT add audio, so existing
+        // P2P-group connections produce a byte-identical offer to pre-Phase-B.
+        let mut offerer = Rtc::builder().build(Instant::now());
+        let mut api = offerer.sdp_api();
+        let _cid = api.add_channel(CHANNEL_LABEL.to_string());
+        let (offer, _pending) = api.apply().expect("offer produced");
+        let offer_json = serde_json::to_string(&offer).unwrap();
+        assert!(!offer_json.contains("m=audio"), "data-only offer must have no audio m-line");
     }
 }
