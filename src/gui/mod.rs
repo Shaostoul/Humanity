@@ -1393,6 +1393,23 @@ pub struct GuiState {
     /// Previous mic_test_active, so lib.rs starts/stops the loopback only on the
     /// toggle EDGE (not every frame, which would spin-retry a failing start).
     pub mic_test_prev: bool,
+    // ── v0.488 voice input prefs (persisted via AppConfig) ──────────────
+    /// Mic input gain, 1.0 = 100%. Range 0.0..=2.0 (200%).
+    pub voice_gain: f32,
+    /// Noise filter applied to the mic before encode.
+    pub voice_filter_mode: crate::config::VoiceFilterMode,
+    /// When the mic is actually transmitted (open mic / PTT / VAD / push-to-mute).
+    pub voice_transmit_mode: crate::config::VoiceTransmitMode,
+    /// The push key (egui Key name) for PTT / push-to-mute.
+    pub voice_ptt_key: String,
+    /// Voice-activation RMS threshold (0.0..=1.0).
+    pub voice_vad_threshold: f32,
+    /// Runtime: is the push key currently held this frame? Set by lib.rs from
+    /// the input state; gates transmit for PTT / push-to-mute. Not persisted.
+    pub voice_ptt_held: bool,
+    /// Runtime: the settings UI is waiting for the user to press a key to bind
+    /// as the push key. Not persisted.
+    pub voice_binding_key: bool,
     /// Live diagnostics sampled from EngineState each frame (only while the
     /// relevant overlay is open, so they cost nothing when hidden). entity_count
     /// = ECS entities, mem_mb = process RSS, uptime_secs = since launch.
@@ -2354,6 +2371,13 @@ impl Default for GuiState {
             audio_devices_loaded: false,
             mic_meter: 0.0,
             mic_test_prev: false,
+            voice_gain: 1.0,
+            voice_filter_mode: crate::config::VoiceFilterMode::default(),
+            voice_transmit_mode: crate::config::VoiceTransmitMode::default(),
+            voice_ptt_key: "V".to_string(),
+            voice_vad_threshold: 0.05,
+            voice_ptt_held: false,
+            voice_binding_key: false,
             diag_entity_count: 0,
             diag_mem_mb: 0.0,
             diag_uptime_secs: 0,

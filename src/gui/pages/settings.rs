@@ -1561,11 +1561,91 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         if widgets::Button::ghost("Refresh devices").show(ui, theme) {
             state.audio_devices_loaded = false;
         }
+
+        // ── Input processing (v0.488): gain, noise filter, transmit mode ──
+        ui.add_space(theme.spacing_sm);
+        // Mic gain, 0-200% (100% = unchanged). Stored as a 0.0..=2.0 multiplier.
+        let mut gain_pct = state.voice_gain * 100.0;
+        if widgets::labeled_slider(ui, theme, "Mic gain %", &mut gain_pct, 0.0..=200.0) {
+            state.voice_gain = (gain_pct / 100.0).clamp(0.0, 2.0);
+            state.settings_dirty = true;
+        }
+
+        // Noise filter mode.
+        ui.add_space(theme.spacing_xs);
+        ui.label(RichText::new("Noise filter").size(theme.font_size_small).color(theme.text_secondary()));
+        ui.horizontal_wrapped(|ui| {
+            for m in crate::config::VoiceFilterMode::ALL {
+                let selected = state.voice_filter_mode == m;
+                if ui.selectable_label(selected, m.label()).clicked() && !selected {
+                    state.voice_filter_mode = m;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        ui.label(RichText::new(state.voice_filter_mode.hint()).size(theme.font_size_small).color(theme.text_muted()));
+
+        // Transmit mode.
+        ui.add_space(theme.spacing_xs);
+        ui.label(RichText::new("Transmit mode").size(theme.font_size_small).color(theme.text_secondary()));
+        ui.horizontal_wrapped(|ui| {
+            for m in crate::config::VoiceTransmitMode::ALL {
+                let selected = state.voice_transmit_mode == m;
+                if ui.selectable_label(selected, m.label()).clicked() && !selected {
+                    state.voice_transmit_mode = m;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        ui.label(RichText::new(state.voice_transmit_mode.hint()).size(theme.font_size_small).color(theme.text_muted()));
+
+        // Push key binding (push-to-talk / push-to-mute only).
+        if state.voice_transmit_mode.uses_key() {
+            ui.add_space(theme.spacing_xs);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Push key").size(theme.font_size_small).color(theme.text_secondary()));
+                let lbl = if state.voice_binding_key {
+                    "Press a key...".to_string()
+                } else if state.voice_ptt_key.is_empty() {
+                    "Unbound".to_string()
+                } else {
+                    state.voice_ptt_key.clone()
+                };
+                if ui.selectable_label(state.voice_binding_key, lbl).clicked() {
+                    state.voice_binding_key = !state.voice_binding_key;
+                }
+            });
+            if state.voice_binding_key {
+                // Capture the next key press as the binding.
+                let captured = ui.input(|i| {
+                    i.events.iter().find_map(|e| match e {
+                        egui::Event::Key { key, pressed: true, .. } => Some(*key),
+                        _ => None,
+                    })
+                });
+                if let Some(k) = captured {
+                    state.voice_ptt_key = k.name().to_string();
+                    state.voice_binding_key = false;
+                    state.settings_dirty = true;
+                }
+            }
+        }
+
+        // Activation threshold (voice-activated only). Stored 0.0..=1.0, shown as %.
+        if state.voice_transmit_mode == crate::config::VoiceTransmitMode::VoiceActivated {
+            let mut vad_pct = state.voice_vad_threshold * 100.0;
+            if widgets::labeled_slider(ui, theme, "Activation threshold %", &mut vad_pct, 0.0..=30.0) {
+                state.voice_vad_threshold = (vad_pct / 100.0).clamp(0.0, 1.0);
+                state.settings_dirty = true;
+            }
+        }
+
         ui.add_space(theme.spacing_sm);
         widgets::body_hint(
             ui, theme,
             "Test microphone plays your own mic back to you so you can confirm capture and \
-             playback (use headphones to avoid feedback). It stays on until you stop it.",
+             playback (use headphones to avoid feedback). It stays on until you stop it. Gain, \
+             filter, and transmit mode all apply live while the test runs.",
         );
         ui.add_space(theme.spacing_xs);
 
@@ -1606,6 +1686,16 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         let status = crate::net::voice::mic_status();
         if !status.is_empty() {
             ui.label(RichText::new(status).size(theme.font_size_small).color(theme.text_secondary()));
+        }
+        // While the test runs, show whether the transmit gate is open right now,
+        // so push-to-talk / voice-activated modes are visibly working.
+        if state.mic_test_active {
+            let (txt, col) = if crate::net::voice::is_transmitting() {
+                ("Transmitting", theme.success())
+            } else {
+                ("Silent (transmit gate closed)", theme.text_muted())
+            };
+            ui.label(RichText::new(txt).size(theme.font_size_small).color(col));
         }
     });
 }

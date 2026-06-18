@@ -64,6 +64,86 @@ impl WindowMode {
     }
 }
 
+/// How the microphone signal is cleaned up before it is encoded + transmitted
+/// (v0.488). The chain is always: user gain, then this filter, then the
+/// transmit-mode gate, then Opus. "Off" sends the raw mic; the others remove
+/// progressively more non-speech noise (rumble, hiss, keyboard clicks, coughs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum VoiceFilterMode {
+    /// No processing: the raw mic (after gain) goes straight to Opus.
+    Off,
+    /// Always-safe light clean-up: an ~85 Hz high-pass (kills rumble / desk
+    /// thumps / AC hum fundamentals) plus a gentle noise gate. Very low CPU,
+    /// never distorts speech.
+    #[default]
+    Light,
+    /// Full noise suppression (RNNoise-class): removes keyboard clicks, coughs,
+    /// fans, and steady background noise while preserving the voice. Slightly
+    /// more CPU; the strongest option.
+    NoiseSuppression,
+}
+impl VoiceFilterMode {
+    pub const ALL: [VoiceFilterMode; 3] =
+        [VoiceFilterMode::Off, VoiceFilterMode::Light, VoiceFilterMode::NoiseSuppression];
+    pub fn label(self) -> &'static str {
+        match self {
+            VoiceFilterMode::Off => "No filter",
+            VoiceFilterMode::Light => "Light clean-up",
+            VoiceFilterMode::NoiseSuppression => "Noise suppression",
+        }
+    }
+    pub fn hint(self) -> &'static str {
+        match self {
+            VoiceFilterMode::Off => "Sends your raw mic. Best with a studio mic in a quiet room.",
+            VoiceFilterMode::Light => "Removes rumble and hiss with a high-pass and a soft gate. Safe default.",
+            VoiceFilterMode::NoiseSuppression => "Removes keyboards, coughs, fans, and background noise.",
+        }
+    }
+}
+
+/// When the microphone is actually transmitted (v0.488). The filter runs first;
+/// this decides whether the cleaned audio is sent at all this moment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum VoiceTransmitMode {
+    /// Always transmit (classic open mic).
+    #[default]
+    OpenMic,
+    /// Transmit only while the push-to-talk key is held.
+    PushToTalk,
+    /// Transmit only when your voice rises above the activation threshold.
+    VoiceActivated,
+    /// Transmit always, EXCEPT while the push-to-mute key is held.
+    PushToMute,
+}
+impl VoiceTransmitMode {
+    pub const ALL: [VoiceTransmitMode; 4] = [
+        VoiceTransmitMode::OpenMic,
+        VoiceTransmitMode::PushToTalk,
+        VoiceTransmitMode::VoiceActivated,
+        VoiceTransmitMode::PushToMute,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            VoiceTransmitMode::OpenMic => "Open mic",
+            VoiceTransmitMode::PushToTalk => "Push to talk",
+            VoiceTransmitMode::VoiceActivated => "Voice activated",
+            VoiceTransmitMode::PushToMute => "Push to mute",
+        }
+    }
+    pub fn hint(self) -> &'static str {
+        match self {
+            VoiceTransmitMode::OpenMic => "Your mic is always live.",
+            VoiceTransmitMode::PushToTalk => "Hold the key to talk; silent otherwise.",
+            VoiceTransmitMode::VoiceActivated => "Transmits when you speak above the threshold.",
+            VoiceTransmitMode::PushToMute => "Always live; hold the key to mute.",
+        }
+    }
+    /// True if this mode needs the push key bound (PTT / push-to-mute).
+    pub fn uses_key(self) -> bool {
+        matches!(self, VoiceTransmitMode::PushToTalk | VoiceTransmitMode::PushToMute)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     pub server_url: String,
@@ -102,6 +182,30 @@ pub struct AppConfig {
     pub window_mode: WindowMode,
     #[serde(default = "default_true")]
     pub vsync: bool,
+
+    // ── v0.488: native voice input prefs ────────────────────────────────
+    // The mic device + speaker device the user picked (empty => system
+    // default), the input gain, the noise filter, the transmit mode, the
+    // push key, and the voice-activation threshold. All persisted so the
+    // user does not re-pick every launch. Defaults are safe for a fresh
+    // install: system devices, unity gain, light clean-up, open mic.
+    #[serde(default)]
+    pub voice_input_device: String,
+    #[serde(default)]
+    pub voice_output_device: String,
+    #[serde(default = "default_voice_gain")]
+    pub voice_gain: f32,
+    #[serde(default)]
+    pub voice_filter_mode: VoiceFilterMode,
+    #[serde(default)]
+    pub voice_transmit_mode: VoiceTransmitMode,
+    /// The push-to-talk / push-to-mute key, as an egui Key name (e.g. "V").
+    /// Empty => unbound (the UI prompts the user to set one).
+    #[serde(default = "default_voice_ptt_key")]
+    pub voice_ptt_key: String,
+    /// Voice-activation RMS threshold (0.0..=1.0) for the voice-activated mode.
+    #[serde(default = "default_voice_vad_threshold")]
+    pub voice_vad_threshold: f32,
 
     /// Chat timestamp display format (operator-configurable). One of
     /// TimestampFormat::as_str() — "hour_min" (default) … "full". Empty/unknown
@@ -251,6 +355,10 @@ fn default_music_volume() -> f32 { 0.5 }
 fn default_sfx_volume() -> f32 { 0.7 }
 fn default_true() -> bool { true }
 fn default_panel_width() -> f32 { 220.0 }
+// v0.488 voice input prefs: unity gain, "V" push key, a modest activation floor.
+fn default_voice_gain() -> f32 { 1.0 }
+fn default_voice_ptt_key() -> String { "V".to_string() }
+fn default_voice_vad_threshold() -> f32 { 0.05 }
 
 /// Encrypt a private key with AES-256-GCM using a passphrase.
 ///
@@ -466,6 +574,14 @@ impl AppConfig {
             fullscreen: state.settings.fullscreen,
             window_mode: state.settings.window_mode,
             vsync: state.settings.vsync,
+            // v0.488 voice input prefs (top-level GuiState, not SettingsState).
+            voice_input_device: state.audio_input_device.clone(),
+            voice_output_device: state.audio_output_device.clone(),
+            voice_gain: state.voice_gain,
+            voice_filter_mode: state.voice_filter_mode,
+            voice_transmit_mode: state.voice_transmit_mode,
+            voice_ptt_key: state.voice_ptt_key.clone(),
+            voice_vad_threshold: state.voice_vad_threshold,
             timestamp_format: crate::gui::pages::chat::timestamp_format().as_str().to_string(),
             // Never write plaintext key back; use encrypted fields from state
             private_key_hex: String::new(),
@@ -533,6 +649,14 @@ impl AppConfig {
         state.settings.fullscreen = self.fullscreen;
         state.settings.window_mode = self.window_mode;
         state.settings.vsync = self.vsync;
+        // v0.488 voice input prefs.
+        state.audio_input_device = self.voice_input_device.clone();
+        state.audio_output_device = self.voice_output_device.clone();
+        state.voice_gain = self.voice_gain;
+        state.voice_filter_mode = self.voice_filter_mode;
+        state.voice_transmit_mode = self.voice_transmit_mode;
+        state.voice_ptt_key = self.voice_ptt_key.clone();
+        state.voice_vad_threshold = self.voice_vad_threshold;
         // Timestamp display format → the app-wide formatter (process global).
         crate::gui::pages::chat::set_timestamp_format(
             crate::gui::pages::chat::TimestampFormat::from_config_str(&self.timestamp_format),

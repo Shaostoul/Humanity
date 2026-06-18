@@ -89,8 +89,10 @@ impl Drop for Decoder {
 
 // ---- Phase A: local mic loopback (toggle: runs until stopped) ----
 
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use std::sync::Mutex;
+
+use crate::config::{VoiceFilterMode, VoiceTransmitMode};
 
 /// True while the mic loopback test is running. The worker thread loops on this.
 static MIC_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -98,6 +100,54 @@ static MIC_RUNNING: AtomicBool = AtomicBool::new(false);
 static MIC_PEAK_BITS: AtomicU32 = AtomicU32::new(0);
 /// A human status line shown under the test button.
 static MIC_STATUS: Mutex<String> = Mutex::new(String::new());
+
+// ── Live input params (v0.488) ──────────────────────────────────────────
+// The UI thread (lib.rs) writes these every frame so the running worker picks
+// up gain / filter / transmit-mode / threshold / push-key changes WITHOUT
+// restarting the audio streams. The worker reads them per 20 ms frame.
+static VOICE_GAIN_BITS: AtomicU32 = AtomicU32::new(0x3f80_0000); // 1.0_f32
+static VOICE_FILTER_MODE: AtomicU8 = AtomicU8::new(1); // 0=Off 1=Light 2=NoiseSuppression
+static VOICE_TRANSMIT_MODE: AtomicU8 = AtomicU8::new(0); // 0=OpenMic 1=PTT 2=VAD 3=PushToMute
+static VOICE_VAD_THRESH_BITS: AtomicU32 = AtomicU32::new(0x3d4c_cccd); // 0.05_f32
+static VOICE_PTT_HELD: AtomicBool = AtomicBool::new(false);
+/// Worker -> UI: is cleaned audio actually being transmitted right now (i.e. the
+/// transmit gate is open)? Lets the UI show a live "transmitting" indicator.
+static VOICE_TRANSMITTING: AtomicBool = AtomicBool::new(false);
+
+fn filter_to_u8(m: VoiceFilterMode) -> u8 {
+    match m {
+        VoiceFilterMode::Off => 0,
+        VoiceFilterMode::Light => 1,
+        VoiceFilterMode::NoiseSuppression => 2,
+    }
+}
+fn transmit_to_u8(m: VoiceTransmitMode) -> u8 {
+    match m {
+        VoiceTransmitMode::OpenMic => 0,
+        VoiceTransmitMode::PushToTalk => 1,
+        VoiceTransmitMode::VoiceActivated => 2,
+        VoiceTransmitMode::PushToMute => 3,
+    }
+}
+
+/// Push the current input params to the worker. Called every frame from lib.rs.
+pub fn set_input_params(
+    gain: f32,
+    filter: VoiceFilterMode,
+    transmit: VoiceTransmitMode,
+    vad_threshold: f32,
+    ptt_held: bool,
+) {
+    VOICE_GAIN_BITS.store(gain.to_bits(), Ordering::Relaxed);
+    VOICE_FILTER_MODE.store(filter_to_u8(filter), Ordering::Relaxed);
+    VOICE_TRANSMIT_MODE.store(transmit_to_u8(transmit), Ordering::Relaxed);
+    VOICE_VAD_THRESH_BITS.store(vad_threshold.to_bits(), Ordering::Relaxed);
+    VOICE_PTT_HELD.store(ptt_held, Ordering::Relaxed);
+}
+/// Is the transmit gate currently open (audio passing)? For a UI indicator.
+pub fn is_transmitting() -> bool {
+    VOICE_TRANSMITTING.load(Ordering::Relaxed)
+}
 
 fn set_status(s: &str) {
     if let Ok(mut g) = MIC_STATUS.lock() {
@@ -284,6 +334,190 @@ where
         .map_err(|e| format!("open speaker: {e}"))
 }
 
+// ── DSP: the mic input chain (v0.488) ───────────────────────────────────
+// Order: user gain -> high-pass -> noise filter -> (transmit gate) -> Opus.
+// All mono f32 at 48 kHz. Pure Rust, no deps. The "NoiseSuppression" mode adds
+// a learned denoiser (RNNoise) on top; until that is wired it falls back to a
+// stronger gate, which the comment in `InputProcessor::process` notes.
+
+/// A Direct-Form-I biquad. We use it as a high-pass to remove DC offset, desk
+/// rumble, and AC-hum fundamentals below speech (RBJ cookbook coefficients).
+struct Biquad {
+    b0: f32,
+    b1: f32,
+    b2: f32,
+    a1: f32,
+    a2: f32,
+    x1: f32,
+    x2: f32,
+    y1: f32,
+    y2: f32,
+}
+impl Biquad {
+    fn highpass(sr: f32, fc: f32, q: f32) -> Self {
+        let w0 = 2.0 * std::f32::consts::PI * fc / sr;
+        let (sin, cos) = w0.sin_cos();
+        let alpha = sin / (2.0 * q);
+        let a0 = 1.0 + alpha;
+        Self {
+            b0: ((1.0 + cos) / 2.0) / a0,
+            b1: (-(1.0 + cos)) / a0,
+            b2: ((1.0 + cos) / 2.0) / a0,
+            a1: (-2.0 * cos) / a0,
+            a2: (1.0 - alpha) / a0,
+            x1: 0.0,
+            x2: 0.0,
+            y1: 0.0,
+            y2: 0.0,
+        }
+    }
+    fn process(&mut self, x: f32) -> f32 {
+        let y = self.b0 * x + self.b1 * self.x1 + self.b2 * self.x2 - self.a1 * self.y1 - self.a2 * self.y2;
+        self.x2 = self.x1;
+        self.x1 = x;
+        self.y2 = self.y1;
+        self.y1 = y;
+        y
+    }
+}
+
+/// A simple envelope-following noise gate: when the frame energy sits below the
+/// threshold the gain ramps smoothly to zero (killing between-word hiss + faint
+/// background), and ramps back up fast when you speak. Attack is fast so word
+/// onsets are not chopped; release is slow so tails decay naturally.
+struct NoiseGate {
+    thresh: f32,
+    gain: f32,
+    attack: f32,
+    release: f32,
+}
+impl NoiseGate {
+    fn new(thresh: f32) -> Self {
+        Self { thresh, gain: 0.0, attack: 0.02, release: 0.0008 }
+    }
+    fn process(&mut self, frame: &mut [f32], rms: f32) {
+        let target = if rms > self.thresh { 1.0 } else { 0.0 };
+        for s in frame.iter_mut() {
+            let coeff = if target > self.gain { self.attack } else { self.release };
+            self.gain += (target - self.gain) * coeff;
+            *s *= self.gain;
+        }
+    }
+}
+
+fn frame_rms(frame: &[f32]) -> f32 {
+    if frame.is_empty() {
+        return 0.0;
+    }
+    let sum: f32 = frame.iter().map(|s| s * s).sum();
+    (sum / frame.len() as f32).sqrt()
+}
+
+/// RNNoise (nnnoiseless) wrapper for the NoiseSuppression mode. RNNoise is
+/// hard-wired to 48 kHz and processes exactly 480-sample (10 ms) frames, and it
+/// expects samples in i16 amplitude range (~[-32768, 32767]) NOT [-1, 1] — so we
+/// scale up going in and back down coming out. Stateful (holds the recurrent +
+/// overlap-add memory), so one instance per stream, reused across frames.
+struct Denoiser {
+    st: Box<nnnoiseless::DenoiseState<'static>>,
+    sin: [f32; 480],
+    sout: [f32; 480],
+}
+impl Denoiser {
+    fn new() -> Self {
+        Self { st: nnnoiseless::DenoiseState::new(), sin: [0.0; 480], sout: [0.0; 480] }
+    }
+    /// Denoise a buffer whose length is a multiple of 480, in place. Our caller
+    /// passes exactly FRAME (960 = 2 RNNoise frames), so there is no remainder.
+    fn process(&mut self, buf: &mut [f32]) {
+        let mut off = 0;
+        while off + 480 <= buf.len() {
+            for i in 0..480 {
+                self.sin[i] = buf[off + i] * 32768.0;
+            }
+            let _vad = self.st.process_frame(&mut self.sout, &self.sin);
+            for i in 0..480 {
+                buf[off + i] = (self.sout[i] / 32768.0).clamp(-1.0, 1.0);
+            }
+            off += 480;
+        }
+    }
+}
+
+/// The full input chain. Holds the per-stream filter state (biquad memory, gate
+/// envelope, RNNoise model) so it is allocated once per session and reused per
+/// frame.
+struct InputProcessor {
+    hp: Biquad,
+    gate: NoiseGate,
+    denoiser: Denoiser,
+}
+impl InputProcessor {
+    fn new() -> Self {
+        Self {
+            // ~85 Hz high-pass at Q 0.707 (Butterworth) — transparent for voice.
+            hp: Biquad::highpass(SR as f32, 85.0, 0.707),
+            // Light: a gentle gate (low threshold) just to kill silence hiss.
+            gate: NoiseGate::new(0.012),
+            denoiser: Denoiser::new(),
+        }
+    }
+    /// Apply gain + the selected filter to a 48 kHz mono frame, in place.
+    fn process(&mut self, frame: &mut [f32], gain: f32, mode: u8) {
+        if (gain - 1.0).abs() > f32::EPSILON {
+            for s in frame.iter_mut() {
+                *s = (*s * gain).clamp(-1.0, 1.0);
+            }
+        }
+        match mode {
+            0 => {} // Off
+            2 => {
+                // NoiseSuppression: high-pass, then RNNoise — which removes
+                // keyboard clicks, coughs, fans, and background noise even while
+                // you speak (a gate only helps between words). No separate gate
+                // here: double-suppression sounds pumpy.
+                for s in frame.iter_mut() {
+                    *s = self.hp.process(*s);
+                }
+                self.denoiser.process(frame);
+            }
+            _ => {
+                // Light (default): high-pass + a gentle gate.
+                for s in frame.iter_mut() {
+                    *s = self.hp.process(*s);
+                }
+                let rms = frame_rms(frame);
+                self.gate.process(frame, rms);
+            }
+        }
+    }
+}
+
+/// Decide whether the cleaned frame should be transmitted this moment, given the
+/// transmit mode, the (post-filter) level, the activation threshold, the push
+/// key state, and a mutable VAD hangover counter (in frames). VAD keeps the gate
+/// open for a short tail after the level drops, so word endings are not clipped.
+fn transmit_decision(mode: u8, rms: f32, vad_thresh: f32, ptt_held: bool, vad_hold: &mut u32) -> bool {
+    const VAD_HANGOVER_FRAMES: u32 = 25; // ~500 ms at 20 ms/frame
+    match mode {
+        1 => ptt_held,           // PushToTalk
+        3 => !ptt_held,          // PushToMute
+        2 => {
+            // VoiceActivated
+            if rms > vad_thresh {
+                *vad_hold = VAD_HANGOVER_FRAMES;
+                true
+            } else if *vad_hold > 0 {
+                *vad_hold -= 1;
+                true
+            } else {
+                false
+            }
+        }
+        _ => true, // OpenMic
+    }
+}
+
 fn run_loopback(input_name: &str, output_name: &str) -> Result<(), String> {
     let input = find_device(input_name, true).ok_or("no input (microphone) device")?;
     let output = find_device(output_name, false).ok_or("no output (speaker) device")?;
@@ -329,13 +563,17 @@ fn run_loopback(input_name: &str, output_name: &str) -> Result<(), String> {
     out_stream.play().map_err(|e| e.to_string())?;
     set_status("Listening, speak into your mic (use headphones)");
 
-    // Worker: mic (in_rate) -> resample to 48 kHz -> Opus encode -> Opus decode ->
-    // resample to out_rate -> speaker. Proves the full codec round-trip, and works
-    // for any device rate. Runs until stopped.
+    // Worker: mic (in_rate) -> resample to 48 kHz -> gain + filter (DSP) ->
+    // transmit gate -> Opus encode -> Opus decode -> resample to out_rate ->
+    // speaker. Proves the full input chain + codec round-trip, for any device
+    // rate. The DSP params are read live each frame from the UI. Runs until stopped.
     let mut up = Resampler::new(in_rate, SR);
     let mut down = Resampler::new(SR, out_rate);
+    let mut proc = InputProcessor::new();
+    let mut vad_hold: u32 = 0;
     let mut enc = Encoder::new()?;
     let mut dec = Decoder::new()?;
+    let mut frame_f32 = [0f32; FRAME];
     let mut frame_i16 = [0i16; FRAME];
     let mut pkt = [0u8; 4000];
     let mut out_i16 = [0i16; FRAME];
@@ -353,12 +591,29 @@ fn run_loopback(input_name: &str, output_name: &str) -> Result<(), String> {
         if !idle {
             up.process(&drained, &mut buf48);
         }
-        // Encode/decode every full 48 kHz frame, resample back to the speaker rate.
+        // Read the live input params once per drain.
+        let gain = f32::from_bits(VOICE_GAIN_BITS.load(Ordering::Relaxed));
+        let filter_mode = VOICE_FILTER_MODE.load(Ordering::Relaxed);
+        let transmit_mode = VOICE_TRANSMIT_MODE.load(Ordering::Relaxed);
+        let vad_thresh = f32::from_bits(VOICE_VAD_THRESH_BITS.load(Ordering::Relaxed));
+        let ptt_held = VOICE_PTT_HELD.load(Ordering::Relaxed);
+        // Process every full 48 kHz frame, gate it, then codec + resample to speaker.
         while buf48.len() >= FRAME {
-            for (k, s) in frame_i16.iter_mut().enumerate() {
-                *s = (buf48[k].clamp(-1.0, 1.0) * 32767.0) as i16;
-            }
+            frame_f32.copy_from_slice(&buf48[..FRAME]);
             buf48.drain(0..FRAME);
+            // Gain + filter (always run so the filter state stays warm), then the
+            // transmit decision on the cleaned level.
+            proc.process(&mut frame_f32, gain, filter_mode);
+            let rms = frame_rms(&frame_f32);
+            let transmit = transmit_decision(transmit_mode, rms, vad_thresh, ptt_held, &mut vad_hold);
+            VOICE_TRANSMITTING.store(transmit, Ordering::Relaxed);
+            if !transmit {
+                // Gate closed: emit nothing; the output callback plays silence.
+                continue;
+            }
+            for (s, &v) in frame_i16.iter_mut().zip(frame_f32.iter()) {
+                *s = (v.clamp(-1.0, 1.0) * 32767.0) as i16;
+            }
             if let Some(n) = enc.encode(&frame_i16, &mut pkt) {
                 if let Some(m) = dec.decode(&pkt[..n], &mut out_i16) {
                     dec_f32.clear();
@@ -377,8 +632,90 @@ fn run_loopback(input_name: &str, output_name: &str) -> Result<(), String> {
             std::thread::sleep(Duration::from_millis(3));
         }
     }
+    VOICE_TRANSMITTING.store(false, Ordering::Relaxed);
     // Streams stop when dropped here.
     drop(in_stream);
     drop(out_stream);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resampler_identity_passthrough() {
+        // 48k -> 48k is an exact passthrough (one sample of lookahead latency).
+        let mut r = Resampler::new(48_000, 48_000);
+        let input: Vec<f32> = (0..480).map(|i| (i as f32 * 0.01).sin()).collect();
+        let mut out = Vec::new();
+        r.process(&input, &mut out);
+        // All but the last (held for lookahead) samples come out unchanged.
+        assert!(out.len() >= input.len() - 1);
+        for (a, b) in input.iter().zip(out.iter()) {
+            assert!((a - b).abs() < 1e-6, "passthrough altered a sample");
+        }
+    }
+
+    #[test]
+    fn resampler_halves_on_downsample() {
+        // 48k -> 24k yields ~half the samples.
+        let mut r = Resampler::new(48_000, 24_000);
+        let input = vec![0.0f32; 4800];
+        let mut out = Vec::new();
+        r.process(&input, &mut out);
+        let ratio = out.len() as f32 / input.len() as f32;
+        assert!((ratio - 0.5).abs() < 0.02, "expected ~half, got {ratio}");
+    }
+
+    #[test]
+    fn gain_stays_in_range() {
+        // Boosting a hot signal must not exceed [-1, 1] (clip protection).
+        let mut proc = InputProcessor::new();
+        let mut frame = vec![0.9f32; FRAME];
+        proc.process(&mut frame, 2.0, 0); // gain 200%, filter Off
+        assert!(frame.iter().all(|s| s.abs() <= 1.0), "gain clipped out of range");
+    }
+
+    #[test]
+    fn highpass_removes_dc_offset() {
+        // A constant (DC) input must decay toward zero through the high-pass.
+        let mut hp = Biquad::highpass(SR as f32, 85.0, 0.707);
+        let mut last = 0.0;
+        for _ in 0..4000 {
+            last = hp.process(1.0);
+        }
+        assert!(last.abs() < 0.05, "DC not removed: {last}");
+    }
+
+    #[test]
+    fn denoiser_runs_and_stays_finite() {
+        // RNNoise must accept a 960-sample (2x480) frame and return finite audio.
+        let mut d = Denoiser::new();
+        let mut frame: Vec<f32> = (0..FRAME).map(|i| (i as f32 * 0.05).sin() * 0.3).collect();
+        d.process(&mut frame);
+        assert_eq!(frame.len(), FRAME);
+        assert!(frame.iter().all(|s| s.is_finite() && s.abs() <= 1.0));
+    }
+
+    #[test]
+    fn transmit_modes_gate_correctly() {
+        let mut hold = 0u32;
+        // Open mic (0): always on.
+        assert!(transmit_decision(0, 0.0, 0.05, false, &mut hold));
+        // Push-to-talk (1): on only while held.
+        assert!(transmit_decision(1, 0.5, 0.05, true, &mut hold));
+        assert!(!transmit_decision(1, 0.5, 0.05, false, &mut hold));
+        // Push-to-mute (3): off only while held.
+        assert!(!transmit_decision(3, 0.5, 0.05, true, &mut hold));
+        assert!(transmit_decision(3, 0.5, 0.05, false, &mut hold));
+        // Voice-activated (2): opens above threshold, holds briefly, then closes.
+        hold = 0;
+        assert!(transmit_decision(2, 0.10, 0.05, false, &mut hold)); // above -> on
+        assert!(transmit_decision(2, 0.0, 0.05, false, &mut hold)); // hangover keeps it on
+        for _ in 0..30 {
+            transmit_decision(2, 0.0, 0.05, false, &mut hold);
+        }
+        assert!(!transmit_decision(2, 0.0, 0.05, false, &mut hold)); // hangover expired -> off
+    }
 }

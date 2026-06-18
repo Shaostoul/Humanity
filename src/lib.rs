@@ -3920,6 +3920,31 @@ mod native_app {
                         let lvl = crate::net::voice::mic_level();
                         state.gui_state.mic_meter = (state.gui_state.mic_meter * 0.85).max(lvl);
                     }
+                    // v0.488: push the live voice input params (gain / filter / transmit
+                    // mode / activation threshold) to the worker every frame, so changes
+                    // apply without restarting the test. For push-to-talk / push-to-mute,
+                    // read whether the bound key is held this frame (egui has key state
+                    // while the Settings UI is focused, which is where the test lives).
+                    {
+                        let uses_key = state.gui_state.voice_transmit_mode.uses_key();
+                        let ptt_held = if uses_key {
+                            let name = state.gui_state.voice_ptt_key.clone();
+                            match egui::Key::ALL.iter().copied().find(|k| k.name().eq_ignore_ascii_case(&name)) {
+                                Some(k) => state.egui_ctx.input(|i| i.key_down(k)),
+                                None => false,
+                            }
+                        } else {
+                            false
+                        };
+                        state.gui_state.voice_ptt_held = ptt_held;
+                        crate::net::voice::set_input_params(
+                            state.gui_state.voice_gain,
+                            state.gui_state.voice_filter_mode,
+                            state.gui_state.voice_transmit_mode,
+                            state.gui_state.voice_vad_threshold,
+                            ptt_held,
+                        );
+                    }
 
                     // Poll updater for background thread results
                     if state.gui_state.updater.poll(dt as f64) {
