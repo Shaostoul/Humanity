@@ -3889,11 +3889,22 @@ mod native_app {
                             state.gui_state.diag_mem_mb = u.physical_mem as f32 / 1_048_576.0;
                         }
                     }
-                    // Settings audio "Test microphone": run a mic loopback (v0.485).
-                    if state.gui_state.mic_test_requested {
-                        state.gui_state.mic_test_requested = false;
-                        crate::net::voice::start_mic_test();
-                        crate::debug::push_debug("Mic test started (speak; you should hear yourself for ~6s)");
+                    // Settings audio "Test microphone" toggle: keep the mic loopback
+                    // running while mic_test_active, on the chosen devices (v0.485).
+                    {
+                        let want = state.gui_state.mic_test_active;
+                        let running = crate::net::voice::mic_test_running();
+                        if want && !running {
+                            crate::net::voice::start_mic_test(
+                                state.gui_state.audio_input_device.clone(),
+                                state.gui_state.audio_output_device.clone(),
+                            );
+                        } else if !want && running {
+                            crate::net::voice::stop_mic_test();
+                        }
+                        // Decayed peak-hold meter for the UI.
+                        let lvl = crate::net::voice::mic_level();
+                        state.gui_state.mic_meter = (state.gui_state.mic_meter * 0.85).max(lvl);
                     }
 
                     // Poll updater for background thread results

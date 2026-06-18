@@ -82,23 +82,93 @@ impl Drop for Decoder {
     }
 }
 
-// ---- Phase A: local mic loopback ----
+// ---- Phase A: local mic loopback (toggle: runs until stopped) ----
 
-/// Spawn a background thread that runs a mic -> Opus -> speaker loopback for a
-/// few seconds, so the operator can confirm their mic + audio work before any
-/// networking. Use headphones to avoid feedback. Best-effort: logs and returns
-/// if a device or the 48 kHz format is unavailable.
-pub fn start_mic_test() {
-    std::thread::spawn(|| match run_loopback(Duration::from_secs(6)) {
-        Ok(()) => {
-            log::info!("Mic test finished");
-            crate::debug::push_debug("Mic test finished (you should have heard yourself)");
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Mutex;
+
+/// True while the mic loopback test is running. The worker thread loops on this.
+static MIC_RUNNING: AtomicBool = AtomicBool::new(false);
+/// Most recent mic input peak (0.0 to 1.0) as f32 bits, for the level meter.
+static MIC_PEAK_BITS: AtomicU32 = AtomicU32::new(0);
+/// A human status line shown under the test button.
+static MIC_STATUS: Mutex<String> = Mutex::new(String::new());
+
+fn set_status(s: &str) {
+    if let Ok(mut g) = MIC_STATUS.lock() {
+        *g = s.to_string();
+    }
+}
+
+/// Is the mic loopback test currently running?
+pub fn mic_test_running() -> bool {
+    MIC_RUNNING.load(Ordering::Relaxed)
+}
+/// The most recent mic input level (0.0 to 1.0), for a meter. Decays to 0 when stopped.
+pub fn mic_level() -> f32 {
+    f32::from_bits(MIC_PEAK_BITS.load(Ordering::Relaxed))
+}
+/// The current status line ("Listening...", "Failed: ...", etc.).
+pub fn mic_status() -> String {
+    MIC_STATUS.lock().map(|s| s.clone()).unwrap_or_default()
+}
+
+/// Names of the available input (mic) devices.
+pub fn list_input_devices() -> Vec<String> {
+    device_names(true)
+}
+/// Names of the available output (speaker) devices.
+pub fn list_output_devices() -> Vec<String> {
+    device_names(false)
+}
+fn device_names(input: bool) -> Vec<String> {
+    let host = cpal::default_host();
+    let iter = if input { host.input_devices() } else { host.output_devices() };
+    iter.map(|ds| ds.filter_map(|d| d.name().ok()).collect())
+        .unwrap_or_default()
+}
+
+/// Find a device by name; empty name or no match falls back to the system default.
+fn find_device(name: &str, input: bool) -> Option<cpal::Device> {
+    let host = cpal::default_host();
+    if !name.is_empty() {
+        let iter = if input { host.input_devices() } else { host.output_devices() };
+        if let Ok(devs) = iter {
+            for d in devs {
+                if d.name().map(|n| n == name).unwrap_or(false) {
+                    return Some(d);
+                }
+            }
         }
-        Err(e) => {
+    }
+    if input { host.default_input_device() } else { host.default_output_device() }
+}
+
+/// Start the mic -> Opus -> speaker loopback on the chosen devices. Runs until
+/// stop_mic_test(). Use headphones to avoid feedback. Best-effort: sets a Failed
+/// status if a device or the 48 kHz format is unavailable.
+pub fn start_mic_test(input_name: String, output_name: String) {
+    if MIC_RUNNING.swap(true, Ordering::SeqCst) {
+        return; // already running
+    }
+    set_status("Starting...");
+    std::thread::spawn(move || {
+        if let Err(e) = run_loopback(&input_name, &output_name) {
             log::warn!("Mic test failed: {e}");
+            set_status(&format!("Failed: {e}"));
             crate::debug::push_debug(format!("Mic test failed: {e}"));
         }
+        MIC_RUNNING.store(false, Ordering::SeqCst);
+        MIC_PEAK_BITS.store(0, Ordering::Relaxed);
     });
+}
+
+/// Stop the running mic loopback (the worker exits and drops its streams).
+pub fn stop_mic_test() {
+    if MIC_RUNNING.load(Ordering::Relaxed) {
+        set_status("Stopped");
+    }
+    MIC_RUNNING.store(false, Ordering::SeqCst);
 }
 
 /// Pick a stream config at 48 kHz from the device, preferring it; returns the
@@ -124,10 +194,9 @@ fn config_48k(supported: impl Iterator<Item = cpal::SupportedStreamConfigRange>)
     best.map(|c| c.with_sample_rate(SR).config())
 }
 
-fn run_loopback(dur: Duration) -> Result<(), String> {
-    let host = cpal::default_host();
-    let input = host.default_input_device().ok_or("no input (microphone) device")?;
-    let output = host.default_output_device().ok_or("no output (speaker) device")?;
+fn run_loopback(input_name: &str, output_name: &str) -> Result<(), String> {
+    let input = find_device(input_name, true).ok_or("no input (microphone) device")?;
+    let output = find_device(output_name, false).ok_or("no output (speaker) device")?;
 
     let in_cfg = input
         .supported_input_configs()
@@ -149,20 +218,25 @@ fn run_loopback(dur: Duration) -> Result<(), String> {
     // The worker pushes decoded mono f32 here; the output callback pops it.
     let (mut spk_tx, mut spk_rx) = rtrb::RingBuffer::<f32>::new(SR as usize);
 
-    // Input: downmix to mono, push to the mic ring (drop when full).
+    // Input: downmix to mono, push to the mic ring (drop when full), and update
+    // the live level meter with this buffer's peak so the UI shows the mic working.
     let in_stream = input
         .build_input_stream(
             &in_cfg,
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                let mut peak = 0.0f32;
                 let mut i = 0;
                 while i + in_ch <= data.len() {
                     let mut s = 0.0f32;
                     for c in 0..in_ch {
                         s += data[i + c];
                     }
-                    let _ = mic_tx.push(s / in_ch as f32);
+                    let mono = s / in_ch as f32;
+                    peak = peak.max(mono.abs());
+                    let _ = mic_tx.push(mono);
                     i += in_ch;
                 }
+                MIC_PEAK_BITS.store(peak.min(1.0).to_bits(), Ordering::Relaxed);
             },
             |e| log::warn!("mic stream error: {e}"),
             None,
@@ -190,17 +264,17 @@ fn run_loopback(dur: Duration) -> Result<(), String> {
 
     in_stream.play().map_err(|e| e.to_string())?;
     out_stream.play().map_err(|e| e.to_string())?;
+    set_status("Listening, speak into your mic (use headphones)");
 
     // Worker: mic frames -> Opus encode -> Opus decode -> speaker. This proves
-    // the full codec round-trip, not just a raw passthrough.
+    // the full codec round-trip, not just a raw passthrough. Runs until stopped.
     let mut enc = Encoder::new()?;
     let mut dec = Decoder::new()?;
     let mut frame_i16 = [0i16; FRAME];
     let mut frame_f32 = [0f32; FRAME];
     let mut pkt = [0u8; 4000];
     let mut out_i16 = [0i16; FRAME];
-    let deadline = std::time::Instant::now() + dur;
-    while std::time::Instant::now() < deadline {
+    while MIC_RUNNING.load(Ordering::Relaxed) {
         if mic_rx.slots() >= FRAME {
             for s in frame_i16.iter_mut() {
                 let v = mic_rx.pop().unwrap_or(0.0);

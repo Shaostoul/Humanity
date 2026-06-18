@@ -1522,19 +1522,90 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             state.settings_dirty = true;
         }
     });
-    // Voice (v0.485). A mic loopback test so you can confirm your microphone and
-    // speakers work before joining a voice channel. The full in-app voice
-    // transport is being built in phases; this proves the audio plumbing.
+    // Voice (v0.485). Device selectors + a mic loopback test (toggle) with a live
+    // level meter, so you can confirm capture + playback and pick devices. The
+    // full in-app voice transport is being built in phases.
     widgets::card(ui, theme, |ui| {
         widgets::section_header(ui, theme, "Voice");
+        // Enumerate audio devices once (cpal enumeration is slow, and the active
+        // test repaints at 60fps, so never enumerate per frame). Refresh on demand.
+        if !state.audio_devices_loaded {
+            state.audio_input_devices = crate::net::voice::list_input_devices();
+            state.audio_output_devices = crate::net::voice::list_output_devices();
+            state.audio_devices_loaded = true;
+        }
+        let in_devs = state.audio_input_devices.clone();
+        let out_devs = state.audio_output_devices.clone();
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Input (microphone)").size(theme.font_size_small).color(theme.text_secondary()));
+            egui::ComboBox::from_id_salt("audio_in_dev")
+                .selected_text(if state.audio_input_device.is_empty() { "System default".to_string() } else { state.audio_input_device.clone() })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut state.audio_input_device, String::new(), "System default");
+                    for d in &in_devs {
+                        ui.selectable_value(&mut state.audio_input_device, d.clone(), d);
+                    }
+                });
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Output (speakers)").size(theme.font_size_small).color(theme.text_secondary()));
+            egui::ComboBox::from_id_salt("audio_out_dev")
+                .selected_text(if state.audio_output_device.is_empty() { "System default".to_string() } else { state.audio_output_device.clone() })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut state.audio_output_device, String::new(), "System default");
+                    for d in &out_devs {
+                        ui.selectable_value(&mut state.audio_output_device, d.clone(), d);
+                    }
+                });
+        });
+        if widgets::Button::ghost("Refresh devices").show(ui, theme) {
+            state.audio_devices_loaded = false;
+        }
+        ui.add_space(theme.spacing_sm);
         widgets::body_hint(
             ui, theme,
-            "Test microphone plays your own mic back to you for a few seconds (use headphones \
-             to avoid feedback). It confirms audio capture and playback work on this device.",
+            "Test microphone plays your own mic back to you so you can confirm capture and \
+             playback (use headphones to avoid feedback). It stays on until you stop it.",
         );
         ui.add_space(theme.spacing_xs);
-        if widgets::Button::secondary("Test microphone").show(ui, theme) {
-            state.mic_test_requested = true;
+
+        // Toggle button. While active it gets an animated RGB border (same channeling
+        // color as the nav) so it is unmistakably live, and the section repaints so
+        // the meter stays live.
+        let active = state.mic_test_active;
+        let label = if active { "Stop test" } else { "Test microphone" };
+        let btn = ui.horizontal(|ui| widgets::Button::secondary(label).active(active).show(ui, theme));
+        if active {
+            let time = ui.ctx().input(|i| i.time) as f32;
+            let col = crate::gui::pages::escape_menu::channeling_color(theme, time, false, theme.accent());
+            ui.painter().rect_stroke(
+                btn.response.rect.expand(2.0),
+                egui::Rounding::same(theme.border_radius as u8),
+                egui::Stroke::new(2.0, col),
+                egui::StrokeKind::Outside,
+            );
+            ui.ctx().request_repaint();
+        }
+        if btn.inner {
+            state.mic_test_active = !state.mic_test_active;
+        }
+
+        // Live mic level meter + status.
+        ui.add_space(theme.spacing_xs);
+        let lvl = state.mic_meter.clamp(0.0, 1.0);
+        let (rect, _) = ui.allocate_exact_size(
+            egui::vec2(ui.available_width().min(280.0), 10.0),
+            egui::Sense::hover(),
+        );
+        ui.painter().rect_filled(rect, egui::Rounding::same(2), theme.bg_card());
+        if lvl > 0.001 {
+            let fill = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width() * lvl, rect.height()));
+            let col = if lvl > 0.7 { theme.danger() } else { theme.success() };
+            ui.painter().rect_filled(fill, egui::Rounding::same(2), col);
+        }
+        let status = crate::net::voice::mic_status();
+        if !status.is_empty() {
+            ui.label(RichText::new(status).size(theme.font_size_small).color(theme.text_secondary()));
         }
     });
 }

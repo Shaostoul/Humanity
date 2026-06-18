@@ -1378,9 +1378,18 @@ pub struct GuiState {
     pub frame_times: Vec<f32>,
     /// Count of WebSocket messages received this session (network overlay).
     pub ws_msgs_in: u64,
-    /// Set by the Settings audio "Test microphone" button (v0.485); lib.rs runs
-    /// a mic to Opus to speaker loopback so you can confirm your audio works.
-    pub mic_test_requested: bool,
+    /// Settings audio (v0.485). mic_test_active is the toggle: while true, lib.rs
+    /// keeps a mic to Opus to speaker loopback running so you can confirm audio
+    /// works. The device fields are the chosen input/output (empty = system
+    /// default); the *_devices lists are cached (enumerating cpal every frame is
+    /// slow), refreshed on demand. mic_meter is a decayed level for the meter.
+    pub mic_test_active: bool,
+    pub audio_input_device: String,
+    pub audio_output_device: String,
+    pub audio_input_devices: Vec<String>,
+    pub audio_output_devices: Vec<String>,
+    pub audio_devices_loaded: bool,
+    pub mic_meter: f32,
     /// Live diagnostics sampled from EngineState each frame (only while the
     /// relevant overlay is open, so they cost nothing when hidden). entity_count
     /// = ECS entities, mem_mb = process RSS, uptime_secs = since launch.
@@ -2334,7 +2343,13 @@ impl Default for GuiState {
             show_system_overlay: false,
             frame_times: Vec::new(),
             ws_msgs_in: 0,
-            mic_test_requested: false,
+            mic_test_active: false,
+            audio_input_device: String::new(),
+            audio_output_device: String::new(),
+            audio_input_devices: Vec::new(),
+            audio_output_devices: Vec::new(),
+            audio_devices_loaded: false,
+            mic_meter: 0.0,
             diag_entity_count: 0,
             diag_mem_mb: 0.0,
             diag_uptime_secs: 0,
