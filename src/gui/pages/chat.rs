@@ -1835,6 +1835,15 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             let action = if joining { "join" } else { "leave" };
                             log::info!("Voice {} requested: {} (room_id {:?})", action, ch_name, room_id);
                             crate::debug::push_debug(format!("Voice: {} for '{}' (id {:?})", action, ch_name, room_id));
+                            // Phase C: track the active room so the roster handler
+                            // can dial the incumbents (newcomer-offers rule). Reset
+                            // the incumbent-capture flag on each join.
+                            if joining {
+                                state.voice_active_room = room_id.clone();
+                                state.voice_incumbents_captured = false;
+                            } else {
+                                state.voice_active_room = None;
+                            }
                             if let Some(ref client) = state.ws_client {
                                 if client.is_connected() {
                                     let mut msg = serde_json::json!({ "type": "voice_room", "action": action });

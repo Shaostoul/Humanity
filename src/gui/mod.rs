@@ -1557,6 +1557,17 @@ pub struct GuiState {
     /// relay tracks voice rooms by numeric id, but the chat UI keys channels by
     /// name; this lets the join/leave send the correct room_id. (Phase C, v0.491.)
     pub voice_channel_ids: std::collections::HashMap<String, String>,
+    /// Count of inbound voice Opus frames received (Phase C diagnostics, v0.492).
+    /// Proves audio is flowing over the WebRTC pipe before playback (Phase D).
+    pub voice_rx_frames: u64,
+    /// The numeric id of the voice room we are currently joined to, if any
+    /// (Phase C, v0.492). Drives the roster-based WebRTC offer logic.
+    pub voice_active_room: Option<String>,
+    /// Whether we have already offered to the incumbents present in our first
+    /// roster after joining. Per the web's "newcomer offers, incumbents wait"
+    /// rule, we offer to the peers present at our join, and let later joiners
+    /// offer to us. Reset on each join. (Phase C, v0.492.)
+    pub voice_incumbents_captured: bool,
 
     // ── Donation address config ──
 
@@ -2442,6 +2453,9 @@ impl Default for GuiState {
             kyber_public_b64: String::new(),
             peer_kyber_keys: std::collections::HashMap::new(),
             voice_channel_ids: std::collections::HashMap::new(),
+            voice_rx_frames: 0,
+            voice_active_room: None,
+            voice_incumbents_captured: false,
             donate_solana_address: String::new(),
             donate_btc_address: String::new(),
             donate_addresses: Vec::new(),

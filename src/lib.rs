@@ -4810,6 +4810,43 @@ mod native_app {
                                                     );
                                                 }
                                             }
+                                            // Phase C (v0.492): if we are joined to a
+                                            // voice room, dial the incumbents present in
+                                            // our first post-join roster (the web's
+                                            // "newcomer offers, incumbents wait" rule).
+                                            // Later joiners will offer to us instead.
+                                            if let Some(room_id) = state.gui_state.voice_active_room.clone() {
+                                                if !state.gui_state.voice_incumbents_captured {
+                                                    let my_key = state.gui_state.profile_public_key.clone();
+                                                    let mut me_present = false;
+                                                    let mut incumbents: Vec<String> = Vec::new();
+                                                    for vc in channels {
+                                                        let id = vc.get("id").and_then(|v| v.as_i64()).map(|n| n.to_string());
+                                                        if id.as_deref() != Some(room_id.as_str()) { continue; }
+                                                        if let Some(arr) = vc.get("participants").and_then(|v| v.as_array()) {
+                                                            for p in arr {
+                                                                if let Some(k) = p.get("public_key").and_then(|v| v.as_str()) {
+                                                                    if k == my_key { me_present = true; }
+                                                                    else { incumbents.push(k.to_string()); }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    // Only act on the roster that lists US (post-join),
+                                                    // so we capture the correct incumbent set.
+                                                    if me_present {
+                                                        state.gui_state.voice_incumbents_captured = true;
+                                                        crate::debug::push_debug(format!(
+                                                            "Voice: in room {}, dialing {} incumbent(s)", room_id, incumbents.len()
+                                                        ));
+                                                        if let Some(ref webrtc) = state.gui_state.webrtc {
+                                                            for peer in &incumbents {
+                                                                webrtc.offer_to_voice(peer.clone(), room_id.clone());
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                     Some("profile_data") => {
@@ -5161,11 +5198,28 @@ mod native_app {
                                     // Implementing real voice means adding webrtc-rs + audio
                                     // capture/playback + mute/deafen UI — weeks of work,
                                     // tracked separately, not a propagation bug.
-                                    Some("voice_room_signal") | Some("voice_call") | Some("voice_room") | Some("voice_room_update") => {
-                                        // Intentional no-op. Web users in voice rooms still
-                                        // talk to each other; native users just don't hear/
-                                        // see voice activity yet. (webrtc_signal is now
-                                        // handled below — DataChannel P2P, increment 1.)
+                                    #[cfg(feature = "native")]
+                                    Some("voice_room_signal") => {
+                                        // Phase C: inbound voice-room signaling (offer /
+                                        // answer / ice / new_participant) relayed to us.
+                                        // Route into the WebRTC manager's voice path. Note
+                                        // `data` here is a JSON OBJECT (the browser
+                                        // RTCSessionDescription / candidate shape), unlike
+                                        // the webrtc_signal path where it is a string.
+                                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let room_id = val.get("room_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let signal_type = val.get("signal_type").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let data = val.get("data").cloned().unwrap_or(serde_json::Value::Null);
+                                        if !from.is_empty() && !signal_type.is_empty() {
+                                            if let Some(ref webrtc) = state.gui_state.webrtc {
+                                                webrtc.submit_voice_signal(from, room_id, signal_type, data);
+                                            }
+                                        }
+                                    }
+                                    Some("voice_call") | Some("voice_room") | Some("voice_room_update") => {
+                                        // Control/legacy voice messages: not consumed by the
+                                        // native client (join/leave are outbound; the roster
+                                        // arrives via voice_channel_list).
                                     }
                                     #[cfg(feature = "native")]
                                     Some("webrtc_signal") => {
@@ -5643,10 +5697,24 @@ mod native_app {
                                             ));
                                         }
                                     }
-                                    crate::net::webrtc::WebrtcEvent::VoiceFrame { peer: _peer, opus: _opus } => {
-                                        // Phase B: inbound Opus from a voice peer.
-                                        // Decode + mix + playback is wired in a
-                                        // later phase (Phase D); dropped for now.
+                                    crate::net::webrtc::WebrtcEvent::VoiceConnected { peer } => {
+                                        // Phase C: a voice peer's WebRTC transport is up.
+                                        crate::debug::push_debug(format!(
+                                            "Voice: CONNECTED with {}", short(&peer)
+                                        ));
+                                    }
+                                    crate::net::webrtc::WebrtcEvent::VoiceFrame { peer, opus } => {
+                                        // Phase C: inbound Opus from a voice peer. Decode +
+                                        // mix + playback is Phase D; for now we count frames
+                                        // so the test shows audio IS flowing over the pipe
+                                        // (every ~50 frames ~= 1s of speech).
+                                        state.gui_state.voice_rx_frames = state.gui_state.voice_rx_frames.wrapping_add(1);
+                                        if state.gui_state.voice_rx_frames % 50 == 1 {
+                                            crate::debug::push_debug(format!(
+                                                "Voice: receiving audio from {} ({} frames, {} bytes)",
+                                                short(&peer), state.gui_state.voice_rx_frames, opus.len()
+                                            ));
+                                        }
                                     }
                                     crate::net::webrtc::WebrtcEvent::Closed { peer } => {
                                         crate::debug::push_debug(format!(

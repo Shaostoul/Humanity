@@ -230,6 +230,9 @@ pub enum WebrtcEvent {
     ChannelOpen { peer: String },
     /// A text frame arrived from `peer` over its DataChannel.
     Frame { peer: String, text: String },
+    /// A voice peer's WebRTC transport reached Connected (Phase C). The UI can
+    /// show it and the audio pump can begin sending Opus to this peer.
+    VoiceConnected { peer: String },
     /// One depayloaded Opus frame arrived from `peer` over its voice m-line
     /// (Phase B). Decode + playback is wired in a later phase.
     VoiceFrame { peer: String, opus: Vec<u8> },
@@ -249,13 +252,17 @@ enum Command {
         data: Value,
     },
     /// Application request: start a connection to `peer` (offerer side).
-    /// `wants_voice` negotiates an Opus audio m-line too (Phase B).
-    OfferTo { peer: String, wants_voice: bool },
+    /// `wants_voice` negotiates an Opus audio m-line too (Phase B); `voice_room`
+    /// (Phase C) tags it as a voice connection so signaling uses voice_room_signal.
+    OfferTo { peer: String, wants_voice: bool, voice_room: Option<String> },
     /// Application request: send `text` to `peer` over its open channel.
     SendText { peer: String, text: String },
     /// Application request: send one encoded Opus frame to `peer` over its voice
     /// m-line (Phase B). Dropped if the peer has no negotiated audio m-line.
     SendVoice { peer: String, opus: Vec<u8> },
+    /// Inbound voice-room signaling (Phase C): an offer/answer/ice/new_participant
+    /// the relay forwarded to us, with `data` as a JSON object (the browser shape).
+    VoiceSignal { from: String, room_id: String, signal_type: String, data: Value },
 }
 
 /// Handle the GUI holds to talk to the WebRTC thread. All methods are
@@ -297,14 +304,21 @@ impl WebrtcHandle {
     /// a no-op on the wire — we wait for the peer's offer and answer it. (The
     /// thread enforces this too, so a mistaken caller can't cause glare.)
     pub fn offer_to(&self, peer: String) {
-        let _ = self.tx_cmd.send(Command::OfferTo { peer, wants_voice: false });
+        let _ = self.tx_cmd.send(Command::OfferTo { peer, wants_voice: false, voice_room: None });
     }
 
-    /// Like [`offer_to`](Self::offer_to), but also negotiates a bidirectional
-    /// Opus audio m-line so the connection can carry voice (Phase B). Used by the
-    /// voice-room join. Same offerer-rule semantics as `offer_to`.
-    pub fn offer_to_voice(&self, peer: String) {
-        let _ = self.tx_cmd.send(Command::OfferTo { peer, wants_voice: true });
+    /// Offer a VOICE connection to `peer` in voice room `room_id` (Phase C): adds
+    /// the Opus audio m-line and signals over voice_room_signal. The caller
+    /// (roster-driven, "newcomer offers") decides we should offer, so the key
+    /// glare rule is bypassed. Used when we join a room and dial each incumbent.
+    pub fn offer_to_voice(&self, peer: String, room_id: String) {
+        let _ = self.tx_cmd.send(Command::OfferTo { peer, wants_voice: true, voice_room: Some(room_id) });
+    }
+
+    /// Feed an inbound voice-room signal (offer/answer/ice/new_participant) into
+    /// the manager (Phase C). `data` is the browser-shaped JSON object.
+    pub fn submit_voice_signal(&self, from: String, room_id: String, signal_type: String, data: Value) {
+        let _ = self.tx_cmd.send(Command::VoiceSignal { from, room_id, signal_type, data });
     }
 
     /// Send one encoded Opus frame to `peer` over its voice m-line (Phase B).
@@ -424,6 +438,13 @@ struct PeerConn {
     /// Monotonic 48 kHz RTP timestamp for outgoing Opus, advanced 960 per 20 ms
     /// frame. Never reset mid-stream or the remote jitter buffer misorders.
     voice_rtp_ts: u64,
+    /// Voice (Phase C): the voice-room id this connection belongs to. `Some`
+    /// means signaling for this peer rides the `voice_room_signal` envelope (data
+    /// as a JSON object, with room_id) instead of the P2P `webrtc_signal` path,
+    /// and the glare rule is "newcomer offers" (no key tiebreak) to match the web.
+    voice_room_id: Option<String>,
+    /// Whether we've surfaced VoiceConnected for this peer yet (dedupe).
+    voice_announced: bool,
 }
 
 impl WebrtcManager {
@@ -872,6 +893,18 @@ impl WebrtcManager {
                     if let Some(p) = self.peers.get_mut(key) {
                         p.rtc.disconnect();
                     }
+                } else if matches!(state, S::Connected | S::Completed) {
+                    // Voice (Phase C): surface a one-time VoiceConnected when a
+                    // voice peer's transport comes up, so the UI can show it and
+                    // the audio pump can start sending to this peer.
+                    if let Some(p) = self.peers.get_mut(key) {
+                        if p.voice_room_id.is_some() && !p.voice_announced {
+                            p.voice_announced = true;
+                            let _ = self.tx_event.send(WebrtcEvent::VoiceConnected { peer: key.to_string() });
+                            log::info!("WebRTC: voice CONNECTED with {}", short(key));
+                            crate::debug::push_debug(format!("Voice connected with {}", short(key)));
+                        }
+                    }
                 }
             }
             Event::ChannelOpen(cid, label) => {
@@ -966,9 +999,12 @@ impl WebrtcManager {
     /// Apply a single GUI command (offer / answer-inbound-signal / send).
     fn handle_command(&mut self, cmd: Command) {
         match cmd {
-            Command::OfferTo { peer, wants_voice } => self.cmd_offer_to(peer, wants_voice),
+            Command::OfferTo { peer, wants_voice, voice_room } => self.cmd_offer_to(peer, wants_voice, voice_room),
             Command::SendText { peer, text } => self.cmd_send_text(peer, text),
             Command::SendVoice { peer, opus } => self.cmd_send_voice(peer, opus),
+            Command::VoiceSignal { from, room_id, signal_type, data } => {
+                self.cmd_voice_signal(from, room_id, signal_type, data)
+            }
             Command::Signal { from, signal_type, data } => {
                 self.cmd_signal(from, signal_type, data)
             }
@@ -977,13 +1013,15 @@ impl WebrtcManager {
 
     /// Begin an outgoing connection to `peer` (offerer side), honoring the
     /// glare-avoidance offerer rule.
-    fn cmd_offer_to(&mut self, peer: String, wants_voice: bool) {
+    fn cmd_offer_to(&mut self, peer: String, wants_voice: bool, voice_room: Option<String>) {
         if peer == self.my_pubkey_hex {
             return; // never connect to ourselves
         }
-        // Offerer rule: only the LARGER pubkey hex offers. If we're the smaller
-        // side, do nothing — we'll answer the peer's offer when it arrives.
-        if !(self.my_pubkey_hex > peer) {
+        // Offerer rule. For DATA (P2P groups): only the LARGER pubkey hex offers
+        // (glare avoidance by key). For VOICE: the rule is "newcomer offers"
+        // (matching the web client) and the caller (lib.rs, roster-driven) has
+        // already decided we should offer, so we do NOT apply the key rule.
+        if !wants_voice && !(self.my_pubkey_hex > peer) {
             log::debug!("WebRTC: offer_to({}) skipped — we are the answerer (smaller key)", short(&peer));
             return;
         }
@@ -1065,16 +1103,32 @@ impl WebrtcManager {
             }
         };
 
-        // Serialize the offer to a JSON string (`{type,sdp}`) and wrap it in the
-        // webrtc_signal envelope. `data` is the JSON *string*, matching the web.
-        let offer_json = match serde_json::to_string(&offer) {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!("WebRTC: failed to serialize offer: {e}");
-                return;
+        // Emit the offer. VOICE rides the voice_room_signal envelope with `data`
+        // as a JSON OBJECT ({type,sdp}, an RTCSessionDescription the browser reads
+        // directly); DATA rides webrtc_signal with `data` as a JSON STRING. str0m
+        // serializes SdpOffer to {type,sdp} either way, matching the browser.
+        if let Some(ref room_id) = voice_room {
+            match serde_json::to_value(&offer) {
+                Ok(v) => {
+                    self.emit_voice_signal(&peer, room_id, "offer", v);
+                    log::info!("WebRTC: voice offer -> {} (room {})", short(&peer), room_id);
+                    crate::debug::push_debug(format!("Voice offer -> {} room {}", short(&peer), room_id));
+                }
+                Err(e) => {
+                    log::error!("WebRTC: failed to serialize voice offer: {e}");
+                    return;
+                }
             }
-        };
-        self.emit_signal(&peer, "dc_offer", offer_json);
+        } else {
+            let offer_json = match serde_json::to_string(&offer) {
+                Ok(s) => s,
+                Err(e) => {
+                    log::error!("WebRTC: failed to serialize offer: {e}");
+                    return;
+                }
+            };
+            self.emit_signal(&peer, "dc_offer", offer_json);
+        }
 
         self.peers.insert(
             peer.clone(),
@@ -1086,6 +1140,8 @@ impl WebrtcManager {
                 announced_open: false,
                 audio_mid,
                 voice_rtp_ts: 0,
+                voice_room_id: voice_room,
+                voice_announced: false,
             },
         );
         log::info!("WebRTC: sent dc_offer to {}", short(&peer));
@@ -1224,6 +1280,9 @@ impl WebrtcManager {
                 // offer carried; we learn its mid from Event::MediaAdded.
                 audio_mid: None,
                 voice_rtp_ts: 0,
+                // Data-path answerer (P2P groups), not voice.
+                voice_room_id: None,
+                voice_announced: false,
             },
         );
         self.emit_signal(&from, "dc_answer", answer_json);
@@ -1321,6 +1380,183 @@ impl WebrtcManager {
                 log::debug!("WebRTC: dc_ice from {} before peer exists, dropped", short(&from));
             }
         }
+    }
+
+    // ── Voice signaling (Phase C) ───────────────────────────────────────────
+    // Parallel to the data-channel signaling above, but over the
+    // `voice_room_signal` envelope (data as a JSON OBJECT + a room_id), matching
+    // the web client so native and web interoperate in the same voice room.
+
+    /// Add our local ICE candidates (host + known srflx/relayed) to `rtc` before
+    /// the offer/answer is produced, so they ride in the SDP. Shared by the voice
+    /// answerer path; the data path inlines the same sequence.
+    fn add_local_candidates(&self, rtc: &mut Rtc) {
+        if let Ok(cand) = Candidate::host(self.local_addr, "udp") {
+            rtc.add_local_candidate(cand);
+        }
+        if let Some(srflx) = self.srflx {
+            if let Ok(cand) = Candidate::server_reflexive(srflx, self.local_addr, Protocol::Udp) {
+                rtc.add_local_candidate(cand);
+            }
+        }
+        if let Some(relayed) = self.turn.as_ref().and_then(|t| t.relayed_addr()) {
+            if let Ok(cand) = Candidate::relayed(relayed, self.local_addr, Protocol::Udp) {
+                rtc.add_local_candidate(cand);
+            }
+        }
+    }
+
+    /// Dispatch an inbound voice-room signal.
+    fn cmd_voice_signal(&mut self, from: String, room_id: String, signal_type: String, data: Value) {
+        if from == self.my_pubkey_hex {
+            return;
+        }
+        match signal_type.as_str() {
+            "new_participant" => {
+                // The relay tells incumbents a newcomer joined. Per the web rule,
+                // the incumbent does NOTHING and waits for the newcomer's offer.
+                // (lib.rs handles the reverse: when WE are the newcomer, the roster
+                // drives us to offer each incumbent.)
+                log::debug!("WebRTC: voice new_participant {} room {} (waiting for offer)", short(&from), room_id);
+            }
+            "offer" => self.on_voice_offer(from, room_id, data),
+            "answer" => self.on_voice_answer(from, data),
+            "ice" => self.on_voice_ice(from, data),
+            other => log::debug!("WebRTC: unknown voice signal '{other}' from {}", short(&from)),
+        }
+    }
+
+    /// We received a voice offer — answer it. `data` is an RTCSessionDescription
+    /// object ({type,sdp}). accept_offer auto-mirrors the offer's Opus m-line, so
+    /// the answer is sendrecv and we learn the mid via Event::MediaAdded.
+    fn on_voice_offer(&mut self, from: String, room_id: String, data: Value) {
+        if from == self.my_pubkey_hex {
+            return;
+        }
+        // If we already have a live connection to this peer, keep it (avoids a
+        // glare overwrite). The web guards the same way (one PC per peer).
+        if self.peers.get(&from).map(|p| p.rtc.is_alive()).unwrap_or(false) {
+            log::debug!("WebRTC: voice offer from {} but a connection already exists", short(&from));
+            return;
+        }
+        let offer: SdpOffer = match serde_json::from_value(data) {
+            Ok(o) => o,
+            Err(e) => {
+                log::warn!("WebRTC: bad voice offer from {}: {e}", short(&from));
+                return;
+            }
+        };
+        let mut rtc = Rtc::builder().build(Instant::now());
+        self.add_local_candidates(&mut rtc);
+        let answer = match rtc.sdp_api().accept_offer(offer) {
+            Ok(a) => a,
+            Err(e) => {
+                log::warn!("WebRTC: voice accept_offer from {} failed: {e}", short(&from));
+                return;
+            }
+        };
+        let answer_val = match serde_json::to_value(&answer) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("WebRTC: serialize voice answer: {e}");
+                return;
+            }
+        };
+        self.peers.insert(
+            from.clone(),
+            PeerConn {
+                rtc,
+                pending: None,
+                channel: None,
+                remote_addr: None,
+                announced_open: false,
+                audio_mid: None,
+                voice_rtp_ts: 0,
+                voice_room_id: Some(room_id.clone()),
+                voice_announced: false,
+            },
+        );
+        self.emit_voice_signal(&from, &room_id, "answer", answer_val);
+        log::info!("WebRTC: voice answer -> {} (room {})", short(&from), room_id);
+        crate::debug::push_debug(format!("Voice answer -> {} room {}", short(&from), room_id));
+    }
+
+    /// We received the answer to a voice offer we sent.
+    fn on_voice_answer(&mut self, from: String, data: Value) {
+        let answer: SdpAnswer = match serde_json::from_value(data) {
+            Ok(a) => a,
+            Err(e) => {
+                log::warn!("WebRTC: bad voice answer from {}: {e}", short(&from));
+                return;
+            }
+        };
+        let p = match self.peers.get_mut(&from) {
+            Some(p) => p,
+            None => {
+                log::debug!("WebRTC: voice answer from {} but no connection", short(&from));
+                return;
+            }
+        };
+        let pending = match p.pending.take() {
+            Some(pending) => pending,
+            None => {
+                log::debug!("WebRTC: voice answer from {} but no pending offer", short(&from));
+                return;
+            }
+        };
+        if let Err(e) = p.rtc.sdp_api().accept_answer(pending, answer) {
+            log::warn!("WebRTC: voice accept_answer from {} failed: {e}", short(&from));
+            p.rtc.disconnect();
+            return;
+        }
+        log::info!("WebRTC: applied voice answer from {}", short(&from));
+    }
+
+    /// We received a remote ICE candidate for a voice peer. `data` is the browser
+    /// RTCIceCandidate object ({candidate, sdpMid, sdpMLineIndex, ...}).
+    fn on_voice_ice(&mut self, from: String, data: Value) {
+        let sdp_line = match data.get("candidate").and_then(|c| c.as_str()) {
+            Some(s) if !s.is_empty() => s.to_string(),
+            _ => {
+                // Empty candidate == end-of-candidates marker; nothing to add.
+                return;
+            }
+        };
+        let cand = match Candidate::from_sdp_string(&sdp_line) {
+            Ok(c) => c,
+            Err(e) => {
+                log::debug!("WebRTC: unparseable voice ICE from {}: {e}", short(&from));
+                return;
+            }
+        };
+        let cand_addr = cand.addr();
+        if let Some(turn) = self.turn.as_mut() {
+            if turn.relayed_addr().is_some() {
+                turn.ensure_peer(&self.udp, cand_addr);
+            }
+        }
+        match self.peers.get_mut(&from) {
+            Some(p) => {
+                p.rtc.add_remote_candidate(cand);
+                log::trace!("WebRTC: added voice ICE from {}", short(&from));
+            }
+            None => log::debug!("WebRTC: voice ICE from {} before peer exists, dropped", short(&from)),
+        }
+    }
+
+    /// Build a `voice_room_signal` envelope and queue it for the GUI to relay.
+    /// `data` is a JSON OBJECT (the browser RTCSessionDescription / candidate
+    /// shape), NOT a string — this is the key difference from `emit_signal`.
+    fn emit_voice_signal(&self, to: &str, room_id: &str, signal_type: &str, data: Value) {
+        let msg = serde_json::json!({
+            "type": "voice_room_signal",
+            "from": self.my_pubkey_hex,
+            "to": to,
+            "room_id": room_id,
+            "signal_type": signal_type,
+            "data": data,
+        });
+        let _ = self.tx_outbound.send(msg.to_string());
     }
 
     /// Build a `webrtc_signal` envelope and push it onto the outbound queue for
@@ -1552,8 +1788,13 @@ impl WebrtcManager {
             "sdpMid": "0",
             "sdpMLineIndex": 0,
         });
-        let data = cand_obj.to_string();
-        self.emit_signal(to, "dc_ice", data);
+        // Voice peers trickle over voice_room_signal with `data` as an OBJECT;
+        // data-channel peers over webrtc_signal with `data` as a STRING.
+        if let Some(room_id) = self.peers.get(to).and_then(|p| p.voice_room_id.clone()) {
+            self.emit_voice_signal(to, &room_id, "ice", cand_obj);
+        } else {
+            self.emit_signal(to, "dc_ice", cand_obj.to_string());
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
