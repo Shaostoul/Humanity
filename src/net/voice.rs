@@ -10,6 +10,11 @@
 use std::time::Duration;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+// dasp's `Sample` trait (re-exported by cpal) provides the `f32::from_sample(s)`
+// / `T::from_sample(f)` convenience conversions; the `FromSample` bound on those
+// generic fns is what the method requires. Importing `Sample` brings the method
+// into scope so the `Type::method` call path resolves.
+use cpal::Sample as _;
 
 /// Opus runs at 48 kHz; a 20 ms mono frame is 960 samples.
 pub const SR: u32 = 48_000;
@@ -171,65 +176,70 @@ pub fn stop_mic_test() {
     MIC_RUNNING.store(false, Ordering::SeqCst);
 }
 
-/// Pick a stream config at 48 kHz from the device, preferring it; returns the
-/// config + channel count. Errors if the device cannot do 48 kHz f32 (the MVP
-/// does not resample yet).
-fn config_48k(supported: impl Iterator<Item = cpal::SupportedStreamConfigRange>) -> Option<cpal::StreamConfig> {
-    let mut best: Option<cpal::SupportedStreamConfigRange> = None;
-    for c in supported {
-        if c.sample_format() != cpal::SampleFormat::F32 {
-            continue;
-        }
-        if c.min_sample_rate() <= SR && SR <= c.max_sample_rate() {
-            // Prefer the fewest channels (mono ideally).
-            let take = match &best {
-                Some(b) => c.channels() < b.channels(),
-                None => true,
-            };
-            if take {
-                best = Some(c);
-            }
+/// Minimal streaming linear resampler (mono f32). Opus needs exactly 48 kHz, but
+/// a mic/speaker in WASAPI shared mode is whatever the user picked in Windows
+/// Sound settings (commonly 44.1 or 48 kHz, i16 or f32). This converts the device
+/// rate to/from 48 kHz so any device works. Linear interpolation is plenty for
+/// speech; a higher-quality (sinc) resampler can drop in later without changing
+/// callers. When in_rate == out_rate it is an exact passthrough.
+struct Resampler {
+    /// Input samples consumed per output sample (in_rate / out_rate).
+    step: f64,
+    /// Fractional read position into `pending`.
+    pos: f64,
+    /// Unconsumed input, with one sample of lookahead kept for interpolation.
+    pending: Vec<f32>,
+}
+impl Resampler {
+    fn new(in_rate: u32, out_rate: u32) -> Self {
+        Self {
+            step: in_rate as f64 / out_rate.max(1) as f64,
+            pos: 0.0,
+            pending: Vec::new(),
         }
     }
-    best.map(|c| c.with_sample_rate(SR).config())
+    /// Feed input samples; append the resampled result to `out`.
+    fn process(&mut self, input: &[f32], out: &mut Vec<f32>) {
+        self.pending.extend_from_slice(input);
+        // Need x[i] and x[i+1] to interpolate, so stop one short of the end.
+        while (self.pos as usize) + 1 < self.pending.len() {
+            let i = self.pos as usize;
+            let f = (self.pos - i as f64) as f32;
+            out.push(self.pending[i] * (1.0 - f) + self.pending[i + 1] * f);
+            self.pos += self.step;
+        }
+        // Drop fully-consumed input; keep the fractional remainder + lookahead.
+        let drop = self.pos as usize;
+        if drop > 0 {
+            self.pending.drain(0..drop);
+            self.pos -= drop as f64;
+        }
+    }
 }
 
-fn run_loopback(input_name: &str, output_name: &str) -> Result<(), String> {
-    let input = find_device(input_name, true).ok_or("no input (microphone) device")?;
-    let output = find_device(output_name, false).ok_or("no output (speaker) device")?;
-
-    let in_cfg = input
-        .supported_input_configs()
-        .map_err(|e| e.to_string())
-        .ok()
-        .and_then(config_48k)
-        .ok_or("microphone does not support 48 kHz f32 (resampling not built yet)")?;
-    let out_cfg = output
-        .supported_output_configs()
-        .map_err(|e| e.to_string())
-        .ok()
-        .and_then(config_48k)
-        .ok_or("speaker does not support 48 kHz f32 (resampling not built yet)")?;
-    let in_ch = in_cfg.channels as usize;
-    let out_ch = out_cfg.channels as usize;
-
-    // Mic callback pushes mono f32 here; the worker pops 960-sample frames.
-    let (mut mic_tx, mut mic_rx) = rtrb::RingBuffer::<f32>::new(SR as usize);
-    // The worker pushes decoded mono f32 here; the output callback pops it.
-    let (mut spk_tx, mut spk_rx) = rtrb::RingBuffer::<f32>::new(SR as usize);
-
-    // Input: downmix to mono, push to the mic ring (drop when full), and update
-    // the live level meter with this buffer's peak so the UI shows the mic working.
-    let in_stream = input
+/// Build a mic input stream for sample type `T`, downmixing to mono f32, pushing
+/// to `mic_tx`, and publishing this buffer's peak to the level meter. Works for
+/// i16 / u16 / f32 mics (cpal converts each sample via `f32::from_sample`).
+fn build_input<T>(
+    device: &cpal::Device,
+    cfg: &cpal::StreamConfig,
+    in_ch: usize,
+    mut mic_tx: rtrb::Producer<f32>,
+) -> Result<cpal::Stream, String>
+where
+    T: cpal::SizedSample + Send + 'static,
+    f32: cpal::FromSample<T>,
+{
+    device
         .build_input_stream(
-            &in_cfg,
-            move |data: &[f32], _: &cpal::InputCallbackInfo| {
+            cfg,
+            move |data: &[T], _: &cpal::InputCallbackInfo| {
                 let mut peak = 0.0f32;
                 let mut i = 0;
                 while i + in_ch <= data.len() {
                     let mut s = 0.0f32;
                     for c in 0..in_ch {
-                        s += data[i + c];
+                        s += f32::from_sample(data[i + c]);
                     }
                     let mono = s / in_ch as f32;
                     peak = peak.max(mono.abs());
@@ -241,18 +251,29 @@ fn run_loopback(input_name: &str, output_name: &str) -> Result<(), String> {
             |e| log::warn!("mic stream error: {e}"),
             None,
         )
-        .map_err(|e| format!("open microphone: {e}"))?;
+        .map_err(|e| format!("open microphone: {e}"))
+}
 
-    // Output: pop mono, duplicate across channels; silence on underrun.
-    let out_stream = output
+/// Build a speaker output stream for sample type `T`, popping mono f32 from
+/// `spk_rx` and duplicating it across channels. Silence on underrun.
+fn build_output<T>(
+    device: &cpal::Device,
+    cfg: &cpal::StreamConfig,
+    out_ch: usize,
+    mut spk_rx: rtrb::Consumer<f32>,
+) -> Result<cpal::Stream, String>
+where
+    T: cpal::SizedSample + Send + 'static + cpal::FromSample<f32>,
+{
+    device
         .build_output_stream(
-            &out_cfg,
-            move |out: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            cfg,
+            move |out: &mut [T], _: &cpal::OutputCallbackInfo| {
                 let mut i = 0;
                 while i + out_ch <= out.len() {
-                    let s = spk_rx.pop().unwrap_or(0.0);
+                    let v = T::from_sample(spk_rx.pop().unwrap_or(0.0));
                     for c in 0..out_ch {
-                        out[i + c] = s;
+                        out[i + c] = v;
                     }
                     i += out_ch;
                 }
@@ -260,38 +281,100 @@ fn run_loopback(input_name: &str, output_name: &str) -> Result<(), String> {
             |e| log::warn!("speaker stream error: {e}"),
             None,
         )
-        .map_err(|e| format!("open speaker: {e}"))?;
+        .map_err(|e| format!("open speaker: {e}"))
+}
+
+fn run_loopback(input_name: &str, output_name: &str) -> Result<(), String> {
+    let input = find_device(input_name, true).ok_or("no input (microphone) device")?;
+    let output = find_device(output_name, false).ok_or("no output (speaker) device")?;
+
+    // Use each device's actual shared-mode format (rate + sample format + channel
+    // count) rather than demanding a specific one. On WASAPI this is whatever the
+    // user set in Windows Sound settings, so building this config is the reliable
+    // path; we adapt to it (any format, any rate) instead of failing.
+    let in_def = input
+        .default_input_config()
+        .map_err(|e| format!("microphone has no default format: {e}"))?;
+    let out_def = output
+        .default_output_config()
+        .map_err(|e| format!("speaker has no default format: {e}"))?;
+    let in_rate: u32 = in_def.sample_rate();
+    let out_rate: u32 = out_def.sample_rate();
+    let in_fmt = in_def.sample_format();
+    let out_fmt = out_def.sample_format();
+    let in_cfg = in_def.config();
+    let out_cfg = out_def.config();
+    let in_ch = in_cfg.channels as usize;
+    let out_ch = out_cfg.channels as usize;
+
+    // Mic callback pushes mono f32 (at in_rate) here; the worker drains it.
+    let (mic_tx, mut mic_rx) = rtrb::RingBuffer::<f32>::new(SR as usize);
+    // The worker pushes decoded mono f32 (at out_rate) here; output callback pops.
+    let (mut spk_tx, spk_rx) = rtrb::RingBuffer::<f32>::new(SR as usize);
+
+    let in_stream = match in_fmt {
+        cpal::SampleFormat::F32 => build_input::<f32>(&input, &in_cfg, in_ch, mic_tx),
+        cpal::SampleFormat::I16 => build_input::<i16>(&input, &in_cfg, in_ch, mic_tx),
+        cpal::SampleFormat::U16 => build_input::<u16>(&input, &in_cfg, in_ch, mic_tx),
+        other => return Err(format!("microphone sample format {other:?} not supported")),
+    }?;
+    let out_stream = match out_fmt {
+        cpal::SampleFormat::F32 => build_output::<f32>(&output, &out_cfg, out_ch, spk_rx),
+        cpal::SampleFormat::I16 => build_output::<i16>(&output, &out_cfg, out_ch, spk_rx),
+        cpal::SampleFormat::U16 => build_output::<u16>(&output, &out_cfg, out_ch, spk_rx),
+        other => return Err(format!("speaker sample format {other:?} not supported")),
+    }?;
 
     in_stream.play().map_err(|e| e.to_string())?;
     out_stream.play().map_err(|e| e.to_string())?;
     set_status("Listening, speak into your mic (use headphones)");
 
-    // Worker: mic frames -> Opus encode -> Opus decode -> speaker. This proves
-    // the full codec round-trip, not just a raw passthrough. Runs until stopped.
+    // Worker: mic (in_rate) -> resample to 48 kHz -> Opus encode -> Opus decode ->
+    // resample to out_rate -> speaker. Proves the full codec round-trip, and works
+    // for any device rate. Runs until stopped.
+    let mut up = Resampler::new(in_rate, SR);
+    let mut down = Resampler::new(SR, out_rate);
     let mut enc = Encoder::new()?;
     let mut dec = Decoder::new()?;
     let mut frame_i16 = [0i16; FRAME];
-    let mut frame_f32 = [0f32; FRAME];
     let mut pkt = [0u8; 4000];
     let mut out_i16 = [0i16; FRAME];
+    let mut drained: Vec<f32> = Vec::with_capacity(2048);
+    let mut buf48: Vec<f32> = Vec::with_capacity(SR as usize);
+    let mut dec_f32: Vec<f32> = Vec::with_capacity(FRAME);
+    let mut resampled: Vec<f32> = Vec::with_capacity(FRAME * 2);
     while MIC_RUNNING.load(Ordering::Relaxed) {
-        if mic_rx.slots() >= FRAME {
-            for s in frame_i16.iter_mut() {
-                let v = mic_rx.pop().unwrap_or(0.0);
-                *s = (v.clamp(-1.0, 1.0) * 32767.0) as i16;
+        // Drain everything the mic callback has produced and resample to 48 kHz.
+        drained.clear();
+        while let Ok(s) = mic_rx.pop() {
+            drained.push(s);
+        }
+        let idle = drained.is_empty();
+        if !idle {
+            up.process(&drained, &mut buf48);
+        }
+        // Encode/decode every full 48 kHz frame, resample back to the speaker rate.
+        while buf48.len() >= FRAME {
+            for (k, s) in frame_i16.iter_mut().enumerate() {
+                *s = (buf48[k].clamp(-1.0, 1.0) * 32767.0) as i16;
             }
+            buf48.drain(0..FRAME);
             if let Some(n) = enc.encode(&frame_i16, &mut pkt) {
                 if let Some(m) = dec.decode(&pkt[..n], &mut out_i16) {
-                    for k in 0..m {
-                        frame_f32[k] = out_i16[k] as f32 / 32768.0;
+                    dec_f32.clear();
+                    for &v in out_i16.iter().take(m) {
+                        dec_f32.push(v as f32 / 32768.0);
                     }
-                    for &v in frame_f32.iter().take(m) {
+                    resampled.clear();
+                    down.process(&dec_f32, &mut resampled);
+                    for &v in &resampled {
                         let _ = spk_tx.push(v);
                     }
                 }
             }
-        } else {
-            std::thread::sleep(Duration::from_millis(5));
+        }
+        if idle {
+            std::thread::sleep(Duration::from_millis(3));
         }
     }
     // Streams stop when dropped here.

@@ -1390,6 +1390,9 @@ pub struct GuiState {
     pub audio_output_devices: Vec<String>,
     pub audio_devices_loaded: bool,
     pub mic_meter: f32,
+    /// Previous mic_test_active, so lib.rs starts/stops the loopback only on the
+    /// toggle EDGE (not every frame, which would spin-retry a failing start).
+    pub mic_test_prev: bool,
     /// Live diagnostics sampled from EngineState each frame (only while the
     /// relevant overlay is open, so they cost nothing when hidden). entity_count
     /// = ECS entities, mem_mb = process RSS, uptime_secs = since launch.
@@ -2350,6 +2353,7 @@ impl Default for GuiState {
             audio_output_devices: Vec::new(),
             audio_devices_loaded: false,
             mic_meter: 0.0,
+            mic_test_prev: false,
             diag_entity_count: 0,
             diag_mem_mb: 0.0,
             diag_uptime_secs: 0,

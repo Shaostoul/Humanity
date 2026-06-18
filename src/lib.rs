@@ -3893,14 +3893,28 @@ mod native_app {
                     // running while mic_test_active, on the chosen devices (v0.485).
                     {
                         let want = state.gui_state.mic_test_active;
-                        let running = crate::net::voice::mic_test_running();
-                        if want && !running {
+                        // Start/stop only on the toggle EDGE, never every frame: a
+                        // failing start drops MIC_RUNNING back to false within a frame,
+                        // so a per-frame "start if not running" would spin-retry and
+                        // flicker the status between "Starting..." and "Failed".
+                        if want && !state.gui_state.mic_test_prev {
                             crate::net::voice::start_mic_test(
                                 state.gui_state.audio_input_device.clone(),
                                 state.gui_state.audio_output_device.clone(),
                             );
-                        } else if !want && running {
+                        } else if !want && state.gui_state.mic_test_prev {
                             crate::net::voice::stop_mic_test();
+                        }
+                        state.gui_state.mic_test_prev = want;
+                        // If the start failed (async, in the worker thread), flip the
+                        // toggle back off so the button resets to "Test microphone" and
+                        // does not look stuck on. The "Failed: ..." status stays visible.
+                        if want
+                            && !crate::net::voice::mic_test_running()
+                            && crate::net::voice::mic_status().starts_with("Failed")
+                        {
+                            state.gui_state.mic_test_active = false;
+                            state.gui_state.mic_test_prev = false;
                         }
                         // Decayed peak-hold meter for the UI.
                         let lvl = crate::net::voice::mic_level();
