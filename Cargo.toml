@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.484.2"
+version = "0.485.0"
 edition = "2021"
 
 [[bin]]
@@ -15,7 +15,7 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats"]
+native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus"]
 relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -115,6 +115,18 @@ str0m = { version = "0.20", optional = true, default-features = false, features 
 # `native` feature list. native feature only — relay/wasm never run a TURN client.
 sha1 = { version = "0.10", optional = true }
 md-5 = { version = "0.10", optional = true }
+# === Native voice audio (v0.485) ===
+# Real-time mic capture + speaker playback (cpal, WASAPI on Windows, pure Rust)
+# and Opus codec for WebRTC voice. We use `unsafe-libopus` (libopus transpiled to
+# Rust by c2rust) rather than the `opus`/`audiopus`/`magnum-opus` crates because
+# those wrap libopus via a *-sys C build (cmake + a C toolchain), exactly the
+# aws-lc-sys fragility we engineered str0m around with `rust-crypto`. This keeps
+# the voice path 100% pure-Rust + browser-interoperable. `rtrb` is a wait-free
+# SPSC ring buffer for the realtime audio-callback boundary (no Mutex on the
+# audio thread). native feature only; the relay never captures audio.
+cpal = { version = "0.17", optional = true }
+rtrb = { version = "0.3", optional = true }
+unsafe-libopus = { version = "0.2", optional = true }
 
 # === Platform: WASM ===
 web-sys = { version = "0.3", optional = true, features = [

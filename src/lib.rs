@@ -3889,6 +3889,12 @@ mod native_app {
                             state.gui_state.diag_mem_mb = u.physical_mem as f32 / 1_048_576.0;
                         }
                     }
+                    // Settings audio "Test microphone": run a mic loopback (v0.485).
+                    if state.gui_state.mic_test_requested {
+                        state.gui_state.mic_test_requested = false;
+                        crate::net::voice::start_mic_test();
+                        crate::debug::push_debug("Mic test started (speak; you should hear yourself for ~6s)");
+                    }
 
                     // Poll updater for background thread results
                     if state.gui_state.updater.poll(dt as f64) {

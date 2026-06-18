@@ -1522,6 +1522,21 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             state.settings_dirty = true;
         }
     });
+    // Voice (v0.485). A mic loopback test so you can confirm your microphone and
+    // speakers work before joining a voice channel. The full in-app voice
+    // transport is being built in phases; this proves the audio plumbing.
+    widgets::card(ui, theme, |ui| {
+        widgets::section_header(ui, theme, "Voice");
+        widgets::body_hint(
+            ui, theme,
+            "Test microphone plays your own mic back to you for a few seconds (use headphones \
+             to avoid feedback). It confirms audio capture and playback work on this device.",
+        );
+        ui.add_space(theme.spacing_xs);
+        if widgets::Button::secondary("Test microphone").show(ui, theme) {
+            state.mic_test_requested = true;
+        }
+    });
 }
 
 pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {

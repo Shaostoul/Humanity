@@ -1378,6 +1378,9 @@ pub struct GuiState {
     pub frame_times: Vec<f32>,
     /// Count of WebSocket messages received this session (network overlay).
     pub ws_msgs_in: u64,
+    /// Set by the Settings audio "Test microphone" button (v0.485); lib.rs runs
+    /// a mic to Opus to speaker loopback so you can confirm your audio works.
+    pub mic_test_requested: bool,
     /// Live diagnostics sampled from EngineState each frame (only while the
     /// relevant overlay is open, so they cost nothing when hidden). entity_count
     /// = ECS entities, mem_mb = process RSS, uptime_secs = since launch.
@@ -2331,6 +2334,7 @@ impl Default for GuiState {
             show_system_overlay: false,
             frame_times: Vec::new(),
             ws_msgs_in: 0,
+            mic_test_requested: false,
             diag_entity_count: 0,
             diag_mem_mb: 0.0,
             diag_uptime_secs: 0,

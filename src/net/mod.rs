@@ -41,3 +41,8 @@ pub mod group_e2ee;
 /// off-server. Group mesh = inc-2, STUN/TURN = inc-3.
 #[cfg(feature = "native")]
 pub mod webrtc;
+
+/// Native voice audio (v0.485): mic capture, Opus codec, speaker playback, and
+/// (later phases) WebRTC audio media + the voice mesh. See voice.rs.
+#[cfg(feature = "native")]
+pub mod voice;
