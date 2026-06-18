@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.481.0"
+version = "0.482.0"
 edition = "2021"
 
 [[bin]]
@@ -15,7 +15,7 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5"]
+native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats"]
 relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -65,6 +65,9 @@ egui-wgpu = { version = "0.31", optional = true }
 egui-winit = { version = "0.31", optional = true }
 tungstenite = { version = "0.24", optional = true, features = ["native-tls"] }
 ureq = { version = "2", optional = true }
+# Process RSS for the F4 System diagnostics overlay (v0.482). Tiny, cross-platform
+# (GetProcessMemoryInfo on Windows, /proc on Linux); native-only.
+memory-stats = { version = "1", optional = true }
 # Cross-platform clipboard access for image paste (Ctrl+V from print-screen
 # captures) — v0.232. Already a transitive dep via egui; declaring directly
 # so we can call get_image() on the clipboard. native feature only.

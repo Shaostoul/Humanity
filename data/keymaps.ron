@@ -5,12 +5,16 @@
 // are the source of truth for now, so keep these in sync when you add or change a binding.
 // Add a new context block (matched by `context`) to give a specific page its own list; an
 // unmatched page falls back to "Menu".
+//
+// The F2-F4 + F12 dev-HUD keys (v0.482) are GLOBAL (work in every context), so they are listed
+// in each block. F2 = performance (FPS + frame-time graph), F3 = network, F4 = system (RAM).
 [
     (context: "World", binds: [
+        (action: "Look around", keys: "Move the mouse"),
         (action: "Move", keys: "W / A / S / D"),
         (action: "Sprint", keys: "Shift (hold)"),
         (action: "Jump", keys: "Space"),
-        (action: "Interact / pin info card", keys: "E"),
+        (action: "Interact / pin info card", keys: "E (look at a target)"),
         (action: "Inventory", keys: "I"),
         (action: "Construction editor", keys: "B"),
         (action: "Toggle roof", keys: "R"),
@@ -21,6 +25,9 @@
         (action: "Menu / back", keys: "Esc"),
         (action: "Peek through walls (hold)", keys: "Tab (hold)"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),
+        (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
+        (action: "Network overlay", keys: "F3"),
+        (action: "System overlay (RAM, uptime)", keys: "F4"),
         (action: "Debug console", keys: "F12"),
     ]),
     (context: "Construction editor", binds: [
@@ -33,14 +40,27 @@
         (action: "Top-down plan overlay", keys: "checkbox in panel"),
         (action: "Close editor", keys: "B"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),
+        (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
+        (action: "Network overlay", keys: "F3"),
+        (action: "System overlay (RAM, uptime)", keys: "F4"),
+        (action: "Debug console", keys: "F12"),
     ]),
     (context: "Showroom", binds: [
         (action: "Orbit the avatar", keys: "Drag (any mouse button)"),
         (action: "Zoom in / out", keys: "Mouse wheel"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),
+        (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
+        (action: "Network overlay", keys: "F3"),
+        (action: "System overlay (RAM, uptime)", keys: "F4"),
+        (action: "Debug console", keys: "F12"),
     ]),
     (context: "Menu", binds: [
+        (action: "Navigate", keys: "Click (top nav bar + page)"),
         (action: "Back / close page", keys: "Esc"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),
+        (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
+        (action: "Network overlay", keys: "F3"),
+        (action: "System overlay (RAM, uptime)", keys: "F4"),
+        (action: "Debug console", keys: "F12"),
     ]),
 ]

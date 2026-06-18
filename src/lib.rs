@@ -2446,6 +2446,20 @@ mod native_app {
                             }
                             return;
                         }
+                        // Diagnostics dev-HUD overlays (v0.482): F2 perf, F3 network,
+                        // F4 system. Toggle on press; stack in the top-right corner.
+                        if key == KeyCode::F2 && pressed {
+                            state.gui_state.show_perf_overlay = !state.gui_state.show_perf_overlay;
+                            return;
+                        }
+                        if key == KeyCode::F3 && pressed {
+                            state.gui_state.show_network_overlay = !state.gui_state.show_network_overlay;
+                            return;
+                        }
+                        if key == KeyCode::F4 && pressed {
+                            state.gui_state.show_system_overlay = !state.gui_state.show_system_overlay;
+                            return;
+                        }
 
                         // Ctrl+V clipboard image paste — detected HERE at the
                         // raw winit layer because egui-winit intercepts the
@@ -3852,6 +3866,29 @@ mod native_app {
 
                     // Update FPS counter
                     state.gui_state.fps = if dt > 0.0 { 1.0 / dt } else { 0.0 };
+                    // Frame-time ring buffer for the F2 performance overlay sparkline.
+                    {
+                        let ft = &mut state.gui_state.frame_times;
+                        ft.push(dt * 1000.0);
+                        if ft.len() > 120 {
+                            let excess = ft.len() - 120;
+                            ft.drain(0..excess);
+                        }
+                    }
+                    // Sample EngineState diagnostics for the F2/F4 overlays, but ONLY
+                    // while the relevant overlay is open so the syscall/entity-walk
+                    // cost nothing when hidden. (v0.482)
+                    if state.gui_state.show_perf_overlay || state.gui_state.show_system_overlay {
+                        state.gui_state.diag_uptime_secs = state.start_time.elapsed().as_secs();
+                    }
+                    if state.gui_state.show_perf_overlay {
+                        state.gui_state.diag_entity_count = state.game_world.world.iter().count();
+                    }
+                    if state.gui_state.show_system_overlay {
+                        if let Some(u) = memory_stats::memory_stats() {
+                            state.gui_state.diag_mem_mb = u.physical_mem as f32 / 1_048_576.0;
+                        }
+                    }
 
                     // Poll updater for background thread results
                     if state.gui_state.updater.poll(dt as f64) {
@@ -4234,6 +4271,8 @@ mod native_app {
                             ws_dropped = true;
                         }
                         for raw in messages {
+                            // Network overlay (v0.482): count every received frame.
+                            state.gui_state.ws_msgs_in = state.gui_state.ws_msgs_in.saturating_add(1);
                             // Log raw message to debug console (truncate long messages)
                             {
                                 let preview = if raw.len() > 300 { format!("{}...", &raw[..300]) } else { raw.clone() };
@@ -5993,6 +6032,8 @@ mod native_app {
                                 if state.gui_state.keymap_visible {
                                     crate::gui::pages::keymap::draw(ctx, &state.theme, &state.gui_state);
                                 }
+                                // Diagnostics dev-HUD overlays (F2/F3/F4), v0.482.
+                                crate::gui::pages::diagnostics::draw(ctx, &state.theme, &state.gui_state);
 
                                 // Draw debug console overlay (F12 toggle, on top of everything)
                                 crate::debug::draw_debug_console(

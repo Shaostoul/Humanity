@@ -9,6 +9,7 @@ pub mod hud;
 pub mod showroom;
 pub mod construction;
 pub mod keymap;
+pub mod diagnostics;
 pub mod placeholder;
 pub mod tasks;
 pub mod profile;

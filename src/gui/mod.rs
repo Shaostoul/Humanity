@@ -1367,6 +1367,23 @@ pub struct GuiState {
     /// screen/mode. Loaded once from data/keymaps.ron.
     pub keymap_visible: bool,
     pub keymaps: Vec<crate::gui::pages::keymap::KeymapContext>,
+    /// Diagnostics dev-HUD overlays (v0.482), each toggled by an F-key and shown
+    /// stacked in the top-right corner. F2 = performance, F3 = network, F4 =
+    /// system. Listed in the F1 keymap so they are discoverable.
+    pub show_perf_overlay: bool,
+    pub show_network_overlay: bool,
+    pub show_system_overlay: bool,
+    /// Recent frame times in milliseconds (ring buffer, newest last), for the
+    /// performance overlay's frame-time sparkline. Capped at ~120 samples.
+    pub frame_times: Vec<f32>,
+    /// Count of WebSocket messages received this session (network overlay).
+    pub ws_msgs_in: u64,
+    /// Live diagnostics sampled from EngineState each frame (only while the
+    /// relevant overlay is open, so they cost nothing when hidden). entity_count
+    /// = ECS entities, mem_mb = process RSS, uptime_secs = since launch.
+    pub diag_entity_count: usize,
+    pub diag_mem_mb: f32,
+    pub diag_uptime_secs: u64,
     /// Index into construction_rooms of the room selected/grabbed in the 3D astral editor, for
     /// the highlight tint. None = no selection. (v0.466)
     pub construction_selected_room: Option<usize>,
@@ -2309,6 +2326,14 @@ impl Default for GuiState {
             construction_remove: None,
             construction_plan_view: false,
             keymap_visible: false,
+            show_perf_overlay: false,
+            show_network_overlay: false,
+            show_system_overlay: false,
+            frame_times: Vec::new(),
+            ws_msgs_in: 0,
+            diag_entity_count: 0,
+            diag_mem_mb: 0.0,
+            diag_uptime_secs: 0,
             keymaps: Vec::new(),
             construction_selected_room: None,
             construction_height: 3.0,
