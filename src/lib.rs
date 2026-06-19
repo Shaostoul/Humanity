@@ -4762,18 +4762,12 @@ mod native_app {
                                             log::info!("Received {} voice channels", channels.len());
                                             // Add voice channels that don't already exist as text channels
                                             for vc in channels {
-                                                let vc_name = vc.get("name")
-                                                    .or_else(|| vc.get("id"))
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("")
-                                                    .to_string();
-                                                if vc_name.is_empty() { continue; }
-                                                // Remember the numeric voice-channel id (i64 on the
-                                                // wire) keyed by name, so join/leave can send the
-                                                // correct room_id the relay expects (Phase C, v0.491).
-                                                if let Some(id_num) = vc.get("id").and_then(|v| v.as_i64()) {
-                                                    state.gui_state.voice_channel_ids.insert(vc_name.clone(), id_num.to_string());
-                                                }
+                                                // Voice is per-channel (v0.493): the entry's id IS a
+                                                // text channel's string id, carrying that channel's
+                                                // live voice roster.
+                                                let vc_id = vc.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let vc_name = vc.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                if vc_id.is_empty() { continue; }
                                                 // Live voice roster (public_key, display_name), v0.481.
                                                 let roster: Vec<(String, String)> = vc.get("participants")
                                                     .and_then(|v| v.as_array())
@@ -4783,18 +4777,14 @@ mod native_app {
                                                         Some((k, n))
                                                     }).collect())
                                                     .unwrap_or_default();
-                                                // Assign the roster onto the matching channel (a text channel
-                                                // with the same name, voice merged in UI) OR push a new one.
+                                                // Attach the roster onto the matching text channel by id
+                                                // (channel_list already created it). Fallback: stub it.
                                                 if let Some(c) = state.gui_state.chat_channels.iter_mut()
-                                                    .find(|c| c.name == vc_name || c.id == vc_name)
+                                                    .find(|c| c.id == vc_id)
                                                 {
                                                     c.voice_enabled = true;
                                                     c.voice_participants = roster;
-                                                } else {
-                                                    let vc_id = vc.get("id")
-                                                        .and_then(|v| v.as_str())
-                                                        .unwrap_or(&vc_name)
-                                                        .to_string();
+                                                } else if !vc_name.is_empty() {
                                                     state.gui_state.chat_channels.push(
                                                         crate::gui::ChatChannel {
                                                             id: vc_id,
@@ -4821,8 +4811,8 @@ mod native_app {
                                                     let mut me_present = false;
                                                     let mut incumbents: Vec<String> = Vec::new();
                                                     for vc in channels {
-                                                        let id = vc.get("id").and_then(|v| v.as_i64()).map(|n| n.to_string());
-                                                        if id.as_deref() != Some(room_id.as_str()) { continue; }
+                                                        let id = vc.get("id").and_then(|v| v.as_str());
+                                                        if id != Some(room_id.as_str()) { continue; }
                                                         if let Some(arr) = vc.get("participants").and_then(|v| v.as_array()) {
                                                             for p in arr {
                                                                 if let Some(k) = p.get("public_key").and_then(|v| v.as_str()) {

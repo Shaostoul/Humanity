@@ -2253,15 +2253,17 @@ pub struct VoiceRoomParticipant {
     pub muted: bool,
 }
 
-/// Persistent voice channel data sent to clients.
+/// Per-channel voice roster sent to clients. `id` is the TEXT channel's string
+/// id (voice is per-channel via the `voice_enabled` flag, v0.493) — not the
+/// legacy numeric `voice_channels` table id.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VoiceChannelData {
-    pub id: i64,
+    pub id: String,
     pub name: String,
     pub participants: Vec<VoiceRoomParticipant>,
 }
 
-/// In-memory voice room state (keyed by voice channel DB id as string).
+/// In-memory voice room state (keyed by the TEXT channel's string id).
 pub struct VoiceRoom {
     pub name: String,
     pub participants: Vec<(String, String)>, // (public_key, display_name)

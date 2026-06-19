@@ -906,16 +906,17 @@ pub async fn handle_voice_room(
         }
         "join" => {
             if let Some(rid) = room_id {
-                let id_num: i64 = rid.parse().unwrap_or(0);
-                if id_num == 0 || !state.db.voice_channel_exists(id_num).unwrap_or(false) {
-                    let private = RelayMessage::Private { to: my_key.to_string(), message: "Voice channel not found.".to_string() };
+                // `rid` is the TEXT channel's string id. Voice is per-channel via
+                // the voice_enabled flag (v0.493), not the legacy voice_channels
+                // table — so validate + name from the channels table.
+                if !state.db.channel_voice_enabled(&rid) {
+                    let private = RelayMessage::Private { to: my_key.to_string(), message: "Voice is not enabled for this channel.".to_string() };
                     let _ = state.broadcast_tx.send(private);
                 } else {
                     let mut rooms = state.voice_rooms.write().await;
                     let room = rooms.entry(rid.clone()).or_insert_with(|| {
-                        let name = state.db.list_voice_channels().ok()
-                            .and_then(|chs| chs.into_iter().find(|c| c.id == id_num).map(|c| c.name))
-                            .unwrap_or_else(|| "Voice Channel".to_string());
+                        let name = state.db.channel_display_name(&rid)
+                            .unwrap_or_else(|| "Voice".to_string());
                         VoiceRoom { name, participants: vec![] }
                     });
                     if !room.participants.iter().any(|(k, _)| k == my_key) {

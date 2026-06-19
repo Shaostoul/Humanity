@@ -1402,10 +1402,12 @@ var federatedServersFetched = false;
       // joins/leaves the REAL relay voice room for the channel. "joined" reflects
       // the actual mesh connection (_currentRoomId), not the old dead per-channel
       // toggle. (v0.481: collapsed the two voice systems into one.)
-      const vc = (window._voiceChannels || []).find(c => c.name === ch.name);
-      const voiceJoined = !!(vc && String(vc.id) === String(window._currentRoomId));
+      // Voice is per-channel (v0.493): the room id IS this text channel's id, so
+      // match the live roster + join by id (not by name).
+      const vc = (window._voiceChannels || []).find(c => String(c.id) === String(ch.id));
+      const voiceJoined = String(ch.id) === String(window._currentRoomId);
       const micHtml = ch.voice_enabled
-        ? `<span class="ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.name)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
+        ? `<span class="ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.id)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
         : '';
       const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
       // Live voice roster under the channel: who is connected to voice here
@@ -1546,13 +1548,12 @@ var federatedServersFetched = false;
     // live mesh join/leave, so clicking the mic actually connects you.
     const micEl = e.target.closest('.ch-mic');
     if (micEl) {
+      // data-voice-channel is now the text channel's id (voice is per-channel,
+      // v0.493): join/leave that channel's voice directly, no name lookup.
       const vch = micEl.getAttribute('data-voice-channel');
-      if (vch) {
-        const vc = (window._voiceChannels || []).find(c => c.name === vch);
-        if (vc && typeof joinVoiceRoom === 'function' && typeof leaveVoiceRoom === 'function') {
-          if (String(vc.id) === String(window._currentRoomId)) leaveVoiceRoom();
-          else joinVoiceRoom(vc.id);
-        }
+      if (vch && typeof joinVoiceRoom === 'function' && typeof leaveVoiceRoom === 'function') {
+        if (String(vch) === String(window._currentRoomId)) leaveVoiceRoom();
+        else joinVoiceRoom(vch);
       }
       return;
     }

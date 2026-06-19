@@ -1823,33 +1823,35 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     // with action join/leave (the old `voice_join` was ignored by
                     // the relay, so native join never registered). Phase C, v0.491.
                     if let Some((idx, joining)) = voice_toggle_idx {
-                        let ch_name = match state.chat_channels.get_mut(idx) {
+                        // Voice is per-channel (v0.493): the room id IS this text
+                        // channel's own id. Join/leave that directly.
+                        let (ch_name, ch_id) = match state.chat_channels.get_mut(idx) {
                             Some(ch) => {
                                 ch.voice_joined = joining;
-                                ch.name.clone()
+                                (ch.name.clone(), ch.id.clone())
                             }
-                            None => String::new(),
+                            None => (String::new(), String::new()),
                         };
-                        if !ch_name.is_empty() {
-                            let room_id = state.voice_channel_ids.get(&ch_name).cloned();
+                        if !ch_id.is_empty() {
                             let action = if joining { "join" } else { "leave" };
-                            log::info!("Voice {} requested: {} (room_id {:?})", action, ch_name, room_id);
-                            crate::debug::push_debug(format!("Voice: {} for '{}' (id {:?})", action, ch_name, room_id));
+                            log::info!("Voice {} requested: {} (room_id {})", action, ch_name, ch_id);
+                            crate::debug::push_debug(format!("Voice: {} for '{}' (id {})", action, ch_name, ch_id));
                             // Phase C: track the active room so the roster handler
-                            // can dial the incumbents (newcomer-offers rule). Reset
-                            // the incumbent-capture flag on each join.
+                            // dials the incumbents (newcomer-offers rule). Reset the
+                            // incumbent-capture flag on each join.
                             if joining {
-                                state.voice_active_room = room_id.clone();
+                                state.voice_active_room = Some(ch_id.clone());
                                 state.voice_incumbents_captured = false;
                             } else {
                                 state.voice_active_room = None;
                             }
                             if let Some(ref client) = state.ws_client {
                                 if client.is_connected() {
-                                    let mut msg = serde_json::json!({ "type": "voice_room", "action": action });
-                                    if let Some(id) = &room_id {
-                                        msg["room_id"] = serde_json::json!(id);
-                                    }
+                                    let msg = serde_json::json!({
+                                        "type": "voice_room",
+                                        "action": action,
+                                        "room_id": ch_id,
+                                    });
                                     client.send(&msg.to_string());
                                 }
                             }

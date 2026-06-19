@@ -147,6 +147,33 @@ impl Storage {
         })
     }
 
+    /// Whether a text channel exists AND has voice enabled. Voice is per-channel
+    /// (the `voice_enabled` flag), so the voice-room join validates against this
+    /// rather than the legacy separate `voice_channels` table. (Phase C, v0.493.)
+    pub fn channel_voice_enabled(&self, id: &str) -> bool {
+        self.with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT COALESCE(voice_enabled, 1) FROM channels WHERE id = ?1",
+                params![id],
+                |row| row.get::<_, i64>(0),
+            )
+        })
+        .map(|v| v != 0)
+        .unwrap_or(false)
+    }
+
+    /// A text channel's display name, if it exists.
+    pub fn channel_display_name(&self, id: &str) -> Option<String> {
+        self.with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT name FROM channels WHERE id = ?1",
+                params![id],
+                |row| row.get::<_, String>(0),
+            )
+        })
+        .ok()
+    }
+
     /// Set the read_only flag on a channel.
     pub fn set_channel_read_only(&self, id: &str, read_only: bool) -> Result<bool, rusqlite::Error> {
         self.with_conn(|conn| {

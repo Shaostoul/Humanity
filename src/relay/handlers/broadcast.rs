@@ -364,17 +364,32 @@ pub async fn handle_mod_command(
 
 /// Build the voice channel list message (persistent channels + active participants).
 pub async fn build_voice_channel_list_msg(state: &Arc<RelayState>) -> RelayMessage {
-    let db_channels = state.db.list_voice_channels().unwrap_or_default();
+    // Voice is per TEXT channel (the voice_enabled flag), v0.493. Report every
+    // voice-enabled channel keyed by its string id, with its live roster from the
+    // in-memory voice_rooms (empty if no one is connected). Sending all of them
+    // (not just active ones) lets clients clear a roster when the last leaves.
+    let text_channels = state.db.list_channels_with_categories_and_voice().unwrap_or_default();
     let rooms = state.voice_rooms.read().await;
-    let channels: Vec<VoiceChannelData> = db_channels.into_iter().map(|vc| {
-        let rid = vc.id.to_string();
-        let participants = rooms.get(&rid).map(|r| {
-            r.participants.iter().map(|(k, n)| VoiceRoomParticipant {
-                public_key: k.clone(), display_name: n.clone(), muted: false,
-            }).collect()
-        }).unwrap_or_default();
-        VoiceChannelData { id: vc.id, name: vc.name, participants }
-    }).collect();
+    let channels: Vec<VoiceChannelData> = text_channels
+        .into_iter()
+        .filter(|(_, _, _, _, _, voice_enabled)| *voice_enabled)
+        .map(|(id, name, _desc, _ro, _cat, _ve)| {
+            let participants = rooms
+                .get(&id)
+                .map(|r| {
+                    r.participants
+                        .iter()
+                        .map(|(k, n)| VoiceRoomParticipant {
+                            public_key: k.clone(),
+                            display_name: n.clone(),
+                            muted: false,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            VoiceChannelData { id, name, participants }
+        })
+        .collect();
     drop(rooms);
     RelayMessage::VoiceChannelList { channels }
 }
