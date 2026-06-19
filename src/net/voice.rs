@@ -754,8 +754,11 @@ fn run_voice_session(input_name: &str, output_name: &str) -> Result<(), String> 
     let mut drained: Vec<f32> = Vec::with_capacity(2048);
     let mut buf48: Vec<f32> = Vec::with_capacity(SR as usize);
 
-    // Playback chain (per-peer Opus decode -> mix at 48 kHz -> out rate -> speaker).
+    // Playback chain (per-peer Opus decode -> per-peer sample queue -> mix across
+    // peers at 48 kHz -> out rate -> speaker). The per-peer QUEUE is the key fix:
+    // consecutive frames from one peer must play in sequence, never be summed.
     let mut decoders: HashMap<String, Decoder> = HashMap::new();
+    let mut pcmq: HashMap<String, VecDeque<f32>> = HashMap::new();
     let mut down = Resampler::new(SR, out_rate);
     let mut dec_out = [0i16; FRAME];
     let mut resampled: Vec<f32> = Vec::with_capacity(FRAME * 2);
@@ -766,8 +769,7 @@ fn run_voice_session(input_name: &str, output_name: &str) -> Result<(), String> 
         while let Ok(s) = mic_rx.pop() {
             drained.push(s);
         }
-        let mic_idle = drained.is_empty();
-        if !mic_idle {
+        if !drained.is_empty() {
             up.process(&drained, &mut buf48);
         }
         let gain = f32::from_bits(VOICE_GAIN_BITS.load(Ordering::Relaxed));
@@ -797,32 +799,45 @@ fn run_voice_session(input_name: &str, output_name: &str) -> Result<(), String> 
             }
         }
 
-        // ── Receive + decode + mix + play ──
+        // ── Receive + decode + queue + mix + play ──
+        // Decode each arriving packet and APPEND it to that peer's sample queue,
+        // so consecutive frames play in SEQUENCE. (Summing them, as before, both
+        // garbled the audio and dropped time, which produced the periodic static.)
         let remote: Vec<(String, Vec<u8>)> =
             VOICE_REMOTE.lock().map(|mut q| q.drain(..).collect()).unwrap_or_default();
-        let net_idle = remote.is_empty();
-        if !net_idle {
-            // Decode each peer's frame and mix (sum) at 48 kHz.
-            let mut mix: Vec<f32> = Vec::new();
-            for (peer, opus) in remote {
-                if !decoders.contains_key(&peer) {
-                    match Decoder::new() {
-                        Ok(d) => {
-                            decoders.insert(peer.clone(), d);
-                        }
-                        Err(_) => continue,
+        for (peer, opus) in remote {
+            if !decoders.contains_key(&peer) {
+                match Decoder::new() {
+                    Ok(d) => {
+                        decoders.insert(peer.clone(), d);
+                    }
+                    Err(_) => continue,
+                }
+            }
+            if let Some(dec) = decoders.get_mut(&peer) {
+                if let Some(n) = dec.decode(&opus, &mut dec_out) {
+                    let q = pcmq.entry(peer).or_default();
+                    // Bound latency: if a peer backs up past ~0.5 s (clock drift /
+                    // a stall), drop the oldest audio back to ~0.25 s.
+                    if q.len() > SR as usize / 2 {
+                        let drop_n = q.len() - SR as usize / 4;
+                        q.drain(0..drop_n);
+                    }
+                    for &s in dec_out.iter().take(n) {
+                        q.push_back(s as f32 / 32768.0);
                     }
                 }
-                let dec = match decoders.get_mut(&peer) {
-                    Some(d) => d,
-                    None => continue,
-                };
-                if let Some(n) = dec.decode(&opus, &mut dec_out) {
-                    if mix.len() < n {
-                        mix.resize(n, 0.0);
-                    }
-                    for k in 0..n {
-                        mix[k] += dec_out[k] as f32 / 32768.0;
+            }
+        }
+        // Mix the queued audio across peers (sum where they overlap) and emit.
+        let avail = pcmq.values().map(|q| q.len()).max().unwrap_or(0);
+        if avail > 0 {
+            let mut mix = vec![0.0f32; avail];
+            for q in pcmq.values_mut() {
+                let take = q.len().min(avail);
+                for slot in mix.iter_mut().take(take) {
+                    if let Some(s) = q.pop_front() {
+                        *slot += s;
                     }
                 }
             }
@@ -836,9 +851,9 @@ fn run_voice_session(input_name: &str, output_name: &str) -> Result<(), String> 
             }
         }
 
-        if mic_idle && net_idle {
-            std::thread::sleep(Duration::from_millis(3));
-        }
+        // Pace the loop (~5 ms, well under a 20 ms frame so it keeps up) instead
+        // of busy-spinning a core, which could starve the cpal audio callbacks.
+        std::thread::sleep(Duration::from_millis(5));
     }
     drop(in_stream);
     drop(out_stream);
