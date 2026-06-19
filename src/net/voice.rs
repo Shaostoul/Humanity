@@ -7,6 +7,7 @@
 //! mixes the two output streams for us.
 #![cfg(feature = "native")]
 
+use std::collections::{HashMap, VecDeque};
 use std::time::Duration;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -636,6 +637,213 @@ fn run_loopback(input_name: &str, output_name: &str) -> Result<(), String> {
     // Streams stop when dropped here.
     drop(in_stream);
     drop(out_stream);
+    Ok(())
+}
+
+// ── Phase D: live voice session (real call audio) ───────────────────────────
+// Unlike the loopback test, this captures the mic, encodes Opus, and queues it
+// for the network (lib.rs drains VOICE_SEND and calls webrtc.send_voice to each
+// connected peer), AND decodes + mixes + plays inbound Opus from peers (lib.rs
+// pushes each WebrtcEvent::VoiceFrame into VOICE_REMOTE). Same gain / filter /
+// transmit-mode DSP as the loopback (shared atomics). native-only.
+
+static VOICE_SESSION_RUNNING: AtomicBool = AtomicBool::new(false);
+static VOICE_SESSION_STATUS: Mutex<String> = Mutex::new(String::new());
+/// Encoded mic Opus frames waiting to be sent to peers (drained by lib.rs).
+static VOICE_SEND: Mutex<VecDeque<Vec<u8>>> = Mutex::new(VecDeque::new());
+/// Inbound Opus frames (peer_key, opus) waiting to be decoded + played.
+static VOICE_REMOTE: Mutex<VecDeque<(String, Vec<u8>)>> = Mutex::new(VecDeque::new());
+
+fn set_voice_status(s: &str) {
+    if let Ok(mut g) = VOICE_SESSION_STATUS.lock() {
+        *g = s.to_string();
+    }
+}
+/// Is a live voice session running?
+pub fn voice_session_running() -> bool {
+    VOICE_SESSION_RUNNING.load(Ordering::Relaxed)
+}
+/// Status line for the voice session ("In voice" / "Voice failed: ...").
+pub fn voice_session_status() -> String {
+    VOICE_SESSION_STATUS.lock().map(|s| s.clone()).unwrap_or_default()
+}
+/// Take all encoded mic frames queued for transmission. lib.rs sends each to
+/// every connected voice peer.
+pub fn drain_voice_send() -> Vec<Vec<u8>> {
+    VOICE_SEND.lock().map(|mut q| q.drain(..).collect()).unwrap_or_default()
+}
+/// Queue one inbound Opus frame from `peer` for decode + playback.
+pub fn push_remote_opus(peer: String, opus: Vec<u8>) {
+    if let Ok(mut q) = VOICE_REMOTE.lock() {
+        // Bound the queue so a stalled playback thread can't grow it unbounded.
+        if q.len() < 512 {
+            q.push_back((peer, opus));
+        }
+    }
+}
+
+/// Start the live voice session on the chosen devices. Idempotent.
+pub fn start_voice_session(input_name: String, output_name: String) {
+    if VOICE_SESSION_RUNNING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    if let Ok(mut q) = VOICE_SEND.lock() {
+        q.clear();
+    }
+    if let Ok(mut q) = VOICE_REMOTE.lock() {
+        q.clear();
+    }
+    set_voice_status("Starting voice...");
+    std::thread::spawn(move || {
+        if let Err(e) = run_voice_session(&input_name, &output_name) {
+            log::warn!("Voice session failed: {e}");
+            set_voice_status(&format!("Voice failed: {e}"));
+            crate::debug::push_debug(format!("Voice session failed: {e}"));
+        }
+        VOICE_SESSION_RUNNING.store(false, Ordering::SeqCst);
+        VOICE_TRANSMITTING.store(false, Ordering::Relaxed);
+    });
+}
+
+/// Stop the live voice session.
+pub fn stop_voice_session() {
+    VOICE_SESSION_RUNNING.store(false, Ordering::SeqCst);
+}
+
+fn run_voice_session(input_name: &str, output_name: &str) -> Result<(), String> {
+    let input = find_device(input_name, true).ok_or("no input (microphone) device")?;
+    let output = find_device(output_name, false).ok_or("no output (speaker) device")?;
+    let in_def = input.default_input_config().map_err(|e| format!("microphone format: {e}"))?;
+    let out_def = output.default_output_config().map_err(|e| format!("speaker format: {e}"))?;
+    let in_rate: u32 = in_def.sample_rate();
+    let out_rate: u32 = out_def.sample_rate();
+    let in_fmt = in_def.sample_format();
+    let out_fmt = out_def.sample_format();
+    let in_cfg = in_def.config();
+    let out_cfg = out_def.config();
+    let in_ch = in_cfg.channels as usize;
+    let out_ch = out_cfg.channels as usize;
+
+    let (mic_tx, mut mic_rx) = rtrb::RingBuffer::<f32>::new(SR as usize);
+    let (mut spk_tx, spk_rx) = rtrb::RingBuffer::<f32>::new(SR as usize);
+
+    let in_stream = match in_fmt {
+        cpal::SampleFormat::F32 => build_input::<f32>(&input, &in_cfg, in_ch, mic_tx),
+        cpal::SampleFormat::I16 => build_input::<i16>(&input, &in_cfg, in_ch, mic_tx),
+        cpal::SampleFormat::U16 => build_input::<u16>(&input, &in_cfg, in_ch, mic_tx),
+        other => return Err(format!("microphone sample format {other:?} not supported")),
+    }?;
+    let out_stream = match out_fmt {
+        cpal::SampleFormat::F32 => build_output::<f32>(&output, &out_cfg, out_ch, spk_rx),
+        cpal::SampleFormat::I16 => build_output::<i16>(&output, &out_cfg, out_ch, spk_rx),
+        cpal::SampleFormat::U16 => build_output::<u16>(&output, &out_cfg, out_ch, spk_rx),
+        other => return Err(format!("speaker sample format {other:?} not supported")),
+    }?;
+    in_stream.play().map_err(|e| e.to_string())?;
+    out_stream.play().map_err(|e| e.to_string())?;
+    set_voice_status("In voice");
+
+    // Capture chain (mic -> 48 kHz -> DSP -> transmit gate -> Opus).
+    let mut up = Resampler::new(in_rate, SR);
+    let mut proc = InputProcessor::new();
+    let mut vad_hold: u32 = 0;
+    let mut enc = Encoder::new()?;
+    let mut frame_f32 = [0f32; FRAME];
+    let mut frame_i16 = [0i16; FRAME];
+    let mut pkt = [0u8; 4000];
+    let mut drained: Vec<f32> = Vec::with_capacity(2048);
+    let mut buf48: Vec<f32> = Vec::with_capacity(SR as usize);
+
+    // Playback chain (per-peer Opus decode -> mix at 48 kHz -> out rate -> speaker).
+    let mut decoders: HashMap<String, Decoder> = HashMap::new();
+    let mut down = Resampler::new(SR, out_rate);
+    let mut dec_out = [0i16; FRAME];
+    let mut resampled: Vec<f32> = Vec::with_capacity(FRAME * 2);
+
+    while VOICE_SESSION_RUNNING.load(Ordering::Relaxed) {
+        // ── Capture + encode + queue for the network ──
+        drained.clear();
+        while let Ok(s) = mic_rx.pop() {
+            drained.push(s);
+        }
+        let mic_idle = drained.is_empty();
+        if !mic_idle {
+            up.process(&drained, &mut buf48);
+        }
+        let gain = f32::from_bits(VOICE_GAIN_BITS.load(Ordering::Relaxed));
+        let filter_mode = VOICE_FILTER_MODE.load(Ordering::Relaxed);
+        let transmit_mode = VOICE_TRANSMIT_MODE.load(Ordering::Relaxed);
+        let vad_thresh = f32::from_bits(VOICE_VAD_THRESH_BITS.load(Ordering::Relaxed));
+        let ptt_held = VOICE_PTT_HELD.load(Ordering::Relaxed);
+        while buf48.len() >= FRAME {
+            frame_f32.copy_from_slice(&buf48[..FRAME]);
+            buf48.drain(0..FRAME);
+            proc.process(&mut frame_f32, gain, filter_mode);
+            let rms = frame_rms(&frame_f32);
+            let transmit = transmit_decision(transmit_mode, rms, vad_thresh, ptt_held, &mut vad_hold);
+            VOICE_TRANSMITTING.store(transmit, Ordering::Relaxed);
+            if !transmit {
+                continue;
+            }
+            for (s, &v) in frame_i16.iter_mut().zip(frame_f32.iter()) {
+                *s = (v.clamp(-1.0, 1.0) * 32767.0) as i16;
+            }
+            if let Some(n) = enc.encode(&frame_i16, &mut pkt) {
+                if let Ok(mut q) = VOICE_SEND.lock() {
+                    if q.len() < 256 {
+                        q.push_back(pkt[..n].to_vec());
+                    }
+                }
+            }
+        }
+
+        // ── Receive + decode + mix + play ──
+        let remote: Vec<(String, Vec<u8>)> =
+            VOICE_REMOTE.lock().map(|mut q| q.drain(..).collect()).unwrap_or_default();
+        let net_idle = remote.is_empty();
+        if !net_idle {
+            // Decode each peer's frame and mix (sum) at 48 kHz.
+            let mut mix: Vec<f32> = Vec::new();
+            for (peer, opus) in remote {
+                if !decoders.contains_key(&peer) {
+                    match Decoder::new() {
+                        Ok(d) => {
+                            decoders.insert(peer.clone(), d);
+                        }
+                        Err(_) => continue,
+                    }
+                }
+                let dec = match decoders.get_mut(&peer) {
+                    Some(d) => d,
+                    None => continue,
+                };
+                if let Some(n) = dec.decode(&opus, &mut dec_out) {
+                    if mix.len() < n {
+                        mix.resize(n, 0.0);
+                    }
+                    for k in 0..n {
+                        mix[k] += dec_out[k] as f32 / 32768.0;
+                    }
+                }
+            }
+            for s in mix.iter_mut() {
+                *s = s.clamp(-1.0, 1.0);
+            }
+            resampled.clear();
+            down.process(&mix, &mut resampled);
+            for &v in &resampled {
+                let _ = spk_tx.push(v);
+            }
+        }
+
+        if mic_idle && net_idle {
+            std::thread::sleep(Duration::from_millis(3));
+        }
+    }
+    drop(in_stream);
+    drop(out_stream);
+    set_voice_status("");
+    VOICE_TRANSMITTING.store(false, Ordering::Relaxed);
     Ok(())
 }
 

@@ -3957,6 +3957,36 @@ mod native_app {
                             state.gui_state.voice_ptt_held,
                         );
                     }
+                    // v0.494 Phase D: run the live voice session while joined to a
+                    // voice room (capture + encode + decode/play), and pump captured
+                    // Opus to every connected peer. Edge-triggered start/stop.
+                    {
+                        let want_session = state.gui_state.voice_active_room.is_some();
+                        if want_session && !state.gui_state.voice_session_prev {
+                            crate::net::voice::start_voice_session(
+                                state.gui_state.audio_input_device.clone(),
+                                state.gui_state.audio_output_device.clone(),
+                            );
+                        } else if !want_session && state.gui_state.voice_session_prev {
+                            crate::net::voice::stop_voice_session();
+                            state.gui_state.voice_connected_peers.clear();
+                        }
+                        state.gui_state.voice_session_prev = want_session;
+                        // Send captured mic frames to each connected voice peer.
+                        if want_session && !state.gui_state.voice_connected_peers.is_empty() {
+                            let frames = crate::net::voice::drain_voice_send();
+                            if !frames.is_empty() {
+                                let peers: Vec<String> = state.gui_state.voice_connected_peers.iter().cloned().collect();
+                                if let Some(ref webrtc) = state.gui_state.webrtc {
+                                    for opus in frames {
+                                        for peer in &peers {
+                                            webrtc.send_voice(peer.clone(), opus.clone());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // Poll updater for background thread results
                     if state.gui_state.updater.poll(dt as f64) {
@@ -5688,25 +5718,28 @@ mod native_app {
                                         }
                                     }
                                     crate::net::webrtc::WebrtcEvent::VoiceConnected { peer } => {
-                                        // Phase C: a voice peer's WebRTC transport is up.
+                                        // Phase C/D: a voice peer's transport is up. Track it
+                                        // so the session pumps our mic Opus to it.
                                         crate::debug::push_debug(format!(
                                             "Voice: CONNECTED with {}", short(&peer)
                                         ));
+                                        state.gui_state.voice_connected_peers.insert(peer);
                                     }
                                     crate::net::webrtc::WebrtcEvent::VoiceFrame { peer, opus } => {
-                                        // Phase C: inbound Opus from a voice peer. Decode +
-                                        // mix + playback is Phase D; for now we count frames
-                                        // so the test shows audio IS flowing over the pipe
-                                        // (every ~50 frames ~= 1s of speech).
+                                        // Phase D: inbound Opus from a voice peer -> the voice
+                                        // session decodes, mixes, and plays it. Count frames
+                                        // for the debug log (~50 frames ~= 1s of speech).
+                                        crate::net::voice::push_remote_opus(peer.clone(), opus.clone());
                                         state.gui_state.voice_rx_frames = state.gui_state.voice_rx_frames.wrapping_add(1);
-                                        if state.gui_state.voice_rx_frames % 50 == 1 {
+                                        if state.gui_state.voice_rx_frames % 100 == 1 {
                                             crate::debug::push_debug(format!(
-                                                "Voice: receiving audio from {} ({} frames, {} bytes)",
-                                                short(&peer), state.gui_state.voice_rx_frames, opus.len()
+                                                "Voice: receiving audio from {} ({} frames)",
+                                                short(&peer), state.gui_state.voice_rx_frames
                                             ));
                                         }
                                     }
                                     crate::net::webrtc::WebrtcEvent::Closed { peer } => {
+                                        state.gui_state.voice_connected_peers.remove(&peer);
                                         crate::debug::push_debug(format!(
                                             "WebRTC: channel CLOSED with {}", short(&peer)
                                         ));

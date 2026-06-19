@@ -1568,6 +1568,13 @@ pub struct GuiState {
     /// rule, we offer to the peers present at our join, and let later joiners
     /// offer to us. Reset on each join. (Phase C, v0.492.)
     pub voice_incumbents_captured: bool,
+    /// Peers whose voice WebRTC transport is connected (Phase D, v0.494). We send
+    /// our captured mic Opus to each of these. Populated on VoiceConnected,
+    /// cleared on Closed / leave.
+    pub voice_connected_peers: std::collections::HashSet<String>,
+    /// Previous "joined to a voice room" state, so lib.rs starts/stops the live
+    /// voice session only on the edge. (Phase D, v0.494.)
+    pub voice_session_prev: bool,
 
     // ── Donation address config ──
 
@@ -2456,6 +2463,8 @@ impl Default for GuiState {
             voice_rx_frames: 0,
             voice_active_room: None,
             voice_incumbents_captured: false,
+            voice_connected_peers: std::collections::HashSet::new(),
+            voice_session_prev: false,
             donate_solana_address: String::new(),
             donate_btc_address: String::new(),
             donate_addresses: Vec::new(),
