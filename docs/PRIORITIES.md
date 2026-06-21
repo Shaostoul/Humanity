@@ -23,9 +23,10 @@
 > reviewed without launching the app) + `just verify` / `lints` / `preflight`.
 >
 > **NEXT (voice + dev-infra, agreed with operator):**
-> 1. **In-process WebRTC test harness** (two `str0m` instances wired together with
->    a fake clock, no sockets) so voice/multiplayer changes are CI-verifiable
->    instead of needing a live native-to-web call. The agreed next infra build.
+> 1. ~~In-process WebRTC test harness~~ **DONE (v0.496):**
+>    `inproc_webrtc_tests::two_str0m_opus_roundtrip` in src/net/webrtc.rs drives two
+>    str0m instances through ICE + DTLS in-process and asserts an Opus frame
+>    round-trips. Voice/net media changes are now CI-verifiable.
 > 2. **Native per-peer voice controls** UI (volume / mute / squelch), mirroring
 >    the web's `web/chat/chat-voice-modal.js`, plus a visible in-call indicator.
 > 3. **Web transmit-mode parity** (the web has no open-mic / PTT / VAD UI yet).

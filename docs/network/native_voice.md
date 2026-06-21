@@ -129,10 +129,12 @@ Opus matches.
 - **No per-peer controls UI on native** yet (volume / mute / squelch). The web has
   this (`web/chat/chat-voice-modal.js`); native should mirror it.
 - **The web has no transmit-mode UI** (open mic / PTT / VAD). Web-parity debt.
-- **No in-process test** for the WebRTC voice path - it is verified only by a live
-  native↔web call. The agreed next infra build is a two-`str0m`-in-one-process
-  harness (str0m is sans-IO, so two instances can be wired together with a fake
-  clock and no sockets) to make voice/net changes CI-verifiable.
+- **In-process test: DONE** (v0.496). `inproc_webrtc_tests::two_str0m_opus_roundtrip`
+  in [src/net/webrtc.rs](../../src/net/webrtc.rs) drives two str0m instances through
+  a full ICE + DTLS handshake in one process (sans-IO, each one's `Output::Transmit`
+  fed into the other's `handle_input`, a shared fake clock, no sockets) and asserts
+  an Opus frame written into one arrives at the other as `Event::MediaData`. So the
+  voice media path is now CI-verifiable without a live native-to-web call.
 - **Playback is naive:** a per-peer sample queue + sum-mix, no adaptive jitter
   buffer / drift compensation. A residual faint click under heavy clock drift is
   possible; revisit with proper drift handling if it appears.

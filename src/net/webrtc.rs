@@ -3368,3 +3368,147 @@ mod phase_b_voice_tests {
         assert!(!offer_json.contains("m=audio"), "data-only offer must have no audio m-line");
     }
 }
+
+/// Phase B/C voice transport verified IN-PROCESS (the #3 dev-infra build). str0m
+/// is sans-IO, so two instances can be wired together in one test: each one's
+/// Output::Transmit is fed straight into the other's handle_input(Receive), with
+/// a shared fake clock and no sockets. This drives a full ICE + DTLS handshake
+/// and asserts that an Opus frame written into one peer arrives at the other as
+/// Event::MediaData. It makes the voice media path CI-verifiable without a live
+/// native<->web call.
+#[cfg(test)]
+mod inproc_webrtc_tests {
+    use std::net::SocketAddr;
+    use std::time::{Duration, Instant};
+
+    use str0m::format::Codec;
+    use str0m::media::{Direction, Frequency, MediaKind, MediaTime, Mid};
+    use str0m::net::{Protocol, Receive, Transmit};
+    use str0m::{Candidate, Event, Input, Output, Rtc};
+
+    fn addr(s: &str) -> SocketAddr {
+        s.parse().unwrap()
+    }
+
+    /// Drain one Rtc's poll_output to its next Timeout, collecting outbound
+    /// datagrams + events. Returns the deadline str0m wants to be polled at next.
+    fn drain(rtc: &mut Rtc, transmits: &mut Vec<Transmit>, events: &mut Vec<Event>) -> Instant {
+        loop {
+            match rtc.poll_output().expect("poll_output") {
+                Output::Timeout(t) => return t,
+                Output::Transmit(t) => transmits.push(t),
+                Output::Event(e) => events.push(e),
+            }
+        }
+    }
+
+    /// Feed a batch of datagrams into a peer as if they arrived over UDP.
+    fn feed(dst: &mut Rtc, now: Instant, transmits: Vec<Transmit>) {
+        for t in transmits {
+            let bytes: &[u8] = &t.contents;
+            let contents: Result<str0m::net::DatagramRecv, _> = bytes.try_into();
+            if let Ok(contents) = contents {
+                let _ = dst.handle_input(Input::Receive(
+                    now,
+                    Receive {
+                        proto: Protocol::Udp,
+                        source: t.source,
+                        destination: t.destination,
+                        contents,
+                    },
+                ));
+            }
+        }
+    }
+
+    fn ice_connected(events: &[Event]) -> bool {
+        use str0m::IceConnectionState as S;
+        events.iter().any(|e| matches!(e, Event::IceConnectionStateChange(S::Connected | S::Completed)))
+    }
+
+    #[test]
+    fn two_str0m_opus_roundtrip() {
+        let a_addr = addr("1.1.1.1:1000");
+        let b_addr = addr("2.2.2.2:2000");
+        let mut now = Instant::now();
+
+        let mut a = Rtc::builder().build(now);
+        let mut b = Rtc::builder().build(now);
+        a.add_local_candidate(Candidate::host(a_addr, "udp").unwrap());
+        b.add_local_candidate(Candidate::host(b_addr, "udp").unwrap());
+
+        // A offers a SendRecv Opus audio m-line; B accepts; A applies the answer.
+        let mut api = a.sdp_api();
+        let a_mid: Mid = api.add_media(MediaKind::Audio, Direction::SendRecv, None, None, None);
+        let (offer, pending) = api.apply().expect("offer");
+        let answer = b.sdp_api().accept_offer(offer).expect("accept_offer");
+        a.sdp_api().accept_answer(pending, answer).expect("accept_answer");
+
+        let payload: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04];
+        let mut b_mid: Option<Mid> = None;
+        let mut a_conn = false;
+        let mut b_conn = false;
+        let mut wrote = false;
+        let mut rtp_ts: u64 = 0;
+        let mut got_media: Option<Vec<u8>> = None;
+
+        for _ in 0..5000 {
+            let mut a_tx = Vec::new();
+            let mut b_tx = Vec::new();
+            let mut a_ev = Vec::new();
+            let mut b_ev = Vec::new();
+            let a_to = drain(&mut a, &mut a_tx, &mut a_ev);
+            let b_to = drain(&mut b, &mut b_tx, &mut b_ev);
+            feed(&mut b, now, a_tx);
+            feed(&mut a, now, b_tx);
+
+            a_conn |= ice_connected(&a_ev);
+            b_conn |= ice_connected(&b_ev);
+            for e in &b_ev {
+                if let Event::MediaAdded(m) = e {
+                    if m.kind == MediaKind::Audio {
+                        b_mid = Some(m.mid);
+                    }
+                }
+                if let Event::MediaData(d) = e {
+                    got_media = Some(d.data.to_vec());
+                }
+            }
+
+            // Once both ends are connected and B has its audio mid, write one
+            // Opus frame from A. (We only need a single direction for the proof.)
+            if a_conn && b_conn && b_mid.is_some() && !wrote {
+                if let Some(writer) = a.writer(a_mid) {
+                    // Compute the negotiated Opus PT first so the payload_params
+                    // borrow ends before write() consumes the writer.
+                    let pt = writer
+                        .payload_params()
+                        .find(|p| p.spec().codec == Codec::Opus)
+                        .map(|p| p.pt());
+                    if let Some(pt) = pt {
+                        writer
+                            .write(pt, now, MediaTime::new(rtp_ts, Frequency::FORTY_EIGHT_KHZ), payload.clone())
+                            .expect("write opus");
+                        rtp_ts += 960;
+                        wrote = true;
+                    }
+                }
+            }
+
+            if got_media.is_some() {
+                break;
+            }
+
+            // Advance the shared clock to the earliest deadline, always moving
+            // forward at least 1 ms so DTLS/ICE timers actually fire.
+            now = a_to.min(b_to).max(now + Duration::from_millis(1));
+            let _ = a.handle_input(Input::Timeout(now));
+            let _ = b.handle_input(Input::Timeout(now));
+        }
+
+        assert!(a_conn && b_conn, "ICE never connected (a={a_conn} b={b_conn})");
+        assert!(wrote, "never reached a state where we could write Opus");
+        let got = got_media.expect("B never received the Opus frame as MediaData");
+        assert_eq!(got, payload, "received Opus payload did not match what was sent");
+    }
+}
