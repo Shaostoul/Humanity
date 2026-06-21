@@ -1,6 +1,6 @@
 {
-  "_comment": "Nested, location-aware rules. Two kinds: 'base' = the HumanityOS base set (distilled from the Humanity Accord, docs/accord/), 'real' = plain-language summaries of real-world laws with a source to verify. The point is a SMALL, memorable base set plus condensed real laws, not millions of statutes. Data-driven (infinite-of-X): add jurisdictions + rules here, the app picks them up. See docs/design/laws.md.",
-  "disclaimer": "Plain-language summaries for learning, not legal advice. Real laws change and vary by place; always verify with the cited source before relying on one. The HumanityOS base set is our own framework, not the law of any government.",
+  "_comment": "Nested, location-aware rules. Two kinds: 'base' = the HumanityOS base set (distilled from the Humanity Accord, docs/accord/) which is where we want to GO; 'real' = plain-language summaries of real-world laws (where we ARE) with a source to verify. The point is a SMALL memorable base set plus condensed real laws, not millions of statutes. Data-driven (infinite-of-X): add jurisdictions + rules here, the app picks them up. Content focus: the operator's location (Silverdale, Kitsap County, WA, USA). See docs/design/laws.md.",
+  "disclaimer": "Plain-language summaries for learning, not legal advice. Real laws change and vary by place; always verify with the cited source before relying on one. The HumanityOS base set is our own framework (where we want to be), not the law of any government.",
   "jurisdictions": [
     { "id": "humanity", "name": "Humanity", "level": "Humanity", "parent": null },
     { "id": "earth", "name": "Earth", "level": "Planet", "parent": "humanity" },
@@ -15,10 +15,23 @@
     "Speech and association",
     "Privacy",
     "Property and housing",
+    "Work and money",
+    "Driving and transport",
     "Participation and governance",
+    "Environment and land",
     "Everyday conduct"
   ],
   "rules": [
+    {
+      "id": "base-vision",
+      "jurisdiction": "humanity",
+      "kind": "base",
+      "category": "Rights",
+      "title": "Where we want to be: few rules, clearly understood",
+      "summary": "Today there are millions of laws no person can remember, and they change constantly. The HumanityOS base set is the opposite: a small number of plain rights and limits, the same for every human, that you can actually hold in your head. Real laws (below) are where we are; this set is where we are going.",
+      "source": "Humanity Accord: purpose",
+      "tags": ["vision", "simplicity"]
+    },
     {
       "id": "base-agency",
       "jurisdiction": "humanity",
@@ -80,12 +93,22 @@
       "tags": ["consent", "freedom", "exit"]
     },
     {
+      "id": "base-responsibility",
+      "jurisdiction": "humanity",
+      "kind": "base",
+      "category": "Everyday conduct",
+      "title": "Your rights come with responsibilities",
+      "summary": "Rights and responsibilities exist together. You are responsible for not violating others' rights, for not ignoring harm you can prevent, and for being truthful about what you do. Freedom without responsibility becomes harm to someone else.",
+      "source": "Humanity Accord: Rights and Responsibilities",
+      "tags": ["responsibility", "harm", "duty"]
+    },
+    {
       "id": "base-no-nonconsensual-harm",
       "jurisdiction": "humanity",
       "kind": "base",
       "category": "Safety and bodily integrity",
       "title": "Some acts are never allowed",
-      "summary": "Certain acts are prohibited without exception, regardless of intent, belief, culture, authority, or claimed benefit, because they destroy the conditions for human dignity and safety. These include non-consensual sexual acts, and they cannot be consented to or justified by any outcome.",
+      "summary": "Certain acts are prohibited without exception, regardless of intent, belief, culture, authority, or claimed benefit, because they destroy the conditions for human dignity and safety. These include non-consensual sexual acts; they cannot be consented to or justified by any outcome.",
       "source": "Humanity Accord: Absolute Prohibitions",
       "tags": ["safety", "consent", "harm"]
     },
@@ -95,7 +118,7 @@
       "kind": "real",
       "category": "Speech and association",
       "title": "Government cannot punish most speech",
-      "summary": "The First Amendment stops the GOVERNMENT from punishing you for most speech, religion, press, assembly, and petition. It does not force a private person or company (including an online platform) to host your speech, and it has limits (for example true threats and incitement).",
+      "summary": "The First Amendment stops the GOVERNMENT from punishing you for most speech, religion, press, assembly, and petition. It does not force a private person or company (including an online platform) to host your speech, and it has limits such as true threats and incitement.",
       "source": "U.S. Constitution, First Amendment",
       "tags": ["speech", "religion", "assembly"]
     },
@@ -110,14 +133,84 @@
       "tags": ["due-process", "rights", "criminal"]
     },
     {
+      "id": "us-search",
+      "jurisdiction": "usa",
+      "kind": "real",
+      "category": "Privacy",
+      "title": "Police usually need a warrant or your consent to search",
+      "summary": "The government generally needs a warrant or probable cause to search you, your home, or your phone. You can say you do not consent to a search. There are exceptions (for example plain view or emergencies), so this is a general rule, not a guarantee.",
+      "source": "U.S. Constitution, Fourth Amendment",
+      "tags": ["privacy", "police", "search"]
+    },
+    {
+      "id": "us-equal-protection",
+      "jurisdiction": "usa",
+      "kind": "real",
+      "category": "Rights",
+      "title": "You cannot be discriminated against on protected grounds",
+      "summary": "In jobs, housing, and public places it is illegal to discriminate against you based on race, color, religion, sex, national origin, disability, or age. The exact rules and who they cover vary by law.",
+      "source": "Civil Rights Act of 1964, Americans with Disabilities Act, and related federal laws",
+      "tags": ["equality", "discrimination", "rights"]
+    },
+    {
+      "id": "us-vote",
+      "jurisdiction": "usa",
+      "kind": "real",
+      "category": "Participation and governance",
+      "title": "You can vote at 18, and it cannot be denied by who you are",
+      "summary": "U.S. citizens 18 and older have the right to vote, and it cannot be denied based on race, sex, or age (18+). Most places require you to register first, and rules for registration and ID vary by state.",
+      "source": "U.S. Constitution, 15th / 19th / 26th Amendments; Voting Rights Act",
+      "tags": ["voting", "elections", "rights"]
+    },
+    {
+      "id": "wa-no-income-tax",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Work and money",
+      "title": "Washington has no personal income tax",
+      "summary": "Washington does not tax personal income. The state funds itself mostly through sales tax and other taxes instead, so your paycheck has no state income tax withheld (federal taxes still apply).",
+      "source": "Washington State Department of Revenue",
+      "tags": ["taxes", "money", "income"]
+    },
+    {
+      "id": "wa-min-wage",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Work and money",
+      "title": "Washington has one of the highest minimum wages",
+      "summary": "Washington sets a state minimum wage that rises with inflation every year (well above the federal minimum). Some cities set it even higher. Check the current figure with Labor and Industries.",
+      "source": "RCW 49.46; Washington State Department of Labor and Industries",
+      "tags": ["work", "wages", "money"]
+    },
+    {
+      "id": "wa-paid-leave",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Work and money",
+      "title": "You earn paid sick leave, and there is paid family leave",
+      "summary": "Most Washington workers earn paid sick leave (at least 1 hour per 40 hours worked), and the state runs a Paid Family and Medical Leave program that can pay you while you care for a new child or a serious health condition.",
+      "source": "RCW 49.46.210 (sick leave); Washington Paid Family and Medical Leave",
+      "tags": ["work", "leave", "family"]
+    },
+    {
       "id": "wa-recording-consent",
       "jurisdiction": "wa",
       "kind": "real",
       "category": "Privacy",
       "title": "You usually need everyone's consent to record a private conversation",
-      "summary": "Washington is an all-party-consent state: it is generally illegal to record a private conversation or phone call unless everyone in it consents. This is stricter than many other states. (Public settings with no expectation of privacy differ.)",
+      "summary": "Washington is an all-party-consent state: it is generally illegal to record a private conversation or phone call unless everyone in it consents. This is stricter than many other states. Public settings with no expectation of privacy differ.",
       "source": "Revised Code of Washington (RCW) 9.73.030",
       "tags": ["privacy", "recording", "consent"]
+    },
+    {
+      "id": "wa-cannabis",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Everyday conduct",
+      "title": "Recreational cannabis is legal for adults 21+",
+      "summary": "Adults 21 and older may buy and possess limited amounts of cannabis from licensed stores. Public use, driving impaired, and giving it to minors are still illegal, and it remains illegal under FEDERAL law.",
+      "source": "RCW 69.50 (Initiative 502)",
+      "tags": ["cannabis", "21+", "conduct"]
     },
     {
       "id": "wa-renter-habitability",
@@ -125,19 +218,59 @@
       "kind": "real",
       "category": "Property and housing",
       "title": "Renters have a right to a livable home",
-      "summary": "A landlord must keep a rental reasonably safe and livable (working heat, plumbing, locks, structural soundness). Tenants have defined rights around deposits, repairs, and notice before eviction.",
+      "summary": "A landlord must keep a rental reasonably safe and livable (working heat, plumbing, locks, structural soundness). Tenants have defined rights around deposits, repairs, and the notice required before eviction.",
       "source": "Washington Residential Landlord-Tenant Act, RCW 59.18",
       "tags": ["housing", "renting", "tenant"]
     },
     {
-      "id": "local-noise",
+      "id": "wa-hands-free",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Driving and transport",
+      "title": "No holding your phone while driving; buckle up",
+      "summary": "It is illegal to hold or use a phone in your hand while driving (hands-free only, even at a stoplight). Seat belts are required for the driver and passengers. Tickets are common for both.",
+      "source": "RCW 46.61.672 (distracted driving); RCW 46.61.688 (seat belts)",
+      "tags": ["driving", "phone", "safety"]
+    },
+    {
+      "id": "kitsap-permits",
+      "jurisdiction": "kitsap",
+      "kind": "real",
+      "category": "Property and housing",
+      "title": "You usually need a permit to build or remodel",
+      "summary": "Most new structures, additions, decks, electrical, and plumbing need a county permit and inspection. Rural properties often have extra rules for septic, wells, and shoreline. Check before you build.",
+      "source": "Kitsap County Department of Community Development (verify current code)",
+      "tags": ["building", "permits", "property"]
+    },
+    {
+      "id": "kitsap-burn",
+      "jurisdiction": "kitsap",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Outdoor burning is limited, and bans happen",
+      "summary": "Outdoor and yard-debris burning is restricted, and burn bans are declared in dry months or poor air quality. Check whether a ban is active before lighting anything outdoors.",
+      "source": "Kitsap County / Washington Department of Natural Resources burn-ban notices (verify current)",
+      "tags": ["fire", "burning", "environment"]
+    },
+    {
+      "id": "kitsap-noise",
       "jurisdiction": "kitsap",
       "kind": "real",
       "category": "Everyday conduct",
       "title": "Quiet hours and noise limits",
-      "summary": "Local noise rules limit loud sound (amplified music, construction, barking) especially at night. Specific quiet hours and decibel limits are set in the county or city code; check yours before assuming.",
+      "summary": "Local noise rules limit loud sound (amplified music, construction, persistent barking), especially at night. Specific quiet hours and limits are set in the county code; check yours before assuming.",
       "source": "Kitsap County Code, noise ordinance (verify current chapter)",
       "tags": ["noise", "neighbors", "conduct"]
+    },
+    {
+      "id": "silverdale-water",
+      "jurisdiction": "silverdale",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Water and septic are regulated locally",
+      "summary": "In and around Silverdale, water service, septic systems, and stormwater near Dyes Inlet are regulated to protect Puget Sound. Connecting, expanding, or maintaining these often needs approval. Check with the county health and public works offices.",
+      "source": "Kitsap Public Health District; Kitsap County Public Works (verify current)",
+      "tags": ["water", "septic", "environment"]
     }
   ]
 }

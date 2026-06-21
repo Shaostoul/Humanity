@@ -274,7 +274,7 @@ lints:
 # Render the native UI pages to PNGs in tests/snapshots/ for review. Needs a GPU
 # (the dev machine has one); skips gracefully if none. Open the PNGs after.
 snapshots:
-    cargo test --features native --lib snapshot_ -- --nocapture
+    cargo test --features native --lib snapshot_ -- --ignored --test-threads=1 --nocapture
     @echo "UI snapshots written to tests/snapshots/ — open them to review."
 
 # Pre-push checklist: the recurring CI gotchas in one shot (untracked source

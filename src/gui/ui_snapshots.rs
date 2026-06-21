@@ -180,29 +180,63 @@ fn settings_panel(
 }
 
 #[test]
-fn snapshot_audio_settings() {
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_audio_settings() {
     render_page_png("audio_settings", 960, 1100, |ctx, theme, state| {
         settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_audio_content);
     });
 }
 
 #[test]
-fn snapshot_graphics_settings() {
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_graphics_settings() {
     render_page_png("graphics_settings", 960, 900, |ctx, theme, state| {
         settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_graphics_content);
     });
 }
 
 #[test]
-fn snapshot_controls_settings() {
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_controls_settings() {
     render_page_png("controls_settings", 960, 900, |ctx, theme, state| {
         settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_controls_content);
     });
 }
 
 #[test]
-fn snapshot_laws_page() {
-    render_page_png("laws_page", 1000, 1300, |ctx, theme, state| {
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_laws_page() {
+    render_page_png("laws_page", 1000, 1500, |ctx, theme, state| {
         crate::gui::pages::laws::draw(ctx, theme, state);
     });
 }
+
+// Whole-page reviews. Each is its own test so a panic in one (a page that needs
+// state the default GuiState lacks) does not stop the others; run with
+// `--no-fail-fast`. Use `just snapshots` then open tests/snapshots/*.png.
+macro_rules! page_snapshot {
+    ($test:ident, $name:literal, $page:ident, $w:literal, $h:literal) => {
+        #[test]
+        #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+        fn $test() {
+            render_page_png($name, $w, $h, |ctx, theme, state| {
+                crate::gui::pages::$page::draw(ctx, theme, state);
+            });
+        }
+    };
+}
+
+page_snapshot!(snapshot_humanity, "humanity", humanity, 1280, 900);
+page_snapshot!(snapshot_chat, "chat", chat, 1280, 900);
+page_snapshot!(snapshot_inventory, "inventory", inventory, 1280, 900);
+page_snapshot!(snapshot_tasks, "tasks", tasks, 1280, 900);
+page_snapshot!(snapshot_market, "market", market, 1280, 900);
+page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);
+page_snapshot!(snapshot_crafting, "crafting", crafting, 1280, 900);
+page_snapshot!(snapshot_library, "library", library, 1280, 900);
+page_snapshot!(snapshot_governance, "governance", governance, 1280, 900);
+page_snapshot!(snapshot_identity, "identity", identity, 1280, 900);
+page_snapshot!(snapshot_wallet, "wallet", wallet, 1280, 900);
+page_snapshot!(snapshot_quests, "quests", quests, 1280, 900);
+page_snapshot!(snapshot_calendar, "calendar", calendar, 1280, 900);
+page_snapshot!(snapshot_notes, "notes", notes, 1280, 900);
