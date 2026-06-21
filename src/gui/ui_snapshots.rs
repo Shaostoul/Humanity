@@ -17,7 +17,7 @@ use crate::gui::GuiState;
 
 /// Render one settings-style page into an offscreen `w`x`h` surface and write
 /// `tests/snapshots/<name>.png`.
-fn render_page_png(name: &str, w: u32, h: u32, draw: impl Fn(&mut egui::Ui, &Theme, &mut GuiState)) {
+fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &Theme, &mut GuiState)) {
     pollster::block_on(async move {
         // ── wgpu device (offscreen) ──
         let instance = wgpu::Instance::default();
@@ -51,11 +51,7 @@ fn render_page_png(name: &str, w: u32, h: u32, draw: impl Fn(&mut egui::Ui, &The
             ..Default::default()
         };
         let full_output = ctx.run(raw_input, |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    draw(ui, &theme, &mut state);
-                });
-            });
+            frame(ctx, &theme, &mut state);
         });
         let clipped = ctx.tessellate(full_output.shapes, ppp);
 
@@ -167,23 +163,46 @@ fn srgb_to_lin(c: u8) -> f64 {
     }
 }
 
+/// A settings sub-panel (which expects a `&mut Ui`) wrapped into a full
+/// ctx-level frame the renderer can drive.
+fn settings_panel(
+    ctx: &egui::Context,
+    theme: &Theme,
+    state: &mut GuiState,
+    draw: impl Fn(&mut egui::Ui, &Theme, &mut GuiState),
+) {
+    theme.apply_to_egui(ctx);
+    egui::CentralPanel::default().show(ctx, |ui| {
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            draw(ui, theme, state);
+        });
+    });
+}
+
 #[test]
 fn snapshot_audio_settings() {
-    render_page_png("audio_settings", 960, 1100, |ui, theme, state| {
-        crate::gui::pages::settings::draw_audio_content(ui, theme, state);
+    render_page_png("audio_settings", 960, 1100, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_audio_content);
     });
 }
 
 #[test]
 fn snapshot_graphics_settings() {
-    render_page_png("graphics_settings", 960, 900, |ui, theme, state| {
-        crate::gui::pages::settings::draw_graphics_content(ui, theme, state);
+    render_page_png("graphics_settings", 960, 900, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_graphics_content);
     });
 }
 
 #[test]
 fn snapshot_controls_settings() {
-    render_page_png("controls_settings", 960, 900, |ui, theme, state| {
-        crate::gui::pages::settings::draw_controls_content(ui, theme, state);
+    render_page_png("controls_settings", 960, 900, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_controls_content);
+    });
+}
+
+#[test]
+fn snapshot_laws_page() {
+    render_page_png("laws_page", 1000, 1300, |ctx, theme, state| {
+        crate::gui::pages::laws::draw(ctx, theme, state);
     });
 }

@@ -107,6 +107,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let items = [
                 SectionNavItem::new("civilization", "Mission Dashboard", c),
                 SectionNavItem::new("governance", "Governance", c),
+                SectionNavItem::new("laws", "Laws", c),
                 SectionNavItem::new("identity", "Directory", c),
                 SectionNavItem::new("donate", "Donate", c),
             ];
@@ -124,6 +125,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let section = state.active_humanity_section.clone();
     match section.as_str() {
         "governance" => governance::draw(ctx, theme, state),
+        "laws" => super::laws::draw(ctx, theme, state),
         "identity" => identity::draw(ctx, theme, state),
         "donate" => donate::draw(ctx, theme, state),
         // v0.415.0: "onboarding" + "resources" arms removed with their retired

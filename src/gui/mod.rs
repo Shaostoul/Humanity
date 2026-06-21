@@ -14,6 +14,9 @@ pub mod fonts;
 #[cfg(feature = "native")]
 pub mod glossary;
 
+/// Location-aware rules ("Laws") data loader (v0.496). See pages/laws.rs.
+pub mod laws;
+
 // Headless UI snapshot tests (v0.495): render egui pages to PNGs for review +
 // regression. Test-only; pulls in egui_kittest (a dev-dependency).
 #[cfg(test)]
@@ -170,6 +173,8 @@ pub enum GuiPage {
     /// Local + civilization-scope governance: proposals, votes, tally.
     /// Mirrors the web `/governance` page.
     Governance,
+    /// Location-aware rules + rights, nested Humanity -> locality (v0.496).
+    Laws,
     /// Social key recovery setup + active recovery requests.
     /// Mirrors the web `/recovery` page.
     Recovery,
@@ -2057,6 +2062,14 @@ pub struct GuiState {
     pub identity_lookup_pending: bool,
     /// Active scope tab on the Governance page (0=All, 1=Local, 2=Civilization).
     pub governance_scope_tab: usize,
+    // ── Laws page (v0.496) ──
+    /// Selected jurisdiction id ("silverdale", "usa", ...). Empty => default to
+    /// the most-local jurisdiction in the data on first draw.
+    pub laws_location: String,
+    /// Free-text search on the Laws page.
+    pub laws_search: String,
+    /// Kind filter tab (0=All, 1=HumanityOS base, 2=Real laws).
+    pub laws_filter_tab: usize,
     /// Active filter tab on the Governance page (0=Open, 1=All).
     pub governance_filter_tab: usize,
     /// DID being looked up on the Recovery page.
@@ -2650,6 +2663,9 @@ impl Default for GuiState {
             identity_lookup_did: String::new(),
             identity_lookup_pending: false,
             governance_scope_tab: 0,
+            laws_location: String::new(),
+            laws_search: String::new(),
+            laws_filter_tab: 0,
             governance_filter_tab: 0,
             recovery_lookup_did: String::new(),
             recovery_lookup_pending: false,

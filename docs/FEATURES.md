@@ -55,6 +55,12 @@ W3C-style VCs over the signed-object substrate. 12 indexed schemas. Issuer-auth-
 - API: `/api/v2/proposals`, `/api/v2/proposals/{id}`, `/api/v2/proposals/{id}/tally` in `src/relay/api_v2_governance.rs`
 - Types: `data/governance/proposal_types.ron`
 
+### Laws (location-aware rules and rights) (v0.496)
+Nested jurisdiction tree (Humanity -> Earth -> country -> state -> county -> locality); pick where you live and see the rules that apply, broadest first. Two kinds: HumanityOS base set (our framework, from the Humanity Accord) and real laws (plain-language summaries with a source, not legal advice). Condense, do not ingest.
+- Native: `src/gui/pages/laws.rs` (`GuiPage::Laws`, reached from the Humanity hub "Laws" section), loader `src/gui/laws.rs`
+- Data: `data/laws/laws.json` (jurisdictions + rules, hot-reloadable)
+- Design: `docs/design/laws.md`. Web mirror is a follow-up.
+
 ### AI-as-Citizen
 Mandatory `subject_class_v1` declaration + `controlled_by_v1` operator binding. AI excluded from governance voting per Accord.
 - Storage: `src/relay/storage/ai_status.rs`

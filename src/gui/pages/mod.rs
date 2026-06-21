@@ -45,6 +45,7 @@ pub mod server_settings;
 pub mod game_admin;
 pub mod identity;
 pub mod governance;
+pub mod laws;
 pub mod recovery;
 pub mod cosmos;
 // v0.197.0: agents and ai_usage page modules removed. The multi-AI

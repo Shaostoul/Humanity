@@ -40,6 +40,7 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | ServerSettings | `server_settings.rs` | Server / group admin (USER / MOD / ADMIN tiered, color-coded). | admin | ✓ working | native-only |
 | Identity | `identity.rs` | DID, Verifiable Credentials, trust score, AI status. | everyone | ✓ working | both |
 | Governance | `governance.rs` | Proposals + votes + tally (local + civilization scope). | everyone | ✓ working | both |
+| Laws | `laws.rs` | Location-aware rules + rights, nested Humanity to locality; HumanityOS base set + real-law summaries. Data: `data/laws/laws.json`. | everyone | ✓ working | native (web mirror pending) |
 | Recovery | `recovery.rs` | Social key recovery (Shamir M-of-N), guardian setup. | everyone | ✓ working | both |
 | Agents | `agents.rs` | Multi-AI scope coordination dashboard. | dev | ✓ working | both |
 | AiUsage | `ai_usage.rs` | AI subscription quota tracker + usage log. | dev | ✓ working | both |

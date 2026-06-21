@@ -1,0 +1,143 @@
+{
+  "_comment": "Nested, location-aware rules. Two kinds: 'base' = the HumanityOS base set (distilled from the Humanity Accord, docs/accord/), 'real' = plain-language summaries of real-world laws with a source to verify. The point is a SMALL, memorable base set plus condensed real laws, not millions of statutes. Data-driven (infinite-of-X): add jurisdictions + rules here, the app picks them up. See docs/design/laws.md.",
+  "disclaimer": "Plain-language summaries for learning, not legal advice. Real laws change and vary by place; always verify with the cited source before relying on one. The HumanityOS base set is our own framework, not the law of any government.",
+  "jurisdictions": [
+    { "id": "humanity", "name": "Humanity", "level": "Humanity", "parent": null },
+    { "id": "earth", "name": "Earth", "level": "Planet", "parent": "humanity" },
+    { "id": "usa", "name": "United States", "level": "Country", "parent": "earth" },
+    { "id": "wa", "name": "Washington", "level": "State", "parent": "usa" },
+    { "id": "kitsap", "name": "Kitsap County", "level": "County", "parent": "wa" },
+    { "id": "silverdale", "name": "Silverdale", "level": "Locality", "parent": "kitsap" }
+  ],
+  "categories": [
+    "Rights",
+    "Safety and bodily integrity",
+    "Speech and association",
+    "Privacy",
+    "Property and housing",
+    "Participation and governance",
+    "Everyday conduct"
+  ],
+  "rules": [
+    {
+      "id": "base-agency",
+      "jurisdiction": "humanity",
+      "kind": "base",
+      "category": "Rights",
+      "title": "You control your own choices",
+      "summary": "You have agency and self-determination: control over your own actions, the right to refuse coercion or manipulation, and meaningful choice without hidden constraints.",
+      "source": "Humanity Accord: Rights and Responsibilities, Fundamental Right 1",
+      "tags": ["agency", "consent", "freedom"]
+    },
+    {
+      "id": "base-privacy",
+      "jurisdiction": "humanity",
+      "kind": "base",
+      "category": "Privacy",
+      "title": "Your private life is yours",
+      "summary": "You have privacy of personal communication, confidentiality of your beliefs, votes, and associations, and protection from surveillance without your consent.",
+      "source": "Humanity Accord: Rights and Responsibilities, Fundamental Right 2",
+      "tags": ["privacy", "surveillance", "confidentiality"]
+    },
+    {
+      "id": "base-truth",
+      "jurisdiction": "humanity",
+      "kind": "base",
+      "category": "Rights",
+      "title": "You deserve the truth about systems you rely on",
+      "summary": "You have the right to accurate claims about what a system can do, clear disclosure of its limits and risks, and protection from deceptive assurances. Claiming security or privacy that does not exist is itself a harm.",
+      "source": "Humanity Accord: Rights and Responsibilities, Fundamental Right 3",
+      "tags": ["transparency", "honesty", "trust"]
+    },
+    {
+      "id": "base-participation",
+      "jurisdiction": "humanity",
+      "kind": "base",
+      "category": "Participation and governance",
+      "title": "Your voice in decisions is protected",
+      "summary": "You can take part in collective decisions safely, with protection against vote tampering or suppression and assurance that your participation is counted accurately.",
+      "source": "Humanity Accord: Rights and Responsibilities, Fundamental Right 4",
+      "tags": ["voting", "governance", "integrity"]
+    },
+    {
+      "id": "base-equal-standing",
+      "jurisdiction": "humanity",
+      "kind": "base",
+      "category": "Rights",
+      "title": "One person, one voice",
+      "summary": "Everyone has equal standing: no amplification, suppression, or substitution of voices, and no privilege based on wealth, power, or access.",
+      "source": "Humanity Accord: Rights and Responsibilities, Fundamental Right 5",
+      "tags": ["equality", "fairness"]
+    },
+    {
+      "id": "base-exit",
+      "jurisdiction": "humanity",
+      "kind": "base",
+      "category": "Rights",
+      "title": "You can always leave",
+      "summary": "You have the right to disengage, to revoke consent, and to withdraw without penalty. Participation must stay voluntary.",
+      "source": "Humanity Accord: Rights and Responsibilities, Fundamental Right 6",
+      "tags": ["consent", "freedom", "exit"]
+    },
+    {
+      "id": "base-no-nonconsensual-harm",
+      "jurisdiction": "humanity",
+      "kind": "base",
+      "category": "Safety and bodily integrity",
+      "title": "Some acts are never allowed",
+      "summary": "Certain acts are prohibited without exception, regardless of intent, belief, culture, authority, or claimed benefit, because they destroy the conditions for human dignity and safety. These include non-consensual sexual acts, and they cannot be consented to or justified by any outcome.",
+      "source": "Humanity Accord: Absolute Prohibitions",
+      "tags": ["safety", "consent", "harm"]
+    },
+    {
+      "id": "us-free-speech",
+      "jurisdiction": "usa",
+      "kind": "real",
+      "category": "Speech and association",
+      "title": "Government cannot punish most speech",
+      "summary": "The First Amendment stops the GOVERNMENT from punishing you for most speech, religion, press, assembly, and petition. It does not force a private person or company (including an online platform) to host your speech, and it has limits (for example true threats and incitement).",
+      "source": "U.S. Constitution, First Amendment",
+      "tags": ["speech", "religion", "assembly"]
+    },
+    {
+      "id": "us-due-process",
+      "jurisdiction": "usa",
+      "kind": "real",
+      "category": "Rights",
+      "title": "If accused, you have rights",
+      "summary": "You have the right to remain silent, the right to a lawyer, and the right to fair process before the government can take your life, liberty, or property. You do not have to answer questions without a lawyer.",
+      "source": "U.S. Constitution, Fifth and Sixth Amendments",
+      "tags": ["due-process", "rights", "criminal"]
+    },
+    {
+      "id": "wa-recording-consent",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Privacy",
+      "title": "You usually need everyone's consent to record a private conversation",
+      "summary": "Washington is an all-party-consent state: it is generally illegal to record a private conversation or phone call unless everyone in it consents. This is stricter than many other states. (Public settings with no expectation of privacy differ.)",
+      "source": "Revised Code of Washington (RCW) 9.73.030",
+      "tags": ["privacy", "recording", "consent"]
+    },
+    {
+      "id": "wa-renter-habitability",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Property and housing",
+      "title": "Renters have a right to a livable home",
+      "summary": "A landlord must keep a rental reasonably safe and livable (working heat, plumbing, locks, structural soundness). Tenants have defined rights around deposits, repairs, and notice before eviction.",
+      "source": "Washington Residential Landlord-Tenant Act, RCW 59.18",
+      "tags": ["housing", "renting", "tenant"]
+    },
+    {
+      "id": "local-noise",
+      "jurisdiction": "kitsap",
+      "kind": "real",
+      "category": "Everyday conduct",
+      "title": "Quiet hours and noise limits",
+      "summary": "Local noise rules limit loud sound (amplified music, construction, barking) especially at night. Specific quiet hours and decibel limits are set in the county or city code; check yours before assuming.",
+      "source": "Kitsap County Code, noise ordinance (verify current chapter)",
+      "tags": ["noise", "neighbors", "conduct"]
+    }
+  ]
+}
