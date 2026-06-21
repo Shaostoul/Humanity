@@ -14,6 +14,11 @@ pub mod fonts;
 #[cfg(feature = "native")]
 pub mod glossary;
 
+// Headless UI snapshot tests (v0.495): render egui pages to PNGs for review +
+// regression. Test-only; pulls in egui_kittest (a dev-dependency).
+#[cfg(test)]
+mod ui_snapshots;
+
 /// Current engine version (read from Cargo.toml at compile time).
 #[cfg(feature = "native")]
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

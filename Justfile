@@ -254,6 +254,37 @@ tasks-board:
 check:
     cargo check --features native
 
+# Full local verification: both feature builds + lib tests + the GUI lints.
+# Mirrors what CI cares about (the relay build is the one CI deploys with).
+# just aborts the recipe on the first failing line, so this fails fast.
+verify:
+    cargo check --features native
+    cargo check --features relay --no-default-features
+    cargo test --features native --lib
+    just lints
+    @echo "OK: verify passed"
+
+# The four src/gui file-scanner lints (no em dashes, theme tokens, theme-editor
+# coverage, tofu glyphs). Compiled standalone with rustc so they never link the
+# native bin, which dodges the Windows LNK1318 PDB limit (see CLAUDE.md gotcha).
+# One bash line so the loop + the CARGO_MANIFEST_DIR env share a shell.
+lints:
+    export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
+
+# Render the native UI pages to PNGs in tests/snapshots/ for review. Needs a GPU
+# (the dev machine has one); skips gracefully if none. Open the PNGs after.
+snapshots:
+    cargo test --features native --lib snapshot_ -- --nocapture
+    @echo "UI snapshots written to tests/snapshots/ — open them to review."
+
+# Pre-push checklist: the recurring CI gotchas in one shot (untracked source
+# files that fail a fresh checkout, broken doc links) plus full verify.
+preflight:
+    @echo ">> untracked source files (would fail CI on a fresh checkout; empty = good):"; git ls-files --others --exclude-standard -- '*.rs' '*.ron' '*.csv'
+    node scripts/check-doc-links.js
+    just verify
+    @echo "OK: preflight passed, safe to push"
+
 # Build relay-only (headless server, no GPU)
 build-relay:
     cargo build --release --features relay --no-default-features
