@@ -205,9 +205,19 @@
           "text": "Peer-to-peer groups Phases 3 to 5: relay-independent transport (a group survives even if its home relay dies) and serverless discovery."
         },
         {
+          "status": "done",
+          "version": null,
+          "text": "Native voice: mic capture, Opus over WebRTC, and per-channel voice rooms that interoperate with the web client for live two-way audio, with RNNoise noise suppression and selectable transmit modes (open mic, push-to-talk, voice-activated, push-to-mute)."
+        },
+        {
+          "status": "next",
+          "version": null,
+          "text": "Native voice polish: per-peer volume and mute controls, web transmit-mode UI parity, an in-process WebRTC test harness for CI, and graceful relay restart so deploys do not drop active calls."
+        },
+        {
           "status": "planned",
           "version": null,
-          "text": "Native voice and streaming: the WebRTC transport that native currently lacks (web users have voice today; native users are observer-only)."
+          "text": "Native streaming and video: the screen-share and video transport native still lacks (web users have video today)."
         },
         {
           "status": "planned",
@@ -220,8 +230,8 @@
           "text": "Mobile clients for Android and iOS."
         }
       ],
-      "done": 4,
-      "total": 10
+      "done": 5,
+      "total": 12
     },
     {
       "title": "Governance and economy",
@@ -599,7 +609,7 @@
     }
   ],
   "summary": {
-    "done": 39,
-    "total": 86
+    "done": 40,
+    "total": 88
   }
 }

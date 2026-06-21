@@ -90,8 +90,33 @@ v0.264.0), see the canonical crypto table in `CLAUDE.md`.
 - Server: `src/relay/storage/dms.rs` (zero-knowledge, never decrypts)
 
 ### Voice Channels
-Group voice chat rooms with join/leave sounds.
+Group voice chat rooms with join/leave sounds. Voice is per-channel: the voice
+room IS the text channel, keyed by the channel's own string id (the relay
+validates the channel's `voice_enabled` flag, not a separate voice_channels
+table), so clicking a channel's mic joins THAT channel. Web and native join by
+the same channel id and are interoperable.
 - Web: `web/chat/chat-voice.js`, `web/chat/chat-voice-rooms.js`
+- Server: `src/relay/handlers/msg_handlers.rs` (voice_room join/leave + roster), `src/relay/handlers/broadcast.rs` (voice_room_signal relay)
+
+### Native Voice (Live Audio, Pure-Rust)
+Full live voice on the desktop app: captures mic → DSP → Opus encode → sends to
+each connected peer; receives peers' Opus → per-peer decode → mix → playback.
+Native↔web is audible both ways. Pure-Rust stack (no C toolchain): cpal (WASAPI)
+capture/playback, unsafe-libopus encode/decode, rtrb ring buffers, str0m WebRTC
+media. Mic test loopback with a live level meter accepts any device sample
+format (i16/u16/f32) and any rate (streaming linear resampler to/from 48 kHz).
+Input stack: mic gain 0–200% (clip-protected); noise FILTER modes Off / Light
+(85 Hz biquad high-pass + noise gate) / Noise suppression (RNNoise via the
+pure-Rust nnnoiseless crate); TRANSMIT modes Open mic / Push-to-talk /
+Voice-activated / Push-to-mute (bindable push key via raw winit input + VAD
+threshold). Defaults: Noise suppression + Push-to-talk on CapsLock. WebRTC audio
+is strictly opt-in (a connection only negotiates an audio m-line when asked), so
+the P2P data mesh is unchanged. The voice-room JOIN registers with the relay
+(`{type:voice_room, action:join, room_id}`) and signaling rides the web's
+`voice_room_signal` protocol (newcomer-offers / incumbents-wait glare rule).
+- Native: `src/net/voice.rs` (capture/DSP/encode/decode/mix/playback, `run_voice_session`), `src/net/webrtc.rs` (str0m bidirectional Opus media + voice signaling), `src/gui/pages/settings.rs` (`draw_audio_content` mic test + input controls), `src/lib.rs` (winit push-key input + signaling routing)
+- Config: `src/config.rs` (`VoiceFilterMode` + `VoiceTransmitMode` enums, mic gain / push key / VAD threshold persisted to `AppConfig`)
+- Server: `src/relay/handlers/msg_handlers.rs` (per-channel voice_room, `VoiceChannelData.id` is a String channel id), `src/relay/handlers/broadcast.rs` (voice_room_signal relay)
 
 ### Voice/Video Calls
 1-on-1 WebRTC calls with camera support.
@@ -935,3 +960,17 @@ First-run orientation plus permanent reference. Four core concepts, core-pages o
 - Native: `src/gui/pages/onboarding.rs`, `GuiPage::Onboarding` enum variant
 - Web: `web/pages/onboarding.html`
 - Route: `/onboarding` (web), "Onboarding" nav tab (native)
+
+---
+
+## Developer Tooling
+
+### Headless UI Snapshots
+Renders native egui pages to PNGs via an offscreen egui-wgpu + wgpu pipeline (no extra dependency; egui_kittest was rejected over an accesskit / egui-winit 0.31.1 incompatibility), so the native UI can be reviewed without launching the app. Output lands in `tests/snapshots/`.
+- Native: `src/gui/ui_snapshots.rs`
+- Output: `tests/snapshots/` (PNG)
+- Recipe: `just snapshots`
+
+### Build / Verify Recipes
+Convenience recipes for the pre-push gate. `just verify` runs both feature builds (native + relay) plus lib tests and lints; `just lints` runs the four `src/gui` file-scanner lints via standalone rustc (Windows-PDB-safe, dodges the LNK1318 limit); `just snapshots` renders the UI PNGs; `just preflight` checks untracked source + doc links then runs verify.
+- Recipes: `Justfile` (`verify`, `lints`, `snapshots`, `preflight`)

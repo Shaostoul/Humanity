@@ -142,8 +142,15 @@ of your identity, and your identity is portable across all of them.
   operator-run relay, end-to-end federation testing, then vetted third-party peers.
 - `[planned]` Peer-to-peer groups Phases 3 to 5: relay-independent transport (a group
   survives even if its home relay dies) and serverless discovery.
-- `[planned]` Native voice and streaming: the WebRTC transport that native currently
-  lacks (web users have voice today; native users are observer-only).
+- `[done]` Native voice: mic capture, Opus over WebRTC, and per-channel voice rooms
+  that interoperate with the web client for live two-way audio, with RNNoise noise
+  suppression and selectable transmit modes (open mic, push-to-talk, voice-activated,
+  push-to-mute).
+- `[next]` Native voice polish: per-peer volume and mute controls, web transmit-mode UI
+  parity, an in-process WebRTC test harness for CI, and graceful relay restart so
+  deploys do not drop active calls.
+- `[planned]` Native streaming and video: the screen-share and video transport native
+  still lacks (web users have video today).
 - `[planned]` Calendar with RSVP: events, recurring schedules, group calendars,
   reminders.
 - `[future]` Mobile clients for Android and iOS.

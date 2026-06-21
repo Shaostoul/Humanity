@@ -1,6 +1,6 @@
 # HumanityOS: Feature Status
 
-> **Last updated:** 2026-06-16 | **Version:** v0.469.3 (construction editor arc v0.463-469: 3D room grab, 3-column layout, openings as placed objects + garden-wall regen fix; website parity v0.469.1-3: landing = app Mission Dashboard, header = app nav, SW network-first; inventory/garden UI overhaul on universal expandable_row v0.400-414; homes-as-profiles + aeroponic towers + seed economy v0.379-399)
+> **Last updated:** 2026-06-21 | **Version:** v0.495.0 - **PARTIAL SYNC** focused only on the native voice arc (v0.485-495) + dev tooling; other sections were NOT re-audited this pass and may lag the binary. Native voice now EXISTS end-to-end (pure-Rust capture/Opus/WebRTC, per-channel rooms, live audio web↔native, DSP, transmit modes - see the Communication table). Prior header context (still current as far as known): construction editor arc v0.463-469: 3D room grab, 3-column layout, openings as placed objects + garden-wall regen fix; website parity v0.469.1-3: landing = app Mission Dashboard, header = app nav, SW network-first; inventory/garden UI overhaul on universal expandable_row v0.400-414; homes-as-profiles + aeroponic towers + seed economy v0.379-399.
 >
 > **⚠️ KNOWN GAPS (the strategic backlog lives in [ROADMAP.md](ROADMAP.md)):** multiplayer
 > co-presence is NOT wired on the client (the relay game world is live, but `NetSyncSystem` is never
@@ -145,7 +145,7 @@ the user-facing theme.
 
 ## Communication
 
-Everything in this section is **built and working**.
+Mostly **built and working**; the two voice-parity rows flagged ⚠️/❌ below are the open items.
 
 | Feature | Status | Details |
 |---------|--------|---------|
@@ -158,10 +158,15 @@ Everything in this section is **built and working**.
 | Emoji reactions | ✅ | Persistent storage, Twemoji rendering |
 | Markdown rendering | ✅ | Collapsible quotes, code blocks |
 | Message search | ✅ | FTS5 full-text search with LIKE fallback |
-| WebRTC voice calls | ✅ | 1-on-1 audio, group voice rooms, TURN server |
-| Video calls | ✅ | Camera selection, PiP overlay, gallery view |
-| Screen sharing | ✅ | Concurrent camera+screen layers, draggable PiP |
-| Streaming system | ✅ | Streamer dashboard, WebRTC relay, scenes/presets |
+| WebRTC voice calls (web) | ✅ | 1-on-1 audio, group voice rooms, TURN server |
+| **Native voice (desktop client)** | ✅ | **Built end-to-end (arc v0.485-495), all pure-Rust (no C toolchain).** Mic CAPTURE (`cpal` WASAPI, accepts any device format i16/u16/f32 + any sample rate via a streaming linear resampler to/from 48 kHz) → DSP → **Opus** encode (`unsafe-libopus`) over a `rtrb` ring; **WebRTC transport** (`str0m` bidirectional Opus MEDIA m-line on the existing per-peer `Rtc`, strictly opt-in so the P2P data mesh is unchanged); receive path decodes each peer's Opus per-peer and mixes for playback. `src/net/voice.rs` (`run_voice_session`), `src/net/webrtc.rs`, `src/lib.rs`. |
+| Native per-channel voice rooms | ✅ | The voice room **IS the text channel**, keyed by the channel's own string id (relay validates the channel's `voice_enabled` flag - no separate voice_channels table; `VoiceChannelData.id` is now `String`). Native JOIN registers with the relay (`{type:voice_room, action:join, room_id}`) so you appear in the channel roster; WebRTC signaling rides the web's `voice_room_signal` protocol (newcomer-offers / incumbents-wait glare rule). **Interoperable with the web client - audible both ways** (v0.491-495). Relay: `src/relay/handlers/{msg_handlers.rs,broadcast.rs}`. |
+| Native voice DSP + transmit modes | ✅ | Mic gain 0-200% (clip-protected); noise FILTER modes Off / Light (85 Hz biquad high-pass + noise gate) / Noise suppression (RNNoise via pure-Rust `nnnoiseless`); TRANSMIT modes Open mic / Push-to-talk / Voice-activated / Push-to-mute (bindable push key via raw winit input so PTT works in-game, + VAD threshold). Defaults: RNNoise + Push-to-talk on CapsLock. Persisted to `AppConfig` (`VoiceFilterMode` + `VoiceTransmitMode`). Mic-test loopback with toggle / animated RGB border / live level meter / device selectors. UI in `src/gui/pages/settings.rs` `draw_audio_content`. (v0.485-490) |
+| Native per-peer voice controls | ⚠️ | Per-peer volume/mute/squelch UI not yet built on native (mirror of `web/chat/chat-voice-modal.js`); audio works, the per-peer control panel is the remaining UI debt. |
+| Web transmit-mode UI | ❌ | The web client has NO transmit-mode UI yet (gain / filter / PTT-VAD selectors are native-only) - web parity debt. |
+| Video calls (web) | ✅ | Camera selection, PiP overlay, gallery view |
+| Screen sharing (web) | ✅ | Concurrent camera+screen layers, draggable PiP |
+| Streaming system (web) | ✅ | Streamer dashboard, WebRTC relay, scenes/presets |
 | Voice join/leave sounds | ✅ | Audio cues when users enter/leave voice channels (v0.35.1) |
 | Role badges in sidebar | ✅ | Visual role indicators next to usernames in member lists (v0.35.1) |
 
@@ -338,6 +343,25 @@ Everything in this section is **built and working**.
 
 ---
 
+## Developer Tooling
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| Headless UI snapshots | ✅ | `src/gui/ui_snapshots.rs` renders native egui pages to PNGs via offscreen `egui-wgpu` + `wgpu` (no extra dependency; `egui_kittest` was rejected due to an accesskit / egui-winit 0.31.1 incompatibility). Output in `tests/snapshots/`, so the native UI can be reviewed without launching the app. (v0.485-495 arc tooling, no app/runtime change.) |
+| `just verify` recipe | ✅ | Both feature builds (native + relay) + lib tests + lints in one command. |
+| `just lints` recipe | ✅ | Runs the 4 `src/gui` file-scanner lints via standalone `rustc` (Windows-PDB-safe - dodges the `LNK1318` bin-link limit). |
+| `just snapshots` recipe | ✅ | Renders the native UI PNGs (drives `ui_snapshots.rs`). |
+| `just preflight` recipe | ✅ | Untracked source check + doc-link check + `just verify`. |
+
+> **Deploy note (voice):** every release restarts the live relay (clears in-memory
+> `voice_rooms` + drops all client WS) and the web force-reloads on the
+> `server_version` change (the `app.js` peer_list handler). Frequent deploys break
+> active voice/testing. No production users yet (voice coordination is over Discord),
+> so full deploys are fine - but **batch them**. Graceful relay restart (so deploys
+> don't drop voice) is a tracked TODO.
+
+---
+
 ## Navigation & UX
 
 | Feature | Status | Details |
@@ -464,8 +488,12 @@ PRIORITIES.md, trust PRIORITIES.md.
 - **TIER 1, hardening:** effectively closed (fail2ban, watchdog+alerting,
   SQLite corruption recovery all shipped; off-box monitor skipped by operator).
 - **TIER 2, big-feature gaps (weeks each):** web↔native parity (Track W),
-  Studio+streaming, in-app ops console, **native voice (no WebRTC stack at all
-  today)**, federation *activation* (designed, dormant=safe, not turned on),
+  Studio+streaming, in-app ops console, **native voice - BUILT end-to-end
+  (arc v0.485-495: pure-Rust capture/Opus/`str0m` WebRTC, per-channel rooms, live
+  audio web↔native, DSP, transmit modes); remaining tail = native per-peer
+  volume/mute/squelch UI + a web transmit-mode UI + an in-process two-`str0m`
+  WebRTC test harness for CI + graceful relay restart so deploys don't drop
+  voice**, federation *activation* (designed, dormant=safe, not turned on),
   native trade UI completion (events not dispatched), Litestream continuous
   backup, mobile clients (Android/iOS), device mesh, federated Library, and
   **P2P groups phases 3–5** (P2P transport / relay-independence / mDNS-DHT, 
@@ -488,9 +516,13 @@ PRIORITIES.md, trust PRIORITIES.md.
 > remaining work. The honest high-level picture:
 
 **Known partial / unverified (not "done"):**
-- Native client is **chat-first and missing real-time media**: no native WebRTC
-  stack → native voice, video, screen-share, and streaming are stubs/observer-only
-  (web has them). (PRIORITIES TIER 2 #2, #4, #6.)
+- Native **voice is BUILT** (arc v0.485-495): the native client has a real WebRTC
+  stack now (`str0m` Opus media), captures + plays live audio, joins per-channel
+  voice rooms, and is audible to/from the web client. Remaining native voice tail
+  is UI/infra only: per-peer volume/mute/squelch panel, a web transmit-mode UI
+  (web parity debt), a two-`str0m` CI test harness, and graceful relay restart.
+  Native **video, screen-share, and streaming are still missing** (web-only) -
+  no native capture/transport for those yet. (PRIORITIES TIER 2 #2, #4, #6.)
 - Native **trade UI** page exists but trade events aren't dispatched (TIER 2 #7).
 - **Federation** code is fail-closed and dormant, designed, not activated; no
   admin UI to add/trust peers yet (TIER 2 #5).

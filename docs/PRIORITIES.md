@@ -11,6 +11,30 @@
 
 ## Active focus
 
+> **SHIPPED 2026-06-18..21 (v0.485-0.495): NATIVE VOICE CHAT, end to end.** Mic
+> capture + Opus + RNNoise + transmit modes (Phase A + input stack), str0m WebRTC
+> Opus media (Phase B), per-channel voice rooms interoperable with web over
+> `voice_room_signal` (Phase C), and live two-way audio (Phase D). Voice is now
+> **per text channel** (the voice room IS the channel, keyed by its id + the
+> `voice_enabled` flag), which fixed "clicking the mic does nothing". Defaults:
+> Noise suppression + Push-to-talk on CapsLock. Full reference:
+> [native_voice.md](network/native_voice.md). ALSO shipped: **headless UI
+> snapshots** (`just snapshots` renders egui pages to PNGs so the native UI can be
+> reviewed without launching the app) + `just verify` / `lints` / `preflight`.
+>
+> **NEXT (voice + dev-infra, agreed with operator):**
+> 1. **In-process WebRTC test harness** (two `str0m` instances wired together with
+>    a fake clock, no sockets) so voice/multiplayer changes are CI-verifiable
+>    instead of needing a live native-to-web call. The agreed next infra build.
+> 2. **Native per-peer voice controls** UI (volume / mute / squelch), mirroring
+>    the web's `web/chat/chat-voice-modal.js`, plus a visible in-call indicator.
+> 3. **Web transmit-mode parity** (the web has no open-mic / PTT / VAD UI yet).
+> 4. Graceful relay restart so a deploy does not drop active voice (a deploy
+>    currently clears the in-memory `voice_rooms` + drops all client WS).
+>
+> Older queued items (launcher visual verify, two-player co-presence test,
+> server-side character persistence) remain below, unchanged by the voice arc.
+
 > **The strategic, public planning doc is now [ROADMAP.md](ROADMAP.md)** (it renders to the app +
 > website via `data/roadmap.json`). PRIORITIES stays the tactical "very next thing"; the roadmap is
 > "where we are going" + the full themed backlog. Keep them consistent.

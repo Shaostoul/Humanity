@@ -1,5 +1,11 @@
 # Voice, Video, and Livestreaming
 
+> **Shipped status (v0.495, 2026-06-21):** native voice chat is implemented and
+> live, end to end (mic capture, Opus, RNNoise + transmit modes, per-channel
+> WebRTC voice rooms interoperable with the web client, two-way audio). The
+> concrete implementation reference is **[native_voice.md](native_voice.md)**.
+> Web voice + video + livestreaming below remain the forward design.
+
 ## Purpose
 
 Define the architecture for real-time audio, video, and livestreaming across the Humanity Network, from 1-on-1 calls to broadcasts serving thousands of concurrent viewers, without centralizing cost or control.
