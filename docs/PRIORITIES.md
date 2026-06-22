@@ -11,6 +11,27 @@
 
 ## Active focus
 
+> **SHIPPED 2026-06-22 (v0.508-0.510): GARDEN EDIT SLIDERS ARE NOW FUNCTIONAL (autonomous loop, native).**
+> The garden edit modal was cosmetic -- the per-medium form existed but nothing consumed
+> its values. Now: v0.508.0 moved the grow-media into `data/garden/grow_media.ron` (a
+> plot-type is a data edit, infinite-of-X); v0.509.0 wired the **water** slider to crop
+> survival (a configured tower keeps crops topped up -> healthy/grows, low -> wilts);
+> v0.510.0 wired the **nutrient** slider to growth speed (0.5x..1.5x). Pattern: the GUI
+> publishes a neutral `HashMap<tower_id,f32>` per frame (`garden_irrigation` /
+> `garden_nutrient`), lib.rs bridges it to the DataStore, FarmingSystem reads it -- no GUI
+> type leaks into the sim layer. Proven by `per_area_irrigation_keeps_configured_crops_watered`
+> + `per_area_nutrient_speeds_growth`.
+>
+> **NEXT (top of the loop queue): LIVE HOME SIM.** `homes.rs` still shows AUTHORED
+> self-sufficiency strings from `home.ron` loops, not the running sim. Make it read live
+> `PowerStatus` (ElectricalSystem/SolarSystem/Battery already publish it). The blocker:
+> home machines + those systems only spawn/tick after `load_world` (Enter World), not in
+> MENU mode -- so the Home page is frozen. Fix = spawn home machines + tick the power
+> systems at startup (a startup-ordering change at ~lib.rs:2000/2050). Needs careful
+> verify (snapshots + the operator's eye -- 'shows != works' for egui), so it is a focused
+> pass, not a fire-and-continue step. Then: grow-light-vs-power meter (depends on this);
+> extend per-area sim to soil-bed/field crops (no tower_id link yet).
+
 > **SHIPPED 2026-06-18..21 (v0.485-0.495): NATIVE VOICE CHAT, end to end.** Mic
 > capture + Opus + RNNoise + transmit modes (Phase A + input stack), str0m WebRTC
 > Opus media (Phase B), per-channel voice rooms interoperable with web over
