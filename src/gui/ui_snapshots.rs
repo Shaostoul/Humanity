@@ -416,7 +416,7 @@ fn settings_panel(
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_laws_page() {
-    render_page_png("laws_page", 1000, 1500, |ctx, theme, state| {
+    render_page_png("laws_page", 1400, 1400, |ctx, theme, state| {
         crate::gui::pages::laws::draw(ctx, theme, state);
     });
 }

@@ -132,30 +132,35 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         false,
                         None,
                         |ui| {
-                            widgets::row_cell(ui, 44.0, |ui| {
-                                ui.label(
-                                    RichText::new(badge)
-                                        .strong()
-                                        .color(badge_col)
-                                        .size(theme.font_size_small),
-                                );
-                            });
-                            widgets::row_cell(ui, 150.0, |ui| {
+                            // All left-aligned natural flow: a small BASE/REAL badge,
+                            // the category, the title (bold, never clipped), then the
+                            // summary taking whatever's left on the line, ellipsized.
+                            // No fixed-width cells -- those clipped long titles and left
+                            // gaps before short ones.
+                            ui.label(
+                                RichText::new(badge)
+                                    .strong()
+                                    .color(badge_col)
+                                    .size(theme.font_size_small),
+                            );
+                            if !r.category.is_empty() {
                                 ui.label(
                                     RichText::new(&r.category)
                                         .color(theme.text_muted())
                                         .size(theme.font_size_small),
                                 );
-                            });
-                            widgets::row_cell(ui, 300.0, |ui| {
-                                ui.label(
-                                    RichText::new(&r.title).strong().color(theme.text_primary()),
-                                );
-                            });
-                            // Summary fills whatever width remains, one line, ellipsized.
+                            }
                             ui.add(
                                 egui::Label::new(
-                                    RichText::new(&r.summary).color(theme.text_secondary()),
+                                    RichText::new(&r.title).strong().color(theme.text_primary()),
+                                )
+                                .wrap_mode(egui::TextWrapMode::Extend),
+                            );
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(&r.summary)
+                                        .color(theme.text_secondary())
+                                        .size(theme.font_size_small),
                                 )
                                 .truncate(),
                             );

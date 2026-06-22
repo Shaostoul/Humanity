@@ -94,6 +94,37 @@ fn manifest_bar(ui: &mut egui::Ui, theme: &Theme, draft: &[(String, u32)], cap: 
     }
 }
 
+/// One vital as a TILE: a small card with the vital's name, its value, and a
+/// chunky rounded colour-by-level bar. A grid of these reads at a glance and uses
+/// the page width, replacing the old thin name/value/bar text rows.
+fn vital_tile(ui: &mut egui::Ui, theme: &Theme, name: &str, value: &str, frac: f32, color: Color32) {
+    Frame::none()
+        .fill(theme.bg_card())
+        .rounding(Rounding::same(theme.border_radius_lg as u8))
+        .stroke(Stroke::new(1.0, theme.border()))
+        .inner_margin(Vec2::new(10.0, 8.0))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new(name).size(theme.font_size_small).color(theme.text_muted()));
+            ui.label(
+                RichText::new(value)
+                    .size(theme.font_size_heading)
+                    .strong()
+                    .color(color),
+            );
+            ui.add_space(theme.spacing_xs);
+            let w = ui.available_width();
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 8.0), egui::Sense::hover());
+            let r = Rounding::same(4);
+            ui.painter().rect_filled(rect, r, theme.bg_secondary());
+            let fill_w = w * frac.clamp(0.0, 1.0);
+            if fill_w > 0.0 {
+                let fill = egui::Rect::from_min_size(rect.min, Vec2::new(fill_w, 8.0));
+                ui.painter().rect_filled(fill, r, color);
+            }
+        });
+}
+
 /// Parse item data from embedded CSV to get details for a given item_id.
 fn lookup_item_details(item_id: &str) -> Option<ItemDetails> {
     let csv = crate::embedded_data::ITEMS_CSV;
@@ -398,9 +429,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             //    when the section is open; closes just before the Equipment divider. ──
             if widgets::section_disclosure(ui, theme, ("inv_sec", "status"), "Status", tree_force) {
 
-            // Weight indicator
+            // Live player vitals as a GRID OF TILES (name + value + a chunky
+            // colour-by-level bar) instead of thin text rows — using the width and
+            // reading at a glance. Weight is always shown; the survival vitals when
+            // the ECS has synced them (satiation_max > 0).
             let (carry_weight, max_weight) = with_state(|ps| (ps.carry_weight, ps.max_carry_weight));
-            let weight_frac = if max_weight > 0.0 { carry_weight / max_weight } else { 0.0 };
+            let weight_frac =
+                if max_weight > 0.0 { (carry_weight / max_weight).clamp(0.0, 1.0) } else { 0.0 };
             let weight_color = if weight_frac > 0.9 {
                 theme.danger()
             } else if weight_frac > 0.7 {
@@ -408,67 +443,34 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             } else {
                 theme.accent()
             };
-            widgets::stat_row(
-                ui, theme, "Weight",
-                &format!("{:.1} / {:.1} kg", carry_weight, max_weight),
-                weight_color, weight_frac, weight_color,
-            );
+            let color_for = |frac: f32| {
+                if frac < 0.25 {
+                    theme.danger()
+                } else if frac < 0.5 {
+                    theme.warning()
+                } else {
+                    theme.accent()
+                }
+            };
 
-            // ── Survival vitals: satiation / hydration + active status effects ──
-            // (synced from the player's ECS Vitals + StatusEffects each frame).
-            let (sat, sat_max, hyd, hyd_max, energy, energy_max) = (
-                state.vitals.satiation,
-                state.vitals.satiation_max,
-                state.vitals.hydration,
-                state.vitals.hydration_max,
-                state.vitals.energy,
-                state.vitals.energy_max,
-            );
-            if sat_max > 0.0 {
-                let effects = state.vitals.effects.clone();
-                let sat_frac = (sat / sat_max).clamp(0.0, 1.0);
-                let hyd_frac = (hyd / hyd_max.max(1.0)).clamp(0.0, 1.0);
-                let energy_frac = (energy / energy_max.max(1.0)).clamp(0.0, 1.0);
-                let color_for = |frac: f32| {
-                    if frac < 0.25 {
-                        theme.danger()
-                    } else if frac < 0.5 {
-                        theme.warning()
-                    } else {
-                        theme.accent()
-                    }
-                };
-                ui.add_space(theme.spacing_xs);
-                // Compact stat table — one thin row per vital (name · value · bar);
-                // the columns align because every row shares widgets::stat_row's
-                // fixed name/value widths.
-                widgets::stat_row(
-                    ui, theme, "Satiation",
-                    &format!("{:.0} / {:.0}", sat, sat_max),
-                    color_for(sat_frac), sat_frac, color_for(sat_frac),
-                );
-                widgets::stat_row(
-                    ui, theme, "Hydration",
-                    &format!("{:.0} / {:.0}", hyd, hyd_max),
-                    color_for(hyd_frac), hyd_frac, color_for(hyd_frac),
-                );
-                widgets::stat_row(
-                    ui, theme, "Energy",
-                    &format!("{:.0} / {:.0}", energy, energy_max),
-                    color_for(energy_frac), energy_frac, color_for(energy_frac),
-                );
-                let oxy = state.vitals.oxygen;
-                let oxy_max = state.vitals.oxygen_max.max(1.0);
-                let oxy_frac = (oxy / oxy_max).clamp(0.0, 1.0);
-                widgets::stat_row(
-                    ui, theme, "Oxygen",
-                    &format!("{:.0} / {:.0}", oxy, oxy_max),
-                    color_for(oxy_frac), oxy_frac, color_for(oxy_frac),
-                );
-                let waste = state.vitals.waste;
-                let waste_max = state.vitals.waste_max.max(1.0);
-                let waste_frac = (waste / waste_max).clamp(0.0, 1.0);
-                // High waste is BAD (inverted colour vs the other vitals).
+            // (label, value, fraction 0..1, colour) for each tile.
+            let mut tiles: Vec<(&str, String, f32, Color32)> = Vec::new();
+            tiles.push((
+                "Weight",
+                format!("{:.1} / {:.1} kg", carry_weight, max_weight),
+                weight_frac,
+                weight_color,
+            ));
+            let effects = state.vitals.effects.clone();
+            let has_vitals = state.vitals.satiation_max > 0.0;
+            if has_vitals {
+                let v = &state.vitals;
+                let sat_frac = (v.satiation / v.satiation_max).clamp(0.0, 1.0);
+                let hyd_frac = (v.hydration / v.hydration_max.max(1.0)).clamp(0.0, 1.0);
+                let energy_frac = (v.energy / v.energy_max.max(1.0)).clamp(0.0, 1.0);
+                let oxy_frac = (v.oxygen / v.oxygen_max.max(1.0)).clamp(0.0, 1.0);
+                let waste_frac = (v.waste / v.waste_max.max(1.0)).clamp(0.0, 1.0);
+                // High waste is BAD — inverted colour vs the other vitals.
                 let waste_col = if waste_frac > 0.75 {
                     theme.danger()
                 } else if waste_frac > 0.5 {
@@ -476,13 +478,28 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 } else {
                     theme.text_secondary()
                 };
-                widgets::stat_row(
-                    ui, theme, "Waste",
-                    &format!("{:.0} / {:.0}", waste, waste_max),
-                    waste_col, waste_frac, waste_col,
-                );
-                // Body temperature is a readout (not a 0..100 bar) + the seal status,
-                // on the same name/value columns so it lines up with the bars above.
+                tiles.push(("Satiation", format!("{:.0} / {:.0}", v.satiation, v.satiation_max), sat_frac, color_for(sat_frac)));
+                tiles.push(("Hydration", format!("{:.0} / {:.0}", v.hydration, v.hydration_max), hyd_frac, color_for(hyd_frac)));
+                tiles.push(("Energy", format!("{:.0} / {:.0}", v.energy, v.energy_max), energy_frac, color_for(energy_frac)));
+                tiles.push(("Oxygen", format!("{:.0} / {:.0}", v.oxygen, v.oxygen_max), oxy_frac, color_for(oxy_frac)));
+                tiles.push(("Waste", format!("{:.0} / {:.0}", v.waste, v.waste_max), waste_frac, waste_col));
+            }
+
+            ui.add_space(theme.spacing_xs);
+            // Three tiles across so the vitals use the width instead of stacking
+            // into one thin left-hugging column. Tiles are read-only, so they go
+            // straight into the columns.
+            let cols_n = 3usize;
+            ui.columns(cols_n, |cols| {
+                for (i, (name, value, frac, color)) in tiles.iter().enumerate() {
+                    let c = &mut cols[i % cols_n];
+                    vital_tile(c, theme, name, value, *frac, *color);
+                    c.add_space(theme.spacing_sm);
+                }
+            });
+
+            if has_vitals {
+                // Body temperature + seal status as a readout line under the grid.
                 let temp = state.vitals.body_temp_c;
                 let temp_col = if temp < 35.0 || temp > 39.0 {
                     theme.danger()
@@ -492,61 +509,55 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     theme.accent()
                 };
                 ui.horizontal(|ui| {
-                    let h = theme.font_size_body + 2.0;
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(theme.stat_name_width, h),
-                        egui::Layout::left_to_right(egui::Align::Center),
-                        |ui| {
-                            ui.label(RichText::new("Body temp").color(theme.text_secondary()).size(theme.font_size_small));
-                        },
+                    ui.label(RichText::new("Body temp").color(theme.text_secondary()).size(theme.font_size_small));
+                    ui.label(
+                        RichText::new(format!("{:.1}°C", temp))
+                            .color(temp_col)
+                            .size(theme.font_size_small)
+                            .strong(),
                     );
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(theme.stat_value_width, h),
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| {
-                            ui.label(RichText::new(format!("{:.1}°C", temp)).color(temp_col).size(theme.font_size_small));
-                        },
-                    );
+                    ui.add_space(theme.spacing_md);
                     if state.vitals.sealed {
                         ui.label(RichText::new("Sealed").size(theme.font_size_small).color(theme.accent()));
                     } else {
                         ui.label(RichText::new("EXPOSED, no air!").size(theme.font_size_small).color(theme.danger()));
                     }
                 });
-                // Survival actions (decoupled from the bars so each bar reads cleanly).
+            }
+
+            // Survival actions.
+            ui.add_space(theme.spacing_sm);
+            ui.horizontal(|ui| {
+                if widgets::secondary_button(ui, theme, "Rest") {
+                    action_rest = true;
+                }
+                if widgets::secondary_button(ui, theme, "Compost") {
+                    action_compost = true;
+                }
+            });
+            if !effects.is_empty() {
                 ui.add_space(theme.spacing_xs);
-                ui.horizontal(|ui| {
-                    if widgets::secondary_button(ui, theme, "Rest") {
-                        action_rest = true;
-                    }
-                    if widgets::secondary_button(ui, theme, "Compost") {
-                        action_compost = true;
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new("Effects:").color(theme.text_secondary()));
+                    for (name, remaining) in &effects {
+                        let label = if *remaining >= 60.0 {
+                            format!("{} ({:.0}m)", name, remaining / 60.0)
+                        } else {
+                            format!("{} ({:.0}s)", name, remaining)
+                        };
+                        egui::Frame::none()
+                            .fill(theme.bg_secondary())
+                            .rounding(Rounding::same(3))
+                            .inner_margin(Vec2::new(6.0, 2.0))
+                            .show(ui, |ui| {
+                                ui.label(
+                                    RichText::new(label)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_primary()),
+                                );
+                            });
                     }
                 });
-                if !effects.is_empty() {
-                    ui.add_space(theme.spacing_xs);
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(RichText::new("Effects:").color(theme.text_secondary()));
-                        for (name, remaining) in &effects {
-                            let label = if *remaining >= 60.0 {
-                                format!("{} ({:.0}m)", name, remaining / 60.0)
-                            } else {
-                                format!("{} ({:.0}s)", name, remaining)
-                            };
-                            egui::Frame::none()
-                                .fill(theme.bg_secondary())
-                                .rounding(Rounding::same(3))
-                                .inner_margin(Vec2::new(6.0, 2.0))
-                                .show(ui, |ui| {
-                                    ui.label(
-                                        RichText::new(label)
-                                            .size(theme.font_size_small)
-                                            .color(theme.text_primary()),
-                                    );
-                                });
-                        }
-                    });
-                }
             }
 
             } // ── end Status ──
