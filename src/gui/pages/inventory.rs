@@ -758,30 +758,43 @@ fn draw_mining_map(ui: &mut egui::Ui, theme: &Theme, asteroids: &[GuiAsteroid], 
     painter.rect_stroke(rect, Rounding::same(6), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
     let center = rect.center();
     let max_d = asteroids.iter().map(|a| a.distance).fold(1.0f32, f32::max);
-    let margin = 40.0;
+    let margin = 48.0;
     let scale = ((rect.width().min(rect.height()) / 2.0 - margin) / max_d).max(0.01);
     let proj = |p: [f32; 3]| egui::pos2(center.x + p[0] * scale, center.y + p[2] * scale);
     let font = egui::FontId::proportional(theme.font_size_small);
-    // Routes first (under the dots).
+    // Active routes first (under the dots): home -> the drone's target asteroid, drawn
+    // in accent so the journey reads at a glance (the operator wanted to SEE the drone
+    // going off to mine).
     for d in drones {
         if let Some(ta) = asteroids.iter().find(|a| a.id == d.target) {
-            painter.line_segment([center, proj(ta.position)], Stroke::new(1.0, theme.border()));
+            painter.line_segment([center, proj(ta.position)], Stroke::new(1.5, theme.accent()));
         }
     }
-    // Home at the centre.
-    painter.circle_filled(center, 5.0, theme.accent());
-    painter.text(center + Vec2::new(8.0, -2.0), egui::Align2::LEFT_BOTTOM, "Home", font.clone(), theme.text_muted());
-    // Asteroids.
+    // Asteroids (labels to the right of their dot).
     for a in asteroids {
         let sp = proj(a.position);
         painter.circle_filled(sp, 4.0, widgets::swatch_color(&a.classification));
-        painter.text(sp + Vec2::new(7.0, 0.0), egui::Align2::LEFT_CENTER, format!("{} · {:.0}km", a.name, a.distance), font.clone(), theme.text_secondary());
+        painter.text(sp + Vec2::new(8.0, 0.0), egui::Align2::LEFT_CENTER, format!("{} · {:.0}km", a.name, a.distance), font.clone(), theme.text_secondary());
     }
-    // The drone, mid-journey.
+    // Home at the centre. Label sits to the LEFT so it never collides with an outbound
+    // drone (which heads right toward the asteroids).
+    painter.circle_filled(center, 5.0, theme.accent());
+    painter.text(center + Vec2::new(-8.0, 0.0), egui::Align2::RIGHT_CENTER, "Home", font.clone(), theme.text_muted());
+    // The drone(s), mid-journey. Skip drawing when parked at home (the Home dot already
+    // marks that spot); otherwise label ABOVE the dot with its phase + cargo so its
+    // status reads without overlapping the home or asteroid labels.
     for d in drones {
         let dp = proj(d.pos);
+        if dp.distance(center) < 4.0 {
+            continue;
+        }
         painter.circle_filled(dp, 4.0, theme.warning());
-        painter.text(dp + Vec2::new(7.0, 0.0), egui::Align2::LEFT_CENTER, "drone", font.clone(), theme.warning());
+        let label = if d.cargo_total > 0 {
+            format!("drone · {} · {} ore", d.phase.to_lowercase(), d.cargo_total)
+        } else {
+            format!("drone · {}", d.phase.to_lowercase())
+        };
+        painter.text(dp + Vec2::new(0.0, -8.0), egui::Align2::CENTER_BOTTOM, label, font.clone(), theme.warning());
     }
 }
 
