@@ -504,12 +504,28 @@ fn draw_container(
     if !loc.is_empty() {
         title = format!("{title}  ({loc})");
     }
+    // Counts for the header, so a COLLAPSED container still tells you what is inside.
+    let is_backpack = place.kind == "backpack";
+    let item_count = place.children.iter().filter(|c| c.kind == "item").count()
+        + place.items.len()
+        + if is_backpack { inv.iter().filter(|s| s.is_some()).count() } else { 0 };
+    let sub_count = place.children.iter().filter(|c| c.kind != "item").count();
+    let mut hint_parts: Vec<String> = Vec::new();
+    if item_count > 0 {
+        hint_parts.push(format!("{item_count} item{}", if item_count == 1 { "" } else { "s" }));
+    }
+    if sub_count > 0 {
+        hint_parts.push(format!("{sub_count} container{}", if sub_count == 1 { "" } else { "s" }));
+    }
+    let hint = hint_parts.join(", ");
+
     let open_id = egui::Id::new(("place_open", path));
     let mut open = ui.data_mut(|d| d.get_temp::<bool>(open_id).unwrap_or(depth < 2));
 
     widgets::card(ui, theme, |ui| {
-        // Header: open triangle (a SHAPE, never a tofu glyph) + kind dot + label. The
-        // whole row toggles the container open/closed.
+        // Header: open triangle (a SHAPE, never a tofu glyph) + kind dot + label +
+        // contents count. The WHOLE row toggles open (the trailing allocate claims the
+        // remaining width so the click target is the full row, not just the label).
         let header = ui.horizontal(|ui| {
             let (tri, _) = ui.allocate_exact_size(Vec2::splat(12.0), egui::Sense::hover());
             if open {
@@ -522,6 +538,12 @@ fn draw_container(
             ui.label(
                 RichText::new(&title).strong().color(theme.text_primary()).size(theme.font_size_body),
             );
+            if !hint.is_empty() {
+                ui.label(
+                    RichText::new(format!("· {hint}")).size(theme.font_size_small).color(theme.text_muted()),
+                );
+            }
+            ui.allocate_space(egui::vec2(ui.available_width().max(0.0), 1.0));
         });
         let row = header.response.interact(egui::Sense::click());
         if row.hovered() {
@@ -534,7 +556,6 @@ fn draw_container(
             // Direct contents render as item TILES: the live backpack stack (at the
             // kind:"backpack" node), this container's leaf `kind:"item"` children (the
             // seed data models items this way, by label), and any id-based `items`.
-            let is_backpack = place.kind == "backpack";
             let leaves: Vec<&crate::gui::Place> =
                 place.children.iter().filter(|c| c.kind == "item").collect();
             let has_tiles = (is_backpack && inv.iter().any(|s| s.is_some()))
