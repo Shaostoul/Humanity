@@ -747,6 +747,26 @@ pub fn tree_list_ex(
     inline: &mut dyn FnMut(&mut Ui, &str),
 ) -> Option<String> {
     let mut clicked = None;
+    // If the ROOTS are a big flat list of leaves (the flat backpack fallback, when the
+    // entity spine isn't loaded), flow them into columns too -- the same treatment a
+    // leaf-heavy CONTAINER gets in container_node -- so the layout doesn't depend on
+    // whether the spine loaded. The selected item's inline card renders below the grid.
+    let all_leaf_roots = roots.iter().all(|n| n.children.is_empty());
+    if all_leaf_roots && roots.len() > 12 {
+        let avail = ui.available_width();
+        let ncols = (avail / 260.0).floor().clamp(2.0, 4.0) as usize;
+        ui.columns(ncols, |cols| {
+            for (i, node) in roots.iter().enumerate() {
+                leaf_row(&mut cols[i % ncols], theme, node, selected, &mut clicked);
+            }
+        });
+        if !selected.is_empty() {
+            if let Some(sel) = roots.iter().find(|n| selected == n.id) {
+                ui.indent(("inline_body", &sel.id), |ui| inline(ui, &sel.id));
+            }
+        }
+        return clicked;
+    }
     for (i, node) in roots.iter().enumerate() {
         ui.push_id(i, |ui| {
             container_node(ui, theme, node, selected, &mut clicked, default_open, force, inline)

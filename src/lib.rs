@@ -2225,6 +2225,7 @@ mod native_app {
             .map(|h| h.loops)
             .unwrap_or_default();
             gui_state.tower_configs = crate::gui::load_tower_configs(&data_dir);
+            gui_state.garden_areas = crate::gui::load_garden_areas(&data_dir);
             gui_state.library = crate::gui::load_library(&data_dir);
             gui_state.equipment_slots = crate::gui::load_equipment_slots(&data_dir);
             let (sevs, cats) = crate::gui::load_bug_taxonomy(&data_dir);

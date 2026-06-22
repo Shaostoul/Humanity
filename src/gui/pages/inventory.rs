@@ -2,7 +2,7 @@
 //! item detail panel, and quick actions.
 
 use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
-use crate::gui::GuiState;
+use crate::gui::{GardenArea, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use std::cell::RefCell;
@@ -125,74 +125,9 @@ fn vital_tile(ui: &mut egui::Ui, theme: &Theme, name: &str, value: &str, frac: f
         });
 }
 
-/// A grow area in the homestead garden: a KIND of growing machine and how many of
-/// it the home has, with its per-unit food contribution. Surfaced so the Garden
-/// section shows the WHOLE garden (towers + beds + racks + tanks + fields), not
-/// just the two aeroponic tower designs.
-#[derive(Clone)]
-struct GardenArea {
-    label: String,
-    machine_id: String,
-    count: u32,
-    food: String,
-}
-
-/// Cached homestead machine layout (loaded once from home.ron). Shared by the
-/// grow-area overview AND the per-area edit modal (which needs each machine's
-/// catalog def for its medium-specific details).
-fn garden_home() -> &'static Option<crate::machines::MachineHome> {
-    static HOME: std::sync::OnceLock<Option<crate::machines::MachineHome>> = std::sync::OnceLock::new();
-    HOME.get_or_init(|| {
-        let path = std::path::Path::new("data").join("machines").join("home.ron");
-        crate::machines::MachineHome::load(&path)
-    })
-}
-
-/// Count every growing machine placed in the garden room of `data/machines/home.ron`
-/// (a "grow" machine has a food stat but is not pure storage like the silo), grouped
-/// by type. Instances + the dense `arrays` grids. Empty if the file is absent.
-fn load_garden_areas() -> Vec<GardenArea> {
-    let Some(home) = garden_home() else {
-        return Vec::new();
-    };
-    let is_grow = |machine: &str| {
-        home.catalog.get(machine).map_or(false, |d| {
-            d.stats.iter().any(|s| s.kind == "food") && !d.stats.iter().any(|s| s.kind == "storage")
-        })
-    };
-    let mut counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
-    for inst in &home.instances {
-        if inst.room == "garden" && is_grow(&inst.machine) {
-            *counts.entry(inst.machine.clone()).or_insert(0) += 1;
-        }
-    }
-    for arr in &home.arrays {
-        if arr.room == "garden" && is_grow(&arr.machine) {
-            *counts.entry(arr.machine.clone()).or_insert(0) += arr.rows * arr.cols;
-        }
-    }
-    let mut out: Vec<GardenArea> = counts
-        .into_iter()
-        .map(|(machine, count)| {
-            let def = home.catalog.get(&machine);
-            let label = def.map(|d| d.label.clone()).unwrap_or_else(|| machine.clone());
-            let food = def
-                .and_then(|d| d.stats.iter().find(|s| s.kind == "food"))
-                .map(|s| s.value.clone())
-                .unwrap_or_default();
-            GardenArea { label, machine_id: machine, count, food }
-        })
-        .collect();
-    // Most-numerous first, then by name, so the overview reads stably frame to frame.
-    out.sort_by(|a, b| b.count.cmp(&a.count).then(a.label.cmp(&b.label)));
-    out
-}
-
-/// Cached garden grow-areas (loaded once from home.ron).
-fn garden_areas() -> &'static [GardenArea] {
-    static AREAS: std::sync::OnceLock<Vec<GardenArea>> = std::sync::OnceLock::new();
-    AREAS.get_or_init(load_garden_areas)
-}
+// GardenArea + the loader moved to gui/mod.rs (loaded via the resolved data_dir in
+// lib.rs and stored on GuiState.garden_areas), so the overview works regardless of the
+// process CWD -- the page reads state.garden_areas (review fix, v0.504).
 
 /// One grow area as a TILE: a colour swatch + name, the count (×N), and the per-unit
 /// food output. A grid of these is the at-a-glance "whole garden" overview. The whole
@@ -305,26 +240,28 @@ pub(crate) fn test_open_garden_edit(machine_id: &str) {
     with_garden_edit(|s| s.open = Some(machine_id.to_string()));
 }
 
+/// Test hook: close the modal, so a non-modal snapshot isn't polluted by a prior
+/// modal snapshot's leftover thread_local open state (tests share a thread).
+#[cfg(test)]
+pub(crate) fn test_close_garden_edit() {
+    with_garden_edit(|s| s.open = None);
+}
+
 /// The per-medium edit modal for the open grow area. Each medium gets controls
 /// tailored to how it grows. Called at ctx level (after the inventory panel closes).
 fn garden_edit_modal(ctx: &egui::Context, theme: &Theme, state: &GuiState) {
     let Some(machine_id) = with_garden_edit(|s| s.open.clone()) else {
         return;
     };
-    let Some(area) = garden_areas().iter().find(|a| a.machine_id == machine_id).cloned() else {
+    let Some(area) = state.garden_areas.iter().find(|a| a.machine_id == machine_id).cloned() else {
         with_garden_edit(|s| s.open = None);
         return;
     };
-    let def = garden_home().as_ref().and_then(|h| h.catalog.get(&machine_id)).cloned();
     let medium = grow_medium(&machine_id);
-    let mut keep_open = true;
-    egui::Window::new(format!("Edit: {}", area.label))
-        .id(egui::Id::new(("garden_edit", &machine_id)))
-        .collapsible(false)
-        .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+    // A real modal: egui::Modal dims the inventory behind it and closes on a
+    // backdrop click or Escape, so it reads as a focused popup, not a floating window.
+    let modal = egui::Modal::new(egui::Id::new(("garden_edit", &machine_id)))
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
-        .open(&mut keep_open)
         .show(ctx, |ui| {
             ui.set_min_width(460.0);
             ui.horizontal(|ui| {
@@ -336,9 +273,9 @@ fn garden_edit_modal(ctx: &egui::Context, theme: &Theme, state: &GuiState) {
             if !area.food.is_empty() {
                 ui.label(RichText::new(format!("Output per unit: {}", area.food)).color(theme.text_secondary()).size(theme.font_size_small));
             }
-            if let Some(d) = &def {
+            if area.size != (0.0, 0.0, 0.0) {
                 ui.label(
-                    RichText::new(format!("Footprint: {:.1} x {:.1} x {:.1} m", d.size.0, d.size.1, d.size.2))
+                    RichText::new(format!("Footprint: {:.1} x {:.1} x {:.1} m", area.size.0, area.size.1, area.size.2))
                         .color(theme.text_muted())
                         .size(theme.font_size_small),
                 );
@@ -350,7 +287,7 @@ fn garden_edit_modal(ctx: &egui::Context, theme: &Theme, state: &GuiState) {
                 with_garden_edit(|s| s.open = None);
             }
         });
-    if !keep_open {
+    if modal.should_close() {
         with_garden_edit(|s| s.open = None);
     }
 }
@@ -1037,7 +974,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // (towers, beds, racks, tanks, fields) and how many of each, as tiles,
                 // so the section shows the whole garden at a glance, not just the two
                 // plantable tower designs. Data-driven from data/machines/home.ron.
-                let areas = garden_areas();
+                let areas = state.garden_areas.clone();
                 if !areas.is_empty() {
                     let total: u32 = areas.iter().map(|a| a.count).sum();
                     ui.label(

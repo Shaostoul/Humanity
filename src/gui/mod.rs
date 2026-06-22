@@ -1171,6 +1171,9 @@ pub struct GuiState {
     /// The curated aeroponic tower configs (nutrition + apothecary), browsed on the
     /// Home page. Empty if data/towers/aeroponic_configs.ron is absent.
     pub tower_configs: Vec<TowerConfig>,
+    /// Garden grow-areas (towers/beds/racks/tanks/fields) from home.ron, loaded via
+    /// the resolved data_dir, for the Inventory Garden overview + per-medium edit modal.
+    pub garden_areas: Vec<GardenArea>,
     /// Per-tower shared-reservoir compatibility (parallel to `tower_configs`),
     /// computed once from the plant registry in the crop sync. The "make sure
     /// they grow together" check shown on the Home page.
@@ -2280,6 +2283,7 @@ impl Default for GuiState {
             homestead_design: None,
             homestead_loops: Vec::new(),
             tower_configs: Vec::new(),
+            garden_areas: Vec::new(),
             tower_compat: Vec::new(),
             creative_mode: true,
             active_real_section: "inventory".to_string(),
@@ -3194,6 +3198,62 @@ pub struct TowerPart {
     pub source: String,
     #[serde(default)]
     pub note: String,
+}
+
+/// A garden grow AREA kind + how many the homestead has, its per-unit food output,
+/// and footprint. Loaded from the garden room of `data/machines/home.ron` and shown
+/// in the Inventory Garden overview + per-medium edit modal.
+#[derive(Debug, Clone, Default)]
+pub struct GardenArea {
+    pub label: String,
+    pub machine_id: String,
+    pub count: u32,
+    pub food: String,
+    /// Footprint (w, h, d) in meters from the machine catalog.
+    pub size: (f32, f32, f32),
+}
+
+/// Count every growing machine in the garden room of `data/machines/home.ron` (a
+/// "grow" machine has a food stat but is not pure storage like the silo), grouped by
+/// type, with its catalog label / food stat / footprint. Resolved via `data_dir` so it
+/// works regardless of the process CWD. Empty if the file is absent.
+pub fn load_garden_areas(data_dir: &std::path::Path) -> Vec<GardenArea> {
+    let path = data_dir.join("machines").join("home.ron");
+    let Some(home) = crate::machines::MachineHome::load(&path) else {
+        return Vec::new();
+    };
+    let is_grow = |machine: &str| {
+        home.catalog.get(machine).map_or(false, |d| {
+            d.stats.iter().any(|s| s.kind == "food") && !d.stats.iter().any(|s| s.kind == "storage")
+        })
+    };
+    let mut counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    for inst in &home.instances {
+        if inst.room == "garden" && is_grow(&inst.machine) {
+            *counts.entry(inst.machine.clone()).or_insert(0) += 1;
+        }
+    }
+    for arr in &home.arrays {
+        if arr.room == "garden" && is_grow(&arr.machine) {
+            *counts.entry(arr.machine.clone()).or_insert(0) += arr.rows * arr.cols;
+        }
+    }
+    let mut out: Vec<GardenArea> = counts
+        .into_iter()
+        .map(|(machine, count)| {
+            let def = home.catalog.get(&machine);
+            let label = def.map(|d| d.label.clone()).unwrap_or_else(|| machine.clone());
+            let food = def
+                .and_then(|d| d.stats.iter().find(|s| s.kind == "food"))
+                .map(|s| s.value.clone())
+                .unwrap_or_default();
+            let size = def.map(|d| d.size).unwrap_or((0.0, 0.0, 0.0));
+            GardenArea { label, machine_id: machine, count, food, size }
+        })
+        .collect();
+    // Most-numerous first, then by name, so the overview reads stably frame to frame.
+    out.sort_by(|a, b| b.count.cmp(&a.count).then(a.label.cmp(&b.label)));
+    out
 }
 
 /// Load the aeroponic tower configs (data/towers/aeroponic_configs.ron). Empty on

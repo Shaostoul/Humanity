@@ -37,6 +37,7 @@ fn demo_state() -> GuiState {
     s.craft_recipes = crate::gui::load_crafting_recipes(data);
     s.market_categories = crate::gui::load_market_categories(data);
     s.library = crate::gui::load_library(data);
+    s.garden_areas = crate::gui::load_garden_areas(data);
     s.onboarding_quest_chains = crate::gui::pages::onboarding::load_quest_chains(data);
     s.creative_mode = true;
     // Returning-user state so the main menu shows the loaded hub, not first-run onboarding.
@@ -453,7 +454,15 @@ macro_rules! page_snapshot {
 page_snapshot!(snapshot_main_menu, "main_menu", main_menu, 1280, 900);
 page_snapshot!(snapshot_humanity, "humanity", humanity, 1280, 900);
 page_snapshot!(snapshot_chat, "chat", chat, 1280, 900);
-page_snapshot!(snapshot_inventory, "inventory", inventory, 1280, 1700);
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_inventory() {
+    render_page_png("inventory", 1280, 1700, |ctx, theme, state| {
+        // Reset any modal opened by a prior garden-modal snapshot (shared thread).
+        crate::gui::pages::inventory::test_close_garden_edit();
+        crate::gui::pages::inventory::draw(ctx, theme, state);
+    });
+}
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
