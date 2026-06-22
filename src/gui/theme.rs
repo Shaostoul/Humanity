@@ -260,6 +260,13 @@ pub struct Theme {
     /// toggled in Settings → Account → Developer mode.
     #[serde(default = "default_nav_dev_visible")]
     pub nav_dev_visible: bool,
+    /// Master switch for the in-app dev/debug CHEATS — the "Dev:" provisioning
+    /// buttons across the app (stock all materials, stock seeds, grow all crops,
+    /// max skills). ON during development so every loop is testable in one click;
+    /// turn OFF for a clean demo or a public server where players shouldn't be
+    /// able to conjure resources. Toggle in Settings -> Animations -> Developer cheats.
+    #[serde(default = "default_cheats_enabled")]
+    pub cheats_enabled: bool,
 }
 
 /// Animation style enum encoded as u8 in theme.ron for serde stability.
@@ -582,6 +589,7 @@ fn default_active_border_anim() -> u8 { 2 }   // RGB_CYCLE
 fn default_attack_anim() -> u8 { 1 }          // PULSE_RED
 fn default_anim_speed() -> f32 { 1.0 }
 fn default_nav_dev_visible() -> bool { true } // ON during dev period; flip at v1.0
+fn default_cheats_enabled() -> bool { true } // ON during dev; turn off for demos / servers
 
 fn default_theme() -> Theme {
     Theme {
@@ -700,5 +708,6 @@ fn default_theme() -> Theme {
         attack_indicator_style: default_attack_anim(),
         attack_indicator_speed: default_anim_speed(),
         nav_dev_visible: default_nav_dev_visible(),
+        cheats_enabled: default_cheats_enabled(),
     }
 }

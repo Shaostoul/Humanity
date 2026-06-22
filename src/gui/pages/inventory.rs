@@ -692,7 +692,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.horizontal_wrapped(|ui| {
                     // Dev: grant the starter seed set (one of each tower variety), so
                     // survival-mode planting is testable now. Creative ignores seeds.
-                    if widgets::secondary_button(ui, theme, "Dev: stock seeds") {
+                    if theme.cheats_enabled && widgets::secondary_button(ui, theme, "Dev: stock seeds") {
                         let mut seeds: Vec<String> = Vec::new();
                         for t in &state.tower_configs {
                             for p in &t.plantings {
@@ -706,7 +706,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             action_stock_seeds = Some(seeds);
                         }
                     }
-                    if !state.crops.is_empty() && widgets::secondary_button(ui, theme, "Dev: grow all") {
+                    if theme.cheats_enabled && !state.crops.is_empty() && widgets::secondary_button(ui, theme, "Dev: grow all") {
                         action_dev_grow = true;
                     }
                 });

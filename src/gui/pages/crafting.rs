@@ -235,11 +235,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // stock the player with one stack of every recipe input (raws AND
             // intermediates) so EVERY recipe is craftable in one click right now.
             // Gated/removed once progression lands.
-            if widgets::primary_button(ui, theme, "Dev: stock all materials") {
+            if theme.cheats_enabled && widgets::primary_button(ui, theme, "Dev: stock all materials") {
                 state.dev_stock_materials = true;
                 state.craft_status = "Stocking all materials...".to_string();
             }
-            ui.add_space(theme.spacing_sm);
+            if theme.cheats_enabled {
+                ui.add_space(theme.spacing_sm);
+            }
 
             ScrollArea::vertical()
                 .id_salt("craft_recipe_list")

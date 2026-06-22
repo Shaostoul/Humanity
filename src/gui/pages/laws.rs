@@ -116,37 +116,71 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .color(theme.text_primary()),
                         );
                     }
-                    widgets::card(ui, theme, |ui| {
-                        ui.horizontal(|ui| {
-                            let (badge, col) = if r.is_base() {
-                                ("BASE", theme.accent())
-                            } else {
-                                ("REAL", theme.success())
-                            };
-                            ui.label(
-                                RichText::new(badge)
-                                    .strong()
-                                    .color(col)
-                                    .size(theme.font_size_small),
+                    // One compact row per rule for fast scanning of the bulk:
+                    // [BASE/REAL] [category] [title] then the summary fills the
+                    // remaining width (one line, ellipsized). Click to expand the
+                    // row IN PLACE (no modal) into the full summary + source + tags,
+                    // pushing the rows below it down.
+                    let (badge, badge_col) = if r.is_base() {
+                        ("BASE", theme.accent())
+                    } else {
+                        ("REAL", theme.success())
+                    };
+                    widgets::expandable_row(
+                        ui,
+                        ("law", r.id.as_str()),
+                        false,
+                        None,
+                        |ui| {
+                            widgets::row_cell(ui, 44.0, |ui| {
+                                ui.label(
+                                    RichText::new(badge)
+                                        .strong()
+                                        .color(badge_col)
+                                        .size(theme.font_size_small),
+                                );
+                            });
+                            widgets::row_cell(ui, 150.0, |ui| {
+                                ui.label(
+                                    RichText::new(&r.category)
+                                        .color(theme.text_muted())
+                                        .size(theme.font_size_small),
+                                );
+                            });
+                            widgets::row_cell(ui, 300.0, |ui| {
+                                ui.label(
+                                    RichText::new(&r.title).strong().color(theme.text_primary()),
+                                );
+                            });
+                            // Summary fills whatever width remains, one line, ellipsized.
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(&r.summary).color(theme.text_secondary()),
+                                )
+                                .truncate(),
                             );
-                            ui.label(RichText::new(&r.title).strong().color(theme.text_primary()));
-                        });
-                        if !r.category.is_empty() {
-                            ui.label(
-                                RichText::new(&r.category)
-                                    .color(theme.text_muted())
-                                    .size(theme.font_size_small),
-                            );
-                        }
-                        ui.label(RichText::new(&r.summary).color(theme.text_secondary()));
-                        if !r.source.is_empty() {
-                            ui.label(
-                                RichText::new(format!("Source: {}", r.source))
-                                    .color(theme.text_muted())
-                                    .size(theme.font_size_small),
-                            );
-                        }
-                    });
+                        },
+                        |ui| {
+                            ui.add_space(theme.spacing_xs);
+                            ui.label(RichText::new(&r.summary).color(theme.text_secondary()));
+                            if !r.source.is_empty() {
+                                ui.add_space(theme.spacing_xs);
+                                ui.label(
+                                    RichText::new(format!("Source: {}", r.source))
+                                        .color(theme.text_muted())
+                                        .size(theme.font_size_small),
+                                );
+                            }
+                            if !r.tags.is_empty() {
+                                ui.label(
+                                    RichText::new(format!("Tags: {}", r.tags.join(", ")))
+                                        .color(theme.text_muted())
+                                        .size(theme.font_size_small),
+                                );
+                            }
+                            ui.add_space(theme.spacing_xs);
+                        },
+                    );
                     shown += 1;
                 }
                 if shown == 0 {

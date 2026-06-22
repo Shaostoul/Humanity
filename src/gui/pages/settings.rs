@@ -1045,6 +1045,7 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
     let mut atk_style = theme.attack_indicator_style;
     let mut atk_speed = theme.attack_indicator_speed;
     let mut dev_visible = theme.nav_dev_visible;
+    let mut cheats_on = theme.cheats_enabled;
 
     // ── Master switch ──
     frame().show(ui, |ui| {
@@ -1123,6 +1124,20 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         }
     });
 
+    // ── Developer cheats (the "Dev:" provisioning buttons across the app) ──
+    frame().show(ui, |ui| {
+        ui.label(RichText::new("Developer cheats").size(body_size).color(text_primary).strong());
+        ui.label(RichText::new(
+            "Show the in-app cheat buttons (stock all materials, stock seeds, \
+             grow all crops, max skills) that let you test every loop instantly. \
+             On during development; turn OFF for a clean demo or a public server \
+             so players can't conjure resources."
+        ).size(small_size).color(text_muted));
+        if widgets::toggle(ui, theme, "Enable dev cheats", &mut cheats_on) {
+            changed = true;
+        }
+    });
+
     // Write back any edits.
     theme.animations_enabled = anim_enabled;
     theme.nav_separator_animation = sep_anim;
@@ -1131,6 +1146,7 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
     theme.attack_indicator_style = atk_style;
     theme.attack_indicator_speed = atk_speed;
     theme.nav_dev_visible = dev_visible;
+    theme.cheats_enabled = cheats_on;
 
     // Auto-clear the test attack pulse after 3 seconds.
     if state.attack_pulse_active {

@@ -184,8 +184,8 @@ fn demo_state() -> GuiState {
     s.cal_month = 6;
     s.cal_selected_day = 21;
     s.cal_events = vec![
-        GuiCalendarEvent { title: "Harvest lettuce".into(), year: 2026, month: 6, day: 21, time: "09:00".into(), color: egui::Color32::from_rgb(80, 180, 80) },
-        GuiCalendarEvent { title: "Volunteer (Sponsor-a-Can)".into(), year: 2026, month: 6, day: 23, time: "08:00".into(), color: egui::Color32::from_rgb(100, 140, 200) },
+        GuiCalendarEvent { title: "Harvest lettuce".into(), year: 2026, month: 6, day: 21, time: "09:00".into(), color: egui::Color32::from_rgb(80, 180, 80) }, // theme-exempt: demo sample event color (test fixture)
+        GuiCalendarEvent { title: "Volunteer (Sponsor-a-Can)".into(), year: 2026, month: 6, day: 23, time: "08:00".into(), color: egui::Color32::from_rgb(100, 140, 200) }, // theme-exempt: demo sample event color (test fixture)
     ];
 
     // ── Wallet ──
