@@ -1193,6 +1193,10 @@ pub struct GuiState {
     /// crops up to the target. Empty = no automated irrigation. Snapshotted by the
     /// inventory page each frame from the garden edit configs.
     pub garden_irrigation: std::collections::HashMap<String, f32>,
+    /// Per-area nutrient strength the garden edit modal publishes (tower_id -> 0..1).
+    /// Bridged to the DataStore's "garden_nutrient" channel; FarmingSystem scales
+    /// matching crops' growth speed by it. Sibling of `garden_irrigation`.
+    pub garden_nutrient: std::collections::HashMap<String, f32>,
     /// Per-tower shared-reservoir compatibility (parallel to `tower_configs`),
     /// computed once from the plant registry in the crop sync. The "make sure
     /// they grow together" check shown on the Home page.
@@ -2301,6 +2305,7 @@ impl Default for GuiState {
             garden_areas: Vec::new(),
             grow_media: Vec::new(),
             garden_irrigation: std::collections::HashMap::new(),
+            garden_nutrient: std::collections::HashMap::new(),
             tower_compat: Vec::new(),
             creative_mode: true,
             active_real_section: "inventory".to_string(),

@@ -2090,6 +2090,12 @@ mod native_app {
                 "garden_irrigation",
                 std::sync::Mutex::new(std::collections::HashMap::<String, f32>::new()),
             );
+            // Per-area nutrient strength (garden edit slider, tower_id -> 0..1) scaling
+            // crop growth speed in FarmingSystem; mirrored from GuiState each frame.
+            data_store.insert(
+                "garden_nutrient",
+                std::sync::Mutex::new(std::collections::HashMap::<String, f32>::new()),
+            );
             // Creative mode (default ON during early dev): the resource-consuming
             // systems (farming seeds/fertilizer, crafting materials) skip the
             // inventory requirement + consumption when this is true. Mirrored from
@@ -3028,6 +3034,18 @@ mod native_app {
                         if let Ok(mut s) = slot.lock() {
                             if *s != state.gui_state.garden_irrigation {
                                 *s = state.gui_state.garden_irrigation.clone();
+                            }
+                        }
+                    }
+                    if let Some(slot) = state
+                        .data_store
+                        .get::<std::sync::Mutex<std::collections::HashMap<String, f32>>>(
+                            "garden_nutrient",
+                        )
+                    {
+                        if let Ok(mut s) = slot.lock() {
+                            if *s != state.gui_state.garden_nutrient {
+                                *s = state.gui_state.garden_nutrient.clone();
                             }
                         }
                     }

@@ -330,6 +330,13 @@ impl System for FarmingSystem {
             .and_then(|m| m.lock().ok())
             .map(|g| g.clone())
             .unwrap_or_default();
+        // Per-area nutrient strength (garden edit slider), keyed by tower_id. Scales
+        // each tower crop's growth speed. Same neutral-map pattern as irrigation.
+        let nutrient: std::collections::HashMap<String, f32> = data
+            .get::<std::sync::Mutex<std::collections::HashMap<String, f32>>>("garden_nutrient")
+            .and_then(|m| m.lock().ok())
+            .map(|g| g.clone())
+            .unwrap_or_default();
 
         // Creative mode (default ON in early dev): planting + fertilizing skip the
         // inventory requirement + consumption. Absent flag (tests) = survival =
@@ -684,7 +691,16 @@ impl System for FarmingSystem {
 
                         // Health-weighted progress: unhealthy crops grow slower
                         let health_factor = (crop.health / 100.0).max(0.1);
-                        let effective_progress = progress * health_factor;
+                        // Per-area nutrient strength (garden edit slider) scales growth
+                        // speed: the 0..1 slider maps to a 0.5x..1.5x multiplier, so the
+                        // default 0.5 is neutral, a rich feed grows faster, a starved
+                        // area grows slower. Un-configured crops grow at the 1.0x base.
+                        let nutrient_factor = crop
+                            .tower_id
+                            .as_ref()
+                            .and_then(|tid| nutrient.get(tid))
+                            .map_or(1.0, |n| 0.5 + n);
+                        let effective_progress = progress * health_factor * nutrient_factor;
 
                         let new_stage =
                             stage_from_progress(effective_progress, &plant_stages);
@@ -1071,6 +1087,62 @@ mod gardening_tests {
             "un-irrigated crop lost health vs the irrigated one ({} vs {})",
             dry_c.health,
             irr_c.health
+        );
+    }
+
+    /// Per-area nutrient strength (garden edit slider) scales growth speed: a
+    /// rich-fed tower (nutrient 1.0 -> 1.5x) grows further in the same elapsed time
+    /// than a starved one (nutrient 0.0 -> 0.5x), proving the nutrient slider reaches
+    /// the sim. Both crops are equally healthy + watered, so only the feed differs.
+    #[test]
+    fn per_area_nutrient_speeds_growth() {
+        use crate::ecs::components::CropInstance;
+        let mut data = make_store();
+        let mut nut = std::collections::HashMap::new();
+        nut.insert("nutrition".to_string(), 1.0_f32); // rich feed -> 1.5x
+        nut.insert("apothecary".to_string(), 0.0_f32); // starved   -> 0.5x
+        data.insert("garden_nutrient", std::sync::Mutex::new(nut));
+
+        // Advance game time to 60% of tomato's growth window so the two feed rates
+        // land the crops on different stages.
+        let (growth_seconds, stages): (f64, Vec<&str>) = {
+            let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
+            let def = reg.get("tomato").unwrap();
+            (def.growth_days as f64 * SECONDS_PER_DAY, def.stages())
+        };
+        {
+            let gt = data
+                .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+                .unwrap();
+            gt.lock().unwrap().elapsed_seconds = growth_seconds * 0.6;
+        }
+
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let young = |tower: &str| CropInstance {
+            crop_def_id: "tomato".to_string(),
+            growth_stage: stages[0].to_string(),
+            planted_at: 0.0,
+            water_level: 1.0,
+            health: 100.0,
+            tower_id: Some(tower.to_string()),
+            tower_slot: Some(0),
+        };
+        let rich = world.spawn((young("nutrition"),));
+        let starved = world.spawn((young("apothecary"),));
+        sys.tick(&mut world, 1.0, &data);
+
+        let rich_c = world.get::<&CropInstance>(rich).unwrap();
+        let starved_c = world.get::<&CropInstance>(starved).unwrap();
+        let rich_idx = stage_index(&rich_c.growth_stage, &stages).unwrap();
+        let starved_idx = stage_index(&starved_c.growth_stage, &stages).unwrap();
+        assert!(
+            rich_idx > starved_idx,
+            "rich-fed crop ({}, idx {}) outgrew starved ({}, idx {})",
+            rich_c.growth_stage,
+            rich_idx,
+            starved_c.growth_stage,
+            starved_idx
         );
     }
 }

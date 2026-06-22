@@ -196,33 +196,40 @@ fn with_garden_edit<R>(f: impl FnOnce(&mut GardenEditState) -> R) -> R {
     S.with(|s| f(&mut s.borrow_mut()))
 }
 
-/// Publish the garden edit modal's water sliders into `state.garden_irrigation` so the
-/// FarmingSystem can act on them (lib.rs bridges the field into the DataStore each
-/// frame). The garden areas are keyed by machine TYPE ("aeroponic_tower"), but crops
-/// carry a `tower_id` ("nutrition"); for a medium that grows towers (`show_slots`), its
-/// one water level applies to every tower variety, so we fan the value out across all
-/// `tower_configs` ids. Non-tower media (soil bed, field) have no `tower_id` crops yet,
-/// so they don't contribute. Recomputed each frame the Inventory page draws.
-fn snapshot_garden_irrigation(state: &mut GuiState) {
+/// Publish the garden edit modal's water + nutrient sliders into `state.garden_irrigation`
+/// and `state.garden_nutrient` so the FarmingSystem can act on them (lib.rs bridges both
+/// fields into the DataStore each frame). The garden areas are keyed by machine TYPE
+/// ("aeroponic_tower"), but crops carry a `tower_id` ("nutrition"); for a medium that
+/// grows towers (`show_slots`), its one slider value applies to every tower variety, so
+/// we fan each value out across all `tower_configs` ids. Non-tower media (soil bed,
+/// field) have no `tower_id` crops yet, so they don't contribute. Recomputed each frame.
+fn snapshot_garden_sim(state: &mut GuiState) {
     let mut irr: std::collections::HashMap<String, f32> = std::collections::HashMap::new();
+    let mut nut: std::collections::HashMap<String, f32> = std::collections::HashMap::new();
     with_garden_edit(|s| {
         for (machine_id, cfg) in &s.configs {
-            let Some(&water) = cfg.values.get("water") else {
-                continue;
-            };
             let grows_towers = state
                 .grow_media
                 .iter()
                 .find(|m| m.matches(machine_id))
                 .map_or(false, |m| m.show_slots);
-            if grows_towers {
-                for tc in &state.tower_configs {
-                    irr.insert(tc.id.clone(), water);
+            if !grows_towers {
+                continue;
+            }
+            let water = cfg.values.get("water").copied();
+            let nutrient = cfg.values.get("nutrient").copied();
+            for tc in &state.tower_configs {
+                if let Some(w) = water {
+                    irr.insert(tc.id.clone(), w);
+                }
+                if let Some(n) = nutrient {
+                    nut.insert(tc.id.clone(), n);
                 }
             }
         }
     });
     state.garden_irrigation = irr;
+    state.garden_nutrient = nut;
 }
 
 /// Test hook: open the garden edit modal for a machine id, so the snapshot harness
@@ -1683,8 +1690,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Per-medium grow-area edit modal — shown at ctx level (a floating window) when
     // a Garden tile was clicked. Rendered after the panel so it overlays everything.
     garden_edit_modal(ctx, theme, state);
-    // Publish this frame's water sliders to the sim (after the modal applies edits).
-    snapshot_garden_irrigation(state);
+    // Publish this frame's water + nutrient sliders to the sim (after the modal edits).
+    snapshot_garden_sim(state);
     // Per-asteroid mining modal (clicked a Mining card) — also at ctx level.
     mining_modal(ctx, theme, state);
 }
