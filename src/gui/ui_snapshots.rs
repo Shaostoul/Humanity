@@ -439,7 +439,7 @@ macro_rules! page_snapshot {
 page_snapshot!(snapshot_main_menu, "main_menu", main_menu, 1280, 900);
 page_snapshot!(snapshot_humanity, "humanity", humanity, 1280, 900);
 page_snapshot!(snapshot_chat, "chat", chat, 1280, 900);
-page_snapshot!(snapshot_inventory, "inventory", inventory, 1280, 900);
+page_snapshot!(snapshot_inventory, "inventory", inventory, 1280, 1700);
 page_snapshot!(snapshot_tasks, "tasks", tasks, 1280, 900);
 page_snapshot!(snapshot_market, "market", market, 1280, 900);
 page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);

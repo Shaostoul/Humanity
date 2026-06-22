@@ -125,6 +125,101 @@ fn vital_tile(ui: &mut egui::Ui, theme: &Theme, name: &str, value: &str, frac: f
         });
 }
 
+/// A grow area in the homestead garden: a KIND of growing machine and how many of
+/// it the home has, with its per-unit food contribution. Surfaced so the Garden
+/// section shows the WHOLE garden (towers + beds + racks + tanks + fields), not
+/// just the two aeroponic tower designs.
+#[derive(Clone)]
+struct GardenArea {
+    label: String,
+    machine_id: String,
+    count: u32,
+    food: String,
+}
+
+/// Count every growing machine placed in the garden room of `data/machines/home.ron`
+/// (a "grow" machine has a food stat but is not pure storage like the silo), grouped
+/// by type. Instances + the dense `arrays` grids. Empty if the file is absent.
+fn load_garden_areas() -> Vec<GardenArea> {
+    let path = std::path::Path::new("data").join("machines").join("home.ron");
+    let Some(home) = crate::machines::MachineHome::load(&path) else {
+        return Vec::new();
+    };
+    let is_grow = |machine: &str| {
+        home.catalog.get(machine).map_or(false, |d| {
+            d.stats.iter().any(|s| s.kind == "food") && !d.stats.iter().any(|s| s.kind == "storage")
+        })
+    };
+    let mut counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    for inst in &home.instances {
+        if inst.room == "garden" && is_grow(&inst.machine) {
+            *counts.entry(inst.machine.clone()).or_insert(0) += 1;
+        }
+    }
+    for arr in &home.arrays {
+        if arr.room == "garden" && is_grow(&arr.machine) {
+            *counts.entry(arr.machine.clone()).or_insert(0) += arr.rows * arr.cols;
+        }
+    }
+    let mut out: Vec<GardenArea> = counts
+        .into_iter()
+        .map(|(machine, count)| {
+            let def = home.catalog.get(&machine);
+            let label = def.map(|d| d.label.clone()).unwrap_or_else(|| machine.clone());
+            let food = def
+                .and_then(|d| d.stats.iter().find(|s| s.kind == "food"))
+                .map(|s| s.value.clone())
+                .unwrap_or_default();
+            GardenArea { label, machine_id: machine, count, food }
+        })
+        .collect();
+    // Most-numerous first, then by name, so the overview reads stably frame to frame.
+    out.sort_by(|a, b| b.count.cmp(&a.count).then(a.label.cmp(&b.label)));
+    out
+}
+
+/// Cached garden grow-areas (loaded once from home.ron).
+fn garden_areas() -> &'static [GardenArea] {
+    static AREAS: std::sync::OnceLock<Vec<GardenArea>> = std::sync::OnceLock::new();
+    AREAS.get_or_init(load_garden_areas)
+}
+
+/// One grow area as a TILE: a colour swatch + name, the count (×N), and the per-unit
+/// food output. A grid of these is the at-a-glance "whole garden" overview.
+fn garden_area_tile(ui: &mut egui::Ui, theme: &Theme, a: &GardenArea) {
+    Frame::none()
+        .fill(theme.bg_card())
+        .rounding(Rounding::same(theme.border_radius_lg as u8))
+        .stroke(Stroke::new(1.0, theme.border()))
+        .inner_margin(Vec2::new(10.0, 8.0))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(Vec2::splat(10.0), egui::Sense::hover());
+                ui.painter().circle_filled(r.center(), 5.0, widgets::swatch_color(&a.machine_id));
+                ui.label(
+                    RichText::new(&a.label)
+                        .strong()
+                        .color(theme.text_primary())
+                        .size(theme.font_size_small),
+                );
+            });
+            ui.label(
+                RichText::new(format!("×{}", a.count))
+                    .size(theme.font_size_heading)
+                    .strong()
+                    .color(theme.accent()),
+            );
+            if !a.food.is_empty() {
+                ui.label(
+                    RichText::new(&a.food)
+                        .size(theme.font_size_small)
+                        .color(theme.text_secondary()),
+                );
+            }
+        });
+}
+
 /// Parse item data from embedded CSV to get details for a given item_id.
 fn lookup_item_details(item_id: &str) -> Option<ItemDetails> {
     let csv = crate::embedded_data::ITEMS_CSV;
@@ -722,6 +817,35 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 });
                 ui.add_space(theme.spacing_xs);
+                // Grow-area overview: EVERY growing machine in the home's garden
+                // (towers, beds, racks, tanks, fields) and how many of each, as tiles,
+                // so the section shows the whole garden at a glance, not just the two
+                // plantable tower designs. Data-driven from data/machines/home.ron.
+                let areas = garden_areas();
+                if !areas.is_empty() {
+                    let total: u32 = areas.iter().map(|a| a.count).sum();
+                    ui.label(
+                        RichText::new(format!("{} grow areas, {} kinds", total, areas.len()))
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                    ui.add_space(theme.spacing_xs);
+                    let gcols = 4usize;
+                    ui.columns(gcols, |cols| {
+                        for (i, a) in areas.iter().enumerate() {
+                            let c = &mut cols[i % gcols];
+                            garden_area_tile(c, theme, a);
+                            c.add_space(theme.spacing_sm);
+                        }
+                    });
+                    ui.add_space(theme.spacing_sm);
+                    ui.label(
+                        RichText::new("Plantable tower designs")
+                            .strong()
+                            .color(theme.text_secondary()),
+                    );
+                    ui.add_space(theme.spacing_xs);
+                }
                 // Garden as an aligned TABLE grouped by tower (operator 2026-06-08:
                 // rows/columns spreadsheet design, not a tree+detail). One collapsible
                 // group per tower (a Plant button in its body), each a compact egui::Grid
