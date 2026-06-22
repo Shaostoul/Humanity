@@ -15,9 +15,14 @@ name: Verify
 #      un-added x.rs simply fails to compile here. Do NOT add working-tree caching that
 #      would defeat this; only the Cargo build cache is restored (Swatinem/rust-cache).
 #
-# Scope note: native LIB tests are NOT run here -- linking the native test binary needs
-# GPU/windowing dev libs, and those tests already run on the GPU-equipped dev host via
-# `just verify`. CI's unique value is the link-free gates below.
+# Scope note: the NATIVE build + lib tests are NOT run here. `cargo check --features
+# native` pulls alsa-sys/wayland/xkbcommon, whose build scripts need system C dev libs
+# (libasound2-dev, ...) that a bare runner lacks, and the lib tests additionally need to
+# LINK those. Both already run on the dev host (`just verify` / `just check`). CI's
+# unique value is the link-free gates below: the relay build (the deploy feature set),
+# the std-only lints, and doc-links -- exactly the classes the Windows host gates only
+# via opt-in dances. Adding native coverage here would mean apt-installing the C libs;
+# deferred to keep this robust.
 on:
   push:
     branches: [ main ]
@@ -40,9 +45,6 @@ jobs:
 
       - name: Relay build (the feature set the VPS deploys with -- the #1 gate)
         run: cargo check --features relay --no-default-features
-
-      - name: Native build (compile-only; no GPU link needed for `check`)
-        run: cargo check --features native
 
       - name: GUI + engine lints (all five, standalone -- no native link)
         run: |

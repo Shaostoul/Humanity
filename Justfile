@@ -447,23 +447,14 @@ clear-desktop-cache:
 # GIT HOOKS — install once, runs automatically on every commit
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Install a pre-commit hook that runs `cargo check` before every git commit
-# Prevents shipping broken Rust — run once after cloning
+# Install GIT pre-commit + pre-push hooks that turn the recurring CI gotchas into fast,
+# self-explaining local gates (dead-path block, cargo-fmt blast guard, relay build, the
+# five lints; pre-push blocks untracked source). Node-based so it works on the Windows
+# host (a `just` shebang recipe needs cygpath, which is absent here). CI (verify.yml) is
+# the unconditional backstop; this is the fast local layer. Bypass with --no-verify.
+# (Distinct from `node scripts/install-hooks.js`, which installs CLAUDE CODE hooks.)
 install-hooks:
-    #!/usr/bin/env bash
-    HOOK=.git/hooks/pre-commit
-    cat > "$HOOK" << 'HOOKEOF'
-    #!/usr/bin/env bash
-    # Auto-installed by: just install-hooks
-    echo "→ pre-commit: cargo check..."
-    if ! cargo check --features relay --no-default-features -q 2>&1; then
-        echo "✗ Rust errors found. Fix before committing. (bypass with git commit --no-verify)"
-        exit 1
-    fi
-    echo "✓ Rust OK"
-    HOOKEOF
-    chmod +x "$HOOK"
-    echo "✓ Pre-commit hook installed at $HOOK"
+    node scripts/install-git-hooks.js
 
 # ══════════════════════════════════════════════════════════════════════════════
 # WATCH — auto-deploy on file change (requires watchexec: scoop install watchexec)

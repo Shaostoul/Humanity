@@ -324,19 +324,14 @@ Don't touch these until TIERs 0-3 are mostly done. Listing them so they're not f
 4. **AI agent governance.** First-class AI participation is in `docs/ai/onboarding.md`. As more AI participants connect, governance protocols (Article 14 of the Humanity Accord) need to evolve from "documented intent" to "enforced rules with appeals."
 5. **Distribution layer beyond GitHub.** Forgejo mirror exists. BitTorrent + IPFS scaffolded. Codeberg + Software Heritage + WinGet manifest still pending per `docs/admin/distribution-mirrors.md`.
 
-## Done: recent (last 30 days, newest at top)
-- v0.283.0, voice signaling no-op stubs + deferred-feature note
-- v0.282.0, typing + message_deleted + federated_chat propagation
-- v0.281.0, admin/mod right-click → Delete any message
-- v0.280.0, anti-spam: new-identity time-gate + per-IP cap
-- v0.279.0, pre-public hardening trio: bot_secret + /dm + identify rate-limit
-- v0.278.0, auto-unlock: 3 modes (always prompt / OS keychain / quick PIN)
-- v0.277.0, native vault PBKDF2 100k → 600k
-- v0.276.0, federation gossip Ed25519 → Dilithium3
-- v0.275.0, native chat signing (closes MED-1) + pq-wipe.sh hardening
-- v0.274.0, Inc3b identify proof-of-possession (closes HIGH-2)
+## Recent shipped work
 
-For older history see `docs/history/<date>.md` files + git log.
+This file lists only NOT-yet-done items. For what shipped, the live sources are:
+`git log`, `data/coordination/orchestrator_state.json` `recent_decisions` (the why),
+the GitHub releases, and `docs/history/<date>.md`. (A hand-maintained "last 30 days"
+list lived here but rotted to v0.283.0 while the project shipped past v0.515 -- a third
+competing "what's done" list is worse than none. Don't reintroduce it: SHIPPED recaps go
+in the journal, this file stays forward-looking.)
 
 ## Tier criteria: how to decide where something goes
 
