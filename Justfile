@@ -369,6 +369,7 @@ gen-release-key:
 sign-release version:
     @test -n "$HUMANITY_SIGNING_PASSPHRASE" || (echo "✗ Set HUMANITY_SIGNING_PASSPHRASE first"; exit 1)
     @test -f release-signing-key.enc || (echo "✗ No release-signing-key.enc — run 'just gen-release-key' first"; exit 1)
+    @gh release view {{version}} --repo Shaostoul/Humanity --json assets --jq '.assets[].name' 2>/dev/null | grep -q 'HumanityOS-windows-x64.exe' || (echo "✗ No platform binaries on {{version}} yet. The 'Build Desktop App' workflow (triggered by the tag) is still building them -- it takes ~35-40 min from the tag push. Watch it:  gh run list --repo Shaostoul/Humanity --workflow 'Build Desktop App' --limit 3 . Re-run 'just sign-release {{version}}' once that run is green."; exit 1)
     @rm -rf /tmp/humanity-relsign && mkdir -p /tmp/humanity-relsign
     gh release download {{version}} --repo Shaostoul/Humanity -D /tmp/humanity-relsign \
         --pattern 'HumanityOS-windows-x64.exe' --pattern 'HumanityOS-linux-x64' \
