@@ -11,6 +11,26 @@
 
 ## Active focus
 
+> **ACTIVE 2026-06-22: INVENTORY REDESIGN (operator-directed) — nested-container TILES.**
+> The operator specified a spatial inventory: every container is a card holding its items
+> as evenly-sized TILES with its sub-containers nested inside (person -> shirt -> pocket ->
+> {pen, keychain, wallet}; house -> rooms -> containers; car -> trunk), with MULTIPLE
+> inventories visible so items can be transferred between them and inspected. Full spec in
+> memory `design_nested_container_inventory`.
+> - **Increment 1 SHIPPED v0.512.0:** `draw_container` recursive renderer (items = tiles,
+>   sub-containers = nested cards), `Place.items` field, tile selection + inspect card.
+>   `data/places/seed.json` already modelled the nested kit, so this was a renderer over
+>   existing data, not a migration.
+> - **NEXT:** (1) operator verifies v0.512 click behavior in `just launch` (open a
+>   container, select a tile — egui interactivity can't be snapshot-verified). (2) Item
+>   **TRANSFER** between containers (the core ask) — needs a LIVE per-container item model,
+>   since today only the backpack holds live items and other containers are seeded labels;
+>   decide that model with the operator. (3) Per-tile actions for non-backpack items.
+>
+> **SHIPPED 2026-06-22 (v0.511.0): MINING MAP reads as a journey** — route line in accent +
+> drone labelled mid-trip ("drone · outbound"), fixed the "Hom drone" label collision. The
+> "see your little drone going off to mine, with real distance" view.
+
 > **SHIPPED 2026-06-22 (v0.508-0.510): GARDEN EDIT SLIDERS ARE NOW FUNCTIONAL (autonomous loop, native).**
 > The garden edit modal was cosmetic -- the per-medium form existed but nothing consumed
 > its values. Now: v0.508.0 moved the grow-media into `data/garden/grow_media.ron` (a
