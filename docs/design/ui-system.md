@@ -330,3 +330,43 @@ and surface the same data. Changes to one should land in the other.
 When a new page lands in either UI, update this table. If the page is
 intentionally one-sided, it must appear under "documented exception" with the
 reason. Empty boxes in the parity audit are a dual-UI bug.
+
+## Verifying the native UI (snapshots + headless interaction)
+
+The native egui UI has two automated verification layers. Both run on the dev host;
+the link-free parts also run in CI (`.github/workflows/verify.yml`).
+
+### Snapshots (does it RENDER)
+
+`just snapshots` renders pages to `tests/snapshots/*.png` via an offscreen wgpu
+device (`src/gui/ui_snapshots.rs::render_page_png`). Read the PNGs to review layout.
+These need a GPU, so they are `#[ignore]`d and run single-threaded.
+
+### Interaction tests (does it WORK)
+
+Rendering is not interactivity: an egui panel can paint yet be un-clickable (the
+"shows != works" trap). `ui_snapshots.rs` drives SYNTHETIC pointer input through the
+app's own egui with NO GPU, so a click can be asserted in the normal
+`cargo test --features native --lib` pass (and in CI):
+
+- `headless_run(screen, frames, build)` runs `build` once per frame, feeding that
+  frame's `egui::Event`s, and returns the `Context` to read post-run state.
+- A click is the canonical 3-frame sequence: `PointerMoved(pos)`, then
+  `PointerButton{pressed:true}`, then `{pressed:false}` in SEPARATE frames (same-frame
+  press+release works for a plain `Button` but not for a re-`interact()`ed row).
+- Locate a widget by recording its `rect` at layout time behind `#[cfg(test)]` (egui
+  has no query-by-content API). See `RECORDED_HEADER_RECTS` + `test_recorded_header_rect`
+  in `inventory.rs`, and the worked example `inventory_container_header_click_toggles_open`.
+
+Two rules this discipline surfaced, worth following for any new clickable widget:
+
+1. **Give a clickable region a STABLE `Id`** (`ui.interact(rect, Id::new(("thing", key)), Sense::click())`),
+   not an auto-generated one. A stable Id makes the cross-frame press/release reliably
+   attribute to the widget; an auto Id is sequence-dependent and the synthetic click is
+   silently dropped. (This is also why the inventory container header got a stable Id.)
+2. **A click target that claims `available_width()` can run wider than the screen** in a
+   scroll context, so its `rect.center()` may be off-screen. Click a known on-screen
+   point on the widget, not blindly its center.
+
+When you add a new interactive widget, add a click-assert here in the same increment,
+the same way a new color token must appear in the Settings editor.

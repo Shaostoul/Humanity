@@ -48,6 +48,32 @@ function readRegistryScopeIds() {
   return ids;
 }
 
+// Days between an ISO/date string and now. NaN if unparseable. Derived from the
+// `audited_at` field INSIDE each session file (not file mtime, which git does not
+// preserve on a fresh clone / new worktree — exactly when a fresh agent reads this).
+function daysOld(dateStr) {
+  if (!dateStr) return NaN;
+  const t = new Date(dateStr).getTime();
+  if (isNaN(t)) return NaN;
+  return Math.floor((Date.now() - t) / 86400000);
+}
+
+const STALE_DAYS = 14;
+
+// A loud banner when the newest audit is old, so a fresh AI does not trust
+// 2-month-old "feature-complete" rows as current. The project ships many releases
+// a week; stale scope data actively misleads.
+function stalenessBanner(sessions) {
+  const ages = sessions.map(s => daysOld(s.audited_at)).filter(n => !isNaN(n));
+  if (!ages.length) return '';
+  const newest = Math.min(...ages);
+  if (newest <= STALE_DAYS) return '';
+  return `> **WARNING: scope audit data is ${newest}+ days stale.** These rows reflect ` +
+    `a snapshot from weeks/months and many releases ago, not the current tree. Trust ` +
+    `\`data/coordination/orchestrator_state.json\` (the live journal) + \`docs/PRIORITIES.md\` ` +
+    `for what is true NOW; re-run a scope audit to refresh a row before relying on it.\n\n`;
+}
+
 function statusEmoji(status) {
   return ({
     complete: '✅',
@@ -71,13 +97,16 @@ function renderMarkdown(sessions, registryIds) {
 
   let md = '# Agent coordination status\n\n';
   md += `Generated: ${new Date().toISOString()}\n\n`;
+  md += stalenessBanner(sessions);
   md += `Audited scopes: **${sessions.length} / ${registryIds.length}**\n\n`;
 
   // Summary table
   md += '| Scope | Status | Recommendation | Audited | Summary |\n';
   md += '|---|---|---|---|---|\n';
   for (const s of sessions.sort((a, b) => a.scope_id.localeCompare(b.scope_id))) {
-    md += `| **${s.scope_id}** | ${statusEmoji(s.implementation_status)} ${s.implementation_status || '?'} | ${recommendationEmoji(s.recommended_status)} | ${s.audited_at || '?'} | ${(s.summary || '').replace(/\|/g, '\\|').slice(0, 100)} |\n`;
+    const age = daysOld(s.audited_at);
+    const auditedCol = `${s.audited_at || '?'}${!isNaN(age) && age > STALE_DAYS ? ` (STALE ${age}d)` : ''}`;
+    md += `| **${s.scope_id}** | ${statusEmoji(s.implementation_status)} ${s.implementation_status || '?'} | ${recommendationEmoji(s.recommended_status)} | ${auditedCol} | ${(s.summary || '').replace(/\|/g, '\\|').slice(0, 100)} |\n`;
   }
 
   if (unaudited.length) {

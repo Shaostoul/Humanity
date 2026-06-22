@@ -386,6 +386,147 @@ fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &T
     });
 }
 
+// ── Interaction harness (no GPU) ──
+// Proves SYNTHETIC pointer input can drive the app's egui headlessly so a CLICK can be
+// ASSERTED in a normal lib test -- closing the operator's "shows != works" gap (egui can
+// render yet be non-interactive) without a human launching the app. Interaction is pure
+// egui layout + hit-testing; no wgpu device is needed, so these run in the standard
+// `cargo test --features native --lib` pass (and on Linux CI) unlike the GPU snapshots.
+
+/// Run `build` once per entry in `frames` against a fresh egui Context, feeding that
+/// entry's events on that frame. Returns the Context so a caller can read post-run state
+/// (egui memory, `ctx.read_response`). A click needs >=2 frames: one to lay out + place
+/// the pointer, the next to press/release against the prior frame's widget rects.
+#[cfg(test)]
+fn headless_run(
+    screen: egui::Vec2,
+    frames: &[Vec<egui::Event>],
+    mut build: impl FnMut(&egui::Context),
+) -> egui::Context {
+    let ctx = egui::Context::default();
+    for ev in frames {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), screen)),
+            events: ev.clone(),
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| build(ctx));
+    }
+    ctx
+}
+
+/// Frame sequence for a primary click at `pos`: frame 1 positions the pointer (so the
+/// next frame's hit-test has a settled pointer + the prior layout's rects), frame 2
+/// presses and releases. Extra leading empty frames let a page settle (Areas/Windows
+/// take a frame to position) before the click.
+#[cfg(test)]
+fn click_frames(pos: egui::Pos2, settle: usize) -> Vec<Vec<egui::Event>> {
+    let m = egui::Modifiers::default();
+    let mut frames: Vec<Vec<egui::Event>> = Vec::new();
+    for _ in 0..settle {
+        frames.push(Vec::new());
+    }
+    frames.push(vec![egui::Event::PointerMoved(pos)]);
+    frames.push(vec![
+        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m },
+        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m },
+    ]);
+    frames
+}
+
+/// SPIKE: confirm the synthetic-click mechanism works on this egui version before any
+/// page-level harness is built on it (de-risks the press/release timing).
+#[test]
+fn spike_synthetic_click_registers() {
+    use std::cell::Cell;
+    let clicked = Cell::new(false);
+    let target = egui::pos2(60.0, 55.0); // inside the button rect below
+    let frames = click_frames(target, 0);
+    headless_run(egui::vec2(200.0, 200.0), &frames, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let resp = ui.put(
+                egui::Rect::from_min_size(egui::pos2(40.0, 40.0), egui::vec2(80.0, 30.0)),
+                egui::Button::new("Hit me"),
+            );
+            if resp.clicked() {
+                clicked.set(true);
+            }
+        });
+    });
+    assert!(
+        clicked.get(),
+        "synthetic primary click did not register -- the press+release sequence needs \
+         adjusting for this egui version"
+    );
+}
+
+/// REAL interaction test on app code: clicking the "Home" container header in the
+/// nested-container inventory toggles its open state. This is exactly the "shows !=
+/// works" check the operator otherwise has to do by hand in `just launch` -- now a
+/// headless lib test. No GPU: pure egui layout + hit-testing.
+#[test]
+fn inventory_container_header_click_toggles_open() {
+    let ctx = egui::Context::default();
+    let theme = load_theme();
+    theme.apply_to_egui(&ctx);
+    let mut state = demo_state();
+    let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 1700.0));
+    let run = |ctx: &egui::Context, events: Vec<egui::Event>, state: &mut GuiState, theme: &Theme| {
+        let input = egui::RawInput { screen_rect: Some(screen), events, ..Default::default() };
+        ctx.run(input, |ctx| crate::gui::pages::inventory::draw(ctx, theme, state));
+    };
+
+    // Settle: lay the page out twice so the places section expands + records the
+    // header rects. Clear shared-thread test state first.
+    crate::gui::pages::inventory::test_clear_recorded_rects();
+    crate::gui::pages::inventory::test_close_garden_edit();
+    crate::gui::pages::inventory::test_close_mining_edit();
+    crate::gui::pages::inventory::test_clear_placed();
+    run(&ctx, Vec::new(), &mut state, &theme);
+    run(&ctx, Vec::new(), &mut state, &theme);
+
+    // "Home" is the second top-level place -> path "1" (You=0, Home=1, vehicle=2).
+    let rect = crate::gui::pages::inventory::test_recorded_header_rect("1")
+        .expect("Home container header rect should be recorded (places section open + on-screen)");
+    // Click the LEFT of the header (over the triangle/label), not rect.center(): the
+    // full-row click target claims the scroll's available width, which can run wider
+    // than the screen, so the center may be off-screen. The left edge is always on it.
+    let center = egui::pos2(rect.left() + 30.0, rect.center().y);
+    let open_id = egui::Id::new(("place_open", "1"));
+    let before = ctx.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(true);
+
+    // Click the header with the canonical egui sequence in SEPARATE frames: move,
+    // then press, then release. (A re-`interact()`ed row needs the press and release
+    // on different frames; same-frame works for a plain Button but not here.)
+    let m = egui::Modifiers::default();
+    run(&ctx, vec![egui::Event::PointerMoved(center)], &mut state, &theme);
+    run(
+        &ctx,
+        vec![egui::Event::PointerButton { pos: center, button: egui::PointerButton::Primary, pressed: true, modifiers: m }],
+        &mut state,
+        &theme,
+    );
+    run(
+        &ctx,
+        vec![egui::Event::PointerButton { pos: center, button: egui::PointerButton::Primary, pressed: false, modifiers: m }],
+        &mut state,
+        &theme,
+    );
+
+    let after = ctx.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(true);
+    crate::gui::pages::inventory::test_clear_recorded_rects();
+    assert!(
+        crate::gui::pages::inventory::test_header_was_clicked("1"),
+        "the synthetic click was not attributed to the Home header"
+    );
+    assert_ne!(
+        before, after,
+        "clicking the Home container header did NOT toggle its open state -- the header \
+         renders but is not interactive (the 'shows != works' failure this harness exists \
+         to catch)"
+    );
+}
+
 /// egui clear colors are sRGB bytes; the Rgba8Unorm target wants linear floats.
 fn srgb_to_lin(c: u8) -> f64 {
     let s = c as f64 / 255.0;

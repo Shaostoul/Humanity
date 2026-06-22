@@ -550,12 +550,27 @@ fn draw_container(
             }
             ui.allocate_space(egui::vec2(ui.available_width().max(0.0), 1.0));
         });
-        let row = header.response.interact(egui::Sense::click());
+        // Re-interact the header row with a STABLE per-path Id so the click is reliably
+        // attributed to this header across frames (an auto-generated Id is sequence-
+        // dependent; a stable one also lets the headless interaction harness drive it).
+        let row = ui.interact(
+            header.response.rect,
+            egui::Id::new(("place_header", path)),
+            egui::Sense::click(),
+        );
+        #[cfg(test)]
+        RECORDED_HEADER_RECTS.with(|r| {
+            r.borrow_mut().insert(path.to_string(), row.rect);
+        });
         if row.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
         if row.clicked() {
             open = !open;
+            #[cfg(test)]
+            RECORDED_HEADER_CLICKS.with(|r| {
+                r.borrow_mut().insert(path.to_string());
+            });
         }
         if open {
             // Direct contents render as item TILES: the live backpack stack (at the
@@ -808,6 +823,38 @@ pub(crate) fn test_select_placed(idx: usize) {
 #[cfg(test)]
 pub(crate) fn test_clear_placed() {
     with_placed_sel(|s| *s = None);
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Container-header rects recorded during a draw, keyed by container path, so the
+    /// headless INTERACTION harness can locate a header to click (egui has no
+    /// query-widget-by-content API; we record the rect at layout time).
+    static RECORDED_HEADER_RECTS: RefCell<std::collections::HashMap<String, egui::Rect>> =
+        RefCell::new(std::collections::HashMap::new());
+    /// Paths whose header registered a click on the most recent draw (debug/assert hook).
+    static RECORDED_HEADER_CLICKS: RefCell<std::collections::HashSet<String>> =
+        RefCell::new(std::collections::HashSet::new());
+}
+
+/// Test hook: did the container header at `path` register a click on the last draw?
+#[cfg(test)]
+pub(crate) fn test_header_was_clicked(path: &str) -> bool {
+    RECORDED_HEADER_CLICKS.with(|r| r.borrow().contains(path))
+}
+
+/// Test hook: the recorded clickable rect of the container header at `path` (the
+/// inventory renderer's path scheme, e.g. "1" for the second top-level place). `None`
+/// if that container was not laid out this frame (collapsed ancestor / scrolled off).
+#[cfg(test)]
+pub(crate) fn test_recorded_header_rect(path: &str) -> Option<egui::Rect> {
+    RECORDED_HEADER_RECTS.with(|r| r.borrow().get(path).copied())
+}
+
+/// Test hook: clear recorded header rects before a fresh interaction run.
+#[cfg(test)]
+pub(crate) fn test_clear_recorded_rects() {
+    RECORDED_HEADER_RECTS.with(|r| r.borrow_mut().clear());
 }
 
 /// Test hook: render just the mining map (the snapshot harness can't reliably reach

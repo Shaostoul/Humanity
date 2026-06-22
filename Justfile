@@ -82,7 +82,9 @@ deploy msg="chore: update":
 # on GitHub which produces the platform binaries linked from download.html.
 _commit msg:
     git add -A
-    git diff --cached --quiet || git commit -m "{{msg}}"
+    @printf '%s' "{{msg}}" > .git/COMMIT_HUMANITY_MSG
+    git diff --cached --quiet || git commit -F .git/COMMIT_HUMANITY_MSG
+    @rm -f .git/COMMIT_HUMANITY_MSG
     git push origin main
     -git push forge main
     @node -e "const fs=require('fs'),{execSync}=require('child_process');const v=fs.readFileSync('Cargo.toml','utf8').match(/^version = \"(.+)\"/m)[1];const tag='v'+v;try{execSync('git rev-parse '+tag,{stdio:'ignore'});console.log('Tag '+tag+' already exists');}catch(e){try{execSync('git tag '+tag,{stdio:'inherit'});execSync('git push origin '+tag,{stdio:'inherit'});try{execSync('git push forge '+tag,{stdio:'inherit'});console.log('Tagged and pushed '+tag+' to origin + forge');}catch(fe){console.warn('Forge tag push failed: '+fe.message);}}catch(err){console.warn('Tag failed: '+err.message);}}"
@@ -165,6 +167,13 @@ status:
     @echo ""
     @echo "── Live site ────────────────────────────────"
     @just ping
+
+# One-shot ORIENTATION for a fresh session (AI or human): local version vs the latest
+# release (LOCAL AHEAD flag), the last CI deploy status, release-signing state, and the
+# newest journal decision + a session-data staleness check. Run this FIRST -- it
+# surfaces in one screen the things the START-HERE reads check for one by one.
+brief:
+    @node scripts/brief.js
 
 # Check whether recent releases are signed (the desktop auto-update gate). An unsigned LATEST
 # means the updater offers nothing -- fix with `just sign-release vX.Y.Z` (operator only).
@@ -269,7 +278,7 @@ verify:
 # native bin, which dodges the Windows LNK1318 PDB limit (see CLAUDE.md gotcha).
 # One bash line so the loop + the CARGO_MANIFEST_DIR env share a shell.
 lints:
-    export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
+    export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
 
 # Render the native UI pages to PNGs in tests/snapshots/ for review. Needs a GPU
 # (the dev machine has one); skips gracefully if none. Open the PNGs after.
@@ -293,9 +302,13 @@ build-relay:
 run-relay:
     cargo run --features relay --no-default-features -- --headless
 
-# Run formatter
+# cargo fmt is BANNED in this repo (Incident v0.390): it reformats ~240 files and
+# moves inline `// theme-exempt` markers onto their own line, silently breaking
+# theme_token_lint. Match surrounding style by hand. This recipe is a hard stop so
+# `just fmt` can never trigger the incident by reflex.
 fmt:
-    cargo fmt
+    @echo "cargo fmt is BANNED here -- reformats ~240 files, moves inline // theme-exempt markers, breaks theme_token_lint (Incident v0.390). Match style by hand. See CLAUDE.md."
+    @exit 1
 
 # Run clippy linter
 clippy:

@@ -1,0 +1,56 @@
+name: Verify
+
+# Fast correctness gate on every push + PR. This is the BACKSTOP that the Windows-only,
+# opt-in `just verify` can never be: it runs on a CLEAN ubuntu checkout, so the lints the
+# dev host can only run via the standalone-rustc dance (the Windows LNK1318 PDB limit)
+# become an unconditional gate, and the relay-feature build -- the one CI deploys with --
+# is checked at PR/push time instead of only discovered red in the post-merge deploy log.
+#
+# Two documented incident classes this closes:
+#   1. An ungated native module kept "Deploy to VPS" RED for 25 releases (v0.381->v0.414)
+#      because nothing checked the relay build before merge. `cargo check --features relay`
+#      below makes that impossible to miss.
+#   2. Untracked source files (.rs/.ron/.csv) that compile locally but fail a fresh
+#      checkout. This job IS the fresh checkout -- a committed `mod x;` that references an
+#      un-added x.rs simply fails to compile here. Do NOT add working-tree caching that
+#      would defeat this; only the Cargo build cache is restored (Swatinem/rust-cache).
+#
+# Scope note: native LIB tests are NOT run here -- linking the native test binary needs
+# GPU/windowing dev libs, and those tests already run on the GPU-equipped dev host via
+# `just verify`. CI's unique value is the link-free gates below.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: check + lints
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Relay build (the feature set the VPS deploys with -- the #1 gate)
+        run: cargo check --features relay --no-default-features
+
+      - name: Native build (compile-only; no GPU link needed for `check`)
+        run: cargo check --features native
+
+      - name: GUI + engine lints (all five, standalone -- no native link)
+        run: |
+          export CARGO_MANIFEST_DIR="$(pwd)"
+          for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint; do
+            echo ">> lint: $t"
+            rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test" && "/tmp/$t.test"
+          done
+
+      - name: Doc links (must stay 0 broken)
+        run: node scripts/check-doc-links.js

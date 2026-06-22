@@ -45,7 +45,10 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     ("PlacementSystem", "paired with ConstructionSystem; same build-mode gating"),
     ("EconomySystem", "needs market/credits entities + live verification"),
     ("VehicleSystem", "needs vehicle entities + control wiring"),
-    ("ElectricalSystem", "scaffold/partial; needs a power-network entity layer"),
+    // ElectricalSystem + SolarSystem are REGISTERED in src/lib.rs (the live home power
+    // sim: solar scales by time of day, electrical sums supply/demand + battery SoC),
+    // so they are intentionally NOT deferred — the lint detects their path-qualified
+    // register() calls directly.
     ("PsychologySystem", "scaffold/partial; needs agent-psychology state wired"),
     // Self-loading scaffolds (new(data_dir)) — real data, thin behaviour; register
     // each when its entity layer + consumers exist.
@@ -135,10 +138,24 @@ fn registered_systems() -> BTreeSet<String> {
     let mut set = BTreeSet::new();
     for (i, _) in src.match_indices("register(") {
         let after = &src[i + "register(".len()..];
-        let name = leading_ident(after);
-        // Only count types (UpperCamelCase) — skips register(my_var) style calls.
-        if name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
-            set.insert(name);
+        // Take the constructor PATH (identifier + `::` segments) up to the first
+        // non-path char, e.g. `crate::systems::solar::SolarSystem::new`,
+        // `FarmingSystem::new`, or just `PlayerControllerSystem`.
+        let path: String = after
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == ':')
+            .collect();
+        // The system TYPE is the LAST UpperCamelCase segment — this skips the module
+        // path and the lowercase `new`, so a fully-qualified `register(crate::..::X::new())`
+        // is detected just like the short `register(X::new())` form. (Before this, the
+        // leading-ident approach read `crate` from a path-qualified call and silently
+        // missed the registration — a false positive that kept this lint red.)
+        if let Some(name) = path
+            .split("::")
+            .filter(|seg| seg.chars().next().map(|c| c.is_uppercase()).unwrap_or(false))
+            .last()
+        {
+            set.insert(name.to_string());
         }
     }
     set
