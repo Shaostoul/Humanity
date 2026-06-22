@@ -393,39 +393,6 @@ struct ItemDetails {
     description: String,
 }
 
-/// Convert a [`crate::gui::Place`] hierarchy into renderable [`widgets::TreeNode`]s,
-/// injecting the live backpack `items` at the node marked `kind: "backpack"`.
-/// Place nodes are non-selectable (empty id); only the injected item leaves are
-/// clickable. Each node gets a colour swatch by kind (so You / your home / a
-/// vehicle / containers / items read at a glance) and shows its location and/or
-/// coordinate as right-aligned detail.
-fn place_to_tree(theme: &Theme, place: &crate::gui::Place, items: &[widgets::TreeNode]) -> widgets::TreeNode {
-    let mut children: Vec<widgets::TreeNode> =
-        place.children.iter().map(|c| place_to_tree(theme, c, items)).collect();
-    if place.kind == "backpack" {
-        children.extend(items.iter().cloned());
-    }
-    // Location inline in the label, in parentheses (operator 2026-06-08: not
-    // right-aligned to the page edge) — e.g. "Home (Silverdale, WA · 47.6°, -122.7°)".
-    let mut loc = place.location.clone().unwrap_or_default();
-    if let Some([lat, lon]) = place.coordinate {
-        let coord = format!("{lat:.4}°, {lon:.4}°");
-        loc = if loc.is_empty() { coord } else { format!("{loc} · {coord}") };
-    }
-    let label = if loc.is_empty() {
-        place.label.clone()
-    } else {
-        format!("{} ({})", place.label, loc)
-    };
-    widgets::TreeNode {
-        id: String::new(),
-        label,
-        detail: String::new(),
-        color: Some(kind_color(theme, &place.kind)),
-        children,
-    }
-}
-
 /// Colour for a place/entity node by its `kind` — drives the tree swatches so the
 /// structure is scannable ("what is where"). All theme tokens, no literals.
 fn kind_color(theme: &Theme, kind: &str) -> egui::Color32 {
@@ -438,6 +405,181 @@ fn kind_color(theme: &Theme, kind: &str) -> egui::Color32 {
         // rooms, floors, packs, duffels, bags, pouches, generic containers
         _ => theme.text_secondary(),
     }
+}
+
+/// Fixed tile width for the nested-container inventory so a row of tiles stays even.
+const ITEM_TILE_W: f32 = 96.0;
+
+/// Selected SEEDED item (by id) for the read-only inspect card — the spatial-inventory
+/// counterpart to `state.selected_slot` (which tracks the live backpack selection).
+fn with_inspect<R>(f: impl FnOnce(&mut Option<String>) -> R) -> R {
+    thread_local! {
+        static S: RefCell<Option<String>> = RefCell::new(None);
+    }
+    S.with(|s| f(&mut s.borrow_mut()))
+}
+
+/// One clickable item tile: a stable-colored swatch (the item's initial as a glyph),
+/// the truncated name, and a quantity badge. `selected` draws the accent outline.
+/// Returns true when clicked.
+fn item_tile(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    name: &str,
+    item_id: &str,
+    qty: u32,
+    selected: bool,
+) -> bool {
+    let glyph = name.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default();
+    let stroke = if selected {
+        Stroke::new(2.0, theme.accent())
+    } else {
+        Stroke::new(1.0, theme.border())
+    };
+    let inner = Frame::none()
+        .fill(theme.bg_card())
+        .rounding(Rounding::same(theme.border_radius_lg as u8))
+        .stroke(stroke)
+        .inner_margin(Vec2::new(6.0, 6.0))
+        .show(ui, |ui| {
+            ui.set_width(ITEM_TILE_W - 12.0);
+            ui.vertical_centered(|ui| {
+                widgets::placeholder_tile(ui, theme, widgets::swatch_color(item_id), 48.0, &glyph);
+                ui.add_space(2.0);
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(name).size(theme.font_size_small).color(theme.text_primary()),
+                    )
+                    .truncate(),
+                );
+                if qty > 1 {
+                    ui.label(
+                        RichText::new(format!("x{qty}"))
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                }
+            });
+        });
+    let resp = inner.response.interact(egui::Sense::click());
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp.clicked()
+}
+
+/// Clicks the nested-container renderer recorded this frame: a live backpack tile (by
+/// slot) or a seeded item tile (by id). Applied to selection after the render.
+#[derive(Default)]
+struct PlacesOut {
+    clicked_slot: Option<usize>,
+    clicked_inspect: Option<String>,
+}
+
+/// Recursively render one container (a [`crate::gui::Place`]) as a card: a clickable
+/// header (kind dot + label/location, toggles open), a wrap-grid of its item TILES,
+/// then its child containers nested inside — the spatial inventory (person -> shirt ->
+/// pocket -> wallet, operator 2026-06-22). Live backpack items come from `inv` at the
+/// `kind:"backpack"` node; every other container shows its seeded `place.items`.
+/// Clicks land in `out`; open state persists in egui memory by `path`.
+#[allow(clippy::too_many_arguments)]
+fn draw_container(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    place: &crate::gui::Place,
+    inv: &[Option<crate::gui::GuiItemSlot>],
+    path: &str,
+    sel_slot: Option<usize>,
+    sel_inspect: &Option<String>,
+    out: &mut PlacesOut,
+) {
+    let depth = path.matches('/').count();
+    let dot = kind_color(theme, &place.kind);
+    let mut title = place.label.clone();
+    let mut loc = place.location.clone().unwrap_or_default();
+    if let Some([lat, lon]) = place.coordinate {
+        let coord = format!("{lat:.3}, {lon:.3}");
+        loc = if loc.is_empty() { coord } else { format!("{loc} · {coord}") };
+    }
+    if !loc.is_empty() {
+        title = format!("{title}  ({loc})");
+    }
+    let open_id = egui::Id::new(("place_open", path));
+    let mut open = ui.data_mut(|d| d.get_temp::<bool>(open_id).unwrap_or(depth < 2));
+
+    widgets::card(ui, theme, |ui| {
+        // Header: open triangle (a SHAPE, never a tofu glyph) + kind dot + label. The
+        // whole row toggles the container open/closed.
+        let header = ui.horizontal(|ui| {
+            let (tri, _) = ui.allocate_exact_size(Vec2::splat(12.0), egui::Sense::hover());
+            if open {
+                widgets::icons::paint_triangle_down(ui.painter(), tri, theme.text_muted());
+            } else {
+                widgets::icons::paint_triangle_right(ui.painter(), tri, theme.text_muted());
+            }
+            let (dotr, _) = ui.allocate_exact_size(Vec2::splat(12.0), egui::Sense::hover());
+            ui.painter().circle_filled(dotr.center(), 5.0, dot);
+            ui.label(
+                RichText::new(&title).strong().color(theme.text_primary()).size(theme.font_size_body),
+            );
+        });
+        let row = header.response.interact(egui::Sense::click());
+        if row.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        if row.clicked() {
+            open = !open;
+        }
+        if open {
+            // Direct contents render as item TILES: the live backpack stack (at the
+            // kind:"backpack" node), this container's leaf `kind:"item"` children (the
+            // seed data models items this way, by label), and any id-based `items`.
+            let is_backpack = place.kind == "backpack";
+            let leaves: Vec<&crate::gui::Place> =
+                place.children.iter().filter(|c| c.kind == "item").collect();
+            let has_tiles = (is_backpack && inv.iter().any(|s| s.is_some()))
+                || !leaves.is_empty()
+                || !place.items.is_empty();
+            if has_tiles {
+                ui.add_space(theme.spacing_xs);
+                ui.horizontal_wrapped(|ui| {
+                    if is_backpack {
+                        for (i, slot) in inv.iter().enumerate() {
+                            if let Some(it) = slot {
+                                if item_tile(ui, theme, &it.name, &it.item_id, it.quantity, sel_slot == Some(i)) {
+                                    out.clicked_slot = Some(i);
+                                }
+                            }
+                        }
+                    }
+                    // Leaf-item children — no item id, so the label is both name + seed.
+                    for leaf in &leaves {
+                        let sel = sel_inspect.as_deref() == Some(leaf.label.as_str());
+                        if item_tile(ui, theme, &leaf.label, &leaf.label, 1, sel) {
+                            out.clicked_inspect = Some(leaf.label.clone());
+                        }
+                    }
+                    // Id-based items (resolved against items.csv for the display name).
+                    for id in &place.items {
+                        let name = lookup_item_details(id).map(|d| d.name).unwrap_or_else(|| id.clone());
+                        let sel = sel_inspect.as_deref() == Some(id.as_str());
+                        if item_tile(ui, theme, &name, id, 1, sel) {
+                            out.clicked_inspect = Some(id.clone());
+                        }
+                    }
+                });
+            }
+            // Sub-containers (everything that is NOT a leaf item) nest as their own cards.
+            for (i, child) in place.children.iter().enumerate() {
+                if child.kind == "item" {
+                    continue;
+                }
+                ui.add_space(theme.spacing_xs);
+                draw_container(ui, theme, child, inv, &format!("{path}/{i}"), sel_slot, sel_inspect, out);
+            }
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(open_id, open));
 }
 
 /// Quick-action outputs from the inline item card. The card only borrows an item
@@ -462,7 +604,7 @@ fn draw_item_card(
     ui: &mut egui::Ui,
     theme: &Theme,
     item: &crate::gui::GuiItemSlot,
-    acts: &mut ItemCardActions,
+    acts: Option<&mut ItemCardActions>,
 ) {
     let details = lookup_item_details(&item.item_id);
     ui.add_space(theme.spacing_xs);
@@ -525,9 +667,13 @@ fn draw_item_card(
             );
         }
     }
-    ui.add_space(theme.spacing_sm);
     // Quick actions — Eat (food) / Drink (liquid) / Plant (seed) / Use, then Equip +
-    // Drop. Compact buttons so the row reads cleanly under the item.
+    // Drop. Only shown for items in the LIVE backpack (acts = Some); a seeded item in
+    // some other container is inspect-only (acts = None) until item transfer lands.
+    let Some(acts) = acts else {
+        return;
+    };
+    ui.add_space(theme.spacing_sm);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
         let is_drink = details
@@ -1092,69 +1238,79 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if widgets::section_disclosure(ui, theme, ("inv_sec", "places"), header, tree_force) {
                 ui.add_space(theme.spacing_xs);
 
-                // Live backpack contents as selectable leaves (id = slot index → the
-                // right detail panel shows the item + its actions).
-                let item_color = kind_color(theme, "item");
-                let item_nodes: Vec<widgets::TreeNode> = state
-                    .inventory_items
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, slot)| {
-                        slot.as_ref().map(|item| {
-                            widgets::TreeNode::selectable(
-                                i.to_string(),
-                                item.name.clone(),
-                                format!("x{}", item.quantity),
-                            )
-                            .with_color(item_color)
-                        })
-                    })
-                    .collect();
-
-                let selected_str =
-                    state.selected_slot.map(|i| i.to_string()).unwrap_or_default();
-
-                // Inline expand-in-place card for the SELECTED item, rendered by the
-                // tree directly under that item's row (operator 2026-06-08: replaces
-                // the old top-of-panel detail). The card only reads an inventory
-                // SNAPSHOT, recording the chosen action into `item_acts` (applied to
-                // GuiState after the panel) so it never borrows GuiState mid-render.
-                let inv_snapshot = state.inventory_items.clone();
-                let mut inline_card = |ui: &mut egui::Ui, id: &str| {
-                    if let Ok(idx) = id.parse::<usize>() {
-                        if let Some(Some(it)) = inv_snapshot.get(idx) {
-                            draw_item_card(ui, theme, it, &mut item_acts);
-                        }
+                // Nested-container inventory (operator 2026-06-22): each place renders
+                // as a card with item TILES + its child containers nested inside, so
+                // "what is where" reads spatially (person -> shirt -> pocket -> wallet)
+                // and multiple inventories are visible at once. Live backpack items
+                // inject at the kind:"backpack" node; seeded items live in any
+                // container's `items`. Clicking a tile selects it; its card shows below.
+                let mut places_out = PlacesOut::default();
+                let inspect = with_inspect(|s| s.clone());
+                if !state.places.is_empty() {
+                    let places = state.places.clone();
+                    for (i, place) in places.iter().enumerate() {
+                        draw_container(
+                            ui,
+                            theme,
+                            place,
+                            &state.inventory_items,
+                            &i.to_string(),
+                            state.selected_slot,
+                            &inspect,
+                            &mut places_out,
+                        );
+                        ui.add_space(theme.spacing_xs);
                     }
-                };
-
-                // Entity tree when we have the spine; else flat backpack.
-                let clicked = if !state.places.is_empty() {
-                    let entities = state.places.clone();
-                    let trees: Vec<widgets::TreeNode> = entities
-                        .iter()
-                        .map(|e| place_to_tree(theme, e, &item_nodes))
-                        .collect();
-                    widgets::tree_list_ex(ui, theme, &trees, &selected_str, tree_default_open, tree_force, &mut inline_card)
-                } else if item_nodes.is_empty() {
+                } else if state.inventory_items.iter().all(|s| s.is_none()) {
                     ui.label(
                         RichText::new("Empty, mine, craft, or dev-stock to fill it.")
                             .color(theme.text_muted()),
                     );
-                    None
                 } else {
-                    widgets::tree_list_ex(ui, theme, &item_nodes, &selected_str, tree_default_open, tree_force, &mut inline_card)
-                };
+                    // No place spine: a single flat backpack grid of tiles.
+                    ui.horizontal_wrapped(|ui| {
+                        for (i, slot) in state.inventory_items.iter().enumerate() {
+                            if let Some(it) = slot {
+                                if item_tile(ui, theme, &it.name, &it.item_id, it.quantity, state.selected_slot == Some(i)) {
+                                    places_out.clicked_slot = Some(i);
+                                }
+                            }
+                        }
+                    });
+                }
 
-                if let Some(clicked) = clicked {
-                    if let Ok(idx) = clicked.parse::<usize>() {
-                        state.selected_slot = if state.selected_slot == Some(idx) {
-                            None
-                        } else {
-                            Some(idx)
-                        };
-                        state.garden_selection = None; // item + garden are exclusive
+                // Apply tile clicks to selection (toggle); live + seeded are exclusive,
+                // and either clears the garden selection.
+                if let Some(i) = places_out.clicked_slot {
+                    state.selected_slot = if state.selected_slot == Some(i) { None } else { Some(i) };
+                    state.garden_selection = None;
+                    with_inspect(|s| *s = None);
+                }
+                if let Some(id) = places_out.clicked_inspect {
+                    with_inspect(|s| {
+                        *s = if s.as_deref() == Some(id.as_str()) { None } else { Some(id.clone()) };
+                    });
+                    state.selected_slot = None;
+                    state.garden_selection = None;
+                }
+
+                // The selected item's card, shown once below the section. A live
+                // backpack item gets the full action card; a seeded item in another
+                // container is inspect-only (actions wait on item transfer).
+                if let Some(i) = state.selected_slot {
+                    if let Some(Some(it)) = state.inventory_items.get(i) {
+                        let it = it.clone();
+                        ui.add_space(theme.spacing_xs);
+                        widgets::card(ui, theme, |ui| draw_item_card(ui, theme, &it, Some(&mut item_acts)));
                     }
+                } else if let Some(id) = with_inspect(|s| s.clone()) {
+                    let synth = crate::gui::GuiItemSlot {
+                        name: lookup_item_details(&id).map(|d| d.name).unwrap_or_else(|| id.clone()),
+                        item_id: id.clone(),
+                        quantity: 1,
+                    };
+                    ui.add_space(theme.spacing_xs);
+                    widgets::card(ui, theme, |ui| draw_item_card(ui, theme, &synth, None));
                 }
 
                 } // ── end You & places ──

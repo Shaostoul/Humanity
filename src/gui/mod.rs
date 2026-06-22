@@ -3010,6 +3010,13 @@ pub struct Place {
     /// world-gen — the point that says "render THIS hillside here".
     #[serde(default)]
     pub coordinate: Option<[f64; 2]>,
+    /// Leaf items held DIRECTLY in this container, by item id (resolved against
+    /// items.csv for the name/details). The nested-container inventory renders these
+    /// as tiles; sub-containers go in `children`. A pocket might hold `["pen_0"]`
+    /// plus a `keychain` child container. Empty for pure location/spine nodes (the
+    /// live backpack injects its items at the node marked `kind: "backpack"`).
+    #[serde(default)]
+    pub items: Vec<String>,
     #[serde(default)]
     pub children: Vec<Place>,
 }
