@@ -116,6 +116,22 @@ fn draw_body_measurements(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     ui.label(RichText::new("Body & Measurements").size(theme.font_size_title).color(theme.text_primary()));
     ui.add_space(theme.spacing_md);
 
+    // Responsive two-column: General + Hair on the left, the longer Clothing card
+    // on the right when wide, so the section uses the width instead of stacking
+    // into one tall left-hugging column. Stacked on a narrow window.
+    if ui.available_width() >= 760.0 {
+        ui.columns(2, |cols| {
+            body_general_hair(&mut cols[0], theme, state);
+            body_clothing(&mut cols[1], theme, state);
+        });
+    } else {
+        body_general_hair(ui, theme, state);
+        ui.add_space(theme.spacing_md);
+        body_clothing(ui, theme, state);
+    }
+}
+
+fn body_general_hair(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card_with_header(ui, theme, "General", |ui| {
         field_row(ui, theme, "Height:", &mut state.profile_height);
         field_row(ui, theme, "Weight:", &mut state.profile_weight);
@@ -131,9 +147,9 @@ fn draw_body_measurements(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         field_row(ui, theme, "Style:", &mut state.profile_hair_style);
         field_row(ui, theme, "Texture:", &mut state.profile_hair_texture);
     });
+}
 
-    ui.add_space(theme.spacing_md);
-
+fn body_clothing(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card_with_header(ui, theme, "Clothing Measurements", |ui| {
         field_row(ui, theme, "Neck:", &mut state.profile_neck);
         field_row(ui, theme, "Shoulders:", &mut state.profile_shoulders);

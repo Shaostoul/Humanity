@@ -16,9 +16,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                draw_game_quests(ui, theme, state);
-                ui.add_space(theme.spacing_xl);
-                onboarding::draw_quests(ui, theme, state);
+                // Responsive two-column: the auto-tracked sim quests on the left,
+                // the learn-by-doing chains on the right when wide; stacked narrow.
+                if ui.available_width() >= 900.0 {
+                    ui.columns(2, |cols| {
+                        draw_game_quests(&mut cols[0], theme, state);
+                        onboarding::draw_quests(&mut cols[1], theme, state);
+                    });
+                } else {
+                    draw_game_quests(ui, theme, state);
+                    ui.add_space(theme.spacing_xl);
+                    onboarding::draw_quests(ui, theme, state);
+                }
             });
         });
 }

@@ -201,6 +201,16 @@ fn demo_state() -> GuiState {
     s.profile_location = "Silverdale, WA".into();
     s.profile_website = "united-humanity.us".into();
     s.profile_public_key = "ed25519:abc...def".into();
+    // Show the Body & Measurements section so the two-column layout is visible.
+    s.profile_section = crate::gui::ProfileSection::BodyMeasurements;
+    s.profile_height = "5'10\"".into();
+    s.profile_weight = "170 lb".into();
+    s.profile_eye_color = "Brown".into();
+    s.profile_blood_type = "O+".into();
+    s.profile_hair_color = "Brown".into();
+    s.profile_shoe_size = "10".into();
+    s.profile_shirt_size = "L".into();
+    s.profile_pants_size = "32x32".into();
 
     s
 }
