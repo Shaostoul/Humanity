@@ -31,6 +31,7 @@ fn demo_state() -> GuiState {
 
     // ── Data-driven content (the real loaders) ──
     s.places = crate::gui::load_places(data);
+    s.placed_items = crate::gui::flatten_placed_items(&s.places);
     s.tower_configs = crate::gui::load_tower_configs(data);
     s.equipment_slots = crate::gui::load_equipment_slots(data);
     s.crafting_category_groups = crate::gui::load_crafting_category_groups(data);
@@ -465,10 +466,24 @@ page_snapshot!(snapshot_chat, "chat", chat, 1280, 900);
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_inventory() {
     render_page_png("inventory", 1280, 1700, |ctx, theme, state| {
-        // Reset any modal opened by a prior modal snapshot (shared thread).
+        // Reset any modal/selection opened by a prior snapshot (shared thread).
         crate::gui::pages::inventory::test_close_garden_edit();
         crate::gui::pages::inventory::test_close_mining_edit();
+        crate::gui::pages::inventory::test_clear_placed();
         crate::gui::pages::inventory::draw(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_inventory_transfer() {
+    render_page_png("inventory_transfer", 1280, 1700, |ctx, theme, state| {
+        crate::gui::pages::inventory::test_close_garden_edit();
+        crate::gui::pages::inventory::test_close_mining_edit();
+        // Select the first placed item so the inspect + "Move to" transfer card shows.
+        crate::gui::pages::inventory::test_select_placed(0);
+        crate::gui::pages::inventory::draw(ctx, theme, state);
+        crate::gui::pages::inventory::test_clear_placed();
     });
 }
 

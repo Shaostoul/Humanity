@@ -2252,6 +2252,10 @@ mod native_app {
             gui_state.onboarding_quest_chains = onboarding::load_quest_chains(&data_dir);
             gui_state.map_planets = crate::gui::load_planets(&data_dir);
             gui_state.places = crate::gui::load_places(&data_dir);
+            // Seed the organize-layer inventory pool from the places spine (every leaf
+            // item tagged with its container path), so items can be moved between
+            // containers. The live backpack stays ECS-driven.
+            gui_state.placed_items = crate::gui::flatten_placed_items(&gui_state.places);
             gui_state.homestead_design = crate::gui::load_homestead_design(&data_dir);
             // Self-sufficiency loops for the Home-page closure summary (v0.432).
             gui_state.homestead_loops = crate::machines::MachineHome::load(

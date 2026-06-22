@@ -1197,6 +1197,10 @@ pub struct GuiState {
     /// Bridged to the DataStore's "garden_nutrient" channel; FarmingSystem scales
     /// matching crops' growth speed by it. Sibling of `garden_irrigation`.
     pub garden_nutrient: std::collections::HashMap<String, f32>,
+    /// Organize-layer inventory pool: every seeded item tagged with its container path,
+    /// so the nested-container inventory can move items between containers. Seeded from
+    /// `places` at startup via `flatten_placed_items`. The live backpack is separate.
+    pub placed_items: Vec<PlacedItem>,
     /// Per-tower shared-reservoir compatibility (parallel to `tower_configs`),
     /// computed once from the plant registry in the crop sync. The "make sure
     /// they grow together" check shown on the Home page.
@@ -2306,6 +2310,7 @@ impl Default for GuiState {
             grow_media: Vec::new(),
             garden_irrigation: std::collections::HashMap::new(),
             garden_nutrient: std::collections::HashMap::new(),
+            placed_items: Vec::new(),
             tower_compat: Vec::new(),
             creative_mode: true,
             active_real_section: "inventory".to_string(),
@@ -3033,6 +3038,73 @@ pub fn load_places(data_dir: &std::path::Path) -> Vec<Place> {
     read_data_json::<File>(data_dir, "places/seed.json")
         .map(|f| f.entities)
         .unwrap_or_default()
+}
+
+/// One item placed in a container, for the organize-layer inventory (operator
+/// 2026-06-22: "one item pool; each item records WHICH container it's in", and
+/// transfer = move it between containers). `container` is the container's PATH in the
+/// places tree (e.g. "1/0/0"), so a transfer is just changing this string. Seeded from
+/// the places spine at load; serializable so a save can persist transfers. The live
+/// backpack is NOT in this pool (its items come from the ECS) until the ECS-boundary
+/// transfer lands.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PlacedItem {
+    /// Item id (resolves against items.csv) OR a descriptive label for seed items.
+    pub key: String,
+    /// Display name (item name if `key` is an id; else the label).
+    pub name: String,
+    pub qty: u32,
+    /// Container PATH in the places tree this item currently sits in.
+    pub container: String,
+}
+
+/// Flatten the places spine into the organize-layer item pool: every leaf `kind:"item"`
+/// child and id-based `items` entry becomes a [`PlacedItem`] tagged with its container's
+/// PATH (the same scheme the inventory renderer walks). The live backpack is excluded.
+pub fn flatten_placed_items(places: &[Place]) -> Vec<PlacedItem> {
+    fn walk(place: &Place, path: &str, out: &mut Vec<PlacedItem>) {
+        for (j, child) in place.children.iter().enumerate() {
+            if child.kind == "item" {
+                out.push(PlacedItem {
+                    key: child.label.clone(),
+                    name: child.label.clone(),
+                    qty: 1,
+                    container: path.to_string(),
+                });
+            } else {
+                walk(child, &format!("{path}/{j}"), out);
+            }
+        }
+        for id in &place.items {
+            out.push(PlacedItem { key: id.clone(), name: id.clone(), qty: 1, container: path.to_string() });
+        }
+    }
+    let mut out = Vec::new();
+    for (i, p) in places.iter().enumerate() {
+        walk(p, &i.to_string(), &mut out);
+    }
+    out
+}
+
+/// Collect (path, label) for every CONTAINER in the places spine (not leaf items, and
+/// not the live-only backpack), for the "Move to..." transfer menu. Path matches the
+/// inventory renderer's scheme.
+pub fn collect_containers(places: &[Place]) -> Vec<(String, String)> {
+    fn walk(place: &Place, path: &str, out: &mut Vec<(String, String)>) {
+        if place.kind != "backpack" {
+            out.push((path.to_string(), place.label.clone()));
+        }
+        for (j, child) in place.children.iter().enumerate() {
+            if child.kind != "item" {
+                walk(child, &format!("{path}/{j}"), out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for (i, p) in places.iter().enumerate() {
+        walk(p, &i.to_string(), &mut out);
+    }
+    out
 }
 
 // ── Homestead Design (the "homes" feature, offline-first; v0.379) ──

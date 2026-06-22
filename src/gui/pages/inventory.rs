@@ -410,11 +410,12 @@ fn kind_color(theme: &Theme, kind: &str) -> egui::Color32 {
 /// Fixed tile width for the nested-container inventory so a row of tiles stays even.
 const ITEM_TILE_W: f32 = 96.0;
 
-/// Selected SEEDED item (by id) for the read-only inspect card — the spatial-inventory
-/// counterpart to `state.selected_slot` (which tracks the live backpack selection).
-fn with_inspect<R>(f: impl FnOnce(&mut Option<String>) -> R) -> R {
+/// Selected placed-pool item (by index into `state.placed_items`) for the inspect +
+/// "Move to" card — the spatial-inventory counterpart to `state.selected_slot` (which
+/// tracks the live backpack selection).
+fn with_placed_sel<R>(f: impl FnOnce(&mut Option<usize>) -> R) -> R {
     thread_local! {
-        static S: RefCell<Option<String>> = RefCell::new(None);
+        static S: RefCell<Option<usize>> = RefCell::new(None);
     }
     S.with(|s| f(&mut s.borrow_mut()))
 }
@@ -469,28 +470,29 @@ fn item_tile(
 }
 
 /// Clicks the nested-container renderer recorded this frame: a live backpack tile (by
-/// slot) or a seeded item tile (by id). Applied to selection after the render.
+/// slot) or a placed-pool item tile (by index). Applied to selection after the render.
 #[derive(Default)]
 struct PlacesOut {
     clicked_slot: Option<usize>,
-    clicked_inspect: Option<String>,
+    clicked_placed: Option<usize>,
 }
 
 /// Recursively render one container (a [`crate::gui::Place`]) as a card: a clickable
 /// header (kind dot + label/location, toggles open), a wrap-grid of its item TILES,
 /// then its child containers nested inside — the spatial inventory (person -> shirt ->
 /// pocket -> wallet, operator 2026-06-22). Live backpack items come from `inv` at the
-/// `kind:"backpack"` node; every other container shows its seeded `place.items`.
-/// Clicks land in `out`; open state persists in egui memory by `path`.
+/// `kind:"backpack"` node; every other container shows the `placed` pool entries tagged
+/// with its path. Clicks land in `out`; open state persists in egui memory by `path`.
 #[allow(clippy::too_many_arguments)]
 fn draw_container(
     ui: &mut egui::Ui,
     theme: &Theme,
     place: &crate::gui::Place,
     inv: &[Option<crate::gui::GuiItemSlot>],
+    placed: &[crate::gui::PlacedItem],
     path: &str,
     sel_slot: Option<usize>,
-    sel_inspect: &Option<String>,
+    sel_placed: Option<usize>,
     out: &mut PlacesOut,
 ) {
     let depth = path.matches('/').count();
@@ -505,10 +507,13 @@ fn draw_container(
         title = format!("{title}  ({loc})");
     }
     // Counts for the header, so a COLLAPSED container still tells you what is inside.
+    // Non-backpack item counts come from the placed pool (tagged by this path).
     let is_backpack = place.kind == "backpack";
-    let item_count = place.children.iter().filter(|c| c.kind == "item").count()
-        + place.items.len()
-        + if is_backpack { inv.iter().filter(|s| s.is_some()).count() } else { 0 };
+    let item_count = if is_backpack {
+        inv.iter().filter(|s| s.is_some()).count()
+    } else {
+        placed.iter().filter(|pi| pi.container == path).count()
+    };
     let sub_count = place.children.iter().filter(|c| c.kind != "item").count();
     let mut hint_parts: Vec<String> = Vec::new();
     if item_count > 0 {
@@ -554,13 +559,18 @@ fn draw_container(
         }
         if open {
             // Direct contents render as item TILES: the live backpack stack (at the
-            // kind:"backpack" node), this container's leaf `kind:"item"` children (the
-            // seed data models items this way, by label), and any id-based `items`.
-            let leaves: Vec<&crate::gui::Place> =
-                place.children.iter().filter(|c| c.kind == "item").collect();
-            let has_tiles = (is_backpack && inv.iter().any(|s| s.is_some()))
-                || !leaves.is_empty()
-                || !place.items.is_empty();
+            // kind:"backpack" node) OR the placed-pool items tagged with this path.
+            let here: Vec<usize> = if is_backpack {
+                Vec::new()
+            } else {
+                placed
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, pi)| pi.container == path)
+                    .map(|(i, _)| i)
+                    .collect()
+            };
+            let has_tiles = (is_backpack && inv.iter().any(|s| s.is_some())) || !here.is_empty();
             if has_tiles {
                 ui.add_space(theme.spacing_xs);
                 ui.horizontal_wrapped(|ui| {
@@ -572,20 +582,13 @@ fn draw_container(
                                 }
                             }
                         }
-                    }
-                    // Leaf-item children — no item id, so the label is both name + seed.
-                    for leaf in &leaves {
-                        let sel = sel_inspect.as_deref() == Some(leaf.label.as_str());
-                        if item_tile(ui, theme, &leaf.label, &leaf.label, 1, sel) {
-                            out.clicked_inspect = Some(leaf.label.clone());
-                        }
-                    }
-                    // Id-based items (resolved against items.csv for the display name).
-                    for id in &place.items {
-                        let name = lookup_item_details(id).map(|d| d.name).unwrap_or_else(|| id.clone());
-                        let sel = sel_inspect.as_deref() == Some(id.as_str());
-                        if item_tile(ui, theme, &name, id, 1, sel) {
-                            out.clicked_inspect = Some(id.clone());
+                    } else {
+                        for &idx in &here {
+                            let pi = &placed[idx];
+                            let sel = sel_placed == Some(idx);
+                            if item_tile(ui, theme, &pi.name, &pi.key, pi.qty, sel) {
+                                out.clicked_placed = Some(idx);
+                            }
                         }
                     }
                 });
@@ -596,7 +599,7 @@ fn draw_container(
                     continue;
                 }
                 ui.add_space(theme.spacing_xs);
-                draw_container(ui, theme, child, inv, &format!("{path}/{i}"), sel_slot, sel_inspect, out);
+                draw_container(ui, theme, child, inv, placed, &format!("{path}/{i}"), sel_slot, sel_placed, out);
             }
         }
     });
@@ -791,6 +794,20 @@ pub(crate) fn test_open_mining_edit(asteroid_id: &str) {
 #[cfg(test)]
 pub(crate) fn test_close_mining_edit() {
     with_mining_edit(|m| m.open = None);
+}
+
+/// Test hook: select a placed-pool item by index, so the snapshot harness can render
+/// the inspect + "Move to" transfer card (otherwise opened by a click).
+#[cfg(test)]
+pub(crate) fn test_select_placed(idx: usize) {
+    with_placed_sel(|s| *s = Some(idx));
+}
+
+/// Test hook: clear the placed selection so a later snapshot on the shared thread is
+/// not polluted by a leftover selection.
+#[cfg(test)]
+pub(crate) fn test_clear_placed() {
+    with_placed_sel(|s| *s = None);
 }
 
 /// Test hook: render just the mining map (the snapshot harness can't reliably reach
@@ -1266,7 +1283,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // inject at the kind:"backpack" node; seeded items live in any
                 // container's `items`. Clicking a tile selects it; its card shows below.
                 let mut places_out = PlacesOut::default();
-                let inspect = with_inspect(|s| s.clone());
+                let placed_sel = with_placed_sel(|s| *s);
                 if !state.places.is_empty() {
                     let places = state.places.clone();
                     for (i, place) in places.iter().enumerate() {
@@ -1275,9 +1292,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             theme,
                             place,
                             &state.inventory_items,
+                            &state.placed_items,
                             &i.to_string(),
                             state.selected_slot,
-                            &inspect,
+                            placed_sel,
                             &mut places_out,
                         );
                         ui.add_space(theme.spacing_xs);
@@ -1300,38 +1318,73 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     });
                 }
 
-                // Apply tile clicks to selection (toggle); live + seeded are exclusive,
+                // Apply tile clicks to selection (toggle); live + placed are exclusive,
                 // and either clears the garden selection.
                 if let Some(i) = places_out.clicked_slot {
                     state.selected_slot = if state.selected_slot == Some(i) { None } else { Some(i) };
                     state.garden_selection = None;
-                    with_inspect(|s| *s = None);
+                    with_placed_sel(|s| *s = None);
                 }
-                if let Some(id) = places_out.clicked_inspect {
-                    with_inspect(|s| {
-                        *s = if s.as_deref() == Some(id.as_str()) { None } else { Some(id.clone()) };
-                    });
+                if let Some(idx) = places_out.clicked_placed {
+                    with_placed_sel(|s| *s = if *s == Some(idx) { None } else { Some(idx) });
                     state.selected_slot = None;
                     state.garden_selection = None;
                 }
 
                 // The selected item's card, shown once below the section. A live
-                // backpack item gets the full action card; a seeded item in another
-                // container is inspect-only (actions wait on item transfer).
+                // backpack item gets the full action card; a placed item gets an
+                // inspect card + a "Move to" menu (the organize-layer transfer).
                 if let Some(i) = state.selected_slot {
                     if let Some(Some(it)) = state.inventory_items.get(i) {
                         let it = it.clone();
                         ui.add_space(theme.spacing_xs);
                         widgets::card(ui, theme, |ui| draw_item_card(ui, theme, &it, Some(&mut item_acts)));
                     }
-                } else if let Some(id) = with_inspect(|s| s.clone()) {
-                    let synth = crate::gui::GuiItemSlot {
-                        name: lookup_item_details(&id).map(|d| d.name).unwrap_or_else(|| id.clone()),
-                        item_id: id.clone(),
-                        quantity: 1,
-                    };
-                    ui.add_space(theme.spacing_xs);
-                    widgets::card(ui, theme, |ui| draw_item_card(ui, theme, &synth, None));
+                } else if let Some(idx) = with_placed_sel(|s| *s) {
+                    if let Some(pi) = state.placed_items.get(idx).cloned() {
+                        let synth = crate::gui::GuiItemSlot {
+                            name: pi.name.clone(),
+                            item_id: pi.key.clone(),
+                            quantity: pi.qty,
+                        };
+                        let containers = crate::gui::collect_containers(&state.places);
+                        let mut move_to: Option<String> = None;
+                        ui.add_space(theme.spacing_xs);
+                        widgets::card(ui, theme, |ui| {
+                            draw_item_card(ui, theme, &synth, None);
+                            ui.add_space(theme.spacing_xs);
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new("Move to")
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_secondary()),
+                                );
+                                let cur = containers
+                                    .iter()
+                                    .find(|(p, _)| *p == pi.container)
+                                    .map(|(_, l)| l.clone())
+                                    .unwrap_or_else(|| "(here)".to_string());
+                                egui::ComboBox::from_id_salt("placed_move_to")
+                                    .selected_text(cur)
+                                    .show_ui(ui, |ui| {
+                                        for (p, label) in &containers {
+                                            if *p != pi.container
+                                                && ui.selectable_label(false, label.as_str()).clicked()
+                                            {
+                                                move_to = Some(p.clone());
+                                            }
+                                        }
+                                    });
+                            });
+                        });
+                        if let Some(target) = move_to {
+                            if let Some(pi) = state.placed_items.get_mut(idx) {
+                                pi.container = target;
+                            }
+                        }
+                    } else {
+                        with_placed_sel(|s| *s = None);
+                    }
                 }
 
                 } // ── end You & places ──
