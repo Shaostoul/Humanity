@@ -1187,6 +1187,12 @@ pub struct GuiState {
     /// Grow-media registry (data/garden/grow_media.ron) — the per-medium edit form is
     /// rendered from this, so adding a plot-type is a data edit (infinite-of-X).
     pub grow_media: Vec<GrowMedium>,
+    /// Per-area irrigation targets the garden edit modal publishes to the sim, keyed by
+    /// tower_id (e.g. "nutrition" -> 0.0..=1.0 water level). lib.rs bridges this into the
+    /// DataStore's "garden_irrigation" channel each frame; FarmingSystem tops matching
+    /// crops up to the target. Empty = no automated irrigation. Snapshotted by the
+    /// inventory page each frame from the garden edit configs.
+    pub garden_irrigation: std::collections::HashMap<String, f32>,
     /// Per-tower shared-reservoir compatibility (parallel to `tower_configs`),
     /// computed once from the plant registry in the crop sync. The "make sure
     /// they grow together" check shown on the Home page.
@@ -2294,6 +2300,7 @@ impl Default for GuiState {
             tower_configs: Vec::new(),
             garden_areas: Vec::new(),
             grow_media: Vec::new(),
+            garden_irrigation: std::collections::HashMap::new(),
             tower_compat: Vec::new(),
             creative_mode: true,
             active_real_section: "inventory".to_string(),

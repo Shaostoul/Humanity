@@ -320,6 +320,17 @@ impl System for FarmingSystem {
 
         let item_registry = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
 
+        // Per-area irrigation: a grow area the player has configured (in the garden
+        // edit modal) tops its crops up to a target water level each tick. Keyed by
+        // tower_id (e.g. "nutrition"). A neutral HashMap<String, f32> so the sim never
+        // imports a GUI type; the GUI publishes it via lib.rs -> "garden_irrigation".
+        // Empty/missing = no automated irrigation (crops dehydrate normally).
+        let irrigation: std::collections::HashMap<String, f32> = data
+            .get::<std::sync::Mutex<std::collections::HashMap<String, f32>>>("garden_irrigation")
+            .and_then(|m| m.lock().ok())
+            .map(|g| g.clone())
+            .unwrap_or_default();
+
         // Creative mode (default ON in early dev): planting + fertilizing skip the
         // inventory requirement + consumption. Absent flag (tests) = survival =
         // consume, so the existing gardening tests still hold.
@@ -634,6 +645,16 @@ impl System for FarmingSystem {
 
             // Dehydration: water level drops over time
             crop.water_level = (crop.water_level - DEHYDRATION_RATE * dt).max(0.0);
+
+            // Per-area irrigation: if the crop's grow area is configured with a water
+            // target, automated irrigation keeps it topped up to that level. A high
+            // setting holds crops well-watered (healthy, fast growth); a low setting
+            // lets them dehydrate and wilt -- so the garden edit slider is meaningful.
+            if let Some(tid) = &crop.tower_id {
+                if let Some(target) = irrigation.get(tid) {
+                    crop.water_level = crop.water_level.max(*target);
+                }
+            }
 
             // Health effects from water level
             if crop.water_level < WATER_STRESS_THRESHOLD {
@@ -991,6 +1012,65 @@ mod gardening_tests {
         assert!(
             world.get::<&CropInstance>(crop).unwrap().health > 40.0,
             "fertilizing boosted the crop's health"
+        );
+    }
+
+    /// Per-area irrigation: a crop whose grow area is configured with a water target
+    /// (the garden edit modal's water slider) stays topped up and holds health, while
+    /// an un-configured crop dehydrates and loses health. Proves the slider is wired
+    /// through to the sim -- editing a grow area actually changes crop survival.
+    #[test]
+    fn per_area_irrigation_keeps_configured_crops_watered() {
+        use crate::ecs::components::CropInstance;
+        let mut data = make_store();
+        // Configure the "nutrition" tower for full irrigation (water slider = 1.0).
+        let mut irr = std::collections::HashMap::new();
+        irr.insert("nutrition".to_string(), 1.0_f32);
+        data.insert("garden_irrigation", std::sync::Mutex::new(irr));
+
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let dry = |tower: &str| CropInstance {
+            crop_def_id: "tomato".to_string(),
+            growth_stage: "sprout".to_string(),
+            planted_at: 0.0,
+            water_level: 0.15, // below WATER_STRESS_THRESHOLD
+            health: 80.0,
+            tower_id: Some(tower.to_string()),
+            tower_slot: Some(0),
+        };
+        // Irrigated crop lives in the configured "nutrition" tower.
+        let irrigated = world.spawn((dry("nutrition"),));
+        // Parched crop lives in an un-configured tower (not in the irrigation map).
+        let parched = world.spawn((dry("apothecary"),));
+
+        for _ in 0..5 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+
+        let irr_c = world.get::<&CropInstance>(irrigated).unwrap();
+        let dry_c = world.get::<&CropInstance>(parched).unwrap();
+        assert!(
+            irr_c.water_level > 0.9,
+            "irrigated crop stays topped up, got {}",
+            irr_c.water_level
+        );
+        assert!(
+            irr_c.health >= 80.0,
+            "irrigated crop held/recovered health, got {}",
+            irr_c.health
+        );
+        assert!(
+            dry_c.water_level < irr_c.water_level,
+            "un-irrigated crop is drier ({} vs {})",
+            dry_c.water_level,
+            irr_c.water_level
+        );
+        assert!(
+            dry_c.health < irr_c.health,
+            "un-irrigated crop lost health vs the irrigated one ({} vs {})",
+            dry_c.health,
+            irr_c.health
         );
     }
 }

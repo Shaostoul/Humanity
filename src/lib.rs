@@ -2083,6 +2083,13 @@ mod native_app {
             data_store.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("dev_grow_crops", std::sync::Mutex::new(false));
+            // Per-area irrigation targets the garden edit modal publishes (tower_id ->
+            // water level 0..1). FarmingSystem tops matching crops up to it; mirrored
+            // from GuiState.garden_irrigation each frame by the bridge below.
+            data_store.insert(
+                "garden_irrigation",
+                std::sync::Mutex::new(std::collections::HashMap::<String, f32>::new()),
+            );
             // Creative mode (default ON during early dev): the resource-consuming
             // systems (farming seeds/fertilizer, crafting materials) skip the
             // inventory requirement + consumption when this is true. Mirrored from
@@ -3007,6 +3014,21 @@ mod native_app {
                     {
                         if let Ok(mut s) = slot.lock() {
                             *s = state.gui_state.creative_mode;
+                        }
+                    }
+                    // Per-area irrigation: mirror the garden edit modal's water sliders
+                    // (GuiState.garden_irrigation, keyed by tower_id) into the sim every
+                    // frame so FarmingSystem keeps configured crops topped up.
+                    if let Some(slot) = state
+                        .data_store
+                        .get::<std::sync::Mutex<std::collections::HashMap<String, f32>>>(
+                            "garden_irrigation",
+                        )
+                    {
+                        if let Ok(mut s) = slot.lock() {
+                            if *s != state.gui_state.garden_irrigation {
+                                *s = state.gui_state.garden_irrigation.clone();
+                            }
                         }
                     }
                     // Skills: bridge the "Dev: max skills" button to SkillSystem.

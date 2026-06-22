@@ -196,6 +196,35 @@ fn with_garden_edit<R>(f: impl FnOnce(&mut GardenEditState) -> R) -> R {
     S.with(|s| f(&mut s.borrow_mut()))
 }
 
+/// Publish the garden edit modal's water sliders into `state.garden_irrigation` so the
+/// FarmingSystem can act on them (lib.rs bridges the field into the DataStore each
+/// frame). The garden areas are keyed by machine TYPE ("aeroponic_tower"), but crops
+/// carry a `tower_id` ("nutrition"); for a medium that grows towers (`show_slots`), its
+/// one water level applies to every tower variety, so we fan the value out across all
+/// `tower_configs` ids. Non-tower media (soil bed, field) have no `tower_id` crops yet,
+/// so they don't contribute. Recomputed each frame the Inventory page draws.
+fn snapshot_garden_irrigation(state: &mut GuiState) {
+    let mut irr: std::collections::HashMap<String, f32> = std::collections::HashMap::new();
+    with_garden_edit(|s| {
+        for (machine_id, cfg) in &s.configs {
+            let Some(&water) = cfg.values.get("water") else {
+                continue;
+            };
+            let grows_towers = state
+                .grow_media
+                .iter()
+                .find(|m| m.matches(machine_id))
+                .map_or(false, |m| m.show_slots);
+            if grows_towers {
+                for tc in &state.tower_configs {
+                    irr.insert(tc.id.clone(), water);
+                }
+            }
+        }
+    });
+    state.garden_irrigation = irr;
+}
+
 /// Test hook: open the garden edit modal for a machine id, so the snapshot harness
 /// can render the modal (which is otherwise opened by a click).
 #[cfg(test)]
@@ -1654,6 +1683,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Per-medium grow-area edit modal — shown at ctx level (a floating window) when
     // a Garden tile was clicked. Rendered after the panel so it overlays everything.
     garden_edit_modal(ctx, theme, state);
+    // Publish this frame's water sliders to the sim (after the modal applies edits).
+    snapshot_garden_irrigation(state);
     // Per-asteroid mining modal (clicked a Mining card) — also at ctx level.
     mining_modal(ctx, theme, state);
 }
