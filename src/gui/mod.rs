@@ -1307,10 +1307,6 @@ pub struct GuiState {
     pub crops: Vec<GuiCrop>,
 
     // ── Mining / drones state ──
-    /// The draft mining manifest the player is building — (ore_id, units) the drone
-    /// should fetch, summing to ≤ drone capacity. Adjusted by the Mining panel's
-    /// steppers; consumed into pending_drone_manifest on Launch.
-    pub drone_manifest_draft: Vec<(String, u32)>,
     /// Set the frame the player clicks "Launch drone" → bridged to DroneSystem's
     /// commission channel: `(target asteroid id, manifest)`. One asteroid per run.
     pub pending_drone_manifest: Option<(String, Vec<(String, u32)>)>,
@@ -2373,7 +2369,6 @@ impl Default for GuiState {
             pending_harvest_crop: None,
             dev_grow_crops: false,
             crops: Vec::new(),
-            drone_manifest_draft: Vec::new(),
             pending_drone_manifest: None,
             drone_active: false,
             asteroids: Vec::new(),

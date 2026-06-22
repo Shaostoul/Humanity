@@ -70,7 +70,7 @@ impl Glossary {
 /// definition tooltips just don't appear, app still works.
 pub fn install() -> &'static Glossary {
     GLOSSARY.get_or_init(|| {
-        let path = std::path::Path::new("data").join("glossary.json");
+        let path = crate::data_dir().join("glossary.json");
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(e) => {

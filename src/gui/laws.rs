@@ -127,7 +127,7 @@ impl Laws {
 /// (the page shows a friendly note) so the app still works.
 pub fn install() -> &'static Laws {
     LAWS.get_or_init(|| {
-        let path = std::path::Path::new("data").join("laws").join("laws.json");
+        let path = crate::data_dir().join("laws").join("laws.json");
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(e) => {

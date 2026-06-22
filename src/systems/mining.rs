@@ -86,31 +86,37 @@ impl System for DroneSystem {
             } else if manifest.is_empty() {
                 log::info!("[Mining] empty manifest; drone not launched");
             } else {
-                // The target asteroid's position (home = origin for now), so travel
-                // time + the map dot scale with how far the asteroid is.
+                // Only launch if the TARGET asteroid still exists — a depleted/stale id
+                // shouldn't burn the player's single drone slot on a dud trip. Its
+                // position scales the travel time + the map dot.
                 let target_pos = world
                     .query::<&AsteroidBody>()
                     .iter()
                     .find(|(_, a)| a.id == target)
-                    .map(|(_, a)| a.position)
-                    .unwrap_or([0.0, 0.0, 0.0]);
+                    .map(|(_, a)| a.position);
                 let home: Option<u64> = world
                     .query::<(&Inventory, &Controllable)>()
                     .iter()
                     .next()
                     .map(|(e, _)| e.to_bits().into());
-                if let Some(home) = home {
-                    world.spawn((Drone {
-                        home,
-                        target: target.clone(),
-                        manifest: manifest.clone(),
-                        phase: DronePhase::Outbound,
-                        phase_time: 0.0,
-                        cargo: Vec::new(),
-                        home_pos: [0.0, 0.0, 0.0],
-                        target_pos,
-                    },));
-                    log::info!("[Mining] commissioned a drone for {target}: {manifest:?}");
+                match (target_pos, home) {
+                    (Some(target_pos), Some(home)) => {
+                        world.spawn((Drone {
+                            home,
+                            target: target.clone(),
+                            manifest: manifest.clone(),
+                            phase: DronePhase::Outbound,
+                            phase_time: 0.0,
+                            cargo: Vec::new(),
+                            home_pos: [0.0, 0.0, 0.0],
+                            target_pos,
+                        },));
+                        log::info!("[Mining] commissioned a drone for {target}: {manifest:?}");
+                    }
+                    (None, _) => {
+                        log::info!("[Mining] target asteroid '{target}' not found; not launching");
+                    }
+                    _ => {}
                 }
             }
         }
@@ -350,5 +356,20 @@ mod drone_tests {
         commission(&data, "rock", vec![("iron_ore_0", 5)]); // try a second
         sys.tick(&mut world, 1.0, &data);
         assert_eq!(world.query::<&Drone>().iter().count(), 1, "still exactly one drone");
+    }
+
+    /// A commission for an asteroid that doesn't exist launches NO drone (no dud trip
+    /// that burns the single drone slot for nothing).
+    #[test]
+    fn missing_target_launches_nothing() {
+        let data = make_store();
+        let mut sys = DroneSystem::new();
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(16), Controllable));
+        world.spawn((asteroid("rock", vec![("iron_ore_0", 50.0)]),));
+
+        commission(&data, "ghost", vec![("iron_ore_0", 5)]); // no asteroid "ghost"
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(world.query::<&Drone>().iter().count(), 0, "no drone for a missing target");
     }
 }

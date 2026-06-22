@@ -34,6 +34,21 @@ pub mod relay;
 
 pub mod hot_reload;
 
+/// The resolved data directory, set once at startup (from `find_data_dir`) so cached
+/// loaders (laws, glossary, garden, homes) read the SAME CWD-independent path the main
+/// app uses, instead of a bare relative "data" that only resolves when the process CWD
+/// happens to contain data/. Falls back to "data" if never set (tests/snapshots, which
+/// run from the repo root).
+pub(crate) static DATA_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+/// The resolved data dir (or "data" if not yet set).
+pub(crate) fn data_dir() -> std::path::PathBuf {
+    DATA_DIR
+        .get()
+        .cloned()
+        .unwrap_or_else(|| std::path::PathBuf::from("data"))
+}
+
 pub mod systems;
 
 #[cfg(feature = "native")]
@@ -1980,6 +1995,9 @@ mod native_app {
             // ── DEFERRED: 3D world init is skipped here, done lazily on first Enter World ──
             // Only set up the data directory path for later use.
             let data_dir = find_data_dir();
+            // Publish it for the cached loaders (laws/glossary/homes) so they resolve
+            // the same CWD-independent path instead of a bare relative "data".
+            let _ = crate::DATA_DIR.set(data_dir.clone());
 
             // Minimal camera/controller (needed by struct, but not used until world loads)
             let mut camera = Camera::new();

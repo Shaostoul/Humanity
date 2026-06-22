@@ -679,6 +679,7 @@ fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let drone_active = state.drone_active;
     let mut draft = with_mining_edit(|m| m.draft.entry(ast_id.clone()).or_default().clone());
     let mut launch = false;
+    let mut cancel = false;
     let modal = egui::Modal::new(egui::Id::new(("mining_edit", &ast_id)))
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
         .show(ctx, |ui| {
@@ -729,16 +730,13 @@ fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 });
                 if widgets::secondary_button(ui, theme, "Cancel") {
-                    with_mining_edit(|m| m.open = None);
+                    cancel = true;
                 }
                 if drone_active {
                     ui.label(RichText::new("A drone is already out.").size(theme.font_size_small).color(theme.text_muted()));
                 }
             });
         });
-    with_mining_edit(|m| {
-        m.draft.insert(ast_id.clone(), draft.clone());
-    });
     if launch {
         let manifest: Vec<(String, u32)> = draft.into_iter().filter(|(_, u)| *u > 0).collect();
         if !manifest.is_empty() {
@@ -748,8 +746,18 @@ fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             m.open = None;
             m.draft.remove(&ast_id);
         });
-    } else if modal.should_close() {
-        with_mining_edit(|m| m.open = None);
+    } else if cancel || modal.should_close() {
+        // Cancel / backdrop / Escape: drop the in-progress draft so a reopen starts
+        // clean + stock-consistent (no stale, now-impossible allocation).
+        with_mining_edit(|m| {
+            m.open = None;
+            m.draft.remove(&ast_id);
+        });
+    } else {
+        // Still open: persist the in-progress allocation between frames.
+        with_mining_edit(|m| {
+            m.draft.insert(ast_id.clone(), draft.clone());
+        });
     }
 }
 
