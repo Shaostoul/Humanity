@@ -1,0 +1,83 @@
+// Grow MEDIA registry (infinite-of-X): each entry is a WAY crops are grown, matched to
+// a garden machine by its id, then the Inventory garden edit modal renders the listed
+// controls for it. Add a medium here (plus a machine in machines/home.ron whose id
+// matches) and it appears with NO code change. First matching entry wins, so order
+// matters: the exact "staple_grain_tray" is listed before the broader "_bed" suffix.
+//
+// Matching (any that is set is tried, exact -> prefix -> suffix):
+//   match_exact:  Some("mushroom_rack")        machine id equals this
+//   match_prefix: Some("aeroponic_tower")      machine id starts with this
+//   match_suffix: Some("_bed")                 machine id ends with this
+//
+// Controls (rendered top to bottom in the edit modal):
+//   Slider(key, label)  a 0..1 slider stored under `key` (water / nutrient / humidity / ...)
+//   Crop(label, hint)   a text field for the primary crop / species / fish
+//   Toggle(key, label)  a checkbox stored under `key`
+//
+// show_slots: true draws the matching aeroponic tower's planted-slot list above the controls.
+(
+    media: [
+        (
+            id: "aeroponic",
+            match_prefix: Some("aeroponic_tower"),
+            label: "Aeroponic tower - sun-lit, soil-less",
+            note: "Roots hang in air, misted with nutrient water; the canopy lives under the skylight. Light, not floor area, is the cap.",
+            show_slots: true,
+            controls: [
+                Slider(key: "water", label: "Mist water"),
+                Slider(key: "nutrient", label: "Nutrient strength"),
+            ],
+        ),
+        (
+            id: "grain_tray",
+            match_exact: Some("staple_grain_tray"),
+            label: "Grain tray - shallow staple tray",
+            note: "Shallow trays for cereals. Cereal is the worst per-m2 indoor crop, so these are deliberately few.",
+            controls: [
+                Crop(label: "Grain", hint: "e.g. wheat"),
+                Slider(key: "water", label: "Soil moisture"),
+            ],
+        ),
+        (
+            id: "soil_bed",
+            match_suffix: Some("_bed"),
+            label: "Soil bed - deep in-ground substrate",
+            note: "A deep bed for root + bulk crops. Carries the real calories the towers cannot.",
+            controls: [
+                Crop(label: "Primary crop", hint: "e.g. potato"),
+                Slider(key: "water", label: "Soil moisture"),
+                Toggle(key: "amend", label: "Compost amendment"),
+            ],
+        ),
+        (
+            id: "mushroom",
+            match_exact: Some("mushroom_rack"),
+            label: "Mushroom rack - no light needed",
+            note: "Uses the dark vertical space the canopy cannot. Substrate + humidity, no sun.",
+            controls: [
+                Crop(label: "Species", hint: "e.g. oyster"),
+                Slider(key: "humidity", label: "Humidity"),
+            ],
+        ),
+        (
+            id: "aquaponic",
+            match_exact: Some("aquaponic_tank"),
+            label: "Aquaponic tank - fish + plants",
+            note: "Fish waste fertilizes the plants; the plants clean the water. Closes B12 + omega-3, the gaps no plant fills.",
+            controls: [
+                Crop(label: "Fish", hint: "e.g. tilapia"),
+                Slider(key: "nutrient", label: "Feed rate"),
+            ],
+        ),
+        (
+            id: "field",
+            match_suffix: Some("_field"),
+            label: "Field crop - outdoor sun-lit, large scale",
+            note: "Carries the bulk calories no indoor canopy can. The silo buffers the winter.",
+            controls: [
+                Crop(label: "Crop", hint: "e.g. wheat"),
+                Slider(key: "water", label: "Irrigation"),
+            ],
+        ),
+    ],
+)

@@ -172,51 +172,14 @@ fn garden_area_tile(ui: &mut egui::Ui, theme: &Theme, a: &GardenArea) -> bool {
     resp.clicked()
 }
 
-/// The grow MEDIUM, so the edit modal can show controls tailored to how the crop is
-/// actually grown (a misted aeroponic slot is nothing like a soil bed's rows).
-#[derive(Clone, Copy, PartialEq)]
-enum GrowMedium {
-    AeroponicTower,
-    SoilBed,
-    GrainTray,
-    MushroomRack,
-    AquaponicTank,
-    Field,
-    Other,
-}
-
-fn grow_medium(machine_id: &str) -> GrowMedium {
-    if machine_id.starts_with("aeroponic_tower") {
-        GrowMedium::AeroponicTower
-    } else if machine_id == "staple_grain_tray" {
-        GrowMedium::GrainTray
-    } else if machine_id.ends_with("_bed") {
-        GrowMedium::SoilBed
-    } else if machine_id == "mushroom_rack" {
-        GrowMedium::MushroomRack
-    } else if machine_id == "aquaponic_tank" {
-        GrowMedium::AquaponicTank
-    } else if machine_id.ends_with("_field") {
-        GrowMedium::Field
-    } else {
-        GrowMedium::Other
-    }
-}
-
 /// In-memory edit config for one grow area (until garden persistence lands). The modal
-/// reads + writes this, keyed by machine id.
-#[derive(Clone)]
+/// reads + writes this, keyed by machine id. Slider/toggle values are keyed by the
+/// control's `key` from the grow-media registry, so a new control needs no field here.
+#[derive(Clone, Default)]
 struct GardenEditConfig {
-    water: f32,
-    nutrient: f32,
-    humidity: f32,
+    values: std::collections::HashMap<String, f32>,
+    toggles: std::collections::HashMap<String, bool>,
     crop: String,
-    amend: bool,
-}
-impl Default for GardenEditConfig {
-    fn default() -> Self {
-        Self { water: 0.6, nutrient: 0.5, humidity: 0.85, crop: String::new(), amend: true }
-    }
 }
 
 #[derive(Default)]
@@ -257,7 +220,7 @@ fn garden_edit_modal(ctx: &egui::Context, theme: &Theme, state: &GuiState) {
         with_garden_edit(|s| s.open = None);
         return;
     };
-    let medium = grow_medium(&machine_id);
+    let medium = state.grow_media.iter().find(|m| m.matches(&machine_id)).cloned();
     // A real modal: egui::Modal dims the inventory behind it and closes on a
     // backdrop click or Escape, so it reads as a focused popup, not a floating window.
     let modal = egui::Modal::new(egui::Id::new(("garden_edit", &machine_id)))
@@ -281,7 +244,7 @@ fn garden_edit_modal(ctx: &egui::Context, theme: &Theme, state: &GuiState) {
                 );
             }
             ui.separator();
-            garden_medium_editor(ui, theme, &machine_id, medium, state);
+            garden_medium_editor(ui, theme, &machine_id, medium.as_ref(), state);
             ui.add_space(theme.spacing_sm);
             if widgets::primary_button(ui, theme, "Done") {
                 with_garden_edit(|s| s.open = None);
@@ -292,80 +255,65 @@ fn garden_edit_modal(ctx: &egui::Context, theme: &Theme, state: &GuiState) {
     }
 }
 
-/// Medium-specific controls for the edit modal.
-fn garden_medium_editor(ui: &mut egui::Ui, theme: &Theme, machine_id: &str, medium: GrowMedium, state: &GuiState) {
+/// Medium-specific controls for the edit modal, rendered from the grow-media registry
+/// (data/garden/grow_media.ron) — so adding a plot-type is a data edit, not code.
+fn garden_medium_editor(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    machine_id: &str,
+    medium: Option<&crate::gui::GrowMedium>,
+    state: &GuiState,
+) {
+    let Some(medium) = medium else {
+        ui.label(
+            RichText::new("No medium-specific controls for this area yet.")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        return;
+    };
     let mut cfg = with_garden_edit(|s| s.configs.entry(machine_id.to_string()).or_default().clone());
-    let note = |ui: &mut egui::Ui, t: &str| {
-        ui.label(RichText::new(t).size(theme.font_size_small).color(theme.text_muted()));
-    };
-    let crop_field = |ui: &mut egui::Ui, label: &str, hint: &str, crop: &mut String| {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(label).color(theme.text_secondary()).size(theme.font_size_small));
-            ui.add(egui::TextEdit::singleline(crop).desired_width(220.0).hint_text(hint));
-        });
-    };
-    match medium {
-        GrowMedium::AeroponicTower => {
-            ui.label(RichText::new("Aeroponic tower - sun-lit, soil-less").strong().color(theme.text_secondary()));
-            note(ui, "Roots hang in air, misted with nutrient water; the canopy lives under the skylight. Light, not floor area, is the cap.");
+    ui.label(RichText::new(&medium.label).strong().color(theme.text_secondary()));
+    if !medium.note.is_empty() {
+        ui.label(RichText::new(&medium.note).size(theme.font_size_small).color(theme.text_muted()));
+    }
+    ui.add_space(theme.spacing_xs);
+    // An aeroponic tower also lists its planted slots (data flag: show_slots).
+    if medium.show_slots {
+        let cfg_id = machine_id.strip_prefix("aeroponic_tower_").unwrap_or("");
+        if let Some(tc) = state.tower_configs.iter().find(|t| t.id == cfg_id) {
+            ui.label(RichText::new(format!("{} slots planted as:", tc.slots)).color(theme.text_primary()).size(theme.font_size_small));
+            egui::ScrollArea::vertical().id_salt("ga_slots").max_height(150.0).show(ui, |ui| {
+                for p in &tc.plantings {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("{}x", p.slots)).color(theme.accent()).size(theme.font_size_small));
+                        ui.label(RichText::new(&p.plant).color(theme.text_primary()).size(theme.font_size_small));
+                        if !p.role.is_empty() {
+                            ui.label(RichText::new(&p.role).color(theme.text_muted()).size(theme.font_size_small));
+                        }
+                    });
+                }
+            });
             ui.add_space(theme.spacing_xs);
-            let cfg_id = machine_id.strip_prefix("aeroponic_tower_").unwrap_or("");
-            if let Some(tc) = state.tower_configs.iter().find(|t| t.id == cfg_id) {
-                ui.label(RichText::new(format!("{} slots planted as:", tc.slots)).color(theme.text_primary()).size(theme.font_size_small));
-                egui::ScrollArea::vertical().id_salt("ga_slots").max_height(150.0).show(ui, |ui| {
-                    for p in &tc.plantings {
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new(format!("{}x", p.slots)).color(theme.accent()).size(theme.font_size_small));
-                            ui.label(RichText::new(&p.plant).color(theme.text_primary()).size(theme.font_size_small));
-                            if !p.role.is_empty() {
-                                ui.label(RichText::new(&p.role).color(theme.text_muted()).size(theme.font_size_small));
-                            }
-                        });
-                    }
+        }
+    }
+    // The data-driven controls (sliders/crop field/toggles, keyed by the registry).
+    for control in &medium.controls {
+        match control {
+            crate::gui::GrowControl::Slider { key, label } => {
+                let v = cfg.values.entry(key.clone()).or_insert(0.5);
+                widgets::labeled_slider(ui, theme, label, v, 0.0..=1.0);
+            }
+            crate::gui::GrowControl::Crop { label, hint } => {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(label).color(theme.text_secondary()).size(theme.font_size_small));
+                    ui.add(egui::TextEdit::singleline(&mut cfg.crop).desired_width(220.0).hint_text(hint.as_str()));
                 });
             }
-            ui.add_space(theme.spacing_xs);
-            widgets::labeled_slider(ui, theme, "Mist water", &mut cfg.water, 0.0..=1.0);
-            widgets::labeled_slider(ui, theme, "Nutrient strength", &mut cfg.nutrient, 0.0..=1.0);
-        }
-        GrowMedium::SoilBed => {
-            ui.label(RichText::new("Soil bed - deep in-ground substrate").strong().color(theme.text_secondary()));
-            note(ui, "A deep bed for root + bulk crops. Carries the real calories the towers cannot.");
-            ui.add_space(theme.spacing_xs);
-            crop_field(ui, "Primary crop", "e.g. potato", &mut cfg.crop);
-            widgets::labeled_slider(ui, theme, "Soil moisture", &mut cfg.water, 0.0..=1.0);
-            widgets::toggle(ui, theme, "Compost amendment", &mut cfg.amend);
-        }
-        GrowMedium::GrainTray => {
-            ui.label(RichText::new("Grain tray - shallow staple tray").strong().color(theme.text_secondary()));
-            note(ui, "Shallow trays for cereals. Cereal is the worst per-m2 indoor crop, so these are deliberately few.");
-            ui.add_space(theme.spacing_xs);
-            crop_field(ui, "Grain", "e.g. wheat", &mut cfg.crop);
-            widgets::labeled_slider(ui, theme, "Soil moisture", &mut cfg.water, 0.0..=1.0);
-        }
-        GrowMedium::MushroomRack => {
-            ui.label(RichText::new("Mushroom rack - no light needed").strong().color(theme.text_secondary()));
-            note(ui, "Uses the dark vertical space the canopy cannot. Substrate + humidity, no sun.");
-            ui.add_space(theme.spacing_xs);
-            crop_field(ui, "Species", "e.g. oyster", &mut cfg.crop);
-            widgets::labeled_slider(ui, theme, "Humidity", &mut cfg.humidity, 0.0..=1.0);
-        }
-        GrowMedium::AquaponicTank => {
-            ui.label(RichText::new("Aquaponic tank - fish + plants").strong().color(theme.text_secondary()));
-            note(ui, "Fish waste fertilizes the plants; the plants clean the water. Closes B12 + omega-3, the gaps no plant fills.");
-            ui.add_space(theme.spacing_xs);
-            crop_field(ui, "Fish", "e.g. tilapia", &mut cfg.crop);
-            widgets::labeled_slider(ui, theme, "Feed rate", &mut cfg.nutrient, 0.0..=1.0);
-        }
-        GrowMedium::Field => {
-            ui.label(RichText::new("Field crop - outdoor sun-lit, large scale").strong().color(theme.text_secondary()));
-            note(ui, "Carries the bulk calories no indoor canopy can. The silo buffers the winter.");
-            ui.add_space(theme.spacing_xs);
-            crop_field(ui, "Crop", "e.g. wheat", &mut cfg.crop);
-            widgets::labeled_slider(ui, theme, "Irrigation", &mut cfg.water, 0.0..=1.0);
-        }
-        GrowMedium::Other => {
-            note(ui, "No medium-specific controls for this area yet.");
+            crate::gui::GrowControl::Toggle { key, label } => {
+                let t = cfg.toggles.entry(key.clone()).or_insert(true);
+                widgets::toggle(ui, theme, label, t);
+            }
         }
     }
     with_garden_edit(|s| {

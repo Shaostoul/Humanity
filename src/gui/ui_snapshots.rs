@@ -38,6 +38,7 @@ fn demo_state() -> GuiState {
     s.market_categories = crate::gui::load_market_categories(data);
     s.library = crate::gui::load_library(data);
     s.garden_areas = crate::gui::load_garden_areas(data);
+    s.grow_media = crate::gui::load_grow_media(data);
     s.onboarding_quest_chains = crate::gui::pages::onboarding::load_quest_chains(data);
     s.creative_mode = true;
     // Returning-user state so the main menu shows the loaded hub, not first-run onboarding.

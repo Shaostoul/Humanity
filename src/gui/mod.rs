@@ -1184,6 +1184,9 @@ pub struct GuiState {
     /// Garden grow-areas (towers/beds/racks/tanks/fields) from home.ron, loaded via
     /// the resolved data_dir, for the Inventory Garden overview + per-medium edit modal.
     pub garden_areas: Vec<GardenArea>,
+    /// Grow-media registry (data/garden/grow_media.ron) — the per-medium edit form is
+    /// rendered from this, so adding a plot-type is a data edit (infinite-of-X).
+    pub grow_media: Vec<GrowMedium>,
     /// Per-tower shared-reservoir compatibility (parallel to `tower_configs`),
     /// computed once from the plant registry in the crop sync. The "make sure
     /// they grow together" check shown on the Home page.
@@ -2290,6 +2293,7 @@ impl Default for GuiState {
             homestead_loops: Vec::new(),
             tower_configs: Vec::new(),
             garden_areas: Vec::new(),
+            grow_media: Vec::new(),
             tower_compat: Vec::new(),
             creative_mode: true,
             active_real_section: "inventory".to_string(),
@@ -3259,6 +3263,66 @@ pub fn load_garden_areas(data_dir: &std::path::Path) -> Vec<GardenArea> {
     // Most-numerous first, then by name, so the overview reads stably frame to frame.
     out.sort_by(|a, b| b.count.cmp(&a.count).then(a.label.cmp(&b.label)));
     out
+}
+
+/// One control in a grow medium's edit form (rendered top-to-bottom in the modal).
+#[derive(Debug, Clone, serde::Deserialize)]
+pub enum GrowControl {
+    /// A 0..1 slider stored under `key` (water / nutrient / humidity / ...).
+    Slider { key: String, label: String },
+    /// A free-text field for the primary crop / species / fish.
+    Crop { label: String, hint: String },
+    /// A checkbox stored under `key`.
+    Toggle { key: String, label: String },
+}
+
+/// A grow MEDIUM: a way crops are grown (aeroponic, soil bed, field, ...), matched to a
+/// garden machine by id, with the controls its edit modal shows. Data-driven from
+/// `data/garden/grow_media.ron` so plot-types are added without code (infinite-of-X).
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct GrowMedium {
+    pub id: String,
+    #[serde(default)]
+    pub match_prefix: Option<String>,
+    #[serde(default)]
+    pub match_suffix: Option<String>,
+    #[serde(default)]
+    pub match_exact: Option<String>,
+    pub label: String,
+    #[serde(default)]
+    pub note: String,
+    #[serde(default)]
+    pub show_slots: bool,
+    #[serde(default)]
+    pub controls: Vec<GrowControl>,
+}
+
+impl GrowMedium {
+    /// Does this medium apply to the given machine id? (exact, then prefix, then suffix.)
+    pub fn matches(&self, machine_id: &str) -> bool {
+        self.match_exact.as_deref() == Some(machine_id)
+            || self.match_prefix.as_deref().is_some_and(|p| machine_id.starts_with(p))
+            || self.match_suffix.as_deref().is_some_and(|s| machine_id.ends_with(s))
+    }
+}
+
+/// Load the grow-media registry (data/garden/grow_media.ron). Empty on absence/parse error.
+pub fn load_grow_media(data_dir: &std::path::Path) -> Vec<GrowMedium> {
+    #[derive(serde::Deserialize)]
+    struct File {
+        media: Vec<GrowMedium>,
+    }
+    let path = data_dir.join("garden").join("grow_media.ron");
+    match std::fs::read_to_string(&path) {
+        Ok(t) => match ron::from_str::<File>(&t) {
+            Ok(f) => f.media,
+            Err(e) => {
+                log::warn!("grow_media parse failed: {e}");
+                Vec::new()
+            }
+        },
+        Err(_) => Vec::new(),
+    }
 }
 
 /// Load the aeroponic tower configs (data/towers/aeroponic_configs.ron). Empty on

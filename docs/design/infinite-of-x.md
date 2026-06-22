@@ -84,6 +84,12 @@ missing/malformed input, pages render an empty filter row rather than crashing.
 | `src/gui/pages/ai_usage.rs:93-94` | AI provider list + time window choices | `data/ai_usage/filters.json` | Loader: `load_ai_usage_filters()` → `state.ai_usage_filters`. |
 | `src/gui/pages/tasks.rs:30` | 4 default project names in TaskPageState | `data/tasks/default_projects.json` | Read in `TaskPageState::default()` via `load_default_projects()` (thread-local, not GuiState field). |
 
+### Migrated in v0.508.0
+
+| Where | What | Target file | Notes |
+|-------|------|-------------|-------|
+| `src/gui/pages/inventory.rs` | Hardcoded `GrowMedium` enum + `grow_medium()` match + the per-medium garden edit form (aeroponic / soil bed / grain tray / mushroom / aquaponic / field) | `data/garden/grow_media.ron` | Loader: `load_grow_media()` -> `state.grow_media: Vec<GrowMedium>`. The garden edit modal renders each medium's label / note / controls (`Slider` / `Crop` / `Toggle`) from the registry, matched to a garden machine by id (exact / prefix / suffix, first match wins). Adding a plot-type is now a data edit, not code (the long-deferred garden plot-types arc). |
+
 ### Still outstanding (lower-priority)
 
 | Where | What | Target file | Notes |
