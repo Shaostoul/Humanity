@@ -17,15 +17,20 @@
 > {pen, keychain, wallet}; house -> rooms -> containers; car -> trunk), with MULTIPLE
 > inventories visible so items can be transferred between them and inspected. Full spec in
 > memory `design_nested_container_inventory`.
-> - **Increment 1 SHIPPED v0.512.0:** `draw_container` recursive renderer (items = tiles,
->   sub-containers = nested cards), `Place.items` field, tile selection + inspect card.
->   `data/places/seed.json` already modelled the nested kit, so this was a renderer over
->   existing data, not a migration.
-> - **NEXT:** (1) operator verifies v0.512 click behavior in `just launch` (open a
->   container, select a tile — egui interactivity can't be snapshot-verified). (2) Item
->   **TRANSFER** between containers (the core ask) — needs a LIVE per-container item model,
->   since today only the backpack holds live items and other containers are seeded labels;
->   decide that model with the operator. (3) Per-tile actions for non-backpack items.
+> - **SHIPPED v0.512.0:** `draw_container` recursive renderer (items = tiles, sub-containers
+>   = nested cards), tile selection + inspect card.
+> - **SHIPPED v0.513.0:** header contents counts + whole-row click to toggle a container.
+> - **SHIPPED v0.514.0 — item TRANSFER (organize layer, the operator's chosen model):**
+>   `PlacedItem { key, name, qty, container-path }` pool on GuiState, seeded from the places
+>   spine (`flatten_placed_items`); non-backpack tiles source from the pool so moves are
+>   live; selecting an item shows a "Move to" combo (`collect_containers`) that re-tags its
+>   container. Serialize-ready for a save.
+> - **NEXT, in order:** (1) **operator verifies interactivity in `just launch`** (open a
+>   container, select a tile, use "Move to" — egui clicks can't be snapshot-verified, and
+>   the in-app foundation is unverified). (2) **Backpack <-> container transfer** (the live
+>   ECS backpack is not yet in the pool — needs the ECS-boundary bridge). (3) **Persist
+>   `placed_items`** to the save (after the model stabilizes, to avoid migration churn).
+>   (4) Per-container capacity/weight (the deferred "physical" model).
 >
 > **SHIPPED 2026-06-22 (v0.511.0): MINING MAP reads as a journey** — route line in accent +
 > drone labelled mid-trip ("drone · outbound"), fixed the "Hom drone" label collision. The
