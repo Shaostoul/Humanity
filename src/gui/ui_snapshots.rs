@@ -13,7 +13,196 @@
 #![cfg(all(test, feature = "native"))]
 
 use crate::gui::theme::{load_theme, Theme};
-use crate::gui::GuiState;
+use crate::gui::{
+    ChatChannel, ChatDm, ChatMessage, ChatServer, ChatUser, GuiAsteroid, GuiCalendarEvent, GuiCrop,
+    GuiItemSlot, GuiListing, GuiNote, GuiQuest, GuiSkill, GuiState, GuiTask, GuiVitals, TaskPriority,
+    TaskStatus, WalletTransaction,
+};
+
+/// Build a `GuiState` populated with REALISTIC demo content so the snapshots
+/// reflect the loaded app, not the empty first-run state. Data-driven fields use
+/// the real loaders (reading `data/`, cwd = repo root under `cargo test`); the
+/// ECS-synced + dynamic fields (vitals, crops, asteroids, chat, tasks, …) are
+/// filled with representative sample values that mirror what the live main loop
+/// bridges in each frame. Keep this in sync with the GuiState fields the pages read.
+fn demo_state() -> GuiState {
+    let mut s = GuiState::default();
+    let data = std::path::Path::new("data");
+
+    // ── Data-driven content (the real loaders) ──
+    s.places = crate::gui::load_places(data);
+    s.tower_configs = crate::gui::load_tower_configs(data);
+    s.equipment_slots = crate::gui::load_equipment_slots(data);
+    s.crafting_category_groups = crate::gui::load_crafting_category_groups(data);
+    s.craft_recipes = crate::gui::load_crafting_recipes(data);
+    s.market_categories = crate::gui::load_market_categories(data);
+    s.library = crate::gui::load_library(data);
+    s.creative_mode = true;
+    // Returning-user state so the main menu shows the loaded hub, not first-run onboarding.
+    s.onboarding_complete = true;
+
+    // ── Inventory: Status vitals ──
+    s.vitals = GuiVitals {
+        satiation: 62.0,
+        hydration: 48.0,
+        energy: 80.0,
+        oxygen: 100.0,
+        body_temp_c: 37.0,
+        waste: 30.0,
+        satiation_max: 100.0,
+        hydration_max: 100.0,
+        energy_max: 100.0,
+        oxygen_max: 100.0,
+        waste_max: 100.0,
+        sealed: true,
+        effects: vec![("Well-fed".into(), 180.0), ("Rested".into(), 90.0)],
+    };
+    s.inventory_items = vec![
+        Some(GuiItemSlot { item_id: "water_bottle_0".into(), name: "Water Bottle".into(), quantity: 2 }),
+        Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 5 }),
+        Some(GuiItemSlot { item_id: "iron_ore_0".into(), name: "Iron Ore".into(), quantity: 6 }),
+        Some(GuiItemSlot { item_id: "seed_lettuce_0".into(), name: "Lettuce Seeds".into(), quantity: 12 }),
+    ];
+
+    // ── Garden: planted crops in towers ──
+    s.crops = vec![
+        GuiCrop {
+            name: "Lettuce".into(),
+            stage: "Mature".into(),
+            progress: 1.0,
+            water: 80.0,
+            health: 95.0,
+            mature: true,
+            tower_id: Some("helix_wide_60".into()),
+            tower_slot: Some(0),
+            water_per_day: 0.5,
+            temp_min: 5.0,
+            temp_max: 24.0,
+            ..Default::default()
+        },
+        GuiCrop {
+            name: "Basil".into(),
+            stage: "Growing".into(),
+            progress: 0.55,
+            water: 60.0,
+            health: 88.0,
+            tower_id: Some("helix_slim_32".into()),
+            tower_slot: Some(2),
+            ..Default::default()
+        },
+    ];
+
+    // ── Mining: asteroids with remaining ore ──
+    s.asteroids = vec![
+        GuiAsteroid {
+            name: "Asteroid M-12 (metallic)".into(),
+            classification: "M".into(),
+            ores: vec![("iron_ore_0".into(), 120.0), ("nickel_ore_0".into(), 60.0), ("platinum_ore_0".into(), 20.0)],
+        },
+        GuiAsteroid {
+            name: "Asteroid S-7 (silicaceous)".into(),
+            classification: "S".into(),
+            ores: vec![("iron_ore_0".into(), 40.0), ("copper_ore_0".into(), 50.0)],
+        },
+    ];
+
+    // ── Skills + quests ──
+    s.skills = vec![
+        GuiSkill { id: "farming".into(), name: "Farming".into(), category: "Survival".into(), level: 4, xp: 120, xp_needed: 200 },
+        GuiSkill { id: "mining".into(), name: "Mining".into(), category: "Survival".into(), level: 2, xp: 40, xp_needed: 120 },
+        GuiSkill { id: "crafting".into(), name: "Crafting".into(), category: "Production".into(), level: 3, xp: 75, xp_needed: 150 },
+    ];
+    s.quests = vec![
+        GuiQuest { name: "First Harvest".into(), step_index: 1, step_total: 3, step_desc: "Plant a seed in a tower".into(), completed: false },
+        GuiQuest { name: "Welcome to HumanityOS".into(), step_index: 0, step_total: 0, step_desc: String::new(), completed: true },
+    ];
+
+    // ── Chat ──
+    s.ws_status = "Connected".into();
+    s.chat_active_channel = "general".into();
+    let mk_channel = |id: &str, name: &str, voice: bool, ro: bool| ChatChannel {
+        id: id.into(),
+        name: name.into(),
+        description: String::new(),
+        category: "Text".into(),
+        voice_joined: false,
+        voice_enabled: voice,
+        read_only: ro,
+        federated: true,
+        voice_participants: vec![],
+    };
+    s.chat_channels = vec![
+        mk_channel("general", "general", true, false),
+        mk_channel("announcements", "announcements", false, true),
+        mk_channel("garden", "garden", true, false),
+    ];
+    s.chat_messages = vec![
+        ChatMessage { sender_name: "Shaostoul".into(), content: "Welcome to HumanityOS!".into(), timestamp: "12:30".into(), channel: "general".into(), ..Default::default() },
+        ChatMessage { sender_name: "Ada".into(), content: "The garden towers are looking great today.".into(), timestamp: "12:32".into(), channel: "general".into(), ..Default::default() },
+        ChatMessage { sender_name: "Shaostoul".into(), content: "Shipping the Laws page next.".into(), timestamp: "12:35".into(), channel: "general".into(), ..Default::default() },
+    ];
+    s.chat_users = vec![
+        ChatUser { name: "Shaostoul".into(), public_key: "ed25519:abc".into(), role: "admin".into(), status: "online".into() },
+        ChatUser { name: "Ada".into(), public_key: "ed25519:def".into(), role: "member".into(), status: "online".into() },
+    ];
+    s.chat_dms = vec![ChatDm { user_name: "Ada".into(), user_key: "ed25519:def".into(), last_message: "See you at the build".into(), timestamp: "11:02".into(), unread: true }];
+    s.chat_servers = vec![ChatServer {
+        name: "United Humanity".into(),
+        channels: s.chat_channels.clone(),
+        voice_channels: vec![],
+        id: "srv_united".into(),
+        url: "https://united-humanity.us".into(),
+        connected: true,
+    }];
+
+    // ── Tasks (one per kanban column) ──
+    s.tasks = vec![
+        GuiTask { id: 1, title: "Plant the spring greens".into(), description: String::new(), priority: TaskPriority::High, status: TaskStatus::Todo, assignee: "Shaostoul".into(), labels: vec!["garden".into()] },
+        GuiTask { id: 2, title: "Wire the mining drone manifest".into(), description: String::new(), priority: TaskPriority::Medium, status: TaskStatus::InProgress, assignee: "Ada".into(), labels: vec![] },
+        GuiTask { id: 3, title: "Ship the Laws page".into(), description: String::new(), priority: TaskPriority::Low, status: TaskStatus::Done, assignee: "Shaostoul".into(), labels: vec!["ui".into()] },
+    ];
+    s.task_next_id = 4;
+
+    // ── Market listings ──
+    s.listings = vec![
+        GuiListing { id: 1, title: "Helix Wide 60 tower".into(), description: "33-slot aeroponic tower".into(), price: 120.0, seller: "Shaostoul".into(), category: "Equipment".into() },
+        GuiListing { id: 2, title: "Heirloom seed pack".into(), description: "Greens + herbs".into(), price: 8.0, seller: "Ada".into(), category: "Seeds".into() },
+    ];
+    s.listing_next_id = 3;
+
+    // ── Notes ──
+    s.notes = vec![
+        GuiNote { id: 1, title: "Garden plan".into(), content: "Tower A: greens. Tower B: herbs.".into(), modified: 0 },
+        GuiNote { id: 2, title: "Mining route".into(), content: "M-12 then S-7.".into(), modified: 0 },
+    ];
+    s.notes_selected = Some(1);
+    s.notes_next_id = 3;
+
+    // ── Calendar ──
+    s.cal_year = 2026;
+    s.cal_month = 6;
+    s.cal_selected_day = 21;
+    s.cal_events = vec![
+        GuiCalendarEvent { title: "Harvest lettuce".into(), year: 2026, month: 6, day: 21, time: "09:00".into(), color: egui::Color32::from_rgb(80, 180, 80) },
+        GuiCalendarEvent { title: "Volunteer (Sponsor-a-Can)".into(), year: 2026, month: 6, day: 23, time: "08:00".into(), color: egui::Color32::from_rgb(100, 140, 200) },
+    ];
+
+    // ── Wallet ──
+    s.wallet_balance = 12.4;
+    s.wallet_address = "7xKQ9fAb...3mNp".into();
+    s.wallet_sol_price = 150.0;
+    s.wallet_transactions = vec![WalletTransaction { signature: "5gH...zP".into(), direction: "in".into(), amount: 2.0, counterparty: "Ada".into(), timestamp: "2026-06-20".into() }];
+
+    // ── Profile ──
+    s.profile_name = "Shaostoul".into();
+    s.profile_bio = "Building HumanityOS to end poverty and unite humanity.".into();
+    s.profile_pronouns = "he/him".into();
+    s.profile_location = "Silverdale, WA".into();
+    s.profile_website = "united-humanity.us".into();
+    s.profile_public_key = "ed25519:abc...def".into();
+
+    s
+}
 
 /// Render one settings-style page into an offscreen `w`x`h` surface and write
 /// `tests/snapshots/<name>.png`.
@@ -41,7 +230,7 @@ fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &T
         let ctx = egui::Context::default();
         let theme = load_theme();
         theme.apply_to_egui(&ctx);
-        let mut state = GuiState::default();
+        let mut state = demo_state();
         let ppp = 1.0_f32;
         let raw_input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
@@ -50,16 +239,26 @@ fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &T
             )),
             ..Default::default()
         };
+        // ── egui-wgpu renderer ──
+        let mut renderer = egui_wgpu::Renderer::new(&device, format, None, 1, false);
+        // egui Windows/Areas measure their size on the first frame and only settle
+        // their position on the second, so a single-frame render leaves Window-based
+        // pages (the main menu hub/onboarding, modals) blank. Run a warm-up frame,
+        // then capture the second — applying BOTH frames' texture deltas (the font
+        // atlas is created on frame 1).
+        let warm = ctx.run(raw_input.clone(), |ctx| {
+            frame(ctx, &theme, &mut state);
+        });
+        for (id, delta) in &warm.textures_delta.set {
+            renderer.update_texture(&device, &queue, *id, delta);
+        }
         let full_output = ctx.run(raw_input, |ctx| {
             frame(ctx, &theme, &mut state);
         });
-        let clipped = ctx.tessellate(full_output.shapes, ppp);
-
-        // ── egui-wgpu renderer ──
-        let mut renderer = egui_wgpu::Renderer::new(&device, format, None, 1, false);
         for (id, delta) in &full_output.textures_delta.set {
             renderer.update_texture(&device, &queue, *id, delta);
         }
+        let clipped = ctx.tessellate(full_output.shapes, ppp);
         let screen = egui_wgpu::ScreenDescriptor {
             size_in_pixels: [w, h],
             pixels_per_point: ppp,
@@ -226,6 +425,7 @@ macro_rules! page_snapshot {
     };
 }
 
+page_snapshot!(snapshot_main_menu, "main_menu", main_menu, 1280, 900);
 page_snapshot!(snapshot_humanity, "humanity", humanity, 1280, 900);
 page_snapshot!(snapshot_chat, "chat", chat, 1280, 900);
 page_snapshot!(snapshot_inventory, "inventory", inventory, 1280, 900);
