@@ -2,7 +2,7 @@
 //! item detail panel, and quick actions.
 
 use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
-use crate::gui::{GardenArea, GuiAsteroid, GuiState};
+use crate::gui::{GardenArea, GuiAsteroid, GuiDrone, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use std::cell::RefCell;
@@ -642,6 +642,18 @@ pub(crate) fn test_close_mining_edit() {
     with_mining_edit(|m| m.open = None);
 }
 
+/// Test hook: render just the mining map (the snapshot harness can't reliably reach
+/// it deep in the inventory due to shared egui collapse state).
+#[cfg(test)]
+pub(crate) fn draw_mining_map_for_test(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    asteroids: &[GuiAsteroid],
+    drones: &[GuiDrone],
+) {
+    draw_mining_map(ui, theme, asteroids, drones);
+}
+
 /// Set an ore's allocation in a manifest draft (insert/update/remove-at-zero).
 fn set_draft_units(draft: &mut Vec<(String, u32)>, ore: &str, units: u32) {
     if units == 0 {
@@ -738,6 +750,46 @@ fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         });
     } else if modal.should_close() {
         with_mining_edit(|m| m.open = None);
+    }
+}
+
+/// A small top-down MINING MAP: home at the centre, each asteroid a dot at its (x, z)
+/// position (labelled with name + distance), and the active drone a dot travelling
+/// along the line to its target — so you can watch the drone go off to mine and come
+/// back. All colours are theme tokens / data-seeded swatches.
+fn draw_mining_map(ui: &mut egui::Ui, theme: &Theme, asteroids: &[GuiAsteroid], drones: &[GuiDrone]) {
+    let h = 200.0;
+    let w = ui.available_width().min(560.0);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(w, h), egui::Sense::hover());
+    let painter = ui.painter();
+    painter.rect_filled(rect, Rounding::same(6), theme.bg_card());
+    painter.rect_stroke(rect, Rounding::same(6), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+    let center = rect.center();
+    let max_d = asteroids.iter().map(|a| a.distance).fold(1.0f32, f32::max);
+    let margin = 40.0;
+    let scale = ((rect.width().min(rect.height()) / 2.0 - margin) / max_d).max(0.01);
+    let proj = |p: [f32; 3]| egui::pos2(center.x + p[0] * scale, center.y + p[2] * scale);
+    let font = egui::FontId::proportional(theme.font_size_small);
+    // Routes first (under the dots).
+    for d in drones {
+        if let Some(ta) = asteroids.iter().find(|a| a.id == d.target) {
+            painter.line_segment([center, proj(ta.position)], Stroke::new(1.0, theme.border()));
+        }
+    }
+    // Home at the centre.
+    painter.circle_filled(center, 5.0, theme.accent());
+    painter.text(center + Vec2::new(8.0, -2.0), egui::Align2::LEFT_BOTTOM, "Home", font.clone(), theme.text_muted());
+    // Asteroids.
+    for a in asteroids {
+        let sp = proj(a.position);
+        painter.circle_filled(sp, 4.0, widgets::swatch_color(&a.classification));
+        painter.text(sp + Vec2::new(7.0, 0.0), egui::Align2::LEFT_CENTER, format!("{} · {:.0}km", a.name, a.distance), font.clone(), theme.text_secondary());
+    }
+    // The drone, mid-journey.
+    for d in drones {
+        let dp = proj(d.pos);
+        painter.circle_filled(dp, 4.0, theme.warning());
+        painter.text(dp + Vec2::new(7.0, 0.0), egui::Align2::LEFT_CENTER, "drone", font.clone(), theme.warning());
     }
 }
 
@@ -1517,6 +1569,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             c.add_space(theme.spacing_sm);
                         }
                     });
+                    ui.add_space(theme.spacing_sm);
+                    draw_mining_map(ui, theme, &asts, &state.drones);
                 }
                 ui.add_space(theme.spacing_xs);
                 if !state.drones.is_empty() {

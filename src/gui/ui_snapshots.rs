@@ -491,6 +491,28 @@ fn snapshot_mining_modal() {
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_mining_map() {
+    render_page_png("mining_map", 600, 240, |ctx, theme, state| {
+        let drones = vec![crate::gui::GuiDrone {
+            manifest: vec![("iron_ore_0".into(), 6)],
+            phase: "Outbound".into(),
+            cargo_total: 0,
+            phase_progress: 0.5,
+            target: "m12".into(),
+            distance: 68.1,
+            pos: [30.0, 6.0, -15.0],
+        }];
+        theme.apply_to_egui(ctx);
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(theme.bg_primary()).inner_margin(12.0))
+            .show(ctx, |ui| {
+                crate::gui::pages::inventory::draw_mining_map_for_test(ui, theme, &state.asteroids, &drones);
+            });
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_garden_modal_tower() {
     render_page_png("garden_modal_tower", 900, 980, |ctx, theme, state| {
         crate::gui::pages::inventory::test_open_garden_edit("aeroponic_tower_nutrition");
