@@ -594,6 +594,37 @@ fn tree_detail(ui: &mut Ui, theme: &Theme, detail: &str) {
     }
 }
 
+/// Render ONE leaf row (swatch + name cell + inline detail), clickable when it
+/// carries an id. Shared by the single-column path and the multi-column grid, so a
+/// big flat list of leaves (dozens of seeds) can flow into columns instead of one
+/// very tall column. The inline expand-card is rendered by the CALLER (under the
+/// row in single-column, below the grid in multi-column).
+fn leaf_row(ui: &mut Ui, theme: &Theme, node: &TreeNode, selected: &str, clicked: &mut Option<String>) {
+    ui.horizontal(|ui| {
+        paint_swatch(ui, node.color);
+        row_cell(ui, theme.cell_name_width, |ui| {
+            if node.id.is_empty() {
+                ui.label(egui::RichText::new(&node.label).color(theme.text_primary()));
+            } else if ui
+                .selectable_label(
+                    selected == node.id,
+                    egui::RichText::new(&node.label).color(theme.text_primary()),
+                )
+                .clicked()
+            {
+                *clicked = Some(node.id.clone());
+            }
+        });
+        if !node.detail.is_empty() {
+            ui.label(
+                egui::RichText::new(&node.detail)
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        }
+    });
+}
+
 fn container_node(
     ui: &mut Ui,
     theme: &Theme,
@@ -605,33 +636,7 @@ fn container_node(
     inline: &mut dyn FnMut(&mut Ui, &str),
 ) {
     if node.children.is_empty() {
-        ui.horizontal(|ui| {
-            paint_swatch(ui, node.color);
-            // The label sits in a fixed-width cell so sibling leaves line up into
-            // name | detail columns (the same row_cell the garden/mining rows use);
-            // the detail follows the cell inline instead of at the panel's far edge
-            // (v0.414 — the You & places rows join the spreadsheet look).
-            row_cell(ui, theme.cell_name_width, |ui| {
-                if node.id.is_empty() {
-                    ui.label(egui::RichText::new(&node.label).color(theme.text_primary()));
-                } else if ui
-                    .selectable_label(
-                        selected == node.id,
-                        egui::RichText::new(&node.label).color(theme.text_primary()),
-                    )
-                    .clicked()
-                {
-                    *clicked = Some(node.id.clone());
-                }
-            });
-            if !node.detail.is_empty() {
-                ui.label(
-                    egui::RichText::new(&node.detail)
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
-            }
-        });
+        leaf_row(ui, theme, node, selected, clicked);
         // Inline EXPAND-IN-PLACE body (operator 2026-06-08: "click an item row to
         // expand in place ... instead of a popup/top detail"). When this leaf is the
         // selected one, render its detail card directly under the row, indented so it
@@ -671,10 +676,30 @@ fn container_node(
                 tree_detail(ui, theme, &node.detail);
             },
             |ui| {
-                for (j, child) in node.children.iter().enumerate() {
-                    ui.push_id(j, |ui| {
-                        container_node(ui, theme, child, selected, clicked, default_open, force, inline)
+                // If this container holds MANY leaf items (e.g. dozens of seeds),
+                // flow them into columns so it does not become one very tall column;
+                // the selected item's inline card renders full-width below the grid.
+                // Mixed or few children recurse sequentially as before.
+                let all_leaves = node.children.iter().all(|c| c.children.is_empty());
+                if all_leaves && node.children.len() > 12 {
+                    let avail = ui.available_width();
+                    let ncols = (avail / 260.0).floor().clamp(2.0, 4.0) as usize;
+                    ui.columns(ncols, |cols| {
+                        for (j, child) in node.children.iter().enumerate() {
+                            leaf_row(&mut cols[j % ncols], theme, child, selected, clicked);
+                        }
                     });
+                    if !selected.is_empty() {
+                        if let Some(sel) = node.children.iter().find(|c| selected == c.id) {
+                            ui.indent(("inline_body", &sel.id), |ui| inline(ui, &sel.id));
+                        }
+                    }
+                } else {
+                    for (j, child) in node.children.iter().enumerate() {
+                        ui.push_id(j, |ui| {
+                            container_node(ui, theme, child, selected, clicked, default_open, force, inline)
+                        });
+                    }
                 }
             },
         );

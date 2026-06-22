@@ -41,6 +41,8 @@ fn demo_state() -> GuiState {
     s.creative_mode = true;
     // Returning-user state so the main menu shows the loaded hub, not first-run onboarding.
     s.onboarding_complete = true;
+    // Start the inventory trees expanded so snapshots show the nested contents.
+    s.trees_start_collapsed = false;
 
     // ── Inventory: Status vitals ──
     s.vitals = GuiVitals {
@@ -58,12 +60,24 @@ fn demo_state() -> GuiState {
         sealed: true,
         effects: vec![("Well-fed".into(), 180.0), ("Rested".into(), 90.0)],
     };
-    s.inventory_items = vec![
+    let mut items = vec![
         Some(GuiItemSlot { item_id: "water_bottle_0".into(), name: "Water Bottle".into(), quantity: 2 }),
         Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 5 }),
         Some(GuiItemSlot { item_id: "iron_ore_0".into(), name: "Iron Ore".into(), quantity: 6 }),
-        Some(GuiItemSlot { item_id: "seed_lettuce_0".into(), name: "Lettuce Seeds".into(), quantity: 12 }),
     ];
+    // A big flat seed list, to exercise the multi-column leaf layout.
+    for s_name in [
+        "Lettuce", "Spinach", "Kale", "Cabbage", "Broccoli", "Cauliflower", "Beet", "Turnip",
+        "Radish", "Carrot", "Parsnip", "Celery", "Leek", "Onion", "Garlic", "Chive", "Cucumber",
+        "Zucchini", "Tomato", "Bell Pepper", "Eggplant", "Okra", "Strawberry", "Bean",
+    ] {
+        items.push(Some(GuiItemSlot {
+            item_id: format!("seed_{}_0", s_name.to_lowercase().replace(' ', "_")),
+            name: format!("{} Seeds", s_name),
+            quantity: 1,
+        }));
+    }
+    s.inventory_items = items;
 
     // ── Garden: planted crops in towers ──
     s.crops = vec![
@@ -440,6 +454,24 @@ page_snapshot!(snapshot_main_menu, "main_menu", main_menu, 1280, 900);
 page_snapshot!(snapshot_humanity, "humanity", humanity, 1280, 900);
 page_snapshot!(snapshot_chat, "chat", chat, 1280, 900);
 page_snapshot!(snapshot_inventory, "inventory", inventory, 1280, 1700);
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_garden_modal_soil() {
+    render_page_png("garden_modal_soil", 900, 980, |ctx, theme, state| {
+        crate::gui::pages::inventory::test_open_garden_edit("potato_grow_bed");
+        crate::gui::pages::inventory::draw(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_garden_modal_tower() {
+    render_page_png("garden_modal_tower", 900, 980, |ctx, theme, state| {
+        crate::gui::pages::inventory::test_open_garden_edit("aeroponic_tower_nutrition");
+        crate::gui::pages::inventory::draw(ctx, theme, state);
+    });
+}
 page_snapshot!(snapshot_tasks, "tasks", tasks, 1280, 900);
 page_snapshot!(snapshot_market, "market", market, 1280, 900);
 page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);
