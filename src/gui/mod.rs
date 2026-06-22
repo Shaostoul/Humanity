@@ -508,10 +508,15 @@ pub struct GuiCrop {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
 pub struct GuiAsteroid {
+    /// Stable id used to target this asteroid for a mining run.
+    pub id: String,
     pub name: String,
     pub classification: String,
     /// Remaining ore by item id.
     pub ores: Vec<(String, f32)>,
+    /// World position (km) + straight-line distance from home, for the map + UI.
+    pub position: [f32; 3],
+    pub distance: f32,
 }
 
 /// An active mining drone for GUI display.
@@ -525,6 +530,11 @@ pub struct GuiDrone {
     pub cargo_total: u32,
     /// Progress 0..1 through the current mission phase (for the panel's bar).
     pub phase_progress: f32,
+    /// Target asteroid id, distance, and the drone's current world position (for the
+    /// map dot + "mining X, N km away" readout).
+    pub target: String,
+    pub distance: f32,
+    pub pos: [f32; 3],
 }
 
 /// A player skill (live level + XP) for GUI display, synced from the ECS
@@ -1302,8 +1312,8 @@ pub struct GuiState {
     /// steppers; consumed into pending_drone_manifest on Launch.
     pub drone_manifest_draft: Vec<(String, u32)>,
     /// Set the frame the player clicks "Launch drone" → bridged to DroneSystem's
-    /// commission channel (the whole manifest).
-    pub pending_drone_manifest: Option<Vec<(String, u32)>>,
+    /// commission channel: `(target asteroid id, manifest)`. One asteroid per run.
+    pub pending_drone_manifest: Option<(String, Vec<(String, u32)>)>,
     /// True while a drone is in flight (synced) — one drone per player, so the panel
     /// shows the active drone instead of the builder + disables Launch.
     pub drone_active: bool,

@@ -2080,7 +2080,7 @@ mod native_app {
             // fetch); DroneSystem launches one drone per player.
             data_store.insert(
                 "commission_drone",
-                std::sync::Mutex::new(Option::<Vec<(String, u32)>>::None),
+                std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None),
             );
             // Survival: rest to refill energy (FoodSystem drains it).
             data_store.insert("rest_request", std::sync::Mutex::new(false));
@@ -2162,6 +2162,7 @@ mod native_app {
             // Test asteroids for the mining loop (finite ore; DroneSystem deletes one
             // when fully consumed). Dev/testing content — MMO asteroids are server-side.
             game_world.world.spawn((crate::ecs::components::AsteroidBody {
+                id: "m12".to_string(),
                 name: "Asteroid M-12 (metallic)".to_string(),
                 classification: "M".to_string(),
                 ores: vec![
@@ -2169,14 +2170,17 @@ mod native_app {
                     ("nickel_ore_0".to_string(), 60.0),
                     ("platinum_ore_0".to_string(), 20.0),
                 ],
+                position: [60.0, 12.0, -30.0],
             },));
             game_world.world.spawn((crate::ecs::components::AsteroidBody {
+                id: "s7".to_string(),
                 name: "Asteroid S-7 (silicaceous)".to_string(),
                 classification: "S".to_string(),
                 ores: vec![
                     ("iron_ore_0".to_string(), 40.0),
                     ("copper_ore_0".to_string(), 50.0),
                 ],
+                position: [-45.0, 8.0, 55.0],
             },));
 
             // Initialize egui
@@ -2997,14 +3001,15 @@ mod native_app {
                             }
                         }
                     }
-                    // Mining: bridge a commissioned drone MANIFEST to DroneSystem.
-                    if let Some(manifest) = state.gui_state.pending_drone_manifest.take() {
-                        if let Some(slot) = state
-                            .data_store
-                            .get::<std::sync::Mutex<Option<Vec<(String, u32)>>>>("commission_drone")
+                    // Mining: bridge a commissioned drone order (target asteroid id +
+                    // manifest) to DroneSystem.
+                    if let Some(order) = state.gui_state.pending_drone_manifest.take() {
+                        if let Some(slot) = state.data_store.get::<std::sync::Mutex<
+                            Option<(String, Vec<(String, u32)>)>,
+                        >>("commission_drone")
                         {
                             if let Ok(mut s) = slot.lock() {
-                                *s = Some(manifest);
+                                *s = Some(order);
                             }
                         }
                     }
@@ -4229,10 +4234,15 @@ mod native_app {
                             .query::<&crate::ecs::components::AsteroidBody>()
                             .iter()
                         {
+                            let p = ast.position;
+                            let dist = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
                             state.gui_state.asteroids.push(crate::gui::GuiAsteroid {
+                                id: ast.id.clone(),
                                 name: ast.name.clone(),
                                 classification: ast.classification.clone(),
                                 ores: ast.ores.iter().map(|(id, q)| (id.clone(), *q)).collect(),
+                                position: ast.position,
+                                distance: dist,
                             });
                         }
                         state.gui_state.drones.clear();
@@ -4242,7 +4252,7 @@ mod native_app {
                             .query::<&crate::ecs::components::Drone>()
                             .iter()
                         {
-                            let dur = crate::systems::mining::phase_secs(&drone.phase);
+                            let dur = drone.phase_duration(drone.phase);
                             let phase_progress = if dur > 0.0 {
                                 (drone.phase_time / dur).clamp(0.0, 1.0)
                             } else {
@@ -4253,6 +4263,9 @@ mod native_app {
                                 phase: format!("{:?}", drone.phase),
                                 cargo_total: drone.cargo_total(),
                                 phase_progress,
+                                target: drone.target.clone(),
+                                distance: drone.distance(),
+                                pos: drone.current_pos(),
                             });
                         }
                         // One drone per player: the panel shows the active drone +

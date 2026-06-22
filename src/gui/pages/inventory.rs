@@ -2,7 +2,7 @@
 //! item detail panel, and quick actions.
 
 use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
-use crate::gui::{GardenArea, GuiState};
+use crate::gui::{GardenArea, GuiAsteroid, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use std::cell::RefCell;
@@ -578,6 +578,169 @@ fn draw_item_card(
     });
 }
 
+/// One asteroid as a clickable CARD: swatch by class + name, class + distance, the ore
+/// summary, and a "Mine" hint. Returns true when clicked (to open its mining modal).
+fn asteroid_card(ui: &mut egui::Ui, theme: &Theme, ast: &GuiAsteroid) -> bool {
+    let summary: Vec<String> = ast
+        .ores
+        .iter()
+        .filter(|(_, q)| *q >= 1.0)
+        .map(|(id, q)| format!("{} {:.0}", ore_short(id), q))
+        .collect();
+    let inner = Frame::none()
+        .fill(theme.bg_card())
+        .rounding(Rounding::same(theme.border_radius_lg as u8))
+        .stroke(Stroke::new(1.0, theme.border()))
+        .inner_margin(Vec2::new(10.0, 8.0))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(Vec2::splat(10.0), egui::Sense::hover());
+                ui.painter().circle_filled(r.center(), 5.0, widgets::swatch_color(&ast.classification));
+                ui.label(RichText::new(&ast.name).strong().color(theme.text_primary()).size(theme.font_size_small));
+            });
+            ui.label(
+                RichText::new(format!("Class {} · {:.0} km", ast.classification, ast.distance))
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.label(
+                RichText::new(if summary.is_empty() { "depleted".to_string() } else { summary.join(", ") })
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+            ui.label(RichText::new("Mine").size(theme.font_size_small).color(theme.accent()));
+        });
+    let resp = inner.response.interact(egui::Sense::click());
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp.clicked()
+}
+
+/// Which asteroid's mining modal is open + the per-asteroid hold draft (until launch).
+#[derive(Default)]
+struct MiningEditState {
+    open: Option<String>,
+    draft: std::collections::HashMap<String, Vec<(String, u32)>>,
+}
+
+fn with_mining_edit<R>(f: impl FnOnce(&mut MiningEditState) -> R) -> R {
+    thread_local! {
+        static S: RefCell<MiningEditState> = RefCell::new(MiningEditState::default());
+    }
+    S.with(|s| f(&mut s.borrow_mut()))
+}
+
+#[cfg(test)]
+pub(crate) fn test_open_mining_edit(asteroid_id: &str) {
+    with_mining_edit(|m| m.open = Some(asteroid_id.to_string()));
+}
+
+#[cfg(test)]
+pub(crate) fn test_close_mining_edit() {
+    with_mining_edit(|m| m.open = None);
+}
+
+/// Set an ore's allocation in a manifest draft (insert/update/remove-at-zero).
+fn set_draft_units(draft: &mut Vec<(String, u32)>, ore: &str, units: u32) {
+    if units == 0 {
+        draft.retain(|(o, _)| o != ore);
+    } else if let Some(slot) = draft.iter_mut().find(|(o, _)| o == ore) {
+        slot.1 = units;
+    } else {
+        draft.push((ore.to_string(), units));
+    }
+}
+
+/// The per-asteroid mining modal: allocate the drone hold across THIS asteroid's ores
+/// (bounded by each ore's stock + the hold capacity), then launch the drone to mine it.
+fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let Some(ast_id) = with_mining_edit(|m| m.open.clone()) else {
+        return;
+    };
+    let Some(ast) = state.asteroids.iter().find(|a| a.id == ast_id).cloned() else {
+        with_mining_edit(|m| m.open = None);
+        return;
+    };
+    let cap = crate::systems::mining::DRONE_CAPACITY;
+    let drone_active = state.drone_active;
+    let mut draft = with_mining_edit(|m| m.draft.entry(ast_id.clone()).or_default().clone());
+    let mut launch = false;
+    let modal = egui::Modal::new(egui::Id::new(("mining_edit", &ast_id)))
+        .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
+        .show(ctx, |ui| {
+            ui.set_min_width(440.0);
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(Vec2::splat(12.0), egui::Sense::hover());
+                ui.painter().circle_filled(r.center(), 6.0, widgets::swatch_color(&ast.classification));
+                ui.label(RichText::new(&ast.name).size(theme.font_size_heading).strong().color(theme.text_primary()));
+            });
+            ui.label(
+                RichText::new(format!("Class {} · {:.0} km away (a farther rock is a longer trip)", ast.classification, ast.distance))
+                    .color(theme.text_secondary())
+                    .size(theme.font_size_small),
+            );
+            let total: u32 = draft.iter().map(|(_, u)| u).sum();
+            ui.label(
+                RichText::new(format!("Drone hold: {total}/{cap} units. The drone mines ONLY this asteroid; the haul is capped by what it holds."))
+                    .color(theme.text_muted())
+                    .size(theme.font_size_small),
+            );
+            manifest_bar(ui, theme, &draft, cap);
+            ui.separator();
+            for (ore, avail) in ast.ores.iter().filter(|(_, q)| *q >= 1.0) {
+                let cur = draft.iter().find(|(o, _)| o == ore).map(|(_, u)| *u).unwrap_or(0);
+                let ore_cap = (*avail as u32).min(cap);
+                ui.horizontal(|ui| {
+                    widgets::row_cell(ui, 150.0, |ui| {
+                        ui.label(RichText::new(ore_short(ore)).size(theme.font_size_small).color(theme.text_primary()));
+                    });
+                    ui.label(RichText::new(format!("{:.0} left", avail)).size(theme.font_size_small).color(theme.text_muted()));
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    if widgets::stepper_button(ui, theme, "-", cur > 0, false) {
+                        set_draft_units(&mut draft, ore, cur.saturating_sub(1));
+                    }
+                    ui.label(RichText::new(format!("{cur}")).color(theme.text_primary()));
+                    let can_inc = total < cap && cur < ore_cap;
+                    if widgets::stepper_button(ui, theme, "+", can_inc, true) {
+                        set_draft_units(&mut draft, ore, cur + 1);
+                    }
+                });
+            }
+            ui.add_space(theme.spacing_sm);
+            ui.horizontal(|ui| {
+                let any = draft.iter().any(|(_, u)| *u > 0);
+                ui.add_enabled_ui(any && !drone_active, |ui| {
+                    if widgets::primary_button(ui, theme, "Launch drone") {
+                        launch = true;
+                    }
+                });
+                if widgets::secondary_button(ui, theme, "Cancel") {
+                    with_mining_edit(|m| m.open = None);
+                }
+                if drone_active {
+                    ui.label(RichText::new("A drone is already out.").size(theme.font_size_small).color(theme.text_muted()));
+                }
+            });
+        });
+    with_mining_edit(|m| {
+        m.draft.insert(ast_id.clone(), draft.clone());
+    });
+    if launch {
+        let manifest: Vec<(String, u32)> = draft.into_iter().filter(|(_, u)| *u > 0).collect();
+        if !manifest.is_empty() {
+            state.pending_drone_manifest = Some((ast_id.clone(), manifest));
+        }
+        with_mining_edit(|m| {
+            m.open = None;
+            m.draft.remove(&ast_id);
+        });
+    } else if modal.should_close() {
+        with_mining_edit(|m| m.open = None);
+    }
+}
+
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Calculate carry weight from inventory items + populate equipped slots from
     // the loaded `data/inventory/equipment_slots.json` (lazily — guards against
@@ -615,10 +778,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Plant a whole tower (v0.386): (tower id, plant ids) to spawn as crops, set by
     // the Garden "Plant a tower" buttons, applied to GuiState after the panel.
     let mut action_plant_tower: Option<(String, Vec<String>)> = None;
-    // Drone manifest builder: a stepper click (ore, +1/-1), launch, or clear.
-    let mut action_manifest_delta: Option<(String, i32)> = None;
-    let mut action_launch_manifest = false;
-    let mut action_clear_manifest = false;
     let mut action_rest = false;
     let mut action_compost = false;
     let mut action_fertilize_crop: Option<u64> = None;
@@ -1334,136 +1493,30 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if state.asteroids.is_empty() {
                     ui.label(RichText::new("No asteroids in range.").color(theme.text_muted()));
                 } else {
-                    // Distinct ores available across all asteroids (id -> total qty).
-                    let mut ores: Vec<(String, f32)> = Vec::new();
-                    for ast in &state.asteroids {
-                        for (id, qty) in &ast.ores {
-                            if *qty < 1.0 {
-                                continue;
-                            }
-                            if let Some(slot) = ores.iter_mut().find(|(i, _)| i == id) {
-                                slot.1 += *qty;
-                            } else {
-                                ores.push((id.clone(), *qty));
-                            }
-                        }
-                    }
-                    // Asteroids as aligned EXPANDABLE rows (v0.414, the universal
-                    // widget): Asteroid | Type | ore summary in the title row;
-                    // expand for the per-ore composition, each with a thin bar of
-                    // its share of the asteroid's richest deposit.
-                    for (ai, ast) in state.asteroids.iter().enumerate() {
-                        let summary: Vec<String> = ast
-                            .ores
-                            .iter()
-                            .filter(|(_, q)| *q >= 1.0)
-                            .map(|(id, q)| format!("{} {:.0}", ore_short(id), q))
-                            .collect();
-                        let max_q = ast.ores.iter().map(|(_, q)| *q).fold(0.0f32, f32::max).max(1.0);
-                        widgets::expandable_row(
-                            ui,
-                            ("mining_ast", ai),
-                            false,
-                            tree_force,
-                            |ui| {
-                                widgets::row_cell(ui, theme.cell_name_width, |ui| {
-                                    ui.label(RichText::new(&ast.name).size(theme.font_size_small).color(theme.text_primary()));
-                                });
-                                widgets::row_cell(ui, theme.cell_short_width, |ui| {
-                                    ui.label(RichText::new(&ast.classification).size(theme.font_size_small).color(theme.text_secondary()));
-                                });
-                                ui.label(RichText::new(if summary.is_empty() { "depleted".to_string() } else { summary.join(", ") }).size(theme.font_size_small).color(theme.text_secondary()));
-                            },
-                            |ui| {
-                                for (id, qty) in ast.ores.iter().filter(|(_, q)| *q >= 1.0) {
-                                    ui.horizontal(|ui| {
-                                        widgets::row_cell(ui, theme.cell_name_width, |ui| {
-                                            ui.label(RichText::new(ore_short(id)).size(theme.font_size_small).color(theme.text_secondary()));
-                                        });
-                                        widgets::row_cell(ui, theme.cell_short_width, |ui| {
-                                            ui.label(RichText::new(format!("{:.0}", qty)).size(theme.font_size_small).color(theme.text_muted()));
-                                        });
-                                        ui.add(
-                                            egui::ProgressBar::new((qty / max_q).clamp(0.0, 1.0))
-                                                .fill(theme.accent())
-                                                .desired_width(theme.status_bar_width)
-                                                .desired_height(theme.status_bar_height),
-                                        );
-                                    });
-                                }
-                            },
-                        );
-                    }
+                    let drone_active = state.drone_active;
+                    ui.label(
+                        RichText::new(if drone_active {
+                            "Your drone is out on a run, one asteroid at a time."
+                        } else {
+                            "Pick an asteroid to mine. A drone mines ONE asteroid per run; the haul is capped by what that rock holds."
+                        })
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                    );
                     ui.add_space(theme.spacing_xs);
-                    // ── Drone manifest builder: allocate the fixed hold across ores
-                    //    (+/- per ore; the segmented bar shows the split). One drone per
-                    //    player, so this is hidden while a drone is already out.
-                    if !state.drone_active {
-                        let cap = crate::systems::mining::DRONE_CAPACITY;
-                        let total: u32 = state.drone_manifest_draft.iter().map(|(_, u)| u).sum();
-                        ui.label(
-                            RichText::new(format!("Drone manifest, {total}/{cap} units"))
-                                .color(theme.text_secondary()),
-                        );
-                        manifest_bar(ui, theme, &state.drone_manifest_draft, cap);
-                        ui.add_space(theme.spacing_xs);
-                        // Per-ore allocation as aligned EXPANDABLE rows (v0.414):
-                        // Ore | Available | [-] qty [+] in the title row; expand
-                        // for which asteroids hold that ore.
-                        for (id, avail) in &ores {
-                            let cur = state
-                                .drone_manifest_draft
-                                .iter()
-                                .find(|(o, _)| o == id)
-                                .map(|(_, u)| *u)
-                                .unwrap_or(0);
-                            widgets::expandable_row(
-                                ui,
-                                ("mining_ore", id.as_str()),
-                                false,
-                                tree_force,
-                                |ui| {
-                                    widgets::row_cell(ui, theme.cell_name_width, |ui| {
-                                        ui.label(RichText::new(ore_short(id)).size(theme.font_size_small).color(theme.text_secondary()));
-                                    });
-                                    widgets::row_cell(ui, theme.cell_short_width, |ui| {
-                                        ui.label(RichText::new(format!("{:.0} left", avail)).size(theme.font_size_small).color(theme.text_muted()));
-                                    });
-                                    ui.spacing_mut().item_spacing.x = 4.0;
-                                    if widgets::stepper_button(ui, theme, "-", cur > 0, false) {
-                                        action_manifest_delta = Some((id.clone(), -1));
-                                    }
-                                    ui.label(RichText::new(format!("{cur}")).color(theme.text_primary()));
-                                    if widgets::stepper_button(ui, theme, "+", total < cap, true) {
-                                        action_manifest_delta = Some((id.clone(), 1));
-                                    }
-                                },
-                                |ui| {
-                                    for ast in &state.asteroids {
-                                        if let Some((_, q)) = ast.ores.iter().find(|(o, q)| o == id && *q >= 1.0) {
-                                            ui.horizontal(|ui| {
-                                                widgets::row_cell(ui, theme.cell_name_width, |ui| {
-                                                    ui.label(RichText::new(&ast.name).size(theme.font_size_small).color(theme.text_secondary()));
-                                                });
-                                                ui.label(RichText::new(format!("{:.0} available", q)).size(theme.font_size_small).color(theme.text_muted()));
-                                            });
-                                        }
-                                    }
-                                },
-                            );
-                        }
-                        ui.add_space(theme.spacing_xs);
-                        ui.horizontal(|ui| {
-                            ui.add_enabled_ui(total >= 1, |ui| {
-                                if widgets::primary_button(ui, theme, "Launch drone") {
-                                    action_launch_manifest = true;
-                                }
-                            });
-                            if total > 0 && widgets::secondary_button(ui, theme, "Clear") {
-                                action_clear_manifest = true;
+                    // Asteroid CARDS: class swatch + name + distance + ore summary; click
+                    // one to open its per-asteroid mining modal (matching the garden tiles).
+                    let acols = 3usize;
+                    let asts = state.asteroids.clone();
+                    ui.columns(acols, |cols| {
+                        for (i, ast) in asts.iter().enumerate() {
+                            let c = &mut cols[i % acols];
+                            if asteroid_card(c, theme, ast) && !drone_active {
+                                with_mining_edit(|m| m.open = Some(ast.id.clone()));
                             }
-                        });
-                    }
+                            c.add_space(theme.spacing_sm);
+                        }
+                    });
                 }
                 ui.add_space(theme.spacing_xs);
                 if !state.drones.is_empty() {
@@ -1477,18 +1530,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             "Returning" => ("3/3", "returning"),
                             _ => ("done", "delivering"),
                         };
+                        let target_name = state
+                            .asteroids
+                            .iter()
+                            .find(|a| a.id == drone.target)
+                            .map(|a| a.name.clone())
+                            .unwrap_or_else(|| drone.target.clone());
                         widgets::expandable_row(
                             ui,
                             ("mining_drone", di),
                             false,
                             tree_force,
                             |ui| {
-                                widgets::row_cell(ui, theme.cell_name_width, |ui| {
-                                    ui.label(RichText::new(format!("Drone, stage {stage}")).size(theme.font_size_small).color(theme.text_primary()));
-                                });
-                                widgets::row_cell(ui, theme.cell_short_width, |ui| {
-                                    ui.label(RichText::new(desc).size(theme.font_size_small).color(theme.text_secondary()));
-                                });
+                                ui.label(RichText::new(format!("Drone → {target_name}")).size(theme.font_size_small).strong().color(theme.text_primary()));
+                                ui.label(RichText::new(format!("· {desc} (stage {stage}) · {:.0} km", drone.distance)).size(theme.font_size_small).color(theme.text_secondary()));
                                 ui.add(egui::ProgressBar::new(drone.phase_progress.clamp(0.0, 1.0)).fill(theme.accent()).desired_width(theme.status_bar_width).desired_height(theme.status_bar_height));
                             },
                             |ui| {
@@ -1572,36 +1627,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if action_dev_grow {
         state.dev_grow_crops = true;
     }
-    // Apply the drone-manifest builder's actions (the panel only reads state).
-    if let Some((ore, delta)) = action_manifest_delta {
-        let cap = crate::systems::mining::DRONE_CAPACITY;
-        let total: u32 = state.drone_manifest_draft.iter().map(|(_, u)| u).sum();
-        if let Some(slot) = state.drone_manifest_draft.iter_mut().find(|(o, _)| *o == ore) {
-            if delta > 0 && total < cap {
-                slot.1 += 1;
-            } else if delta < 0 && slot.1 > 0 {
-                slot.1 -= 1;
-            }
-        } else if delta > 0 && total < cap {
-            state.drone_manifest_draft.push((ore, 1));
-        }
-        state.drone_manifest_draft.retain(|(_, u)| *u > 0);
-    }
-    if action_clear_manifest {
-        state.drone_manifest_draft.clear();
-    }
-    if action_launch_manifest {
-        let manifest: Vec<(String, u32)> = state
-            .drone_manifest_draft
-            .iter()
-            .filter(|(_, u)| *u > 0)
-            .cloned()
-            .collect();
-        if !manifest.is_empty() {
-            state.pending_drone_manifest = Some(manifest);
-            state.drone_manifest_draft.clear();
-        }
-    }
+    // (The drone manifest is now built + launched in the per-asteroid mining modal,
+    // which sets pending_drone_manifest = (asteroid id, manifest) directly.)
     // Bridge the Rest button to FoodSystem (refills energy).
     if action_rest {
         state.pending_rest = true;
@@ -1617,6 +1644,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Per-medium grow-area edit modal — shown at ctx level (a floating window) when
     // a Garden tile was clicked. Rendered after the panel so it overlays everything.
     garden_edit_modal(ctx, theme, state);
+    // Per-asteroid mining modal (clicked a Mining card) — also at ctx level.
+    mining_modal(ctx, theme, state);
 }
 
 // (garden_tree_nodes + crop_leaf removed in v0.402 — the garden is an aligned

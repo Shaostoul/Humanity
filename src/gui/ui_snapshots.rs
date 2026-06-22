@@ -111,14 +111,20 @@ fn demo_state() -> GuiState {
     // ── Mining: asteroids with remaining ore ──
     s.asteroids = vec![
         GuiAsteroid {
+            id: "m12".into(),
             name: "Asteroid M-12 (metallic)".into(),
             classification: "M".into(),
             ores: vec![("iron_ore_0".into(), 120.0), ("nickel_ore_0".into(), 60.0), ("platinum_ore_0".into(), 20.0)],
+            position: [60.0, 12.0, -30.0],
+            distance: 68.1,
         },
         GuiAsteroid {
+            id: "s7".into(),
             name: "Asteroid S-7 (silicaceous)".into(),
             classification: "S".into(),
             ores: vec![("iron_ore_0".into(), 40.0), ("copper_ore_0".into(), 50.0)],
+            position: [-45.0, 8.0, 55.0],
+            distance: 71.5,
         },
     ];
 
@@ -458,8 +464,9 @@ page_snapshot!(snapshot_chat, "chat", chat, 1280, 900);
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_inventory() {
     render_page_png("inventory", 1280, 1700, |ctx, theme, state| {
-        // Reset any modal opened by a prior garden-modal snapshot (shared thread).
+        // Reset any modal opened by a prior modal snapshot (shared thread).
         crate::gui::pages::inventory::test_close_garden_edit();
+        crate::gui::pages::inventory::test_close_mining_edit();
         crate::gui::pages::inventory::draw(ctx, theme, state);
     });
 }
@@ -469,6 +476,15 @@ fn snapshot_inventory() {
 fn snapshot_garden_modal_soil() {
     render_page_png("garden_modal_soil", 900, 980, |ctx, theme, state| {
         crate::gui::pages::inventory::test_open_garden_edit("potato_grow_bed");
+        crate::gui::pages::inventory::draw(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_mining_modal() {
+    render_page_png("mining_modal", 900, 980, |ctx, theme, state| {
+        crate::gui::pages::inventory::test_open_mining_edit("m12");
         crate::gui::pages::inventory::draw(ctx, theme, state);
     });
 }

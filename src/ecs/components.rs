@@ -678,12 +678,19 @@ pub struct OreDeposit {
 /// visualization layer for #5b; this is the logical resource the mining loop runs on.)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AsteroidBody {
+    /// Stable id used to TARGET this asteroid for mining (e.g. "m12"). A drone mines
+    /// exactly one asteroid per trip, identified by this.
+    #[serde(default)]
+    pub id: String,
     /// Display name (e.g. "Asteroid X-12").
     pub name: String,
     /// Spectral class: C (carbonaceous), S (silicaceous), M (metallic).
     pub classification: String,
     /// Remaining ore by item id, e.g. ("iron_ore_0", 80.0). Units = inventory items.
     pub ores: Vec<(String, f32)>,
+    /// World position (km, arbitrary frame) for travel distance + the map. (0,0,0) if unset.
+    #[serde(default)]
+    pub position: [f32; 3],
 }
 
 impl AsteroidBody {
@@ -731,8 +738,12 @@ pub enum DronePhase {
 pub struct Drone {
     /// Entity bits of the home to deliver cargo to (the player's inventory).
     pub home: u64,
+    /// The asteroid id this drone is mining. ONE asteroid per trip: the drone pulls
+    /// its manifest ores only from this asteroid, bounded by what it holds.
+    #[serde(default)]
+    pub target: String,
     /// The fetch order: `(ore_id, requested units)`. The units sum to ≤ the drone's
-    /// capacity. The drone pulls each ore from whatever asteroids hold it.
+    /// capacity. The drone pulls each ore from its target asteroid.
     pub manifest: Vec<(String, u32)>,
     /// Current mission phase.
     pub phase: DronePhase,
@@ -740,12 +751,53 @@ pub struct Drone {
     pub phase_time: f32,
     /// Ore collected so far: `(ore_id, units)`.
     pub cargo: Vec<(String, u32)>,
+    /// Home + target world positions, so travel time scales with distance and the map
+    /// can animate the drone along its journey.
+    #[serde(default)]
+    pub home_pos: [f32; 3],
+    #[serde(default)]
+    pub target_pos: [f32; 3],
 }
 
 impl Drone {
     /// Total units currently in the hold (across all ores).
     pub fn cargo_total(&self) -> u32 {
         self.cargo.iter().map(|(_, q)| q).sum()
+    }
+
+    /// Straight-line distance from home to the target asteroid.
+    pub fn distance(&self) -> f32 {
+        let d = [
+            self.target_pos[0] - self.home_pos[0],
+            self.target_pos[1] - self.home_pos[1],
+            self.target_pos[2] - self.home_pos[2],
+        ];
+        (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()
+    }
+
+    /// Seconds the given phase lasts for THIS drone: travel scales with distance
+    /// (a base plus a per-km factor), mining is flat.
+    pub fn phase_duration(&self, phase: DronePhase) -> f32 {
+        match phase {
+            DronePhase::Outbound | DronePhase::Returning => 2.0 + self.distance() * 0.05,
+            DronePhase::Mining => 5.0,
+            DronePhase::Done => 0.0,
+        }
+    }
+
+    /// Current world position, interpolated along the journey (for the map dot).
+    pub fn current_pos(&self) -> [f32; 3] {
+        let dur = self.phase_duration(self.phase).max(0.01);
+        let t = (self.phase_time / dur).clamp(0.0, 1.0);
+        let lerp = |a: [f32; 3], b: [f32; 3]| {
+            [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
+        };
+        match self.phase {
+            DronePhase::Outbound => lerp(self.home_pos, self.target_pos),
+            DronePhase::Mining => self.target_pos,
+            DronePhase::Returning => lerp(self.target_pos, self.home_pos),
+            DronePhase::Done => self.home_pos,
+        }
     }
 }
 
