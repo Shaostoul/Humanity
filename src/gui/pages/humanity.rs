@@ -183,6 +183,33 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     );
     ui.add_space(theme.spacing_lg);
 
+    // Start here: the first action a newcomer can take, right under the hero, so
+    // the page leads with "what do I do" before the deeper manifesto below.
+    widgets::card_with_header(ui, theme, "Start here", |ui| {
+        ui.label(
+            RichText::new("New here? Pick a place to begin, then read as much or as little below as you like.")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        ui.add_space(theme.spacing_sm);
+        ui.horizontal_wrapped(|ui| {
+            if widgets::Button::primary("Get oriented").show(ui, theme) {
+                state.active_page = crate::gui::GuiPage::Real;
+                state.active_real_section = "quests".to_string();
+            }
+            if widgets::Button::secondary("See your Laws").show(ui, theme) {
+                state.active_humanity_section = "laws".to_string();
+            }
+            if widgets::Button::secondary("Fund the work").show(ui, theme) {
+                state.active_humanity_section = "donate".to_string();
+            }
+            if widgets::Button::secondary("Shape the rules").show(ui, theme) {
+                state.active_humanity_section = "governance".to_string();
+            }
+        });
+    });
+    ui.add_space(theme.spacing_md);
+
     // Why this exists (the personal "why" that grounds the grand mission)
     widgets::card_with_header(ui, theme, "Why this exists", |ui| {
         ui.label(
@@ -240,7 +267,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     // poverty and WHY each system, by its design and intended use, serves that,
     // the way the Onboarding page is concrete about it. This is the mechanism,
     // the heart of the pitch, not just the aspiration.
-    widgets::card_with_header(ui, theme, "Why it's built this way", |ui| {
+    widgets::collapsible_section(ui, "Why it's built this way", false, |ui| {
         ui.label(
             RichText::new("Poverty is forced dependence. When you cannot provide your own water, food, or power, someone else sets the price of your survival. Every part of HumanityOS is built to remove that dependence: teach the skills, connect the people, and cut out the middlemen. Here is how each part pulls its weight.")
                 .size(theme.font_size_body)
@@ -272,7 +299,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     // speech is a death sentence for a free and independent people"). Ending
     // poverty is not enough if the result is a cage, so this sits beside the
     // poverty mechanism above, the liberty half of the same promise.
-    widgets::card_with_header(ui, theme, "What it protects", |ui| {
+    widgets::collapsible_section(ui, "What it protects", false, |ui| {
         ui.label(
             RichText::new("Ending poverty is not enough if the result is a cage. A free people needs more than full bellies. It needs the freedoms that keep power honest, and those have to be built into the tools, not promised on top of them.")
                 .size(theme.font_size_body)
@@ -304,7 +331,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     // no-home-server identity, social recovery, no-accounts + VCs/reputation,
     // accessibility + i18n, off-site backups; radio mesh flagged in-progress so the
     // pitch stays honest, shipped vs planned).
-    widgets::card_with_header(ui, theme, "Built for every situation", |ui| {
+    widgets::collapsible_section(ui, "Built for every situation", false, |ui| {
         ui.label(
             RichText::new("A tool that only works when everything is going well is not much help. HumanityOS is built to keep working when things go wrong, wherever you are and whatever you have.")
                 .size(theme.font_size_body)
