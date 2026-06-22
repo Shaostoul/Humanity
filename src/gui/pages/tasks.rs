@@ -450,7 +450,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.label(RichText::new("No tasks").color(theme.text_muted()));
                         }
 
-                        ScrollArea::vertical().show(ui, |ui| {
+                        // Each kanban column needs its OWN ScrollArea id — they
+                        // live inside ui.columns(3,..) which gives each the same
+                        // auto-id, so egui flags a duplicate-id clash and the
+                        // columns can stop scrolling independently. Salt by name.
+                        ScrollArea::vertical().id_salt(*col_name).show(ui, |ui| {
                             for &idx in &col_tasks {
                                 let task = &state.tasks[idx];
                                 let pc = priority_color(theme, task.priority);

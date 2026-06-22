@@ -3351,9 +3351,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     } else {
                         format!("Message #{}", state.chat_active_channel)
                     };
+                    // Reserve room for the FOUR trailing widgets on this row —
+                    // search, pins, help, and the Send button. 104px only fit the
+                    // three icons, clipping Send off the right edge; ~210 fits all.
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut state.chat_input)
-                            .desired_width(ui.available_width() - 104.0)
+                            .desired_width((ui.available_width() - 210.0).max(120.0))
                             .hint_text(hint),
                     );
 
