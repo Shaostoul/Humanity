@@ -902,7 +902,7 @@ This document is the top-level architectural reference. It connects to:
 | [server_federation.md](../network/server_federation.md) | Federation protocol and trust tiers |
 | [../01-VISION.md](../contributor/01-VISION.md) | Mission statement and design doctrine |
 | [../02-ARCHITECTURE.md](../contributor/02-ARCHITECTURE.md) | Cargo workspace layout and crate layers |
-| [../roadmap.md](../roadmap.md) | Current feature priority list |
+| [../ROADMAP.md](../ROADMAP.md) | Current feature priority list |
 | [../accord/humanity_accord.md](../accord/humanity_accord.md) | Governance principles |
 | [../security/security_and_privacy_architecture.md](../reference/security_and_privacy_architecture.md) | Threat model and encryption details |
 | [../network/offline_first_sync.md](../network/offline_first_sync.md) | Offline-first sync strategy |
