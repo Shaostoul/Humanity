@@ -261,4 +261,36 @@ mod tests {
         let (c, w) = integrate_battery(5000.0, CAP, RATE, RATE, 9999.0, 0.0);
         assert!((c - 5000.0).abs() < 1e-6 && w == 0.0);
     }
+
+    /// The full tick computes + publishes a live PowerStatus from the world's power
+    /// entities -- the foundation of the MENU-mode home sim (v0.518): with the home's
+    /// power entities spawned at startup, generation sums active generators, consumption
+    /// sums enabled consumers, balance is their difference. This is what makes the Home
+    /// page's "Live power" card non-zero before Enter World.
+    #[test]
+    fn tick_publishes_power_status_from_entities() {
+        use super::{ElectricalSystem, PowerStatus};
+        use crate::ecs::components::{PowerConsumer, PowerGenerator};
+        use crate::ecs::systems::System;
+        use crate::hot_reload::data_store::DataStore;
+
+        let mut data = DataStore::new();
+        data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+        let mut world = hecs::World::new();
+        world.spawn((PowerGenerator { output_watts: 2000.0, fuel_per_second: 0.0, active: true },));
+        world.spawn((PowerGenerator { output_watts: 1000.0, fuel_per_second: 0.0, active: true },));
+        world.spawn((PowerConsumer { draw_watts: 1800.0, priority: 1, enabled: true },));
+
+        let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
+        sys.tick(&mut world, 1.0, &data);
+
+        let ps = data
+            .get::<std::sync::Mutex<PowerStatus>>("power_status")
+            .unwrap()
+            .lock()
+            .unwrap();
+        assert!((ps.generation - 3000.0).abs() < 1.0, "generation {}", ps.generation);
+        assert!((ps.consumption - 1800.0).abs() < 1.0, "consumption {}", ps.consumption);
+        assert!((ps.balance - 1200.0).abs() < 1.0, "balance {}", ps.balance);
+    }
 }
