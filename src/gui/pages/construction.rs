@@ -322,6 +322,14 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     ui.label(RichText::new("Machines").strong().color(theme.text_primary()));
                     {
                         let room_id = state.construction_rooms[ri].id.clone();
+                        // Offset reach is derived from THIS room's real size (v0.522): a machine
+                        // can be placed anywhere from the center out to a wall, but not past it.
+                        // Was a fixed +/-40 m / 0..10 m, which left big rooms (the 144 m hangar)
+                        // mostly unreachable and let machines clip through low (5 m) ceilings.
+                        let room_dims = state.construction_rooms[ri].dimensions; // [W, H, D]
+                        let hx = (room_dims[0] * 0.5).max(0.5); // half-width  -> x reach
+                        let hz = (room_dims[2] * 0.5).max(0.5); // half-depth  -> z reach
+                        let hy = room_dims[1].max(0.5); //          ceiling height -> y reach
                         // Collect display data under an immutable borrow, then mutate after.
                         let mut catalog_types: Vec<(String, String)> = Vec::new(); // (id, label)
                         let mut in_room: Vec<(usize, String)> = Vec::new(); // (instance idx, label)
@@ -368,9 +376,9 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                 {
                                     ui.horizontal(|ui| {
                                         ui.add_space(theme.spacing_sm);
-                                        ui.add(egui::DragValue::new(&mut inst.offset.0).speed(0.05).prefix("x ").suffix(" m").range(-40.0..=40.0));
-                                        ui.add(egui::DragValue::new(&mut inst.offset.2).speed(0.05).prefix("z ").suffix(" m").range(-40.0..=40.0));
-                                        ui.add(egui::DragValue::new(&mut inst.offset.1).speed(0.05).prefix("y ").suffix(" m").range(0.0..=10.0));
+                                        ui.add(egui::DragValue::new(&mut inst.offset.0).speed(0.05).prefix("x ").suffix(" m").range(-hx..=hx));
+                                        ui.add(egui::DragValue::new(&mut inst.offset.2).speed(0.05).prefix("z ").suffix(" m").range(-hz..=hz));
+                                        ui.add(egui::DragValue::new(&mut inst.offset.1).speed(0.05).prefix("y ").suffix(" m").range(0.0..=hy));
                                     });
                                 }
                             }
@@ -402,7 +410,11 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         if let Some(home) = state.home_machines.as_mut() {
                             if let Some(i) = remove_idx {
                                 if i < home.instances.len() {
-                                    home.instances.remove(i);
+                                    // Capture the id first, then remove via the helper so any
+                                    // connections touching this machine are pruned too (v0.522);
+                                    // a bare instances.remove would leave them dangling.
+                                    let id = home.instances[i].id.clone();
+                                    home.remove_instance(&id);
                                 }
                             }
                             if let Some(mtype) = add_machine {
@@ -456,6 +468,16 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // Apply a deferred delete after both panels (the index stays valid through the closures).
     if let Some(ri) = state.construction_remove.take() {
         if ri < state.construction_rooms.len() {
+            // Drop this room's machines too, so they do not become orphaned -- invisible
+            // in-world AND un-removable through the GUI (you could no longer select the
+            // deleted room to reach them). Capture the id BEFORE removing the room; persist
+            // the cleanup so home.ron stays consistent with the layout. (v0.522)
+            let dead_room = state.construction_rooms[ri].id.clone();
+            if let Some(home) = state.home_machines.as_mut() {
+                if home.remove_room(&dead_room) {
+                    state.home_machines_save = true;
+                }
+            }
             state.construction_rooms.remove(ri);
             state.construction_dirty = true;
         }
