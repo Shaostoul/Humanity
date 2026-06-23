@@ -3,14 +3,17 @@
 // Rooms scale from 1x1 personal space to 233+ ranch land.
 // Material IDs reference items.csv and materials.csv.
 
-FibonacciHomestead(
+// Top-level is an anonymous struct so it deserializes into `HomesteadDesign`
+// (load_homestead_design). A named `FibonacciHomestead(...)` made RON reject it -> the
+// Home page silently showed "no blueprint loaded". (Fixed alongside the live-power work.)
+(
     name: "Fibonacci Homestead",
     description: "Spiral homestead following the Fibonacci sequence. Rooms scale from 1x1 personal space to 233+ ranch land.",
     version: 1,
 
     rooms: [
         // F1 (1x1): Computer - personal workstation
-        Room(
+        (
             id: "computer",
             name: "Computer",
             size: (x: 1.0, y: 2.5, z: 1.0),
@@ -31,7 +34,7 @@ FibonacciHomestead(
         ),
 
         // F1 (1x1): Network Hub - communications
-        Room(
+        (
             id: "network",
             name: "Network Hub",
             size: (x: 1.0, y: 2.5, z: 1.0),
@@ -52,7 +55,7 @@ FibonacciHomestead(
         ),
 
         // F2 (2x2): Respawner / Medbay - medical, bathroom, spawn point
-        Room(
+        (
             id: "respawner",
             name: "Respawner / Medbay",
             size: (x: 2.0, y: 2.5, z: 2.0),
@@ -75,7 +78,7 @@ FibonacciHomestead(
         ),
 
         // F3 (3x3): Wetroom - shower, laundry, water recycling
-        Room(
+        (
             id: "wetroom",
             name: "Wetroom",
             size: (x: 3.0, y: 2.5, z: 3.0),
@@ -99,7 +102,7 @@ FibonacciHomestead(
         ),
 
         // F5 (5x5): Bedroom - sleeping, personal storage
-        Room(
+        (
             id: "bedroom",
             name: "Bedroom",
             size: (x: 5.0, y: 2.5, z: 5.0),
@@ -124,7 +127,7 @@ FibonacciHomestead(
         ),
 
         // F8 (8x8): Kitchen - cooking, food storage, dining
-        Room(
+        (
             id: "kitchen",
             name: "Kitchen",
             size: (x: 8.0, y: 2.5, z: 8.0),
@@ -152,7 +155,7 @@ FibonacciHomestead(
         ),
 
         // F13 (13x13): Living Room - social space, recreation
-        Room(
+        (
             id: "livingroom",
             name: "Living Room",
             size: (x: 13.0, y: 3.0, z: 13.0),
@@ -179,7 +182,7 @@ FibonacciHomestead(
         ),
 
         // F21 (21x21): Study / Workshop - learning, crafting, research
-        Room(
+        (
             id: "study",
             name: "Study / Workshop",
             size: (x: 21.0, y: 3.0, z: 21.0),
@@ -207,7 +210,7 @@ FibonacciHomestead(
         ),
 
         // F34 (34x34): Garden - food production, hydroponics, composting
-        Room(
+        (
             id: "garden",
             name: "Garden",
             size: (x: 34.0, y: 4.0, z: 34.0),
@@ -235,7 +238,7 @@ FibonacciHomestead(
         ),
 
         // F55 (55x55): Garage - vehicle storage, maintenance, fuel
-        Room(
+        (
             id: "garage",
             name: "Garage",
             size: (x: 55.0, y: 5.0, z: 55.0),
@@ -262,7 +265,7 @@ FibonacciHomestead(
         ),
 
         // F89 (89x89): Depot - bulk storage, logistics, trade
-        Room(
+        (
             id: "depot",
             name: "Depot",
             size: (x: 89.0, y: 6.0, z: 89.0),
@@ -289,7 +292,7 @@ FibonacciHomestead(
         ),
 
         // F144 (144x144): Hangar - large vehicles, spacecraft, assembly
-        Room(
+        (
             id: "hangar",
             name: "Hangar",
             size: (x: 144.0, y: 12.0, z: 144.0),
@@ -318,7 +321,7 @@ FibonacciHomestead(
         ),
 
         // F233+ (233x233+): Ranch - open land, livestock, large scale agriculture
-        Room(
+        (
             id: "ranch",
             name: "Ranch",
             size: (x: 233.0, y: 0.0, z: 233.0),
@@ -349,28 +352,28 @@ FibonacciHomestead(
     ],
 
     tiers: [
-        Tier(
+        (
             id: "core",
             name: "Core",
             description: "Hardened inner rooms. Survive any disaster. Pressurized in space.",
             wall_thickness_cm: 30,
             radiation_shielding: true,
         ),
-        Tier(
+        (
             id: "residential",
             name: "Residential",
             description: "Standard living spaces. Protected but lighter construction.",
             wall_thickness_cm: 15,
             radiation_shielding: false,
         ),
-        Tier(
+        (
             id: "industrial",
             name: "Industrial",
             description: "Work and production spaces. Expendable in emergencies.",
             wall_thickness_cm: 10,
             radiation_shielding: false,
         ),
-        Tier(
+        (
             id: "exterior",
             name: "Exterior",
             description: "Open or lightly enclosed spaces. First to be damaged.",

@@ -95,8 +95,29 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 );
                 return;
             };
-            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops);
+            let power = LivePower {
+                gen: state.power_generation,
+                usage: state.power_consumption,
+                balance: state.power_balance,
+                battery_wh: state.power_battery_wh,
+                capacity_wh: state.power_battery_capacity_wh,
+                autonomy: state.power_autonomy_hours,
+            };
+            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops, power);
         });
+}
+
+/// Live power readout from the running sim (SolarSystem + ElectricalSystem -> PowerStatus
+/// -> GuiState), passed into `draw_design` (which has no `&GuiState`). Zero in a build
+/// with no home.ron -> the Live power card hides itself.
+#[derive(Clone, Copy, Default)]
+struct LivePower {
+    gen: f32,
+    usage: f32,
+    balance: f32,
+    battery_wh: f32,
+    capacity_wh: f32,
+    autonomy: f32,
 }
 
 fn draw_design(
@@ -106,6 +127,7 @@ fn draw_design(
     towers: &[TowerConfig],
     compat: &[TowerCompat],
     loops: &[crate::machines::HomeLoop],
+    power: LivePower,
 ) {
     ui.label(RichText::new("Your Home").size(theme.font_size_title).color(theme.text_primary()));
     ui.label(RichText::new(&design.name).size(theme.font_size_heading).color(theme.accent()));
@@ -166,6 +188,14 @@ fn draw_design(
     bom.sort_by(|a, b| b.1.cmp(&a.1));
     let total_parts: u32 = bom.iter().map(|(_, q)| *q).sum();
 
+    // Live power from the running sim (passed in; draw_design has no &GuiState).
+    let live_gen = power.gen;
+    let live_use = power.usage;
+    let live_balance = power.balance;
+    let live_battery_wh = power.battery_wh;
+    let live_capacity = power.capacity_wh;
+    let live_autonomy = power.autonomy;
+
     ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         // ── At a glance ──
         widgets::card(ui, theme, |ui| {
@@ -178,6 +208,42 @@ fn draw_design(
             widgets::detail_row(ui, theme, "Total parts", &total_parts.to_string());
         });
         ui.add_space(theme.spacing_sm);
+
+        // ── Live power (the running sim, v0.518) ──
+        // Generation swings with day/night; the battery charges on surplus + discharges
+        // on deficit. This is the home as a LIVE sim, not the authored demand above.
+        if live_gen > 0.0 || live_use > 0.0 || live_capacity > 0.0 {
+            widgets::card(ui, theme, |ui| {
+                ui.label(RichText::new("Live power").size(theme.font_size_body).strong().color(theme.text_primary()));
+                ui.label(
+                    RichText::new("The running sim: solar tracks the time of day, the battery buffers the swing.")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+                ui.add_space(theme.spacing_xs);
+                widgets::detail_row(ui, theme, "Generation", &format!("{:.0} W", live_gen));
+                widgets::detail_row(ui, theme, "Consumption", &format!("{:.0} W", live_use));
+                let (bal_text, bal_color) = if live_balance >= 0.0 {
+                    (format!("+{:.0} W surplus", live_balance), theme.success())
+                } else {
+                    (format!("{:.0} W deficit", live_balance), theme.danger())
+                };
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Balance").size(theme.font_size_small).color(theme.text_secondary()));
+                    ui.label(RichText::new(bal_text).size(theme.font_size_small).strong().color(bal_color));
+                });
+                if live_capacity > 0.0 {
+                    let pct = (live_battery_wh / live_capacity * 100.0).clamp(0.0, 100.0);
+                    widgets::detail_row(
+                        ui,
+                        theme,
+                        "Battery",
+                        &format!("{:.0}%  ({:.1} kWh)  ~{:.1} h autonomy", pct, live_battery_wh / 1000.0, live_autonomy),
+                    );
+                }
+            });
+            ui.add_space(theme.spacing_sm);
+        }
 
         // ── Self-sufficiency systems ──
         let kit = self_sufficiency_kit(&bom);

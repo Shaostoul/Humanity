@@ -172,6 +172,61 @@ mod native_app {
         }
     }
 
+    /// Spawn ONLY the electrical-role ECS entities for the home's machines (no meshes),
+    /// so SolarSystem + ElectricalSystem tick against the real home + publish a live
+    /// PowerStatus even in MENU mode (the Home page reads it, instead of authored
+    /// strings). load_world re-spawns these WITH meshes on Enter World after despawning
+    /// every HomeMachine, so there is no double-spawn. Silent no-op if home.ron is absent.
+    fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std::path::Path) {
+        use crate::ecs::components::{Battery, HomeMachine, PowerConsumer, PowerGenerator, SolarPanel};
+        use crate::machines::MachinePower;
+        let path = data_dir.join("machines").join("home.ron");
+        let Some(home) = crate::machines::MachineHome::load(&path) else {
+            return;
+        };
+        let all = home.all_instances();
+        for inst in &all {
+            let Some(def) = home.catalog.get(&inst.machine) else {
+                continue;
+            };
+            let Some(power) = &def.power else {
+                continue;
+            };
+            match power {
+                MachinePower::Solar { peak_watts } => {
+                    world.spawn((
+                        HomeMachine,
+                        PowerGenerator { output_watts: *peak_watts, fuel_per_second: 0.0, active: true },
+                        SolarPanel { peak_watts: *peak_watts },
+                    ));
+                }
+                MachinePower::Generator { watts } => {
+                    world.spawn((
+                        HomeMachine,
+                        PowerGenerator { output_watts: *watts, fuel_per_second: 0.0, active: true },
+                    ));
+                }
+                MachinePower::Consumer { watts, priority } => {
+                    world.spawn((
+                        HomeMachine,
+                        PowerConsumer { draw_watts: *watts, priority: *priority, enabled: true },
+                    ));
+                }
+                MachinePower::Battery { capacity_wh, max_charge_w, max_discharge_w } => {
+                    world.spawn((
+                        HomeMachine,
+                        Battery {
+                            charge_wh: capacity_wh * 0.5,
+                            capacity_wh: *capacity_wh,
+                            max_charge_w: *max_charge_w,
+                            max_discharge_w: *max_discharge_w,
+                        },
+                    ));
+                }
+            }
+        }
+    }
+
     fn find_data_dir() -> PathBuf {
         let exe = std::env::current_exe().unwrap_or_default();
         let exe_dir = exe.parent().unwrap_or(std::path::Path::new("."));
@@ -2220,6 +2275,13 @@ mod native_app {
                 ],
                 position: [-45.0, 8.0, 55.0],
             },));
+
+            // Live HOME POWER in MENU mode (v0.518): spawn the home's electrical-role
+            // entities now (no meshes) so SolarSystem + ElectricalSystem publish a live
+            // PowerStatus the Home page reads even before Enter World. load_world
+            // despawns every HomeMachine then re-spawns these WITH meshes on entry, so
+            // there is no double-spawn.
+            spawn_home_power_entities(&mut game_world.world, &data_dir);
 
             // Initialize egui
             let egui_ctx = egui::Context::default();

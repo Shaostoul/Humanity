@@ -32,6 +32,15 @@ fn demo_state() -> GuiState {
     // ── Data-driven content (the real loaders) ──
     s.places = crate::gui::load_places(data);
     s.placed_items = crate::gui::flatten_placed_items(&s.places);
+    s.homestead_design = crate::gui::load_homestead_design(data);
+    // Sample LIVE power so the Home page's "Live power" card renders in the snapshot
+    // (in the app these come from ElectricalSystem via PowerStatus, v0.518).
+    s.power_generation = 3200.0;
+    s.power_consumption = 1850.0;
+    s.power_balance = 1350.0;
+    s.power_battery_wh = 9600.0;
+    s.power_battery_capacity_wh = 16000.0;
+    s.power_autonomy_hours = 5.2;
     s.tower_configs = crate::gui::load_tower_configs(data);
     s.equipment_slots = crate::gui::load_equipment_slots(data);
     s.crafting_category_groups = crate::gui::load_crafting_category_groups(data);
@@ -676,6 +685,7 @@ fn snapshot_garden_modal_tower() {
         crate::gui::pages::inventory::draw(ctx, theme, state);
     });
 }
+page_snapshot!(snapshot_homes, "homes", homes, 1280, 1400);
 page_snapshot!(snapshot_tasks, "tasks", tasks, 1280, 900);
 page_snapshot!(snapshot_market, "market", market, 1280, 900);
 page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);
