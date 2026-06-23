@@ -358,6 +358,21 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                         remove_idx = Some(*idx);
                                     }
                                 });
+                                // Offset from the room center: x/z place it on the floor, y is
+                                // height off the floor. Without this every machine sat at the
+                                // center (stacked); now they can be positioned. Persists on
+                                // "Save machines"; visible in-world on entry (editor 3D preview
+                                // of placed machines is a follow-up).
+                                if let Some(inst) =
+                                    state.home_machines.as_mut().and_then(|h| h.instances.get_mut(*idx))
+                                {
+                                    ui.horizontal(|ui| {
+                                        ui.add_space(theme.spacing_sm);
+                                        ui.add(egui::DragValue::new(&mut inst.offset.0).speed(0.05).prefix("x ").suffix(" m").range(-40.0..=40.0));
+                                        ui.add(egui::DragValue::new(&mut inst.offset.2).speed(0.05).prefix("z ").suffix(" m").range(-40.0..=40.0));
+                                        ui.add(egui::DragValue::new(&mut inst.offset.1).speed(0.05).prefix("y ").suffix(" m").range(0.0..=10.0));
+                                    });
+                                }
                             }
                             ui.add_space(theme.spacing_xs);
                             if state.home_machine_add_type.is_empty() {
