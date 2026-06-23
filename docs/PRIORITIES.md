@@ -11,6 +11,17 @@
 
 ## Active focus
 
+> **FOLLOW-UP (from the 2026-06-23 "Too many connection attempts" incident): GRACEFUL
+> RELAY RESTART.** Every deploy restarts the relay, which drops ALL client WebSockets at
+> once -> a reconnect storm. v0.520.0 raised the per-IP identify limit 10 -> 30/min to make
+> that survivable, but the real fix is a relay that hands off / drains connections on
+> restart so a deploy never blips active users (and ideally preserves in-memory voice_rooms
+> -- see the older voice note below). Also a follow-up: the NATIVE ws_client should back off
+> past the 60s window on a "Too many connection attempts" message (the web client now does;
+> the native client's x2-from-5s backoff is ~3/min so it's under 30/min, but explicit
+> respect-the-throttle is more robust). Until then: avoid pushing many releases in a short
+> window (each one restarts the relay).
+
 > **ACTIVE 2026-06-22: INVENTORY REDESIGN (operator-directed) — nested-container TILES.**
 > The operator specified a spatial inventory: every container is a card holding its items
 > as evenly-sized TILES with its sub-containers nested inside (person -> shirt -> pocket ->
