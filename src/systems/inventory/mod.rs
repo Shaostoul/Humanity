@@ -316,6 +316,69 @@ mod item_registry_csv_tests {
     }
 }
 
+#[cfg(test)]
+mod transfer_tests {
+    use super::*;
+    use crate::ecs::components::Controllable;
+    use crate::ecs::systems::System;
+    use crate::hot_reload::data_store::DataStore;
+
+    /// Backpack <-> container transfer: the GUI pushes (item_id, qty, is_add) into the
+    /// inventory_transfer_ops channel; InventorySystem applies them to the player's
+    /// backpack. is_add=true adds (container -> backpack), false removes (backpack ->
+    /// container).
+    #[test]
+    fn transfer_channel_adds_and_removes_from_backpack() {
+        let mut data = DataStore::new();
+        let reg =
+            ItemRegistry::from_csv(b"id,name,weight_kg,stack_size\niron_ore_0,Iron Ore,2.5,50\n")
+                .expect("registry");
+        data.insert("item_registry", reg);
+        data.insert(
+            "inventory_transfer_ops",
+            std::sync::Mutex::new(Vec::<(String, u32, bool)>::new()),
+        );
+
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        let mut sys = InventorySystem::new();
+
+        let push = |data: &DataStore, op: (String, u32, bool)| {
+            data.get::<std::sync::Mutex<Vec<(String, u32, bool)>>>("inventory_transfer_ops")
+                .unwrap()
+                .lock()
+                .unwrap()
+                .push(op);
+        };
+
+        // Container -> backpack: add 5.
+        push(&data, ("iron_ore_0".into(), 5, true));
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"),
+            5,
+            "transfer add put 5 iron_ore into the backpack"
+        );
+
+        // Backpack -> container: remove 3.
+        push(&data, ("iron_ore_0".into(), 3, false));
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"),
+            2,
+            "transfer remove took 3 back out, leaving 2"
+        );
+
+        // The channel is drained each tick (no double-apply).
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"),
+            2,
+            "ops are drained; a tick with no new ops changes nothing"
+        );
+    }
+}
+
 /// Manages inventory components and processes queued operations.
 pub struct InventorySystem {
     /// Pending operations to process next tick (entity-indexed).
@@ -346,6 +409,34 @@ impl System for InventorySystem {
 
         // Get item registry for stack size and mass lookups
         let registry = data.get::<ItemRegistry>("item_registry");
+
+        // GUI-driven backpack transfers: move items in/out of the player's backpack to
+        // the organize-layer container pool. Drain the channel + apply each op to the
+        // Controllable (player) inventory. (item_id, quantity, is_add): is_add adds to
+        // the backpack (container -> backpack); else removes (backpack -> container).
+        if let Some(slot) = data
+            .get::<std::sync::Mutex<Vec<(String, u32, bool)>>>("inventory_transfer_ops")
+        {
+            let xfers: Vec<(String, u32, bool)> =
+                slot.lock().map(|mut g| std::mem::take(&mut *g)).unwrap_or_default();
+            if !xfers.is_empty() {
+                if let Some((_e, (inv, _))) = world
+                    .query_mut::<(&mut Inventory, &crate::ecs::components::Controllable)>()
+                    .into_iter()
+                    .next()
+                {
+                    for (item_id, quantity, is_add) in xfers {
+                        if is_add {
+                            let max_stack =
+                                registry.map(|r| r.max_stack_for(&item_id)).unwrap_or(DEFAULT_MAX_STACK);
+                            inv.add_item(&item_id, quantity, max_stack);
+                        } else {
+                            inv.remove_item(&item_id, quantity);
+                        }
+                    }
+                }
+            }
+        }
 
         for (entity, op) in ops {
             let mut inventory = match world.get::<&mut Inventory>(entity) {

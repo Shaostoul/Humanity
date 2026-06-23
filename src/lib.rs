@@ -2096,6 +2096,13 @@ mod native_app {
                 "garden_nutrient",
                 std::sync::Mutex::new(std::collections::HashMap::<String, f32>::new()),
             );
+            // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
+            // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
+            // backpack. Mirrored from GuiState.pending_inventory_transfers each frame.
+            data_store.insert(
+                "inventory_transfer_ops",
+                std::sync::Mutex::new(Vec::<(String, u32, bool)>::new()),
+            );
             // Creative mode (default ON during early dev): the resource-consuming
             // systems (farming seeds/fertilizer, crafting materials) skip the
             // inventory requirement + consumption when this is true. Mirrored from
@@ -3050,6 +3057,19 @@ mod native_app {
                         if let Ok(mut s) = slot.lock() {
                             if *s != state.gui_state.garden_nutrient {
                                 *s = state.gui_state.garden_nutrient.clone();
+                            }
+                        }
+                    }
+                    // Backpack <-> container transfers: drain the GUI's pending ops into
+                    // the InventorySystem channel (it applies them to the player backpack).
+                    if !state.gui_state.pending_inventory_transfers.is_empty() {
+                        let ops = std::mem::take(&mut state.gui_state.pending_inventory_transfers);
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Vec<(String, u32, bool)>>>("inventory_transfer_ops")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                s.extend(ops);
                             }
                         }
                     }

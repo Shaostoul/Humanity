@@ -1384,8 +1384,43 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if let Some(i) = state.selected_slot {
                     if let Some(Some(it)) = state.inventory_items.get(i) {
                         let it = it.clone();
+                        let containers = crate::gui::collect_containers(&state.places);
+                        let mut stash_to: Option<String> = None;
                         ui.add_space(theme.spacing_xs);
-                        widgets::card(ui, theme, |ui| draw_item_card(ui, theme, &it, Some(&mut item_acts)));
+                        widgets::card(ui, theme, |ui| {
+                            draw_item_card(ui, theme, &it, Some(&mut item_acts));
+                            // Stash the whole stack OUT of the live backpack into a
+                            // container (the backpack <-> container half of transfer).
+                            if !containers.is_empty() {
+                                ui.add_space(theme.spacing_xs);
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new("Stash to")
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_secondary()),
+                                    );
+                                    egui::ComboBox::from_id_salt("backpack_stash_to")
+                                        .selected_text("a container")
+                                        .show_ui(ui, |ui| {
+                                            for (p, label) in &containers {
+                                                if ui.selectable_label(false, label.as_str()).clicked() {
+                                                    stash_to = Some(p.clone());
+                                                }
+                                            }
+                                        });
+                                });
+                            }
+                        });
+                        if let Some(target) = stash_to {
+                            state.pending_inventory_transfers.push((it.item_id.clone(), it.quantity, false));
+                            state.placed_items.push(crate::gui::PlacedItem {
+                                key: it.item_id.clone(),
+                                name: it.name.clone(),
+                                qty: it.quantity,
+                                container: target,
+                            });
+                            state.selected_slot = None;
+                        }
                     }
                 } else if let Some(idx) = with_placed_sel(|s| *s) {
                     if let Some(pi) = state.placed_items.get(idx).cloned() {
@@ -1396,6 +1431,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         };
                         let containers = crate::gui::collect_containers(&state.places);
                         let mut move_to: Option<String> = None;
+                        let mut take_to_backpack = false;
                         ui.add_space(theme.spacing_xs);
                         widgets::card(ui, theme, |ui| {
                             draw_item_card(ui, theme, &synth, None);
@@ -1422,11 +1458,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             }
                                         }
                                     });
+                                // Pull this item INTO the live backpack.
+                                if widgets::secondary_button(ui, theme, "Take to backpack") {
+                                    take_to_backpack = true;
+                                }
                             });
                         });
-                        if let Some(target) = move_to {
-                            if let Some(pi) = state.placed_items.get_mut(idx) {
-                                pi.container = target;
+                        if take_to_backpack {
+                            state.pending_inventory_transfers.push((pi.key.clone(), pi.qty, true));
+                            state.placed_items.remove(idx);
+                            with_placed_sel(|s| *s = None);
+                        } else if let Some(target) = move_to {
+                            if let Some(p) = state.placed_items.get_mut(idx) {
+                                p.container = target;
                             }
                         }
                     } else {

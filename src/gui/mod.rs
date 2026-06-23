@@ -1201,6 +1201,10 @@ pub struct GuiState {
     /// so the nested-container inventory can move items between containers. Seeded from
     /// `places` at startup via `flatten_placed_items`. The live backpack is separate.
     pub placed_items: Vec<PlacedItem>,
+    /// Pending backpack <-> container transfers (item_id, qty, is_add). The inventory
+    /// page pushes these when an item moves into/out of the live backpack; lib.rs drains
+    /// them into the InventorySystem channel each frame. is_add => add to the backpack.
+    pub pending_inventory_transfers: Vec<(String, u32, bool)>,
     /// Per-tower shared-reservoir compatibility (parallel to `tower_configs`),
     /// computed once from the plant registry in the crop sync. The "make sure
     /// they grow together" check shown on the Home page.
@@ -2311,6 +2315,7 @@ impl Default for GuiState {
             garden_irrigation: std::collections::HashMap::new(),
             garden_nutrient: std::collections::HashMap::new(),
             placed_items: Vec::new(),
+            pending_inventory_transfers: Vec::new(),
             tower_compat: Vec::new(),
             creative_mode: true,
             active_real_section: "inventory".to_string(),
