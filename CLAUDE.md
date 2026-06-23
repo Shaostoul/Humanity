@@ -22,7 +22,7 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 > 14. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
 > 15. If agents report editing files under `native/src/`, `server/src/`, or `crates/`, those paths don't exist anymore. Run `just clean-worktrees` and redo against the real `src/` tree.
 > 16. **Before claiming a multi-AI scope**, check `data/coordination/agent_registry.ron` for ownership rules and the `agent_sessions` SQLite table for active claims.
-> 17. **Before ending the session** with significant changes: update `docs/PRIORITIES.md` (what's next) AND `data/coordination/orchestrator_state.json` (why we got here). End the reply with a "Next:" pointer (the session-end convention adopted in v0.283.x).
+> 17. **Before ending the session** with significant changes: update `docs/PRIORITIES.md` (what's next) AND `data/coordination/orchestrator_state.json` (why we got here). End the reply with a "Next:" pointer (the session-end convention adopted in v0.283.x). If the journal has grown large (run `just brief`; or it's > ~150 KB), run `just rotate-journal` to archive old decisions to `docs/history/journal-archive-<month>.md` (keeps newest at the bottom).
 > 18. **Before quoting algorithms / tech specifics in user-facing copy** (X posts, README, marketing): grep the actual code or read the Cryptography section. Memory + docs may lag behind code during migrations.
 >
 > **When things go wrong:** read `docs/INCIDENT-PLAYBOOK.md` (recipes for live failures + lessons from past incidents).

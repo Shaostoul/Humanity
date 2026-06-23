@@ -175,6 +175,12 @@ status:
 brief:
     @node scripts/brief.js
 
+# Rotate the orchestrator journal: archive decisions older than the recent `keep` tail
+# into docs/history/journal-archive-<month>.md so the session-loaded JSON stays small.
+# Order is preserved (newest stays at the bottom). Run at session end when it has grown.
+rotate-journal keep="40":
+    @node scripts/rotate-journal.js {{keep}}
+
 # Check whether recent releases are signed (the desktop auto-update gate). An unsigned LATEST
 # means the updater offers nothing -- fix with `just sign-release vX.Y.Z` (operator only).
 check-signing:
