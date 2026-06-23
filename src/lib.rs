@@ -2330,12 +2330,17 @@ mod native_app {
                 .filter(|p| !p.is_empty())
                 .unwrap_or_else(|| crate::gui::flatten_placed_items(&gui_state.places));
             gui_state.homestead_design = crate::gui::load_homestead_design(&data_dir);
-            // Self-sufficiency loops for the Home-page closure summary (v0.432).
-            gui_state.homestead_loops = crate::machines::MachineHome::load(
+            // Load the home's machine layout ONCE: both the Home-page self-sufficiency
+            // loops AND the construction editor's editable machine layout come from it
+            // (v0.519: machine placement). See docs/design/home-design.md.
+            gui_state.home_machines = crate::machines::MachineHome::load(
                 &data_dir.join("machines").join("home.ron"),
-            )
-            .map(|h| h.loops)
-            .unwrap_or_default();
+            );
+            gui_state.homestead_loops = gui_state
+                .home_machines
+                .as_ref()
+                .map(|h| h.loops.clone())
+                .unwrap_or_default();
             gui_state.tower_configs = crate::gui::load_tower_configs(&data_dir);
             gui_state.garden_areas = crate::gui::load_garden_areas(&data_dir);
             gui_state.grow_media = crate::gui::load_grow_media(&data_dir);
@@ -3452,6 +3457,19 @@ mod native_app {
                             match crate::ship::fibonacci::save_layout(layout) {
                                 Ok(()) => log::info!("Construction: layout saved to RON"),
                                 Err(e) => log::warn!("Construction: save failed: {e}"),
+                            }
+                        }
+                    }
+                    // Machine layout save (v0.519): the editor's machine panel edits
+                    // gui_state.home_machines; this writes it back to home.ron (the same
+                    // file the AI edits -- home-design parity).
+                    if state.gui_state.home_machines_save {
+                        state.gui_state.home_machines_save = false;
+                        if let Some(home) = &state.gui_state.home_machines {
+                            let path = state.data_dir.join("machines").join("home.ron");
+                            match home.save(&path) {
+                                Ok(()) => log::info!("Construction: machine layout saved to home.ron"),
+                                Err(e) => log::warn!("Construction: machine save failed: {e}"),
                             }
                         }
                     }

@@ -1391,6 +1391,17 @@ pub struct GuiState {
     /// Construction EDITOR (v0.455): when active, a panel lets the player set each room's
     /// per-wall kind + the uniform height and rebuild the home live. Toggled with B in-world.
     pub construction_active: bool,
+    /// The home's MACHINE layout (data/machines/home.ron), loaded at startup + EDITABLE in
+    /// the construction editor (v0.519: machine placement -- the #1 home-design parity gap).
+    /// The AI edits the same file by hand, so an AI-placed machine is player-editable and
+    /// vice versa. Saved by `home_machines_save` alongside the room layout. See
+    /// docs/design/home-design.md. None if home.ron is absent.
+    pub home_machines: Option<crate::machines::MachineHome>,
+    /// The editor's Add-Machine picker selection (a catalog type id). (v0.519)
+    pub home_machine_add_type: String,
+    /// Set by the editor's Save to write home_machines back to home.ron (mirrors
+    /// `construction_save` for rooms). The engine clears it after writing.
+    pub home_machines_save: bool,
     /// Editable mirror of the layout's rooms (walls + position + size). The engine fills this
     /// when the editor opens and reads it back when `construction_dirty`. (v0.459)
     pub construction_rooms: Vec<ConstructionRoom>,
@@ -2428,6 +2439,9 @@ impl Default for GuiState {
             showroom_active: false,
             show_roof: false,
             construction_active: false,
+            home_machines: None,
+            home_machine_add_type: String::new(),
+            home_machines_save: false,
             construction_rooms: Vec::new(),
             construction_room_types: Vec::new(),
             construction_add_type: String::new(),

@@ -316,6 +316,94 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         if cw || cd { state.construction_dirty = true; }
                     });
                     ui.add_space(theme.spacing_xs);
+                    ui.separator();
+                    // ── Machines in this room (v0.519: home-design parity -- players can
+                    //    finally place machines, the same home.ron the AI edits). ──
+                    ui.label(RichText::new("Machines").strong().color(theme.text_primary()));
+                    {
+                        let room_id = state.construction_rooms[ri].id.clone();
+                        // Collect display data under an immutable borrow, then mutate after.
+                        let mut catalog_types: Vec<(String, String)> = Vec::new(); // (id, label)
+                        let mut in_room: Vec<(usize, String)> = Vec::new(); // (instance idx, label)
+                        if let Some(home) = &state.home_machines {
+                            catalog_types = home
+                                .catalog
+                                .iter()
+                                .map(|(id, d)| (id.clone(), if d.label.is_empty() { id.clone() } else { d.label.clone() }))
+                                .collect();
+                            catalog_types.sort_by(|a, b| a.1.cmp(&b.1));
+                            for (i, inst) in home.instances.iter().enumerate() {
+                                if inst.room == room_id {
+                                    let label = home
+                                        .catalog
+                                        .get(&inst.machine)
+                                        .map(|d| if d.label.is_empty() { inst.machine.clone() } else { d.label.clone() })
+                                        .unwrap_or_else(|| inst.machine.clone());
+                                    in_room.push((i, label));
+                                }
+                            }
+                        }
+                        let mut remove_idx: Option<usize> = None;
+                        let mut add_machine: Option<String> = None;
+                        if state.home_machines.is_none() {
+                            ui.label(RichText::new("No machine layout loaded (home.ron).").size(theme.font_size_small).color(theme.text_muted()));
+                        } else {
+                            if in_room.is_empty() {
+                                ui.label(RichText::new("None placed here yet.").size(theme.font_size_small).color(theme.text_muted()));
+                            }
+                            for (idx, label) in &in_room {
+                                ui.horizontal(|ui| {
+                                    ui.label(RichText::new(label).size(theme.font_size_small).color(theme.text_secondary()));
+                                    if ui.small_button(RichText::new("Remove").size(theme.font_size_small).color(theme.danger())).clicked() {
+                                        remove_idx = Some(*idx);
+                                    }
+                                });
+                            }
+                            ui.add_space(theme.spacing_xs);
+                            if state.home_machine_add_type.is_empty() {
+                                if let Some((id, _)) = catalog_types.first() {
+                                    state.home_machine_add_type = id.clone();
+                                }
+                            }
+                            ui.horizontal(|ui| {
+                                let cur = catalog_types
+                                    .iter()
+                                    .find(|(id, _)| *id == state.home_machine_add_type)
+                                    .map(|(_, l)| l.clone())
+                                    .unwrap_or_else(|| state.home_machine_add_type.clone());
+                                egui::ComboBox::from_id_salt(("add_machine", ri))
+                                    .selected_text(cur)
+                                    .show_ui(ui, |ui| {
+                                        for (id, label) in &catalog_types {
+                                            ui.selectable_value(&mut state.home_machine_add_type, id.clone(), label.as_str());
+                                        }
+                                    });
+                                if ui.button("Add").clicked() {
+                                    add_machine = Some(state.home_machine_add_type.clone());
+                                }
+                            });
+                        }
+                        // Apply mutations after the display borrows are dropped.
+                        if let Some(home) = state.home_machines.as_mut() {
+                            if let Some(i) = remove_idx {
+                                if i < home.instances.len() {
+                                    home.instances.remove(i);
+                                }
+                            }
+                            if let Some(mtype) = add_machine {
+                                if home.catalog.contains_key(&mtype) {
+                                    let id = home.unique_instance_id(&mtype);
+                                    home.instances.push(crate::machines::MachineInstance {
+                                        id,
+                                        machine: mtype,
+                                        room: room_id.clone(),
+                                        offset: (0.0, 0.0, 0.0),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    ui.add_space(theme.spacing_xs);
                     if ui.button(RichText::new("Delete room").color(theme.danger())).clicked() {
                         state.construction_remove = Some(ri);
                     }
@@ -334,12 +422,17 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 if ui.button(RichText::new("Save layout").strong()).clicked() {
                     state.construction_save = true;
                 }
+                if state.home_machines.is_some()
+                    && ui.button(RichText::new("Save machines").strong()).clicked()
+                {
+                    state.home_machines_save = true;
+                }
                 if ui.button("Close").clicked() {
                     state.construction_active = false;
                 }
             });
             ui.label(
-                RichText::new("Save writes data/blueprints/homestead_layout.ron.")
+                RichText::new("Save layout -> homestead_layout.ron;  Save machines -> home.ron.")
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );

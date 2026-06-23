@@ -8,14 +8,14 @@
 //! `catalog` type, an `instance`, or a `connection` to the RON and it appears in the
 //! world, no Rust change.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
 /// One readout shown on a machine's info card: an icon (by `kind`), a value, and a
 /// status that colors the icon. Placeholder/demo data until the machines are wired to
 /// the live simulation.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MachineStat {
     /// "power" | "water" | "storage" | "progress" | "heat" | "fuel" | "nutrient".
     pub kind: String,
@@ -28,7 +28,7 @@ pub struct MachineStat {
 /// A machine's role in the live electrical simulation. Spawned as ECS components by
 /// `load_world` so the dormant `ElectricalSystem` (and `SolarSystem`) tick against the
 /// home's real machines. Optional, so a machine with no electrical role omits it.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MachinePower {
     /// Solar panel: output scales with the sun (peak watts at noon, zero at night).
     Solar { peak_watts: f32 },
@@ -43,7 +43,7 @@ pub enum MachinePower {
 
 /// A machine type: which primitive shape to draw it as, its size, color, display name,
 /// and the stat readouts shown on its info card.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MachineDef {
     /// "box" | "cylinder" | "sphere" | "pyramid".
     pub shape: String,
@@ -64,7 +64,7 @@ pub struct MachineDef {
 }
 
 /// One placed machine.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MachineInstance {
     pub id: String,
     pub machine: String,
@@ -77,7 +77,7 @@ pub struct MachineInstance {
 /// A grid of identical machines, expanded into instances at load time. Lets a dense
 /// array (e.g. an indoor garden packed with aeroponic towers) be ONE data line instead
 /// of hundreds of hand-typed instances. Infinite-of-X: the array IS the data.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MachineArray {
     /// Catalog type to repeat.
     pub machine: String,
@@ -95,7 +95,7 @@ pub struct MachineArray {
 }
 
 /// A pipe / cable / tube between two machines.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MachineConnection {
     pub from: String,
     pub to: String,
@@ -105,7 +105,7 @@ pub struct MachineConnection {
 
 /// One self-sufficiency loop (energy / water / food / nutrients): whether it closes and
 /// the honest story. Rendered as the Home-page closure summary.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HomeLoop {
     pub name: String,
     pub demand: String,
@@ -119,7 +119,7 @@ pub struct HomeLoop {
 }
 
 /// The whole home machine layout.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MachineHome {
     pub catalog: HashMap<String, MachineDef>,
     pub instances: Vec<MachineInstance>,
@@ -147,6 +147,34 @@ impl MachineHome {
                 log::warn!("machines: failed to parse {}: {e}", path.display());
                 None
             }
+        }
+    }
+
+    /// Write the layout back to a RON file -- the construction editor's machine save +
+    /// the AI's edit target are the SAME file, so an AI-placed machine is player-editable
+    /// and vice versa (the home-design parity principle). A header points at the docs;
+    /// the body is anonymous-struct RON, matching the seed's style + always re-loadable.
+    pub fn save(&self, path: &Path) -> Result<(), String> {
+        let config = ron::ser::PrettyConfig::default().struct_names(false);
+        let body = ron::ser::to_string_pretty(self, config).map_err(|e| e.to_string())?;
+        let header = "// HumanityOS home machine layout. Editable in the construction editor or by\n\
+                      // hand. Real-world energy/water/food model: docs/design/self-sufficiency.md.\n\
+                      // Design architecture: docs/design/home-design.md.\n\n";
+        std::fs::write(path, format!("{header}{body}")).map_err(|e| e.to_string())
+    }
+
+    /// A machine-instance id not already used by an explicit instance, so the editor can
+    /// add a machine without colliding (e.g. "solar_panel_7").
+    pub fn unique_instance_id(&self, base: &str) -> String {
+        let used: std::collections::HashSet<&str> =
+            self.instances.iter().map(|i| i.id.as_str()).collect();
+        let mut n = 0u32;
+        loop {
+            let candidate = format!("{base}_{n}");
+            if !used.contains(candidate.as_str()) {
+                return candidate;
+            }
+            n += 1;
         }
     }
 
@@ -233,5 +261,61 @@ mod tests {
             assert!(seen_ids.contains(c.from.as_str()), "connection from unknown {}", c.from);
             assert!(seen_ids.contains(c.to.as_str()), "connection to unknown {}", c.to);
         }
+    }
+
+    /// save() round-trips: the seed home.ron, saved + reloaded, preserves catalog +
+    /// instances + arrays + connections. This is what makes the construction editor's
+    /// machine save (and the AI's edits) safe + loadable.
+    #[test]
+    fn save_round_trips_the_home_layout() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("machines")
+            .join("home.ron");
+        let home = MachineHome::load(&path).expect("home.ron parses");
+        let tmp = std::env::temp_dir().join("humanity_home_roundtrip.ron");
+        home.save(&tmp).expect("save");
+        let back = MachineHome::load(&tmp).expect("reload saved home");
+        assert_eq!(back.catalog.len(), home.catalog.len(), "catalog round-trips");
+        assert_eq!(back.instances.len(), home.instances.len(), "instances round-trip");
+        assert_eq!(back.arrays.len(), home.arrays.len(), "arrays round-trip");
+        assert_eq!(back.connections.len(), home.connections.len(), "connections round-trip");
+        // A specific instance keeps its room + machine + offset through the round-trip.
+        let first = home.instances.first().expect("at least one instance");
+        let found = back.instances.iter().find(|i| i.id == first.id).expect("instance by id");
+        assert_eq!(found.room, first.room);
+        assert_eq!(found.machine, first.machine);
+        assert!((found.offset.0 - first.offset.0).abs() < 1e-6);
+        // unique_instance_id avoids existing ids.
+        let new_id = home.unique_instance_id("solar_panel");
+        assert!(!home.instances.iter().any(|i| i.id == new_id), "id is unused: {new_id}");
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    /// The construction editor's "Add machine" flow at the data level: push a new
+    /// instance into a room, save, reload -- it persists with the right room + type.
+    /// This is the player-can-place-a-machine capability (v0.519 home-design parity).
+    #[test]
+    fn added_machine_persists_to_room() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("machines")
+            .join("home.ron");
+        let mut home = MachineHome::load(&path).expect("home.ron parses");
+        let mtype = home.catalog.keys().next().expect("a catalog type").clone();
+        let id = home.unique_instance_id(&mtype);
+        home.instances.push(MachineInstance {
+            id: id.clone(),
+            machine: mtype.clone(),
+            room: "garage".to_string(),
+            offset: (0.0, 0.0, 0.0),
+        });
+        let tmp = std::env::temp_dir().join("humanity_home_add.ron");
+        home.save(&tmp).expect("save");
+        let back = MachineHome::load(&tmp).expect("reload");
+        let found = back.instances.iter().find(|i| i.id == id).expect("added machine persisted");
+        assert_eq!(found.room, "garage");
+        assert_eq!(found.machine, mtype);
+        let _ = std::fs::remove_file(&tmp);
     }
 }
