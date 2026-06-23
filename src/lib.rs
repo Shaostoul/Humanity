@@ -2259,10 +2259,14 @@ mod native_app {
             gui_state.onboarding_quest_chains = onboarding::load_quest_chains(&data_dir);
             gui_state.map_planets = crate::gui::load_planets(&data_dir);
             gui_state.places = crate::gui::load_places(&data_dir);
-            // Seed the organize-layer inventory pool from the places spine (every leaf
-            // item tagged with its container path), so items can be moved between
-            // containers. The live backpack stays ECS-driven.
-            gui_state.placed_items = crate::gui::flatten_placed_items(&gui_state.places);
+            // Organize-layer inventory pool: restore the SAVED container contents if the
+            // active home has any (transfers persisted, v0.517), else seed from the
+            // places spine (every leaf item tagged with its container path). The live
+            // backpack stays ECS-driven (restored separately by apply_save_to_world).
+            gui_state.placed_items = crate::save_load::load_active_home()
+                .map(|s| s.placed_items)
+                .filter(|p| !p.is_empty())
+                .unwrap_or_else(|| crate::gui::flatten_placed_items(&gui_state.places));
             gui_state.homestead_design = crate::gui::load_homestead_design(&data_dir);
             // Self-sufficiency loops for the Home-page closure summary (v0.432).
             gui_state.homestead_loops = crate::machines::MachineHome::load(
@@ -2464,7 +2468,7 @@ mod native_app {
                     // Persist the active offline home before quitting (v0.381). The
                     // player entity exists from startup, so this captures the loaded
                     // or modified inventory + skills, round-tripping the save.
-                    crate::save_load::save_active_home(&state.game_world.world);
+                    crate::save_load::save_active_home(&state.game_world.world, &state.gui_state.placed_items);
                     event_loop.exit();
                 }
                 WindowEvent::Resized(size) => {
@@ -3212,7 +3216,11 @@ mod native_app {
                     // Periodic auto-save of the offline home (v0.381). Self-throttles
                     // to every 2 minutes; robust to any exit path (in-app quit, crash)
                     // where the graceful close-save would not fire.
-                    crate::save_load::maybe_periodic_save(&state.game_world.world, 120);
+                    crate::save_load::maybe_periodic_save(
+                        &state.game_world.world,
+                        &state.gui_state.placed_items,
+                        120,
+                    );
 
                     // ── Character-select showroom sync (v0.441): apply the panel's edits ──
                     // Rebuild the avatar when appearance changed (it is the tail of
@@ -3422,7 +3430,7 @@ mod native_app {
                             *o = outfit.clone();
                             break;
                         }
-                        crate::save_load::save_active_home(&state.game_world.world);
+                        crate::save_load::save_active_home(&state.game_world.world, &state.gui_state.placed_items);
                         state.controller.showroom_lock = false;
                         state
                             .camera

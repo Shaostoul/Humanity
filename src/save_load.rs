@@ -132,9 +132,12 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     }
 }
 
-/// Extract + write the active offline home to disk. Logs on failure.
-pub fn save_active_home(world: &hecs::World) {
-    let save = extract_world_save(world);
+/// Extract + write the active offline home to disk. Logs on failure. `placed` is the
+/// organize-layer container pool (GuiState-owned, not in the ECS world), persisted
+/// alongside the world-derived save so container contents + transfers survive a restart.
+pub fn save_active_home(world: &hecs::World, placed: &[crate::gui::PlacedItem]) {
+    let mut save = extract_world_save(world);
+    save.placed_items = placed.to_vec();
     let path = active_home_path();
     if let Err(e) = persistence::save_world(&path, &save) {
         log::error!("save_active_home failed: {e}");
@@ -150,7 +153,11 @@ pub fn save_active_home(world: &hecs::World) {
 /// Save the offline home at most once per `interval_secs` of wall-clock time. Call
 /// every frame from the main loop; it self-throttles. Robust to ANY exit path
 /// (in-app quit, crash, kill) where the graceful close-save would not fire.
-pub fn maybe_periodic_save(world: &hecs::World, interval_secs: u64) {
+pub fn maybe_periodic_save(
+    world: &hecs::World,
+    placed: &[crate::gui::PlacedItem],
+    interval_secs: u64,
+) {
     let now = now_secs();
     let last = LAST_SAVE_SECS.load(Ordering::Relaxed);
     if last == 0 {
@@ -161,7 +168,7 @@ pub fn maybe_periodic_save(world: &hecs::World, interval_secs: u64) {
     }
     if now.saturating_sub(last) >= interval_secs {
         LAST_SAVE_SECS.store(now, Ordering::Relaxed);
-        save_active_home(world);
+        save_active_home(world, placed);
     }
 }
 
@@ -251,5 +258,41 @@ mod tests {
         // Untouched: still the original wood, no injected steel.
         assert!(after.inventory.iter().any(|(id, q)| id == "wood_plank_0" && *q == 5));
         assert!(!after.inventory.iter().any(|(id, _)| id == "steel_ingot_0"));
+    }
+
+    /// Organize-layer container contents survive a save serde round-trip, and a
+    /// pre-v0.517 save (no `placed_items` field) loads with an empty pool (serde
+    /// default) so it then re-seeds from the places spine.
+    #[test]
+    fn placed_items_persist_and_old_saves_default_empty() {
+        let mut save = WorldSave::new_offline("Test", "fibonacci");
+        save.placed_items = vec![
+            crate::gui::PlacedItem {
+                key: "ice_axe_0".into(),
+                name: "Ice Axe".into(),
+                qty: 1,
+                container: "1/0/0".into(),
+            },
+            crate::gui::PlacedItem {
+                key: "iron_ore_0".into(),
+                name: "Iron Ore".into(),
+                qty: 5,
+                container: "2/0".into(),
+            },
+        ];
+        let json = serde_json::to_string(&save).expect("serialize");
+        let back: WorldSave = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.placed_items.len(), 2);
+        assert_eq!(back.placed_items[0].key, "ice_axe_0");
+        assert_eq!(back.placed_items[1].qty, 5);
+        assert_eq!(back.placed_items[1].container, "2/0");
+
+        // A pre-v0.517 save JSON that lacks the field -> empty pool, no error.
+        let old_json = r#"{"name":"Old","timestamp":0,"game_time":0.0,
+            "player_position":[0.0,0.0,0.0],"player_rotation":[0.0,0.0,0.0,1.0],
+            "player_health":100.0,"inventory":[],"skills":{},"constructions":[],
+            "weather_state":"clear"}"#;
+        let old: WorldSave = serde_json::from_str(old_json).expect("old save loads");
+        assert!(old.placed_items.is_empty(), "old save defaults to an empty pool");
     }
 }

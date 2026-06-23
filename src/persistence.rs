@@ -45,6 +45,12 @@ pub struct WorldSave {
     /// The player's equipped cosmetic outfit (v0.440). serde-default for old saves.
     #[serde(default)]
     pub outfit: crate::ecs::components::Outfit,
+    /// The organize-layer container contents (v0.516): every item that lives in a
+    /// container other than the live backpack, tagged with its container path. The
+    /// backpack itself is `inventory` above. serde-default so pre-v0.517 saves load
+    /// with an empty pool (the inventory then re-seeds from data/places/seed.json).
+    #[serde(default)]
+    pub placed_items: Vec<crate::gui::PlacedItem>,
 }
 
 fn default_kind() -> String {
@@ -79,6 +85,7 @@ impl WorldSave {
             character_name: default_character_name(),
             appearance: Default::default(),
             outfit: Default::default(),
+            placed_items: Vec::new(),
         }
     }
 }
@@ -244,6 +251,7 @@ mod tests {
             character_name: "Test Character".to_string(),
             appearance: Default::default(),
             outfit: Default::default(),
+            placed_items: Vec::new(),
         }
     }
 
