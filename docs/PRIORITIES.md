@@ -25,12 +25,23 @@
 >   spine (`flatten_placed_items`); non-backpack tiles source from the pool so moves are
 >   live; selecting an item shows a "Move to" combo (`collect_containers`) that re-tags its
 >   container. Serialize-ready for a save.
-> - **NEXT, in order:** (1) **operator verifies interactivity in `just launch`** (open a
->   container, select a tile, use "Move to" — egui clicks can't be snapshot-verified, and
->   the in-app foundation is unverified). (2) **Backpack <-> container transfer** (the live
->   ECS backpack is not yet in the pool — needs the ECS-boundary bridge). (3) **Persist
->   `placed_items`** to the save (after the model stabilizes, to avoid migration churn).
->   (4) Per-container capacity/weight (the deferred "physical" model).
+> - **SHIPPED v0.516.0 — backpack <-> container transfer** (the ECS boundary): the
+>   `inventory_transfer_ops` channel + InventorySystem application; "Stash to" (backpack
+>   -> container) and "Take to backpack" (container -> backpack).
+> - **SHIPPED v0.517.0 — persistence:** `placed_items` ride in `WorldSave`, so transfers
+>   survive a restart (serde-default for old saves).
+> - **ARC COMPLETE (organize layer).** Per-container **capacity/weight** is the operator's
+>   explicit "later" (they chose organize-layer-first) — do NOT build it unasked. The
+>   container-header click is covered by the headless interaction harness; the combo/button
+>   interactions are best confirmed once in `just launch`.
+
+> **Dev-experience tooling LANDED (v0.515.0 + follow-ups, 2026-06-22..23):** headless egui
+> interaction harness, `verify.yml` CI (green), `just brief`, Windows-safe git hooks,
+> `engine_wiring_lint` fixed, agent-status staleness, journal rotation (`just rotate-journal`,
+> the journal went 513 KB -> 70 KB). See memory `dev_workflow_tooling`. Deferred audit items
+> the operator should weigh in on: a one-command `just release` wrapper (fork-test the
+> create-vs-auto-publish race first); slimming CLAUDE.md's finished PQ changelog into
+> `docs/history`.
 >
 > **SHIPPED 2026-06-22 (v0.511.0): MINING MAP reads as a journey** — route line in accent +
 > drone labelled mid-trip ("drone · outbound"), fixed the "Hom drone" label collision. The
