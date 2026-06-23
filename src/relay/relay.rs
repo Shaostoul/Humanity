@@ -2500,7 +2500,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     // "unknown" which means anonymous-IP traffic shares a
                     // single bucket — strictest safe default.
                     const IDENTIFY_RATE_WINDOW_SECS: u64 = 60;
-                    const IDENTIFY_RATE_MAX: usize = 10;
+                    // 30/min per IP (was 10). A relay restart (every deploy) drops ALL
+                    // client WS at once, so a legit user -- often with two clients (native
+                    // app + a browser tab) behind one IP -- reconnects several times in a
+                    // burst; 10 tripped them ("Too many connection attempts" spam, 2026-06-23).
+                    // 30 keeps casual open-identify-close spam capped while surviving a
+                    // deploy-driven reconnect. Real abuse is also caught by nginx + fail2ban.
+                    const IDENTIFY_RATE_MAX: usize = 30;
                     // Compute pass/fail under the lock; do NOT hold the
                     // std::sync::Mutex guard across the .await — std mutex
                     // guards aren't Send, which breaks the tokio task.

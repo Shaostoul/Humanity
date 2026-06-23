@@ -22,6 +22,9 @@ let myIdentity = null; // { publicKeyHex, privateKey, publicKey, canSign }
 let reconnectTimer = null;
 let reconnectDelay = 1000;
 const MAX_RECONNECT_DELAY = 30000;
+// Last system message text shown, to suppress a repeated identical banner (a reconnect
+// storm against the relay's rate limit would otherwise print the same line over and over).
+let lastSystemMessageText = '';
 let seenTimestamps = new Set(); // Deduplicate messages
 
 // ── Message stripe state ──
@@ -1000,6 +1003,15 @@ async function handleMessage(msg) {
       renderDeviceList(msg.devices);
       break;
     case 'system':
+      // Relay throttled this connection (per-IP identify rate limit). It literally says
+      // "try again in a minute" -- so respect that: back the reconnect off PAST the 60s
+      // window instead of the usual 1.5x ramp (which, starting at 1s, burns ~10 attempts
+      // inside the window and re-trips the limit -> the storm + the banner spam). The
+      // onclose that follows this message will use the new delay.
+      if (msg.message && (msg.message.startsWith('Too many connection attempts')
+          || msg.message.includes('Try again in a minute'))) {
+        reconnectDelay = 65000;
+      }
       // Handle sync data responses (encoded as system messages with prefix).
       if (msg.message && msg.message.startsWith('__sync_data__:')) {
         const payload = msg.message.slice('__sync_data__:'.length);
@@ -1559,6 +1571,10 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
 }
 
 function addSystemMessage(text) {
+  // Suppress an immediately-repeated identical banner (a reconnect storm against the
+  // relay's per-IP rate limit would otherwise print the same line again and again).
+  if (text === lastSystemMessageText) return;
+  lastSystemMessageText = text;
   // Route certain messages as ephemeral notices instead of permanent system messages.
   const lower = text.toLowerCase();
   // Link codes, ephemeral yellow, 5 minutes (matches server expiry)
@@ -1569,8 +1585,11 @@ function addSystemMessage(text) {
   if (lower.includes('invite code:')) {
     return addNotice(text, 'yellow', 120);
   }
-  // Rate limiting / slow mode, ephemeral cyan, 15s
-  if (lower.includes('rate limit') || lower.includes('please wait') || lower.includes('slow mode')) {
+  // Rate limiting / slow mode / connection throttle, ephemeral cyan, 15s. "Too many
+  // connection attempts" is the relay's per-IP identify throttle -- make it a transient
+  // notice, not a permanent message that piles up during a reconnect storm.
+  if (lower.includes('rate limit') || lower.includes('please wait') || lower.includes('slow mode')
+      || lower.includes('too many connection attempts') || lower.includes('try again in a minute')) {
     return addNotice(text, 'cyan', 15);
   }
   // Kick/ban/mute, important red, 30s
