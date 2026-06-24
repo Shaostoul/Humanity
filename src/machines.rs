@@ -229,9 +229,29 @@ impl MachineHome {
     pub fn save(&self, path: &Path) -> Result<(), String> {
         let config = ron::ser::PrettyConfig::default().struct_names(false);
         let body = ron::ser::to_string_pretty(self, config).map_err(|e| e.to_string())?;
-        let header = "// HumanityOS home machine layout. Editable in the construction editor or by\n\
-                      // hand. Real-world energy/water/food model: docs/design/self-sufficiency.md.\n\
-                      // Design architecture: docs/design/home-design.md.\n\n";
+        // Preserve the existing file's LEADING comment block (the authored design header) so a
+        // save no longer strips the documentation -- the failure that silently degraded the
+        // shipped home.ron when an in-game "Save machines" rewrote it. serde cannot keep comments
+        // interspersed with the data, but the top-of-file design rationale is the most valuable and
+        // survives this way. Falls back to a pointer-to-docs header if absent or uncommented.
+        let preserved = std::fs::read_to_string(path).ok().and_then(|existing| {
+            let header: String = existing
+                .lines()
+                .take_while(|l| l.trim_start().starts_with("//") || l.trim().is_empty())
+                .collect::<Vec<_>>()
+                .join("\n");
+            if header.contains("//") {
+                Some(format!("{}\n\n", header.trim_end()))
+            } else {
+                None
+            }
+        });
+        let header = preserved.unwrap_or_else(|| {
+            "// HumanityOS home machine layout. Editable in the construction editor or by\n\
+             // hand. Real-world energy/water/food model: docs/design/self-sufficiency.md.\n\
+             // Design architecture: docs/design/home-design.md.\n\n"
+                .to_string()
+        });
         std::fs::write(path, format!("{header}{body}")).map_err(|e| e.to_string())
     }
 
@@ -906,5 +926,30 @@ mod tests {
         let _ = std::fs::remove_file(&a);
         let _ = std::fs::remove_file(&b);
         let _ = std::fs::remove_file(&c);
+    }
+
+    /// v0.525 fix: save() preserves the existing file's leading comment block (the authored design
+    /// header), so an in-game save no longer strips the documentation (the regression that degraded
+    /// the shipped home.ron).
+    #[test]
+    fn save_preserves_the_leading_design_header() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("machines")
+            .join("home.ron");
+        let home = MachineHome::load(&path).expect("home.ron parses");
+        let tmp = std::env::temp_dir().join("humanity_home_header.ron");
+        home.save(&tmp).expect("first save");
+        // Prepend a sentinel design note to the leading comment block, then reload + re-save.
+        let with_note = format!("// SENTINEL_KEEP_ME design note\n{}", std::fs::read_to_string(&tmp).unwrap());
+        std::fs::write(&tmp, with_note).unwrap();
+        let reloaded = MachineHome::load(&tmp).expect("reload with the sentinel note");
+        reloaded.save(&tmp).expect("re-save");
+        let after = std::fs::read_to_string(&tmp).unwrap();
+        assert!(after.contains("SENTINEL_KEEP_ME"), "the leading design header survives a save");
+        // And the data still round-trips intact.
+        let back = MachineHome::load(&tmp).expect("reload after re-save");
+        assert_eq!(back.catalog.len(), home.catalog.len());
+        let _ = std::fs::remove_file(&tmp);
     }
 }
