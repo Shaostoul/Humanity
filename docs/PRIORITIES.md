@@ -24,16 +24,26 @@
 >   wire a machine in this room to any machine by kind (power/water/nutrient/fuel/air/waste), list
 >   + Remove, validated `add_connection`/`remove_connection`. Verified by a `construction` UI
 >   snapshot (the panel actually renders) + a unit test.
+> - **Stage 3a (buildability validator: power + wiring) SHIPPED v0.524:** the editor's whole-home
+>   "Buildability" section computes real kWh/day from the placed machines — is there a power source
+>   for the load, does energy balance over a representative day with the battery carrying the night,
+>   is the wiring intact — each as a green/amber/red verdict. `MachineHome::buildability_report` is
+>   pure + AI-callable. 5 unit tests + the snapshot show it. Seed home reads all-pass.
 > - **NEXT (operator's pick):**
->   (a) **Live editor 3D preview of placed machines + connections** — the remaining visible gap
+>   (a) **Live editor 3D preview of placed machines + connections** — the remaining VISIBLE gap
 >       (today you place/wire as data + see it in-world on entry, not live in the editor). Scoped:
 >       give machines their own `machine_objects` render list + a shared `spawn_machine_meshes(...)`
 >       helper that both `load_world` and `rebuild_homestead` call (today they're interleaved into
 >       `placeholder_objects` with towers/pipes, so they can't be rebuilt in isolation). Touches the
->       render loop -> launch-verify only, so it wants the operator's go before ramming.
->   (b) **Stage 3 buildability validator** (per home-design.md) — run the placed machines + the
->       room volumes against the real numbers (materials.csv density/tensile/cost, energy/water/food
->       loops) and flag what wouldn't actually build / close on a real homestead.
+>       render loop -> **launch-verify only (can't headlessly snapshot a 3D scene), so it wants the
+>       operator's go before ramming.**
+>   (b) **Stage 3b validator (water / structure / materials)** — needs structured numbers on the
+>       data: machines carry `stats` as display strings (e.g. "33 days"), not L/day, and no
+>       `material_type`; the structural solver (`src/systems/construction/solver.rs`) isn't wired to
+>       rooms yet. So 3b is a data-model step (add structured water/material fields) + sim wiring,
+>       not just a check — bigger than 3a, wants an operator scope/data call first.
+>   (c) **Stage 4 (unify the model)** — has explicit operator decisions in home-design.md "Open
+>       questions" (one merged file vs three written atomically; material on machines).
 > - **Remaining v0.522 review finding (not blocking):** no save-success toast / unsaved-changes
 >   guard on the Machines panel — UX polish, consistent with the sibling "Save layout" button.
 

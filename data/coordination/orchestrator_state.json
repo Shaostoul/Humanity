@@ -330,12 +330,23 @@
         "src/gui/ui_snapshots.rs",
         "tests/snapshots/construction.png"
       ]
+    },
+    {
+      "at": "2026-06-23",
+      "decision": "HOME-DESIGN Stage 3a (buildability validator: power + wiring) SHIPPED (v0.524.0) -- the mission core made computable. MachineHome::buildability_report(sun_hours) is a pure, world-free check over the placed machines (so it runs in the editor AND an AI can call it before committing a design): (1) Power source -- is there a panel/generator for the load; (2) Energy balance -- real kWh/day (solar peak x sun_hours + generators x24h) vs consumption x24h, plus does the battery carry the solar-off window: Pass / Warn (covers day not night) / Fail (can't meet daily demand); (3) Wiring -- every connection endpoint resolves (catches an AI hand-edit dangling ref). Returns BuildabilityReport{checks:[{name,status,detail}]} + worst() verdict. New types CheckStatus + BuildabilityCheck + BuildabilityReport. The construction editor gains a whole-home 'Buildability' section (always shown): each check as a colored verdict (green check / amber warn / red !) + the real numbers. Seed home reads ALL-PASS (3200W panels, 18 vs 1.2 kWh/day, 20 connections valid). VERIFIED: 5 unit tests (load-without-source fails, balanced passes, undersized-battery warns, dangling-connection fails, seed sane) + the construction snapshot re-rendered (switched to the study room so the panel is READABLE -> Machines + Connections + Buildability all render). 13 machines tests + native + relay + 3 lints green; exe building.",
+      "why": "Continued the home-design arc to its next fully-self-verifiable increment. Stage 3a (power + wiring) is the slice computable from home.ron TODAY -- it reuses the same electrical numbers the live ElectricalSystem uses but as a static design-time check (no world needed), which is exactly what makes an AI design trustworthy + a player design honest (the home-design.md litmus). Stopped Stage 3 at 3a deliberately: 3b (water/structure/materials) needs structured numbers the data doesn't carry yet (machine stats are display strings not L/day; no material_type on machines; the solver isn't wired to rooms) -- that's a data-model step wanting an operator scope call, not a clean check. This is the natural boundary: Stages 1-hardened/2/3a shipped + verified this session; the next phases (live 3D preview = launch-verify-only; 3b = data-model; Stage 4 unify = has operator open-questions) genuinely want the operator's hands-on read + direction.",
+      "files": [
+        "src/machines.rs",
+        "src/gui/pages/construction.rs",
+        "src/gui/ui_snapshots.rs",
+        "tests/snapshots/construction.png"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.523.0 (Latest). Local exe building (b4f3fuauw) -> build-game leaves an uncommitted 0.523.1 patch bump for the test exe, folded into the next release. v0.519-0.523 = home-design parity arc: machine placement -> offset editing -> review-hardened -> Stage 2 connections. NEXT (operator's pick): live editor 3D preview of machines/connections (render refactor, launch-verify, parked for operator read) OR Stage 3 buildability validator. Releases v0.516-0.523 await operator just sign-release. Deploy green (relay live).",
+  "version_state": "main==origin: v0.524.0 (Latest). Local exe building (bbmbl6mg3) -> build-game leaves an uncommitted 0.524.1 patch bump for the test exe, folded into the next release. v0.519-0.524 = home-design parity arc COMPLETE through Stage 3a: machine placement (hardened) -> offset editing -> review-fixed -> Stage 2 connections -> Stage 3a buildability validator (power+wiring). NEXT (operator's pick): live editor 3D preview of machines/connections (render refactor, launch-verify-only, parked for operator read) | Stage 3b water/structure/materials (data-model step) | Stage 4 unify (has operator open-questions). Releases v0.516-0.524 await operator just sign-release. Deploy green (relay live).",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
