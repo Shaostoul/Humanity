@@ -15,6 +15,11 @@ use crate::ship::fibonacci::WallKind;
 const WALL_LABELS: [&str; 4] = ["North", "South", "West", "East"];
 
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
+    // ── FOOTER: the placement palette (v0.527), a game-style bottom bar. Added first so it spans
+    //    the full width with the side panels above it. Pick a category, click an item to place it
+    //    in the selected room (viewport click-to-place is the next step). ──
+    draw_palette(ctx, theme, state);
+
     // ── LEFT: the room tree / table of contents for the home (the "main room") ──
     egui::SidePanel::left("construction_rooms")
         .resizable(true)
@@ -580,6 +585,28 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         state.construction_selected_room = None;
     }
 
+    // The footer palette asked to place a machine type -> add it to the SELECTED room (v0.527).
+    // (Viewport click-to-place, which puts it where you click, is the next step; for now it lands
+    // at the room center and you nudge it with the offset drags / by dragging in the view.)
+    if let Some(mtype) = state.construction_palette_add.take() {
+        if let Some(ri) = state.construction_selected_room {
+            if let Some(room_id) = state.construction_rooms.get(ri).map(|r| r.id.clone()) {
+                if let Some(home) = state.home_machines.as_mut() {
+                    if home.catalog.contains_key(&mtype) {
+                        let id = home.unique_instance_id(&mtype);
+                        home.instances.push(crate::machines::MachineInstance {
+                            id,
+                            machine: mtype,
+                            room: room_id,
+                            offset: (0.0, 0.0, 0.0),
+                        });
+                        state.construction_machines_dirty = true;
+                    }
+                }
+            }
+        }
+    }
+
     // ── CENTER: top-down plan overlay (optional; default OFF so the orbit cam is primary) ──
     if state.construction_plan_view {
         egui::CentralPanel::default()
@@ -588,6 +615,86 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 draw_floorplan_canvas(ui, theme, state);
             });
     }
+}
+
+/// The placement palette (v0.527): a game-style footer bar. Category tabs across the top, then a
+/// grid of placeable machine types in the selected category -- 10 wide, one row by default,
+/// Expand for more. Clicking an item asks to place it (added to the selected room for now; viewport
+/// click-to-place is the next step). Data-driven: categories + items come from the catalog.
+fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
+    let categories = match &state.home_machines {
+        Some(h) => h.palette_categories(),
+        None => return,
+    };
+    if categories.is_empty() {
+        return;
+    }
+    // Keep the selected category valid; default to the largest one for a full first view.
+    if !categories.iter().any(|(c, _)| c == &state.construction_palette_category) {
+        state.construction_palette_category = categories
+            .iter()
+            .max_by_key(|(_, items)| items.len())
+            .map(|(c, _)| c.clone())
+            .unwrap_or_default();
+    }
+    let expanded = state.construction_palette_expanded;
+    let panel_h = if expanded { 210.0 } else { 96.0 };
+    egui::TopBottomPanel::bottom("construction_palette")
+        .exact_height(panel_h)
+        .show(ctx, |ui| {
+            ui.add_space(theme.spacing_xs);
+            // Category tabs + the expand toggle (right-aligned).
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Place").strong().color(theme.text_primary()));
+                ui.separator();
+                for (cat, items) in &categories {
+                    let selected = cat == &state.construction_palette_category;
+                    let txt = RichText::new(format!("{cat} ({})", items.len()))
+                        .color(if selected { theme.accent() } else { theme.text_secondary() });
+                    if ui.selectable_label(selected, txt).clicked() {
+                        state.construction_palette_category = cat.clone();
+                    }
+                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(if expanded { "Collapse" } else { "Expand" }).clicked() {
+                        state.construction_palette_expanded = !expanded;
+                    }
+                    if state.construction_selected_room.is_none() {
+                        ui.label(RichText::new("select a room to place into")
+                            .size(theme.font_size_small).color(theme.text_muted()));
+                    }
+                });
+            });
+            ui.separator();
+            // The item grid for the selected category, 10 columns. Collapsed clips to ~1 row +
+            // scrolls; expanded shows ~5 rows.
+            let items: Vec<(String, String)> = categories
+                .iter()
+                .find(|(c, _)| c == &state.construction_palette_category)
+                .map(|(_, its)| its.clone())
+                .unwrap_or_default();
+            egui::ScrollArea::vertical().max_height(panel_h - 48.0).show(ui, |ui| {
+                egui::Grid::new("palette_grid")
+                    .num_columns(10)
+                    .spacing([theme.spacing_xs, theme.spacing_xs])
+                    .show(ui, |ui| {
+                        for (i, (id, label)) in items.iter().enumerate() {
+                            if ui
+                                .add_sized(
+                                    [92.0, 30.0],
+                                    egui::Button::new(RichText::new(label).size(theme.font_size_small)),
+                                )
+                                .clicked()
+                            {
+                                state.construction_palette_add = Some(id.clone());
+                            }
+                            if (i + 1) % 10 == 0 {
+                                ui.end_row();
+                            }
+                        }
+                    });
+            });
+        });
 }
 
 /// The whole-home buildability report (v0.524, home-design Stage 3): a power source exists for

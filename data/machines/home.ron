@@ -13,12 +13,14 @@
         "solar_panel": (
             shape: "box", size: (1.1, 0.12, 0.7), color: (0.12, 0.16, 0.45),
             label: "Solar panel",
+            category: "Power",
             stats: [(kind: "power", value: "+1.4 kWh/d", status: "ok")],
             power: Some(Solar(peak_watts: 400.0)),
         ),
         "battery_bank": (
             shape: "box", size: (0.6, 0.9, 0.5), color: (0.20, 0.60, 0.32),
             label: "Battery bank",
+            category: "Power",
             stats: [(kind: "storage", value: "~4 kWh", status: "ok"), (kind: "power", value: "charging", status: "ok")],
             // Live storage (v0.473): buffers the solar swing. Each bank ~4 kWh, 2 kW in/out.
             power: Some(Battery(capacity_wh: 4000.0, max_charge_w: 2000.0, max_discharge_w: 2000.0)),
@@ -26,29 +28,34 @@
         "wind_turbine_small": (
             shape: "cylinder", size: (0.1, 2.4, 0.1), color: (0.85, 0.86, 0.90),
             label: "Wind turbine",
+            category: "Power",
             stats: [(kind: "power", value: "+0.7 kWh/d", status: "warn")],
             power: Some(Generator(watts: 150.0)),
         ),
         "water_tank": (
             shape: "cylinder", size: (0.9, 2.2, 0.9), color: (0.20, 0.45, 0.75),
             label: "Cistern (8000 L)",
+            category: "Water",
             stats: [(kind: "storage", value: "33 days", status: "ok"), (kind: "water", value: "rain + well fed", status: "ok")],
         ),
         "water_pump": (
             shape: "box", size: (0.35, 0.35, 0.35), color: (0.30, 0.50, 0.60),
             label: "Water pump",
+            category: "Water",
             stats: [(kind: "power", value: "-0.24 kWh/d", status: "ok"), (kind: "water", value: "12 L/min", status: "ok")],
             power: Some(Consumer(watts: 10.0, priority: 2)),
         ),
         "water_purifier": (
             shape: "cylinder", size: (0.28, 0.7, 0.28), color: (0.35, 0.65, 0.78),
             label: "Water purifier",
+            category: "Water",
             stats: [(kind: "water", value: "+240 L/d potable", status: "ok"), (kind: "power", value: "-0.30 kWh/d", status: "ok")],
             power: Some(Consumer(watts: 13.0, priority: 2)),
         ),
         "composter": (
             shape: "box", size: (0.7, 0.55, 0.7), color: (0.35, 0.25, 0.14),
             label: "Composter",
+            category: "Food",
             stats: [(kind: "nutrient", value: "+1.2 kg/d", status: "ok"), (kind: "water", value: "+155 L/d greywater", status: "ok")],
         ),
         // ── Indoor garden machines (v0.433). The 34x34x6 m garden is a SUN-LIT farm.
@@ -59,87 +66,104 @@
         "aeroponic_tower_nutrition": (
             shape: "cylinder", size: (0.3, 2.4, 0.3), color: (0.30, 0.65, 0.38),
             label: "Variety tower",
+            category: "Food",
             stats: [(kind: "food", value: "+92 kcal/d", status: "warn"), (kind: "nutrient", value: "vitamins + protein", status: "ok"), (kind: "power", value: "sun-lit, -15 W", status: "ok")],
         ),
         "aeroponic_tower_apothecary": (
             shape: "cylinder", size: (0.16, 1.9, 0.16), color: (0.45, 0.55, 0.30),
             label: "Apothecary tower",
+            category: "Food",
             stats: [(kind: "food", value: "herbs + teas", status: "ok"), (kind: "power", value: "sun-lit, -12 W", status: "ok")],
         ),
         "potato_grow_bed": (
             shape: "box", size: (2.0, 0.4, 1.0), color: (0.55, 0.42, 0.25),
             label: "Potato bed",
+            category: "Food",
             stats: [(kind: "food", value: "+120 kcal/d", status: "ok"), (kind: "power", value: "sun-lit, 0 W", status: "ok")],
         ),
         "staple_grain_tray": (
             shape: "box", size: (2.0, 0.3, 1.0), color: (0.78, 0.66, 0.30),
             label: "Grain tray",
+            category: "Food",
             stats: [(kind: "food", value: "+20 kcal/d", status: "low"), (kind: "power", value: "sun-lit, 0 W", status: "ok")],
         ),
         "oilseed_bed": (
             shape: "box", size: (2.0, 0.4, 1.0), color: (0.80, 0.74, 0.35),
             label: "Oilseed bed",
+            category: "Food",
             stats: [(kind: "food", value: "+25 kcal/d (fats)", status: "warn"), (kind: "power", value: "sun-lit, 0 W", status: "ok")],
         ),
         "mushroom_rack": (
             shape: "box", size: (1.2, 1.8, 0.6), color: (0.62, 0.55, 0.45),
             label: "Mushroom rack",
+            category: "Food",
             stats: [(kind: "food", value: "+50 kcal/d", status: "ok"), (kind: "power", value: "no light needed", status: "ok")],
         ),
         "aquaponic_tank": (
             shape: "box", size: (1.6, 1.0, 1.6), color: (0.20, 0.45, 0.70),
             label: "Aquaponic tank",
+            category: "Food",
             stats: [(kind: "food", value: "+75 kcal/d", status: "ok"), (kind: "nutrient", value: "B12 + omega-3", status: "ok"), (kind: "power", value: "-50 W air pump", status: "ok")],
         ),
         "irrigation_system": (
             shape: "box", size: (0.45, 0.3, 0.45), color: (0.30, 0.55, 0.65),
             label: "Irrigation",
+            category: "Water",
             stats: [(kind: "water", value: "60 L/d to plants", status: "ok"), (kind: "power", value: "-0.16 kWh/d", status: "ok")],
             power: Some(Consumer(watts: 7.0, priority: 3)),
         ),
         "grain_field": (
             shape: "box", size: (2.4, 0.18, 2.4), color: (0.78, 0.66, 0.30),
             label: "Grain field",
+            category: "Food",
             stats: [(kind: "food", value: "+3100 kcal/d", status: "ok"), (kind: "nutrient", value: "-N -P -K", status: "warn")],
         ),
         "tuber_field": (
             shape: "box", size: (2.4, 0.18, 2.4), color: (0.55, 0.42, 0.25),
             label: "Tuber field",
+            category: "Food",
             stats: [(kind: "food", value: "+1900 kcal/d", status: "ok")],
         ),
         "legume_field": (
             shape: "box", size: (2.4, 0.18, 2.4), color: (0.45, 0.62, 0.30),
             label: "Legume field",
+            category: "Food",
             stats: [(kind: "food", value: "+700 kcal/d", status: "ok"), (kind: "nutrient", value: "+N (fixing)", status: "ok")],
         ),
         "oilseed_field": (
             shape: "box", size: (2.4, 0.18, 2.4), color: (0.80, 0.74, 0.35),
             label: "Oilseed field",
+            category: "Food",
             stats: [(kind: "food", value: "+500 kcal/d (fats)", status: "ok")],
         ),
         "smelter": (
             shape: "box", size: (0.7, 0.9, 0.7), color: (0.55, 0.22, 0.12),
             label: "Smelter",
+            category: "Production",
             stats: [(kind: "heat", value: "1200 C", status: "ok"), (kind: "power", value: "-1.0 kWh/d", status: "warn")],
         ),
         "forge": (
             shape: "box", size: (0.65, 0.75, 0.65), color: (0.50, 0.25, 0.16),
             label: "Forge",
+            category: "Production",
             stats: [(kind: "heat", value: "900 C", status: "ok"), (kind: "power", value: "idle", status: "off")],
         ),
         "fuel_refinery": (
             shape: "cylinder", size: (0.45, 1.1, 0.45), color: (0.50, 0.46, 0.20),
             label: "Fuel refinery",
+            category: "Production",
             stats: [(kind: "fuel", value: "30%", status: "low"), (kind: "progress", value: "refining", status: "ok")],
         ),
         "generator_portable": (
             shape: "box", size: (0.55, 0.45, 0.45), color: (0.45, 0.45, 0.20),
             label: "Generator (backup)",
+            category: "Power",
             stats: [(kind: "fuel", value: "80%", status: "ok"), (kind: "power", value: "backup 2 kW", status: "off")],
         ),
         "grain_silo": (
             shape: "cylinder", size: (0.6, 1.9, 0.6), color: (0.70, 0.60, 0.35),
             label: "Grain silo",
+            category: "Food",
             stats: [(kind: "food", value: "750 days stored", status: "ok"), (kind: "storage", value: "85%", status: "ok")],
         ),
         // ── Hull-surface installations (v0.438): the mining-drone landing pad and a
@@ -149,11 +173,13 @@
         "drone_hangar": (
             shape: "box", size: (3.0, 0.2, 3.0), color: (0.30, 0.32, 0.36),
             label: "Drone hangar",
+            category: "Logistics",
             stats: [(kind: "storage", value: "1 mining drone", status: "ok")],
         ),
         "defense_turret": (
             shape: "cylinder", size: (0.5, 1.6, 0.5), color: (0.45, 0.20, 0.18),
             label: "Defense turret",
+            category: "Defense",
             stats: [(kind: "power", value: "-0.5 kWh/d standby", status: "warn")],
             power: Some(Consumer(watts: 20.0, priority: 4)),
         ),

@@ -12,6 +12,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
 
+/// Default placement-palette category for an untagged machine type. (v0.527)
+fn default_category() -> String {
+    "Machines".to_string()
+}
+
 /// One readout shown on a machine's info card: an icon (by `kind`), a value, and a
 /// status that colors the icon. Placeholder/demo data until the machines are wired to
 /// the live simulation.
@@ -55,6 +60,11 @@ pub struct MachineDef {
     /// Display name shown on the floating label (e.g. "Solar panel").
     #[serde(default)]
     pub label: String,
+    /// Placement-palette category (e.g. "Power", "Water", "Food", "Production"). Groups the type
+    /// in the construction editor's footer palette. Data-driven (infinite-of-X): add a category by
+    /// tagging types with it. Defaults to "Machines" so an untagged type still shows. (v0.527)
+    #[serde(default = "default_category")]
+    pub category: String,
     /// Stat readouts shown on the info card when you are close.
     #[serde(default)]
     pub stats: Vec<MachineStat>,
@@ -512,6 +522,21 @@ impl MachineHome {
         out
     }
 
+    /// The placement palette grouped by category: an ordered list of (category, [(id, label)]).
+    /// Categories sort alphabetically and items by label, for a stable footer-palette layout.
+    /// Data-driven: the categories are whatever the catalog's `category` fields contain. (v0.527)
+    pub fn palette_categories(&self) -> Vec<(String, Vec<(String, String)>)> {
+        let mut by_cat: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+        for (id, def) in &self.catalog {
+            let label = if def.label.is_empty() { id.clone() } else { def.label.clone() };
+            by_cat.entry(def.category.clone()).or_default().push((id.clone(), label));
+        }
+        for items in by_cat.values_mut() {
+            items.sort_by(|a, b| a.1.cmp(&b.1));
+        }
+        by_cat.into_iter().collect()
+    }
+
     /// Color (rgba) for a connection kind.
     pub fn connection_color(kind: &str) -> [f32; 4] {
         match kind {
@@ -635,6 +660,7 @@ mod tests {
             size: (1.0, 1.0, 1.0),
             color: (0.5, 0.5, 0.5),
             label: String::new(),
+            category: "Machines".to_string(),
             stats: Vec::new(),
             power: None,
         }
@@ -899,6 +925,26 @@ mod tests {
         let s = placed.iter().find(|p| p.id == "s1").unwrap();
         assert_eq!(s.pos, (10.0, 5.5, 20.0), "sphere lifted by its radius to rest on the floor");
         assert_eq!(s.floor_y, 5.0);
+    }
+
+    /// v0.527: palette_categories groups the catalog by `category`, sorted, with every machine in
+    /// exactly one category -- the data the footer placement palette renders.
+    #[test]
+    fn palette_groups_catalog_by_category() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("machines")
+            .join("home.ron");
+        let home = MachineHome::load(&path).expect("home.ron parses");
+        let cats = home.palette_categories();
+        let total: usize = cats.iter().map(|(_, items)| items.len()).sum();
+        assert_eq!(total, home.catalog.len(), "every machine appears in exactly one category");
+        let power = cats.iter().find(|(c, _)| c == "Power").expect("a Power category");
+        assert!(power.1.iter().any(|(id, _)| id == "solar_panel"), "solar panel is under Power");
+        let names: Vec<String> = cats.iter().map(|(c, _)| c.clone()).collect();
+        let mut sorted = names.clone();
+        sorted.sort();
+        assert_eq!(names, sorted, "categories are sorted alphabetically");
     }
 
     /// v0.522 fix C: save() is deterministic -- the same home saved twice produces byte-identical
