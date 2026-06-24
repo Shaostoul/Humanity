@@ -820,6 +820,60 @@ mod native_app {
         });
     }
 
+    /// Cast a ray from the cursor onto the room floors; return (room_bounds index, hit_x, hit_z) of
+    /// the nearest room under the cursor. Used by ghost placement (v0.529).
+    fn cursor_floor_hit(state: &EngineState) -> Option<(usize, f32, f32)> {
+        let sz = state.window.inner_size();
+        let (origin, dir) =
+            state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        if dir.y.abs() < 1e-6 {
+            return None;
+        }
+        let mut best: Option<(usize, f32, f32, f32)> = None; // (i, t, hx, hz)
+        for (i, rb) in state.gui_state.room_bounds.iter().enumerate() {
+            let t = (rb.min.y - origin.y) / dir.y;
+            if t <= 0.0 {
+                continue;
+            }
+            let hx = origin.x + dir.x * t;
+            let hz = origin.z + dir.z * t;
+            if hx >= rb.min.x && hx <= rb.max.x && hz >= rb.min.z && hz <= rb.max.z {
+                if best.map_or(true, |(_, bt, _, _)| t < bt) {
+                    best = Some((i, t, hx, hz));
+                }
+            }
+        }
+        best.map(|(i, _, hx, hz)| (i, hx, hz))
+    }
+
+    /// Drop the currently-held palette machine where the cursor hits a room floor (offset from that
+    /// room's center). Keeps the item held so you can place several; right-click or re-click the
+    /// palette item to stop. Appears live via construction_machines_dirty. (v0.529)
+    fn try_place_held_machine(state: &mut EngineState) {
+        let Some(mtype) = state.gui_state.construction_place_type.clone() else {
+            return;
+        };
+        let Some((rb_i, hx, hz)) = cursor_floor_hit(state) else {
+            return;
+        };
+        let rb = &state.gui_state.room_bounds[rb_i];
+        let room_id = rb.id.clone();
+        let cx = (rb.min.x + rb.max.x) * 0.5;
+        let cz = (rb.min.z + rb.max.z) * 0.5;
+        if let Some(home) = state.gui_state.home_machines.as_mut() {
+            if home.catalog.contains_key(&mtype) {
+                let id = home.unique_instance_id(&mtype);
+                home.instances.push(crate::machines::MachineInstance {
+                    id,
+                    machine: mtype,
+                    room: room_id,
+                    offset: (hx - cx, 0.0, hz - cz),
+                });
+                state.gui_state.construction_machines_dirty = true;
+            }
+        }
+    }
+
     /// Per-frame: while a room is grabbed, intersect the pick ray with its floor plane, move
     /// the room so it follows the cursor (minus the grab offset), snap to 0.25 m, and flag a
     /// rebuild. Computed from the live cursor (not deltas) so it never drifts. (v0.466)
@@ -1127,62 +1181,14 @@ mod native_app {
             room_info.len(), state.homestead_floors.len(),
             state.homestead_walls.is_some(), state.room_lights.len());
 
-        // ── Aeroponic tower placeholders (v0.383) ──
-        // Simple-shape stand-ins until real 3D models exist (operator: "use simple
-        // shapes as stand-ins"): one grey cylinder per loaded tower config + a green
-        // sphere per planted variety in a vertical helix, placed on the garden floor
-        // side by side. Marker count is capped (the full variety lives in the Home
-        // page list) to stay within the per-frame object budget.
+        // Clear the per-frame object lists before (re)populating them this load. The old aeroponic
+        // tower placeholders (a v0.383 pre-machine-system demo: tower_configs grey cylinders + helix
+        // plant-marker spheres) were REMOVED in v0.529 -- the home.ron machine arrays (the
+        // aeroponic_tower_* types) now render the real garden towers, which move + delete with the
+        // room. The static markers did not respond, showing duplicate non-responsive towers with
+        // spheres (operator feedback 2026-06-24).
         state.placeholder_objects.clear();
         state.machine_objects.clear();
-        {
-            let garden = room_info.iter().find(|r| r.id == "garden");
-            let floor_y = garden.map(|r| r.center.y - r.dimensions.y * 0.5).unwrap_or(0.0);
-            let gx = garden.map(|r| r.center.x).unwrap_or(0.0);
-            let gz = garden.map(|r| r.center.z).unwrap_or(0.0);
-            // Snapshot each tower's geometry (diameter / height / helix turns / plant
-            // count) FIRST so the gui_state borrow is released before the renderer
-            // mutations below. Geometry is data-driven (operator: dynamic + scalable).
-            let towers: Vec<(f32, f32, f32, usize)> = state
-                .gui_state
-                .tower_configs
-                .iter()
-                .map(|t| (t.diameter_m, t.height_m, t.helix_turns, t.plantings.len()))
-                .collect();
-            let tower_count = towers.len().max(1) as f32;
-            let tower_mat = state.renderer.add_material_typed([0.6, 0.62, 0.66, 1.0], 0.3, 0.6, 1.0);
-            let sphere_mesh = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 0.09, 8, 10));
-            let plant_mat = state.renderer.add_material_typed([0.15, 0.7, 0.2, 1.0], 0.0, 0.9, 0.0);
-            for (ti, &(diam, height, turns, n_plants)) in towers.iter().enumerate() {
-                let radius = (diam * 0.5).max(0.05);
-                let h = height.max(0.5);
-                let t_turns = turns.max(0.5);
-                // Space towers by their width so wide ones do not overlap.
-                let tx = gx + (ti as f32 - (tower_count - 1.0) * 0.5) * (1.0 + diam.max(0.3));
-                // One cylinder per tower (per-tower diameter + height).
-                let cyl_mesh = state.renderer.add_mesh(Mesh::cylinder(&state.renderer.device, radius, h, 20));
-                state.placeholder_objects.push((cyl_mesh, tower_mat, Vec3::new(tx, floor_y, gz)));
-                // One plant marker per curated variety, up a helix of `t_turns` wraps
-                // (capped for the per-frame object budget; the full list is on Home).
-                let n = n_plants.min(40).max(1);
-                for p in 0..n {
-                    let frac = (p as f32 + 0.5) / n as f32;
-                    let a = frac * t_turns * std::f32::consts::TAU;
-                    let y = floor_y + 0.1 + frac * (h - 0.2);
-                    let mr = radius + 0.12; // markers sit just off the column
-                    state.placeholder_objects.push((
-                        sphere_mesh,
-                        plant_mat,
-                        Vec3::new(tx + mr * a.cos(), y, gz + mr * a.sin()),
-                    ));
-                }
-            }
-            if towers.is_empty() {
-                // No configs: still drop one bare tower so the garden spot is visible.
-                let cyl_mesh = state.renderer.add_mesh(Mesh::cylinder(&state.renderer.device, 0.2, 2.0, 20));
-                state.placeholder_objects.push((cyl_mesh, tower_mat, Vec3::new(gx, floor_y, gz)));
-            }
-        }
 
         // ── Machine layout (data-driven, v0.427) ──
         // Rudimentary primitives for the homestead machines + pipes/tubes for the
@@ -2033,6 +2039,10 @@ mod native_app {
         cursor_pos: (f32, f32),
         /// The room currently grabbed (left-drag) in the 3D astral editor. (v0.466)
         construction_grab: Option<ConstructionGrab>,
+        /// Cached placement-ghost mesh for the held palette item (v0.529): (machine type, mesh idx,
+        /// material idx). Rebuilt only when the held type changes, so the cursor-following ghost
+        /// does not leak a fresh mesh every frame.
+        construction_ghost: Option<(String, usize, usize)>,
         /// The door/window slide-gizmo handle currently grabbed in the 3D editor. (v0.468)
         construction_gizmo_grab: Option<ConstructionGizmoGrab>,
         /// Cached (mesh, material) for the gizmo MOVE handle marker, built once. (v0.468)
@@ -2559,6 +2569,7 @@ mod native_app {
                 construction_return_pos: Vec3::new(0.0, 1.7, 0.0),
                 cursor_pos: (0.0, 0.0),
                 construction_grab: None,
+                construction_ghost: None,
                 construction_gizmo_grab: None,
                 construction_gizmo_handle: None,
                 construction_gizmo_resize_handle: None,
@@ -2935,17 +2946,30 @@ mod native_app {
                 WindowEvent::MouseInput { button, state: btn_state, .. } => {
                     use winit::event::{ElementState, MouseButton};
                     let left = button == MouseButton::Left;
+                    let right = button == MouseButton::Right;
                     let pressed = btn_state == ElementState::Pressed;
                     // Construction astral editor: LEFT grabs/drops a room (left is a no-op in the
                     // orbit cam, so we own it). Gated on !egui_consumed so panel clicks never
                     // start a grab. (v0.466)
                     if state.gui_state.construction_active && left && !egui_consumed {
                         if pressed {
-                            try_begin_room_grab(state);
+                            // Holding a palette item -> drop it where you click; else grab a room.
+                            if state.gui_state.construction_place_type.is_some() {
+                                try_place_held_machine(state);
+                            } else {
+                                try_begin_room_grab(state);
+                            }
                         } else {
                             state.construction_grab = None; // release; keep the selection highlighted
                             state.construction_gizmo_grab = None; // release a slid handle too
                         }
+                    } else if state.gui_state.construction_active
+                        && right
+                        && pressed
+                        && state.gui_state.construction_place_type.is_some()
+                    {
+                        // Right-click cancels the held placement item (v0.529).
+                        state.gui_state.construction_place_type = None;
                     } else if !egui_consumed && state.gui_state.active_page == GuiPage::None {
                         state.controller.process_mouse_button(button, btn_state);
                     }
@@ -3822,6 +3846,52 @@ mod native_app {
                                 mesh: mesh_idx,
                                 material: mat_idx,
                             });
+                        }
+                    }
+                    // Placement ghost: the held palette item, previewed (semi-transparent, faintly
+                    // glowing) on the room floor under the cursor, so you see where a click drops it.
+                    // The ghost mesh is cached + rebuilt only when the held type changes. (v0.529)
+                    if state.gui_state.construction_active {
+                        if let Some(mtype) = state.gui_state.construction_place_type.clone() {
+                            let need = state
+                                .construction_ghost
+                                .as_ref()
+                                .map_or(true, |(t, _, _)| t != &mtype);
+                            if need {
+                                let def = state
+                                    .gui_state
+                                    .home_machines
+                                    .as_ref()
+                                    .and_then(|h| h.catalog.get(&mtype))
+                                    .cloned();
+                                if let Some(def) = def {
+                                    let mesh =
+                                        machine_mesh(&state.renderer.device, &def.shape, def.size);
+                                    let mesh_idx = state.renderer.add_mesh(mesh);
+                                    let mat = state.renderer.add_material_typed(
+                                        [def.color.0, def.color.1, def.color.2, 0.45],
+                                        0.1,
+                                        0.6,
+                                        0.4,
+                                    );
+                                    state.construction_ghost = Some((mtype.clone(), mesh_idx, mat));
+                                }
+                            }
+                            let ghost = state.construction_ghost.as_ref().map(|(_, m, mt)| (*m, *mt));
+                            if let Some((mesh_idx, mat)) = ghost {
+                                if let Some((rb_i, hx, hz)) = cursor_floor_hit(state) {
+                                    let floor_y = state.gui_state.room_bounds[rb_i].min.y;
+                                    transparent_objects.push(RenderObject {
+                                        position: Vec3::new(hx, floor_y, hz),
+                                        rotation: Quat::IDENTITY,
+                                        scale: Vec3::ONE,
+                                        mesh: mesh_idx,
+                                        material: mat,
+                                    });
+                                }
+                            }
+                        } else {
+                            state.construction_ghost = None;
                         }
                     }
 

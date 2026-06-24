@@ -718,6 +718,8 @@ fn snapshot_construction() {
             }];
         }
         state.construction_selected_room = Some(0);
+        // Hold a palette item so the snapshot shows the active-item highlight (v0.529).
+        state.construction_place_type = Some("aeroponic_tower_nutrition".to_string());
         crate::gui::pages::construction::draw(ctx, theme, state);
     });
 }

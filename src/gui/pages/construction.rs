@@ -585,27 +585,8 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         state.construction_selected_room = None;
     }
 
-    // The footer palette asked to place a machine type -> add it to the SELECTED room (v0.527).
-    // (Viewport click-to-place, which puts it where you click, is the next step; for now it lands
-    // at the room center and you nudge it with the offset drags / by dragging in the view.)
-    if let Some(mtype) = state.construction_palette_add.take() {
-        if let Some(ri) = state.construction_selected_room {
-            if let Some(room_id) = state.construction_rooms.get(ri).map(|r| r.id.clone()) {
-                if let Some(home) = state.home_machines.as_mut() {
-                    if home.catalog.contains_key(&mtype) {
-                        let id = home.unique_instance_id(&mtype);
-                        home.instances.push(crate::machines::MachineInstance {
-                            id,
-                            machine: mtype,
-                            room: room_id,
-                            offset: (0.0, 0.0, 0.0),
-                        });
-                        state.construction_machines_dirty = true;
-                    }
-                }
-            }
-        }
-    }
+    // (v0.529: placement moved to the viewport. The palette now sets construction_place_type, the
+    // engine renders it as a ghost on the cursor + drops it where you click the floor.)
 
     // ── CENTER: top-down plan overlay (optional; default OFF so the orbit cam is primary) ──
     if state.construction_plan_view {
@@ -679,14 +660,21 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     .spacing([theme.spacing_xs, theme.spacing_xs])
                     .show(ui, |ui| {
                         for (i, (id, label)) in items.iter().enumerate() {
-                            if ui
-                                .add_sized(
-                                    [92.0, 30.0],
-                                    egui::Button::new(RichText::new(label).size(theme.font_size_small)),
-                                )
-                                .clicked()
-                            {
-                                state.construction_palette_add = Some(id.clone());
+                            // The HELD item (the one you are placing) is filled accent + outlined,
+                            // so you can see what is attached to the cursor. (v0.529)
+                            let held = state.construction_place_type.as_deref() == Some(id.as_str());
+                            let mut btn = egui::Button::new(
+                                RichText::new(label)
+                                    .size(theme.font_size_small)
+                                    .color(if held { theme.bg_primary() } else { theme.text_secondary() }),
+                            );
+                            if held {
+                                btn = btn.fill(theme.accent()).stroke(egui::Stroke::new(2.0, theme.warning()));
+                            }
+                            if ui.add_sized([92.0, 30.0], btn).clicked() {
+                                // Toggle: click the held item to cancel; click another to switch.
+                                state.construction_place_type =
+                                    if held { None } else { Some(id.clone()) };
                             }
                             if (i + 1) % 10 == 0 {
                                 ui.end_row();
