@@ -341,12 +341,24 @@
         "src/gui/ui_snapshots.rs",
         "tests/snapshots/construction.png"
       ]
+    },
+    {
+      "at": "2026-06-24",
+      "decision": "BUILD-MODE redirect (operator launch-tested v0.524 + gave screenshot feedback) + LIVE-MOVE fix (v0.525) + home.ron RESTORE + save() harden (v0.526). The operator launched the editor and found: (a) 'I can't move the objects in the weird list' -- DIAGNOSED: the x/z/y offset fields worked, but the editor only rebuilt machine meshes on world ENTRY (rebuild_homestead skipped machines), so dragging a value moved nothing visible -> felt broken. FIXED v0.525: machines moved out of the shared placeholder_objects into their own machine_objects render list; MachineHome::placements (pure, tested position resolver: room center + offset, floor-relative y, sphere lift, unknown-room skip) is the ONE formula load_world + the editor share; rebuild_machine_objects refreshes machine_objects + labels on a new construction_machines_dirty flag (offset/add/remove/connect) AND at the end of rebuild_homestead (so a moved room carries its machines). Render loop draws machine_objects when !showroom. The 3D refresh is launch-verify (can't snapshot a 3D scene). (b) home.ron HAD BEEN DEGRADED by a prior in-game 'Save machines' (the v0.522 known clobber): lost 56/59 design comments + ~12 machines + 11 connections vs the authored v0.473.0 version; it was sitting uncommitted at session start + got picked up by git add -A in v0.525.0. RESTORED from 652bff60 (full design + comments; 14 tests pass). ROOT-CAUSE FIXED v0.526: save() now preserves the existing file's LEADING comment block (the design header), so future saves don't re-strip it (serde can't keep interspersed comments -- those belong in the header or docs). OPERATOR'S NEW DIRECTION = make the editor a GAME BUILD MODE: a footer placement palette (10x1 expandable to ~10x5, categorized Structure/Power/Water/Machines/Furniture + subcategories) + viewport click-to-place + drag-to-move ('I can't interact with the objects in the view port'). That's the active next arc (PRIORITIES 'ACTIVE NEXT -- BUILD MODE').",
+      "why": "The operator's hands-on test surfaced the real UX gap: a numeric list is not how you place things spatially. The 'can't move' complaint had a non-obvious root cause (no live mesh rebuild) -- diagnosed + fixed first because it's the prerequisite for ANY good placement UX (a palette that places a machine you can't see appear is just as broken). Restored + protected home.ron immediately because losing the authored design + its real-world-number comments is real damage (and the clobber would recur every save). Shipped the live-move + save-fix as their own releases so the operator can verify the concrete fix before the big build-mode build, and so the protective save-fix is in their exe before they save again. The palette + viewport interaction is the operator's explicit, detailed ask -- the next focused build, informed by their live testing.",
+      "files": [
+        "src/machines.rs",
+        "src/lib.rs",
+        "src/gui/mod.rs",
+        "src/gui/pages/construction.rs",
+        "data/machines/home.ron"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.524.0 (Latest). Local exe building (bbmbl6mg3) -> build-game leaves an uncommitted 0.524.1 patch bump for the test exe, folded into the next release. v0.519-0.524 = home-design parity arc COMPLETE through Stage 3a: machine placement (hardened) -> offset editing -> review-fixed -> Stage 2 connections -> Stage 3a buildability validator (power+wiring). NEXT (operator's pick): live editor 3D preview of machines/connections (render refactor, launch-verify-only, parked for operator read) | Stage 3b water/structure/materials (data-model step) | Stage 4 unify (has operator open-questions). Releases v0.516-0.524 await operator just sign-release. Deploy green (relay live).",
+  "version_state": "main==origin: v0.526.0 (Latest). Local exe building (b2rj6wr08). v0.519-0.526 = home-design arc: placement(hardened) -> connections -> buildability validator -> LIVE machine move in editor (v0.525) -> home.ron restored + save() preserves design header (v0.526). ACTIVE NEXT = BUILD MODE (operator-directed): footer placement palette (categorized) + viewport click-to-place + drag-to-move. Live-move (v0.525) is launch-verify -- awaiting operator confirm. Releases v0.516-0.526 await operator just sign-release. Deploy green (relay live).",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",

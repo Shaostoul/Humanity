@@ -29,23 +29,33 @@
 >   for the load, does energy balance over a representative day with the battery carrying the night,
 >   is the wiring intact — each as a green/amber/red verdict. `MachineHome::buildability_report` is
 >   pure + AI-callable. 5 unit tests + the snapshot show it. Seed home reads all-pass.
-> - **NEXT (operator's pick):**
->   (a) **Live editor 3D preview of placed machines + connections** — the remaining VISIBLE gap
->       (today you place/wire as data + see it in-world on entry, not live in the editor). Scoped:
->       give machines their own `machine_objects` render list + a shared `spawn_machine_meshes(...)`
->       helper that both `load_world` and `rebuild_homestead` call (today they're interleaved into
->       `placeholder_objects` with towers/pipes, so they can't be rebuilt in isolation). Touches the
->       render loop -> **launch-verify only (can't headlessly snapshot a 3D scene), so it wants the
->       operator's go before ramming.**
->   (b) **Stage 3b validator (water / structure / materials)** — needs structured numbers on the
->       data: machines carry `stats` as display strings (e.g. "33 days"), not L/day, and no
->       `material_type`; the structural solver (`src/systems/construction/solver.rs`) isn't wired to
->       rooms yet. So 3b is a data-model step (add structured water/material fields) + sim wiring,
->       not just a check — bigger than 3a, wants an operator scope/data call first.
->   (c) **Stage 4 (unify the model)** — has explicit operator decisions in home-design.md "Open
->       questions" (one merged file vs three written atomically; material on machines).
-> - **Remaining v0.522 review finding (not blocking):** no save-success toast / unsaved-changes
->   guard on the Machines panel — UX polish, consistent with the sibling "Save layout" button.
+> - **Live editor 3D preview SHIPPED v0.525:** machine edits (offset drag / add / remove /
+>   connect / room move) now refresh the machine meshes LIVE in the editor instead of only on world
+>   entry. Fixed the operator's "I can't move the objects in the weird list" -> the offset fields
+>   always worked, but nothing rebuilt the mesh, so dragging looked broken. Machines got their own
+>   `machine_objects` render list + `MachineHome::placements` (pure, tested position resolver) +
+>   `rebuild_machine_objects` on a `construction_machines_dirty` flag. (Live power ECS + connection
+>   pipes still resolve on next world entry -- a follow-up.)
+> - **home.ron RESTORED + save() hardened (v0.525-0.526):** an in-game "Save machines" had degraded
+>   the shipped home.ron (lost 56/59 design comments + ~12 machines + 11 connections) and it got
+>   committed incidentally. Restored the authored design from 652bff60; save() now preserves the
+>   leading comment header so future saves do not re-strip it. (serde can't keep interspersed
+>   comments -- design rationale belongs in the leading header or docs/design/.)
+>
+> **ACTIVE NEXT -- BUILD MODE (operator-directed 2026-06-24, from launch testing v0.525-ish).** The
+> operator wants the construction editor to feel like a game build mode, not a numeric list:
+>   (1) **Footer placement palette** -- a bottom bar (10 wide x 1 default, expandable to ~10x5)
+>       of placeable things, grouped by CATEGORY (Structure / Power / Water / Machines / Furniture /
+>       ...) with sub-categories. Data-driven (add a `category` field to MachineDef; categories =
+>       distinct values). Snapshot-verifiable.
+>   (2) **Viewport interaction** -- click a palette item then click the floor to PLACE it (raycast,
+>       like the existing `try_begin_room_grab` room pick); click an existing machine to select; drag
+>       to move it. "I can't interact with the objects in the view port." Launch-verify (viewport).
+>   (3) Keep the right panel for fine-tune (offset/remove/connect/buildability); the palette+viewport
+>       becomes the primary, intuitive UX. North star: intuitively easy, categorized, drag-to-place.
+> - **Deferred (operator's pick when build-mode lands):** Stage 3b validator (water/structure/
+>   materials -- a data-model step); Stage 4 unify the model (home-design.md open questions);
+>   the v0.522 save-success-toast polish.
 
 > **FOLLOW-UP (from the 2026-06-23 "Too many connection attempts" incident): GRACEFUL
 > RELAY RESTART.** Every deploy restarts the relay, which drops ALL client WebSockets at
