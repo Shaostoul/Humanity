@@ -365,12 +365,21 @@
         "data/machines/home.ron",
         "src/gui/ui_snapshots.rs"
       ]
+    },
+    {
+      "at": "2026-06-24",
+      "decision": "INCIDENT + FIX (v0.528.0): the v0.525 live-machine refactor made ALL machines VANISH in a fully-built home -- operator caught it on launch ('All the machines seem to have disappeared. The plumbing/cables is still present'). ROOT CAUSE: the renderer has a hard 256-object-per-frame cap (renderer/mod.rs, `if i >= 256 break`, 8 loops; the MAX_OBJECTS const was LOCAL to the constructor so the draw loops hardcoded the literal). Through v0.524 machines lived INSIDE placeholder_objects (interleaved early, within 256). v0.525 moved them to their own machine_objects list pushed AFTER the whole placeholder list, so with the dense indoor garden (~104 machine meshes = 38 explicit + 66 array towers) + pipes + markers + walls, the machines landed past index 256 and were silently truncated; pipes survived because they sort earlier. FIX: MAX_OBJECTS 256->1024, promoted to a shared module const used by the buffer + all 8 caps (256-byte align x 1024 = 256 KB; the cap is a ceiling so cost stays proportional to actual objects). SECOND BUG fixed same release: rebuild_machine_objects re-created ~104 meshes EVERY call, and an offset drag fires it every frame -> thousands of leaked meshes/sec; now when the machine COUNT is unchanged it reuses meshes + only updates positions (rebuild only on add/remove), plus a guard to not wipe machines if room geometry is momentarily empty. native+relay+16 machines tests+3 lints green; exe building. Result: machines render again, move live with offset edits, and follow a room drag. Pipes still don't follow a room move live (known follow-up).",
+      "why": "This is exactly the launch-verify-only risk I had flagged about the v0.525 render refactor (can't headlessly snapshot a 3D scene) -- and it bit: I shipped v0.525-0.527 on top of an unconfirmed render change, and the operator's first real test found the machines gone. LESSON: a render-list reorder interacts with the 256-object draw cap; any feature that adds many world objects must account for it (the cap is now 1024 + a named const, so it's visible). Diagnosed by READING the renderer (found the cap + the leak) rather than guessing, then fixed both the truncation and the per-frame mesh leak in one release since both stem from the same v0.525 refactor. Prioritized this as a hotfix over building build-mode step 2 -- a visible-machines editor is the prerequisite for everything else.",
+      "files": [
+        "src/renderer/mod.rs",
+        "src/lib.rs"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.527.0 (Latest). Local exe building (bl010erzw). v0.519-0.527 = home-design arc: placement -> connections -> buildability validator -> live machine move (v0.525) -> home.ron restored + save() preserves header (v0.526) -> footer placement palette (v0.527). ACTIVE NEXT = BUILD MODE step 2: viewport click-to-place + drag-to-move (launch-verify; builds on v0.525 live-move). AWAITING operator hands-on confirm of v0.525-0.527 (live-move works? palette feel? home.ron restoration right?). Releases v0.516-0.527 await operator just sign-release. Deploy green (relay live).",
+  "version_state": "main==origin: v0.528.0 (Latest). Local exe building (bbq64ftaf). HOTFIX: v0.525-0.527 made machines vanish (256 render cap overflow once machines moved to their own list); v0.528 bumps the cap to 1024 + fixes a per-frame mesh leak in rebuild_machine_objects. Machines render + move live + follow rooms again. NEXT: build-mode step 2 (viewport click-to-place + drag-to-move) AND pipes-follow-room-move (pipes still static on a room drag). AWAITING operator confirm machines are back. Releases v0.516-0.528 await operator just sign-release. Deploy green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
