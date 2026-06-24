@@ -11,6 +11,27 @@
 
 ## Active focus
 
+> **ACTIVE 2026-06-23: HOME-DESIGN AI/PLAYER PARITY arc (operator-directed).** Make the AI's
+> home designs use the SAME machinery players build with, so they're inherently player-workable
+> + real-world-valid (steel-primary + wood; the homestead enclosed in a steel ship where Earth
+> and ship share identical plumbing/electrical). North star + staged plan: `docs/design/home-design.md`.
+> - **Stage 1 (machine placement in the construction editor) SHIPPED + HARDENED:** v0.519 place
+>   a machine in the selected room; v0.521 x/z/y offset editing; v0.522 a 4-dimension adversarial
+>   review fixed 5 real bugs (room-delete orphan cleanup, machine-remove connection pruning,
+>   deterministic BTreeMap save, room-aware offset ranges, array-id collision guard) — all in
+>   testable `MachineHome` methods (`remove_instance`/`remove_room`) reusable by the AI too.
+> - **NEXT (operator's pick, awaiting hands-on read of offset editing):**
+>   (a) **Live editor 3D preview of placed machines** — the visible gap. Scoped: give machines
+>       their own `machine_objects` render list + a shared `spawn_machine_meshes(...)` helper that
+>       both `load_world` and `rebuild_homestead` call (today they're interleaved into
+>       `placeholder_objects` with towers/pipes, so they can't be rebuilt in isolation). Touches
+>       the render loop -> launch-verify only, so it wants the operator's go before ramming.
+>   (b) **Stage 2 connections in the editor** — lower-risk, data-level. The model already exists
+>       (`MachineConnection { from, to, kind }` + `connection_color()` + in-world pipe rendering);
+>       extend the Machines panel with a from/to/kind picker, same save-to-home.ron flow.
+> - **Remaining v0.522 review finding (not blocking):** no save-success toast / unsaved-changes
+>   guard on the Machines panel — UX polish, consistent with the sibling "Save layout" button.
+
 > **FOLLOW-UP (from the 2026-06-23 "Too many connection attempts" incident): GRACEFUL
 > RELAY RESTART.** Every deploy restarts the relay, which drops ALL client WebSockets at
 > once -> a reconnect storm. v0.520.0 raised the per-IP identify limit 10 -> 30/min to make

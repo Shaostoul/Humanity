@@ -307,12 +307,23 @@
         "src/lib.rs",
         "src/gui/pages/construction.rs"
       ]
+    },
+    {
+      "at": "2026-06-23",
+      "decision": "HOME-DESIGN parity arc continued (v0.520-0.522) + connection-spam incident. v0.520.0: fixed the 'Too many connection attempts' spam the operator hit -- the relay per-IP identify rate limit (10/min) was tripped by MY repeated deploys (each deploy restarts the relay, dropping all WS -> a reconnect storm), and the web banner had no throttle. Fix: relay limit 10->30 (src/relay/relay.rs ~2502) + web app.js backs off 65s on the rate-limit message + de-dupes the banner. Native app uses src/net/ws_client.rs (Rust WS, not app.js); its x2-from-5s backoff is already under 30/min so no native change. Graceful relay restart (a deploy never drops live connections) is a PRIORITIES follow-up. v0.521.0: machine OFFSET editing -- each machine got x/z/y DragValues so they no longer all stack at the room center. v0.522.0: ran a 4-dimension adversarial-review WORKFLOW on the v0.519/v0.521 machine-editing code (14 agents, find->verify), confirming 5 real bugs, ALL fixed + unit-tested: (A) deleting a room orphaned its machines in home.ron (invisible in-world + un-removable via GUI) -> deferred room-delete now calls MachineHome::remove_room (drops the room's instances+arrays, prunes dangling connections, persists). (B) removing a machine left dangling connections -> now routes through MachineHome::remove_instance. (C) catalog was a HashMap so every save() reshuffled all 26 entries randomly (meaningless whole-file git diff, broke the parity round-trips-cleanly rule) -> switched to BTreeMap (byte-deterministic saves; RON loads order-independent). (D) offset reach was hardcoded +/-40m / 0..10m so big rooms (144m hangar) were unreachable + machines clipped low ceilings -> now derived from the selected room's real dimensions. (E) unique_instance_id ignored array-expanded ids (latent collision) -> now checks all_instances(). 4 new unit tests + existing suite green; native+relay+lints green; exe archived. The 6th finding (no save-success toast/dirty-guard) is UX polish, consistent with the sibling Save-layout button -- tracked, not blocking.",
+      "why": "Operator: 'get back to making the home work' after the connection-spam fix. Rather than ram the next FEATURE (live editor 3D preview of machines -- a risky load_world render refactor I want the operator's hands-on read on first) while the operator was testing offset-editing, used Ultracode to run an adversarial-review workflow on the JUST-SHIPPED machine-editing code: a non-preempting, correctness-first use of the wait that hardened the foundation before building connections/render on top. It paid off -- 5 real bugs in code I'd shipped, including the HashMap-save-churn (C) that would have spammed the operator with meaningless git diffs on every save (exactly the churn they dislike). Put prune logic in testable MachineHome methods reusable by both the editor AND the AI, not inline GUI code. Verified builds+tests+lints before shipping per the no-sacrificing-correctness-for-speed directive.",
+      "files": [
+        "src/machines.rs",
+        "src/gui/pages/construction.rs",
+        "src/relay/relay.rs",
+        "web/chat/app.js"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin==forge: v0.467.0; local exe building (b6fh5dye9). v0.439-0.467 character/home/showroom/universe/construction arc. v0.426.0 RELEASE awaits operator just sign-release. Deploy+Pages green.",
+  "version_state": "main==origin: v0.522.0 (Latest). Local exe building (braof1j46) -> build-game leaves an uncommitted 0.522.1 patch bump for the test exe, folded into the next release. v0.519-0.522 = home-design parity arc: machine placement -> offset editing -> review-hardened (orphan/dangling-connection cleanup, deterministic BTreeMap save, room-aware offsets). Releases v0.516-0.522 await operator just sign-release. Deploy green (relay live).",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
