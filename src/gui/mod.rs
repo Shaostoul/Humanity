@@ -1399,6 +1399,11 @@ pub struct GuiState {
     pub home_machines: Option<crate::machines::MachineHome>,
     /// The editor's Add-Machine picker selection (a catalog type id). (v0.519)
     pub home_machine_add_type: String,
+    /// The editor's Add-Connection pickers: from-machine id, to-machine id, and kind. (v0.523,
+    /// Stage 2: players wire machines -- power/water/etc. -- the same connections the AI authors.)
+    pub home_conn_from: String,
+    pub home_conn_to: String,
+    pub home_conn_kind: String,
     /// Set by the editor's Save to write home_machines back to home.ron (mirrors
     /// `construction_save` for rooms). The engine clears it after writing.
     pub home_machines_save: bool,
@@ -2441,6 +2446,9 @@ impl Default for GuiState {
             construction_active: false,
             home_machines: None,
             home_machine_add_type: String::new(),
+            home_conn_from: String::new(),
+            home_conn_to: String::new(),
+            home_conn_kind: "power".to_string(),
             home_machines_save: false,
             construction_rooms: Vec::new(),
             construction_room_types: Vec::new(),

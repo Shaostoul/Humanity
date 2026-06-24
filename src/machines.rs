@@ -212,6 +212,41 @@ impl MachineHome {
         self.instances.len() + self.arrays.len() + self.connections.len() != before
     }
 
+    /// Add a connection (pipe/cable) between two existing machines. Refuses a self-loop, an
+    /// empty/unknown endpoint, or an exact (from,to) duplicate, so the editor's connection UI
+    /// (and an AI edit) can only ever produce valid, loadable wiring. Returns true if added.
+    /// (v0.523)
+    pub fn add_connection(&mut self, from: &str, to: &str, kind: &str) -> bool {
+        if from == to || from.is_empty() || to.is_empty() {
+            return false;
+        }
+        let live: std::collections::HashSet<String> =
+            self.all_instances().into_iter().map(|i| i.id).collect();
+        if !live.contains(from) || !live.contains(to) {
+            return false;
+        }
+        if self.connections.iter().any(|c| c.from == from && c.to == to) {
+            return false;
+        }
+        self.connections.push(MachineConnection {
+            from: from.to_string(),
+            to: to.to_string(),
+            kind: kind.to_string(),
+        });
+        true
+    }
+
+    /// Remove the connection at `idx` (an index into `connections`). Returns true if removed.
+    /// (v0.523)
+    pub fn remove_connection(&mut self, idx: usize) -> bool {
+        if idx < self.connections.len() {
+            self.connections.remove(idx);
+            true
+        } else {
+            false
+        }
+    }
+
     /// All placed machines: the explicit `instances` plus every `arrays` grid expanded
     /// row-major into individual instances. This is what the renderer should iterate.
     pub fn all_instances(&self) -> Vec<MachineInstance> {
@@ -466,6 +501,36 @@ mod tests {
         assert!(home.connections.is_empty(), "the cross-room connection is pruned");
         // A second delete of a room with nothing in it reports no change.
         assert!(!home.remove_room("garden"), "deleting an empty/absent room is a no-op");
+    }
+
+    /// v0.523 Stage 2: add_connection only ever produces valid wiring (no self-loop, no unknown
+    /// endpoint, no duplicate), and remove_connection drops by index.
+    #[test]
+    fn connection_add_validates_and_remove_by_index() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("box".to_string(), test_def("box"));
+        let inst = |id: &str| MachineInstance {
+            id: id.to_string(),
+            machine: "box".to_string(),
+            room: "garage".to_string(),
+            offset: (0.0, 0.0, 0.0),
+        };
+        let mut home = MachineHome {
+            catalog,
+            instances: vec![inst("a"), inst("b")],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+        };
+        assert!(home.add_connection("a", "b", "power"), "valid connection added");
+        assert!(!home.add_connection("a", "b", "power"), "exact duplicate refused");
+        assert!(!home.add_connection("a", "a", "power"), "self-loop refused");
+        assert!(!home.add_connection("a", "ghost", "power"), "unknown endpoint refused");
+        assert!(!home.add_connection("", "b", "power"), "empty endpoint refused");
+        assert_eq!(home.connections.len(), 1, "only the one valid connection exists");
+        assert!(!home.remove_connection(9), "out-of-range index is a no-op");
+        assert!(home.remove_connection(0), "in-range index removes");
+        assert!(home.connections.is_empty(), "connection removed");
     }
 
     /// v0.522 fix C: save() is deterministic -- the same home saved twice produces byte-identical

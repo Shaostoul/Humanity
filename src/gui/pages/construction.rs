@@ -333,6 +333,9 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         // Collect display data under an immutable borrow, then mutate after.
                         let mut catalog_types: Vec<(String, String)> = Vec::new(); // (id, label)
                         let mut in_room: Vec<(usize, String)> = Vec::new(); // (instance idx, label)
+                        let mut room_machine_ids: Vec<(String, String)> = Vec::new(); // (id, label) in this room
+                        let mut all_machine_ids: Vec<(String, String)> = Vec::new(); // (id, "label (room)") all machines
+                        let mut conns_here: Vec<(usize, String, String, String)> = Vec::new(); // (conn idx, from-disp, to-disp, kind)
                         if let Some(home) = &state.home_machines {
                             catalog_types = home
                                 .catalog
@@ -340,19 +343,37 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                 .map(|(id, d)| (id.clone(), if d.label.is_empty() { id.clone() } else { d.label.clone() }))
                                 .collect();
                             catalog_types.sort_by(|a, b| a.1.cmp(&b.1));
+                            // One pass over the explicit instances: the per-room list, the
+                            // connection-picker pools, and an id -> "label (room)" display map.
+                            let mut id_disp: std::collections::HashMap<&str, String> = std::collections::HashMap::new();
                             for (i, inst) in home.instances.iter().enumerate() {
+                                let label = home
+                                    .catalog
+                                    .get(&inst.machine)
+                                    .map(|d| if d.label.is_empty() { inst.machine.clone() } else { d.label.clone() })
+                                    .unwrap_or_else(|| inst.machine.clone());
+                                let disp = format!("{label} ({})", inst.room);
                                 if inst.room == room_id {
-                                    let label = home
-                                        .catalog
-                                        .get(&inst.machine)
-                                        .map(|d| if d.label.is_empty() { inst.machine.clone() } else { d.label.clone() })
-                                        .unwrap_or_else(|| inst.machine.clone());
-                                    in_room.push((i, label));
+                                    in_room.push((i, label.clone()));
+                                    room_machine_ids.push((inst.id.clone(), label.clone()));
+                                }
+                                all_machine_ids.push((inst.id.clone(), disp.clone()));
+                                id_disp.insert(inst.id.as_str(), disp);
+                            }
+                            // Connections whose source is a machine in THIS room (anchor on `from`
+                            // so a connection is listed once, in its source room).
+                            for (ci, c) in home.connections.iter().enumerate() {
+                                if room_machine_ids.iter().any(|(id, _)| id == &c.from) {
+                                    let from_d = id_disp.get(c.from.as_str()).cloned().unwrap_or_else(|| c.from.clone());
+                                    let to_d = id_disp.get(c.to.as_str()).cloned().unwrap_or_else(|| c.to.clone());
+                                    conns_here.push((ci, from_d, to_d, c.kind.clone()));
                                 }
                             }
                         }
                         let mut remove_idx: Option<usize> = None;
                         let mut add_machine: Option<String> = None;
+                        let mut remove_conn_idx: Option<usize> = None;
+                        let mut add_conn: Option<(String, String, String)> = None;
                         if state.home_machines.is_none() {
                             ui.label(RichText::new("No machine layout loaded (home.ron).").size(theme.font_size_small).color(theme.text_muted()));
                         } else {
@@ -405,6 +426,59 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                     add_machine = Some(state.home_machine_add_type.clone());
                                 }
                             });
+                            // ── Connections (Stage 2, v0.523): wire this room's machines to
+                            //    others (power / water / nutrient / fuel / air / waste) -- the same
+                            //    connections the AI authors in home.ron, now player-editable. ──
+                            ui.add_space(theme.spacing_xs);
+                            ui.label(RichText::new("Connections").strong().color(theme.text_primary()));
+                            if conns_here.is_empty() {
+                                ui.label(RichText::new("None from this room's machines.").size(theme.font_size_small).color(theme.text_muted()));
+                            }
+                            for (ci, from_d, to_d, kind) in &conns_here {
+                                ui.horizontal(|ui| {
+                                    ui.label(RichText::new(format!("{from_d}  ->  {to_d}  ({kind})")).size(theme.font_size_small).color(theme.text_secondary()));
+                                    if ui.small_button(RichText::new("Remove").size(theme.font_size_small).color(theme.danger())).clicked() {
+                                        remove_conn_idx = Some(*ci);
+                                    }
+                                });
+                            }
+                            // Add a connection: from a machine in this room -> any machine, by kind.
+                            if !room_machine_ids.is_empty() && !all_machine_ids.is_empty() {
+                                // Keep the pickers pointing at valid ids (a placement/removal can
+                                // invalidate the previous pick).
+                                if !room_machine_ids.iter().any(|(id, _)| id == &state.home_conn_from) {
+                                    state.home_conn_from = room_machine_ids[0].0.clone();
+                                }
+                                if !all_machine_ids.iter().any(|(id, _)| id == &state.home_conn_to) {
+                                    state.home_conn_to = all_machine_ids[0].0.clone();
+                                }
+                                ui.horizontal(|ui| {
+                                    let from_disp = room_machine_ids.iter().find(|(id, _)| id == &state.home_conn_from).map(|(_, l)| l.clone()).unwrap_or_default();
+                                    egui::ComboBox::from_id_salt(("conn_from", ri)).selected_text(from_disp).width(90.0).show_ui(ui, |ui| {
+                                        for (id, label) in &room_machine_ids {
+                                            ui.selectable_value(&mut state.home_conn_from, id.clone(), label.as_str());
+                                        }
+                                    });
+                                    ui.label(RichText::new("->").size(theme.font_size_small).color(theme.text_muted()));
+                                    let to_disp = all_machine_ids.iter().find(|(id, _)| id == &state.home_conn_to).map(|(_, l)| l.clone()).unwrap_or_default();
+                                    egui::ComboBox::from_id_salt(("conn_to", ri)).selected_text(to_disp).width(120.0).show_ui(ui, |ui| {
+                                        for (id, label) in &all_machine_ids {
+                                            ui.selectable_value(&mut state.home_conn_to, id.clone(), label.as_str());
+                                        }
+                                    });
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.add_space(theme.spacing_sm);
+                                    egui::ComboBox::from_id_salt(("conn_kind", ri)).selected_text(state.home_conn_kind.clone()).width(80.0).show_ui(ui, |ui| {
+                                        for k in ["power", "water", "nutrient", "fuel", "air", "waste"] {
+                                            ui.selectable_value(&mut state.home_conn_kind, k.to_string(), k);
+                                        }
+                                    });
+                                    if ui.button("Connect").clicked() {
+                                        add_conn = Some((state.home_conn_from.clone(), state.home_conn_to.clone(), state.home_conn_kind.clone()));
+                                    }
+                                });
+                            }
                         }
                         // Apply mutations after the display borrows are dropped.
                         if let Some(home) = state.home_machines.as_mut() {
@@ -427,6 +501,14 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                         offset: (0.0, 0.0, 0.0),
                                     });
                                 }
+                            }
+                            // Connection edits (v0.523). remove by index first (indices come from
+                            // the just-collected list, valid this frame); add validates endpoints.
+                            if let Some(ci) = remove_conn_idx {
+                                home.remove_connection(ci);
+                            }
+                            if let Some((from, to, kind)) = add_conn {
+                                home.add_connection(&from, &to, &kind);
                             }
                         }
                     }

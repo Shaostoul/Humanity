@@ -686,6 +686,39 @@ fn snapshot_garden_modal_tower() {
     });
 }
 page_snapshot!(snapshot_homes, "homes", homes, 1280, 1400);
+
+// The construction editor needs a selected room with machines, so it gets a custom setup
+// (the macro only passes the default state). Garage holds machines + connections in the seed
+// home.ron, so this exercises the Machines (place/offset) + Connections panels end to end.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_construction() {
+    render_page_png("construction", 1280, 2400, |ctx, theme, state| {
+        use crate::ship::fibonacci::WallKind;
+        if state.home_machines.is_none() {
+            state.home_machines = crate::machines::MachineHome::load(
+                &std::path::Path::new("data").join("machines").join("home.ron"),
+            );
+        }
+        state.construction_active = true;
+        if state.construction_rooms.is_empty() {
+            state.construction_rooms = vec![crate::gui::ConstructionRoom {
+                id: "garage".to_string(),
+                walls: [WallKind::Auto; 4],
+                wall_offsets: [0.0; 4],
+                openings: Vec::new(),
+                level: 0,
+                position: Some([0.0, 0.0, 0.0]),
+                dimensions: [55.0, 5.0, 55.0],
+                material_type: 1,
+                color: [0.5, 0.5, 0.55, 1.0],
+            }];
+        }
+        state.construction_selected_room = Some(0);
+        crate::gui::pages::construction::draw(ctx, theme, state);
+    });
+}
+
 page_snapshot!(snapshot_tasks, "tasks", tasks, 1280, 900);
 page_snapshot!(snapshot_market, "market", market, 1280, 900);
 page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);
