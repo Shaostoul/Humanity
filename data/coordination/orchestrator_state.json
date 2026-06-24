@@ -353,12 +353,24 @@
         "src/gui/pages/construction.rs",
         "data/machines/home.ron"
       ]
+    },
+    {
+      "at": "2026-06-24",
+      "decision": "BUILD MODE step 1 -- FOOTER PLACEMENT PALETTE SHIPPED (v0.527.0). The construction editor gets a game-style bottom bar: category tabs (Power/Water/Food/Production/Defense/Logistics, with counts) + a 10-wide grid of the machine types in the selected category; collapsed by default, Expand for more rows, defaults to the largest category. Data-driven: a new `category` field on MachineDef (serde default 'Machines') + MachineHome::palette_categories() groups the catalog by it (sorted); the 26 seed catalog types were tagged via a safe insert-after-label script (Power/Water/Food/Production/Defense/Logistics). Clicking an item places it in the SELECTED room (center; appears LIVE via the v0.525 refresh; nudge with offsets). home.ron stayed healthy through this: 59 comments + 38 instances preserved, +26 category tags, clean 26-line diff (the v0.526 save-fix + small-diff discipline worked). VERIFIED: 2 new unit tests (palette_categories groups+sorts, every machine in one category; placements still pass) + the construction snapshot re-rendered showing the Food grid (13 items). 16 machines tests + native + relay + 3 lints green; exe building.",
+      "why": "The operator launch-tested the editor and redirected to a game build mode (footer palette + categories + viewport place/move) -- 'make it intuitively easy to use.' Built step 1 (the palette) first because it's snapshot-verifiable + the foundation; made it data-driven (categories are a field, not code, per infinite-of-X) so the operator/AI can re-categorize by editing home.ron. Click-adds-to-selected-room is a functional stopgap (strictly better than the combo) until step 2 (viewport click-to-place) lands. Stopped at step 1 because step 2 is viewport-raycast = launch-verify-only (can't snapshot a 3D scene) AND builds on the v0.525 live-move the operator hasn't confirmed yet -- so it wants their hands-on verification of v0.525-0.527 before I ram the interaction layer.",
+      "files": [
+        "src/machines.rs",
+        "src/gui/mod.rs",
+        "src/gui/pages/construction.rs",
+        "data/machines/home.ron",
+        "src/gui/ui_snapshots.rs"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.526.0 (Latest). Local exe building (b2rj6wr08). v0.519-0.526 = home-design arc: placement(hardened) -> connections -> buildability validator -> LIVE machine move in editor (v0.525) -> home.ron restored + save() preserves design header (v0.526). ACTIVE NEXT = BUILD MODE (operator-directed): footer placement palette (categorized) + viewport click-to-place + drag-to-move. Live-move (v0.525) is launch-verify -- awaiting operator confirm. Releases v0.516-0.526 await operator just sign-release. Deploy green (relay live).",
+  "version_state": "main==origin: v0.527.0 (Latest). Local exe building (bl010erzw). v0.519-0.527 = home-design arc: placement -> connections -> buildability validator -> live machine move (v0.525) -> home.ron restored + save() preserves header (v0.526) -> footer placement palette (v0.527). ACTIVE NEXT = BUILD MODE step 2: viewport click-to-place + drag-to-move (launch-verify; builds on v0.525 live-move). AWAITING operator hands-on confirm of v0.525-0.527 (live-move works? palette feel? home.ron restoration right?). Releases v0.516-0.527 await operator just sign-release. Deploy green (relay live).",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",

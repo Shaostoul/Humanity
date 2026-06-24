@@ -44,13 +44,18 @@
 >
 > **ACTIVE NEXT -- BUILD MODE (operator-directed 2026-06-24, from launch testing v0.525-ish).** The
 > operator wants the construction editor to feel like a game build mode, not a numeric list:
->   (1) **Footer placement palette** -- a bottom bar (10 wide x 1 default, expandable to ~10x5)
->       of placeable things, grouped by CATEGORY (Structure / Power / Water / Machines / Furniture /
->       ...) with sub-categories. Data-driven (add a `category` field to MachineDef; categories =
->       distinct values). Snapshot-verifiable.
->   (2) **Viewport interaction** -- click a palette item then click the floor to PLACE it (raycast,
->       like the existing `try_begin_room_grab` room pick); click an existing machine to select; drag
->       to move it. "I can't interact with the objects in the view port." Launch-verify (viewport).
+>   (1) **Footer placement palette SHIPPED v0.527** -- a bottom bar with category tabs (Power / Water
+>       / Food / Production / Defense / Logistics, with counts) + a 10-wide grid of the types in the
+>       selected category; collapsed by default, Expand for more. Data-driven: `category` field on
+>       MachineDef + `MachineHome::palette_categories()` (the 26 seed types are tagged). Click an item
+>       -> placed in the SELECTED room (lands at center, appears live since v0.525). Snapshot-verified.
+>   (2) **Viewport interaction (NEXT)** -- click a palette item then click the floor to PLACE it where
+>       you click (raycast, like the existing `try_begin_room_grab` room pick); click an existing
+>       machine to select; drag to move it. "I can't interact with the objects in the view port."
+>       Launch-verify (viewport raycast -- can't headlessly snapshot). Builds on the v0.525 live-move
+>       (a placed/moved machine must appear), so it wants the operator's confirm that live-move works.
+>   (3) Future categories beyond machines: Structure (place a room/wall), Furniture. The palette
+>       framework already supports any category; these need their own placement actions wired in.
 >   (3) Keep the right panel for fine-tune (offset/remove/connect/buildability); the palette+viewport
 >       becomes the primary, intuitive UX. North star: intuitively easy, categorized, drag-to-place.
 > - **Deferred (operator's pick when build-mode lands):** Stage 3b validator (water/structure/
