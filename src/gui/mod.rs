@@ -1482,6 +1482,9 @@ pub struct GuiState {
     pub construction_level: i32,
     /// Set by the panel when a wall/position/size/add/remove changed -> the engine rebuilds.
     pub construction_dirty: bool,
+    /// Set by the panel on a MACHINE edit (offset / add / remove / connect) -> the engine refreshes
+    /// just the machine meshes live, no full room rebuild. (v0.525)
+    pub construction_machines_dirty: bool,
     /// Set by the panel's Save button -> the engine writes the layout back to the RON.
     pub construction_save: bool,
     /// Index into the backdrop list (the names mirror is `showroom_backdrop_names`).
@@ -2484,6 +2487,7 @@ impl Default for GuiState {
             construction_height: 3.0,
             construction_level: 0,
             construction_dirty: false,
+            construction_machines_dirty: false,
             construction_save: false,
             showroom_backdrop: 0,
             showroom_backdrop_names: Vec::new(),

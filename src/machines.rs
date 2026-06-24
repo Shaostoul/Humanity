@@ -162,6 +162,36 @@ pub struct BuildabilityReport {
     pub checks: Vec<BuildabilityCheck>,
 }
 
+/// The geometry of a room the machine placer needs: the floor-plane center (x, z), and the floor
+/// and ceiling heights (metres). Plain f32 (no glam) so this module stays renderer-free + testable.
+#[derive(Debug, Clone, Copy)]
+pub struct RoomGeom {
+    pub center_x: f32,
+    pub center_z: f32,
+    pub floor_y: f32,
+    pub ceiling_y: f32,
+}
+
+/// A placed machine resolved to its world draw position + appearance, ready for the renderer. The
+/// construction editor rebuilds these live on an edit so a move/add/remove shows instantly. (v0.525)
+#[derive(Debug, Clone)]
+pub struct PlacedMachine {
+    pub id: String,
+    pub room: String,
+    /// World draw position. A sphere is already lifted so it rests on the floor.
+    pub pos: (f32, f32, f32),
+    /// Y of the machine's top, for the floating label anchor.
+    pub top_y: f32,
+    /// Room floor + ceiling heights, for the connection-pipe anchor + run sizing.
+    pub floor_y: f32,
+    pub ceiling_y: f32,
+    pub shape: String,
+    pub size: (f32, f32, f32),
+    pub color: (f32, f32, f32),
+    pub label: String,
+    pub stats: Vec<MachineStat>,
+}
+
 impl BuildabilityReport {
     /// The worst status across all checks (Fail beats Warn beats Pass) -- a one-glance verdict.
     pub fn worst(&self) -> CheckStatus {
@@ -398,6 +428,43 @@ impl MachineHome {
         }
 
         BuildabilityReport { checks }
+    }
+
+    /// Resolve every placed machine (explicit + array-expanded) to its world draw position +
+    /// appearance, given each room's geometry. Pure + renderer-free: `load_world` turns these into
+    /// meshes on world entry, and the construction editor calls this to refresh the machine view
+    /// LIVE on an edit (so a move/add/remove shows immediately instead of only on the next entry).
+    /// A machine whose room has no geometry (e.g. a just-deleted room) is skipped. (v0.525)
+    pub fn placements(&self, rooms: &std::collections::HashMap<String, RoomGeom>) -> Vec<PlacedMachine> {
+        let mut out = Vec::new();
+        for inst in self.all_instances() {
+            let Some(g) = rooms.get(&inst.room) else { continue };
+            let Some(def) = self.catalog.get(&inst.machine) else { continue };
+            // x/z from the room center, y up from the floor (matches load_world).
+            let x = g.center_x + inst.offset.0;
+            let y = g.floor_y + inst.offset.1;
+            let z = g.center_z + inst.offset.2;
+            // A sphere is center-origin; lift it by its radius so it rests on the floor.
+            let (pos, top_y) = if def.shape == "sphere" {
+                ((x, y + def.size.0, z), y + 2.0 * def.size.0)
+            } else {
+                ((x, y, z), y + def.size.1)
+            };
+            out.push(PlacedMachine {
+                id: inst.id.clone(),
+                room: inst.room.clone(),
+                pos,
+                top_y,
+                floor_y: g.floor_y,
+                ceiling_y: g.ceiling_y,
+                shape: def.shape.clone(),
+                size: def.size,
+                color: def.color,
+                label: if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() },
+                stats: def.stats.clone(),
+            });
+        }
+        out
     }
 
     /// All placed machines: the explicit `instances` plus every `arrays` grid expanded
@@ -781,6 +848,37 @@ mod tests {
             "seed wiring must be intact: {:?}",
             report.checks
         );
+    }
+
+    /// v0.525: placements() resolves machine world positions (room center + offset, floor-relative
+    /// y), lifts spheres to rest on the floor, and skips machines whose room has no geometry.
+    #[test]
+    fn placements_resolve_world_positions() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("box".to_string(), test_def("box"));
+        let mut sphere_def = test_def("sphere");
+        sphere_def.size = (0.5, 0.0, 0.0); // radius 0.5
+        catalog.insert("ball".to_string(), sphere_def);
+        let home = MachineHome {
+            catalog,
+            instances: vec![
+                MachineInstance { id: "b1".into(), machine: "box".into(), room: "garage".into(), offset: (1.0, 0.0, 2.0) },
+                MachineInstance { id: "s1".into(), machine: "ball".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0) },
+                MachineInstance { id: "ghost".into(), machine: "box".into(), room: "nowhere".into(), offset: (0.0, 0.0, 0.0) },
+            ],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+        };
+        let mut rooms = std::collections::HashMap::new();
+        rooms.insert("garage".to_string(), RoomGeom { center_x: 10.0, center_z: 20.0, floor_y: 5.0, ceiling_y: 8.0 });
+        let placed = home.placements(&rooms);
+        assert_eq!(placed.len(), 2, "the machine in an unknown room is skipped");
+        let b = placed.iter().find(|p| p.id == "b1").unwrap();
+        assert_eq!(b.pos, (11.0, 5.0, 22.0), "box at center+offset, floor-relative");
+        let s = placed.iter().find(|p| p.id == "s1").unwrap();
+        assert_eq!(s.pos, (10.0, 5.5, 20.0), "sphere lifted by its radius to rest on the floor");
+        assert_eq!(s.floor_y, 5.0);
     }
 
     /// v0.522 fix C: save() is deterministic -- the same home saved twice produces byte-identical

@@ -374,6 +374,9 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         let mut add_machine: Option<String> = None;
                         let mut remove_conn_idx: Option<usize> = None;
                         let mut add_conn: Option<(String, String, String)> = None;
+                        // Any machine edit this frame -> ask the engine to refresh the live 3D view
+                        // (so a move/add/remove/connect shows immediately, not on re-entry). (v0.525)
+                        let mut machines_changed = false;
                         if state.home_machines.is_none() {
                             ui.label(RichText::new("No machine layout loaded (home.ron).").size(theme.font_size_small).color(theme.text_muted()));
                         } else {
@@ -388,18 +391,16 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                     }
                                 });
                                 // Offset from the room center: x/z place it on the floor, y is
-                                // height off the floor. Without this every machine sat at the
-                                // center (stacked); now they can be positioned. Persists on
-                                // "Save machines"; visible in-world on entry (editor 3D preview
-                                // of placed machines is a follow-up).
+                                // height off the floor. Dragging now moves the machine LIVE in the
+                                // 3D view (v0.525); persists on "Save machines".
                                 if let Some(inst) =
                                     state.home_machines.as_mut().and_then(|h| h.instances.get_mut(*idx))
                                 {
                                     ui.horizontal(|ui| {
                                         ui.add_space(theme.spacing_sm);
-                                        ui.add(egui::DragValue::new(&mut inst.offset.0).speed(0.05).prefix("x ").suffix(" m").range(-hx..=hx));
-                                        ui.add(egui::DragValue::new(&mut inst.offset.2).speed(0.05).prefix("z ").suffix(" m").range(-hz..=hz));
-                                        ui.add(egui::DragValue::new(&mut inst.offset.1).speed(0.05).prefix("y ").suffix(" m").range(0.0..=hy));
+                                        machines_changed |= ui.add(egui::DragValue::new(&mut inst.offset.0).speed(0.05).prefix("x ").suffix(" m").range(-hx..=hx)).changed();
+                                        machines_changed |= ui.add(egui::DragValue::new(&mut inst.offset.2).speed(0.05).prefix("z ").suffix(" m").range(-hz..=hz)).changed();
+                                        machines_changed |= ui.add(egui::DragValue::new(&mut inst.offset.1).speed(0.05).prefix("y ").suffix(" m").range(0.0..=hy)).changed();
                                     });
                                 }
                             }
@@ -489,6 +490,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                     // a bare instances.remove would leave them dangling.
                                     let id = home.instances[i].id.clone();
                                     home.remove_instance(&id);
+                                    machines_changed = true;
                                 }
                             }
                             if let Some(mtype) = add_machine {
@@ -500,16 +502,21 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                         room: room_id.clone(),
                                         offset: (0.0, 0.0, 0.0),
                                     });
+                                    machines_changed = true;
                                 }
                             }
                             // Connection edits (v0.523). remove by index first (indices come from
                             // the just-collected list, valid this frame); add validates endpoints.
                             if let Some(ci) = remove_conn_idx {
-                                home.remove_connection(ci);
+                                machines_changed |= home.remove_connection(ci);
                             }
                             if let Some((from, to, kind)) = add_conn {
-                                home.add_connection(&from, &to, &kind);
+                                machines_changed |= home.add_connection(&from, &to, &kind);
                             }
+                        }
+                        // A machine edit happened -> the engine refreshes the live 3D view. (v0.525)
+                        if machines_changed {
+                            state.construction_machines_dirty = true;
                         }
                     }
                     ui.add_space(theme.spacing_xs);

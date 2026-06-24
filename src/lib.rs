@@ -624,7 +624,69 @@ mod native_app {
                 access: room_types.access(&r.id),
             })
             .collect();
+        // Room geometry changed, so the machines in those rooms must follow (a moved/resized room
+        // carries its machines). Refresh the machine meshes from the new room bounds. (v0.525)
+        rebuild_machine_objects(state);
         log::info!("Homestead rebuilt: {} rooms", room_info.len());
+    }
+
+    /// Build a machine's primitive mesh from its shape + size. Shared by load_world (initial spawn)
+    /// and rebuild_machine_objects (the editor's live refresh) so both draw a machine identically.
+    fn machine_mesh(device: &wgpu::Device, shape: &str, size: (f32, f32, f32)) -> Mesh {
+        let (sx, sy, sz) = size;
+        match shape {
+            "cylinder" => Mesh::cylinder(device, sx.max(0.02), sy.max(0.05), 16),
+            "sphere" => Mesh::sphere(device, sx.max(0.02), 10, 12),
+            "pyramid" => Mesh::pyramid(device, sx.max(0.05), sy.max(0.05)),
+            _ => Mesh::box_xyz(device, sx.max(0.02), sy.max(0.02), sz.max(0.02)),
+        }
+    }
+
+    /// Rebuild ONLY the home machine meshes + floating labels from the live editor state
+    /// (gui_state.home_machines + room_bounds), so a construction-editor edit (move/add/remove/
+    /// connect) shows immediately instead of only on the next world entry. Positions come from the
+    /// tested MachineHome::placements. Does NOT touch the live power ECS (that refreshes on world
+    /// entry) or the connection pipes (a follow-up). (v0.525)
+    fn rebuild_machine_objects(state: &mut EngineState) {
+        use std::collections::HashMap;
+        let rooms: HashMap<String, crate::machines::RoomGeom> = state
+            .gui_state
+            .room_bounds
+            .iter()
+            .map(|rb| {
+                (
+                    rb.id.clone(),
+                    crate::machines::RoomGeom {
+                        center_x: (rb.min.x + rb.max.x) * 0.5,
+                        center_z: (rb.min.z + rb.max.z) * 0.5,
+                        floor_y: rb.min.y,
+                        ceiling_y: rb.max.y,
+                    },
+                )
+            })
+            .collect();
+        state.machine_objects.clear();
+        state.gui_state.machine_labels.clear();
+        let placements = match &state.gui_state.home_machines {
+            Some(h) => h.placements(&rooms),
+            None => return,
+        };
+        for p in placements {
+            let mesh = machine_mesh(&state.renderer.device, &p.shape, p.size);
+            let mesh_idx = state.renderer.add_mesh(mesh);
+            let mat = state
+                .renderer
+                .add_material_typed([p.color.0, p.color.1, p.color.2, 1.0], 0.1, 0.7, 0.0);
+            state
+                .machine_objects
+                .push((mesh_idx, mat, Vec3::new(p.pos.0, p.pos.1, p.pos.2)));
+            state.gui_state.machine_labels.push(crate::gui::MachineLabel {
+                pos: Vec3::new(p.pos.0, p.top_y + 0.4, p.pos.2),
+                name: p.label,
+                stats: p.stats,
+                room: p.room,
+            });
+        }
     }
 
     /// The slide-gizmo handles for the currently-selected room, with each handle's owning
@@ -1052,6 +1114,7 @@ mod native_app {
         // side by side. Marker count is capped (the full variety lives in the Home
         // page list) to stay within the per-frame object budget.
         state.placeholder_objects.clear();
+        state.machine_objects.clear();
         {
             let garden = room_info.iter().find(|r| r.id == "garden");
             let floor_y = garden.map(|r| r.center.y - r.dimensions.y * 0.5).unwrap_or(0.0);
@@ -1170,18 +1233,15 @@ mod native_app {
                 for inst in &all_instances {
                     let Some(&(center, floor_y, ceiling_y)) = rooms.get(inst.room.as_str()) else { continue };
                     let Some(def) = home.catalog.get(&inst.machine) else { continue };
+                    // Position formula mirrored by the tested MachineHome::placements (the editor's
+                    // live-refresh twin); keep the two in sync. (v0.525)
                     let pos = Vec3::new(
                         center.x + inst.offset.0,
                         floor_y + inst.offset.1,
                         center.z + inst.offset.2,
                     );
-                    let (sx, sy, sz) = def.size;
-                    let mesh = match def.shape.as_str() {
-                        "cylinder" => Mesh::cylinder(&state.renderer.device, sx.max(0.02), sy.max(0.05), 16),
-                        "sphere" => Mesh::sphere(&state.renderer.device, sx.max(0.02), 10, 12),
-                        "pyramid" => Mesh::pyramid(&state.renderer.device, sx.max(0.05), sy.max(0.05)),
-                        _ => Mesh::box_xyz(&state.renderer.device, sx.max(0.02), sy.max(0.02), sz.max(0.02)),
-                    };
+                    let (sx, sy, _sz) = def.size;
+                    let mesh = machine_mesh(&state.renderer.device, &def.shape, def.size);
                     let mesh_idx = state.renderer.add_mesh(mesh);
                     let mat = state.renderer.add_material_typed(
                         [def.color.0, def.color.1, def.color.2, 1.0],
@@ -1195,7 +1255,7 @@ mod native_app {
                     } else {
                         pos
                     };
-                    state.placeholder_objects.push((mesh_idx, mat, draw_pos));
+                    state.machine_objects.push((mesh_idx, mat, draw_pos));
                     anchors.insert(inst.id.clone(), Vec3::new(pos.x, floor_y + 0.35, pos.z));
                     anchor_rooms.insert(inst.id.clone(), (floor_y, ceiling_y));
                     // Floating label anchor: just above the machine's top.
@@ -1899,6 +1959,12 @@ mod native_app {
         /// alongside the homestead. Used for simple-shape stand-ins like the
         /// aeroponic tower cylinders + plant-marker spheres (v0.383).
         placeholder_objects: Vec<(usize, usize, Vec3)>,
+        /// Home machine meshes, kept SEPARATE from `placeholder_objects` so the construction editor
+        /// can rebuild JUST the machines on an edit (a move/add/remove) without touching towers,
+        /// pipes, or the avatar. Built by load_world on entry + rebuild_machine_objects on edit;
+        /// positions come from the tested `MachineHome::placements`. Drawn when not in the showroom.
+        /// (v0.525, the live-edit preview that makes the build mode feel real.)
+        machine_objects: Vec<(usize, usize, Vec3)>,
         /// Index in `placeholder_objects` where the player avatar's parts begin (the avatar
         /// is added last in load_world). Lets the showroom render only the avatar + rebuild
         /// it on appearance change by truncating to this index. (v0.441)
@@ -2452,6 +2518,7 @@ mod native_app {
                 solar_orbit_paths: Vec::new(),
                 homestead_floors: Vec::new(),
                 placeholder_objects: Vec::new(),
+                machine_objects: Vec::new(),
                 avatar_obj_start: 0,
                 avatar_base: Vec3::ZERO,
                 fps_spawn: Vec3::new(0.0, 1.7, 0.0),
@@ -3451,6 +3518,12 @@ mod native_app {
                         }
                         rebuild_homestead(state);
                     }
+                    // Machine-only edit (offset / add / remove / connect): refresh just the machine
+                    // meshes so the change shows live, without a full room rebuild. (v0.525)
+                    if state.gui_state.construction_machines_dirty {
+                        state.gui_state.construction_machines_dirty = false;
+                        rebuild_machine_objects(state);
+                    }
                     if state.gui_state.construction_save {
                         state.gui_state.construction_save = false;
                         if let Some(layout) = &state.homestead_layout {
@@ -3717,6 +3790,19 @@ mod native_app {
                             mesh: mesh_idx,
                             material: mat_idx,
                         });
+                    }
+                    // Home machines: a separate list so the construction editor can rebuild just
+                    // them on an edit. Hidden in the showroom (avatar-only). (v0.525)
+                    if !showroom {
+                        for &(mesh_idx, mat_idx, pos) in &state.machine_objects {
+                            all_objects.push(RenderObject {
+                                position: pos,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::ONE,
+                                mesh: mesh_idx,
+                                material: mat_idx,
+                            });
+                        }
                     }
 
                     // ── Remote players (multiplayer co-presence, v0.472) ──

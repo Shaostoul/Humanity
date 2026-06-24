@@ -1,282 +1,710 @@
-// The in-game homestead as a designed, theoretically 100%-closed-loop self-sustaining
-// system (v0.432). Numbers come from the closed-loop design pass (2026-06-13), grounded
-// in docs/design/self-sufficiency.md: energy is Wh/day not nameplate W, water closure is
-// about dry-season STORAGE, food is the weakest loop (towers give variety + vitamins but
-// only ~6% of calories; field crops carry the bulk), nutrients close via compost + urine.
-// Anyone can load the game, walk the home, read each machine's role, and open the Home
-// page to see the four loops balance. Data-driven (infinite-of-X): edit here, no code.
+// HumanityOS home machine layout. Editable in the construction editor or by
+// hand. Real-world energy/water/food model: docs/design/self-sufficiency.md.
+// Design architecture: docs/design/home-design.md.
+
 (
-    // machine type -> shape + size (m) + color (0..1 rgb) + label + stat readouts.
-    // Stats are per-UNIT contributions to the loops; the Home-page summary sums them.
-    // status: ok | warn | off | low.
     catalog: {
-        "solar_panel": (
-            shape: "box", size: (1.1, 0.12, 0.7), color: (0.12, 0.16, 0.45),
-            label: "Solar panel",
-            stats: [(kind: "power", value: "+1.4 kWh/d", status: "ok")],
-            power: Some(Solar(peak_watts: 400.0)),
-        ),
-        "battery_bank": (
-            shape: "box", size: (0.6, 0.9, 0.5), color: (0.20, 0.60, 0.32),
-            label: "Battery bank",
-            stats: [(kind: "storage", value: "~4 kWh", status: "ok"), (kind: "power", value: "charging", status: "ok")],
-            // Live storage (v0.473): buffers the solar swing. Each bank ~4 kWh, 2 kW in/out.
-            power: Some(Battery(capacity_wh: 4000.0, max_charge_w: 2000.0, max_discharge_w: 2000.0)),
-        ),
-        "wind_turbine_small": (
-            shape: "cylinder", size: (0.1, 2.4, 0.1), color: (0.85, 0.86, 0.90),
-            label: "Wind turbine",
-            stats: [(kind: "power", value: "+0.7 kWh/d", status: "warn")],
-            power: Some(Generator(watts: 150.0)),
-        ),
-        "water_tank": (
-            shape: "cylinder", size: (0.9, 2.2, 0.9), color: (0.20, 0.45, 0.75),
-            label: "Cistern (8000 L)",
-            stats: [(kind: "storage", value: "33 days", status: "ok"), (kind: "water", value: "rain + well fed", status: "ok")],
-        ),
-        "water_pump": (
-            shape: "box", size: (0.35, 0.35, 0.35), color: (0.30, 0.50, 0.60),
-            label: "Water pump",
-            stats: [(kind: "power", value: "-0.24 kWh/d", status: "ok"), (kind: "water", value: "12 L/min", status: "ok")],
-            power: Some(Consumer(watts: 10.0, priority: 2)),
-        ),
-        "water_purifier": (
-            shape: "cylinder", size: (0.28, 0.7, 0.28), color: (0.35, 0.65, 0.78),
-            label: "Water purifier",
-            stats: [(kind: "water", value: "+240 L/d potable", status: "ok"), (kind: "power", value: "-0.30 kWh/d", status: "ok")],
-            power: Some(Consumer(watts: 13.0, priority: 2)),
-        ),
-        "composter": (
-            shape: "box", size: (0.7, 0.55, 0.7), color: (0.35, 0.25, 0.14),
-            label: "Composter",
-            stats: [(kind: "nutrient", value: "+1.2 kg/d", status: "ok"), (kind: "water", value: "+155 L/d greywater", status: "ok")],
-        ),
-        // ── Indoor garden machines (v0.433). The 34x34x6 m garden is a SUN-LIT farm.
-        //    Light, not floor area, is the cap: under one sun there is one canopy, so these
-        //    are NOT stacked into tiers. Towers carry variety + vitamins; beds carry the
-        //    real calories/fats; mushrooms use the dark vertical space; the aquaponic tank
-        //    closes B12 + omega-3, the gaps no plant can fill. kcal are per-unit/day.
-        "aeroponic_tower_nutrition": (
-            shape: "cylinder", size: (0.3, 2.4, 0.3), color: (0.30, 0.65, 0.38),
-            label: "Variety tower",
-            stats: [(kind: "food", value: "+92 kcal/d", status: "warn"), (kind: "nutrient", value: "vitamins + protein", status: "ok"), (kind: "power", value: "sun-lit, -15 W", status: "ok")],
-        ),
         "aeroponic_tower_apothecary": (
-            shape: "cylinder", size: (0.16, 1.9, 0.16), color: (0.45, 0.55, 0.30),
+            shape: "cylinder",
+            size: (0.16, 1.9, 0.16),
+            color: (0.45, 0.55, 0.3),
             label: "Apothecary tower",
-            stats: [(kind: "food", value: "herbs + teas", status: "ok"), (kind: "power", value: "sun-lit, -12 W", status: "ok")],
+            stats: [
+                (
+                    kind: "food",
+                    value: "herbs + teas",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "sun-lit, -12 W",
+                    status: "ok",
+                ),
+            ],
+            power: None,
         ),
-        "potato_grow_bed": (
-            shape: "box", size: (2.0, 0.4, 1.0), color: (0.55, 0.42, 0.25),
-            label: "Potato bed",
-            stats: [(kind: "food", value: "+120 kcal/d", status: "ok"), (kind: "power", value: "sun-lit, 0 W", status: "ok")],
-        ),
-        "staple_grain_tray": (
-            shape: "box", size: (2.0, 0.3, 1.0), color: (0.78, 0.66, 0.30),
-            label: "Grain tray",
-            stats: [(kind: "food", value: "+20 kcal/d", status: "low"), (kind: "power", value: "sun-lit, 0 W", status: "ok")],
-        ),
-        "oilseed_bed": (
-            shape: "box", size: (2.0, 0.4, 1.0), color: (0.80, 0.74, 0.35),
-            label: "Oilseed bed",
-            stats: [(kind: "food", value: "+25 kcal/d (fats)", status: "warn"), (kind: "power", value: "sun-lit, 0 W", status: "ok")],
-        ),
-        "mushroom_rack": (
-            shape: "box", size: (1.2, 1.8, 0.6), color: (0.62, 0.55, 0.45),
-            label: "Mushroom rack",
-            stats: [(kind: "food", value: "+50 kcal/d", status: "ok"), (kind: "power", value: "no light needed", status: "ok")],
+        "aeroponic_tower_nutrition": (
+            shape: "cylinder",
+            size: (0.3, 2.4, 0.3),
+            color: (0.3, 0.65, 0.38),
+            label: "Variety tower",
+            stats: [
+                (
+                    kind: "food",
+                    value: "+92 kcal/d",
+                    status: "warn",
+                ),
+                (
+                    kind: "nutrient",
+                    value: "vitamins + protein",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "sun-lit, -15 W",
+                    status: "ok",
+                ),
+            ],
+            power: None,
         ),
         "aquaponic_tank": (
-            shape: "box", size: (1.6, 1.0, 1.6), color: (0.20, 0.45, 0.70),
+            shape: "box",
+            size: (1.6, 1.0, 1.6),
+            color: (0.2, 0.45, 0.7),
             label: "Aquaponic tank",
-            stats: [(kind: "food", value: "+75 kcal/d", status: "ok"), (kind: "nutrient", value: "B12 + omega-3", status: "ok"), (kind: "power", value: "-50 W air pump", status: "ok")],
+            stats: [
+                (
+                    kind: "food",
+                    value: "+75 kcal/d",
+                    status: "ok",
+                ),
+                (
+                    kind: "nutrient",
+                    value: "B12 + omega-3",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "-50 W air pump",
+                    status: "ok",
+                ),
+            ],
+            power: None,
         ),
-        "irrigation_system": (
-            shape: "box", size: (0.45, 0.3, 0.45), color: (0.30, 0.55, 0.65),
-            label: "Irrigation",
-            stats: [(kind: "water", value: "60 L/d to plants", status: "ok"), (kind: "power", value: "-0.16 kWh/d", status: "ok")],
-            power: Some(Consumer(watts: 7.0, priority: 3)),
+        "battery_bank": (
+            shape: "box",
+            size: (0.6, 0.9, 0.5),
+            color: (0.2, 0.6, 0.32),
+            label: "Battery bank",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "~4 kWh",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "charging",
+                    status: "ok",
+                ),
+            ],
+            power: Some(Battery(
+                capacity_wh: 4000.0,
+                max_charge_w: 2000.0,
+                max_discharge_w: 2000.0,
+            )),
         ),
-        "grain_field": (
-            shape: "box", size: (2.4, 0.18, 2.4), color: (0.78, 0.66, 0.30),
-            label: "Grain field",
-            stats: [(kind: "food", value: "+3100 kcal/d", status: "ok"), (kind: "nutrient", value: "-N -P -K", status: "warn")],
-        ),
-        "tuber_field": (
-            shape: "box", size: (2.4, 0.18, 2.4), color: (0.55, 0.42, 0.25),
-            label: "Tuber field",
-            stats: [(kind: "food", value: "+1900 kcal/d", status: "ok")],
-        ),
-        "legume_field": (
-            shape: "box", size: (2.4, 0.18, 2.4), color: (0.45, 0.62, 0.30),
-            label: "Legume field",
-            stats: [(kind: "food", value: "+700 kcal/d", status: "ok"), (kind: "nutrient", value: "+N (fixing)", status: "ok")],
-        ),
-        "oilseed_field": (
-            shape: "box", size: (2.4, 0.18, 2.4), color: (0.80, 0.74, 0.35),
-            label: "Oilseed field",
-            stats: [(kind: "food", value: "+500 kcal/d (fats)", status: "ok")],
-        ),
-        "smelter": (
-            shape: "box", size: (0.7, 0.9, 0.7), color: (0.55, 0.22, 0.12),
-            label: "Smelter",
-            stats: [(kind: "heat", value: "1200 C", status: "ok"), (kind: "power", value: "-1.0 kWh/d", status: "warn")],
-        ),
-        "forge": (
-            shape: "box", size: (0.65, 0.75, 0.65), color: (0.50, 0.25, 0.16),
-            label: "Forge",
-            stats: [(kind: "heat", value: "900 C", status: "ok"), (kind: "power", value: "idle", status: "off")],
-        ),
-        "fuel_refinery": (
-            shape: "cylinder", size: (0.45, 1.1, 0.45), color: (0.50, 0.46, 0.20),
-            label: "Fuel refinery",
-            stats: [(kind: "fuel", value: "30%", status: "low"), (kind: "progress", value: "refining", status: "ok")],
-        ),
-        "generator_portable": (
-            shape: "box", size: (0.55, 0.45, 0.45), color: (0.45, 0.45, 0.20),
-            label: "Generator (backup)",
-            stats: [(kind: "fuel", value: "80%", status: "ok"), (kind: "power", value: "backup 2 kW", status: "off")],
-        ),
-        "grain_silo": (
-            shape: "cylinder", size: (0.6, 1.9, 0.6), color: (0.70, 0.60, 0.35),
-            label: "Grain silo",
-            stats: [(kind: "food", value: "750 days stored", status: "ok"), (kind: "storage", value: "85%", status: "ok")],
-        ),
-        // ── Hull-surface installations (v0.438): the mining-drone landing pad and a
-        //    player-operated defense turret, both on the garage exterior of the mothership.
-        //    The turret is a live electrical load (standby draw); see the turret-defense
-        //    minigame design doc for the build/maintain/operate loop. ──
-        "drone_hangar": (
-            shape: "box", size: (3.0, 0.2, 3.0), color: (0.30, 0.32, 0.36),
-            label: "Drone hangar",
-            stats: [(kind: "storage", value: "1 mining drone", status: "ok")],
+        "composter": (
+            shape: "box",
+            size: (0.7, 0.55, 0.7),
+            color: (0.35, 0.25, 0.14),
+            label: "Composter",
+            stats: [
+                (
+                    kind: "nutrient",
+                    value: "+1.2 kg/d",
+                    status: "ok",
+                ),
+                (
+                    kind: "water",
+                    value: "+155 L/d greywater",
+                    status: "ok",
+                ),
+            ],
+            power: None,
         ),
         "defense_turret": (
-            shape: "cylinder", size: (0.5, 1.6, 0.5), color: (0.45, 0.20, 0.18),
+            shape: "cylinder",
+            size: (0.5, 1.6, 0.5),
+            color: (0.45, 0.2, 0.18),
             label: "Defense turret",
-            stats: [(kind: "power", value: "-0.5 kWh/d standby", status: "warn")],
-            power: Some(Consumer(watts: 20.0, priority: 4)),
+            stats: [
+                (
+                    kind: "power",
+                    value: "-0.5 kWh/d standby",
+                    status: "warn",
+                ),
+            ],
+            power: Some(Consumer(
+                watts: 20.0,
+                priority: 4,
+            )),
+        ),
+        "drone_hangar": (
+            shape: "box",
+            size: (3.0, 0.2, 3.0),
+            color: (0.3, 0.32, 0.36),
+            label: "Drone hangar",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "1 mining drone",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+        ),
+        "forge": (
+            shape: "box",
+            size: (0.65, 0.75, 0.65),
+            color: (0.5, 0.25, 0.16),
+            label: "Forge",
+            stats: [
+                (
+                    kind: "heat",
+                    value: "900 C",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "idle",
+                    status: "off",
+                ),
+            ],
+            power: None,
+        ),
+        "fuel_refinery": (
+            shape: "cylinder",
+            size: (0.45, 1.1, 0.45),
+            color: (0.5, 0.46, 0.2),
+            label: "Fuel refinery",
+            stats: [
+                (
+                    kind: "fuel",
+                    value: "30%",
+                    status: "low",
+                ),
+                (
+                    kind: "progress",
+                    value: "refining",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+        ),
+        "generator_portable": (
+            shape: "box",
+            size: (0.55, 0.45, 0.45),
+            color: (0.45, 0.45, 0.2),
+            label: "Generator (backup)",
+            stats: [
+                (
+                    kind: "fuel",
+                    value: "80%",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "backup 2 kW",
+                    status: "off",
+                ),
+            ],
+            power: None,
+        ),
+        "grain_field": (
+            shape: "box",
+            size: (2.4, 0.18, 2.4),
+            color: (0.78, 0.66, 0.3),
+            label: "Grain field",
+            stats: [
+                (
+                    kind: "food",
+                    value: "+3100 kcal/d",
+                    status: "ok",
+                ),
+                (
+                    kind: "nutrient",
+                    value: "-N -P -K",
+                    status: "warn",
+                ),
+            ],
+            power: None,
+        ),
+        "grain_silo": (
+            shape: "cylinder",
+            size: (0.6, 1.9, 0.6),
+            color: (0.7, 0.6, 0.35),
+            label: "Grain silo",
+            stats: [
+                (
+                    kind: "food",
+                    value: "750 days stored",
+                    status: "ok",
+                ),
+                (
+                    kind: "storage",
+                    value: "85%",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+        ),
+        "irrigation_system": (
+            shape: "box",
+            size: (0.45, 0.3, 0.45),
+            color: (0.3, 0.55, 0.65),
+            label: "Irrigation",
+            stats: [
+                (
+                    kind: "water",
+                    value: "60 L/d to plants",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "-0.16 kWh/d",
+                    status: "ok",
+                ),
+            ],
+            power: Some(Consumer(
+                watts: 7.0,
+                priority: 3,
+            )),
+        ),
+        "legume_field": (
+            shape: "box",
+            size: (2.4, 0.18, 2.4),
+            color: (0.45, 0.62, 0.3),
+            label: "Legume field",
+            stats: [
+                (
+                    kind: "food",
+                    value: "+700 kcal/d",
+                    status: "ok",
+                ),
+                (
+                    kind: "nutrient",
+                    value: "+N (fixing)",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+        ),
+        "mushroom_rack": (
+            shape: "box",
+            size: (1.2, 1.8, 0.6),
+            color: (0.62, 0.55, 0.45),
+            label: "Mushroom rack",
+            stats: [
+                (
+                    kind: "food",
+                    value: "+50 kcal/d",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "no light needed",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+        ),
+        "oilseed_bed": (
+            shape: "box",
+            size: (2.0, 0.4, 1.0),
+            color: (0.8, 0.74, 0.35),
+            label: "Oilseed bed",
+            stats: [
+                (
+                    kind: "food",
+                    value: "+25 kcal/d (fats)",
+                    status: "warn",
+                ),
+                (
+                    kind: "power",
+                    value: "sun-lit, 0 W",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+        ),
+        "oilseed_field": (
+            shape: "box",
+            size: (2.4, 0.18, 2.4),
+            color: (0.8, 0.74, 0.35),
+            label: "Oilseed field",
+            stats: [
+                (
+                    kind: "food",
+                    value: "+500 kcal/d (fats)",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+        ),
+        "potato_grow_bed": (
+            shape: "box",
+            size: (2.0, 0.4, 1.0),
+            color: (0.55, 0.42, 0.25),
+            label: "Potato bed",
+            stats: [
+                (
+                    kind: "food",
+                    value: "+120 kcal/d",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "sun-lit, 0 W",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+        ),
+        "smelter": (
+            shape: "box",
+            size: (0.7, 0.9, 0.7),
+            color: (0.55, 0.22, 0.12),
+            label: "Smelter",
+            stats: [
+                (
+                    kind: "heat",
+                    value: "1200 C",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "-1.0 kWh/d",
+                    status: "warn",
+                ),
+            ],
+            power: None,
+        ),
+        "solar_panel": (
+            shape: "box",
+            size: (1.1, 0.12, 0.7),
+            color: (0.12, 0.16, 0.45),
+            label: "Solar panel",
+            stats: [
+                (
+                    kind: "power",
+                    value: "+1.4 kWh/d",
+                    status: "ok",
+                ),
+            ],
+            power: Some(Solar(
+                peak_watts: 400.0,
+            )),
+        ),
+        "staple_grain_tray": (
+            shape: "box",
+            size: (2.0, 0.3, 1.0),
+            color: (0.78, 0.66, 0.3),
+            label: "Grain tray",
+            stats: [
+                (
+                    kind: "food",
+                    value: "+20 kcal/d",
+                    status: "low",
+                ),
+                (
+                    kind: "power",
+                    value: "sun-lit, 0 W",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+        ),
+        "tuber_field": (
+            shape: "box",
+            size: (2.4, 0.18, 2.4),
+            color: (0.55, 0.42, 0.25),
+            label: "Tuber field",
+            stats: [
+                (
+                    kind: "food",
+                    value: "+1900 kcal/d",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+        ),
+        "water_pump": (
+            shape: "box",
+            size: (0.35, 0.35, 0.35),
+            color: (0.3, 0.5, 0.6),
+            label: "Water pump",
+            stats: [
+                (
+                    kind: "power",
+                    value: "-0.24 kWh/d",
+                    status: "ok",
+                ),
+                (
+                    kind: "water",
+                    value: "12 L/min",
+                    status: "ok",
+                ),
+            ],
+            power: Some(Consumer(
+                watts: 10.0,
+                priority: 2,
+            )),
+        ),
+        "water_purifier": (
+            shape: "cylinder",
+            size: (0.28, 0.7, 0.28),
+            color: (0.35, 0.65, 0.78),
+            label: "Water purifier",
+            stats: [
+                (
+                    kind: "water",
+                    value: "+240 L/d potable",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "-0.30 kWh/d",
+                    status: "ok",
+                ),
+            ],
+            power: Some(Consumer(
+                watts: 13.0,
+                priority: 2,
+            )),
+        ),
+        "water_tank": (
+            shape: "cylinder",
+            size: (0.9, 2.2, 0.9),
+            color: (0.2, 0.45, 0.75),
+            label: "Cistern (8000 L)",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "33 days",
+                    status: "ok",
+                ),
+                (
+                    kind: "water",
+                    value: "rain + well fed",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+        ),
+        "wind_turbine_small": (
+            shape: "cylinder",
+            size: (0.1, 2.4, 0.1),
+            color: (0.85, 0.86, 0.9),
+            label: "Wind turbine",
+            stats: [
+                (
+                    kind: "power",
+                    value: "+0.7 kWh/d",
+                    status: "warn",
+                ),
+            ],
+            power: Some(Generator(
+                watts: 150.0,
+            )),
         ),
     },
-
-    // Placed instances. The energy + water counts are sized to actually CLOSE the loops
-    // (8 solar + 8 batteries, an 8000 L cistern, 2 composters, field crops for calories).
     instances: [
-        // ── Garage: the power store + water treatment ──
-        (id: "battery_1", machine: "battery_bank", room: "garage", offset: (-1.6, 0.0, -1.6)),
-        (id: "battery_2", machine: "battery_bank", room: "garage", offset: (-0.8, 0.0, -1.6)),
-        (id: "battery_3", machine: "battery_bank", room: "garage", offset: (0.0, 0.0, -1.6)),
-        (id: "battery_4", machine: "battery_bank", room: "garage", offset: (0.8, 0.0, -1.6)),
-        (id: "battery_5", machine: "battery_bank", room: "garage", offset: (-1.6, 0.0, -0.8)),
-        (id: "battery_6", machine: "battery_bank", room: "garage", offset: (-0.8, 0.0, -0.8)),
-        (id: "battery_7", machine: "battery_bank", room: "garage", offset: (0.0, 0.0, -0.8)),
-        (id: "battery_8", machine: "battery_bank", room: "garage", offset: (0.8, 0.0, -0.8)),
-        (id: "gen_1", machine: "generator_portable", room: "garage", offset: (1.8, 0.0, -1.2)),
-        (id: "pump_1", machine: "water_pump", room: "garage", offset: (-2.4, 0.0, 1.4)),
-        (id: "purifier_1", machine: "water_purifier", room: "garage", offset: (-1.4, 0.0, 1.4)),
-
-        // ── Garage hull surface + utility (v0.438). The operator disabled the huge open
-        //    ranch (a 233x233 m walk to its centre) and consolidated everything into the
-        //    garage, the mothership's outer hull: the solar array spreads across the hull
-        //    surface, with the mining-drone hangar + a defense turret on the surface beside
-        //    it. The cistern joins the pump/purifier water cluster. ──
-        (id: "solar_1", machine: "solar_panel", room: "garage", offset: (-7.0, 0.0, -22.0)),
-        (id: "solar_2", machine: "solar_panel", room: "garage", offset: (-5.0, 0.0, -22.0)),
-        (id: "solar_3", machine: "solar_panel", room: "garage", offset: (-3.0, 0.0, -22.0)),
-        (id: "solar_4", machine: "solar_panel", room: "garage", offset: (-1.0, 0.0, -22.0)),
-        (id: "solar_5", machine: "solar_panel", room: "garage", offset: (1.0, 0.0, -22.0)),
-        (id: "solar_6", machine: "solar_panel", room: "garage", offset: (3.0, 0.0, -22.0)),
-        (id: "solar_7", machine: "solar_panel", room: "garage", offset: (5.0, 0.0, -22.0)),
-        (id: "solar_8", machine: "solar_panel", room: "garage", offset: (7.0, 0.0, -22.0)),
-        (id: "wind_1", machine: "wind_turbine_small", room: "garage", offset: (11.0, 0.0, -22.0)),
-        (id: "cistern_1", machine: "water_tank", room: "garage", offset: (-6.0, 0.0, 3.0)),
-        (id: "drone_hangar_1", machine: "drone_hangar", room: "garage", offset: (18.0, 0.0, -6.0)),
-        (id: "turret_1", machine: "defense_turret", room: "garage", offset: (18.0, 0.0, -12.0)),
-
-        // ── Garden (34x34x6 m): the indoor SUN-LIT farm. The bulk towers + beds are placed
-        //    by the `arrays` grids below; these are the support machines + connection anchors,
-        //    set along the WEST wall right next to the crops they feed so the pipes stay short
-        //    (the operator flagged long cross-room diagonals). Herb towers sit among the array.
-        (id: "irrigation_1", machine: "irrigation_system", room: "garden", offset: (-15.5, 0.0, -12.5)),
-        (id: "composter_1", machine: "composter", room: "garden", offset: (-15.5, 0.0, -10.5)),
-        (id: "composter_2", machine: "composter", room: "garden", offset: (-15.5, 0.0, 2.0)),
-        (id: "aqua_1", machine: "aquaponic_tank", room: "garden", offset: (-14.8, 0.0, 0.6)),
-        (id: "aqua_2", machine: "aquaponic_tank", room: "garden", offset: (-14.8, 0.0, -1.8)),
-        (id: "apoth_1", machine: "aeroponic_tower_apothecary", room: "garden", offset: (1.6, 0.0, 4.0)),
-        (id: "apoth_2", machine: "aeroponic_tower_apothecary", room: "garden", offset: (3.0, 0.0, 4.0)),
-        // Field crops, consolidated indoors off the now-disabled ranch (v0.438). They sit in
-        // the SE quadrant of the garden; the food loop still treats them as the bulk-calorie
-        // source (the closure note may want revisiting now that they are indoors).
-        (id: "grain_field_1", machine: "grain_field", room: "garden", offset: (7.0, 0.0, 13.0)),
-        (id: "tuber_field_1", machine: "tuber_field", room: "garden", offset: (10.5, 0.0, 13.0)),
-        (id: "legume_field_1", machine: "legume_field", room: "garden", offset: (7.0, 0.0, 9.5)),
-        (id: "oilseed_field_1", machine: "oilseed_field", room: "garden", offset: (10.5, 0.0, 9.5)),
-        (id: "silo_1", machine: "grain_silo", room: "garden", offset: (14.0, 0.0, 11.0)),
-
-        // ── Study: fabrication ──
-        (id: "smelter_1", machine: "smelter", room: "study", offset: (-2.4, 0.0, -2.4)),
-        (id: "forge_1", machine: "forge", room: "study", offset: (-0.8, 0.0, -2.4)),
-        (id: "fuel_1", machine: "fuel_refinery", room: "study", offset: (1.2, 0.0, -2.4)),
+        (
+            id: "battery_1",
+            machine: "battery_bank",
+            room: "garage",
+            offset: (-1.6, 0.0, -1.6),
+        ),
+        (
+            id: "battery_2",
+            machine: "battery_bank",
+            room: "garage",
+            offset: (-0.8, 0.0, -1.6),
+        ),
+        (
+            id: "battery_3",
+            machine: "battery_bank",
+            room: "garage",
+            offset: (0.0, 0.0, -1.6),
+        ),
+        (
+            id: "battery_4",
+            machine: "battery_bank",
+            room: "garage",
+            offset: (0.8, 0.0, -1.6),
+        ),
+        (
+            id: "battery_5",
+            machine: "battery_bank",
+            room: "garage",
+            offset: (-1.6, 0.0, -0.8),
+        ),
+        (
+            id: "battery_6",
+            machine: "battery_bank",
+            room: "garage",
+            offset: (-0.8, 0.0, -0.8),
+        ),
+        (
+            id: "battery_7",
+            machine: "battery_bank",
+            room: "garage",
+            offset: (0.0, 0.0, -0.8),
+        ),
+        (
+            id: "battery_8",
+            machine: "battery_bank",
+            room: "garage",
+            offset: (0.8, 0.0, -0.8),
+        ),
+        (
+            id: "gen_1",
+            machine: "generator_portable",
+            room: "garage",
+            offset: (1.8, 0.0, -1.2),
+        ),
+        (
+            id: "pump_1",
+            machine: "water_pump",
+            room: "garage",
+            offset: (-2.4, 0.0, 1.4),
+        ),
+        (
+            id: "purifier_1",
+            machine: "water_purifier",
+            room: "garage",
+            offset: (-1.4, 0.0, 1.4),
+        ),
+        (
+            id: "solar_1",
+            machine: "solar_panel",
+            room: "garage",
+            offset: (-7.0, 0.0, -22.0),
+        ),
+        (
+            id: "solar_2",
+            machine: "solar_panel",
+            room: "garage",
+            offset: (-5.0, 0.0, -22.0),
+        ),
+        (
+            id: "solar_3",
+            machine: "solar_panel",
+            room: "garage",
+            offset: (-3.0, 0.0, -22.0),
+        ),
+        (
+            id: "solar_4",
+            machine: "solar_panel",
+            room: "garage",
+            offset: (-1.0, 0.0, -22.0),
+        ),
+        (
+            id: "solar_5",
+            machine: "solar_panel",
+            room: "garage",
+            offset: (1.0, 0.0, -22.0),
+        ),
+        (
+            id: "solar_6",
+            machine: "solar_panel",
+            room: "garage",
+            offset: (3.0, 0.0, -22.0),
+        ),
+        (
+            id: "solar_7",
+            machine: "solar_panel",
+            room: "garage",
+            offset: (5.0, 0.0, -22.0),
+        ),
+        (
+            id: "solar_8",
+            machine: "solar_panel",
+            room: "garage",
+            offset: (7.0, 0.0, -22.0),
+        ),
+        (
+            id: "wind_1",
+            machine: "wind_turbine_small",
+            room: "garage",
+            offset: (11.0, 0.0, -22.0),
+        ),
+        (
+            id: "cistern_1",
+            machine: "water_tank",
+            room: "garage",
+            offset: (-6.0, 0.0, 3.0),
+        ),
+        (
+            id: "drone_hangar_1",
+            machine: "drone_hangar",
+            room: "garage",
+            offset: (18.0, 0.0, -6.0),
+        ),
+        (
+            id: "turret_1",
+            machine: "defense_turret",
+            room: "garage",
+            offset: (18.0, 0.0, -12.0),
+        ),
+        (
+            id: "smelter_1",
+            machine: "smelter",
+            room: "study",
+            offset: (-2.4, 0.0, -2.4),
+        ),
+        (
+            id: "forge_1",
+            machine: "forge",
+            room: "study",
+            offset: (-0.8, 0.0, -2.4),
+        ),
+        (
+            id: "fuel_1",
+            machine: "fuel_refinery",
+            room: "study",
+            offset: (1.2, 0.0, -2.4),
+        ),
     ],
-
-    // Dense garden fill: grids expanded into instances at load (infinite-of-X, one line per
-    // block instead of dozens of hand-typed instances). The room reads as a real indoor farm:
-    // NORTH half (negative z) = sun-lit STAPLE BEDS (potato carries the calories; grain trays
-    // are deliberately few since cereal is the worst per-m2 indoor crop; oilseed carries the
-    // indoor share of fats). SOUTH half (positive z) = the vertical VARIETY-TOWER array. East
-    // wall = mushroom racks (need no light, so they use the dark vertical space). Crucially the
-    // beds and towers are NOT stacked into tiers: under one sun there is one canopy, a second
-    // tier would only shade the first. That single-canopy cap is the whole lesson.
-    arrays: [
-        (machine: "potato_grow_bed",   room: "garden", id_prefix: "potato",    origin: (-15.0, 0.0, -15.0), rows: 3, cols: 6, spacing: (2.7, 2.0)),
-        (machine: "oilseed_bed",       room: "garden", id_prefix: "oilbed",    origin: (1.0, 0.0, -15.0),   rows: 2, cols: 5, spacing: (2.7, 2.0)),
-        (machine: "staple_grain_tray", room: "garden", id_prefix: "graintray", origin: (1.0, 0.0, -9.0),    rows: 2, cols: 4, spacing: (2.7, 2.0)),
-        (machine: "aeroponic_tower_nutrition", room: "garden", id_prefix: "ntower", origin: (-13.0, 0.0, 4.0), rows: 4, cols: 6, spacing: (2.2, 2.2)),
-        (machine: "mushroom_rack",     room: "garden", id_prefix: "mush",      origin: (14.0, 0.0, -6.0),   rows: 6, cols: 1, spacing: (0.0, 2.0)),
-    ],
-
-    // Connections as colored pipes/tubes: power = amber, water = blue, nutrient = brown,
-    // fuel = olive. These trace the closed loops: sun/wind -> battery -> loads; rain/well
-    // -> cistern -> pump -> purifier -> irrigation -> greenhouse; greywater + compost back
-    // into the growing systems; field crops -> silo.
+    arrays: [],
     connections: [
-        // Power: array + wind + generator -> battery; battery -> the loads.
-        (from: "solar_4", to: "battery_3", kind: "power"),
-        (from: "solar_5", to: "battery_4", kind: "power"),
-        (from: "wind_1", to: "battery_4", kind: "power"),
-        (from: "gen_1", to: "battery_8", kind: "power"),
-        (from: "battery_5", to: "pump_1", kind: "power"),
-        (from: "battery_6", to: "purifier_1", kind: "power"),
-        (from: "battery_7", to: "irrigation_1", kind: "power"),
-
-        // Water: cistern -> pump -> purifier -> irrigation -> greenhouse.
-        (from: "cistern_1", to: "pump_1", kind: "water"),
-        (from: "pump_1", to: "purifier_1", kind: "water"),
-        (from: "purifier_1", to: "irrigation_1", kind: "water"),
-        // Garden: irrigation feeds the staple beds; the aquaponic loop feeds the towers
-        // (fish water + waste), so the towers are watered AND fertilized by the fish.
-        (from: "irrigation_1", to: "potato_0", kind: "water"),
-        (from: "aqua_1", to: "ntower_0", kind: "water"),
-        // Greywater recycle closes the water loop back to irrigation.
-        (from: "composter_1", to: "irrigation_1", kind: "water"),
-
-        // Nutrients: compost -> beds + towers; the aquaponic fish waste also fertilizes the
-        // towers; legumes fix nitrogen back into the field crops.
-        (from: "composter_1", to: "potato_0", kind: "nutrient"),
-        (from: "composter_2", to: "ntower_0", kind: "nutrient"),
-        (from: "composter_1", to: "grain_field_1", kind: "nutrient"),
-        (from: "legume_field_1", to: "grain_field_1", kind: "nutrient"),
-
-        // Food: field crops -> silo (the winter buffer).
-        (from: "grain_field_1", to: "silo_1", kind: "food"),
-        (from: "tuber_field_1", to: "silo_1", kind: "food"),
-
-        // Fuel: refinery -> generator backup.
-        (from: "fuel_1", to: "gen_1", kind: "fuel"),
+        (
+            from: "solar_4",
+            to: "battery_3",
+            kind: "power",
+        ),
+        (
+            from: "solar_5",
+            to: "battery_4",
+            kind: "power",
+        ),
+        (
+            from: "wind_1",
+            to: "battery_4",
+            kind: "power",
+        ),
+        (
+            from: "gen_1",
+            to: "battery_8",
+            kind: "power",
+        ),
+        (
+            from: "battery_5",
+            to: "pump_1",
+            kind: "power",
+        ),
+        (
+            from: "battery_6",
+            to: "purifier_1",
+            kind: "power",
+        ),
+        (
+            from: "cistern_1",
+            to: "pump_1",
+            kind: "water",
+        ),
+        (
+            from: "pump_1",
+            to: "purifier_1",
+            kind: "water",
+        ),
+        (
+            from: "fuel_1",
+            to: "gen_1",
+            kind: "fuel",
+        ),
     ],
-
-    // The four coupled loops, with whether each CLOSES and the honest weakest-loop story.
-    // Rendered as the self-sufficiency summary on the Home page. weakest = the binding loop.
     loops: [
         (
             name: "Energy",
@@ -308,7 +736,7 @@
             supply: "composter (food + crop + human waste) -> fertilizer; N 587% / P 533% / K 197%",
             closes: true,
             weakest: false,
-            note: "Compost + urine diversion close the food loop's nutrients (potassium is the limiting one at ~2x). Two staged composters bridge the 60-90 day maturation lag; legumes fix nitrogen in the field; the aquaponic fish waste fertilizes the towers (a closed fish-to-plant nutrient loop).",
+            note: "Compost + urine diversion close the food loop\'s nutrients (potassium is the limiting one at ~2x). Two staged composters bridge the 60-90 day maturation lag; legumes fix nitrogen in the field; the aquaponic fish waste fertilizes the towers (a closed fish-to-plant nutrient loop).",
         ),
     ],
 )
