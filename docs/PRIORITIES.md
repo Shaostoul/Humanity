@@ -15,20 +15,25 @@
 > home designs use the SAME machinery players build with, so they're inherently player-workable
 > + real-world-valid (steel-primary + wood; the homestead enclosed in a steel ship where Earth
 > and ship share identical plumbing/electrical). North star + staged plan: `docs/design/home-design.md`.
-> - **Stage 1 (machine placement in the construction editor) SHIPPED + HARDENED:** v0.519 place
->   a machine in the selected room; v0.521 x/z/y offset editing; v0.522 a 4-dimension adversarial
->   review fixed 5 real bugs (room-delete orphan cleanup, machine-remove connection pruning,
->   deterministic BTreeMap save, room-aware offset ranges, array-id collision guard) — all in
->   testable `MachineHome` methods (`remove_instance`/`remove_room`) reusable by the AI too.
-> - **NEXT (operator's pick, awaiting hands-on read of offset editing):**
->   (a) **Live editor 3D preview of placed machines** — the visible gap. Scoped: give machines
->       their own `machine_objects` render list + a shared `spawn_machine_meshes(...)` helper that
->       both `load_world` and `rebuild_homestead` call (today they're interleaved into
->       `placeholder_objects` with towers/pipes, so they can't be rebuilt in isolation). Touches
->       the render loop -> launch-verify only, so it wants the operator's go before ramming.
->   (b) **Stage 2 connections in the editor** — lower-risk, data-level. The model already exists
->       (`MachineConnection { from, to, kind }` + `connection_color()` + in-world pipe rendering);
->       extend the Machines panel with a from/to/kind picker, same save-to-home.ron flow.
+> - **Stage 1 (machine placement) SHIPPED + HARDENED:** v0.519 place a machine in the selected
+>   room; v0.521 x/z/y offset editing; v0.522 a 4-dimension adversarial review fixed 5 real bugs
+>   (room-delete orphan cleanup, machine-remove connection pruning, deterministic BTreeMap save,
+>   room-aware offset ranges, array-id collision guard) — all in testable `MachineHome` methods
+>   reusable by the AI too.
+> - **Stage 2 (connections) SHIPPED v0.523:** the per-room panel gains a Connections section —
+>   wire a machine in this room to any machine by kind (power/water/nutrient/fuel/air/waste), list
+>   + Remove, validated `add_connection`/`remove_connection`. Verified by a `construction` UI
+>   snapshot (the panel actually renders) + a unit test.
+> - **NEXT (operator's pick):**
+>   (a) **Live editor 3D preview of placed machines + connections** — the remaining visible gap
+>       (today you place/wire as data + see it in-world on entry, not live in the editor). Scoped:
+>       give machines their own `machine_objects` render list + a shared `spawn_machine_meshes(...)`
+>       helper that both `load_world` and `rebuild_homestead` call (today they're interleaved into
+>       `placeholder_objects` with towers/pipes, so they can't be rebuilt in isolation). Touches the
+>       render loop -> launch-verify only, so it wants the operator's go before ramming.
+>   (b) **Stage 3 buildability validator** (per home-design.md) — run the placed machines + the
+>       room volumes against the real numbers (materials.csv density/tensile/cost, energy/water/food
+>       loops) and flag what wouldn't actually build / close on a real homestead.
 > - **Remaining v0.522 review finding (not blocking):** no save-success toast / unsaved-changes
 >   guard on the Machines panel — UX polish, consistent with the sibling "Save layout" button.
 

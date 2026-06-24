@@ -318,12 +318,24 @@
         "src/relay/relay.rs",
         "web/chat/app.js"
       ]
+    },
+    {
+      "at": "2026-06-23",
+      "decision": "HOME-DESIGN Stage 2 (connections) SHIPPED (v0.523.0). After v0.522 hardened the machine editor, kept building the home (operator: 'get back to making the home work') with the lower-risk Stage 2 rather than the parked render refactor. The per-room Machines panel gained a Connections section: list the connections originating from this room's machines (each + Remove), and an add row -- from-picker (this room's machines), to-picker (any machine, shown 'label (room)'), kind-picker (power/water/nutrient/fuel/air/waste), Connect button. Persists on 'Save machines' (the shared home.ron the AI authors). Validated mutators MachineHome::add_connection (refuses self-loop / empty / unknown endpoint / exact duplicate) + remove_connection(idx); new GuiState pickers home_conn_from/to/kind. VERIFIED to the shows!=works bar: added a `construction` UI snapshot (garage selected -> the Machines + Connections panels actually RENDER, captured at 1280x2400) PLUS a unit test for add/remove validation. 8 machines tests + native + relay + 3 GUI lints green; v0.523 exe building.",
+      "why": "Continued the home work per the operator directive, picking the increment I could fully self-verify (data methods unit-tested + the UI snapshot-proven) over the live-3D-preview render refactor, which I'd explicitly parked for the operator's hands-on read because it touches the core load_world render path and is launch-verify-only. Connections advance the parity mission directly: players now wire machines (the same power/water/etc. connections the AI authors), so an AI-designed home is fully player-reproducible. Used the headless egui snapshot (the dev-tooling win) to prove the panel renders, not just compiles -- honoring 'shows != works' + the no-sacrificing-correctness-for-speed directive.",
+      "files": [
+        "src/machines.rs",
+        "src/gui/pages/construction.rs",
+        "src/gui/mod.rs",
+        "src/gui/ui_snapshots.rs",
+        "tests/snapshots/construction.png"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.522.0 (Latest). Local exe building (braof1j46) -> build-game leaves an uncommitted 0.522.1 patch bump for the test exe, folded into the next release. v0.519-0.522 = home-design parity arc: machine placement -> offset editing -> review-hardened (orphan/dangling-connection cleanup, deterministic BTreeMap save, room-aware offsets). Releases v0.516-0.522 await operator just sign-release. Deploy green (relay live).",
+  "version_state": "main==origin: v0.523.0 (Latest). Local exe building (b4f3fuauw) -> build-game leaves an uncommitted 0.523.1 patch bump for the test exe, folded into the next release. v0.519-0.523 = home-design parity arc: machine placement -> offset editing -> review-hardened -> Stage 2 connections. NEXT (operator's pick): live editor 3D preview of machines/connections (render refactor, launch-verify, parked for operator read) OR Stage 3 buildability validator. Releases v0.516-0.523 await operator just sign-release. Deploy green (relay live).",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
