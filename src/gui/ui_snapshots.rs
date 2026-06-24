@@ -693,7 +693,7 @@ page_snapshot!(snapshot_homes, "homes", homes, 1280, 1400);
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_construction() {
-    render_page_png("construction", 1280, 2400, |ctx, theme, state| {
+    render_page_png("construction", 1280, 1200, |ctx, theme, state| {
         use crate::ship::fibonacci::WallKind;
         if state.home_machines.is_none() {
             state.home_machines = crate::machines::MachineHome::load(
@@ -702,14 +702,17 @@ fn snapshot_construction() {
         }
         state.construction_active = true;
         if state.construction_rooms.is_empty() {
+            // Study holds a few machines in the seed (smelter/forge/fuel), so the panel stays
+            // readable while still exercising Machines + the Connections add-row + the whole-home
+            // Buildability report (which is the same regardless of which room is selected).
             state.construction_rooms = vec![crate::gui::ConstructionRoom {
-                id: "garage".to_string(),
+                id: "study".to_string(),
                 walls: [WallKind::Auto; 4],
                 wall_offsets: [0.0; 4],
                 openings: Vec::new(),
                 level: 0,
                 position: Some([0.0, 0.0, 0.0]),
-                dimensions: [55.0, 5.0, 55.0],
+                dimensions: [21.0, 5.0, 21.0],
                 material_type: 1,
                 color: [0.5, 0.5, 0.55, 1.0],
             }];

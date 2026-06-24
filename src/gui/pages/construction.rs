@@ -525,6 +525,13 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 }
             });
 
+            // ── Buildability (Stage 3, v0.524): the whole-home real-world-validity check --
+            //    power balances, the battery carries the night, wiring is intact. Shown always
+            //    (not per-room); the same report an AI can call before committing a design. ──
+            if let Some(home) = &state.home_machines {
+                draw_buildability(ui, theme, home);
+            }
+
             ui.add_space(theme.spacing_md);
             ui.separator();
             ui.horizontal(|ui| {
@@ -573,6 +580,39 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             .show(ctx, |ui| {
                 draw_floorplan_canvas(ui, theme, state);
             });
+    }
+}
+
+/// The whole-home buildability report (v0.524, home-design Stage 3): a power source exists for
+/// the load, energy balances over a representative day with the battery carrying the solar-off
+/// window, and the wiring is intact. Read-only; the same MachineHome::buildability_report an AI
+/// can call before committing a design. 4.5 = the self-sufficiency model's representative sun-hours.
+fn draw_buildability(ui: &mut egui::Ui, theme: &Theme, home: &crate::machines::MachineHome) {
+    use crate::machines::CheckStatus;
+    ui.add_space(theme.spacing_md);
+    ui.separator();
+    ui.label(RichText::new("Buildability").strong().color(theme.text_primary()));
+    let report = home.buildability_report(4.5);
+    if report.checks.is_empty() {
+        ui.label(
+            RichText::new("No systems to check yet -- place a panel, battery, and a load.")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        return;
+    }
+    for c in &report.checks {
+        // ✓ and ⚠ are confirmed-rendering glyphs; "!" (ASCII) for fail. Color carries the verdict.
+        let (mark, color) = match c.status {
+            CheckStatus::Pass => ("✓", theme.success()),
+            CheckStatus::Warn => ("⚠", theme.warning()),
+            CheckStatus::Fail => ("!", theme.danger()),
+        };
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(mark).strong().color(color));
+            ui.label(RichText::new(&c.name).size(theme.font_size_small).strong().color(theme.text_secondary()));
+            ui.label(RichText::new(&c.detail).size(theme.font_size_small).color(theme.text_muted()));
+        });
     }
 }
 

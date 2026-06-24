@@ -138,6 +138,43 @@ pub struct MachineHome {
     pub loops: Vec<HomeLoop>,
 }
 
+/// Pass / warn / fail verdict for one buildability check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckStatus {
+    Pass,
+    Warn,
+    Fail,
+}
+
+/// One line of the buildability report: a named check, its status, and a human-readable detail.
+#[derive(Debug, Clone)]
+pub struct BuildabilityCheck {
+    pub name: String,
+    pub status: CheckStatus,
+    pub detail: String,
+}
+
+/// The buildability report over a home design: "could you actually build + run this on Earth?"
+/// Pure + world-free (computed from the placed machines), so it runs in the editor AND an AI can
+/// call it before committing a design. (v0.524, home-design Stage 3 -- docs/design/home-design.md)
+#[derive(Debug, Clone)]
+pub struct BuildabilityReport {
+    pub checks: Vec<BuildabilityCheck>,
+}
+
+impl BuildabilityReport {
+    /// The worst status across all checks (Fail beats Warn beats Pass) -- a one-glance verdict.
+    pub fn worst(&self) -> CheckStatus {
+        if self.checks.iter().any(|c| c.status == CheckStatus::Fail) {
+            CheckStatus::Fail
+        } else if self.checks.iter().any(|c| c.status == CheckStatus::Warn) {
+            CheckStatus::Warn
+        } else {
+            CheckStatus::Pass
+        }
+    }
+}
+
 impl MachineHome {
     /// Load from a RON file. Returns `None` (with a warning) on a missing or invalid
     /// file so the caller can fall back gracefully.
@@ -245,6 +282,122 @@ impl MachineHome {
         } else {
             false
         }
+    }
+
+    /// A design-time buildability check over the placed machines: is there a power source for the
+    /// load, does energy balance over a representative day (with the battery carrying the solar-off
+    /// window), and is the wiring intact. Pure + world-free so it runs in the construction editor
+    /// AND is callable by an AI before it commits a design. `sun_hours` = representative daily peak-
+    /// equivalent sun (the self-sufficiency model uses ~4.5). Real kWh/day, not nameplate -- this is
+    /// the home-design real-world-validity guarantee. (v0.524, Stage 3 -- docs/design/home-design.md)
+    pub fn buildability_report(&self, sun_hours: f32) -> BuildabilityReport {
+        let all = self.all_instances();
+        // Sum the electrical roles across every placed machine (via its catalog def's power).
+        let mut solar_peak = 0.0f32; // W at full sun
+        let mut gen_watts = 0.0f32; // W steady (fuel/wind generators)
+        let mut consumer_watts = 0.0f32; // W draw
+        let mut battery_wh = 0.0f32; // Wh storage
+        for inst in &all {
+            if let Some(def) = self.catalog.get(&inst.machine) {
+                match &def.power {
+                    Some(MachinePower::Solar { peak_watts }) => solar_peak += peak_watts,
+                    Some(MachinePower::Generator { watts }) => gen_watts += watts,
+                    Some(MachinePower::Consumer { watts, .. }) => consumer_watts += watts,
+                    Some(MachinePower::Battery { capacity_wh, .. }) => battery_wh += capacity_wh,
+                    None => {}
+                }
+            }
+        }
+        let sun = sun_hours.clamp(0.0, 24.0);
+        let gen_daily = solar_peak * sun + gen_watts * 24.0; // Wh/day
+        let use_daily = consumer_watts * 24.0; // Wh/day
+        let mut checks = Vec::new();
+
+        // 1. A power source exists for the load.
+        if consumer_watts > 0.0 {
+            if solar_peak <= 0.0 && gen_watts <= 0.0 {
+                checks.push(BuildabilityCheck {
+                    name: "Power source".into(),
+                    status: CheckStatus::Fail,
+                    detail: format!("{consumer_watts:.0} W of load but no panel or generator"),
+                });
+            } else {
+                checks.push(BuildabilityCheck {
+                    name: "Power source".into(),
+                    status: CheckStatus::Pass,
+                    detail: format!("{solar_peak:.0} W panels + {gen_watts:.0} W generators"),
+                });
+            }
+        }
+
+        // 2. Energy balances over a representative day, battery carries the solar-off window.
+        if use_daily > 0.0 {
+            if gen_daily + 1.0 < use_daily {
+                checks.push(BuildabilityCheck {
+                    name: "Energy balance".into(),
+                    status: CheckStatus::Fail,
+                    detail: format!(
+                        "{:.1} kWh/day generated < {:.1} consumed",
+                        gen_daily / 1000.0,
+                        use_daily / 1000.0
+                    ),
+                });
+            } else {
+                // Generation covers the day; can the battery carry the load while solar is off?
+                let night_h = (24.0 - sun).max(0.0);
+                let night_deficit_w = (consumer_watts - gen_watts).max(0.0);
+                let night_need = night_deficit_w * night_h; // Wh the battery must supply overnight
+                if battery_wh + 1.0 < night_need {
+                    checks.push(BuildabilityCheck {
+                        name: "Energy balance".into(),
+                        status: CheckStatus::Warn,
+                        detail: format!(
+                            "{:.1} kWh/day surplus, but battery {:.1} kWh < {:.1} needed overnight",
+                            (gen_daily - use_daily) / 1000.0,
+                            battery_wh / 1000.0,
+                            night_need / 1000.0
+                        ),
+                    });
+                } else {
+                    checks.push(BuildabilityCheck {
+                        name: "Energy balance".into(),
+                        status: CheckStatus::Pass,
+                        detail: format!(
+                            "{:.1} kWh/day made vs {:.1} used; battery {:.1} kWh carries the night",
+                            gen_daily / 1000.0,
+                            use_daily / 1000.0,
+                            battery_wh / 1000.0
+                        ),
+                    });
+                }
+            }
+        }
+
+        // 3. Wiring integrity: no connection points at a machine that is not placed (an AI hand-
+        //    edit could introduce a dangling reference the editor's add_connection would refuse).
+        if !self.connections.is_empty() {
+            let live: std::collections::HashSet<&str> = all.iter().map(|i| i.id.as_str()).collect();
+            let dangling = self
+                .connections
+                .iter()
+                .filter(|c| !live.contains(c.from.as_str()) || !live.contains(c.to.as_str()))
+                .count();
+            if dangling > 0 {
+                checks.push(BuildabilityCheck {
+                    name: "Wiring".into(),
+                    status: CheckStatus::Fail,
+                    detail: format!("{dangling} connection(s) reference a missing machine"),
+                });
+            } else {
+                checks.push(BuildabilityCheck {
+                    name: "Wiring".into(),
+                    status: CheckStatus::Pass,
+                    detail: format!("{} connection(s), all endpoints valid", self.connections.len()),
+                });
+            }
+        }
+
+        BuildabilityReport { checks }
     }
 
     /// All placed machines: the explicit `instances` plus every `arrays` grid expanded
@@ -531,6 +684,103 @@ mod tests {
         assert!(!home.remove_connection(9), "out-of-range index is a no-op");
         assert!(home.remove_connection(0), "in-range index removes");
         assert!(home.connections.is_empty(), "connection removed");
+    }
+
+    /// A machine def carrying a specific electrical role, for buildability tests.
+    fn def_with_power(power: Option<MachinePower>) -> MachineDef {
+        MachineDef { power, ..test_def("box") }
+    }
+
+    /// v0.524 Stage 3: a load with no panel/generator fails the "Power source" check.
+    #[test]
+    fn buildability_flags_load_without_a_source() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        let home = MachineHome {
+            catalog,
+            instances: vec![MachineInstance { id: "l1".into(), machine: "load".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0) }],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+        };
+        let report = home.buildability_report(4.5);
+        assert_eq!(report.worst(), CheckStatus::Fail);
+        assert!(report.checks.iter().any(|c| c.name == "Power source" && c.status == CheckStatus::Fail));
+    }
+
+    /// v0.524 Stage 3: panel + battery sized for the night + a modest load passes every check.
+    #[test]
+    fn buildability_passes_a_balanced_home() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
+        catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 2000.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0) };
+        let home = MachineHome {
+            catalog,
+            instances: vec![inst("p1", "panel"), inst("b1", "batt"), inst("l1", "load")],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+        };
+        // 1000W * 4.5h = 4500 Wh/day made vs 100W * 24h = 2400 used; night need = 100W * 19.5h =
+        // 1950 Wh <= 2000 Wh battery, so every check passes.
+        let report = home.buildability_report(4.5);
+        assert_eq!(report.worst(), CheckStatus::Pass, "balanced home passes: {:?}", report.checks);
+    }
+
+    /// v0.524 Stage 3: an under-sized battery warns (covers the day, not the night).
+    #[test]
+    fn buildability_warns_on_undersized_battery() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
+        catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 200.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0) };
+        let home = MachineHome {
+            catalog,
+            instances: vec![inst("p1", "panel"), inst("b1", "batt"), inst("l1", "load")],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+        };
+        let report = home.buildability_report(4.5);
+        assert_eq!(report.worst(), CheckStatus::Warn, "tiny battery warns: {:?}", report.checks);
+    }
+
+    /// v0.524 Stage 3: a connection to a missing machine fails the Wiring check.
+    #[test]
+    fn buildability_flags_a_dangling_connection() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("box".to_string(), test_def("box"));
+        let home = MachineHome {
+            catalog,
+            instances: vec![MachineInstance { id: "a".into(), machine: "box".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0) }],
+            arrays: Vec::new(),
+            connections: vec![MachineConnection { from: "a".into(), to: "ghost".into(), kind: "power".into() }],
+            loops: Vec::new(),
+        };
+        let report = home.buildability_report(4.5);
+        assert!(report.checks.iter().any(|c| c.name == "Wiring" && c.status == CheckStatus::Fail));
+        assert_eq!(report.worst(), CheckStatus::Fail);
+    }
+
+    /// v0.524 Stage 3: the shipped seed home produces checks and has intact wiring (it is the
+    /// reference design, so its connections must all resolve).
+    #[test]
+    fn buildability_seed_home_is_sane() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("machines")
+            .join("home.ron");
+        let home = MachineHome::load(&path).expect("home.ron parses");
+        let report = home.buildability_report(4.5);
+        assert!(!report.checks.is_empty(), "seed home produces checks");
+        assert!(
+            !report.checks.iter().any(|c| c.name == "Wiring" && c.status == CheckStatus::Fail),
+            "seed wiring must be intact: {:?}",
+            report.checks
+        );
     }
 
     /// v0.522 fix C: save() is deterministic -- the same home saved twice produces byte-identical
