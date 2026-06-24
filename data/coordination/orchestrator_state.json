@@ -374,12 +374,23 @@
         "src/renderer/mod.rs",
         "src/lib.rs"
       ]
+    },
+    {
+      "at": "2026-06-24",
+      "decision": "BUILD MODE step 2 -- GHOST PLACEMENT SHIPPED (v0.529.0) + removed the dead garden markers. Operator on v0.528 (machines confirmed back): wants drag/drop placement ('attached to the mouse... move it around with its ghost'), an active-item highlight ('RGB border like the header menu buttons'), and the two non-responsive sphere-towers gone. SHIPPED: (1) removed the v0.383 aeroponic-tower MARKERS (tower_configs grey cylinders + helix plant spheres in load_world) -- those were the non-responsive sphere-towers; the home.ron aeroponic_tower arrays now render the real garden towers which move+delete with the room. (2) GHOST PLACEMENT: palette click HOLDS a type (construction_place_type, renamed from construction_palette_add); the editor renders it as a semi-transparent ghost on the room floor under the cursor (cursor_floor_hit reuses the room-grab raycast), left-click DROPS it at the click point (offset from that room center, not the center); stays held for multi-place; right-click / re-click cancels. Ghost mesh CACHED (construction_ghost on EngineState) + rebuilt only on held-type change, so the cursor-following ghost doesn't leak a mesh per frame. (3) held palette item = accent fill + bright border. VERIFIED: snapshot shows the held 'Variety tower' highlight; 16 machines tests + native + relay + 3 lints green; exe building. Ghost render + click-place are 3D (launch-verify).",
+      "why": "Executed the operator's detailed launch feedback directly. Removed the markers first (a concrete confusing bug -- duplicate non-responsive towers). Built ghost placement as the core of build-mode step 2: it's the intuitive drag/drop they asked for, and replaces the clunky snap-to-room-center. Cached the ghost mesh from the start (learned from the v0.527 per-frame-mesh-leak that helped vanish the machines -- didn't repeat it). The viewport raycast is launch-verify-only, but the operator is actively testing so it gets verified fast; the snapshot covers the palette + held-item highlight (the egui part). NEXT = easy plumbing (click A -> click B to connect), then machine-pick-to-select/drag.",
+      "files": [
+        "src/lib.rs",
+        "src/gui/mod.rs",
+        "src/gui/pages/construction.rs",
+        "src/gui/ui_snapshots.rs"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.528.0 (Latest). Local exe building (bbq64ftaf). HOTFIX: v0.525-0.527 made machines vanish (256 render cap overflow once machines moved to their own list); v0.528 bumps the cap to 1024 + fixes a per-frame mesh leak in rebuild_machine_objects. Machines render + move live + follow rooms again. NEXT: build-mode step 2 (viewport click-to-place + drag-to-move) AND pipes-follow-room-move (pipes still static on a room drag). AWAITING operator confirm machines are back. Releases v0.516-0.528 await operator just sign-release. Deploy green.",
+  "version_state": "main==origin: v0.529.0 (Latest). Local exe building (btxwglgfi). BUILD MODE: footer palette (v0.527) -> ghost placement + dead-marker removal (v0.529). Machines render+move+follow-rooms (v0.528 fixed the 256-cap vanish). NEXT: easy plumbing (click A->click B to connect); machine-pick select+drag; gate the ghost to the viewport region (it previews over panels too). AWAITING operator test of v0.529 ghost placement. Releases v0.516-0.529 await operator just sign-release. Deploy green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",

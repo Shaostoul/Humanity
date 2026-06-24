@@ -49,15 +49,20 @@
 >       selected category; collapsed by default, Expand for more. Data-driven: `category` field on
 >       MachineDef + `MachineHome::palette_categories()` (the 26 seed types are tagged). Click an item
 >       -> placed in the SELECTED room (lands at center, appears live since v0.525). Snapshot-verified.
->   (2) **Viewport interaction (NEXT)** -- click a palette item then click the floor to PLACE it where
->       you click (raycast, like the existing `try_begin_room_grab` room pick); click an existing
->       machine to select; drag to move it. "I can't interact with the objects in the view port."
->       Launch-verify (viewport raycast -- can't headlessly snapshot). Builds on the v0.525 live-move
->       (a placed/moved machine must appear), so it wants the operator's confirm that live-move works.
->   (3) Future categories beyond machines: Structure (place a room/wall), Furniture. The palette
+>   (2) **Ghost placement SHIPPED v0.529** -- click a palette item to HOLD it (it gets an accent
+>       fill + border); the editor renders it as a semi-transparent ghost on the room floor under the
+>       cursor; left-click DROPS it exactly where you click (offset from that room center, not the
+>       center). Stays held for multi-place; right-click / re-click cancels. Reuses the room
+>       floor-raycast (`cursor_floor_hit`). Ghost mesh cached (no per-frame leak). Also removed the
+>       legacy garden markers (the 2 non-responsive sphere-towers). Launch-verify (3D).
+>   (3) **NEXT -- EASY PLUMBING (operator ask):** the from/to/kind dropdowns are clunky; make
+>       connections a viewport gesture -- e.g. click machine A then machine B to draw a pipe (pick the
+>       kind from a small popup or the palette). Same raycast + held-state pattern as ghost placement.
+>   (4) **Click a machine to select + drag to move it** in the viewport (machine-pick raycast). And a
+>       known follow-up: the ghost previews even when the cursor is over a side panel (gate on the
+>       viewport region). Connection pipes still don't follow a room move live.
+>   (5) Future categories beyond machines: Structure (place a room/wall), Furniture -- the palette
 >       framework already supports any category; these need their own placement actions wired in.
->   (3) Keep the right panel for fine-tune (offset/remove/connect/buildability); the palette+viewport
->       becomes the primary, intuitive UX. North star: intuitively easy, categorized, drag-to-place.
 > - **Deferred (operator's pick when build-mode lands):** Stage 3b validator (water/structure/
 >   materials -- a data-model step); Stage 4 unify the model (home-design.md open questions);
 >   the v0.522 save-success-toast polish.
