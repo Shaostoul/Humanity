@@ -665,12 +665,32 @@ mod native_app {
                 )
             })
             .collect();
-        state.machine_objects.clear();
-        state.gui_state.machine_labels.clear();
+        // Guard: if there is no room geometry yet (room_bounds not populated), do NOT wipe the
+        // machines load_world already placed -- otherwise an edit before bounds are ready blanks
+        // the whole home. (v0.528)
+        if rooms.is_empty() {
+            return;
+        }
         let placements = match &state.gui_state.home_machines {
             Some(h) => h.placements(&rooms),
             None => return,
         };
+        // Fast path: the machine COUNT is unchanged (an offset drag / room move, not add/remove).
+        // Reuse the existing meshes + materials and only update positions, so a per-frame drag does
+        // NOT leak a fresh mesh per machine every frame (the v0.527 regression). placements() is
+        // deterministically ordered (instances then array cells), so index i is the same machine.
+        if placements.len() == state.machine_objects.len()
+            && placements.len() == state.gui_state.machine_labels.len()
+        {
+            for (i, p) in placements.iter().enumerate() {
+                state.machine_objects[i].2 = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
+                state.gui_state.machine_labels[i].pos = Vec3::new(p.pos.0, p.top_y + 0.4, p.pos.2);
+            }
+            return;
+        }
+        // Count changed (add / remove) or first build: rebuild meshes fresh.
+        state.machine_objects.clear();
+        state.gui_state.machine_labels.clear();
         for p in placements {
             let mesh = machine_mesh(&state.renderer.device, &p.shape, p.size);
             let mesh_idx = state.renderer.add_mesh(mesh);

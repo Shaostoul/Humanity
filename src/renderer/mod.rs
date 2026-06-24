@@ -20,6 +20,14 @@ use camera::{Camera, CameraUniforms};
 use glam::{Mat4, Quat, Vec3};
 use mesh::Mesh;
 use pipeline::{MaterialUniforms, ObjectUniforms, Pipeline};
+
+/// Max opaque/transparent objects drawn per frame (dynamic uniform buffer capacity + the per-pass
+/// draw cap). Bumped 256 -> 1024 in v0.528: a fully built home (the dense indoor garden alone is
+/// ~100 machine meshes, plus pipes + markers + walls) exceeded 256, and objects past the cap were
+/// silently truncated -- which made the home's machines vanish once they moved to their own render
+/// list. 1024 entries x 256-byte alignment = 256 KB, allocated once. The cap is a ceiling, so the
+/// per-frame cost stays proportional to the actual object count.
+const MAX_OBJECTS: usize = 1024;
 use wgpu::util::DeviceExt;
 
 /// Describes one object to render in the scene.
@@ -230,9 +238,8 @@ impl Renderer {
             }],
         });
 
-        // Dynamic object uniform buffer — holds up to MAX_OBJECTS entries.
+        // Dynamic object uniform buffer — holds up to MAX_OBJECTS entries (module const).
         // Each entry is aligned to 256 bytes (wgpu minimum uniform buffer offset alignment).
-        const MAX_OBJECTS: usize = 256;
         let uniform_align = 256_u64; // minimum uniform buffer offset alignment
         let object_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Object Uniform Buffer (Dynamic)"),
@@ -560,7 +567,7 @@ impl Renderer {
             // Upload all object uniforms to the dynamic buffer BEFORE the render pass
             let uniform_align = 256_u64;
             for (i, obj) in objects.iter().enumerate() {
-                if i >= 256 { break; } // MAX_OBJECTS
+                if i >= MAX_OBJECTS { break; } // MAX_OBJECTS
                 let model = Mat4::from_scale_rotation_translation(
                     obj.scale,
                     obj.rotation,
@@ -579,7 +586,7 @@ impl Renderer {
             }
 
             for (i, obj) in objects.iter().enumerate() {
-                if i >= 256 { break; }
+                if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) {
                     Some(m) => m,
                     None => continue,
@@ -650,7 +657,7 @@ impl Renderer {
             // Upload all object uniforms to the dynamic buffer BEFORE the render pass
             let uniform_align = 256_u64;
             for (i, obj) in objects.iter().enumerate() {
-                if i >= 256 { break; }
+                if i >= MAX_OBJECTS { break; }
                 let model = Mat4::from_scale_rotation_translation(
                     obj.scale,
                     obj.rotation,
@@ -669,7 +676,7 @@ impl Renderer {
             }
 
             for (i, obj) in objects.iter().enumerate() {
-                if i >= 256 { break; }
+                if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) {
                     Some(m) => m,
                     None => continue,
@@ -743,7 +750,7 @@ impl Renderer {
 
             let uniform_align = 256_u64;
             for (i, obj) in objects.iter().enumerate() {
-                if i >= 256 { break; }
+                if i >= MAX_OBJECTS { break; }
                 let model = Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position);
                 let normal_matrix = model.inverse().transpose();
                 let uniforms = ObjectUniforms {
@@ -754,7 +761,7 @@ impl Renderer {
             }
 
             for (i, obj) in objects.iter().enumerate() {
-                if i >= 256 { break; }
+                if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                 let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
@@ -834,7 +841,7 @@ impl Renderer {
 
             let uniform_align = 256_u64;
             for (i, obj) in objects.iter().enumerate() {
-                if i >= 256 { break; }
+                if i >= MAX_OBJECTS { break; }
                 let model = Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position);
                 let normal_matrix = model.inverse().transpose();
                 let uniforms = ObjectUniforms {
@@ -845,7 +852,7 @@ impl Renderer {
             }
 
             for (i, obj) in objects.iter().enumerate() {
-                if i >= 256 { break; }
+                if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                 let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
