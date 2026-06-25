@@ -540,51 +540,88 @@ mod native_app {
 
     /// Upload a freshly generated set of homestead meshes into the renderer + state slots
     /// (v0.455). Shared by the initial world load AND the construction editor's live rebuild.
-    /// On rebuild this APPENDS new meshes and repoints the slots; the old meshes stay in the
-    /// renderer's mesh Vec (a small, bounded leak per edit -- fine for an editor session).
+    /// v0.531: REUSES the prior mesh/material slots in place (replace_mesh / update_material) so a
+    /// per-frame rebuild during a room drag does not leak GPU buffers; only an added room/family
+    /// pushes a new slot, and a removed one orphans a single slot once (bounded).
     fn apply_homestead_meshes(state: &mut EngineState, homestead: crate::ship::fibonacci::HomesteadMeshes) {
-        // Floors (one mesh + material per room).
-        state.homestead_floors.clear();
-        for (verts, indices, color, material_type) in homestead.floors {
-            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &verts, &indices));
-            let mat_idx = state.renderer.add_material_typed(color, 0.0, 0.8, material_type as f32);
-            state.homestead_floors.push((mesh_idx, mat_idx));
+        // Reuse existing mesh/material SLOTS when present (v0.531), so a per-frame rebuild (a room
+        // drag fires this every frame) never leaks GPU buffers -- the renderer was append-only, and
+        // a multi-second drag was orphaning ~15-20 buffers/frame. Only an ADDED room/family pushes a
+        // new slot; a REMOVED one leaves one orphaned slot (one-time, bounded).
+        // Floors (one mesh + material per room): reuse the prior slot at index i when it exists.
+        let prior_floors = std::mem::take(&mut state.homestead_floors);
+        let mut floors = Vec::with_capacity(homestead.floors.len());
+        for (i, (verts, indices, color, material_type)) in homestead.floors.into_iter().enumerate() {
+            let mesh = Mesh::from_vertices(&state.renderer.device, &verts, &indices);
+            if let Some(&(mi, ma)) = prior_floors.get(i) {
+                state.renderer.replace_mesh(mi, mesh);
+                state.renderer.update_material_typed(ma, color, 0.0, 0.8, material_type as f32);
+                floors.push((mi, ma));
+            } else {
+                let mi = state.renderer.add_mesh(mesh);
+                let ma = state.renderer.add_material_typed(color, 0.0, 0.8, material_type as f32);
+                floors.push((mi, ma));
+            }
         }
-        // Combined-mesh families. Each is rebuilt only when non-empty (else cleared so a
-        // removed window/mirror disappears on the next rebuild).
-        state.homestead_walls = None;
-        if !homestead.walls.0.is_empty() {
-            let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.walls.0, &homestead.walls.1));
-            let ma = state.renderer.add_material_typed([0.5, 0.5, 0.5, 1.0], 0.1, 0.6, 0.0);
-            state.homestead_walls = Some((mi, ma));
-        }
-        state.homestead_trim = None;
-        if !homestead.trim.0.is_empty() {
-            let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.trim.0, &homestead.trim.1));
-            let ma = state.renderer.add_material_typed([0.42, 0.30, 0.18, 1.0], 0.0, 0.7, 3.0);
-            state.homestead_trim = Some((mi, ma));
-        }
-        state.homestead_windows = None;
-        if !homestead.windows.0.is_empty() {
-            let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.windows.0, &homestead.windows.1));
-            // Tinted glass: alpha 0.45 (base_color.a is the opacity) reads clearly AS glass
-            // while still seeing through, + a faint emissive so a pane catches the eye even in
-            // a dim room. Rendered through the transparent pass. (v0.456, tuned v0.457)
-            let ma = state.renderer.add_material_full([0.50, 0.74, 0.92, 0.45], 0.0, 0.08, 1.0, 0.12);
-            state.homestead_windows = Some((mi, ma));
-        }
-        state.homestead_mirrors = None;
-        if !homestead.mirrors.0.is_empty() {
-            let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.mirrors.0, &homestead.mirrors.1));
-            let ma = state.renderer.add_material_full([0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 1.6);
-            state.homestead_mirrors = Some((mi, ma));
-        }
-        state.homestead_ceiling = None;
-        if !homestead.ceilings.0.is_empty() {
-            let mi = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.ceilings.0, &homestead.ceilings.1));
-            let ma = state.renderer.add_material_typed([0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0);
-            state.homestead_ceiling = Some((mi, ma));
-        }
+        state.homestead_floors = floors;
+        // Combined-mesh families: reuse the prior slot if present, else add; None if empty (so a
+        // removed window/mirror disappears -- its prior slot orphans once).
+        let prior = state.homestead_walls;
+        state.homestead_walls = if !homestead.walls.0.is_empty() {
+            let mesh = Mesh::from_vertices(&state.renderer.device, &homestead.walls.0, &homestead.walls.1);
+            if let Some((mi, ma)) = prior {
+                state.renderer.replace_mesh(mi, mesh);
+                state.renderer.update_material_typed(ma, [0.5, 0.5, 0.5, 1.0], 0.1, 0.6, 0.0);
+                Some((mi, ma))
+            } else {
+                Some((state.renderer.add_mesh(mesh), state.renderer.add_material_typed([0.5, 0.5, 0.5, 1.0], 0.1, 0.6, 0.0)))
+            }
+        } else { None };
+        let prior = state.homestead_trim;
+        state.homestead_trim = if !homestead.trim.0.is_empty() {
+            let mesh = Mesh::from_vertices(&state.renderer.device, &homestead.trim.0, &homestead.trim.1);
+            if let Some((mi, ma)) = prior {
+                state.renderer.replace_mesh(mi, mesh);
+                state.renderer.update_material_typed(ma, [0.42, 0.30, 0.18, 1.0], 0.0, 0.7, 3.0);
+                Some((mi, ma))
+            } else {
+                Some((state.renderer.add_mesh(mesh), state.renderer.add_material_typed([0.42, 0.30, 0.18, 1.0], 0.0, 0.7, 3.0)))
+            }
+        } else { None };
+        let prior = state.homestead_windows;
+        state.homestead_windows = if !homestead.windows.0.is_empty() {
+            let mesh = Mesh::from_vertices(&state.renderer.device, &homestead.windows.0, &homestead.windows.1);
+            // Tinted glass (alpha 0.45) + faint emissive, rendered through the transparent pass.
+            if let Some((mi, ma)) = prior {
+                state.renderer.replace_mesh(mi, mesh);
+                state.renderer.update_material_full(ma, [0.50, 0.74, 0.92, 0.45], 0.0, 0.08, 1.0, 0.12);
+                Some((mi, ma))
+            } else {
+                Some((state.renderer.add_mesh(mesh), state.renderer.add_material_full([0.50, 0.74, 0.92, 0.45], 0.0, 0.08, 1.0, 0.12)))
+            }
+        } else { None };
+        let prior = state.homestead_mirrors;
+        state.homestead_mirrors = if !homestead.mirrors.0.is_empty() {
+            let mesh = Mesh::from_vertices(&state.renderer.device, &homestead.mirrors.0, &homestead.mirrors.1);
+            if let Some((mi, ma)) = prior {
+                state.renderer.replace_mesh(mi, mesh);
+                state.renderer.update_material_full(ma, [0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 1.6);
+                Some((mi, ma))
+            } else {
+                Some((state.renderer.add_mesh(mesh), state.renderer.add_material_full([0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 1.6)))
+            }
+        } else { None };
+        let prior = state.homestead_ceiling;
+        state.homestead_ceiling = if !homestead.ceilings.0.is_empty() {
+            let mesh = Mesh::from_vertices(&state.renderer.device, &homestead.ceilings.0, &homestead.ceilings.1);
+            if let Some((mi, ma)) = prior {
+                state.renderer.replace_mesh(mi, mesh);
+                state.renderer.update_material_typed(ma, [0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0);
+                Some((mi, ma))
+            } else {
+                Some((state.renderer.add_mesh(mesh), state.renderer.add_material_typed([0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0)))
+            }
+        } else { None };
     }
 
     /// Regenerate the homestead meshes from the live layout (the construction editor's apply).
@@ -689,25 +726,34 @@ mod native_app {
             rebuild_connection_objects(state);
             return;
         }
-        // Count changed (add / remove) or first build: rebuild meshes fresh.
-        state.machine_objects.clear();
+        // Count changed (add / remove) or first build. Reuse prior mesh/material SLOTS where they
+        // exist (replace in place) instead of clear()+re-add, so a single add/remove doesn't orphan
+        // the whole ~100-mesh home; only the growth pushes new slots, and a shrink orphans the tail
+        // once (bounded). (v0.531 -- the renderer free path.)
+        let prior = std::mem::take(&mut state.machine_objects);
         state.gui_state.machine_labels.clear();
-        for p in placements {
+        let mut objs = Vec::with_capacity(placements.len());
+        for (i, p) in placements.iter().enumerate() {
             let mesh = machine_mesh(&state.renderer.device, &p.shape, p.size);
-            let mesh_idx = state.renderer.add_mesh(mesh);
-            let mat = state
-                .renderer
-                .add_material_typed([p.color.0, p.color.1, p.color.2, 1.0], 0.1, 0.7, 0.0);
-            state
-                .machine_objects
-                .push((mesh_idx, mat, Vec3::new(p.pos.0, p.pos.1, p.pos.2)));
+            let color = [p.color.0, p.color.1, p.color.2, 1.0];
+            let pos = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
+            if let Some(&(mi, ma, _)) = prior.get(i) {
+                state.renderer.replace_mesh(mi, mesh);
+                state.renderer.update_material_typed(ma, color, 0.1, 0.7, 0.0);
+                objs.push((mi, ma, pos));
+            } else {
+                let mi = state.renderer.add_mesh(mesh);
+                let ma = state.renderer.add_material_typed(color, 0.1, 0.7, 0.0);
+                objs.push((mi, ma, pos));
+            }
             state.gui_state.machine_labels.push(crate::gui::MachineLabel {
                 pos: Vec3::new(p.pos.0, p.top_y + 0.4, p.pos.2),
-                name: p.label,
-                stats: p.stats,
-                room: p.room,
+                name: p.label.clone(),
+                stats: p.stats.clone(),
+                room: p.room.clone(),
             });
         }
+        state.machine_objects = objs;
         rebuild_connection_objects(state);
     }
 
@@ -2823,6 +2869,11 @@ mod native_app {
                             && !state.gui_state.showroom_active
                         {
                             state.gui_state.construction_active = !state.gui_state.construction_active;
+                            // Clear any held placement item on entering/leaving build mode, so a
+                            // stale held type can't make the next viewport click drop a machine in
+                            // the wrong context. (v0.531)
+                            state.gui_state.construction_place_type = None;
+                            state.construction_ghost = None;
                             if state.gui_state.construction_active {
                                 if let Some(layout) = &state.homestead_layout {
                                     // PIN EVERY room to its current resolved position on open, so
@@ -3847,13 +3898,20 @@ mod native_app {
                                 if let Some(def) = def {
                                     let mesh =
                                         machine_mesh(&state.renderer.device, &def.shape, def.size);
-                                    let mesh_idx = state.renderer.add_mesh(mesh);
-                                    let mat = state.renderer.add_material_typed(
-                                        [def.color.0, def.color.1, def.color.2, 0.45],
-                                        0.1,
-                                        0.6,
-                                        0.4,
-                                    );
+                                    let color = [def.color.0, def.color.1, def.color.2, 0.45];
+                                    // Reuse the prior ghost slot so switching held type does not
+                                    // leak a mesh+material each time. (v0.531)
+                                    let slot =
+                                        state.construction_ghost.as_ref().map(|(_, m, mt)| (*m, *mt));
+                                    let (mesh_idx, mat) = if let Some((mi, ma)) = slot {
+                                        state.renderer.replace_mesh(mi, mesh);
+                                        state.renderer.update_material_typed(ma, color, 0.1, 0.6, 0.4);
+                                        (mi, ma)
+                                    } else {
+                                        let mi = state.renderer.add_mesh(mesh);
+                                        let ma = state.renderer.add_material_typed(color, 0.1, 0.6, 0.4);
+                                        (mi, ma)
+                                    };
                                     state.construction_ghost = Some((mtype.clone(), mesh_idx, mat));
                                 }
                             }

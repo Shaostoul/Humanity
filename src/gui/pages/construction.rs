@@ -557,6 +557,9 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 }
                 if ui.button("Close").clicked() {
                     state.construction_active = false;
+                    // Drop any held placement item so reopening doesn't drop a machine on the first
+                    // click (the ghost slot itself is harmless + reused on reopen). (v0.531)
+                    state.construction_place_type = None;
                 }
             });
             ui.label(

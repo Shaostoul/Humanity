@@ -391,6 +391,48 @@ impl Renderer {
         idx
     }
 
+    /// Replace the mesh at `idx` in place: drops the old mesh (wgpu frees its vertex/index buffers)
+    /// and reuses the slot, so a per-frame editor rebuild (a room drag, a machine move) never leaks
+    /// meshes. No-op if idx is out of range. (v0.531: the renderer is otherwise append-only.)
+    pub fn replace_mesh(&mut self, idx: usize, mesh: Mesh) {
+        if let Some(slot) = self.meshes.get_mut(idx) {
+            *slot = mesh;
+        }
+    }
+
+    /// Update the material at `idx` in place by rewriting its existing uniform buffer (reuses the
+    /// buffer + bind group, zero allocation). No-op if idx is out of range. (v0.531)
+    pub fn update_material_full(
+        &mut self,
+        idx: usize,
+        base_color: [f32; 4],
+        metallic: f32,
+        roughness: f32,
+        material_type: f32,
+        emissive: f32,
+    ) {
+        if let Some(mat) = self.materials.get(idx) {
+            let uniforms = MaterialUniforms {
+                base_color,
+                params: [metallic, roughness, material_type, emissive],
+            };
+            self.queue
+                .write_buffer(&mat.buffer, 0, bytemuck::bytes_of(&uniforms));
+        }
+    }
+
+    /// Update the material at `idx` in place (typed convenience; emissive 0). (v0.531)
+    pub fn update_material_typed(
+        &mut self,
+        idx: usize,
+        base_color: [f32; 4],
+        metallic: f32,
+        roughness: f32,
+        material_type: f32,
+    ) {
+        self.update_material_full(idx, base_color, metallic, roughness, material_type, 0.0);
+    }
+
     /// Set point lights for the next render call. Up to 8 lights supported.
     /// Each light: (position, color_rgb, intensity, radius).
     pub fn set_point_lights(&mut self, lights: &[(Vec3, [f32; 3], f32, f32)]) {
