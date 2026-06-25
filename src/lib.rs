@@ -686,6 +686,7 @@ mod native_app {
                 state.machine_objects[i].2 = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
                 state.gui_state.machine_labels[i].pos = Vec3::new(p.pos.0, p.top_y + 0.4, p.pos.2);
             }
+            rebuild_connection_objects(state);
             return;
         }
         // Count changed (add / remove) or first build: rebuild meshes fresh.
@@ -706,6 +707,82 @@ mod native_app {
                 stats: p.stats,
                 room: p.room,
             });
+        }
+        rebuild_connection_objects(state);
+    }
+
+    /// Rebuild the home connection cylinders from the live machine layout (gui_state.home_machines
+    /// + room_bounds): one colored cylinder per connection, between the two machines' low pipe
+    /// anchors. Uses a cached unit cylinder + a material cached per kind, so a per-frame rebuild
+    /// never leaks. Replaces the old static routed pipes -- connections now follow rooms. (v0.530)
+    fn rebuild_connection_objects(state: &mut EngineState) {
+        use std::collections::HashMap;
+        state.connection_objects.clear();
+        let rooms: HashMap<String, crate::machines::RoomGeom> = state
+            .gui_state
+            .room_bounds
+            .iter()
+            .map(|rb| {
+                (
+                    rb.id.clone(),
+                    crate::machines::RoomGeom {
+                        center_x: (rb.min.x + rb.max.x) * 0.5,
+                        center_z: (rb.min.z + rb.max.z) * 0.5,
+                        floor_y: rb.min.y,
+                        ceiling_y: rb.max.y,
+                    },
+                )
+            })
+            .collect();
+        if rooms.is_empty() {
+            return;
+        }
+        let (placements, connections) = match &state.gui_state.home_machines {
+            Some(h) => (h.placements(&rooms), h.connections.clone()),
+            None => return,
+        };
+        if connections.is_empty() {
+            return;
+        }
+        // Low pipe-height anchor per machine id (matches the old routed-pipe anchor).
+        let anchors: HashMap<String, Vec3> = placements
+            .iter()
+            .map(|p| (p.id.clone(), Vec3::new(p.pos.0, p.floor_y + 0.35, p.pos.2)))
+            .collect();
+        // Cached unit cylinder mesh (+Y, base at origin, radius 0.05, height 1).
+        let cyl = match state.connection_cyl {
+            Some(m) => m,
+            None => {
+                let m = state
+                    .renderer
+                    .add_mesh(Mesh::cylinder(&state.renderer.device, 0.05, 1.0, 8));
+                state.connection_cyl = Some(m);
+                m
+            }
+        };
+        for c in &connections {
+            let (Some(&a), Some(&b)) = (anchors.get(&c.from), anchors.get(&c.to)) else {
+                continue;
+            };
+            let diff = b - a;
+            let len = diff.length();
+            if len < 1e-4 {
+                continue;
+            }
+            let rot = Quat::from_rotation_arc(Vec3::Y, diff / len);
+            // Material cached per kind (colored by connection kind).
+            let mat = match state.connection_mats.get(&c.kind) {
+                Some(&m) => m,
+                None => {
+                    let col = crate::machines::MachineHome::connection_color(&c.kind);
+                    let m = state.renderer.add_material_typed(col, 0.5, 0.4, 0.25);
+                    state.connection_mats.insert(c.kind.clone(), m);
+                    m
+                }
+            };
+            state
+                .connection_objects
+                .push((cyl, mat, a, rot, Vec3::new(1.0, len, 1.0)));
         }
     }
 
@@ -1212,15 +1289,6 @@ mod native_app {
                         )
                     })
                     .collect();
-                // Anchor (low pipe height) per instance, so connection tubes line up.
-                let mut anchors: HashMap<String, Vec3> = HashMap::new();
-                // Per-instance (floor_y, ceiling_y) so the pipe router can size run height.
-                let mut anchor_rooms: HashMap<String, (f32, f32)> = HashMap::new();
-                // Room AABBs (min, max) so the router can sleeve pipes at wall penetrations.
-                let room_aabbs: Vec<(Vec3, Vec3)> = room_info
-                    .iter()
-                    .map(|r| (r.center - r.dimensions * 0.5, r.center + r.dimensions * 0.5))
-                    .collect();
                 state.gui_state.machine_labels.clear();
                 // Despawn any previously-spawned home machine entities so re-entering the
                 // world never duplicates the live power entities (load_world can re-run).
@@ -1257,7 +1325,7 @@ mod native_app {
                 // Explicit instances + every `arrays` grid expanded (dense garden towers).
                 let all_instances = home.all_instances();
                 for inst in &all_instances {
-                    let Some(&(center, floor_y, ceiling_y)) = rooms.get(inst.room.as_str()) else { continue };
+                    let Some(&(center, floor_y, _ceiling_y)) = rooms.get(inst.room.as_str()) else { continue };
                     let Some(def) = home.catalog.get(&inst.machine) else { continue };
                     // Position formula mirrored by the tested MachineHome::placements (the editor's
                     // live-refresh twin); keep the two in sync. (v0.525)
@@ -1282,8 +1350,6 @@ mod native_app {
                         pos
                     };
                     state.machine_objects.push((mesh_idx, mat, draw_pos));
-                    anchors.insert(inst.id.clone(), Vec3::new(pos.x, floor_y + 0.35, pos.z));
-                    anchor_rooms.insert(inst.id.clone(), (floor_y, ceiling_y));
                     // Floating label anchor: just above the machine's top.
                     let top_y = if def.shape == "sphere" { pos.y + 2.0 * sx } else { pos.y + sy };
                     let name = if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() };
@@ -1334,118 +1400,11 @@ mod native_app {
                     }
                     placed += 1;
                 }
-                // Connections as REALISTIC routed pipe runs: orthogonal up-over-down routing
-                // (no diagonals through walls/machines) with real fittings, the way a plumber
-                // and electrician would install exposed services on a ship. Rules are data
-                // (data/routing_rules.ron); the geometry plan comes from the routing module.
-                use crate::systems::construction::routing::{plan_pipe, PipePart, RoutingRules};
-                let rules = RoutingRules::load(&state.data_dir.join("routing_rules.ron"));
-                // Shared fitting meshes/materials reused by translation (keeps mesh count sane).
-                let bracket_mesh =
-                    state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 0.06, 0.05, 0.06));
-                let bracket_mat =
-                    state.renderer.add_material_typed([0.45, 0.46, 0.48, 1.0], 0.9, 0.5, 0.0); // steel grey
-                let lever_mat =
-                    state.renderer.add_material_typed([0.80, 0.20, 0.16, 1.0], 0.5, 0.5, 0.0); // red valve lever
-                let sleeve_mat =
-                    state.renderer.add_material_typed([0.55, 0.56, 0.58, 1.0], 0.9, 0.45, 0.0); // steel wall sleeve
-                let mut linked = 0usize;
-                for conn in &home.connections {
-                    let (Some(&a), Some(&b)) = (anchors.get(&conn.from), anchors.get(&conn.to))
-                    else {
-                        continue;
-                    };
-                    let (fa, ca) = anchor_rooms.get(&conn.from).copied().unwrap_or((a.y - 0.35, a.y + 3.0));
-                    let (fb, cb) = anchor_rooms.get(&conn.to).copied().unwrap_or((b.y - 0.35, b.y + 3.0));
-                    let floor = fa.max(fb);
-                    let ceiling = ca.min(cb);
-                    let run_h = rules.run_height(&conn.kind, floor, ceiling);
-                    let (_lane, pipe_r) = rules.lane(&conn.kind);
-                    let color = crate::machines::MachineHome::connection_color(&conn.kind);
-                    // Metallic pipe body; fittings (elbows/collars/valve body) a shade darker.
-                    let pipe_mat = state.renderer.add_material_typed(color, 0.7, 0.35, 0.0);
-                    let fitting_mat = state.renderer.add_material_typed(
-                        [color[0] * 0.7, color[1] * 0.7, color[2] * 0.7, 1.0],
-                        0.85,
-                        0.4,
-                        0.0,
-                    );
-                    // One elbow sphere per run (all its elbows share a radius), reused by position.
-                    let elbow_mesh = state.renderer.add_mesh(Mesh::sphere(
-                        &state.renderer.device,
-                        pipe_r * rules.elbow_mult,
-                        8,
-                        10,
-                    ));
-                    let parts =
-                        plan_pipe(a, b, pipe_r, run_h, rules.is_fluid(&conn.kind), &room_aabbs, &rules);
-                    for part in &parts {
-                        match part {
-                            PipePart::Tube { a, b, radius } => {
-                                let m = state.renderer.add_mesh(Mesh::tube(
-                                    &state.renderer.device,
-                                    *a,
-                                    *b,
-                                    *radius,
-                                    8,
-                                ));
-                                state.placeholder_objects.push((m, pipe_mat, Vec3::ZERO));
-                            }
-                            PipePart::Elbow { at, .. } => {
-                                state.placeholder_objects.push((elbow_mesh, fitting_mat, *at));
-                            }
-                            PipePart::Bracket { at } => {
-                                state.placeholder_objects.push((
-                                    bracket_mesh,
-                                    bracket_mat,
-                                    Vec3::new(at.x, at.y - 0.025, at.z),
-                                ));
-                            }
-                            PipePart::Valve { at, axis, radius } => {
-                                let half = *axis * 0.05;
-                                let bm = state.renderer.add_mesh(Mesh::tube(
-                                    &state.renderer.device,
-                                    *at - half,
-                                    *at + half,
-                                    *radius,
-                                    8,
-                                ));
-                                state.placeholder_objects.push((bm, fitting_mat, Vec3::ZERO));
-                                // Lever sticking out (the ball-valve handle).
-                                state.placeholder_objects.push((
-                                    bracket_mesh,
-                                    lever_mat,
-                                    Vec3::new(at.x + 0.09, at.y, at.z),
-                                ));
-                            }
-                            PipePart::Penetration { at, axis, radius } => {
-                                // Steel sleeve through the wall + a wider escutcheon ring.
-                                let half = *axis * 0.09;
-                                let sleeve = state.renderer.add_mesh(Mesh::tube(
-                                    &state.renderer.device,
-                                    *at - half,
-                                    *at + half,
-                                    *radius,
-                                    10,
-                                ));
-                                state.placeholder_objects.push((sleeve, sleeve_mat, Vec3::ZERO));
-                                let band = *axis * 0.02;
-                                let ring = state.renderer.add_mesh(Mesh::tube(
-                                    &state.renderer.device,
-                                    *at - band,
-                                    *at + band,
-                                    *radius * 1.5,
-                                    10,
-                                ));
-                                state.placeholder_objects.push((ring, sleeve_mat, Vec3::ZERO));
-                            }
-                        }
-                    }
-                    linked += 1;
-                }
-                log::info!("Machines: placed {placed} machines + {linked} connections");
+                log::info!("Machines: placed {placed} machines");
             }
         }
+        // Build the live connection cylinders (replaces the old static routed pipes). (v0.530)
+        rebuild_connection_objects(state);
 
         // ── Solar system hologram (map-sync increment C, v0.262.13) ──
         // Driven by the CANONICAL crate::cosmos model at the live date,
@@ -1991,6 +1950,14 @@ mod native_app {
         /// positions come from the tested `MachineHome::placements`. Drawn when not in the showroom.
         /// (v0.525, the live-edit preview that makes the build mode feel real.)
         machine_objects: Vec<(usize, usize, Vec3)>,
+        /// Home machine CONNECTIONS as live colored cylinders (v0.530): (mesh, material, position,
+        /// rotation, scale). Replaces the static routed pipes so connections appear immediately +
+        /// follow rooms in the editor. Rebuilt with the machines; uses one cached unit cylinder mesh
+        /// (`connection_cyl`) transformed per link + a material cached per kind (`connection_mats`),
+        /// so a per-frame drag does not leak meshes.
+        connection_objects: Vec<(usize, usize, Vec3, Quat, Vec3)>,
+        connection_cyl: Option<usize>,
+        connection_mats: std::collections::HashMap<String, usize>,
         /// Index in `placeholder_objects` where the player avatar's parts begin (the avatar
         /// is added last in load_world). Lets the showroom render only the avatar + rebuild
         /// it on appearance change by truncating to this index. (v0.441)
@@ -2549,6 +2516,9 @@ mod native_app {
                 homestead_floors: Vec::new(),
                 placeholder_objects: Vec::new(),
                 machine_objects: Vec::new(),
+                connection_objects: Vec::new(),
+                connection_cyl: None,
+                connection_mats: std::collections::HashMap::new(),
                 avatar_obj_start: 0,
                 avatar_base: Vec3::ZERO,
                 fps_spawn: Vec3::new(0.0, 1.7, 0.0),
@@ -3843,6 +3813,16 @@ mod native_app {
                                 position: pos,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
+                                mesh: mesh_idx,
+                                material: mat_idx,
+                            });
+                        }
+                        // Connection cylinders (live, colored by kind; follow rooms). (v0.530)
+                        for &(mesh_idx, mat_idx, pos, rot, scale) in &state.connection_objects {
+                            all_objects.push(RenderObject {
+                                position: pos,
+                                rotation: rot,
+                                scale,
                                 mesh: mesh_idx,
                                 material: mat_idx,
                             });
