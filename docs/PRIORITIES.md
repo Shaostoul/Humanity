@@ -30,21 +30,21 @@
 > - **Stage 4 (animated doors) v0.537** -- `ship/door_panels.rs` + `render_door_panels`: each opening's
 >   panel animates by its style (swing/slide/iris/energy/nanowall...), doors ease open on approach,
 >   windows are fixed glass.
-> - Three adversarial reviews (v0.534, v0.535-536, v0.537) all CLEAN -- no crash/panic/leak/feature bugs.
+> - **Stage 5 (position-based machines) v0.538** -- machines in a HomeStructure home position by ABSOLUTE
+>   world coords (clamped into the box), never skipped on a stale room id, so they survive wall-edit
+>   room-id churn AND the old home.ron machines render (visible at box edges, draggable). `load_world` +
+>   `placements()` box-mode branches kept in sync; HUD occlusion -> geometric; garden count -> by stat.
+>   Found + scoped by a 5-agent discovery workflow; legacy ship layout untouched.
+> - Adversarial reviews v0.534 / v0.535-536 / v0.537 all CLEAN; v0.538 review in flight.
 >
-> > **CURRENT #1 -- MACHINE POSITIONING (the redesign's last follow-up).** The reviews surfaced it:
-> > machines bind to a room id + a room-center-relative offset, but flood-fill room ids churn as walls
-> > are edited, so (a) the shipped `home.ron` machines (old garage/garden/study ids) render NOTHING in
-> > the box, and (b) a machine vanishes when a later wall edit re-numbers rooms. FIX (in progress): make
-> > machines POSITION-BASED (absolute world x/z) for the HomeStructure home -- render regardless of room
-> > churn; old relative offsets become absolute (cluster near the box corner, visible, operator
-> > rearranges); the legacy AABB-room ship path keeps room-relative offsets. A discovery workflow mapped
-> > the touch points (placements / load_world spawn loop / try_place_held_machine / save-load /
-> > buildability / connection anchors); implement per that plan, then adversarial-review. Also fold in
-> > the v0.537 door-review nit: gate the door open-trigger on `door_anim::is_operable(style)` so a
-> > door explicitly styled "fixed" stays shut.
-> > **Then:** the glass/clear roof (operator wanted it); door-animation FEEL tuning (open distance/easing)
-> > after the operator launch-checks; the deferred v0.531 object-cap reorder+warn.
+> > **REDESIGN COMPLETE. Remaining items (all operator-gated or optional, none blocking):**
+> > - **Operator data decision (open):** keep + rearrange the old machines (current default -- they
+> >   cluster at box edges, visible/draggable) vs CLEAR for a truly fresh box, vs I re-author home.ron
+> >   into intentional positive box coords. Awaiting the operator's pick.
+> > - **The glass/clear roof** the operator wanted (a transparent shell-material option + render).
+> > - **Door-animation FEEL tuning** (open distance / easing / hinge side) after the operator launch-checks.
+> > - **Deferred v0.531 review follow-ups:** object-cap reorder+warn (hologram truncates before machines
+> >   when >1024), sphere ghost floor-lift, ghost-over-panel gate.
 
 > **ACTIVE 2026-06-23: HOME-DESIGN AI/PLAYER PARITY arc (operator-directed).** Make the AI's
 > home designs use the SAME machinery players build with, so they're inherently player-workable
