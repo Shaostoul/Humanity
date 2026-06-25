@@ -626,7 +626,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // ── LEFT: the fixed box, the interior-wall list, and the wall-drawing tool ──
     egui::SidePanel::left("home_structure_walls")
         .resizable(true)
-        .default_width(212.0)
+        .default_width(238.0)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
             ui.label(RichText::new("Home structure").size(theme.font_size_body).strong().color(theme.text_primary()));
@@ -689,6 +689,10 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     state.construction_structure_dirty = true;
                 }
             });
+
+            // Machines + connections (v0.536): place machines from the footer palette, then wire
+            // them here -- each connection routes as a copper/flexible conduit with brackets + gaskets.
+            draw_machines_and_connections(ui, theme, state);
 
             ui.add_space(theme.spacing_md);
             ui.separator();
@@ -846,6 +850,121 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 state.construction_structure_dirty = true;
             }
         });
+}
+
+/// Machines + connections for the wall editor (v0.536). Lists the machines placed in the box (place
+/// them from the footer palette) and lets you WIRE two of them with a resource -- each connection
+/// then routes as a conduit (potable water = rigid copper, power = a flexible cord, else a hose) with
+/// procedural ceiling hangers + material-aware passthrough gaskets. Edits flag
+/// construction_machines_dirty so the conduits rebuild live.
+fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    /// Friendly short label for a machine id: its last two underscore segments (e.g. "tower_2").
+    fn label(s: &str) -> String {
+        let p: Vec<&str> = s.split('_').collect();
+        if p.len() >= 2 { format!("{}_{}", p[p.len() - 2], p[p.len() - 1]) } else { s.to_string() }
+    }
+
+    ui.add_space(theme.spacing_md);
+    ui.separator();
+    ui.add_space(theme.spacing_sm);
+    ui.label(RichText::new("Machines").strong().color(theme.text_primary()));
+
+    // Snapshot the placed machines (id, type, room) for the list + the connection combos.
+    let machines: Vec<(String, String, String)> = state
+        .home_machines
+        .as_ref()
+        .map(|h| h.all_instances().into_iter().map(|i| (i.id, i.machine, i.room)).collect())
+        .unwrap_or_default();
+    if machines.is_empty() {
+        ui.label(RichText::new("None yet -- pick one from the palette below and click the floor.")
+            .size(theme.font_size_small).color(theme.text_muted()));
+    } else {
+        ui.label(RichText::new(format!("{} placed", machines.len())).size(theme.font_size_small).color(theme.text_muted()));
+        let mut remove_machine: Option<String> = None;
+        egui::ScrollArea::vertical().id_salt("hs_machine_list").max_height(110.0).show(ui, |ui| {
+            for (id, mtype, room) in &machines {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("{mtype}  ({room})")).size(theme.font_size_small));
+                    if ui.small_button("x").clicked() {
+                        remove_machine = Some(id.clone());
+                    }
+                });
+            }
+        });
+        if let Some(id) = remove_machine {
+            if let Some(h) = state.home_machines.as_mut() {
+                h.remove_instance(&id);
+            }
+            state.construction_machines_dirty = true;
+        }
+    }
+
+    ui.add_space(theme.spacing_sm);
+    ui.label(RichText::new("Connections").strong().color(theme.text_primary()));
+    if machines.len() >= 2 {
+        if state.home_conn_from.is_empty() {
+            state.home_conn_from = machines[0].0.clone();
+        }
+        if state.home_conn_to.is_empty() {
+            state.home_conn_to = machines[1].0.clone();
+        }
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_salt("hs_conn_from").width(68.0).selected_text(label(&state.home_conn_from)).show_ui(ui, |ui| {
+                for (id, _, _) in &machines {
+                    ui.selectable_value(&mut state.home_conn_from, id.clone(), label(id));
+                }
+            });
+            ui.label("->");
+            egui::ComboBox::from_id_salt("hs_conn_to").width(68.0).selected_text(label(&state.home_conn_to)).show_ui(ui, |ui| {
+                for (id, _, _) in &machines {
+                    ui.selectable_value(&mut state.home_conn_to, id.clone(), label(id));
+                }
+            });
+        });
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_salt("hs_conn_kind").width(82.0).selected_text(state.home_conn_kind.clone()).show_ui(ui, |ui| {
+                for k in ["water", "power", "greywater", "gas"] {
+                    ui.selectable_value(&mut state.home_conn_kind, k.to_string(), k);
+                }
+            });
+            if ui.button("Connect").clicked() {
+                let (from, to, kind) = (state.home_conn_from.clone(), state.home_conn_to.clone(), state.home_conn_kind.clone());
+                if from != to && !from.is_empty() && !to.is_empty() {
+                    if let Some(h) = state.home_machines.as_mut() {
+                        h.add_connection(&from, &to, &kind);
+                    }
+                    state.construction_machines_dirty = true;
+                }
+            }
+        });
+    } else {
+        ui.label(RichText::new("Place at least two machines to wire them.").size(theme.font_size_small).color(theme.text_muted()));
+    }
+
+    // The connection list (resource: from -> to), each removable.
+    let conns: Vec<(String, String, String)> = state
+        .home_machines
+        .as_ref()
+        .map(|h| h.connections.iter().map(|c| (c.from.clone(), c.to.clone(), c.kind.clone())).collect())
+        .unwrap_or_default();
+    if !conns.is_empty() {
+        let mut remove_conn: Option<usize> = None;
+        for (i, (from, to, kind)) in conns.iter().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(format!("{kind}: {} -> {}", label(from), label(to)))
+                    .size(theme.font_size_small).color(theme.text_muted()));
+                if ui.small_button("x").clicked() {
+                    remove_conn = Some(i);
+                }
+            });
+        }
+        if let Some(i) = remove_conn {
+            if let Some(h) = state.home_machines.as_mut() {
+                h.remove_connection(i);
+            }
+            state.construction_machines_dirty = true;
+        }
+    }
 }
 
 /// The placement palette (v0.527): a game-style footer bar. Category tabs across the top, then a

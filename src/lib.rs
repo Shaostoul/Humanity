@@ -797,12 +797,13 @@ mod native_app {
         if connections.is_empty() {
             return;
         }
-        // Low pipe-height anchor per machine id (matches the old routed-pipe anchor).
+        // Low pipe-height anchor per machine id (the fixture port the conduit drops to).
         let anchors: HashMap<String, Vec3> = placements
             .iter()
             .map(|p| (p.id.clone(), Vec3::new(p.pos.0, p.floor_y + 0.35, p.pos.2)))
             .collect();
-        // Cached unit cylinder mesh (+Y, base at origin, radius 0.05, height 1).
+        // Cached unit cylinder mesh (+Y, base at origin, radius 0.05, height 1) -- reused for every
+        // conduit segment + fitting, scaled/rotated, so a rebuild never leaks.
         let cyl = match state.connection_cyl {
             Some(m) => m,
             None => {
@@ -813,29 +814,94 @@ mod native_app {
                 m
             }
         };
+        // Home geometry for routing (v0.536): run conduits UP to a service height near the ceiling
+        // and ACROSS in Manhattan legs (never a straight diagonal through the room -- the operator's
+        // "the straight lines that pass through everything is wrong"), placing material-aware
+        // passthroughs where a run crosses an interior wall.
+        let (home_h, shell_mat, walls) = match &state.gui_state.home_structure {
+            Some(hs) => (hs.height, hs.shell_material, hs.walls.clone()),
+            None => (3.0, 1, Vec::new()),
+        };
+        let service_y = (home_h - 0.3).max(0.6);
+        const CYL_R: f32 = 0.05; // the unit cylinder's modeled radius
         for c in &connections {
             let (Some(&a), Some(&b)) = (anchors.get(&c.from), anchors.get(&c.to)) else {
                 continue;
             };
-            let diff = b - a;
-            let len = diff.length();
-            if len < 1e-4 {
-                continue;
-            }
-            let rot = Quat::from_rotation_arc(Vec3::Y, diff / len);
-            // Material cached per kind (colored by connection kind).
-            let mat = match state.connection_mats.get(&c.kind) {
+            let kind = crate::ship::conduits::ConduitKind::for_resource(&c.kind);
+            let route = crate::ship::conduits::route_conduit(a, b, kind, service_y, shell_mat, &walls);
+            // Pipe material cached per conduit kind (copper / rubber hose / black cord).
+            let pkey = format!("conduit:{kind:?}");
+            let pipe_mat = match state.connection_mats.get(&pkey) {
                 Some(&m) => m,
                 None => {
-                    let col = crate::machines::MachineHome::connection_color(&c.kind);
-                    let m = state.renderer.add_material_typed(col, 0.5, 0.4, 0.25);
-                    state.connection_mats.insert(c.kind.clone(), m);
+                    let (met, rough) = if kind.is_rigid() { (0.85, 0.25) } else { (0.0, 0.7) };
+                    let m = state.renderer.add_material_typed(kind.color(), met, rough, 0.0);
+                    state.connection_mats.insert(pkey.clone(), m);
                     m
                 }
             };
-            state
-                .connection_objects
-                .push((cyl, mat, a, rot, Vec3::new(1.0, len, 1.0)));
+            let rscale = kind.radius() / CYL_R;
+            // The routed pipe: one cylinder per leg (up, across, across, down).
+            for seg in route.points.windows(2) {
+                let (p, q) = (seg[0], seg[1]);
+                let diff = q - p;
+                let len = diff.length();
+                if len < 1e-4 {
+                    continue;
+                }
+                let rot = Quat::from_rotation_arc(Vec3::Y, diff / len);
+                state
+                    .connection_objects
+                    .push((cyl, pipe_mat, p, rot, Vec3::new(rscale, len, rscale)));
+            }
+            // Procedural support structures: a ceiling hanger at each service-height bracket + a
+            // material-aware gasket collar at each wall passthrough. The fitting colour comes from the
+            // material it attaches to, so a steel vs wood wall reads differently.
+            for f in &route.fittings {
+                let fkey = format!("fitting:{}", f.material);
+                let fmat = match state.connection_mats.get(&fkey) {
+                    Some(&m) => m,
+                    None => {
+                        let col = match f.material {
+                            1 => [0.58, 0.60, 0.65, 1.0], // steel
+                            2 => [0.64, 0.64, 0.62, 1.0], // concrete
+                            3 => [0.52, 0.37, 0.22, 1.0], // wood
+                            _ => [0.50, 0.52, 0.56, 1.0],
+                        };
+                        let m = state.renderer.add_material_typed(col, 0.6, 0.4, f.material as f32);
+                        state.connection_mats.insert(fkey.clone(), m);
+                        m
+                    }
+                };
+                match f.kind {
+                    crate::ship::conduits::FittingKind::Bracket => {
+                        // Ceiling hanger (a thin post up to the ceiling) for the horizontal service
+                        // runs; the short vertical drops are held at their ends, so skip them.
+                        if f.at.y >= service_y - 0.1 {
+                            let drop = (home_h - f.at.y).max(0.05);
+                            state.connection_objects.push((
+                                cyl,
+                                fmat,
+                                f.at,
+                                Quat::IDENTITY,
+                                Vec3::new(0.5, drop, 0.5),
+                            ));
+                        }
+                    }
+                    crate::ship::conduits::FittingKind::Passthrough => {
+                        // A short gasket collar straddling the wall at the crossing.
+                        state.connection_objects.push((
+                            cyl,
+                            fmat,
+                            f.at - Vec3::new(0.0, 0.12, 0.0),
+                            Quat::IDENTITY,
+                            Vec3::new(2.4, 0.24, 2.4),
+                        ));
+                    }
+                    crate::ship::conduits::FittingKind::Elbow => {}
+                }
+            }
         }
     }
 
