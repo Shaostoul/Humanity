@@ -393,12 +393,22 @@
       "files": [
         "src/lib.rs"
       ]
+    },
+    {
+      "at": "2026-06-24",
+      "decision": "ADVERSARIAL REVIEW of build-mode (v0.527-0.530) -> FIXED the real bugs (v0.531.0). Ran a 4-dimension review workflow (14 agents, find->verify) while the operator tested v0.530; it confirmed 8 bugs. FIXED: (HIGH) room-drag GPU leak -- apply_room_drag sets construction_dirty every frame -> rebuild_homestead -> apply_homestead_meshes add_mesh+add_material'd ~15-20 buffers/frame and the renderer was APPEND-ONLY (no free path), so a multi-second drag orphaned hundreds-thousands of GPU buffers for the process lifetime. Added a renderer reuse API (replace_mesh: drops old mesh -> wgpu frees, reuses slot; update_material_typed/full: rewrites the existing uniform buffer in place, zero alloc) + made apply_homestead_meshes REUSE its prior slots. (MED) same-root per-edit leaks: rebuild_machine_objects slow path now reuses slots (a single add/remove no longer orphans the whole ~100-mesh home); the ghost reuses its slot on a held-type switch. (MED) stale held-item -- closing build mode (B OR the Close button) left construction_place_type set, so reopen+click silently DROPPED a machine; both close paths now clear it. native+relay+16 tests+3 lints+snapshot green; exe building. DEFERRED follow-ups (latent/cosmetic, in PRIORITIES): 1024 object cap can still be exceeded by a very dense garden (it truncates the hologram not the machines -- needs reorder+warn); sphere ghost not floor-lifted (dormant, no sphere in catalog); ghost previews over panels.",
+      "why": "Used Ultracode (review workflow) while the operator tested v0.530 + decided the line-look -- a non-preempting, correctness-first use of the wait, the same pattern that paid off on the v0.522 machine-editing review. It paid off again: the HIGH room-drag leak is exactly the v0.527-class per-frame GPU leak (forbidden by the repo rule) but on the homestead-shell path, masked because the machines take their fast path on a room move (placements.len() unchanged) so nothing visibly flickered -- I'd never have caught it by launch-testing. The real root (renderer append-only, no free path) now has a reuse API that ALL the cached-handle rebuilders (shell, machines, ghost) use. Deferred the latent/cosmetic findings to keep the fix release focused on what bites the operator now (leaks while they drag rooms + the wrong-context placement on reopen).",
+      "files": [
+        "src/renderer/mod.rs",
+        "src/lib.rs",
+        "src/gui/pages/construction.rs"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.530.0 (Latest). Local exe building (bd4nk437w). BUILD MODE: palette (v0.527) -> ghost placement (v0.529) -> live connection lines (v0.530, replaced static routed pipes; connections follow rooms now). NEXT: plumbing step 2 = click-machine-A -> click-machine-B gesture (machine-pick raycast + connect mode + Wiring palette category), pending operator confirm the v0.530 line look is OK. Then machine-pick select+drag; gate ghost to viewport region. Releases v0.516-0.530 await operator just sign-release. Deploy green.",
+  "version_state": "main==origin: v0.531.0 (Latest). Local exe building (b2k01mlwh). BUILD MODE: palette (v0.527) -> ghost placement (v0.529) -> live connection lines (v0.530) -> review-fixed GPU leaks + stale held-item (v0.531, via a new renderer replace_mesh/update_material reuse API). NEXT: plumbing step 2 = click-A->click-B connection gesture (pending operator's read on the v0.530 line look); deferred review follow-ups (object-cap reorder+warn, sphere ghost lift, ghost-over-panel gate). Releases v0.516-0.531 await operator just sign-release. Deploy green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",

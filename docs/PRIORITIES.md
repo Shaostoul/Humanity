@@ -55,13 +55,25 @@
 >       center). Stays held for multi-place; right-click / re-click cancels. Reuses the room
 >       floor-raycast (`cursor_floor_hit`). Ghost mesh cached (no per-frame leak). Also removed the
 >       legacy garden markers (the 2 non-responsive sphere-towers). Launch-verify (3D).
->   (3) **NEXT -- EASY PLUMBING (operator ask):** the from/to/kind dropdowns are clunky; make
->       connections a viewport gesture -- e.g. click machine A then machine B to draw a pipe (pick the
->       kind from a small popup or the palette). Same raycast + held-state pattern as ghost placement.
->   (4) **Click a machine to select + drag to move it** in the viewport (machine-pick raycast). And a
->       known follow-up: the ghost previews even when the cursor is over a side panel (gate on the
->       viewport region). Connection pipes still don't follow a room move live.
->   (5) Future categories beyond machines: Structure (place a room/wall), Furniture -- the palette
+>   (3) **Live connection lines SHIPPED v0.530** -- connections render as live colored cylinders that
+>       follow rooms (replaced the static routed pipes). Trade-off surfaced to operator: simple lines
+>       vs realistic routed pipes; awaiting their read on the look.
+>   (4) **GPU-leak + stale-held-item fixes SHIPPED v0.531** (from an adversarial review): a HIGH
+>       per-frame room-drag leak (renderer was append-only; now has a replace_mesh/update_material
+>       reuse API used by the shell/machine/ghost rebuilders), per-edit machine+ghost leaks, and the
+>       stale-held-item-across-editor-close wrong-context placement.
+>   (5) **NEXT -- EASY PLUMBING step 2 (operator ask):** click machine A then machine B to draw a
+>       connection (machine-pick raycast + connect mode + a Wiring palette category), on top of the
+>       v0.530 live lines. Pending the operator's read on the line look.
+>   (6) **Click a machine to select + drag to move it** in the viewport (machine-pick raycast).
+> - **Build-mode review follow-ups (deferred, from the v0.531 adversarial review):**
+>   - 1024 object cap can still be exceeded by a very dense garden (a big MachineArray); worse, the
+>     truncation drops the hologram/remote-players (pushed AFTER machines) not the excess machines.
+>     Fix: reorder the all_objects pushes so the unbounded machines are last + a one-shot overflow warn,
+>     or a growable object buffer (infinite-of-X).
+>   - The placement ghost isn't floor-lifted for a sphere shape (dormant -- no sphere in the catalog).
+>   - The ghost previews even when the cursor is over a side panel (gate on egui pointer-over-area).
+>   (7) Future categories beyond machines: Structure (place a room/wall), Furniture -- the palette
 >       framework already supports any category; these need their own placement actions wired in.
 > - **Deferred (operator's pick when build-mode lands):** Stage 3b validator (water/structure/
 >   materials -- a data-model step); Stage 4 unify the model (home-design.md open questions);
