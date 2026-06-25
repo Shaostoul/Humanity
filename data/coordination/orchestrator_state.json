@@ -385,12 +385,20 @@
         "src/gui/pages/construction.rs",
         "src/gui/ui_snapshots.rs"
       ]
+    },
+    {
+      "at": "2026-06-24",
+      "decision": "PLUMBING step 1 -- LIVE CONNECTION LINES SHIPPED (v0.530.0). Operator confirmed ghost placement works + said proceed (to easy plumbing). Easy plumbing = a click-A->click-B gesture + the pipes must render LIVE for it to feel good. Step 1 (this): replaced the static routed-pipe rendering (elaborate plan_pipe orthogonal routing + fittings, baked once at world entry -> didn't follow a room drag, the operator's complaint) with LIVE connection cylinders. New connection_objects on EngineState (mesh,material,pos,rot,scale): one colored cylinder per connection between the two machines' low pipe anchors, oriented +Y->A-to-B via Quat::from_rotation_arc + stretched to length. rebuild_connection_objects builds them from the live home_machines+room_bounds via the tested placements; called wherever machines rebuild + at world entry. ONE cached unit-cylinder mesh + a material cached per kind, so a per-frame drag never leaks (the v0.527-leak lesson). Removed the routed-pipe block + dead anchor/aabb maps; left the routing module for a possible future realistic-routing render mode. native+relay+16 machines tests+3 lints+snapshot green; exe building. 3D is launch-verify. TRADE-OFF surfaced to operator: connections are now straight colored lines (clear+live) not realistic routed pipes.",
+      "why": "Split easy plumbing into (1) live lines, (2) the gesture -- because the connection rendering is 3D launch-verify-only (can't snapshot) AND it's a visible look-change (routed pipes -> simple lines) that's a taste call. Better to get the operator's read on the line look before building the click-A->B gesture on top of it. The routed-pipe rebuild-live option was rejected: the routing is complex + would leak meshes every frame on a drag; simple cached-cylinder lines are live, cheap, follow rooms, and read clearly as a connection diagram in the editor. Cached the mesh+materials from the start (didn't repeat the v0.527 leak). NEXT = the gesture (machine-pick raycast + connect mode + palette Wiring category + click A -> click B), pending the operator's confirm the lines look acceptable.",
+      "files": [
+        "src/lib.rs"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.529.0 (Latest). Local exe building (btxwglgfi). BUILD MODE: footer palette (v0.527) -> ghost placement + dead-marker removal (v0.529). Machines render+move+follow-rooms (v0.528 fixed the 256-cap vanish). NEXT: easy plumbing (click A->click B to connect); machine-pick select+drag; gate the ghost to the viewport region (it previews over panels too). AWAITING operator test of v0.529 ghost placement. Releases v0.516-0.529 await operator just sign-release. Deploy green.",
+  "version_state": "main==origin: v0.530.0 (Latest). Local exe building (bd4nk437w). BUILD MODE: palette (v0.527) -> ghost placement (v0.529) -> live connection lines (v0.530, replaced static routed pipes; connections follow rooms now). NEXT: plumbing step 2 = click-machine-A -> click-machine-B gesture (machine-pick raycast + connect mode + Wiring palette category), pending operator confirm the v0.530 line look is OK. Then machine-pick select+drag; gate ghost to viewport region. Releases v0.516-0.530 await operator just sign-release. Deploy green.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
