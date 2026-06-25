@@ -11,30 +11,40 @@
 
 ## Active focus
 
-> **ACTIVE 2026-06-24 -- HOME-CONSTRUCTION REDESIGN (operator-directed, the current #1).** The
-> operator hit the wall on the build mode below: rooms-as-sliding-AABBs is the root problem (a room
-> isn't a box, it's the space enclosed by walls), and the straight-line pipes pass through everything.
-> NEW MODEL (confirmed): node/wall construction -- a FIXED outer box (the mothership allotment, 55 x 89
-> x 3 m, all steel for now) + freely-designed INTERIOR WALLS placed as segments between corner nodes.
-> Same tools for designing ANY structure; built to be edited equally well by an AI (the file) and a
-> human (the editor). North star: "holy shit this is all to code and all I did was play a video game"
-> -- real, buildable, with procedural material-aware support (brackets/gaskets/passthroughs picked by
-> the wall material), copper for potable (no synthetics), rigid tubes vs flexible (hoses/cords), a
-> clear/glass roof.
-> - **Stage 1 (data-model foundation) SHIPPED v0.532** -- `src/ship/home_structure.rs`
->   (`HomeStructure { width, depth, height, shell_material, walls: Vec<InteriorWall{a,b,height,material}> }`
->   + RON load/save w/ header-preserve + `generate_meshes` -> the existing `HomesteadMeshes`, drop-in
->   render; reuses `floor_quad`/`wall_box`). `data/blueprints/home_structure.ron` = the 55x89x3 steel box.
->   4 unit tests. Invisible by design (not yet wired to render).
-> - **NEXT -- Stage 2:** wire `HomeStructure` into the live render (replace the homestead gen for the
->   home) + the node-placement editor (drag wall corners -- OPEN: click-corners vs drag-walls feel) +
->   room subdivision (rooms = enclosed regions) + machine re-homing.
-> - **Stage 3:** procedural to-code plumbing -- restore routed conduits (the v0.530 straight lines were
->   wrong), material-aware brackets/gaskets/passthroughs, copper-rigid potable vs flexible hoses/cords,
->   the glass roof.
-> - The old "BUILD MODE" plan below (palette/ghost/lines, v0.527-0.531) is SUPERSEDED by this redesign.
->   What carries forward: the renderer reuse API (`replace_mesh`/`update_material`) + the v0.531 GPU-leak
->   fixes, the machine catalog/placement/buildability work, and the v0.531 review follow-ups.
+> **HOME-CONSTRUCTION REDESIGN -- MAJOR PIECES COMPLETE (v0.532-0.537, operator-directed "build it
+> all" push, 2026-06-25).** Node/wall construction: a FIXED outer box (55 x 89 x 3 m steel allotment)
+> + freely-designed INTERIOR WALLS placed as segments between corner nodes; same tools for any
+> structure; edited equally by an AI (the RON file) and a human (the editor). What shipped:
+> - **Stage 1 (data model) v0.532** -- `src/ship/home_structure.rs` (`HomeStructure` + RON load/save +
+>   `generate_meshes` -> `HomesteadMeshes`). `data/blueprints/home_structure.ron` = the steel box.
+> - **Stage 2a (openings) v0.533** -- doors/windows on walls with data-driven animation STYLE + mesh
+>   cutting (piers/header/sill).
+> - **Stage 2b (render + editor) v0.534** -- HomeStructure wired into the LIVE render (load_world +
+>   rebuild_homestead) + the node/wall editor in `construction.rs` (`draw_wall_editor`): draw walls by
+>   clicking corner nodes (chained, snapped, translucent preview), edit corners/height/openings, Save.
+> - **Stage 2c (rooms-from-walls) v0.535** -- `HomeStructure::detect_rooms()` flood-fills the floor
+>   plan into rooms, live. Plus tested foundations `systems/door_anim.rs` + `ship/conduits.rs`.
+> - **Stage 3 (plumbing loop) v0.536** -- `rebuild_connection_objects` routes every connection via
+>   `conduits.rs` (up/across/down, copper-potable vs flexible, ceiling hangers + material-aware
+>   passthrough gaskets); the wall editor gained Machines + Connections panels.
+> - **Stage 4 (animated doors) v0.537** -- `ship/door_panels.rs` + `render_door_panels`: each opening's
+>   panel animates by its style (swing/slide/iris/energy/nanowall...), doors ease open on approach,
+>   windows are fixed glass.
+> - Three adversarial reviews (v0.534, v0.535-536, v0.537) all CLEAN -- no crash/panic/leak/feature bugs.
+>
+> > **CURRENT #1 -- MACHINE POSITIONING (the redesign's last follow-up).** The reviews surfaced it:
+> > machines bind to a room id + a room-center-relative offset, but flood-fill room ids churn as walls
+> > are edited, so (a) the shipped `home.ron` machines (old garage/garden/study ids) render NOTHING in
+> > the box, and (b) a machine vanishes when a later wall edit re-numbers rooms. FIX (in progress): make
+> > machines POSITION-BASED (absolute world x/z) for the HomeStructure home -- render regardless of room
+> > churn; old relative offsets become absolute (cluster near the box corner, visible, operator
+> > rearranges); the legacy AABB-room ship path keeps room-relative offsets. A discovery workflow mapped
+> > the touch points (placements / load_world spawn loop / try_place_held_machine / save-load /
+> > buildability / connection anchors); implement per that plan, then adversarial-review. Also fold in
+> > the v0.537 door-review nit: gate the door open-trigger on `door_anim::is_operable(style)` so a
+> > door explicitly styled "fixed" stays shut.
+> > **Then:** the glass/clear roof (operator wanted it); door-animation FEEL tuning (open distance/easing)
+> > after the operator launch-checks; the deferred v0.531 object-cap reorder+warn.
 
 > **ACTIVE 2026-06-23: HOME-DESIGN AI/PLAYER PARITY arc (operator-directed).** Make the AI's
 > home designs use the SAME machinery players build with, so they're inherently player-workable
