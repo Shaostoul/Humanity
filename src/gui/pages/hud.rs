@@ -172,7 +172,6 @@ pub fn draw(
                     && cam_pos.y >= r.min.y && cam_pos.y <= r.max.y
                     && cam_pos.z >= r.min.z && cam_pos.z <= r.max.z
             });
-            let current_room: Option<&str> = current_room_info.map(|r| r.id.as_str());
 
             // ── Room purpose card (bottom-left): the walkable world now KNOWS what each
             // room is FOR, joined from data/rooms.ron. Name + purpose + the in-room actions
@@ -211,8 +210,15 @@ pub fn draw(
                 }
             }
             for (i, label) in state.machine_labels.iter().enumerate() {
-                // Occlusion: by default only the camera's room is visible; Tab reveals all.
-                if !state.reveal_held && current_room != Some(label.room.as_str()) {
+                // Occlusion (v0.538): show a label only when its machine PHYSICALLY sits in the
+                // camera's current room (geometric x/z containment), not by the machine's stored
+                // room id -- which is advisory/stale in a HomeStructure box home, so an id compare
+                // would wrongly hide a machine you're standing next to. Tab still reveals all.
+                let in_current_room = current_room_info.map_or(false, |r| {
+                    label.pos.x >= r.min.x && label.pos.x <= r.max.x
+                        && label.pos.z >= r.min.z && label.pos.z <= r.max.z
+                });
+                if !state.reveal_held && !in_current_room {
                     continue;
                 }
                 let cam_dist = (label.pos - cam_pos).length();

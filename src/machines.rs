@@ -78,9 +78,13 @@ pub struct MachineDef {
 pub struct MachineInstance {
     pub id: String,
     pub machine: String,
-    /// A homestead room id (see data/blueprints/homestead_layout.ron).
+    /// A room id. For a HomeStructure (fixed-box) home this is ADVISORY/derived (position no longer
+    /// depends on it); for a legacy AABB-room ship layout it binds the instance to a room.
     pub room: String,
-    /// (x, y, z) meters from the room center, y up from the floor.
+    /// Position (v0.538, meaning depends on the home model -- see `MachineHome::placements`):
+    /// - HomeStructure box home: ABSOLUTE world (x, y, z) in metres (the box min corner is at the
+    ///   world origin; clamped into the box footprint on resolve), y up from the box floor.
+    /// - legacy AABB-room ship layout: (x, y, z) RELATIVE to the room center, y up from the floor.
     pub offset: (f32, f32, f32),
 }
 
@@ -91,9 +95,11 @@ pub struct MachineInstance {
 pub struct MachineArray {
     /// Catalog type to repeat.
     pub machine: String,
-    /// Room id to place the grid in.
+    /// Room id to place the grid in (advisory in a HomeStructure box home; see MachineInstance.room).
     pub room: String,
-    /// (x, y, z) meters from the room center for the grid's first (row 0, col 0) cell.
+    /// First (row 0, col 0) cell position -- same dual meaning as `MachineInstance.offset`: ABSOLUTE
+    /// world x/z in a box home, room-center-relative in a legacy ship layout. `spacing` is a local
+    /// step in both. (v0.538)
     pub origin: (f32, f32, f32),
     /// Number of rows (stepped along +z) and columns (stepped along +x).
     pub rows: u32,
@@ -298,6 +304,13 @@ impl MachineHome {
     /// renderer skips a machine whose room is gone) AND un-removable through the GUI (you can no
     /// longer select the deleted room to reach them). Returns true if anything was removed, so
     /// the caller knows whether to persist. (v0.522)
+    ///
+    /// NOTE (v0.538): this matches by the stored `.room` STRING id, which is the legacy AABB-room
+    /// (ship) model. In a HomeStructure box home `.room` is advisory and machines are positioned
+    /// absolutely, so this would not reliably find a machine sitting in a flood-fill region -- but
+    /// the box editor (`draw_wall_editor`) deletes machines individually by id via `remove_instance`
+    /// and has no room-delete action, so the gap does not manifest there. A geometric
+    /// remove-in-AABB is a follow-up if box homes ever gain room deletion.
     pub fn remove_room(&mut self, room_id: &str) -> bool {
         let before = self.instances.len() + self.arrays.len() + self.connections.len();
         self.instances.retain(|i| i.room != room_id);
@@ -461,19 +474,44 @@ impl MachineHome {
     }
 
     /// Resolve every placed machine (explicit + array-expanded) to its world draw position +
-    /// appearance, given each room's geometry. Pure + renderer-free: `load_world` turns these into
-    /// meshes on world entry, and the construction editor calls this to refresh the machine view
-    /// LIVE on an edit (so a move/add/remove shows immediately instead of only on the next entry).
-    /// A machine whose room has no geometry (e.g. a just-deleted room) is skipped. (v0.525)
-    pub fn placements(&self, rooms: &std::collections::HashMap<String, RoomGeom>) -> Vec<PlacedMachine> {
+    /// appearance. Pure + renderer-free: `load_world` turns these into meshes on world entry, and
+    /// the construction editor calls this to refresh the machine view LIVE on an edit.
+    ///
+    /// `box_mode` selects the coordinate model (v0.538):
+    /// - **box_mode = true** (a HomeStructure fixed-box home): each instance's `offset.0`/`offset.2`
+    ///   is an ABSOLUTE world x/z (the box min corner sits at the world origin), CLAMPED into the box
+    ///   footprint `box_dims = (width, depth, height)` so a machine authored with legacy room-relative
+    ///   (often negative) coords still lands visibly INSIDE the box; the y base is the box floor (0).
+    ///   No instance is skipped on a stale room id -- position no longer depends on the churning
+    ///   flood-fill room ids, so a machine survives wall edits and old data still renders.
+    /// - **box_mode = false** (a legacy AABB-room ship layout): the offset is RELATIVE to the room
+    ///   center, y up from the room floor, and a machine whose room is missing is skipped -- exactly
+    ///   as before. `box_dims` is ignored.
+    pub fn placements(
+        &self,
+        rooms: &std::collections::HashMap<String, RoomGeom>,
+        box_mode: bool,
+        box_dims: (f32, f32, f32),
+    ) -> Vec<PlacedMachine> {
         let mut out = Vec::new();
+        let (bw, bd, bh) = box_dims;
         for inst in self.all_instances() {
-            let Some(g) = rooms.get(&inst.room) else { continue };
             let Some(def) = self.catalog.get(&inst.machine) else { continue };
-            // x/z from the room center, y up from the floor (matches load_world).
-            let x = g.center_x + inst.offset.0;
-            let y = g.floor_y + inst.offset.1;
-            let z = g.center_z + inst.offset.2;
+            let (x, y, z, floor_y, ceiling_y) = if box_mode {
+                // Absolute world x/z clamped into the box; y from the box floor (0).
+                let x = inst.offset.0.clamp(0.3, (bw - 0.3).max(0.3));
+                let z = inst.offset.2.clamp(0.3, (bd - 0.3).max(0.3));
+                (x, inst.offset.1, z, 0.0, bh)
+            } else {
+                let Some(g) = rooms.get(&inst.room) else { continue };
+                (
+                    g.center_x + inst.offset.0,
+                    g.floor_y + inst.offset.1,
+                    g.center_z + inst.offset.2,
+                    g.floor_y,
+                    g.ceiling_y,
+                )
+            };
             // A sphere is center-origin; lift it by its radius so it rests on the floor.
             let (pos, top_y) = if def.shape == "sphere" {
                 ((x, y + def.size.0, z), y + 2.0 * def.size.0)
@@ -485,8 +523,8 @@ impl MachineHome {
                 room: inst.room.clone(),
                 pos,
                 top_y,
-                floor_y: g.floor_y,
-                ceiling_y: g.ceiling_y,
+                floor_y,
+                ceiling_y,
                 shape: def.shape.clone(),
                 size: def.size,
                 color: def.color,
@@ -896,16 +934,13 @@ mod tests {
         );
     }
 
-    /// v0.525: placements() resolves machine world positions (room center + offset, floor-relative
-    /// y), lifts spheres to rest on the floor, and skips machines whose room has no geometry.
-    #[test]
-    fn placements_resolve_world_positions() {
+    fn pos_test_home() -> MachineHome {
         let mut catalog = BTreeMap::new();
         catalog.insert("box".to_string(), test_def("box"));
         let mut sphere_def = test_def("sphere");
         sphere_def.size = (0.5, 0.0, 0.0); // radius 0.5
         catalog.insert("ball".to_string(), sphere_def);
-        let home = MachineHome {
+        MachineHome {
             catalog,
             instances: vec![
                 MachineInstance { id: "b1".into(), machine: "box".into(), room: "garage".into(), offset: (1.0, 0.0, 2.0) },
@@ -915,16 +950,66 @@ mod tests {
             arrays: Vec::new(),
             connections: Vec::new(),
             loops: Vec::new(),
-        };
+        }
+    }
+
+    /// v0.525/v0.538: in SHIP mode (box_mode=false) placements() resolves room center + offset,
+    /// floor-relative y, lifts spheres, and SKIPS a machine whose room has no geometry.
+    #[test]
+    fn placements_ship_mode_is_room_relative_and_skips() {
+        let home = pos_test_home();
         let mut rooms = std::collections::HashMap::new();
         rooms.insert("garage".to_string(), RoomGeom { center_x: 10.0, center_z: 20.0, floor_y: 5.0, ceiling_y: 8.0 });
-        let placed = home.placements(&rooms);
-        assert_eq!(placed.len(), 2, "the machine in an unknown room is skipped");
+        let placed = home.placements(&rooms, false, (0.0, 0.0, 0.0));
+        assert_eq!(placed.len(), 2, "the machine in an unknown room is skipped in ship mode");
         let b = placed.iter().find(|p| p.id == "b1").unwrap();
         assert_eq!(b.pos, (11.0, 5.0, 22.0), "box at center+offset, floor-relative");
         let s = placed.iter().find(|p| p.id == "s1").unwrap();
         assert_eq!(s.pos, (10.0, 5.5, 20.0), "sphere lifted by its radius to rest on the floor");
         assert_eq!(s.floor_y, 5.0);
+    }
+
+    /// v0.538: in BOX mode (box_mode=true) offset is ABSOLUTE world x/z, NOTHING is skipped on a
+    /// stale room id, floor/ceiling come from the box, and a sphere still lifts off floor 0.
+    #[test]
+    fn placements_box_mode_is_absolute_and_never_skips() {
+        let home = pos_test_home();
+        let rooms = std::collections::HashMap::new(); // empty -- box mode must not depend on it
+        let placed = home.placements(&rooms, true, (55.0, 89.0, 3.0));
+        assert_eq!(placed.len(), 3, "box mode skips nothing -- all three render");
+        let b = placed.iter().find(|p| p.id == "b1").unwrap();
+        assert_eq!(b.pos, (1.0, 0.0, 2.0), "box at its absolute offset, y on the box floor");
+        assert_eq!(b.floor_y, 0.0);
+        assert_eq!(b.ceiling_y, 3.0, "ceiling from the box height");
+        let s = placed.iter().find(|p| p.id == "s1").unwrap();
+        // offset (0,0,0) clamps to (0.3, _, 0.3); sphere lifts by radius 0.5.
+        assert!((s.pos.0 - 0.3).abs() < 1e-5 && (s.pos.2 - 0.3).abs() < 1e-5);
+        assert!((s.pos.1 - 0.5).abs() < 1e-5, "sphere rests on floor 0 lifted by its radius");
+    }
+
+    /// v0.538: a negative legacy offset (a real shipped value) still RESOLVES (visible) in box mode,
+    /// clamped into the box footprint rather than dropped.
+    #[test]
+    fn placements_box_mode_clamps_negative_offsets_into_the_box() {
+        let mut home = pos_test_home();
+        home.instances = vec![MachineInstance { id: "solar".into(), machine: "box".into(), room: "garage".into(), offset: (-7.0, 0.0, -22.0) }];
+        let placed = home.placements(&std::collections::HashMap::new(), true, (55.0, 89.0, 3.0));
+        assert_eq!(placed.len(), 1, "a negative-offset machine is visible, not skipped");
+        assert!((placed[0].pos.0 - 0.3).abs() < 1e-5, "negative x clamps to the near edge, inside the box");
+        assert!((placed[0].pos.2 - 0.3).abs() < 1e-5, "negative z clamps to the near edge, inside the box");
+    }
+
+    /// v0.538: the shipped home.ron renders EVERY machine in box mode (the direct regression test for
+    /// the room-id-mismatch breakage -- placed count == all_instances count, nothing skipped).
+    #[test]
+    fn shipped_home_renders_all_machines_in_box_mode() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("machines")
+            .join("home.ron");
+        let home = MachineHome::load(&path).expect("home.ron parses");
+        let placed = home.placements(&std::collections::HashMap::new(), true, (55.0, 89.0, 3.0));
+        assert_eq!(placed.len(), home.all_instances().len(), "box mode skips nothing -- the seed home renders fully");
     }
 
     /// v0.527: palette_categories groups the catalog by `category`, sorted, with every machine in

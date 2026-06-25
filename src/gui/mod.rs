@@ -3390,14 +3390,18 @@ pub fn load_garden_areas(data_dir: &std::path::Path) -> Vec<GardenArea> {
             d.stats.iter().any(|s| s.kind == "food") && !d.stats.iter().any(|s| s.kind == "storage")
         })
     };
+    // v0.538: count EVERY grow machine, not just those in a literal "garden" room. The HomeStructure
+    // home's rooms are flood-fill ids (home/room_1/...) that never equal "garden", so the old
+    // room-name filter silently emptied the garden inventory. The is_grow catalog predicate is the
+    // real signal; room membership is not.
     let mut counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
     for inst in &home.instances {
-        if inst.room == "garden" && is_grow(&inst.machine) {
+        if is_grow(&inst.machine) {
             *counts.entry(inst.machine.clone()).or_insert(0) += 1;
         }
     }
     for arr in &home.arrays {
-        if arr.room == "garden" && is_grow(&arr.machine) {
+        if is_grow(&arr.machine) {
             *counts.entry(arr.machine.clone()).or_insert(0) += arr.rows * arr.cols;
         }
     }

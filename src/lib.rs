@@ -717,8 +717,14 @@ mod native_app {
         if rooms.is_empty() {
             return;
         }
+        // v0.538: a HomeStructure home positions machines by ABSOLUTE world coords (box mode), not
+        // room-center-relative -- so they survive flood-fill room-id churn.
+        let (box_mode, box_dims) = match &state.gui_state.home_structure {
+            Some(hs) => (true, (hs.width, hs.depth, hs.height)),
+            None => (false, (0.0, 0.0, 0.0)),
+        };
         let placements = match &state.gui_state.home_machines {
-            Some(h) => h.placements(&rooms),
+            Some(h) => h.placements(&rooms, box_mode, box_dims),
             None => return,
         };
         // Fast path: the machine COUNT is unchanged (an offset drag / room move, not add/remove).
@@ -792,8 +798,14 @@ mod native_app {
         if rooms.is_empty() {
             return;
         }
+        // v0.538: box-mode absolute positioning when a HomeStructure home is active (mirrors
+        // rebuild_machine_objects so the conduit anchors match the machine meshes).
+        let (box_mode, box_dims) = match &state.gui_state.home_structure {
+            Some(hs) => (true, (hs.width, hs.depth, hs.height)),
+            None => (false, (0.0, 0.0, 0.0)),
+        };
         let (placements, connections) = match &state.gui_state.home_machines {
-            Some(h) => (h.placements(&rooms), h.connections.clone()),
+            Some(h) => (h.placements(&rooms, box_mode, box_dims), h.connections.clone()),
             None => return,
         };
         if connections.is_empty() {
@@ -966,8 +978,11 @@ mod native_app {
         const OPEN_DIST: f32 = 2.6; // metres -- a door opens when the player is this close
         const STEP: f32 = 0.06; // open-fraction change per frame (eased)
         for (p, open) in state.door_panels.iter_mut() {
-            // Doors open on approach; windows stay shut (fixed glass).
-            let target = if !p.is_window && cam.distance(p.center) < OPEN_DIST { 1.0 } else { 0.0 };
+            // An operable DOOR opens on approach; a window or a "fixed"-styled opening stays shut
+            // (v0.538: consult door_anim::is_operable so a door explicitly styled "fixed" does not
+            // chase an open target it can never animate to).
+            let operable = !p.is_window && crate::systems::door_anim::is_operable(&p.style);
+            let target = if operable && cam.distance(p.center) < OPEN_DIST { 1.0 } else { 0.0 };
             *open = (*open + (target - *open).clamp(-STEP, STEP)).clamp(0.0, 1.0);
             let m = crate::systems::door_anim::panel_motion(&p.style, *open, p.size.x, p.size.y);
             if m.hidden {
@@ -1131,9 +1146,9 @@ mod native_app {
         best.map(|(i, _, hx, hz)| (i, hx, hz))
     }
 
-    /// Drop the currently-held palette machine where the cursor hits a room floor (offset from that
-    /// room's center). Keeps the item held so you can place several; right-click or re-click the
-    /// palette item to stop. Appears live via construction_machines_dirty. (v0.529)
+    /// Drop the currently-held palette machine where the cursor hits a room floor. Keeps the item
+    /// held so you can place several; right-click or re-click the palette item to stop. Appears live
+    /// via construction_machines_dirty. (v0.529; v0.538: box mode stores ABSOLUTE coords)
     fn try_place_held_machine(state: &mut EngineState) {
         let Some(mtype) = state.gui_state.construction_place_type.clone() else {
             return;
@@ -1143,8 +1158,17 @@ mod native_app {
         };
         let rb = &state.gui_state.room_bounds[rb_i];
         let room_id = rb.id.clone();
-        let cx = (rb.min.x + rb.max.x) * 0.5;
-        let cz = (rb.min.z + rb.max.z) * 0.5;
+        // v0.538: in a HomeStructure box home, store the ABSOLUTE world floor-hit (world == box-local,
+        // box min corner at origin), so the machine survives flood-fill room-id churn. The legacy
+        // ship layout keeps the room-center-relative offset.
+        let box_mode = state.gui_state.home_structure.is_some();
+        let offset = if box_mode {
+            (hx, 0.0, hz)
+        } else {
+            let cx = (rb.min.x + rb.max.x) * 0.5;
+            let cz = (rb.min.z + rb.max.z) * 0.5;
+            (hx - cx, 0.0, hz - cz)
+        };
         if let Some(home) = state.gui_state.home_machines.as_mut() {
             if home.catalog.contains_key(&mtype) {
                 let id = home.unique_instance_id(&mtype);
@@ -1152,7 +1176,7 @@ mod native_app {
                     id,
                     machine: mtype,
                     room: room_id,
-                    offset: (hx - cx, 0.0, hz - cz),
+                    offset,
                 });
                 state.gui_state.construction_machines_dirty = true;
             }
@@ -1578,18 +1602,35 @@ mod native_app {
                     })
                     .collect();
                 let mut placed = 0usize;
+                // v0.538: a HomeStructure home positions machines by ABSOLUTE world coords (box mode,
+                // clamped into the footprint) and skips NO machine on a stale room id -- mirrors
+                // MachineHome::placements' box-mode branch; the two MUST stay in sync. Removing the
+                // skip in box mode also restores each machine's live ECS power role below. The legacy
+                // ship layout keeps room-center-relative + skip-if-missing.
+                let (box_mode, box_w, box_d) = match &state.gui_state.home_structure {
+                    Some(hs) => (true, hs.width, hs.depth),
+                    None => (false, 0.0, 0.0),
+                };
                 // Explicit instances + every `arrays` grid expanded (dense garden towers).
                 let all_instances = home.all_instances();
                 for inst in &all_instances {
-                    let Some(&(center, floor_y, _ceiling_y)) = rooms.get(inst.room.as_str()) else { continue };
                     let Some(def) = home.catalog.get(&inst.machine) else { continue };
                     // Position formula mirrored by the tested MachineHome::placements (the editor's
-                    // live-refresh twin); keep the two in sync. (v0.525)
-                    let pos = Vec3::new(
-                        center.x + inst.offset.0,
-                        floor_y + inst.offset.1,
-                        center.z + inst.offset.2,
-                    );
+                    // live-refresh twin); keep the two in sync. (v0.525/v0.538)
+                    let pos = if box_mode {
+                        Vec3::new(
+                            inst.offset.0.clamp(0.3, (box_w - 0.3).max(0.3)),
+                            inst.offset.1,
+                            inst.offset.2.clamp(0.3, (box_d - 0.3).max(0.3)),
+                        )
+                    } else {
+                        let Some(&(center, floor_y, _ceiling_y)) = rooms.get(inst.room.as_str()) else { continue };
+                        Vec3::new(
+                            center.x + inst.offset.0,
+                            floor_y + inst.offset.1,
+                            center.z + inst.offset.2,
+                        )
+                    };
                     let (sx, sy, _sz) = def.size;
                     let mesh = machine_mesh(&state.renderer.device, &def.shape, def.size);
                     let mesh_idx = state.renderer.add_mesh(mesh);
