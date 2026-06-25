@@ -4,6 +4,7 @@
 //! Layouts are defined in RON data files under `data/ships/`.
 
 pub mod fibonacci;
+pub mod home_structure;
 pub mod layout;
 pub mod rooms;
 pub mod room_types;

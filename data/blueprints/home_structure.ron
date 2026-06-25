@@ -1,0 +1,21 @@
+// HumanityOS home structure: a FIXED outer box + freely-placed interior walls.
+//
+// While aboard the mothership the player's home is a fixed allotment -- this outer box (55 x 89 x 3
+// metres, all steel). The interior is the editable design surface: add walls as segments between
+// corner nodes in the floor plan. `a` and `b` are (x, z) metres from the box's min corner; a wall
+// rises `height` metres from the floor.
+//
+// AI + human friendly: add a wall by adding an InteriorWall line below; the construction editor edits
+// the same segments by dragging corner nodes. Design doc: docs/design/home-design.md.
+//
+// Materials: 0 = grid, 1 = steel/metal, 2 = concrete, 3 = wood. (All steel for now.)
+
+(
+    width: 55.0,
+    depth: 89.0,
+    height: 3.0,
+    shell_material: 1,
+    // No interior walls yet -- the empty box. Build the interior with the editor (or add lines here):
+    //   (a: (10.0, 0.0), b: (10.0, 40.0), height: 3.0, material: 1),
+    walls: [],
+)

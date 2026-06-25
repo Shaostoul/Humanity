@@ -505,8 +505,9 @@ pub fn resolve_positions(layout: &HomesteadLayout) -> Vec<Vec3> {
 // Mesh generation helpers
 // ---------------------------------------------------------------------------
 
-/// Generate floor quad vertices for a room (visible from above).
-fn floor_quad(pos: Vec3, dim: Vec3) -> (Vec<Vertex>, Vec<u32>) {
+/// Generate floor quad vertices for a room (visible from above). pub(crate) so the new
+/// `home_structure` model reuses it for the fixed box shell. (v0.532)
+pub(crate) fn floor_quad(pos: Vec3, dim: Vec3) -> (Vec<Vertex>, Vec<u32>) {
     let x0 = pos.x;
     let z0 = pos.z;
     let x1 = pos.x + dim.x;
@@ -524,8 +525,9 @@ fn floor_quad(pos: Vec3, dim: Vec3) -> (Vec<Vertex>, Vec<u32>) {
     (vertices, indices)
 }
 
-/// Generate a wall box (configurable height and thickness).
-fn wall_box(start: Vec3, end: Vec3, y_base: f32, height: f32, thickness: f32) -> (Vec<Vertex>, Vec<u32>) {
+/// Generate a wall box (configurable height and thickness). pub(crate) so the new
+/// `home_structure` model reuses it for the box's outer walls + interior wall segments. (v0.532)
+pub(crate) fn wall_box(start: Vec3, end: Vec3, y_base: f32, height: f32, thickness: f32) -> (Vec<Vertex>, Vec<u32>) {
     let dir = (end - start).normalize();
     let perp = Vec3::new(-dir.z, 0.0, dir.x) * (thickness / 2.0);
 
