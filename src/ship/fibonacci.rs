@@ -528,6 +528,12 @@ pub(crate) fn floor_quad(pos: Vec3, dim: Vec3) -> (Vec<Vertex>, Vec<u32>) {
 /// Generate a wall box (configurable height and thickness). pub(crate) so the new
 /// `home_structure` model reuses it for the box's outer walls + interior wall segments. (v0.532)
 pub(crate) fn wall_box(start: Vec3, end: Vec3, y_base: f32, height: f32, thickness: f32) -> (Vec<Vertex>, Vec<u32>) {
+    // Self-guard against a zero-length segment (v0.535): normalize() would yield NaN positions that
+    // poison the GPU buffer. Callers already guard, but wall_box is pub(crate) + reused, so make the
+    // primitive safe on its own -- a degenerate wall is simply empty.
+    if (end - start).length() < 1e-4 {
+        return (Vec::new(), Vec::new());
+    }
     let dir = (end - start).normalize();
     let perp = Vec3::new(-dir.z, 0.0, dir.x) * (thickness / 2.0);
 

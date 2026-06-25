@@ -186,15 +186,134 @@ impl HomeStructure {
             windows: (Vec::new(), Vec::new()),
             mirrors: (Vec::new(), Vec::new()),
             ceilings,
-            room_info: vec![RoomInfo {
+            room_info: self.detect_rooms(),
+        }
+    }
+
+    /// Subdivide the box interior into the ROOMS the interior walls enclose (v0.535, the operator's
+    /// "rooms emerge as the regions those interior walls enclose"). Rasterizes the floor plan into a
+    /// coarse grid, blocks the cells an interior wall passes through, flood-fills the open cells, and
+    /// returns one RoomInfo (AABB + centroid) per connected open region. An EMPTY box -> one "home"
+    /// room (unchanged); each wall that fully partitions the space splits off another room. Robust to
+    /// arbitrary, non-rectangular, L-shaped regions (grid flood-fill, not planar-graph faces).
+    pub fn detect_rooms(&self) -> Vec<RoomInfo> {
+        let w = self.width.max(1.0);
+        let d = self.depth.max(1.0);
+        let h = self.height.max(1.0);
+        // No interior walls -> the whole box is one room (keeps the empty-box behavior identical).
+        if self.walls.is_empty() {
+            return vec![RoomInfo {
                 id: "home".to_string(),
                 center: Vec3::new(w * 0.5, h * 0.5, d * 0.5),
                 dimensions: Vec3::new(w, h, d),
                 is_hologram_room: false,
                 is_spawn_room: true,
-            }],
+            }];
         }
+
+        const CELL: f32 = 0.5;
+        let nx = (w / CELL).ceil() as usize;
+        let nz = (d / CELL).ceil() as usize;
+        let half = WALL_THICKNESS * 0.5 + CELL * 0.5;
+        // Block every cell within a wall's half-thickness of any interior wall segment.
+        let mut blocked = vec![false; nx * nz];
+        for cz in 0..nz {
+            for cx in 0..nx {
+                let px = (cx as f32 + 0.5) * CELL;
+                let pz = (cz as f32 + 0.5) * CELL;
+                for wall in &self.walls {
+                    if point_seg_dist(px, pz, wall.a, wall.b) < half {
+                        blocked[cz * nx + cx] = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Flood-fill the open cells into connected components; each is a room.
+        let mut comp = vec![usize::MAX; nx * nz];
+        let mut rooms: Vec<RoomInfo> = Vec::new();
+        let mut stack: Vec<(usize, usize)> = Vec::new();
+        let mut next = 0usize;
+        for sz in 0..nz {
+            for sx in 0..nx {
+                let idx = sz * nx + sx;
+                if blocked[idx] || comp[idx] != usize::MAX {
+                    continue;
+                }
+                comp[idx] = next;
+                stack.clear();
+                stack.push((sx, sz));
+                let (mut minx, mut minz, mut maxx, mut maxz) = (sx, sz, sx, sz);
+                let mut count = 0usize;
+                while let Some((x, z)) = stack.pop() {
+                    count += 1;
+                    minx = minx.min(x);
+                    maxx = maxx.max(x);
+                    minz = minz.min(z);
+                    maxz = maxz.max(z);
+                    let neigh = [(x.wrapping_sub(1), z), (x + 1, z), (x, z.wrapping_sub(1)), (x, z + 1)];
+                    for (nxp, nzp) in neigh {
+                        if nxp < nx && nzp < nz {
+                            let ni = nzp * nx + nxp;
+                            if !blocked[ni] && comp[ni] == usize::MAX {
+                                comp[ni] = next;
+                                stack.push((nxp, nzp));
+                            }
+                        }
+                    }
+                }
+                next += 1;
+                // Ignore rasterization slivers (a cell or two pinched off by a wall).
+                if count >= 4 {
+                    let (x0, x1) = (minx as f32 * CELL, (maxx + 1) as f32 * CELL);
+                    let (z0, z1) = (minz as f32 * CELL, (maxz + 1) as f32 * CELL);
+                    rooms.push(RoomInfo {
+                        id: format!("room_{}", rooms.len() + 1),
+                        center: Vec3::new((x0 + x1) * 0.5, h * 0.5, (z0 + z1) * 0.5),
+                        dimensions: Vec3::new(x1 - x0, h, z1 - z0),
+                        is_hologram_room: false,
+                        is_spawn_room: false,
+                    });
+                }
+            }
+        }
+
+        if rooms.is_empty() {
+            // Fully walled-in / degenerate -> fall back to the whole box as one room.
+            return vec![RoomInfo {
+                id: "home".to_string(),
+                center: Vec3::new(w * 0.5, h * 0.5, d * 0.5),
+                dimensions: Vec3::new(w, h, d),
+                is_hologram_room: false,
+                is_spawn_room: true,
+            }];
+        }
+        // Spawn in the largest room.
+        let best = rooms
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| {
+                (a.dimensions.x * a.dimensions.z)
+                    .partial_cmp(&(b.dimensions.x * b.dimensions.z))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        rooms[best].is_spawn_room = true;
+        rooms
     }
+}
+
+/// 2D distance from point (px, pz) to the segment a->b (each (x, z)). Used by room flood-fill to mark
+/// the cells an interior wall blocks.
+fn point_seg_dist(px: f32, pz: f32, a: (f32, f32), b: (f32, f32)) -> f32 {
+    let (abx, abz) = (b.0 - a.0, b.1 - a.1);
+    let (apx, apz) = (px - a.0, pz - a.1);
+    let len2 = abx * abx + abz * abz;
+    let t = if len2 < 1e-9 { 0.0 } else { ((apx * abx + apz * abz) / len2).clamp(0.0, 1.0) };
+    let (cx, cz) = (a.0 + abx * t, a.1 + abz * t);
+    ((px - cx).powi(2) + (pz - cz).powi(2)).sqrt()
 }
 
 /// Append (verts, indices) onto an accumulator, offsetting the appended indices.
@@ -338,6 +457,32 @@ mod tests {
         assert_eq!(back.walls[0].openings[0].style, "iris");
         assert_eq!(back.walls[0].openings[1].kind, OpeningKind::Window);
         let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn empty_box_is_one_home_room() {
+        let rooms = box_only().detect_rooms();
+        assert_eq!(rooms.len(), 1, "an empty box is one room");
+        assert_eq!(rooms[0].id, "home");
+        assert!(rooms[0].is_spawn_room);
+    }
+
+    #[test]
+    fn a_full_partition_wall_splits_into_two_rooms() {
+        let mut h = box_only();
+        // A wall spanning the full depth at x=27 reaches both perimeter walls -> left + right rooms.
+        h.walls.push(wall((27.0, 0.0), (27.0, 89.0), Vec::new()));
+        let rooms = h.detect_rooms();
+        assert_eq!(rooms.len(), 2, "a full-depth wall splits the box into two rooms, got {}", rooms.len());
+        assert_eq!(rooms.iter().filter(|r| r.is_spawn_room).count(), 1, "exactly one spawn room");
+    }
+
+    #[test]
+    fn a_partial_wall_does_not_enclose_a_room() {
+        let mut h = box_only();
+        // A stub wall that does not reach the far side leaves the interior one open region.
+        h.walls.push(wall((27.0, 0.0), (27.0, 40.0), Vec::new()));
+        assert_eq!(h.detect_rooms().len(), 1, "a partial wall does not partition the box");
     }
 
     #[test]

@@ -6,6 +6,7 @@
 pub mod time;
 pub mod farming;
 pub mod construction;
+pub mod door_anim;
 pub mod inventory;
 pub mod combat;
 pub mod quests;
