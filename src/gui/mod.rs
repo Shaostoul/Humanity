@@ -1493,6 +1493,22 @@ pub struct GuiState {
     /// editor renders it as a ghost following the cursor + drops it where you click the floor (click
     /// the same item again, or Escape/right-click, to cancel). None = not placing.
     pub construction_place_type: Option<String>,
+    /// The home as a FIXED outer box + freely-designed interior walls (v0.534, the node/wall
+    /// redesign). The editor edits THIS; the engine renders it (load_world + rebuild_homestead via
+    /// generate_meshes) instead of the old room-AABB layout when present. Loaded in load_world.
+    pub home_structure: Option<crate::ship::home_structure::HomeStructure>,
+    /// Set by the panel on an interior-wall edit (add / remove / move corner / opening) -> the
+    /// engine rebuilds the home mesh and writes home_structure.ron. (v0.534)
+    pub construction_structure_dirty: bool,
+    /// Wall-drawing mode (v0.534): true while the "Add wall" tool is active. Click the floor to
+    /// drop corner nodes; the first click sets `construction_wall_start`, the second adds the wall
+    /// segment and chains (start = the new corner). Escape / right-click exits.
+    pub construction_wall_mode: bool,
+    /// The pending first corner (x, z metres from the box min corner) while drawing a wall. (v0.534)
+    pub construction_wall_start: Option<(f32, f32)>,
+    /// Index of the interior wall currently selected in the editor (for remove / opening edits), or
+    /// None. (v0.534)
+    pub construction_wall_selected: Option<usize>,
     /// Set by the panel's Save button -> the engine writes the layout back to the RON.
     pub construction_save: bool,
     /// Index into the backdrop list (the names mirror is `showroom_backdrop_names`).
@@ -2496,6 +2512,11 @@ impl Default for GuiState {
             construction_level: 0,
             construction_dirty: false,
             construction_machines_dirty: false,
+            home_structure: None,
+            construction_structure_dirty: false,
+            construction_wall_mode: false,
+            construction_wall_start: None,
+            construction_wall_selected: None,
             construction_palette_category: String::new(),
             construction_palette_expanded: false,
             construction_place_type: None,

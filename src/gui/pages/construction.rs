@@ -11,10 +11,22 @@ use egui::{Context, RichText};
 use crate::gui::theme::Theme;
 use crate::gui::{EditorOpening, EditorOpeningKind, GuiState};
 use crate::ship::fibonacci::WallKind;
+use crate::ship::home_structure::{Opening, OpeningKind};
 
 const WALL_LABELS: [&str; 4] = ["North", "South", "West", "East"];
 
+/// Data-driven door/window animation styles (v0.534). The opening stores the chosen string; a later
+/// stage animates from it. Listed here so the editor offers them; new styles are added by appending.
+const OPENING_STYLES: [&str; 8] =
+    ["swing", "slide", "iris", "rotate", "fold", "energy", "nanowall", "fixed"];
+
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
+    // v0.534: when the home is a HomeStructure (a FIXED box + freely-drawn interior walls), the
+    // editor is the node/wall editor. The legacy room-AABB editor below stays for other structures.
+    if state.home_structure.is_some() {
+        draw_wall_editor(ctx, theme, state);
+        return;
+    }
     // ── FOOTER: the placement palette (v0.527), a game-style bottom bar. Added first so it spans
     //    the full width with the side panels above it. Pick a category, click an item to place it
     //    in the selected room (viewport click-to-place is the next step). ──
@@ -599,6 +611,241 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 draw_floorplan_canvas(ui, theme, state);
             });
     }
+}
+
+/// The home-structure editor (v0.534): a FIXED outer box + freely-drawn INTERIOR WALLS. The LEFT
+/// panel lists the walls + the "Add wall" tool (click corner nodes on the floor, chaining segment
+/// to segment); the RIGHT panel edits the selected wall's corners, height, and openings (doors /
+/// windows, each with a data-driven animation STYLE). The footer palette still places machines.
+/// Edits set `construction_structure_dirty` so the engine rebuilds the mesh live; Save persists
+/// home_structure.ron (the same file the AI edits -- one model, edited the same way by both).
+fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
+    // Footer: the machine palette (places into the box's single "home" room for now).
+    draw_palette(ctx, theme, state);
+
+    // ── LEFT: the fixed box, the interior-wall list, and the wall-drawing tool ──
+    egui::SidePanel::left("home_structure_walls")
+        .resizable(true)
+        .default_width(212.0)
+        .show(ctx, |ui| {
+            ui.add_space(theme.spacing_md);
+            ui.label(RichText::new("Home structure").size(theme.font_size_body).strong().color(theme.text_primary()));
+            if let Some(hs) = &state.home_structure {
+                ui.label(RichText::new(format!("Fixed box  {:.0} x {:.0} x {:.0} m", hs.width, hs.depth, hs.height))
+                    .size(theme.font_size_small).color(theme.text_muted()));
+            }
+            ui.add_space(theme.spacing_sm);
+
+            // The wall-drawing tool: a toggle that lets the floor clicks drop corner nodes.
+            let mode = state.construction_wall_mode;
+            let label = if mode { "Stop drawing" } else { "Add wall" };
+            let mut btn = egui::Button::new(
+                RichText::new(label).color(if mode { theme.bg_primary() } else { theme.text_primary() }),
+            );
+            if mode {
+                btn = btn.fill(theme.accent());
+            }
+            if ui.add(btn).clicked() {
+                state.construction_wall_mode = !mode;
+                state.construction_wall_start = None;
+                state.construction_place_type = None; // can't hold a machine + draw a wall at once
+            }
+            if state.construction_wall_mode {
+                let hint = if state.construction_wall_start.is_some() {
+                    "Click the next corner. Right-click to finish."
+                } else {
+                    "Click the first corner on the floor."
+                };
+                ui.label(RichText::new(hint).size(theme.font_size_small).color(theme.accent()));
+            }
+            ui.add_space(theme.spacing_sm);
+
+            // The interior-wall list (click to select for editing; Remove deletes).
+            let n = state.home_structure.as_ref().map_or(0, |h| h.walls.len());
+            ui.label(RichText::new(format!("{n} interior wall(s)")).size(theme.font_size_small).color(theme.text_muted()));
+            ui.add_space(theme.spacing_xs);
+            egui::ScrollArea::vertical().id_salt("hs_wall_list").max_height(260.0).show(ui, |ui| {
+                let mut remove: Option<usize> = None;
+                for i in 0..n {
+                    let (a, b) = state.home_structure.as_ref().map(|h| (h.walls[i].a, h.walls[i].b)).unwrap();
+                    let selected = state.construction_wall_selected == Some(i);
+                    ui.horizontal(|ui| {
+                        let lbl = format!("{}: ({:.0},{:.0})->({:.0},{:.0})", i + 1, a.0, a.1, b.0, b.1);
+                        if ui.selectable_label(selected, RichText::new(lbl).size(theme.font_size_small)).clicked() {
+                            state.construction_wall_selected = Some(i);
+                        }
+                        if ui.small_button("Remove").clicked() {
+                            remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = remove {
+                    if let Some(hs) = state.home_structure.as_mut() {
+                        if i < hs.walls.len() {
+                            hs.walls.remove(i);
+                        }
+                    }
+                    state.construction_wall_selected = None;
+                    state.construction_structure_dirty = true;
+                }
+            });
+
+            ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+            if ui.button(RichText::new("Save home").color(theme.text_primary())).clicked() {
+                state.construction_save = true;
+            }
+            if ui.button(RichText::new("Close").color(theme.text_muted())).clicked() {
+                state.construction_wall_mode = false;
+                state.construction_wall_start = None;
+                state.construction_place_type = None;
+                state.construction_active = false;
+            }
+        });
+
+    // ── RIGHT: the selected wall's corners + openings (doors/windows with animation styles) ──
+    egui::SidePanel::right("home_structure_wall_details")
+        .resizable(true)
+        .default_width(252.0)
+        .show(ctx, |ui| {
+            ui.add_space(theme.spacing_md);
+            let sel = match state.construction_wall_selected {
+                Some(s) => s,
+                None => {
+                    ui.label(RichText::new("Select a wall to edit its corners and openings, or use Add wall to draw one.")
+                        .size(theme.font_size_small).color(theme.text_muted()));
+                    return;
+                }
+            };
+            let n = state.home_structure.as_ref().map_or(0, |h| h.walls.len());
+            if sel >= n {
+                state.construction_wall_selected = None;
+                return;
+            }
+            ui.label(RichText::new(format!("Wall {}", sel + 1)).strong().size(theme.font_size_body).color(theme.text_primary()));
+            ui.add_space(theme.spacing_xs);
+
+            let mut changed = false;
+            let mut wall_len = 0.0f32;
+            if let Some(hs) = state.home_structure.as_mut() {
+                let w = hs.width;
+                let d = hs.depth;
+                let hmax = hs.height;
+                let wall = &mut hs.walls[sel];
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("A").color(theme.text_muted()));
+                    ui.label("x");
+                    changed |= ui.add(egui::DragValue::new(&mut wall.a.0).speed(0.1).range(0.0..=w)).changed();
+                    ui.label("z");
+                    changed |= ui.add(egui::DragValue::new(&mut wall.a.1).speed(0.1).range(0.0..=d)).changed();
+                });
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("B").color(theme.text_muted()));
+                    ui.label("x");
+                    changed |= ui.add(egui::DragValue::new(&mut wall.b.0).speed(0.1).range(0.0..=w)).changed();
+                    ui.label("z");
+                    changed |= ui.add(egui::DragValue::new(&mut wall.b.1).speed(0.1).range(0.0..=d)).changed();
+                });
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Height").color(theme.text_muted()));
+                    changed |= ui.add(egui::DragValue::new(&mut wall.height).speed(0.1).range(0.1..=hmax)).changed();
+                });
+                let dx = wall.b.0 - wall.a.0;
+                let dz = wall.b.1 - wall.a.1;
+                wall_len = (dx * dx + dz * dz).sqrt();
+                ui.label(RichText::new(format!("Length {wall_len:.1} m")).size(theme.font_size_small).color(theme.text_muted()));
+            }
+
+            ui.add_space(theme.spacing_md);
+            ui.label(RichText::new("Openings").strong().color(theme.text_primary()));
+            ui.horizontal(|ui| {
+                if ui.button("+ Door").clicked() {
+                    if let Some(hs) = state.home_structure.as_mut() {
+                        hs.walls[sel].openings.push(Opening {
+                            kind: OpeningKind::Door,
+                            at: (wall_len * 0.5 - 0.5).max(0.0),
+                            width: 1.0,
+                            sill: 0.0,
+                            height: 2.1,
+                            style: "swing".into(),
+                        });
+                    }
+                    changed = true;
+                }
+                if ui.button("+ Window").clicked() {
+                    if let Some(hs) = state.home_structure.as_mut() {
+                        hs.walls[sel].openings.push(Opening {
+                            kind: OpeningKind::Window,
+                            at: (wall_len * 0.5 - 0.75).max(0.0),
+                            width: 1.5,
+                            sill: 1.0,
+                            height: 1.2,
+                            style: "fixed".into(),
+                        });
+                    }
+                    changed = true;
+                }
+            });
+
+            let n_op = state.home_structure.as_ref().map_or(0, |h| h.walls[sel].openings.len());
+            let mut remove_op: Option<usize> = None;
+            for oi in 0..n_op {
+                ui.add_space(theme.spacing_xs);
+                ui.group(|ui| {
+                    if let Some(hs) = state.home_structure.as_mut() {
+                        let op = &mut hs.walls[sel].openings[oi];
+                        let kind_label = match op.kind {
+                            OpeningKind::Door => "Door",
+                            OpeningKind::Window => "Window",
+                        };
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(kind_label).strong().color(theme.accent()));
+                            if ui.small_button("Remove").clicked() {
+                                remove_op = Some(oi);
+                            }
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("at");
+                            changed |= ui.add(egui::DragValue::new(&mut op.at).speed(0.1).range(0.0..=wall_len)).changed();
+                            ui.label("width");
+                            changed |= ui.add(egui::DragValue::new(&mut op.width).speed(0.1).range(0.1..=wall_len)).changed();
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("sill");
+                            changed |= ui.add(egui::DragValue::new(&mut op.sill).speed(0.1).range(0.0..=3.0)).changed();
+                            ui.label("height");
+                            changed |= ui.add(egui::DragValue::new(&mut op.height).speed(0.1).range(0.1..=3.0)).changed();
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("style").color(theme.text_muted()));
+                            egui::ComboBox::from_id_salt(("op_style", sel, oi))
+                                .selected_text(op.style.clone())
+                                .show_ui(ui, |ui| {
+                                    for s in OPENING_STYLES {
+                                        if ui.selectable_label(op.style == s, s).clicked() {
+                                            op.style = s.to_string();
+                                            changed = true;
+                                        }
+                                    }
+                                });
+                        });
+                    }
+                });
+            }
+            if let Some(oi) = remove_op {
+                if let Some(hs) = state.home_structure.as_mut() {
+                    if oi < hs.walls[sel].openings.len() {
+                        hs.walls[sel].openings.remove(oi);
+                    }
+                }
+                changed = true;
+            }
+
+            if changed {
+                state.construction_structure_dirty = true;
+            }
+        });
 }
 
 /// The placement palette (v0.527): a game-style footer bar. Category tabs across the top, then a

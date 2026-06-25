@@ -628,8 +628,15 @@ mod native_app {
     /// Also refreshes room lights + the sealed-volume bounds, since a height/wall edit changes
     /// them. (v0.455)
     fn rebuild_homestead(state: &mut EngineState) {
-        let Some(layout) = state.homestead_layout.clone() else { return; };
-        let homestead = crate::ship::fibonacci::generate_from_layout(&layout);
+        // v0.534: regenerate from the new HomeStructure (fixed box + interior walls) when present,
+        // else the legacy AABB-room layout.
+        let homestead = if let Some(hs) = &state.gui_state.home_structure {
+            hs.generate_meshes()
+        } else if let Some(layout) = state.homestead_layout.clone() {
+            crate::ship::fibonacci::generate_from_layout(&layout)
+        } else {
+            return;
+        };
         let room_info = homestead.room_info.clone();
         apply_homestead_meshes(state, homestead);
         // Refresh lights + sealed bounds from the new room_info (height edits move them).
@@ -997,6 +1004,41 @@ mod native_app {
         }
     }
 
+    /// Drop a corner node while drawing an interior wall (v0.534). The first click sets the wall's
+    /// start corner; the second click adds a wall segment from the start to here and CHAINS (the new
+    /// corner becomes the next start), so you can walk a whole floor plan with successive clicks. The
+    /// point comes from the floor raycast, snapped to 0.25 m. (World x/z equals box-local x/z because
+    /// the box min corner sits at the world origin.)
+    fn try_place_wall_node(state: &mut EngineState) {
+        let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+            return;
+        };
+        let snap = |v: f32| (v * 4.0).round() / 4.0;
+        let p = (snap(hx), snap(hz));
+        match state.gui_state.construction_wall_start {
+            None => state.gui_state.construction_wall_start = Some(p),
+            Some(start) => {
+                // Ignore a zero-length segment (a double-click on the same spot).
+                if (start.0 - p.0).abs() > 0.05 || (start.1 - p.1).abs() > 0.05 {
+                    if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                        let height = hs.height;
+                        let material = hs.shell_material;
+                        hs.walls.push(crate::ship::home_structure::InteriorWall {
+                            a: start,
+                            b: p,
+                            height,
+                            material,
+                            openings: Vec::new(),
+                        });
+                        state.gui_state.construction_structure_dirty = true;
+                        state.gui_state.construction_wall_selected = Some(hs.walls.len() - 1);
+                    }
+                    state.gui_state.construction_wall_start = Some(p); // chain into the next segment
+                }
+            }
+        }
+    }
+
     /// Per-frame: while a room is grabbed, intersect the pick ray with its floor plane, move
     /// the room so it follows the cursor (minus the grab offset), snap to 0.25 m, and flag a
     /// rebuild. Computed from the live cursor (not deltas) so it never drifts. (v0.466)
@@ -1255,10 +1297,23 @@ mod native_app {
 
         // ── Homestead meshes ── (v0.455: load the LAYOUT, keep it for the construction
         // editor, then generate + upload meshes through the shared path.)
-        let layout = crate::ship::fibonacci::load_layout_or_fallback();
-        let homestead = crate::ship::fibonacci::generate_from_layout(&layout);
-        let room_info = homestead.room_info.clone();
-        state.homestead_layout = Some(layout);
+        // v0.534: prefer the new HomeStructure model (a FIXED outer box + freely-designed interior
+        // walls) for the home; fall back to the legacy AABB-room layout if home_structure.ron is
+        // absent. Both produce HomesteadMeshes, so the render path is identical.
+        let hs_path = state.data_dir.join("blueprints").join("home_structure.ron");
+        let (homestead, room_info) =
+            if let Some(hs) = crate::ship::home_structure::HomeStructure::load(&hs_path) {
+                let meshes = hs.generate_meshes();
+                let info = meshes.room_info.clone();
+                state.gui_state.home_structure = Some(hs);
+                (meshes, info)
+            } else {
+                let layout = crate::ship::fibonacci::load_layout_or_fallback();
+                let meshes = crate::ship::fibonacci::generate_from_layout(&layout);
+                let info = meshes.room_info.clone();
+                state.homestead_layout = Some(layout);
+                (meshes, info)
+            };
         apply_homestead_meshes(state, homestead);
 
         // Room ceiling lights
@@ -2056,6 +2111,11 @@ mod native_app {
         /// material idx). Rebuilt only when the held type changes, so the cursor-following ghost
         /// does not leak a fresh mesh every frame.
         construction_ghost: Option<(String, usize, usize)>,
+        /// Cached unit-box mesh + translucent material for the wall-drawing tool (v0.534): the corner
+        /// node marker under the cursor and the preview wall from the pending start to the cursor.
+        /// Lazy-created once and reused (scaled/rotated per frame) so the preview never leaks a mesh.
+        wall_tool_mesh: Option<usize>,
+        wall_tool_mat: Option<usize>,
         /// The door/window slide-gizmo handle currently grabbed in the 3D editor. (v0.468)
         construction_gizmo_grab: Option<ConstructionGizmoGrab>,
         /// Cached (mesh, material) for the gizmo MOVE handle marker, built once. (v0.468)
@@ -2586,6 +2646,8 @@ mod native_app {
                 cursor_pos: (0.0, 0.0),
                 construction_grab: None,
                 construction_ghost: None,
+                wall_tool_mesh: None,
+                wall_tool_mat: None,
                 construction_gizmo_grab: None,
                 construction_gizmo_handle: None,
                 construction_gizmo_resize_handle: None,
@@ -2974,8 +3036,11 @@ mod native_app {
                     // start a grab. (v0.466)
                     if state.gui_state.construction_active && left && !egui_consumed {
                         if pressed {
-                            // Holding a palette item -> drop it where you click; else grab a room.
-                            if state.gui_state.construction_place_type.is_some() {
+                            // Wall-drawing mode owns the click first (v0.534): drop a corner node.
+                            // Else holding a palette item -> drop it; else grab a room.
+                            if state.gui_state.construction_wall_mode {
+                                try_place_wall_node(state);
+                            } else if state.gui_state.construction_place_type.is_some() {
                                 try_place_held_machine(state);
                             } else {
                                 try_begin_room_grab(state);
@@ -2987,10 +3052,14 @@ mod native_app {
                     } else if state.gui_state.construction_active
                         && right
                         && pressed
-                        && state.gui_state.construction_place_type.is_some()
+                        && (state.gui_state.construction_place_type.is_some()
+                            || state.gui_state.construction_wall_mode)
                     {
-                        // Right-click cancels the held placement item (v0.529).
+                        // Right-click cancels the held placement item OR exits wall-drawing and
+                        // clears the pending corner (v0.529/v0.534).
                         state.gui_state.construction_place_type = None;
+                        state.gui_state.construction_wall_mode = false;
+                        state.gui_state.construction_wall_start = None;
                     } else if !egui_consumed && state.gui_state.active_page == GuiPage::None {
                         state.controller.process_mouse_button(button, btn_state);
                     }
@@ -3589,9 +3658,24 @@ mod native_app {
                         state.gui_state.construction_machines_dirty = false;
                         rebuild_machine_objects(state);
                     }
+                    // Interior-wall edit (v0.534): the editor mutated gui_state.home_structure
+                    // (added/removed a wall, moved a corner, changed an opening). Rebuild the home
+                    // mesh live so the change shows immediately; persistence waits for Save.
+                    if state.gui_state.construction_structure_dirty {
+                        state.gui_state.construction_structure_dirty = false;
+                        rebuild_homestead(state);
+                    }
                     if state.gui_state.construction_save {
                         state.gui_state.construction_save = false;
-                        if let Some(layout) = &state.homestead_layout {
+                        // v0.534: the home is a HomeStructure when present -> save it; else the
+                        // legacy AABB layout. One file per model; the AI + editor share it.
+                        if let Some(hs) = &state.gui_state.home_structure {
+                            let path = state.data_dir.join("blueprints").join("home_structure.ron");
+                            match hs.save(&path) {
+                                Ok(()) => log::info!("Construction: home structure saved to home_structure.ron"),
+                                Err(e) => log::warn!("Construction: home structure save failed: {e}"),
+                            }
+                        } else if let Some(layout) = &state.homestead_layout {
                             match crate::ship::fibonacci::save_layout(layout) {
                                 Ok(()) => log::info!("Construction: layout saved to RON"),
                                 Err(e) => log::warn!("Construction: save failed: {e}"),
@@ -3930,6 +4014,59 @@ mod native_app {
                             }
                         } else {
                             state.construction_ghost = None;
+                        }
+                    }
+
+                    // Wall-drawing tool preview (v0.534): a corner-node marker under the cursor and,
+                    // once the first corner is set, a translucent preview wall from that corner to the
+                    // cursor -- so you see the segment before clicking the second corner. Uses one
+                    // cached unit-box mesh, scaled/rotated per frame (no per-frame allocation).
+                    if state.gui_state.construction_active && state.gui_state.construction_wall_mode {
+                        if state.wall_tool_mesh.is_none() {
+                            let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+                            state.wall_tool_mesh = Some(m);
+                        }
+                        if state.wall_tool_mat.is_none() {
+                            // theme-exempt: translucent editor overlay, not a themed surface.
+                            let ma = state.renderer.add_material_typed([0.25, 0.8, 1.0, 0.5], 0.1, 0.6, 0.4);
+                            state.wall_tool_mat = Some(ma);
+                        }
+                        let mesh = state.wall_tool_mesh.unwrap();
+                        let mat = state.wall_tool_mat.unwrap();
+                        if let Some((rb_i, hx, hz)) = cursor_floor_hit(state) {
+                            let floor_y = state.gui_state.room_bounds[rb_i].min.y;
+                            // Corner-node marker: a slim post where the next click lands.
+                            transparent_objects.push(RenderObject {
+                                position: Vec3::new(hx, floor_y + 1.5, hz),
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::new(0.3, 3.0, 0.3),
+                                mesh,
+                                material: mat,
+                            });
+                            // Preview wall from the pending start corner to the cursor.
+                            if let Some((sx, sz)) = state.gui_state.construction_wall_start {
+                                let a = Vec3::new(sx, floor_y, sz);
+                                let b = Vec3::new(hx, floor_y, hz);
+                                let dx = b.x - a.x;
+                                let dz = b.z - a.z;
+                                let len = (dx * dx + dz * dz).sqrt();
+                                if len > 0.05 {
+                                    let height = state
+                                        .gui_state
+                                        .home_structure
+                                        .as_ref()
+                                        .map_or(3.0, |h| h.height);
+                                    let dir = Vec3::new(dx, 0.0, dz) / len;
+                                    let rot = Quat::from_rotation_arc(Vec3::X, dir);
+                                    transparent_objects.push(RenderObject {
+                                        position: Vec3::new((a.x + b.x) * 0.5, floor_y + height * 0.5, (a.z + b.z) * 0.5),
+                                        rotation: rot,
+                                        scale: Vec3::new(len, height, 0.15),
+                                        mesh,
+                                        material: mat,
+                                    });
+                                }
+                            }
                         }
                     }
 
