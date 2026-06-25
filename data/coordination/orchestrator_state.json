@@ -423,12 +423,25 @@
         "src/ship/home_structure.rs",
         "data/blueprints/home_structure.ron"
       ]
+    },
+    {
+      "at": "2026-06-25",
+      "decision": "HOME-CONSTRUCTION redesign 'build it all' push (operator: 'Let's get it all made instead of going in steps', with weekly budget headroom). Shipped v0.534-v0.536 + door foundations: (v0.534) Stage 2b -- HomeStructure (fixed box + interior walls) wired into the LIVE render + the node/wall EDITOR: draw walls by clicking corner nodes (chained, snapped, with a translucent preview), edit corners/height + openings with data-driven door/window STYLES; Save writes home_structure.ron. (v0.535) ROOMS emerge from walls -- detect_rooms() flood-fills the floor plan into rooms (empty box=1, full-partition wall=2, partial=1), wired live; plus tested foundations door_anim.rs (style->PanelMotion: swing/slide/iris/rotate/fold/energy/nanowall/organic) + conduits.rs (routed pipes: up-over-down Manhattan, copper-potable rule, material-aware brackets/gaskets); + the v0.534 review's LOW-1 wall_box NaN self-guard. (v0.536) THE PLUMBING LOOP -- rebuild_connection_objects now ROUTES every machine connection via conduits.rs (no more straight diagonals -- the operator's complaint) with ceiling hangers + material-aware passthrough gaskets; the wall editor gained a Machines + Connections panel (place from palette -> auto-homed into the flood-fill room under the cursor -> wire two with a resource -> conduit appears live). door_panels.rs (panel world-placement geometry) built as the next foundation; the door-panel RENDER + animation integration is the remaining piece.",
+      "why": "Operator directed the whole redesign built, not incrementally. Sequenced it so each release is a coherent, launch-verifiable milestone (render+editor -> rooms -> plumbing) rather than one giant blind drop -- 3D can't be headlessly verified, so shipping coherent slices lets the operator launch-check each. Used the proven adversarial-review pattern: a background review per slice on the 3D-blind code while building the next non-overlapping piece (door_anim, conduits, door_panels as pure tested modules). The v0.534 review came back CLEAN (no CRITICAL/HIGH/MED; verified the leak fix, coordinate mapping, index safety, state consistency); only LOW-1 (wall_box NaN guard), applied in v0.535. Foundations are pure GPU-free math so they compile in relay + are unit-tested without a window -- the verifiable core, with the visual feel left for operator launch-tuning.",
+      "files": [
+        "src/lib.rs",
+        "src/ship/home_structure.rs",
+        "src/gui/pages/construction.rs",
+        "src/ship/conduits.rs",
+        "src/systems/door_anim.rs",
+        "src/ship/door_panels.rs"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.533.0 (Latest). HOME-CONSTRUCTION REDESIGN (node/wall, fixed box + interior walls). Stage 1 (data model) v0.532; Stage 2a (openings/doors/windows with data-driven STYLES + mesh cutting) v0.533. Both INVISIBLE (model+mesh-gen, unit-tested, not yet wired to render). NEXT = Stage 2b, the big VISIBLE coordinated rework: wire HomeStructure into load_world (render the fixed box, replace the homestead gen for the home) + the node-placement editor (click corners / split / drop openings) + room subdivision (rooms = enclosed regions) + machine re-homing. 3D = launch-verify; do it carefully with the operator available. Then Stage 3: procedural to-code plumbing (material-aware brackets/gaskets, copper potable, rigid vs flexible, glass roof) + the door-animation system (reads the style). Open: editor feel (operator OK with click-corners). Releases v0.516-0.533 await operator just sign-release. Deploy green.",
+  "version_state": "main==origin: v0.536.0 (Latest). HOME-CONSTRUCTION REDESIGN largely COMPLETE through the 'build it all' push: HomeStructure (fixed box + interior walls) is THE home -- live render + node/wall editor (v0.534), rooms-from-walls flood-fill (v0.535), the plumbing loop (routed copper/flexible conduits + material-aware brackets/gaskets + in-editor machine wiring, v0.536). Tested foundations: door_anim.rs (door styles->motion), conduits.rs (routing), door_panels.rs (panel placement). REMAINING: render the door/window PANELS in the openings + animate by style (consume door_anim + door_panels) -- the last piece; it is the most 3D-blind (animation FEEL needs operator launch-tuning). Two adversarial reviews run (v0.534 CLEAN; v0.535-536 review in flight at journal time). Releases v0.516-0.536 await operator 'just sign-release'. Deploy green. NEXT = door-panel render+animation, then a final review.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
