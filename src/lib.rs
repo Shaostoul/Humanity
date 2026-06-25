@@ -671,6 +671,8 @@ mod native_app {
         // Room geometry changed, so the machines in those rooms must follow (a moved/resized room
         // carries its machines). Refresh the machine meshes from the new room bounds. (v0.525)
         rebuild_machine_objects(state);
+        // Door/window panels follow the structure too (a wall edit can add/move/remove openings).
+        rebuild_door_panels(state);
         log::info!("Homestead rebuilt: {} rooms", room_info.len());
     }
 
@@ -901,6 +903,93 @@ mod native_app {
                     }
                     crate::ship::conduits::FittingKind::Elbow => {}
                 }
+            }
+        }
+    }
+
+    /// Recompute the door/window panel placements from the live HomeStructure (v0.537). Called after
+    /// a structure rebuild + on load. Preserves the per-panel open fraction when the panel COUNT is
+    /// unchanged (so editing a far wall does not slam every door shut); otherwise resets to closed.
+    fn rebuild_door_panels(state: &mut EngineState) {
+        let placements = match &state.gui_state.home_structure {
+            Some(hs) => crate::ship::door_panels::panel_placements(hs),
+            None => Vec::new(),
+        };
+        if placements.len() == state.door_panels.len() {
+            for (i, p) in placements.into_iter().enumerate() {
+                state.door_panels[i].0 = p;
+            }
+        } else {
+            state.door_panels = placements.into_iter().map(|p| (p, 0.0)).collect();
+        }
+    }
+
+    /// Per-frame: animate + emit the door/window panels (v0.537). A door eases open as the player
+    /// approaches (by its data-driven style via systems::door_anim); a window is a fixed glass pane.
+    /// Reuses one cached unit-box mesh + a slab + a glass material (scaled/rotated/animated per frame),
+    /// so nothing leaks. Doors go to the opaque pass, glass to the transparent pass.
+    fn render_door_panels(
+        state: &mut EngineState,
+        opaque: &mut Vec<RenderObject>,
+        transparent: &mut Vec<RenderObject>,
+    ) {
+        if state.door_panels.is_empty() {
+            return;
+        }
+        let mesh = match state.door_panel_mesh {
+            Some(m) => m,
+            None => {
+                let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+                state.door_panel_mesh = Some(m);
+                m
+            }
+        };
+        let slab_mat = match state.door_slab_mat {
+            Some(m) => m,
+            None => {
+                // theme-exempt: world-object material, not a themed UI surface.
+                let m = state.renderer.add_material_typed([0.36, 0.38, 0.43, 1.0], 0.3, 0.5, 1.0);
+                state.door_slab_mat = Some(m);
+                m
+            }
+        };
+        let glass_mat = match state.door_glass_mat {
+            Some(m) => m,
+            None => {
+                // theme-exempt: tinted glass, transparent pass.
+                let m = state.renderer.add_material_full([0.55, 0.78, 0.92, 0.34], 0.0, 0.08, 1.0, 0.10);
+                state.door_glass_mat = Some(m);
+                m
+            }
+        };
+        let cam = state.camera.position;
+        const OPEN_DIST: f32 = 2.6; // metres -- a door opens when the player is this close
+        const STEP: f32 = 0.06; // open-fraction change per frame (eased)
+        for (p, open) in state.door_panels.iter_mut() {
+            // Doors open on approach; windows stay shut (fixed glass).
+            let target = if !p.is_window && cam.distance(p.center) < OPEN_DIST { 1.0 } else { 0.0 };
+            *open = (*open + (target - *open).clamp(-STEP, STEP)).clamp(0.0, 1.0);
+            let m = crate::systems::door_anim::panel_motion(&p.style, *open, p.size.x, p.size.y);
+            if m.hidden {
+                continue;
+            }
+            let hinge_rot = Quat::from_rotation_y(m.hinge);
+            let world_off = p.rotation * Vec3::new(m.offset.0, m.offset.1, m.offset.2);
+            let c = p.center + world_off;
+            let pos = p.hinge + hinge_rot * (c - p.hinge);
+            let rot = hinge_rot * p.rotation;
+            let scale = Vec3::new(p.size.x * m.scale.0, p.size.y * m.scale.1, p.size.z * m.scale.2);
+            let obj = RenderObject {
+                position: pos,
+                rotation: rot,
+                scale,
+                mesh,
+                material: if p.is_window { glass_mat } else { slab_mat },
+            };
+            if p.is_window {
+                transparent.push(obj);
+            } else {
+                opaque.push(obj);
             }
         }
     }
@@ -1572,6 +1661,8 @@ mod native_app {
         }
         // Build the live connection cylinders (replaces the old static routed pipes). (v0.530)
         rebuild_connection_objects(state);
+        // Build the door/window panels from the home structure's openings. (v0.537)
+        rebuild_door_panels(state);
 
         // ── Solar system hologram (map-sync increment C, v0.262.13) ──
         // Driven by the CANONICAL crate::cosmos model at the live date,
@@ -2125,6 +2216,14 @@ mod native_app {
         connection_objects: Vec<(usize, usize, Vec3, Quat, Vec3)>,
         connection_cyl: Option<usize>,
         connection_mats: std::collections::HashMap<String, usize>,
+        /// Door + window panels (v0.537): each opening's world placement + its current open fraction
+        /// (0 closed, 1 open). Doors animate open on the player's approach by their data-driven style
+        /// (systems::door_anim); windows are fixed glass. One cached unit-box mesh + a slab + a glass
+        /// material, reused (scaled/rotated/animated per frame), so it never leaks.
+        door_panels: Vec<(crate::ship::door_panels::PanelPlacement, f32)>,
+        door_panel_mesh: Option<usize>,
+        door_slab_mat: Option<usize>,
+        door_glass_mat: Option<usize>,
         /// Index in `placeholder_objects` where the player avatar's parts begin (the avatar
         /// is added last in load_world). Lets the showroom render only the avatar + rebuild
         /// it on appearance change by truncating to this index. (v0.441)
@@ -2691,6 +2790,10 @@ mod native_app {
                 connection_objects: Vec::new(),
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
+                door_panels: Vec::new(),
+                door_panel_mesh: None,
+                door_slab_mat: None,
+                door_glass_mat: None,
                 avatar_obj_start: 0,
                 avatar_base: Vec3::ZERO,
                 fps_spawn: Vec3::new(0.0, 1.7, 0.0),
@@ -4028,6 +4131,9 @@ mod native_app {
                                 material: mat_idx,
                             });
                         }
+                        // Door + window panels: doors ease open as the player nears (by style);
+                        // windows are fixed glass (transparent pass). (v0.537)
+                        render_door_panels(state, &mut all_objects, &mut transparent_objects);
                     }
                     // Placement ghost: the held palette item, previewed (semi-transparent, faintly
                     // glowing) on the room floor under the cursor, so you see where a click drops it.
