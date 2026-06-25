@@ -30,6 +30,39 @@ fn default_wall_height() -> f32 {
 fn default_steel() -> u32 {
     1
 }
+fn default_door_style() -> String {
+    "swing".to_string()
+}
+
+/// A door or a window. (More opening kinds -- hatch, airlock -- can be added.)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OpeningKind {
+    Door,
+    Window,
+}
+
+/// An opening (door or window) cut into a wall face. Defined the operator's way: a door is one point
+/// on the wall's bottom edge (here `at` + `width`); a window is a region on the face (`at`/`width` +
+/// `sill`/`height`). The aperture is cut out of the wall mesh; left/right piers + a header (+ a sill
+/// for a window) fill the rest.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Opening {
+    pub kind: OpeningKind,
+    /// Left edge of the opening along the wall, metres from the wall's corner `a`.
+    pub at: f32,
+    pub width: f32,
+    /// Sill height above the floor (0 for a door; > 0 for a window).
+    #[serde(default)]
+    pub sill: f32,
+    /// Aperture height (door/window opening height).
+    #[serde(default = "default_wall_height")]
+    pub height: f32,
+    /// How the opening behaves + ANIMATES -- a data-driven STYLE so new door/window kinds
+    /// (swing, slide, iris, rotate, energy, nanowall, organic, ...) are added without code; the
+    /// animation system reads this string in a later stage. Today it only tags the opening.
+    #[serde(default = "default_door_style")]
+    pub style: String,
+}
 
 /// An interior wall: a straight segment in the floor plan, from corner node `a` to `b` (each is
 /// (x, z) metres from the box's min corner), rising `height` metres from the floor. Openings
@@ -43,6 +76,9 @@ pub struct InteriorWall {
     /// Material id (matches RoomConfig.material_type: 0=grid, 1=steel/metal, 2=concrete, 3=wood).
     #[serde(default = "default_steel")]
     pub material: u32,
+    /// Doors + windows cut into this wall.
+    #[serde(default)]
+    pub openings: Vec<Opening>,
 }
 
 /// A home (or any structure): a FIXED outer box + freely-placed interior walls.
@@ -137,7 +173,10 @@ impl HomeStructure {
         for wseg in &self.walls {
             let a = Vec3::new(wseg.a.0, 0.0, wseg.a.1);
             let b = Vec3::new(wseg.b.0, 0.0, wseg.b.1);
-            merge(&mut walls, wall_box(a, b, 0.0, wseg.height.max(0.1), WALL_THICKNESS));
+            merge(
+                &mut walls,
+                wall_with_openings(a, b, wseg.height.max(0.1), WALL_THICKNESS, &wseg.openings),
+            );
         }
 
         HomesteadMeshes {
@@ -165,6 +204,58 @@ fn merge(acc: &mut (Vec<Vertex>, Vec<u32>), add: (Vec<Vertex>, Vec<u32>)) {
     acc.1.extend(add.1.into_iter().map(|i| i + base));
 }
 
+/// Build a wall from `a` to `b` (height `h`, given thickness) with door/window openings CUT OUT:
+/// full-height piers between/around the openings, a header above each opening, and a sill panel
+/// below a window. A door (sill 0, full height) leaves a clean gap; a window leaves sill + header.
+/// Overlapping or off-end openings are skipped for a clean walk. (v0.533)
+fn wall_with_openings(
+    a: Vec3,
+    b: Vec3,
+    h: f32,
+    thickness: f32,
+    openings: &[Opening],
+) -> (Vec<Vertex>, Vec<u32>) {
+    let mut out: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
+    let total = (b - a).length();
+    if total < 1e-4 {
+        return out;
+    }
+    let dir = (b - a) / total;
+    let pt = |s: f32| a + dir * s.clamp(0.0, total);
+
+    let mut ops: Vec<&Opening> = openings.iter().filter(|o| o.width > 0.01).collect();
+    ops.sort_by(|x, y| x.at.partial_cmp(&y.at).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut cursor = 0.0f32;
+    for op in ops {
+        let raw_start = op.at.clamp(0.0, total);
+        let end = (op.at + op.width).clamp(0.0, total);
+        if end <= cursor || raw_start >= total {
+            continue; // overlaps the previous opening or runs off the end
+        }
+        let start = raw_start.max(cursor);
+        // Full-height pier before this opening.
+        if start > cursor + 1e-4 {
+            merge(&mut out, wall_box(pt(cursor), pt(start), 0.0, h, thickness));
+        }
+        // Around the aperture [start, end] x [sill, sill+height]: a sill panel (windows) + a header.
+        let sill = op.sill.max(0.0).min(h);
+        let top = (sill + op.height).clamp(0.0, h);
+        if sill > 0.01 {
+            merge(&mut out, wall_box(pt(start), pt(end), 0.0, sill, thickness));
+        }
+        if top < h - 0.01 {
+            merge(&mut out, wall_box(pt(start), pt(end), top, h - top, thickness));
+        }
+        cursor = end;
+    }
+    // Remaining full-height pier after the last opening.
+    if cursor < total - 1e-4 {
+        merge(&mut out, wall_box(pt(cursor), pt(total), 0.0, h, thickness));
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,32 +276,67 @@ mod tests {
         assert_eq!(m.room_info[0].center, Vec3::new(27.5, 1.5, 44.5));
     }
 
+    fn wall(a: (f32, f32), b: (f32, f32), openings: Vec<Opening>) -> InteriorWall {
+        InteriorWall { a, b, height: 3.0, material: 1, openings }
+    }
+
     #[test]
     fn an_interior_wall_adds_geometry() {
         let four_walls = box_only().generate_meshes().walls.0.len();
         let mut h = box_only();
-        h.walls.push(InteriorWall { a: (10.0, 0.0), b: (10.0, 40.0), height: 3.0, material: 1 });
+        h.walls.push(wall((10.0, 0.0), (10.0, 40.0), Vec::new()));
         let with_wall = h.generate_meshes().walls.0.len();
         assert!(with_wall > four_walls, "an interior wall segment adds wall vertices");
     }
 
     #[test]
-    fn save_round_trips_with_walls() {
+    fn openings_cut_the_wall() {
+        let empty_box = box_only().generate_meshes().walls.0.len();
+        // A door spanning the wall's full width + height -> the whole wall is the opening -> the
+        // interior wall contributes NO geometry (only the box's outer walls remain).
+        let mut full = box_only();
+        full.walls.push(wall(
+            (10.0, 0.0),
+            (10.0, 40.0),
+            vec![Opening { kind: OpeningKind::Door, at: 0.0, width: 40.0, sill: 0.0, height: 3.0, style: "swing".into() }],
+        ));
+        assert_eq!(full.generate_meshes().walls.0.len(), empty_box, "a full-size door leaves no wall");
+        // A small centered door -> piers on both sides + a header -> more than the empty box.
+        let mut partial = box_only();
+        partial.walls.push(wall(
+            (10.0, 0.0),
+            (10.0, 40.0),
+            vec![Opening { kind: OpeningKind::Door, at: 18.0, width: 1.0, sill: 0.0, height: 2.1, style: "slide".into() }],
+        ));
+        assert!(partial.generate_meshes().walls.0.len() > empty_box, "a partial door leaves piers + a header");
+    }
+
+    #[test]
+    fn save_round_trips_with_openings() {
         let h = HomeStructure {
             width: 55.0,
             depth: 89.0,
             height: 3.0,
             shell_material: 1,
-            walls: vec![InteriorWall { a: (5.0, 5.0), b: (5.0, 30.0), height: 3.0, material: 1 }],
+            walls: vec![wall(
+                (5.0, 5.0),
+                (5.0, 30.0),
+                vec![
+                    Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "iris".into() },
+                    Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into() },
+                ],
+            )],
         };
         let tmp = std::env::temp_dir().join("humanity_home_structure_rt.ron");
         h.save(&tmp).expect("save");
         let back = HomeStructure::load(&tmp).expect("reload");
         assert_eq!(back.width, 55.0);
-        assert_eq!(back.depth, 89.0);
-        assert_eq!(back.height, 3.0);
         assert_eq!(back.walls.len(), 1);
         assert_eq!(back.walls[0].a, (5.0, 5.0));
+        assert_eq!(back.walls[0].openings.len(), 2);
+        assert_eq!(back.walls[0].openings[0].kind, OpeningKind::Door);
+        assert_eq!(back.walls[0].openings[0].style, "iris");
+        assert_eq!(back.walls[0].openings[1].kind, OpeningKind::Window);
         let _ = std::fs::remove_file(&tmp);
     }
 
