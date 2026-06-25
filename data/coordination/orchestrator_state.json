@@ -403,12 +403,23 @@
         "src/lib.rs",
         "src/gui/pages/construction.rs"
       ]
+    },
+    {
+      "at": "2026-06-24",
+      "decision": "HOME-CONSTRUCTION REDESIGN confirmed by operator + Stage 1 SHIPPED (v0.532.0). The operator hit the wall: rooms-as-sliding-AABBs is the root problem (rooms aren't boxes, they're the space enclosed by walls); the straight-line pipes pass through everything; they want REALISTIC routed conduits with procedural material-aware support structures (brackets/gaskets/passthroughs picked by the wall material), copper for potable water (no synthetics), rigid tubes vs flexible (hoses/cords), and a clear/glass roof. The north star: 'holy shit this is all to code and all I did was play a video game.' I ran an Explore mapping the current model (rooms = RoomConfig AABBs in homestead_layout.ron; walls are IMPLICIT box-sides, not real entities; pipe routing is MATERIAL-BLIND + materials.csv is unused by it). KEY DECISION (operator's): node/wall construction (place corner nodes -> wall segments -> enclosed rooms), straight walls first. Operator SCOPED it tractably: FIXED outer box (55x89x3 m, all steel for now, fixed while aboard the mothership) + freely-designed INTERIOR WALLS; same tools for designing anything; built to be edited equally by an AI (the file) and a human (the editor). SHIPPED Stage 1 (data-model foundation, invisible by design): src/ship/home_structure.rs (HomeStructure{width,depth,height,shell_material,walls:Vec<InteriorWall{a,b,height,material}>} + RON load/save w/ header-preserve + generate_meshes -> the existing HomesteadMeshes (box shell + interior walls, drop-in render); reuses floor_quad+wall_box (now pub(crate))). data/blueprints/home_structure.ron = the 55x89x3 steel box. 4 unit tests + native + relay green.",
+      "why": "This is a strategic inflection -- the operator questioned the FOUNDATIONAL construction primitive, uncertain ('I'm not sure'). I did NOT barrel into building: validated the vision, mapped the current code (Explore) to ground a recommendation, recommended the node/wall model (matches their instinct + real-world + fixes the sliding/pass-through mess + unlocks the to-code plumbing), and got their direction + scope before building. The operator's fixed-box scoping made it tractable (the shell is a constant; the new work is the interior walls). Built Stage 1 as a CLEAN, AI+human-friendly model (one small readable RON file; add a wall = add a line) -- the 'works for AI and human' north star. Kept it invisible+tested (the operator agreed Stage 1 is the safe invisible data model) so nothing breaks; the risky wire+editor is Stage 2.",
+      "files": [
+        "src/ship/home_structure.rs",
+        "src/ship/fibonacci.rs",
+        "src/ship/mod.rs",
+        "data/blueprints/home_structure.ron"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.531.0 (Latest). Local exe building (b2k01mlwh). BUILD MODE: palette (v0.527) -> ghost placement (v0.529) -> live connection lines (v0.530) -> review-fixed GPU leaks + stale held-item (v0.531, via a new renderer replace_mesh/update_material reuse API). NEXT: plumbing step 2 = click-A->click-B connection gesture (pending operator's read on the v0.530 line look); deferred review follow-ups (object-cap reorder+warn, sphere ghost lift, ghost-over-panel gate). Releases v0.516-0.531 await operator just sign-release. Deploy green.",
+  "version_state": "main==origin: v0.532.0 (Latest). HOME-CONSTRUCTION REDESIGN (operator-directed): node/wall model -- FIXED outer box (55x89x3 steel) + freely-designed INTERIOR WALLS. Stage 1 (data-model foundation) SHIPPED v0.532 (src/ship/home_structure.rs + home_structure.ron + tests; invisible, not yet wired to render). NEXT = Stage 2: wire HomeStructure into the live render (replace homestead gen for the home) + the node-placement editor (drag wall corners) + room subdivision + machine re-homing. Then Stage 3: procedural to-code plumbing (material-aware brackets/gaskets, copper potable, rigid vs flexible, glass roof). Open: editor build-feel (click corners vs drag walls). Releases v0.516-0.532 await operator just sign-release. Deploy green. (Old v0.527-0.531 build-mode -- palette/ghost/lines -- is superseded by this redesign; the renderer reuse API + the GPU-leak fixes carry forward.)",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
