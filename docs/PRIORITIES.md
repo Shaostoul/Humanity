@@ -72,12 +72,17 @@
 >   highlights it. Adversarially reviewed; 3 findings fixed (stale pick on the move-fast-path, wall-draw
 >   selection exclusivity, array-machine Remove no-op).
 > - All native+relay green, lints green, versioned exes archived.
-> > **NEXT (deferred by the operator's earlier AskUserQuestion pick; now the clear next item): DOOR
-> > VISUALS** -- nanowall see-through-when-open + a dynamic shifting metallic-gray water surface;
-> > energy door transparent glow red(locked)/green(open); display TEXT on doors; lock/open CONTROLS per
-> > door/window. (These add a per-door runtime LOCKED state + controls + state-driven visuals.) Plus
-> > the still-OPEN operator data decision on the old home.ron machines (keep / clear / re-author) from
-> > the v0.538 review.
+> > **DOOR VISUALS SHIPPED v0.554** -- Opening gained a `locked` state (serde-default; a locked door
+> > stays shut, with a "Locked" editor checkbox per door); ENERGY doors are a glowing transparent field
+> > (green unlocked / red locked) instead of an opaque slab; NANOWALLS are metallic semi-transparent
+> > with a time-driven shimmer (see-through as they dissolve open); each opening's style + lock state
+> > floats as build-mode TEXT. Doors now route energy/nanowall/windows through the transparent pass (the
+> > panel_motion alpha is finally used). Verified green; the look is operator-confirm (native 3D).
+> > **REMAINING (all optional / operator-gated, none blocking):**
+> > - Deeper door polish if wanted: a per-door alpha gradient as a door opens (needs per-door materials,
+> >   currently shared), in-PLAY door text (currently build-mode only), an in-world lock toggle.
+> > - The still-OPEN operator data decision on the old home.ron machines (keep / clear / re-author) from
+> >   the v0.538 review -- the one real fork that is genuinely the operator's call.
 
 > **ACTIVE 2026-06-23: HOME-DESIGN AI/PLAYER PARITY arc (operator-directed).** Make the AI's
 > home designs use the SAME machinery players build with, so they're inherently player-workable
