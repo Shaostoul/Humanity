@@ -1350,7 +1350,7 @@ mod native_app {
         // Compute the gizmo set as owned values so the home_structure borrow ends before the
         // mutable grab assignment below.
         let (top_y, corners) = match state.gui_state.home_structure.as_ref() {
-            Some(hs) => (hs.height + 1.0, unique_corners(hs)), // matches the gizmo render height
+            Some(hs) => (0.0, unique_corners(hs)), // at the wall-corner BASE; matches the render (v0.549)
             None => return false,
         };
         let sz = state.window.inner_size();
@@ -1372,6 +1372,7 @@ mod native_app {
         }
         if let Some((c, _)) = best {
             state.construction_node_grab = Some(c);
+            state.construction_grab_press = Some(state.cursor_pos); // tap-vs-drag (v0.549)
             true
         } else {
             false
@@ -1380,10 +1381,22 @@ mod native_app {
 
     /// Per-frame while a corner node is grabbed: raycast to the floor, snap, and move EVERY wall
     /// endpoint at the grabbed position to the snapped one (so shared corners move together). (v0.541)
+    /// Pixels the cursor must travel from the press point before a gizmo grab becomes a DRAG (v0.549).
+    const DRAG_THRESHOLD_PX: f32 = 6.0;
+
     fn apply_node_drag(state: &mut EngineState) {
         let Some(grabbed) = state.construction_node_grab else {
             return;
         };
+        // Tap-vs-drag (v0.549): hold the corner still until the cursor leaves the press point, so a
+        // tap selects (handled on release) and only click-and-drag moves it.
+        if let Some(press) = state.construction_grab_press {
+            let d = ((state.cursor_pos.0 - press.0).powi(2) + (state.cursor_pos.1 - press.1).powi(2)).sqrt();
+            if d < DRAG_THRESHOLD_PX {
+                return;
+            }
+            state.construction_grab_press = None; // armed: this is now a drag
+        }
         let Some((_, hx, hz)) = cursor_floor_hit(state) else {
             return;
         };
@@ -1455,6 +1468,7 @@ mod native_app {
         }
         if let Some((id, _)) = best {
             state.construction_opening_grab = Some(id);
+            state.construction_grab_press = Some(state.cursor_pos); // tap-vs-drag (v0.549)
             true
         } else {
             false
@@ -1467,6 +1481,14 @@ mod native_app {
         let Some((wi, oi)) = state.construction_opening_grab else {
             return;
         };
+        // Tap-vs-drag (v0.549): hold until the cursor leaves the press point; a tap selects.
+        if let Some(press) = state.construction_grab_press {
+            let d = ((state.cursor_pos.0 - press.0).powi(2) + (state.cursor_pos.1 - press.1).powi(2)).sqrt();
+            if d < DRAG_THRESHOLD_PX {
+                return;
+            }
+            state.construction_grab_press = None;
+        }
         let Some((_, hx, hz)) = cursor_floor_hit(state) else {
             return;
         };
@@ -2621,6 +2643,11 @@ mod native_app {
         construction_opening_grab: Option<(usize, usize)>,
         construction_opening_mesh: Option<usize>,
         construction_opening_mat: Option<usize>,
+        /// Cursor pixel position when a corner/opening gizmo was first pressed (v0.549). While this is
+        /// Some, the press has NOT moved past the drag threshold yet -- so a release here is a CLICK
+        /// (select + show on the right panel), not a move. It clears to None once the cursor moves past
+        /// the threshold, which is what arms the actual drag (so click-and-HOLD moves, a tap selects).
+        construction_grab_press: Option<(f32, f32)>,
         /// The door/window slide-gizmo handle currently grabbed in the 3D editor. (v0.468)
         construction_gizmo_grab: Option<ConstructionGizmoGrab>,
         /// Cached (mesh, material) for the gizmo MOVE handle marker, built once. (v0.468)
@@ -3161,6 +3188,7 @@ mod native_app {
                 wall_tool_mesh: None,
                 wall_tool_mat: None,
                 construction_node_grab: None,
+                construction_grab_press: None,
                 construction_node_mesh: None,
                 construction_node_mat: None,
                 construction_node_mat_hot: None,
@@ -3571,10 +3599,29 @@ mod native_app {
                                 try_begin_room_grab(state);
                             }
                         } else {
+                            // Release. A gizmo grab that never crossed the drag threshold (grab_press
+                            // still set) is a TAP -> SELECT its wall + show it on the right panel,
+                            // instead of moving it (v0.549). Click to inspect, click-and-hold to move.
+                            if state.construction_grab_press.is_some() {
+                                if let Some(c) = state.construction_node_grab {
+                                    let sel = state.gui_state.home_structure.as_ref().and_then(|hs| {
+                                        hs.walls.iter().position(|w| {
+                                            ((w.a.0 - c.0).abs() < 0.05 && (w.a.1 - c.1).abs() < 0.05)
+                                                || ((w.b.0 - c.0).abs() < 0.05 && (w.b.1 - c.1).abs() < 0.05)
+                                        })
+                                    });
+                                    if let Some(i) = sel {
+                                        state.gui_state.construction_wall_selected = Some(i);
+                                    }
+                                } else if let Some((wi, _)) = state.construction_opening_grab {
+                                    state.gui_state.construction_wall_selected = Some(wi);
+                                }
+                            }
                             state.construction_grab = None; // release; keep the selection highlighted
                             state.construction_gizmo_grab = None; // release a slid handle too
                             state.construction_node_grab = None; // release a dragged corner node
                             state.construction_opening_grab = None; // release a dragged opening
+                            state.construction_grab_press = None;
                         }
                     } else if state.gui_state.construction_active
                         && right
@@ -4078,6 +4125,7 @@ mod native_app {
                         state.construction_gizmo_grab = None;
                         state.construction_node_grab = None; // v0.542: drop a live corner grab on close
                         state.construction_opening_grab = None; // v0.546: drop a live opening grab
+                        state.construction_grab_press = None;
                     }
                     // 3D room drag (v0.466): a grabbed room follows the cursor on its floor.
                     // Slide-gizmo drag (v0.468) takes precedence: a grabbed door/window handle
@@ -4658,16 +4706,19 @@ mod native_app {
                         let grabbed = state.construction_node_grab;
                         let (top_y, corners) = {
                             let hs = state.gui_state.home_structure.as_ref().unwrap();
-                            // Float the pins ~1 m clear ABOVE the wall top so they never clip into it
-                            // (operator note); kept in sync with try_grab_node's hit-test height.
-                            (hs.height + 1.0, unique_corners(hs))
+                            // At the wall-corner BASE (operator note), small: a little orb straddling
+                            // the floor at the corner (top half above the floor, visible from the
+                            // orbit cam). Clickable regardless of what occludes it (the hit-test is
+                            // geometric). Kept in sync with try_grab_node's height (0.0). (v0.549)
+                            (0.0_f32, unique_corners(hs))
                         };
                         for c in &corners {
                             let hot = grabbed.map_or(false, |g| (g.0 - c.0).abs() < 0.05 && (g.1 - c.1).abs() < 0.05);
+                            let r = if hot { 0.28 } else { 0.22 };
                             all_objects.push(RenderObject {
                                 position: Vec3::new(c.0, top_y, c.1),
                                 rotation: Quat::IDENTITY,
-                                scale: Vec3::splat(if hot { 0.4 } else { 0.3 }),
+                                scale: Vec3::splat(r),
                                 mesh: node_mesh,
                                 material: if hot { hot_mat } else { node_mat },
                             });
