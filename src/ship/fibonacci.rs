@@ -587,7 +587,25 @@ pub(crate) fn wall_box(start: Vec3, end: Vec3, y_base: f32, height: f32, thickne
         20, 21, 22, 20, 22, 23, // End end
     ];
 
-    (vertices, indices)
+    // Make every wall DOUBLE-SIDED (v0.543): the opaque pipeline culls back faces, but a home is
+    // viewed from INSIDE (and interior walls from both sides), so the visible-side faces -- including
+    // the window-frame sill/header horizontals -- were being culled and read as see-through. Append a
+    // mirror copy of each vertex with the normal INVERTED, and reversed-winding triangles pointing at
+    // it, so each face renders + lights correctly from both sides.
+    let n = vertices.len() as u32;
+    let mut verts = vertices.clone();
+    verts.extend(vertices.iter().map(|v| Vertex {
+        position: v.position,
+        normal: [-v.normal[0], -v.normal[1], -v.normal[2]],
+        uv: v.uv,
+    }));
+    let mut idx = indices.clone();
+    for t in indices.chunks(3) {
+        idx.push(t[0] + n);
+        idx.push(t[2] + n);
+        idx.push(t[1] + n);
+    }
+    (verts, idx)
 }
 
 /// Append one (verts, indices) piece onto running combined buffers, rebasing indices.

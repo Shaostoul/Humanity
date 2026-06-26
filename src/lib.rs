@@ -1324,7 +1324,7 @@ mod native_app {
         // Compute the gizmo set as owned values so the home_structure borrow ends before the
         // mutable grab assignment below.
         let (top_y, corners) = match state.gui_state.home_structure.as_ref() {
-            Some(hs) => (hs.height + 0.3, unique_corners(hs)),
+            Some(hs) => (hs.height + 1.0, unique_corners(hs)), // matches the gizmo render height
             None => return false,
         };
         let sz = state.window.inner_size();
@@ -4521,14 +4521,16 @@ mod native_app {
                         let grabbed = state.construction_node_grab;
                         let (top_y, corners) = {
                             let hs = state.gui_state.home_structure.as_ref().unwrap();
-                            (hs.height + 0.3, unique_corners(hs))
+                            // Float the pins ~1 m clear ABOVE the wall top so they never clip into it
+                            // (operator note); kept in sync with try_grab_node's hit-test height.
+                            (hs.height + 1.0, unique_corners(hs))
                         };
                         for c in &corners {
                             let hot = grabbed.map_or(false, |g| (g.0 - c.0).abs() < 0.05 && (g.1 - c.1).abs() < 0.05);
                             all_objects.push(RenderObject {
                                 position: Vec3::new(c.0, top_y, c.1),
                                 rotation: Quat::IDENTITY,
-                                scale: Vec3::splat(if hot { 0.65 } else { 0.5 }),
+                                scale: Vec3::splat(if hot { 0.4 } else { 0.3 }),
                                 mesh: node_mesh,
                                 material: if hot { hot_mat } else { node_mat },
                             });
