@@ -203,6 +203,25 @@ impl HomeStructure {
                 wall_with_openings(a, b, wseg.height.max(0.1), WALL_THICKNESS, &wseg.openings),
             );
         }
+        // Corner columns (v0.549): fill each interior-wall JOIN -- a corner shared by >= 2 walls --
+        // with a slim cylinder of the wall's half-thickness, so the overlapping square wall ends read
+        // as a clean round column instead of clipping cubes (operator note). Only at joins (a free
+        // wall end keeps its square cap), and low-poly, to avoid needless hidden geometry.
+        let mut joins: std::collections::HashMap<(i32, i32), (f32, u32, (f32, f32))> =
+            std::collections::HashMap::new();
+        for wseg in &self.walls {
+            for cp in [wseg.a, wseg.b] {
+                let key = ((cp.0 * 20.0).round() as i32, (cp.1 * 20.0).round() as i32);
+                let e = joins.entry(key).or_insert((0.0, 0, cp));
+                e.0 = e.0.max(wseg.height.max(0.1));
+                e.1 += 1;
+            }
+        }
+        for (h, count, pos) in joins.values() {
+            if *count >= 2 {
+                merge(&mut walls, corner_column(pos.0, pos.1, WALL_THICKNESS * 0.5, *h, 10));
+            }
+        }
 
         HomesteadMeshes {
             floors,
@@ -346,6 +365,43 @@ fn merge(acc: &mut (Vec<Vertex>, Vec<u32>), add: (Vec<Vertex>, Vec<u32>)) {
     let base = acc.0.len() as u32;
     acc.0.extend(add.0);
     acc.1.extend(add.1.into_iter().map(|i| i + base));
+}
+
+/// A vertical cylinder SIDE surface (no caps -- the floor + ceiling hide them) at (cx, cz): the
+/// corner column that fills an interior-wall join so overlapping square wall ends read as a clean
+/// round column. Double-sided (the home is viewed from inside) and low-poly. (v0.549)
+fn corner_column(cx: f32, cz: f32, radius: f32, height: f32, segments: u32) -> (Vec<Vertex>, Vec<u32>) {
+    use std::f32::consts::TAU;
+    let mut v: Vec<Vertex> = Vec::new();
+    let mut idx: Vec<u32> = Vec::new();
+    for i in 0..=segments {
+        let ang = (i as f32 / segments as f32) * TAU;
+        let (s, c) = ang.sin_cos();
+        let u = i as f32 / segments as f32;
+        v.push(Vertex { position: [cx + c * radius, 0.0, cz + s * radius], normal: [c, 0.0, s], uv: [u, 1.0] });
+        v.push(Vertex { position: [cx + c * radius, height, cz + s * radius], normal: [c, 0.0, s], uv: [u, 0.0] });
+    }
+    for i in 0..segments {
+        let o = i * 2;
+        idx.extend([o, o + 1, o + 2, o + 1, o + 3, o + 2]);
+    }
+    // Double-side: mirror with inverted normals + reversed winding.
+    let n = v.len() as u32;
+    let mirror: Vec<Vertex> = v
+        .iter()
+        .map(|vert| Vertex {
+            position: vert.position,
+            normal: [-vert.normal[0], -vert.normal[1], -vert.normal[2]],
+            uv: vert.uv,
+        })
+        .collect();
+    v.extend(mirror);
+    for t in idx.clone().chunks(3) {
+        idx.push(t[0] + n);
+        idx.push(t[2] + n);
+        idx.push(t[1] + n);
+    }
+    (v, idx)
 }
 
 /// Build a wall from `a` to `b` (height `h`, given thickness) with door/window openings CUT OUT:
