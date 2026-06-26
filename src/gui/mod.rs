@@ -1037,6 +1037,10 @@ pub struct GuiState {
     pub ws_reconnect_delay: f32,
     /// Number of consecutive failed reconnect attempts.
     pub ws_reconnect_attempts: u32,
+    /// True after the relay sent "Too many connection attempts" (v0.544). Holds the 65s back-off in
+    /// place (the connection OPENS before the throttled identify, so the on-connect backoff reset
+    /// would otherwise clobber it and loop). Cleared when the next retry actually fires.
+    pub ws_rate_limited: bool,
     pub selected_slot: Option<usize>,
     /// Garden selection in the inventory left tree: "crop:<entity_bits>" or
     /// "tower:<id>". Drives the right detail panel for garden objects; mutually
@@ -2271,6 +2275,7 @@ impl Default for GuiState {
             ws_reconnect_timer: 0.0,
             ws_reconnect_delay: 5.0,
             ws_reconnect_attempts: 0,
+            ws_rate_limited: false,
             selected_slot: None,
             garden_selection: None,
             trees_start_collapsed: true,

@@ -5709,6 +5709,19 @@ mod native_app {
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
                                             log::info!("Relay system message: {}", msg);
                                             crate::debug::push_debug(format!("System: {}", msg));
+                                            // Relay throttled this connection (per-IP identify rate
+                                            // limit). Mirror the web client: back the reconnect off
+                                            // PAST the 60s window. Without this the native looped every
+                                            // 5s -- the backoff reset fires when the WS OPENS, before
+                                            // the identify that gets rate-limited, so it never grew.
+                                            // The flag stops that reset clobbering this delay until we
+                                            // next actually retry. (v0.544)
+                                            if msg.starts_with("Too many connection attempts")
+                                                || msg.contains("Try again in a minute")
+                                            {
+                                                state.gui_state.ws_rate_limited = true;
+                                                state.gui_state.ws_reconnect_delay = 65.0;
+                                            }
                                             // Filter out internal sync + game messages from chat display.
                                             // `__game__:` prefix tags game-engine traffic (ambient
                                             // chatter, quest events, NPC dialog, world ticks) — those
@@ -6627,6 +6640,9 @@ mod native_app {
                                 crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &name, &pubkey, &state.gui_state.kyber_public_b64),
                             );
                             state.gui_state.ws_reconnect_attempts += 1;
+                            // Clear the rate-limit guard now that we are actually retrying: if this
+                            // attempt is throttled again, the system handler re-arms it. (v0.544)
+                            state.gui_state.ws_rate_limited = false;
                             // Exponential backoff: 5s -> 10s -> 20s -> 40s -> 60s (max)
                             state.gui_state.ws_reconnect_delay = (state.gui_state.ws_reconnect_delay * 2.0).min(60.0);
                             state.gui_state.ws_status = "Reconnecting...".to_string();
@@ -6634,7 +6650,12 @@ mod native_app {
                     }
 
                     // ── Reset backoff on successful connection ──
-                    if state.gui_state.ws_client.as_ref().map_or(false, |c| c.is_connected()) {
+                    // Skipped while rate-limited (v0.544): the socket OPENS before the identify that
+                    // gets throttled, so resetting on mere connection would clobber the 65s back-off
+                    // and loop straight back into the limit.
+                    if !state.gui_state.ws_rate_limited
+                        && state.gui_state.ws_client.as_ref().map_or(false, |c| c.is_connected())
+                    {
                         if state.gui_state.ws_reconnect_attempts > 0 {
                             log::info!("WebSocket reconnected after {} attempts", state.gui_state.ws_reconnect_attempts);
                         }
