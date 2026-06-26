@@ -35,16 +35,21 @@
 >   room-id churn AND the old home.ron machines render (visible at box edges, draggable). `load_world` +
 >   `placements()` box-mode branches kept in sync; HUD occlusion -> geometric; garden count -> by stat.
 >   Found + scoped by a 5-agent discovery workflow; legacy ship layout untouched.
-> - Adversarial reviews v0.534 / v0.535-536 / v0.537 all CLEAN; v0.538 review in flight.
+> - **Stage 6 (clear glass roof) v0.539** -- HomeStructure `roof_material` (default 4 = glass); the
+>   ceiling renders translucent in the see-through pass, always visible (a sealed clear roof you see
+>   the stars through). Data-driven; opaque roof = roof_material 1.
+> - Adversarial reviews v0.534 / v0.535-536 / v0.537 / v0.538 ALL CLEAN (v0.538 verified the two
+>   placement copies byte-identical); v0.539 = a low-risk material choice.
 >
-> > **REDESIGN COMPLETE. Remaining items (all operator-gated or optional, none blocking):**
-> > - **Operator data decision (open):** keep + rearrange the old machines (current default -- they
-> >   cluster at box edges, visible/draggable) vs CLEAR for a truly fresh box, vs I re-author home.ron
-> >   into intentional positive box coords. Awaiting the operator's pick.
-> > - **The glass/clear roof** the operator wanted (a transparent shell-material option + render).
-> > - **Door-animation FEEL tuning** (open distance / easing / hinge side) after the operator launch-checks.
-> > - **Deferred v0.531 review follow-ups:** object-cap reorder+warn (hologram truncates before machines
-> >   when >1024), sphere ghost floor-lift, ghost-over-panel gate.
+> > **REDESIGN COMPLETE through v0.539 -- every operator-named item shipped.** Remaining is all
+> > operator-gated (a launch-check or a data call), none blocking:
+> > - **Operator data decision (OPEN, the one real fork):** the old home.ron machines render but the
+> >   v0.538 review confirmed many shipped offsets are negative, so they STACK at the box corner (a
+> >   pile, overlapping, near-zero-length conduits) -- visible but poor. Pick: keep-and-drag / CLEAR
+> >   for a fresh box (archive first) / I re-author home.ron into a clean positive-coord layout.
+> > - **Door-animation FEEL tuning** (open distance / easing / hinge side) after the launch-check.
+> > - **Deferred v0.531 review follow-ups (minor, dormant):** object-cap reorder+warn (hologram
+> >   truncates before machines when >1024), sphere ghost floor-lift, ghost-over-panel gate.
 
 > **ACTIVE 2026-06-23: HOME-DESIGN AI/PLAYER PARITY arc (operator-directed).** Make the AI's
 > home designs use the SAME machinery players build with, so they're inherently player-workable
