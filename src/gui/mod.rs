@@ -1520,6 +1520,9 @@ pub struct GuiState {
     /// None. Mutually exclusive with construction_wall_selected -- the right panel shows whichever is
     /// set. (v0.553)
     pub construction_machine_selected: Option<String>,
+    /// Where the player avatar stands in BUILD mode (x, z in box coords), draggable by its pyramid
+    /// gizmo. Leaving build mode drops you into first person right here. (v0.557)
+    pub build_char_pos: Option<(f32, f32)>,
     /// Snap wall corners to a 0.25 m grid while drawing + dragging (v0.541). Endpoint snapping (to
     /// the box edges + other corners) is always on for airtight seals; this toggles the grid.
     pub construction_grid_snap: bool,
@@ -2537,6 +2540,7 @@ impl Default for GuiState {
             construction_cursor_world: None,
             construction_wall_selected: None,
             construction_machine_selected: None,
+            build_char_pos: None,
             construction_grid_snap: true,
             construction_dev_overlay: false,
             construction_palette_category: String::new(),

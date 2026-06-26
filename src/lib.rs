@@ -1502,6 +1502,39 @@ mod native_app {
         }
     }
 
+    /// Hit-test the cursor ray against the build-mode avatar (v0.557). On a hit, start dragging it;
+    /// returns true so the click doesn't also grab a room.
+    fn try_grab_char(state: &mut EngineState) -> bool {
+        let Some((cx, cz)) = state.gui_state.build_char_pos else {
+            return false;
+        };
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let c = Vec3::new(cx, 0.7, cz); // mid-body
+        let t = (c - origin).dot(dir);
+        if t < 0.0 {
+            return false;
+        }
+        if (c - (origin + dir * t)).length() < 0.8 {
+            state.construction_char_grab = true;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Per-frame while the avatar is grabbed: move it to the cursor's floor hit, clamped into the box.
+    fn apply_char_drag(state: &mut EngineState) {
+        if let Some((_, hx, hz)) = cursor_floor_hit(state) {
+            let (bw, bd) = state
+                .gui_state
+                .home_structure
+                .as_ref()
+                .map_or((1e6, 1e6), |hs| (hs.width, hs.depth));
+            state.gui_state.build_char_pos = Some((hx.clamp(0.3, bw - 0.3), hz.clamp(0.3, bd - 0.3)));
+        }
+    }
+
     /// Per-frame while a corner node is grabbed: raycast to the floor, snap, and move EVERY wall
     /// endpoint at the grabbed position to the snapped one (so shared corners move together). (v0.541)
     /// Pixels the cursor must travel from the press point before a gizmo grab becomes a DRAG (v0.549).
@@ -2783,6 +2816,12 @@ mod native_app {
         construction_node_mesh: Option<usize>,
         construction_node_mat: Option<usize>,
         construction_node_mat_hot: Option<usize>,
+        /// Build-mode player avatar (v0.557): whether its pyramid gizmo is grabbed, plus its cached
+        /// body box / pyramid-gizmo meshes + material.
+        construction_char_grab: bool,
+        construction_char_mesh: Option<usize>,
+        construction_char_pyramid_mesh: Option<usize>,
+        construction_char_mat: Option<usize>,
         /// Door/window OPENING editing (v0.546): the (wall index, opening index) of the opening whose
         /// gizmo is grabbed -- dragging slides it ALONG its wall (updates `at`). A visually distinct
         /// cube gizmo (vs the corner spheres) + its cached mesh/material.
@@ -3345,6 +3384,10 @@ mod native_app {
                 construction_node_mesh: None,
                 construction_node_mat: None,
                 construction_node_mat_hot: None,
+                construction_char_grab: false,
+                construction_char_mesh: None,
+                construction_char_pyramid_mesh: None,
+                construction_char_mat: None,
                 construction_opening_grab: None,
                 construction_opening_mesh: None,
                 construction_opening_mat: None,
@@ -3748,6 +3791,9 @@ mod native_app {
                             } else if state.gui_state.home_structure.is_some() && try_grab_node(state) {
                                 // Grabbed a wall corner-node gizmo (v0.541): the per-frame drag moves
                                 // it (+ any walls sharing it) with snapping.
+                            } else if try_grab_char(state) {
+                                // Grabbed the build-mode avatar (v0.557): drag it across the floor; you
+                                // spawn right there when you leave build mode.
                             } else if state.gui_state.home_structure.is_some() && try_pick_machine(state) {
                                 // Selected a machine in the viewport (v0.553) -> its detail shows on
                                 // the right panel. Click only; machines are not dragged here. Gated to
@@ -3780,6 +3826,7 @@ mod native_app {
                             state.construction_gizmo_grab = None; // release a slid handle too
                             state.construction_node_grab = None; // release a dragged corner node
                             state.construction_opening_grab = None; // release a dragged opening
+                            state.construction_char_grab = false; // release a dragged avatar (v0.557)
                             state.construction_grab_press = None;
                         }
                     } else if state.gui_state.construction_active
@@ -4307,6 +4354,16 @@ mod native_app {
                         state.construction_cam_active = true;
                         state.controller.showroom_lock = false; // full orbit controls, not the fixed showroom orbit
                         state.construction_return_pos = state.camera.position;
+                        // Seed the build-mode avatar at the player's CURRENT spot the first time
+                        // (v0.557), clamped into the box, so toggling build mode without moving it keeps
+                        // you put; it then persists where you leave it and spawns you there on close.
+                        if state.gui_state.build_char_pos.is_none() {
+                            if let Some(hs) = &state.gui_state.home_structure {
+                                let p = state.construction_return_pos;
+                                state.gui_state.build_char_pos =
+                                    Some((p.x.clamp(0.3, hs.width - 0.3), p.z.clamp(0.3, hs.depth - 0.3)));
+                            }
+                        }
                         let (center, size) = state.homestead_bounds
                             .map(|(mn, mx)| ((mn + mx) * 0.5, (mx - mn).length()))
                             .unwrap_or((Vec3::new(0.0, 1.5, 0.0), 20.0));
@@ -4317,12 +4374,18 @@ mod native_app {
                     } else if !state.gui_state.construction_active && state.construction_cam_active {
                         state.construction_cam_active = false;
                         state.camera.switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
-                        state.camera.position = state.construction_return_pos;
+                        // Spawn at the build-mode avatar (v0.557) -- "where I'm at" when I leave build
+                        // mode; fall back to the pre-build position if no avatar was placed.
+                        state.camera.position = match state.gui_state.build_char_pos {
+                            Some((x, z)) => Vec3::new(x, 1.7, z),
+                            None => state.construction_return_pos,
+                        };
                         state.gui_state.construction_selected_room = None;
                         state.construction_grab = None;
                         state.construction_gizmo_grab = None;
                         state.construction_node_grab = None; // v0.542: drop a live corner grab on close
                         state.construction_opening_grab = None; // v0.546: drop a live opening grab
+                        state.construction_char_grab = false; // v0.557: drop a live avatar grab
                         state.construction_grab_press = None;
                     }
                     // 3D room drag (v0.466): a grabbed room follows the cursor on its floor.
@@ -4332,7 +4395,9 @@ mod native_app {
                     // first-person -- a Close click consumes the mouse-release, so without this gate a
                     // live node grab silently rewrote walls to chase the cursor after leaving the editor.
                     if state.gui_state.construction_active {
-                        if state.construction_opening_grab.is_some() {
+                        if state.construction_char_grab {
+                            apply_char_drag(state); // v0.557: a grabbed avatar follows the cursor floor
+                        } else if state.construction_opening_grab.is_some() {
                             apply_opening_drag(state); // v0.546: a grabbed opening slides along its wall
                         } else if state.construction_node_grab.is_some() {
                             apply_node_drag(state); // v0.541: a grabbed wall corner follows the cursor
@@ -4973,6 +5038,73 @@ mod native_app {
                                     material: hot_mat,
                                 });
                             }
+                        }
+                    }
+
+                    // Build-mode AVATAR (v0.557): a little figure you drag by its pyramid gizmo to set
+                    // where you spawn when you leave build mode. Body box + sphere head + a bright
+                    // pyramid handle on the floor (white while grabbed).
+                    if state.gui_state.construction_active {
+                        if let Some((cx, cz)) = state.gui_state.build_char_pos {
+                            if state.construction_char_mesh.is_none() {
+                                let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 0.42, 1.3, 0.26));
+                                state.construction_char_mesh = Some(m);
+                            }
+                            if state.construction_char_pyramid_mesh.is_none() {
+                                let m = state.renderer.add_mesh(Mesh::pyramid(&state.renderer.device, 1.0, 1.0));
+                                state.construction_char_pyramid_mesh = Some(m);
+                            }
+                            if state.construction_char_mat.is_none() {
+                                // theme-exempt: build-mode avatar marker, friendly teal.
+                                let m = state.renderer.add_material_full([0.30, 0.72, 0.80, 1.0], 0.0, 0.5, 0.0, 0.25);
+                                state.construction_char_mat = Some(m);
+                            }
+                            if state.construction_node_mesh.is_none() {
+                                let m = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 1.0, 12, 16));
+                                state.construction_node_mesh = Some(m);
+                            }
+                            if state.construction_node_mat.is_none() {
+                                // theme-exempt: gizmo handle.
+                                let m = state.renderer.add_material_full([1.0, 0.82, 0.2, 1.0], 0.0, 0.4, 0.0, 0.6);
+                                state.construction_node_mat = Some(m);
+                            }
+                            if state.construction_node_mat_hot.is_none() {
+                                // theme-exempt: grabbed-gizmo highlight.
+                                let m = state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.3, 0.0, 1.0);
+                                state.construction_node_mat_hot = Some(m);
+                            }
+                            let body_mesh = state.construction_char_mesh.unwrap();
+                            let pyr_mesh = state.construction_char_pyramid_mesh.unwrap();
+                            let head_mesh = state.construction_node_mesh.unwrap();
+                            let char_mat = state.construction_char_mat.unwrap();
+                            let pyr_mat = if state.construction_char_grab {
+                                state.construction_node_mat_hot.unwrap()
+                            } else {
+                                state.construction_node_mat.unwrap()
+                            };
+                            // Body (lifted so the pyramid handle reads clearly underneath).
+                            all_objects.push(RenderObject {
+                                position: Vec3::new(cx, 0.45, cz),
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::ONE,
+                                mesh: body_mesh,
+                                material: char_mat,
+                            });
+                            all_objects.push(RenderObject {
+                                position: Vec3::new(cx, 1.9, cz),
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::splat(0.18),
+                                mesh: head_mesh,
+                                material: char_mat,
+                            });
+                            // Pyramid gizmo handle on the floor under the avatar.
+                            all_objects.push(RenderObject {
+                                position: Vec3::new(cx, 0.0, cz),
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::new(0.5, 0.4, 0.5),
+                                mesh: pyr_mesh,
+                                material: pyr_mat,
+                            });
                         }
                     }
 
