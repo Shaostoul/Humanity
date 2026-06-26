@@ -432,6 +432,38 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
                     }
                 }
             }
+            // Feature distances (v0.547): on the SELECTED wall, the clear GAP in each span between
+            // the wall ends + the openings (so you can place a door exactly N m from a window / wall
+            // end). Labelled near the floor at each gap's midpoint.
+            if let Some(sel) = state.construction_wall_selected {
+                if let Some(wall) = hs.walls.get(sel) {
+                    if !wall.openings.is_empty() {
+                        let (ax, az) = wall.a;
+                        let (dx, dz) = (wall.b.0 - ax, wall.b.1 - az);
+                        let len = (dx * dx + dz * dz).sqrt();
+                        if let Some((ux, uz)) = norm(dx, dz).filter(|_| len > 1e-4) {
+                            let mut ivals: Vec<(f32, f32)> = wall
+                                .openings
+                                .iter()
+                                .map(|o| (o.at.clamp(0.0, len), (o.at + o.width).clamp(0.0, len)))
+                                .collect();
+                            ivals.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+                            let mut cursor = 0.0f32;
+                            for (s, e) in ivals.iter().chain(std::iter::once(&(len, len))) {
+                                let gap = s - cursor;
+                                if gap > 0.05 {
+                                    let mid = cursor + gap * 0.5;
+                                    let world = Vec3::new(ax + ux * mid, 0.35, az + uz * mid);
+                                    if let Some(sp) = world_to_screen(world, view_proj, screen) {
+                                        text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{gap:.2} m"), 11.0, theme.text_secondary());
+                                    }
+                                }
+                                cursor = e.max(cursor);
+                            }
+                        }
+                    }
+                }
+            }
             // Live readout while drawing: the pending segment length by the cursor.
             if let (Some(s), Some(cur)) = (state.construction_wall_start, state.construction_cursor_world) {
                 let len = ((cur.0 - s.0).powi(2) + (cur.1 - s.1).powi(2)).sqrt();

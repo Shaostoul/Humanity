@@ -993,8 +993,22 @@ mod native_app {
             }
         };
         let cam = state.camera.position;
-        const OPEN_DIST: f32 = 2.6; // a door opens within this HORIZONTAL distance
-        const CLOSE_DIST: f32 = 3.4; // hysteresis: stays open until you back past this (no jitter)
+        // v0.547: per-door open distance. The interaction ring shows it in build mode / dev overlay.
+        let show_widgets = state.gui_state.construction_active || state.gui_state.construction_dev_overlay;
+        let (ring_mesh, ring_mat) = if show_widgets {
+            if state.construction_ring_mesh.is_none() {
+                let m = state.renderer.add_mesh(Mesh::flat_ring(&state.renderer.device, 64));
+                state.construction_ring_mesh = Some(m);
+            }
+            if state.construction_ring_mat.is_none() {
+                // theme-exempt: editor overlay ring, translucent cyan.
+                let m = state.renderer.add_material_full([0.3, 0.85, 1.0, 0.5], 0.0, 0.5, 0.0, 0.4);
+                state.construction_ring_mat = Some(m);
+            }
+            (state.construction_ring_mesh, state.construction_ring_mat)
+        } else {
+            (None, None)
+        };
         // Frame-rate-independent exponential ease toward the target (v0.540): smooth open/close,
         // no linear stepping, no extra keyframes. ~0.3 s to settle.
         let ease = 1.0 - (-dt.max(0.0) * 9.0).exp();
@@ -1003,16 +1017,28 @@ mod native_app {
             // (v0.538: consult door_anim::is_operable so a door explicitly styled "fixed" does not
             // chase an open target it can never animate to).
             let operable = !p.is_window && crate::systems::door_anim::is_operable(&p.style);
+            // Interaction-distance ring on the floor at the door, scaled by its open_dist (v0.547).
+            if show_widgets && operable {
+                if let (Some(rm), Some(rmat)) = (ring_mesh, ring_mat) {
+                    transparent.push(RenderObject {
+                        position: Vec3::new(p.center.x, 0.03, p.center.z),
+                        rotation: Quat::IDENTITY,
+                        scale: Vec3::new(p.open_dist, 1.0, p.open_dist),
+                        mesh: rm,
+                        material: rmat,
+                    });
+                }
+            }
             let dx = cam.x - p.center.x;
             let dz = cam.z - p.center.z;
             let dist = (dx * dx + dz * dz).sqrt(); // horizontal -- the camera's eye height must not count
-            // Hysteresis (v0.540): a closed door opens within OPEN_DIST; an open one stays open until
-            // you back past CLOSE_DIST, so standing near the threshold no longer flickers it.
+            // Hysteresis (v0.540): a closed door opens within open_dist; an open one stays open until
+            // you back past open_dist + 0.8, so standing near the threshold no longer flickers it.
             let target = if !operable {
                 0.0
             } else if *open > 0.5 {
-                if dist < CLOSE_DIST { 1.0 } else { 0.0 }
-            } else if dist < OPEN_DIST {
+                if dist < p.open_dist + 0.8 { 1.0 } else { 0.0 }
+            } else if dist < p.open_dist {
                 1.0
             } else {
                 0.0
@@ -2515,6 +2541,11 @@ mod native_app {
         door_panel_mesh: Option<usize>,
         door_slab_mat: Option<usize>,
         door_glass_mat: Option<usize>,
+        /// Cached flat-ring mesh + translucent material for the door interaction-distance ground ring
+        /// (v0.547), shown in build mode (or when the dev overlay is on), scaled by each door's
+        /// open_dist.
+        construction_ring_mesh: Option<usize>,
+        construction_ring_mat: Option<usize>,
         /// Index in `placeholder_objects` where the player avatar's parts begin (the avatar
         /// is added last in load_world). Lets the showroom render only the avatar + rebuild
         /// it on appearance change by truncating to this index. (v0.441)
@@ -3103,6 +3134,8 @@ mod native_app {
                 door_panel_mesh: None,
                 door_slab_mat: None,
                 door_glass_mat: None,
+                construction_ring_mesh: None,
+                construction_ring_mat: None,
                 avatar_obj_start: 0,
                 avatar_base: Vec3::ZERO,
                 fps_spawn: Vec3::new(0.0, 1.7, 0.0),
@@ -7283,9 +7316,11 @@ mod native_app {
                                     );
                                 }
                                 // Build-mode CAD dimension overlay (v0.545): wall lengths, corner
-                                // angles, live drawing readout.
+                                // angles, live drawing readout. Also shows in play when the dev
+                                // overlay is on (v0.547).
                                 if state.gui_state.active_page == GuiPage::None
-                                    && state.gui_state.construction_active
+                                    && (state.gui_state.construction_active
+                                        || state.gui_state.construction_dev_overlay)
                                     && !state.gui_state.showroom_active
                                 {
                                     hud::draw_construction_overlay(

@@ -1519,6 +1519,9 @@ pub struct GuiState {
     /// Snap wall corners to a 0.25 m grid while drawing + dragging (v0.541). Endpoint snapping (to
     /// the box edges + other corners) is always on for airtight seals; this toggles the grid.
     pub construction_grid_snap: bool,
+    /// Dev overlay (v0.547): when on, the build widgets (dimension overlay + door interaction rings)
+    /// stay visible in NORMAL PLAY, not just in the construction editor. Toggled in the wall editor.
+    pub construction_dev_overlay: bool,
     /// Set by the panel's Save button -> the engine writes the layout back to the RON.
     pub construction_save: bool,
     /// Index into the backdrop list (the names mirror is `showroom_backdrop_names`).
@@ -2530,6 +2533,7 @@ impl Default for GuiState {
             construction_cursor_world: None,
             construction_wall_selected: None,
             construction_grid_snap: true,
+            construction_dev_overlay: false,
             construction_palette_category: String::new(),
             construction_palette_expanded: false,
             construction_place_type: None,

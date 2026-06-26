@@ -327,6 +327,26 @@ impl Mesh {
         Self::from_vertices(device, vertices, indices)
     }
 
+    /// A flat thin RING (annulus) in the XZ plane at y=0, outer radius 1.0, facing +Y. Scaled by the
+    /// radius for the editor's door interaction-distance ground ring. (v0.547)
+    pub fn flat_ring(device: &wgpu::Device, segments: u32) -> Self {
+        let (inner, outer) = (0.93_f32, 1.0_f32);
+        let mut v: Vec<Vertex> = Vec::new();
+        let mut idx: Vec<u32> = Vec::new();
+        for i in 0..=segments {
+            let a = (i as f32 / segments as f32) * std::f32::consts::TAU;
+            let (s, c) = a.sin_cos();
+            let u = i as f32 / segments as f32;
+            v.push(Vertex { position: [c * outer, 0.0, s * outer], normal: [0.0, 1.0, 0.0], uv: [u, 0.0] });
+            v.push(Vertex { position: [c * inner, 0.0, s * inner], normal: [0.0, 1.0, 0.0], uv: [u, 1.0] });
+        }
+        for i in 0..segments {
+            let o = i * 2;
+            idx.extend([o, o + 1, o + 2, o + 1, o + 3, o + 2]);
+        }
+        Self::from_vertices(device, &v, &idx)
+    }
+
     /// Square-base pyramid: base side `base` centered in x/z at y=0, apex at
     /// (0, height, 0). Flat per-face normals; each side's winding is chosen so the
     /// normal points OUTWARD (away from the y-axis), so back-face culling shows the

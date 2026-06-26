@@ -664,6 +664,9 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             // Grid snap toggle (v0.541): endpoint + edge snapping are always on (airtight seals); this
             // toggles the 0.25 m grid.
             ui.checkbox(&mut state.construction_grid_snap, RichText::new("Grid snap (0.25 m)").size(theme.font_size_small).color(theme.text_primary()));
+            // Dev overlay (v0.547): keep the dimension overlay + door interaction rings visible in
+            // normal play, not just in the editor.
+            ui.checkbox(&mut state.construction_dev_overlay, RichText::new("Dev overlay in play").size(theme.font_size_small).color(theme.text_primary()));
             ui.add_space(theme.spacing_sm);
 
             // The interior-wall list (click to select for editing; Remove deletes).
@@ -778,7 +781,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             width: 1.0,
                             sill: 0.0,
                             height: 2.1,
-                            style: "swing".into(),
+                            style: "swing".into(), open_dist: 2.6
                         });
                     }
                     changed = true;
@@ -791,7 +794,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             width: 1.5,
                             sill: 1.0,
                             height: 1.2,
-                            style: "fixed".into(),
+                            style: "fixed".into(), open_dist: 2.6
                         });
                     }
                     changed = true;
@@ -839,6 +842,10 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                         }
                                     }
                                 });
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("open dist").color(theme.text_muted()));
+                            changed |= ui.add(egui::DragValue::new(&mut op.open_dist).speed(0.1).range(0.5..=12.0).suffix(" m")).changed();
                         });
                     }
                 });
