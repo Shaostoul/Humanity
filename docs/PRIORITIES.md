@@ -51,6 +51,34 @@
 > > - **Deferred v0.531 review follow-ups (minor, dormant):** object-cap reorder+warn (hologram
 > >   truncates before machines when >1024), sphere ghost floor-lift, ghost-over-panel gate.
 
+> **EDITOR-POLISH + MATERIALS + MACHINE-SELECT BATCH SHIPPED (v0.540-553, operator launch-test
+> feedback waves, 2026-06-26).** A full wave of build-mode polish:
+> - v0.543-548: double-sided walls (kill see-through), CAD dimension overlay (wall lengths + corner
+>   angles + feature gaps), door interaction rings + a dev-overlay toggle, native-chat reconnect-loop
+>   fix, and THE editor-clickability fix (the full-screen dimension Area was swallowing panel clicks ->
+>   rewrote as `ctx.layer_painter`; see memory `feedback_ui_interactability`).
+> - v0.549: TAP-VS-DRAG on the corner orbs (click = select + show on the right panel, click-and-HOLD =
+>   move); orbs shrunk + dropped to the wall base, clickable through the floor.
+> - v0.550: round CORNER COLUMNS fill the cube wall joins (a slim double-sided cylinder of the wall's
+>   half-thickness at each >=2-wall join, in the most-opaque meeting material).
+> - v0.551: per-pie-slice corner ANGLES on a ground circle (each slice labelled at its midpoint on the
+>   floor, raised 10cm; a 2+-wall join shows all its angles).
+> - v0.552: WALL MATERIAL picker (pick + render + learn). `data/blueprints/wall_materials.ron` = 8 real
+>   materials (steel/concrete/oak/tempered-glass/aluminum/pine/granite/HDPE, real density/tensile/cost/
+>   renewable); the wall re-colors per material (per-material meshes; glass -> transparent pass); the
+>   panel shows the real properties. Adversarially reviewed (clean).
+> - v0.553: MACHINE-IN-VIEWPORT selection -- click a machine in the 3D view (or the list) to select +
+>   inspect it on the right panel (type/room/position/power/stats/connections); a ground ring
+>   highlights it. Adversarially reviewed; 3 findings fixed (stale pick on the move-fast-path, wall-draw
+>   selection exclusivity, array-machine Remove no-op).
+> - All native+relay green, lints green, versioned exes archived.
+> > **NEXT (deferred by the operator's earlier AskUserQuestion pick; now the clear next item): DOOR
+> > VISUALS** -- nanowall see-through-when-open + a dynamic shifting metallic-gray water surface;
+> > energy door transparent glow red(locked)/green(open); display TEXT on doors; lock/open CONTROLS per
+> > door/window. (These add a per-door runtime LOCKED state + controls + state-driven visuals.) Plus
+> > the still-OPEN operator data decision on the old home.ron machines (keep / clear / re-author) from
+> > the v0.538 review.
+
 > **ACTIVE 2026-06-23: HOME-DESIGN AI/PLAYER PARITY arc (operator-directed).** Make the AI's
 > home designs use the SAME machinery players build with, so they're inherently player-workable
 > + real-world-valid (steel-primary + wood; the homestead enclosed in a steel ship where Earth
