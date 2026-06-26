@@ -391,12 +391,17 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
         let l = (dx * dx + dz * dz).sqrt();
         if l > 1e-4 { Some((dx / l, dz / l)) } else { None }
     };
-    Area::new(egui::Id::new("construction_dim_overlay"))
-        .fixed_pos([0.0, 0.0])
-        .interactable(false)
-        .show(ctx, |ui| {
-            ui.allocate_rect(screen, egui::Sense::hover());
-            let painter = ui.painter();
+    // Paint-ONLY layer (v0.548): a layer_painter, NOT an interactable Area. An Area -- even
+    // non-interactable -- registers a full-screen region under the pointer that makes
+    // wants_pointer_input read false over the editor's side panels, so their clicks route to the
+    // camera instead (the "panel shows but won't click" regression). A layer_painter only paints and
+    // never participates in input routing. (`p` owns it; `painter` is a ref so the body is unchanged.)
+    {
+        let p = ctx.layer_painter(egui::LayerId::new(
+            egui::Order::Foreground,
+            egui::Id::new("construction_dim_overlay"),
+        ));
+        let painter = &p;
             // Each interior wall's length at its midpoint (the selected one in accent).
             for (i, wall) in hs.walls.iter().enumerate() {
                 let mid = Vec3::new((wall.a.0 + wall.b.0) * 0.5, y, (wall.a.1 + wall.b.1) * 0.5);
@@ -471,7 +476,7 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
                     text_shadowed(painter, sp + Vec2::new(22.0, -14.0), Align2::LEFT_CENTER, &format!("{len:.2} m"), 15.0, theme.accent());
                 }
             }
-        });
+    }
 }
 
 /// Color a stat readout by its status.
