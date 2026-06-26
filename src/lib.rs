@@ -3961,6 +3961,9 @@ mod native_app {
                         } else {
                             apply_room_drag(state);
                         }
+                        // Track the cursor's floor position for the dimension overlay (v0.545).
+                        state.gui_state.construction_cursor_world =
+                            cursor_floor_hit(state).map(|(_, hx, hz)| (hx, hz));
                     }
                     // Construction editor (v0.455/459): apply the edited walls + ceiling height
                     // AND room position/size + add/remove to the live layout, then rebuild.
@@ -7146,6 +7149,19 @@ mod native_app {
                                         state.camera.yaw,
                                         state.camera.view_projection_matrix(),
                                         state.camera.position,
+                                    );
+                                }
+                                // Build-mode CAD dimension overlay (v0.545): wall lengths, corner
+                                // angles, live drawing readout.
+                                if state.gui_state.active_page == GuiPage::None
+                                    && state.gui_state.construction_active
+                                    && !state.gui_state.showroom_active
+                                {
+                                    hud::draw_construction_overlay(
+                                        ctx,
+                                        &state.theme,
+                                        &state.gui_state,
+                                        state.camera.view_projection_matrix(),
                                     );
                                 }
 

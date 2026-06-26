@@ -1510,6 +1510,9 @@ pub struct GuiState {
     pub construction_wall_mode: bool,
     /// The pending first corner (x, z metres from the box min corner) while drawing a wall. (v0.534)
     pub construction_wall_start: Option<(f32, f32)>,
+    /// The cursor's current floor position (box-local x, z) in build mode (v0.545), set by the engine
+    /// each frame so the dimension overlay can show the live segment length + cursor readout.
+    pub construction_cursor_world: Option<(f32, f32)>,
     /// Index of the interior wall currently selected in the editor (for remove / opening edits), or
     /// None. (v0.534)
     pub construction_wall_selected: Option<usize>,
@@ -2524,6 +2527,7 @@ impl Default for GuiState {
             construction_structure_dirty: false,
             construction_wall_mode: false,
             construction_wall_start: None,
+            construction_cursor_world: None,
             construction_wall_selected: None,
             construction_grid_snap: true,
             construction_palette_category: String::new(),

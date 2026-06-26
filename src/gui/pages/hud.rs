@@ -380,6 +380,68 @@ fn text_shadowed(
     painter.text(pos, anchor, text, font, color);
 }
 
+/// Build-mode CAD dimension overlay (v0.545): each interior wall's length at its midpoint, the angle
+/// where two walls meet at a corner, and -- while drawing -- a live length readout by the cursor.
+/// Paint-only, reusing world_to_screen + text_shadowed. Only drawn in the construction editor.
+pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &GuiState, view_proj: Mat4) {
+    let Some(hs) = &state.home_structure else { return };
+    let screen = ctx.screen_rect();
+    let y = hs.height * 0.5; // label height: mid-wall
+    let norm = |dx: f32, dz: f32| -> Option<(f32, f32)> {
+        let l = (dx * dx + dz * dz).sqrt();
+        if l > 1e-4 { Some((dx / l, dz / l)) } else { None }
+    };
+    Area::new(egui::Id::new("construction_dim_overlay"))
+        .fixed_pos([0.0, 0.0])
+        .interactable(false)
+        .show(ctx, |ui| {
+            ui.allocate_rect(screen, egui::Sense::hover());
+            let painter = ui.painter();
+            // Each interior wall's length at its midpoint (the selected one in accent).
+            for (i, wall) in hs.walls.iter().enumerate() {
+                let mid = Vec3::new((wall.a.0 + wall.b.0) * 0.5, y, (wall.a.1 + wall.b.1) * 0.5);
+                let len = ((wall.b.0 - wall.a.0).powi(2) + (wall.b.1 - wall.a.1).powi(2)).sqrt();
+                let col = if state.construction_wall_selected == Some(i) { theme.accent() } else { theme.text_primary() };
+                if let Some(sp) = world_to_screen(mid, view_proj, screen) {
+                    text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{len:.2} m"), 13.0, col);
+                }
+            }
+            // Angle where two walls meet at a shared corner.
+            let mut seen: Vec<(f32, f32)> = Vec::new();
+            for wall in &hs.walls {
+                for c in [wall.a, wall.b] {
+                    if seen.iter().any(|s| (s.0 - c.0).abs() < 0.05 && (s.1 - c.1).abs() < 0.05) {
+                        continue;
+                    }
+                    seen.push(c);
+                    let mut dirs: Vec<(f32, f32)> = Vec::new();
+                    for w in &hs.walls {
+                        if (w.a.0 - c.0).abs() < 0.05 && (w.a.1 - c.1).abs() < 0.05 {
+                            if let Some(d) = norm(w.b.0 - c.0, w.b.1 - c.1) { dirs.push(d); }
+                        }
+                        if (w.b.0 - c.0).abs() < 0.05 && (w.b.1 - c.1).abs() < 0.05 {
+                            if let Some(d) = norm(w.a.0 - c.0, w.a.1 - c.1) { dirs.push(d); }
+                        }
+                    }
+                    if dirs.len() >= 2 {
+                        let dot = (dirs[0].0 * dirs[1].0 + dirs[0].1 * dirs[1].1).clamp(-1.0, 1.0);
+                        let ang = dot.acos().to_degrees();
+                        if let Some(sp) = world_to_screen(Vec3::new(c.0, y, c.1), view_proj, screen) {
+                            text_shadowed(painter, sp + Vec2::new(0.0, 16.0), Align2::CENTER_TOP, &format!("{ang:.0} deg"), 12.0, theme.warning());
+                        }
+                    }
+                }
+            }
+            // Live readout while drawing: the pending segment length by the cursor.
+            if let (Some(s), Some(cur)) = (state.construction_wall_start, state.construction_cursor_world) {
+                let len = ((cur.0 - s.0).powi(2) + (cur.1 - s.1).powi(2)).sqrt();
+                if let Some(sp) = world_to_screen(Vec3::new(cur.0, y, cur.1), view_proj, screen) {
+                    text_shadowed(painter, sp + Vec2::new(22.0, -14.0), Align2::LEFT_CENTER, &format!("{len:.2} m"), 15.0, theme.accent());
+                }
+            }
+        });
+}
+
 /// Color a stat readout by its status.
 fn stat_status_color(status: &str, theme: &Theme) -> Color32 {
     match status {
