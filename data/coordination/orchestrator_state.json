@@ -449,12 +449,26 @@
         "src/gui/pages/hud.rs",
         "src/gui/mod.rs"
       ]
+    },
+    {
+      "at": "2026-06-25",
+      "decision": "HOME-CONSTRUCTION editor POLISH from the operator's launch-test feedback (v0.543-547). The operator tested the redesign + filed a rich batch. Addressed: (v0.543) see-through walls + invisible window-frame horizontals -> wall_box DOUBLE-SIDED (the opaque pipeline culls back faces, but a home is viewed from inside) + corner gizmos smaller/higher (no wall clipping); (v0.544) the recurring 'too many connection attempts' -> the NATIVE chat client looped every 5s into the identify rate limit because the backoff reset when the WS opened, BEFORE the throttled identify -- now backs off 65s + a ws_rate_limited guard (mirrors the web fix); (v0.545) CAD dimension overlay -- wall lengths at midpoints, corner angles, live drawing readout (hud::draw_construction_overlay reusing world_to_screen); (v0.546) draggable cyan-cube door/window opening gizmos (distinct from the yellow corner spheres), slide along the wall; (v0.547, the operator's AskUserQuestion pick of 'editor widgets' over 'door visuals') per-door open_dist + a translucent ground interaction ring (Mesh::flat_ring), a 'Dev overlay in play' toggle, + feature-distance gap readouts on the selected wall. Five adversarial reviews across the redesign all clean; the v0.541 gizmo review caught a HIGH close-survives-grab bug (fixed v0.542) -- the opening gizmos reuse that fixed pattern.",
+      "why": "The operator iterates fast at the keyboard: launch, file feedback, I ship, repeat. Shipped each fix as a coherent minor release + a fresh local exe so they can re-test immediately. Used AskUserQuestion ONCE to split the remaining work (contained editor widgets vs taste-y graphics-heavy door visuals) -- they picked the editor widgets, so the nanowall/energy/text/lock door VISUALS are deferred to their call (building those blind would risk rework on a taste decision). The see-through-walls fix + the connection-loop fix were the two real bugs; the rest is build-tool feel the operator is shaping interactively.",
+      "files": [
+        "src/ship/fibonacci.rs",
+        "src/lib.rs",
+        "src/gui/pages/hud.rs",
+        "src/gui/pages/construction.rs",
+        "src/ship/home_structure.rs",
+        "src/ship/door_panels.rs",
+        "src/renderer/mesh.rs"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.539.0 (Latest). HOME-CONSTRUCTION REDESIGN COMPLETE through v0.539 -- every operator-named item shipped (the 'build it all' push): fixed box + node/wall editor (v0.534), rooms-from-walls (v0.535), routed plumbing loop (v0.536), animated doors/windows (v0.537), position-based machines that survive wall edits (v0.538), clear GLASS ROOF (v0.539, roof_material default 4=glass, rendered see-through). Four adversarial reviews (v0.534/535-536/537/538) ALL CLEAN. REMAINING (operator-gated, none blocking): the old home.ron machines render but STACK at the box corner (negative shipped offsets clamp to one point -- v0.538 review flagged) -> operator data decision OPEN: keep-and-drag / CLEAR (archive first) / re-author home.ron into a clean layout; door-animation FEEL tuning after a launch-check; the deferred minor v0.531 follow-ups. Releases v0.516-0.539 await operator 'just sign-release'. Deploy green. 3D = launch-verify (no headless 3D).",
+  "version_state": "main==origin: v0.547.0 (Latest). HOME-CONSTRUCTION redesign COMPLETE + polished from launch feedback (v0.532-547). The EDITOR is feature-complete per the operator's pick: fixed box + node/wall editor, rooms-from-walls, routed plumbing, animated doors, position-based machines, glass roof, double-sided walls, draggable corner + opening gizmos with snapping, CAD dimension overlay (lengths/angles/readouts), per-door interaction rings + dev-overlay toggle + feature-distance readouts. Native chat connection-loop fixed (v0.544). REMAINING (operator-DEFERRED via AskUserQuestion, build when they ask): DOOR VISUALS -- nanowall see-through metallic, energy red-locked/green-open glow, text on doors, lock/open controls. Also still open: the old-machine data decision (keep-at-edges/clear/re-author -- they cluster at the box corner); door-feel tuning. Releases v0.516-0.547 await operator 'just sign-release'. Deploy green. 3D = launch-verify.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
