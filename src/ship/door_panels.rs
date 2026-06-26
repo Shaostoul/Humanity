@@ -16,12 +16,14 @@ pub const PANEL_THICKNESS: f32 = 0.06;
 /// A door/window panel's CLOSED placement in world space + the metadata the animator needs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PanelPlacement {
-    /// Panel centre (world) when closed.
+    /// Panel anchor (world) when closed: the opening's centre along the wall + on the wall line in
+    /// x/z, and its BOTTOM (the sill) in y -- the panel mesh (`box_xyz`) extends UP from here, so the
+    /// panel fills [sill, sill+height] rather than floating at mid-height. (v0.540)
     pub center: Vec3,
     /// Orientation: maps panel-local (x = along the wall a->b, y = up, z = wall normal) to world.
     /// Pure yaw about Y (walls are vertical), so "up" always stays up.
     pub rotation: Quat,
-    /// World pivot for a hinge swing: the opening's `a`-side vertical edge, at the panel's mid-height.
+    /// World pivot for a hinge swing: the opening's `a`-side vertical edge, at the panel bottom.
     pub hinge: Vec3,
     /// Panel size (along-wall width, height, thickness).
     pub size: Vec3,
@@ -51,7 +53,10 @@ pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
             }
             let s_center = (op.at + op.width * 0.5).clamp(0.0, len);
             let s_a = op.at.clamp(0.0, len);
-            let cy = op.sill + op.height * 0.5;
+            // box_xyz is y-bottom-origin (spans [0, h]), so anchor the panel at the SILL; it extends
+            // up by `height` to fill [sill, sill+height]. (v0.540 -- fixes the panel floating ~h/2
+            // too high and clipping the roof.)
+            let cy = op.sill;
             let c_xz = a + dir * s_center;
             let h_xz = a + dir * s_a;
             out.push(PanelPlacement {
@@ -100,9 +105,9 @@ mod tests {
             style: "swing".into(),
         }]));
         assert_eq!(p.len(), 1);
-        // Centre at s = 4 + 1 = 5 along +X, mid-height 1.05.
+        // Centre at s = 4 + 1 = 5 along +X; bottom-anchored at the sill (y = 0 for a door).
         assert!((p[0].center.x - 5.0).abs() < 1e-4 && (p[0].center.z - 0.0).abs() < 1e-4);
-        assert!((p[0].center.y - 1.05).abs() < 1e-4);
+        assert!(p[0].center.y.abs() < 1e-4, "panel bottom sits at the sill (floor)");
         // Hinge at the a-side edge, s = 4.
         assert!((p[0].hinge.x - 4.0).abs() < 1e-4);
         assert_eq!(p[0].size, Vec3::new(2.0, 2.1, PANEL_THICKNESS));
@@ -121,8 +126,8 @@ mod tests {
         }]));
         assert_eq!(p.len(), 1);
         assert!(p[0].is_window);
-        // Mid-height = sill + height/2 = 1.0 + 0.6 = 1.6.
-        assert!((p[0].center.y - 1.6).abs() < 1e-4);
+        // Bottom-anchored at the sill (1.0); the pane fills [1.0, 2.2].
+        assert!((p[0].center.y - 1.0).abs() < 1e-4);
     }
 
     #[test]

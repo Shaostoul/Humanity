@@ -961,6 +961,7 @@ mod native_app {
         state: &mut EngineState,
         opaque: &mut Vec<RenderObject>,
         transparent: &mut Vec<RenderObject>,
+        dt: f32,
     ) {
         if state.door_panels.is_empty() {
             return;
@@ -992,15 +993,31 @@ mod native_app {
             }
         };
         let cam = state.camera.position;
-        const OPEN_DIST: f32 = 2.6; // metres -- a door opens when the player is this close
-        const STEP: f32 = 0.06; // open-fraction change per frame (eased)
+        const OPEN_DIST: f32 = 2.6; // a door opens within this HORIZONTAL distance
+        const CLOSE_DIST: f32 = 3.4; // hysteresis: stays open until you back past this (no jitter)
+        // Frame-rate-independent exponential ease toward the target (v0.540): smooth open/close,
+        // no linear stepping, no extra keyframes. ~0.3 s to settle.
+        let ease = 1.0 - (-dt.max(0.0) * 9.0).exp();
         for (p, open) in state.door_panels.iter_mut() {
             // An operable DOOR opens on approach; a window or a "fixed"-styled opening stays shut
             // (v0.538: consult door_anim::is_operable so a door explicitly styled "fixed" does not
             // chase an open target it can never animate to).
             let operable = !p.is_window && crate::systems::door_anim::is_operable(&p.style);
-            let target = if operable && cam.distance(p.center) < OPEN_DIST { 1.0 } else { 0.0 };
-            *open = (*open + (target - *open).clamp(-STEP, STEP)).clamp(0.0, 1.0);
+            let dx = cam.x - p.center.x;
+            let dz = cam.z - p.center.z;
+            let dist = (dx * dx + dz * dz).sqrt(); // horizontal -- the camera's eye height must not count
+            // Hysteresis (v0.540): a closed door opens within OPEN_DIST; an open one stays open until
+            // you back past CLOSE_DIST, so standing near the threshold no longer flickers it.
+            let target = if !operable {
+                0.0
+            } else if *open > 0.5 {
+                if dist < CLOSE_DIST { 1.0 } else { 0.0 }
+            } else if dist < OPEN_DIST {
+                1.0
+            } else {
+                0.0
+            };
+            *open = (*open + (target - *open) * ease).clamp(0.0, 1.0);
             let m = crate::systems::door_anim::panel_motion(&p.style, *open, p.size.x, p.size.y);
             if m.hidden {
                 continue;
@@ -4159,7 +4176,9 @@ mod native_app {
                                 material: mat_idx,
                             });
                         }
-                        if state.homestead_ceiling_glass {
+                        // The glass roof is hidden in BUILD MODE (v0.540) so it never obscures the
+                        // top-down editor view; it shows in first-person (a sealed clear roof).
+                        if state.homestead_ceiling_glass && !state.gui_state.construction_active {
                             if let Some((mesh_idx, mat_idx)) = state.homestead_ceiling {
                                 transparent_objects.push(RenderObject {
                                     position: Vec3::ZERO,
@@ -4210,7 +4229,7 @@ mod native_app {
                         }
                         // Door + window panels: doors ease open as the player nears (by style);
                         // windows are fixed glass (transparent pass). (v0.537)
-                        render_door_panels(state, &mut all_objects, &mut transparent_objects);
+                        render_door_panels(state, &mut all_objects, &mut transparent_objects, dt);
                     }
                     // Placement ghost: the held palette item, previewed (semi-transparent, faintly
                     // glowing) on the room floor under the cursor, so you see where a click drops it.
@@ -4284,9 +4303,10 @@ mod native_app {
                         let mat = state.wall_tool_mat.unwrap();
                         if let Some((rb_i, hx, hz)) = cursor_floor_hit(state) {
                             let floor_y = state.gui_state.room_bounds[rb_i].min.y;
-                            // Corner-node marker: a slim post where the next click lands.
+                            // Corner-node marker: a slim post where the next click lands. (box_xyz is
+                            // y-bottom-origin, so position at floor_y -> the post spans [floor, +3].)
                             transparent_objects.push(RenderObject {
-                                position: Vec3::new(hx, floor_y + 1.5, hz),
+                                position: Vec3::new(hx, floor_y, hz),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::new(0.3, 3.0, 0.3),
                                 mesh,
@@ -4307,8 +4327,10 @@ mod native_app {
                                         .map_or(3.0, |h| h.height);
                                     let dir = Vec3::new(dx, 0.0, dz) / len;
                                     let rot = Quat::from_rotation_arc(Vec3::X, dir);
+                                    // box_xyz is y-bottom-origin -> position at floor_y so the preview
+                                    // wall fills [floor, floor+height].
                                     transparent_objects.push(RenderObject {
-                                        position: Vec3::new((a.x + b.x) * 0.5, floor_y + height * 0.5, (a.z + b.z) * 0.5),
+                                        position: Vec3::new((a.x + b.x) * 0.5, floor_y, (a.z + b.z) * 0.5),
                                         rotation: rot,
                                         scale: Vec3::new(len, height, 0.15),
                                         mesh,
