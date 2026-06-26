@@ -1383,6 +1383,91 @@ mod native_app {
         state.gui_state.construction_structure_dirty = true;
     }
 
+    /// World positions of every door/window opening gizmo: ((wall index, opening index), centre).
+    /// (v0.546)
+    fn opening_gizmos(hs: &crate::ship::home_structure::HomeStructure) -> Vec<((usize, usize), Vec3)> {
+        let mut out = Vec::new();
+        for (wi, wall) in hs.walls.iter().enumerate() {
+            let (ax, az) = wall.a;
+            let (dx, dz) = (wall.b.0 - ax, wall.b.1 - az);
+            let len = (dx * dx + dz * dz).sqrt();
+            if len < 1e-4 {
+                continue;
+            }
+            let (ux, uz) = (dx / len, dz / len);
+            for (oi, op) in wall.openings.iter().enumerate() {
+                let s = (op.at + op.width * 0.5).clamp(0.0, len);
+                let cy = op.sill + op.height * 0.5;
+                out.push(((wi, oi), Vec3::new(ax + ux * s, cy, az + uz * s)));
+            }
+        }
+        out
+    }
+
+    /// On a build-mode click, try to grab the nearest door/window opening gizmo (ray vs the cube).
+    /// Returns true if one was grabbed. (v0.546)
+    fn try_grab_opening(state: &mut EngineState) -> bool {
+        let gizmos = match state.gui_state.home_structure.as_ref() {
+            Some(hs) => opening_gizmos(hs),
+            None => return false,
+        };
+        if gizmos.is_empty() {
+            return false;
+        }
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<((usize, usize), f32)> = None;
+        for (id, p) in &gizmos {
+            let t = (*p - origin).dot(dir);
+            if t < 0.0 {
+                continue;
+            }
+            let dd = (*p - (origin + dir * t)).length();
+            if dd < 0.5 && best.map_or(true, |(_, b)| dd < b) {
+                best = Some((*id, dd));
+            }
+        }
+        if let Some((id, _)) = best {
+            state.construction_opening_grab = Some(id);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Per-frame while an opening gizmo is grabbed: project the cursor onto that opening's wall and
+    /// slide the opening ALONG it (update `at`), grid-snapped + clamped within the wall. (v0.546)
+    fn apply_opening_drag(state: &mut EngineState) {
+        let Some((wi, oi)) = state.construction_opening_grab else {
+            return;
+        };
+        let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+            return;
+        };
+        let grid = state.gui_state.construction_grid_snap;
+        if let Some(hs) = state.gui_state.home_structure.as_mut() {
+            let Some(wall) = hs.walls.get_mut(wi) else {
+                return;
+            };
+            let (ax, az) = wall.a;
+            let (dx, dz) = (wall.b.0 - ax, wall.b.1 - az);
+            let len = (dx * dx + dz * dz).sqrt();
+            if len < 1e-4 {
+                return;
+            }
+            let (ux, uz) = (dx / len, dz / len);
+            let mut along = ((hx - ax) * ux + (hz - az) * uz).clamp(0.0, len);
+            if grid {
+                along = (along * 4.0).round() / 4.0;
+            }
+            if let Some(op) = wall.openings.get_mut(oi) {
+                let half = op.width * 0.5;
+                op.at = (along - half).clamp(0.0, (len - op.width).max(0.0));
+            }
+        }
+        state.gui_state.construction_structure_dirty = true;
+    }
+
     /// Per-frame: while a room is grabbed, intersect the pick ray with its floor plane, move
     /// the room so it follows the cursor (minus the grab offset), snap to 0.25 m, and flag a
     /// rebuild. Computed from the live cursor (not deltas) so it never drifts. (v0.466)
@@ -2499,6 +2584,12 @@ mod native_app {
         construction_node_mesh: Option<usize>,
         construction_node_mat: Option<usize>,
         construction_node_mat_hot: Option<usize>,
+        /// Door/window OPENING editing (v0.546): the (wall index, opening index) of the opening whose
+        /// gizmo is grabbed -- dragging slides it ALONG its wall (updates `at`). A visually distinct
+        /// cube gizmo (vs the corner spheres) + its cached mesh/material.
+        construction_opening_grab: Option<(usize, usize)>,
+        construction_opening_mesh: Option<usize>,
+        construction_opening_mat: Option<usize>,
         /// The door/window slide-gizmo handle currently grabbed in the 3D editor. (v0.468)
         construction_gizmo_grab: Option<ConstructionGizmoGrab>,
         /// Cached (mesh, material) for the gizmo MOVE handle marker, built once. (v0.468)
@@ -3040,6 +3131,9 @@ mod native_app {
                 construction_node_mesh: None,
                 construction_node_mat: None,
                 construction_node_mat_hot: None,
+                construction_opening_grab: None,
+                construction_opening_mesh: None,
+                construction_opening_mat: None,
                 construction_gizmo_grab: None,
                 construction_gizmo_handle: None,
                 construction_gizmo_resize_handle: None,
@@ -3434,6 +3528,9 @@ mod native_app {
                                 try_place_wall_node(state);
                             } else if state.gui_state.construction_place_type.is_some() {
                                 try_place_held_machine(state);
+                            } else if state.gui_state.home_structure.is_some() && try_grab_opening(state) {
+                                // Grabbed a door/window opening gizmo (v0.546): the per-frame drag
+                                // slides it along its wall.
                             } else if state.gui_state.home_structure.is_some() && try_grab_node(state) {
                                 // Grabbed a wall corner-node gizmo (v0.541): the per-frame drag moves
                                 // it (+ any walls sharing it) with snapping.
@@ -3444,6 +3541,7 @@ mod native_app {
                             state.construction_grab = None; // release; keep the selection highlighted
                             state.construction_gizmo_grab = None; // release a slid handle too
                             state.construction_node_grab = None; // release a dragged corner node
+                            state.construction_opening_grab = None; // release a dragged opening
                         }
                     } else if state.gui_state.construction_active
                         && right
@@ -3946,6 +4044,7 @@ mod native_app {
                         state.construction_grab = None;
                         state.construction_gizmo_grab = None;
                         state.construction_node_grab = None; // v0.542: drop a live corner grab on close
+                        state.construction_opening_grab = None; // v0.546: drop a live opening grab
                     }
                     // 3D room drag (v0.466): a grabbed room follows the cursor on its floor.
                     // Slide-gizmo drag (v0.468) takes precedence: a grabbed door/window handle
@@ -3954,7 +4053,9 @@ mod native_app {
                     // first-person -- a Close click consumes the mouse-release, so without this gate a
                     // live node grab silently rewrote walls to chase the cursor after leaving the editor.
                     if state.gui_state.construction_active {
-                        if state.construction_node_grab.is_some() {
+                        if state.construction_opening_grab.is_some() {
+                            apply_opening_drag(state); // v0.546: a grabbed opening slides along its wall
+                        } else if state.construction_node_grab.is_some() {
                             apply_node_drag(state); // v0.541: a grabbed wall corner follows the cursor
                         } else if state.construction_gizmo_grab.is_some() {
                             apply_gizmo_drag(state);
@@ -4536,6 +4637,36 @@ mod native_app {
                                 scale: Vec3::splat(if hot { 0.4 } else { 0.3 }),
                                 mesh: node_mesh,
                                 material: if hot { hot_mat } else { node_mat },
+                            });
+                        }
+                    }
+
+                    // Door/window OPENING gizmos (v0.546): a distinct cyan CUBE at each opening,
+                    // draggable along its wall (vs the yellow corner spheres). Cached mesh + material.
+                    if state.gui_state.construction_active && state.gui_state.home_structure.is_some() {
+                        if state.construction_opening_mesh.is_none() {
+                            let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+                            state.construction_opening_mesh = Some(m);
+                        }
+                        if state.construction_opening_mat.is_none() {
+                            // theme-exempt: editor gizmo, distinct cyan + emissive so it stands out.
+                            let m = state.renderer.add_material_full([0.2, 0.9, 1.0, 1.0], 0.0, 0.4, 0.0, 0.7);
+                            state.construction_opening_mat = Some(m);
+                        }
+                        let mesh = state.construction_opening_mesh.unwrap();
+                        let mat = state.construction_opening_mat.unwrap();
+                        let gizmos = {
+                            let hs = state.gui_state.home_structure.as_ref().unwrap();
+                            opening_gizmos(hs)
+                        };
+                        const S: f32 = 0.35;
+                        for (_, p) in &gizmos {
+                            all_objects.push(RenderObject {
+                                position: Vec3::new(p.x, p.y - S * 0.5, p.z), // box_xyz y-bottom -> centre
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::splat(S),
+                                mesh,
+                                material: mat,
                             });
                         }
                     }
