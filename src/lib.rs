@@ -4700,9 +4700,23 @@ mod native_app {
                             let m = state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.3, 0.0, 1.0);
                             state.construction_node_mat_hot = Some(m);
                         }
+                        // Ground angle-circle (v0.551): a translucent ring on the floor at each corner
+                        // (raised 10 cm to avoid z-fight) so the per-slice angle labels read clearly.
+                        // Reuses the flat-ring mesh; lazy-created here so it works without doors too.
+                        if state.construction_ring_mesh.is_none() {
+                            let m = state.renderer.add_mesh(Mesh::flat_ring(&state.renderer.device, 48));
+                            state.construction_ring_mesh = Some(m);
+                        }
+                        if state.construction_ring_mat.is_none() {
+                            // theme-exempt: editor overlay ring, translucent cyan.
+                            let m = state.renderer.add_material_full([0.3, 0.85, 1.0, 0.5], 0.0, 0.5, 0.0, 0.4);
+                            state.construction_ring_mat = Some(m);
+                        }
                         let node_mesh = state.construction_node_mesh.unwrap();
                         let node_mat = state.construction_node_mat.unwrap();
                         let hot_mat = state.construction_node_mat_hot.unwrap();
+                        let ring_mesh = state.construction_ring_mesh.unwrap();
+                        let ring_mat = state.construction_ring_mat.unwrap();
                         let grabbed = state.construction_node_grab;
                         let (top_y, corners) = {
                             let hs = state.gui_state.home_structure.as_ref().unwrap();
@@ -4721,6 +4735,14 @@ mod native_app {
                                 scale: Vec3::splat(r),
                                 mesh: node_mesh,
                                 material: if hot { hot_mat } else { node_mat },
+                            });
+                            // Ground angle-circle (radius matches the overlay's RING_R = 1.1).
+                            transparent_objects.push(RenderObject {
+                                position: Vec3::new(c.0, 0.1, c.1),
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::new(1.1, 1.0, 1.1),
+                                mesh: ring_mesh,
+                                material: ring_mat,
                             });
                         }
                     }

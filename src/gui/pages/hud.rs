@@ -411,7 +411,11 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
                     text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{len:.2} m"), 13.0, col);
                 }
             }
-            // Angle where two walls meet at a shared corner.
+            // Pie-slice angles at each corner (v0.551): the angle of EACH slice between consecutive
+            // walls (sorted by heading), labelled ON THE GROUND at the slice's midpoint -- so a join
+            // of 2+ walls shows ALL its angles, not just one, and the number sits in the slice it
+            // measures instead of on the (confusing) wall edge. Pairs with the ground angle-ring.
+            const RING_R: f32 = 1.1;
             let mut seen: Vec<(f32, f32)> = Vec::new();
             for wall in &hs.walls {
                 for c in [wall.a, wall.b] {
@@ -419,20 +423,31 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
                         continue;
                     }
                     seen.push(c);
-                    let mut dirs: Vec<(f32, f32)> = Vec::new();
+                    let mut headings: Vec<f32> = Vec::new();
                     for w in &hs.walls {
                         if (w.a.0 - c.0).abs() < 0.05 && (w.a.1 - c.1).abs() < 0.05 {
-                            if let Some(d) = norm(w.b.0 - c.0, w.b.1 - c.1) { dirs.push(d); }
+                            headings.push((w.b.1 - c.1).atan2(w.b.0 - c.0));
                         }
                         if (w.b.0 - c.0).abs() < 0.05 && (w.b.1 - c.1).abs() < 0.05 {
-                            if let Some(d) = norm(w.a.0 - c.0, w.a.1 - c.1) { dirs.push(d); }
+                            headings.push((w.a.1 - c.1).atan2(w.a.0 - c.0));
                         }
                     }
-                    if dirs.len() >= 2 {
-                        let dot = (dirs[0].0 * dirs[1].0 + dirs[0].1 * dirs[1].1).clamp(-1.0, 1.0);
-                        let ang = dot.acos().to_degrees();
-                        if let Some(sp) = world_to_screen(Vec3::new(c.0, y, c.1), view_proj, screen) {
-                            text_shadowed(painter, sp + Vec2::new(0.0, 16.0), Align2::CENTER_TOP, &format!("{ang:.0} deg"), 12.0, theme.warning());
+                    if headings.len() < 2 {
+                        continue;
+                    }
+                    headings.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                    let nh = headings.len();
+                    for i in 0..nh {
+                        let a0 = headings[i];
+                        let a1 = if i + 1 < nh { headings[i + 1] } else { headings[0] + std::f32::consts::TAU };
+                        let slice = a1 - a0;
+                        if slice < 0.02 {
+                            continue;
+                        }
+                        let mid = a0 + slice * 0.5;
+                        let world = Vec3::new(c.0 + mid.cos() * RING_R * 0.62, 0.12, c.1 + mid.sin() * RING_R * 0.62);
+                        if let Some(sp) = world_to_screen(world, view_proj, screen) {
+                            text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{:.0} deg", slice.to_degrees()), 12.0, theme.warning());
                         }
                     }
                 }
