@@ -657,7 +657,13 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     "Click the first corner on the floor."
                 };
                 ui.label(RichText::new(hint).size(theme.font_size_small).color(theme.accent()));
+            } else {
+                ui.label(RichText::new("Drag the pins above the wall corners to move them; corners that meet move together.")
+                    .size(theme.font_size_small).color(theme.text_muted()));
             }
+            // Grid snap toggle (v0.541): endpoint + edge snapping are always on (airtight seals); this
+            // toggles the 0.25 m grid.
+            ui.checkbox(&mut state.construction_grid_snap, RichText::new("Grid snap (0.25 m)").size(theme.font_size_small).color(theme.text_primary()));
             ui.add_space(theme.spacing_sm);
 
             // The interior-wall list (click to select for editing; Remove deletes).

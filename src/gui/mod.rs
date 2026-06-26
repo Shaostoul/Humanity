@@ -1509,6 +1509,9 @@ pub struct GuiState {
     /// Index of the interior wall currently selected in the editor (for remove / opening edits), or
     /// None. (v0.534)
     pub construction_wall_selected: Option<usize>,
+    /// Snap wall corners to a 0.25 m grid while drawing + dragging (v0.541). Endpoint snapping (to
+    /// the box edges + other corners) is always on for airtight seals; this toggles the grid.
+    pub construction_grid_snap: bool,
     /// Set by the panel's Save button -> the engine writes the layout back to the RON.
     pub construction_save: bool,
     /// Index into the backdrop list (the names mirror is `showroom_backdrop_names`).
@@ -2517,6 +2520,7 @@ impl Default for GuiState {
             construction_wall_mode: false,
             construction_wall_start: None,
             construction_wall_selected: None,
+            construction_grid_snap: true,
             construction_palette_category: String::new(),
             construction_palette_expanded: false,
             construction_place_type: None,

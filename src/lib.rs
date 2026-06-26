@@ -1226,8 +1226,14 @@ mod native_app {
         let Some((_, hx, hz)) = cursor_floor_hit(state) else {
             return;
         };
-        let snap = |v: f32| (v * 4.0).round() / 4.0;
-        let p = (snap(hx), snap(hz));
+        // v0.541: snap a drawn corner to an existing corner / the box edge / the grid (same rules as
+        // dragging), so successive walls share corners + reach the perimeter for an airtight seal.
+        // (NaN "grabbed" sentinel skips nothing, so a new corner CAN snap onto an existing one.)
+        let grid = state.gui_state.construction_grid_snap;
+        let p = match state.gui_state.home_structure.as_ref() {
+            Some(hs) => snap_node_position(hs, (f32::NAN, f32::NAN), (hx, hz), grid),
+            None => ((hx * 4.0).round() / 4.0, (hz * 4.0).round() / 4.0),
+        };
         match state.gui_state.construction_wall_start {
             None => state.gui_state.construction_wall_start = Some(p),
             Some(start) => {
@@ -1250,6 +1256,130 @@ mod native_app {
                 }
             }
         }
+    }
+
+    /// Every unique wall CORNER (deduped by position) -- the node set the gizmos + dragging act on.
+    /// (v0.541)
+    fn unique_corners(hs: &crate::ship::home_structure::HomeStructure) -> Vec<(f32, f32)> {
+        let mut out: Vec<(f32, f32)> = Vec::new();
+        for wall in &hs.walls {
+            for c in [wall.a, wall.b] {
+                if !out.iter().any(|o| (o.0 - c.0).abs() < 0.05 && (o.1 - c.1).abs() < 0.05) {
+                    out.push(c);
+                }
+            }
+        }
+        out
+    }
+
+    /// Snap a dragged corner: to the nearest OTHER corner within 0.6 m (a shared node / airtight
+    /// seal), else to the box perimeter if near an edge, else to the 0.25 m grid when grid snap is
+    /// on. Always clamped into the box footprint. (v0.541)
+    fn snap_node_position(
+        hs: &crate::ship::home_structure::HomeStructure,
+        grabbed: (f32, f32),
+        raw: (f32, f32),
+        grid: bool,
+    ) -> (f32, f32) {
+        // 1. Endpoint snap (strongest): another corner within 0.6 m, for shared nodes + seals.
+        let mut best: Option<((f32, f32), f32)> = None;
+        for wall in &hs.walls {
+            for c in [wall.a, wall.b] {
+                if (c.0 - grabbed.0).abs() < 0.05 && (c.1 - grabbed.1).abs() < 0.05 {
+                    continue; // the grabbed node (+ its shared copies)
+                }
+                let dd = (c.0 - raw.0).powi(2) + (c.1 - raw.1).powi(2);
+                if dd < 0.36 && best.map_or(true, |(_, b)| dd < b) {
+                    best = Some((c, dd));
+                }
+            }
+        }
+        if let Some((c, _)) = best {
+            return c;
+        }
+        // 2. Grid snap, then edge snap to the box perimeter.
+        let (w, d) = (hs.width, hs.depth);
+        let mut x = raw.0;
+        let mut z = raw.1;
+        if grid {
+            x = (x * 4.0).round() / 4.0;
+            z = (z * 4.0).round() / 4.0;
+        }
+        if x < 0.5 {
+            x = 0.0;
+        } else if x > w - 0.5 {
+            x = w;
+        }
+        if z < 0.5 {
+            z = 0.0;
+        } else if z > d - 0.5 {
+            z = d;
+        }
+        (x.clamp(0.0, w), z.clamp(0.0, d))
+    }
+
+    /// On a build-mode click, try to grab the nearest corner-node gizmo under the cursor (ray vs the
+    /// pin position). Returns true if a node was grabbed. (v0.541)
+    fn try_grab_node(state: &mut EngineState) -> bool {
+        // Compute the gizmo set as owned values so the home_structure borrow ends before the
+        // mutable grab assignment below.
+        let (top_y, corners) = match state.gui_state.home_structure.as_ref() {
+            Some(hs) => (hs.height + 0.3, unique_corners(hs)),
+            None => return false,
+        };
+        let sz = state.window.inner_size();
+        let (origin, dir) =
+            state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let dir = dir.normalize();
+        let mut best: Option<((f32, f32), f32)> = None;
+        for c in &corners {
+            let p = Vec3::new(c.0, top_y, c.1);
+            let t = (p - origin).dot(dir);
+            if t < 0.0 {
+                continue; // behind the camera
+            }
+            let dd = (p - (origin + dir * t)).length();
+            if dd < 0.7 && best.map_or(true, |(_, b)| dd < b) {
+                best = Some((*c, dd));
+            }
+        }
+        if let Some((c, _)) = best {
+            state.construction_node_grab = Some(c);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Per-frame while a corner node is grabbed: raycast to the floor, snap, and move EVERY wall
+    /// endpoint at the grabbed position to the snapped one (so shared corners move together). (v0.541)
+    fn apply_node_drag(state: &mut EngineState) {
+        let Some(grabbed) = state.construction_node_grab else {
+            return;
+        };
+        let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+            return;
+        };
+        let grid = state.gui_state.construction_grid_snap;
+        let snapped = match state.gui_state.home_structure.as_ref() {
+            Some(hs) => snap_node_position(hs, grabbed, (hx, hz), grid),
+            None => return,
+        };
+        if (snapped.0 - grabbed.0).abs() < 1e-4 && (snapped.1 - grabbed.1).abs() < 1e-4 {
+            return; // no movement this frame
+        }
+        if let Some(hs) = state.gui_state.home_structure.as_mut() {
+            for wall in hs.walls.iter_mut() {
+                if (wall.a.0 - grabbed.0).abs() < 0.05 && (wall.a.1 - grabbed.1).abs() < 0.05 {
+                    wall.a = snapped;
+                }
+                if (wall.b.0 - grabbed.0).abs() < 0.05 && (wall.b.1 - grabbed.1).abs() < 0.05 {
+                    wall.b = snapped;
+                }
+            }
+        }
+        state.construction_node_grab = Some(snapped);
+        state.gui_state.construction_structure_dirty = true;
     }
 
     /// Per-frame: while a room is grabbed, intersect the pick ray with its floor plane, move
@@ -2360,6 +2490,14 @@ mod native_app {
         /// Lazy-created once and reused (scaled/rotated per frame) so the preview never leaks a mesh.
         wall_tool_mesh: Option<usize>,
         wall_tool_mat: Option<usize>,
+        /// Corner-node editing (v0.541): the position of the wall corner currently grabbed by its
+        /// gizmo (None = not dragging). Dragging moves EVERY wall endpoint at this position (shared
+        /// corners move together), snapped to the grid / box edges / other corners. Plus the cached
+        /// gizmo sphere mesh + its normal + highlighted materials.
+        construction_node_grab: Option<(f32, f32)>,
+        construction_node_mesh: Option<usize>,
+        construction_node_mat: Option<usize>,
+        construction_node_mat_hot: Option<usize>,
         /// The door/window slide-gizmo handle currently grabbed in the 3D editor. (v0.468)
         construction_gizmo_grab: Option<ConstructionGizmoGrab>,
         /// Cached (mesh, material) for the gizmo MOVE handle marker, built once. (v0.468)
@@ -2897,6 +3035,10 @@ mod native_app {
                 construction_ghost: None,
                 wall_tool_mesh: None,
                 wall_tool_mat: None,
+                construction_node_grab: None,
+                construction_node_mesh: None,
+                construction_node_mat: None,
+                construction_node_mat_hot: None,
                 construction_gizmo_grab: None,
                 construction_gizmo_handle: None,
                 construction_gizmo_resize_handle: None,
@@ -3291,12 +3433,16 @@ mod native_app {
                                 try_place_wall_node(state);
                             } else if state.gui_state.construction_place_type.is_some() {
                                 try_place_held_machine(state);
+                            } else if state.gui_state.home_structure.is_some() && try_grab_node(state) {
+                                // Grabbed a wall corner-node gizmo (v0.541): the per-frame drag moves
+                                // it (+ any walls sharing it) with snapping.
                             } else {
                                 try_begin_room_grab(state);
                             }
                         } else {
                             state.construction_grab = None; // release; keep the selection highlighted
                             state.construction_gizmo_grab = None; // release a slid handle too
+                            state.construction_node_grab = None; // release a dragged corner node
                         }
                     } else if state.gui_state.construction_active
                         && right
@@ -3802,7 +3948,9 @@ mod native_app {
                     // 3D room drag (v0.466): a grabbed room follows the cursor on its floor.
                     // Slide-gizmo drag (v0.468) takes precedence: a grabbed door/window handle
                     // slides along its wall; a grabbed room follows the cursor on its floor.
-                    if state.construction_gizmo_grab.is_some() {
+                    if state.construction_node_grab.is_some() {
+                        apply_node_drag(state); // v0.541: a grabbed wall corner follows the cursor
+                    } else if state.construction_gizmo_grab.is_some() {
                         apply_gizmo_drag(state);
                     } else {
                         apply_room_drag(state);
@@ -4338,6 +4486,45 @@ mod native_app {
                                     });
                                 }
                             }
+                        }
+                    }
+
+                    // Corner-node gizmos (v0.541): a bright pin above each wall corner in BUILD MODE.
+                    // Click + drag one to reposition the corner (walls sharing it move together) with
+                    // snapping; the grabbed one is highlighted + larger. Cached sphere mesh + two
+                    // materials, reused -- no per-frame allocation.
+                    if state.gui_state.construction_active && state.gui_state.home_structure.is_some() {
+                        if state.construction_node_mesh.is_none() {
+                            let m = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 1.0, 12, 16));
+                            state.construction_node_mesh = Some(m);
+                        }
+                        if state.construction_node_mat.is_none() {
+                            // theme-exempt: editor gizmo overlay, emissive so it stands out.
+                            let m = state.renderer.add_material_full([1.0, 0.82, 0.2, 1.0], 0.0, 0.4, 0.0, 0.6);
+                            state.construction_node_mat = Some(m);
+                        }
+                        if state.construction_node_mat_hot.is_none() {
+                            // theme-exempt: grabbed-gizmo highlight.
+                            let m = state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.3, 0.0, 1.0);
+                            state.construction_node_mat_hot = Some(m);
+                        }
+                        let node_mesh = state.construction_node_mesh.unwrap();
+                        let node_mat = state.construction_node_mat.unwrap();
+                        let hot_mat = state.construction_node_mat_hot.unwrap();
+                        let grabbed = state.construction_node_grab;
+                        let (top_y, corners) = {
+                            let hs = state.gui_state.home_structure.as_ref().unwrap();
+                            (hs.height + 0.3, unique_corners(hs))
+                        };
+                        for c in &corners {
+                            let hot = grabbed.map_or(false, |g| (g.0 - c.0).abs() < 0.05 && (g.1 - c.1).abs() < 0.05);
+                            all_objects.push(RenderObject {
+                                position: Vec3::new(c.0, top_y, c.1),
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::splat(if hot { 0.65 } else { 0.5 }),
+                                mesh: node_mesh,
+                                material: if hot { hot_mat } else { node_mat },
+                            });
                         }
                     }
 
