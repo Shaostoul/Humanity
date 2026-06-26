@@ -1035,6 +1035,42 @@ mod native_app {
                 m
             }
         };
+        // Energy + nanowall door materials (v0.554), all rendered in the transparent pass: an ENERGY
+        // door is a glowing FIELD -- green while operable, red while LOCKED; a NANOWALL is a metallic
+        // semi-transparent surface you see through as it dissolves open.
+        let energy_open_mat = match state.door_energy_open_mat {
+            Some(m) => m,
+            None => {
+                // theme-exempt: glowing green energy field.
+                let m = state.renderer.add_material_full([0.20, 1.0, 0.40, 0.42], 0.0, 0.3, 1.0, 1.4);
+                state.door_energy_open_mat = Some(m);
+                m
+            }
+        };
+        let energy_locked_mat = match state.door_energy_locked_mat {
+            Some(m) => m,
+            None => {
+                // theme-exempt: glowing red energy field (locked).
+                let m = state.renderer.add_material_full([1.0, 0.18, 0.20, 0.50], 0.0, 0.3, 1.0, 1.4);
+                state.door_energy_locked_mat = Some(m);
+                m
+            }
+        };
+        let nanowall_mat = match state.door_nanowall_mat {
+            Some(m) => m,
+            None => {
+                // theme-exempt: metallic gray nanowall, semi-transparent.
+                let m = state.renderer.add_material_full([0.62, 0.64, 0.70, 0.60], 0.85, 0.15, 1.0, 0.15);
+                state.door_nanowall_mat = Some(m);
+                m
+            }
+        };
+        // Nanowall shimmer (v0.554): drift the metallic gray + emissive over time so the surface reads
+        // as a live, shifting "water" field rather than a static slab. One shared-material write/frame.
+        state.door_anim_time += dt.max(0.0);
+        let shimmer = 0.5 + 0.5 * (state.door_anim_time * 1.6).sin();
+        let g = 0.58 + 0.10 * shimmer;
+        state.renderer.update_material_full(nanowall_mat, [g * 0.94, g, g * 1.06, 0.60], 0.85, 0.10 + 0.08 * shimmer, 1.0, 0.08 + 0.16 * shimmer);
         let cam = state.camera.position;
         // v0.547: per-door open distance. The interaction ring shows it in build mode / dev overlay.
         let show_widgets = state.gui_state.construction_active || state.gui_state.construction_dev_overlay;
@@ -1077,8 +1113,8 @@ mod native_app {
             let dist = (dx * dx + dz * dz).sqrt(); // horizontal -- the camera's eye height must not count
             // Hysteresis (v0.540): a closed door opens within open_dist; an open one stays open until
             // you back past open_dist + 0.8, so standing near the threshold no longer flickers it.
-            let target = if !operable {
-                0.0
+            let target = if !operable || p.locked {
+                0.0 // a fixed pane or a LOCKED door never opens (v0.554)
             } else if *open > 0.5 {
                 if dist < p.open_dist + 0.8 { 1.0 } else { 0.0 }
             } else if dist < p.open_dist {
@@ -1097,14 +1133,19 @@ mod native_app {
             let pos = p.hinge + hinge_rot * (c - p.hinge);
             let rot = hinge_rot * p.rotation;
             let scale = Vec3::new(p.size.x * m.scale.0, p.size.y * m.scale.1, p.size.z * m.scale.2);
-            let obj = RenderObject {
-                position: pos,
-                rotation: rot,
-                scale,
-                mesh,
-                material: if p.is_window { glass_mat } else { slab_mat },
+            // Pick the panel material by style + lock state, and route glowing / glassy panels through
+            // the transparent pass so they blend (v0.554).
+            let (material, is_transparent) = if p.is_window {
+                (glass_mat, true)
+            } else if p.style == "energy" {
+                (if p.locked { energy_locked_mat } else { energy_open_mat }, true)
+            } else if p.style == "nanowall" {
+                (nanowall_mat, true)
+            } else {
+                (slab_mat, false)
             };
-            if p.is_window {
+            let obj = RenderObject { position: pos, rotation: rot, scale, mesh, material };
+            if is_transparent {
                 transparent.push(obj);
             } else {
                 opaque.push(obj);
@@ -2642,6 +2683,13 @@ mod native_app {
         door_panel_mesh: Option<usize>,
         door_slab_mat: Option<usize>,
         door_glass_mat: Option<usize>,
+        /// Energy/nanowall door materials (v0.554): glowing green (open) / red (locked) energy field
+        /// + a metallic semi-transparent nanowall. All render in the transparent pass.
+        door_energy_open_mat: Option<usize>,
+        door_energy_locked_mat: Option<usize>,
+        door_nanowall_mat: Option<usize>,
+        /// Accumulated time (s) driving the nanowall's shifting "water" shimmer. (v0.554)
+        door_anim_time: f32,
         /// Cached flat-ring mesh + translucent material for the door interaction-distance ground ring
         /// (v0.547), shown in build mode (or when the dev overlay is on), scaled by each door's
         /// open_dist.
@@ -3244,6 +3292,10 @@ mod native_app {
                 door_panel_mesh: None,
                 door_slab_mat: None,
                 door_glass_mat: None,
+                door_energy_open_mat: None,
+                door_energy_locked_mat: None,
+                door_nanowall_mat: None,
+                door_anim_time: 0.0,
                 construction_ring_mesh: None,
                 construction_ring_mat: None,
                 avatar_obj_start: 0,

@@ -484,6 +484,25 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
                     }
                 }
             }
+            // Door / window LABELS (v0.554): each opening's style + lock state, floating at the
+            // opening so you can read what every door is at a glance (the operator's "text on doors").
+            for wall in &hs.walls {
+                let (ax, az) = wall.a;
+                let (wdx, wdz) = (wall.b.0 - ax, wall.b.1 - az);
+                let wlen = (wdx * wdx + wdz * wdz).sqrt();
+                if wlen < 1e-4 {
+                    continue;
+                }
+                let (ux, uz) = (wdx / wlen, wdz / wlen);
+                for op in &wall.openings {
+                    let s = op.at + op.width * 0.5;
+                    let world = Vec3::new(ax + ux * s, op.sill + op.height * 0.5, az + uz * s);
+                    if let Some(sp) = world_to_screen(world, view_proj, screen) {
+                        let lock = if op.locked { " [locked]" } else { "" };
+                        text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{}{}", op.style, lock), 11.0, theme.text_primary());
+                    }
+                }
+            }
             // Live readout while drawing: the pending segment length by the cursor.
             if let (Some(s), Some(cur)) = (state.construction_wall_start, state.construction_cursor_world) {
                 let len = ((cur.0 - s.0).powi(2) + (cur.1 - s.1).powi(2)).sqrt();

@@ -814,7 +814,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             width: 1.0,
                             sill: 0.0,
                             height: 2.1,
-                            style: "swing".into(), open_dist: 2.6
+                            style: "swing".into(), open_dist: 2.6, locked: false
                         });
                     }
                     changed = true;
@@ -827,7 +827,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             width: 1.5,
                             sill: 1.0,
                             height: 1.2,
-                            style: "fixed".into(), open_dist: 2.6
+                            style: "fixed".into(), open_dist: 2.6, locked: false
                         });
                     }
                     changed = true;
@@ -880,6 +880,12 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             ui.label(RichText::new("open dist").color(theme.text_muted()));
                             changed |= ui.add(egui::DragValue::new(&mut op.open_dist).speed(0.1).range(0.5..=12.0).suffix(" m")).changed();
                         });
+                        // Lock control (v0.554): a locked door stays shut; an energy door glows red.
+                        if op.kind == OpeningKind::Door {
+                            changed |= ui
+                                .checkbox(&mut op.locked, RichText::new("Locked (stays shut; energy door glows red)").size(theme.font_size_small).color(theme.text_muted()))
+                                .changed();
+                        }
                     }
                 });
             }

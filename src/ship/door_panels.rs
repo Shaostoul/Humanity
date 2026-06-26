@@ -34,6 +34,8 @@ pub struct PanelPlacement {
     /// Auto-open (interaction) distance in metres -- the door opens within this horizontal range, and
     /// the editor draws a ground ring at this radius. (v0.547)
     pub open_dist: f32,
+    /// Locked: the panel stays shut; an energy door glows red (vs green unlocked). (v0.554)
+    pub locked: bool,
 }
 
 /// Compute a PanelPlacement for every opening in the home (world space).
@@ -70,6 +72,7 @@ pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
                 style: op.style.clone(),
                 is_window: op.kind == OpeningKind::Window,
                 open_dist: op.open_dist,
+                locked: op.locked,
             });
         }
     }
@@ -106,7 +109,7 @@ mod tests {
             width: 2.0,
             sill: 0.0,
             height: 2.1,
-            style: "swing".into(), open_dist: 2.6
+            style: "swing".into(), open_dist: 2.6, locked: false
         }]));
         assert_eq!(p.len(), 1);
         // Centre at s = 4 + 1 = 5 along +X; bottom-anchored at the sill (y = 0 for a door).
@@ -126,7 +129,7 @@ mod tests {
             width: 1.5,
             sill: 1.0,
             height: 1.2,
-            style: "fixed".into(), open_dist: 2.6
+            style: "fixed".into(), open_dist: 2.6, locked: false
         }]));
         assert_eq!(p.len(), 1);
         assert!(p[0].is_window);
@@ -142,7 +145,7 @@ mod tests {
             width: 1.0,
             sill: 0.0,
             height: 2.1,
-            style: "slide".into(), open_dist: 2.6
+            style: "slide".into(), open_dist: 2.6, locked: false
         }]);
         home.walls[0].a = (5.0, 0.0);
         home.walls[0].b = (5.0, 10.0); // along +Z
