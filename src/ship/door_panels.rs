@@ -78,6 +78,7 @@ mod tests {
             depth: 20.0,
             height: 3.0,
             shell_material: 1,
+            roof_material: 4,
             walls: vec![InteriorWall {
                 a: (0.0, 0.0),
                 b: (10.0, 0.0), // along +X
@@ -146,7 +147,7 @@ mod tests {
 
     #[test]
     fn no_walls_no_panels() {
-        let home = HomeStructure { width: 10.0, depth: 10.0, height: 3.0, shell_material: 1, walls: vec![] };
+        let home = HomeStructure { width: 10.0, depth: 10.0, height: 3.0, shell_material: 1, roof_material: 4, walls: vec![] };
         assert!(panel_placements(&home).is_empty());
     }
 }

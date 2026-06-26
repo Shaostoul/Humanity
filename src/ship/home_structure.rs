@@ -30,6 +30,11 @@ fn default_wall_height() -> f32 {
 fn default_steel() -> u32 {
     1
 }
+/// Material id for a clear/glass shell (the default roof: a sealed transparent ceiling you see the
+/// stars through, "good in outer space" per the operator).
+fn default_glass() -> u32 {
+    4
+}
 fn default_door_style() -> String {
     "swing".to_string()
 }
@@ -88,9 +93,14 @@ pub struct HomeStructure {
     pub width: f32,
     pub depth: f32,
     pub height: f32,
-    /// Shell (floor / outer walls / ceiling) material id. Steel (1) by default.
+    /// Shell (floor / outer walls) material id. Steel (1) by default.
     #[serde(default = "default_steel")]
     pub shell_material: u32,
+    /// Roof (ceiling) material id. Glass (4) by default -- a sealed CLEAR ceiling you see the stars
+    /// through, the operator's "clear wall, like glass, good in outer space." Set to the shell
+    /// material (1) for an opaque roof.
+    #[serde(default = "default_glass")]
+    pub roof_material: u32,
     /// The editable interior walls (segments in the floor plan).
     #[serde(default)]
     pub walls: Vec<InteriorWall>,
@@ -141,8 +151,15 @@ impl HomeStructure {
             1 => [0.55, 0.57, 0.62, 1.0], // steel
             2 => [0.62, 0.62, 0.60, 1.0], // concrete
             3 => [0.55, 0.40, 0.24, 1.0], // wood
+            4 => [0.55, 0.78, 0.92, 0.30], // clear glass (transparent)
             _ => [0.50, 0.52, 0.56, 1.0], // grid / default
         }
+    }
+
+    /// True when the roof is a clear/glass shell (the renderer draws it transparent in the see-through
+    /// pass rather than as an opaque ceiling). (v0.539)
+    pub fn roof_is_glass(&self) -> bool {
+        self.roof_material == 4
     }
 
     /// Generate the renderable meshes: the fixed box shell (one floor + 4 outer walls + ceiling)
@@ -380,7 +397,7 @@ mod tests {
     use super::*;
 
     fn box_only() -> HomeStructure {
-        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, walls: Vec::new() }
+        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new() }
     }
 
     #[test]
@@ -437,6 +454,7 @@ mod tests {
             depth: 89.0,
             height: 3.0,
             shell_material: 1,
+            roof_material: 4,
             walls: vec![wall(
                 (5.0, 5.0),
                 (5.0, 30.0),
@@ -483,6 +501,18 @@ mod tests {
         // A stub wall that does not reach the far side leaves the interior one open region.
         h.walls.push(wall((27.0, 0.0), (27.0, 40.0), Vec::new()));
         assert_eq!(h.detect_rooms().len(), 1, "a partial wall does not partition the box");
+    }
+
+    #[test]
+    fn roof_defaults_to_glass_when_absent() {
+        // A RON without roof_material gets the glass default (serde default = 4).
+        let h: HomeStructure = ron::from_str("(width: 10.0, depth: 10.0, height: 3.0)").expect("parses");
+        assert_eq!(h.roof_material, 4);
+        assert!(h.roof_is_glass(), "the default roof is clear glass");
+        // An explicit opaque roof reads back as not-glass.
+        let opaque: HomeStructure =
+            ron::from_str("(width: 10.0, depth: 10.0, height: 3.0, roof_material: 1)").expect("parses");
+        assert!(!opaque.roof_is_glass());
     }
 
     #[test]

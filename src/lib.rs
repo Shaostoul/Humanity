@@ -611,15 +611,32 @@ mod native_app {
                 Some((state.renderer.add_mesh(mesh), state.renderer.add_material_full([0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 1.6)))
             }
         } else { None };
+        // v0.539: a HomeStructure with a glass roof renders the ceiling TRANSPARENT (you see the
+        // stars through the sealed clear roof); otherwise it is the opaque grey ceiling.
+        let roof_glass = state
+            .gui_state
+            .home_structure
+            .as_ref()
+            .map_or(false, |hs| hs.roof_is_glass());
+        state.homestead_ceiling_glass = roof_glass;
         let prior = state.homestead_ceiling;
         state.homestead_ceiling = if !homestead.ceilings.0.is_empty() {
             let mesh = Mesh::from_vertices(&state.renderer.device, &homestead.ceilings.0, &homestead.ceilings.1);
+            // (color, metallic, roughness, material_type, emissive) for glass; (color, m, r, type) opaque.
+            let (gcol, gmet, grough, gtype, gemis) = ([0.55, 0.78, 0.92, 0.22], 0.0, 0.05, 1.0, 0.06);
+            let (ocol, omet, orough, otype) = ([0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0);
             if let Some((mi, ma)) = prior {
                 state.renderer.replace_mesh(mi, mesh);
-                state.renderer.update_material_typed(ma, [0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0);
+                if roof_glass {
+                    state.renderer.update_material_full(ma, gcol, gmet, grough, gtype, gemis);
+                } else {
+                    state.renderer.update_material_typed(ma, ocol, omet, orough, otype);
+                }
                 Some((mi, ma))
+            } else if roof_glass {
+                Some((state.renderer.add_mesh(mesh), state.renderer.add_material_full(gcol, gmet, grough, gtype, gemis)))
             } else {
-                Some((state.renderer.add_mesh(mesh), state.renderer.add_material_typed([0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0)))
+                Some((state.renderer.add_mesh(mesh), state.renderer.add_material_typed(ocol, omet, orough, otype)))
             }
         } else { None };
     }
@@ -2301,6 +2318,10 @@ mod native_app {
         homestead_mirrors: Option<(usize, usize)>,
         /// Homestead ceiling mesh + material — drawn only when `gui_state.show_roof`. (v0.453)
         homestead_ceiling: Option<(usize, usize)>,
+        /// True when the ceiling is a CLEAR/GLASS roof (v0.539): the renderer draws it in the
+        /// transparent pass (you see the stars through it) instead of as an opaque ceiling. Set by
+        /// apply_homestead_meshes from the HomeStructure's roof_material.
+        homestead_ceiling_glass: bool,
         /// The live homestead layout (v0.455). Held so the construction editor can mutate it
         /// (per-wall kinds, heights) and regenerate the meshes without a restart.
         homestead_layout: Option<crate::ship::fibonacci::HomesteadLayout>,
@@ -2850,6 +2871,7 @@ mod native_app {
                 homestead_windows: None,
                 homestead_mirrors: None,
                 homestead_ceiling: None,
+                homestead_ceiling_glass: false,
                 homestead_layout: None,
                 construction_cam_active: false,
                 construction_return_pos: Vec3::new(0.0, 1.7, 0.0),
@@ -4112,7 +4134,10 @@ mod native_app {
                             state.homestead_trim,
                             state.homestead_mirrors,
                         ];
-                        if state.gui_state.show_roof {
+                        // Opaque roof: gated on show_roof (off by default so the sky shows). A GLASS
+                        // roof (v0.539) is a sealed CLEAR ceiling -- always visible, drawn transparent
+                        // below, so you see the stars through it without hiding the seal.
+                        if state.gui_state.show_roof && !state.homestead_ceiling_glass {
                             shell.push(state.homestead_ceiling);
                         }
                         for (mesh_idx, mat_idx) in shell.into_iter().flatten() {
@@ -4124,7 +4149,7 @@ mod native_app {
                                 material: mat_idx,
                             });
                         }
-                        // Glass windows -> the transparent pass.
+                        // Glass windows + a glass roof -> the transparent pass.
                         if let Some((mesh_idx, mat_idx)) = state.homestead_windows {
                             transparent_objects.push(RenderObject {
                                 position: Vec3::ZERO,
@@ -4133,6 +4158,17 @@ mod native_app {
                                 mesh: mesh_idx,
                                 material: mat_idx,
                             });
+                        }
+                        if state.homestead_ceiling_glass {
+                            if let Some((mesh_idx, mat_idx)) = state.homestead_ceiling {
+                                transparent_objects.push(RenderObject {
+                                    position: Vec3::ZERO,
+                                    rotation: Quat::IDENTITY,
+                                    scale: Vec3::ONE,
+                                    mesh: mesh_idx,
+                                    material: mat_idx,
+                                });
+                            }
                         }
                     }
 

@@ -15,6 +15,9 @@
     depth: 89.0,
     height: 3.0,
     shell_material: 1,
+    // Roof: 4 = clear GLASS (a sealed transparent ceiling you see the stars through, good in space).
+    // Set to 1 for an opaque steel roof.
+    roof_material: 4,
     // No interior walls yet -- the empty box. Build the interior with the editor (or add lines here):
     //   (a: (10.0, 0.0), b: (10.0, 40.0), height: 3.0, material: 1),
     walls: [],
