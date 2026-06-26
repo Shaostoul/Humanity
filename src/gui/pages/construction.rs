@@ -797,6 +797,21 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         .size(theme.font_size_small).color(theme.text_muted()));
                     ui.label(RichText::new(m.note.clone()).size(theme.font_size_small).color(theme.text_muted()));
                 }
+                // Thickness (v0.556): per-wall, down to a 1 mm paper screen. Drives the mesh + the
+                // collider. "auto" reverts to the material's default. Shows cm for readability.
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Thickness").color(theme.text_muted()));
+                    let mut t = wall.resolved_thickness();
+                    if ui.add(egui::DragValue::new(&mut t).speed(0.005).range(0.001..=2.0).suffix(" m").fixed_decimals(3)).changed() {
+                        wall.thickness = Some(t.max(0.001));
+                        changed = true;
+                    }
+                    ui.label(RichText::new(format!("({:.0} cm)", t * 100.0)).size(theme.font_size_small).color(theme.text_muted()));
+                    if wall.thickness.is_some() && ui.small_button("auto").clicked() {
+                        wall.thickness = None;
+                        changed = true;
+                    }
+                });
                 let dx = wall.b.0 - wall.a.0;
                 let dz = wall.b.1 - wall.a.1;
                 wall_len = (dx * dx + dz * dz).sqrt();

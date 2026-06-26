@@ -182,7 +182,7 @@ mod tests {
     use super::*;
 
     fn wall(a: (f32, f32), b: (f32, f32), material: u32) -> InteriorWall {
-        InteriorWall { a, b, height: 3.0, material, openings: Vec::new() }
+        InteriorWall { a, b, height: 3.0, material, openings: Vec::new(), thickness: None }
     }
 
     #[test]

@@ -677,6 +677,12 @@ mod native_app {
             return;
         };
         let room_info = homestead.room_info.clone();
+        // Rebuild the wall collision segments from the live home (v0.556) so editing a wall updates
+        // what the player walks into. Empty for the legacy AABB layout (no per-segment home walls).
+        state.wall_colliders = match &state.gui_state.home_structure {
+            Some(hs) => crate::ship::wall_collision::wall_segments(hs),
+            None => Vec::new(),
+        };
         apply_homestead_meshes(state, homestead);
         // Refresh lights + sealed bounds from the new room_info (height edits move them).
         state.room_lights = room_info.iter().map(|r| {
@@ -1358,6 +1364,7 @@ mod native_app {
                             height,
                             material,
                             openings: Vec::new(),
+                            thickness: None,
                         });
                         state.gui_state.construction_structure_dirty = true;
                         state.gui_state.construction_wall_selected = Some(hs.walls.len() - 1);
@@ -1907,6 +1914,11 @@ mod native_app {
                 state.homestead_layout = Some(layout);
                 (meshes, info)
             };
+        // Wall collision segments so the player can't walk through walls from the first frame (v0.556).
+        state.wall_colliders = match &state.gui_state.home_structure {
+            Some(hs) => crate::ship::wall_collision::wall_segments(hs),
+            None => Vec::new(),
+        };
         apply_homestead_meshes(state, homestead);
 
         // Room ceiling lights
@@ -2667,6 +2679,10 @@ mod native_app {
         /// per placed machine. Rebuilt alongside machine_objects; the build-mode click ray-tests this
         /// to select a machine (its detail then shows on the right panel).
         machine_pick: Vec<(String, Vec3, f32)>,
+        /// Static wall/perimeter collision segments for the home (v0.556): the player (= the camera)
+        /// is pushed out of these in first person so you can no longer walk through walls. Rebuilt
+        /// from the home_structure on every structural edit + on world load. Doors collide live.
+        wall_colliders: Vec<crate::ship::wall_collision::WallSegment>,
         /// Home machine CONNECTIONS as live colored cylinders (v0.530): (mesh, material, position,
         /// rotation, scale). Replaces the static routed pipes so connections appear immediately +
         /// follow rooms in the editor. Rebuilt with the machines; uses one cached unit cylinder mesh
@@ -3285,6 +3301,7 @@ mod native_app {
                 placeholder_objects: Vec::new(),
                 machine_objects: Vec::new(),
                 machine_pick: Vec::new(),
+                wall_colliders: Vec::new(),
                 connection_objects: Vec::new(),
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
@@ -3844,8 +3861,47 @@ mod native_app {
                         }
                     }
 
-                    // Update camera from input
+                    // Update camera from input (capture the pre-move position for swept collision).
+                    let prev_cam_pos = state.camera.position;
                     state.controller.update_camera(&mut state.camera, dt);
+
+                    // Wall collision (v0.556): the player IS the camera, so push it out of the home's
+                    // walls / closed doors in first person -- no more walking through walls. Doors that
+                    // are open + unlocked are gaps; closed or locked doors block; windows are part of
+                    // their wall span. Skipped in the build editor (orbit cam) + when there are no
+                    // home walls (legacy layout / showroom -> wall_colliders empty).
+                    if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
+                        && !state.gui_state.construction_active
+                        && !state.wall_colliders.is_empty()
+                    {
+                        let doors: Vec<crate::ship::wall_collision::WallSegment> = state
+                            .door_panels
+                            .iter()
+                            .filter_map(|(p, open)| {
+                                // Windows are handled by their (uncut) wall span; a door blocks only
+                                // when closed or locked.
+                                if p.is_window || (*open >= 0.5 && !p.locked) {
+                                    return None;
+                                }
+                                let half_w = p.size.x * 0.5;
+                                let dir = p.rotation * Vec3::new(1.0, 0.0, 0.0);
+                                let c = p.center;
+                                Some(crate::ship::wall_collision::WallSegment {
+                                    a: (c.x - dir.x * half_w, c.z - dir.z * half_w),
+                                    b: (c.x + dir.x * half_w, c.z + dir.z * half_w),
+                                    half_thickness: (p.size.z * 0.5).max(0.05),
+                                })
+                            })
+                            .collect();
+                        let resolved = crate::ship::wall_collision::resolve(
+                            prev_cam_pos,
+                            state.camera.position,
+                            crate::ship::wall_collision::PLAYER_RADIUS,
+                            &state.wall_colliders,
+                            &doors,
+                        );
+                        state.camera.position = resolved;
+                    }
 
                     // Camera stays in local ship coords (no floating origin reset)
                     // Floating origin is only used for rendering distant bodies

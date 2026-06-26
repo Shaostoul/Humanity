@@ -1,16 +1,18 @@
 // HumanityOS wall construction materials -- real engineering values so builders LEARN while they
 // play. `id` is what InteriorWall.material stores; `color` is rgba (alpha < 1.0 renders transparent,
-// e.g. glass). Density/strength/cost are real-world figures. Add a material by adding a line here.
+// e.g. glass). Density/strength/cost are real-world figures. `default_thickness_m` is the wall
+// thickness used when a wall does not override it (sheet metals thin, framed/poured materials thick);
+// a wall can set any thickness, down to a 1mm paper screen. Add a material by adding a line here.
 //
 // Categories: metal, stone, wood, plastic, glass. The construction editor shows the picker + these
 // properties on the right panel.
 [
-    (id: 1, name: "Steel",          category: "metal",   color: (0.55, 0.57, 0.62, 1.0),  density_kg_m3: 7850.0, tensile_mpa: 400.0, cost_per_kg: 2.5, renewable: false, note: "Strong structural metal; the default mothership allotment. High strength, conducts heat."),
-    (id: 2, name: "Concrete",       category: "stone",   color: (0.64, 0.64, 0.62, 1.0),  density_kg_m3: 2400.0, tensile_mpa: 3.0,   cost_per_kg: 0.1, renewable: false, note: "Cheap + fire-resistant; very strong in compression, weak in tension (so it is reinforced)."),
-    (id: 3, name: "Oak",            category: "wood",    color: (0.55, 0.40, 0.24, 1.0),  density_kg_m3: 750.0,  tensile_mpa: 90.0,  cost_per_kg: 1.2, renewable: true,  note: "Dense renewable hardwood; warm, workable, good along the grain."),
-    (id: 4, name: "Tempered glass", category: "glass",   color: (0.55, 0.78, 0.92, 0.35), density_kg_m3: 2500.0, tensile_mpa: 50.0,  cost_per_kg: 3.0, renewable: false, note: "Clear safety glass; lets daylight through, shatters into blunt pieces."),
-    (id: 5, name: "Aluminum",       category: "metal",   color: (0.78, 0.80, 0.83, 1.0),  density_kg_m3: 2700.0, tensile_mpa: 310.0, cost_per_kg: 4.0, renewable: false, note: "Light, corrosion-resistant metal; a third the density of steel."),
-    (id: 6, name: "Pine",           category: "wood",    color: (0.80, 0.67, 0.45, 1.0),  density_kg_m3: 500.0,  tensile_mpa: 40.0,  cost_per_kg: 0.6, renewable: true,  note: "Light, cheap, fast-growing softwood; common framing timber."),
-    (id: 7, name: "Granite",        category: "stone",   color: (0.50, 0.48, 0.50, 1.0),  density_kg_m3: 2700.0, tensile_mpa: 15.0,  cost_per_kg: 0.8, renewable: false, note: "Hard igneous stone; very durable + decorative, heavy to move."),
-    (id: 8, name: "HDPE plastic",   category: "plastic", color: (0.85, 0.85, 0.80, 1.0),  density_kg_m3: 950.0,  tensile_mpa: 30.0,  cost_per_kg: 1.5, renewable: false, note: "Tough, recyclable, food-safe polymer; floats, resists chemicals."),
+    (id: 1, name: "Steel",          category: "metal",   color: (0.55, 0.57, 0.62, 1.0),  density_kg_m3: 7850.0, tensile_mpa: 400.0, cost_per_kg: 2.5, renewable: false, default_thickness_m: 0.06,  note: "Strong structural metal; the default mothership allotment. High strength, conducts heat."),
+    (id: 2, name: "Concrete",       category: "stone",   color: (0.64, 0.64, 0.62, 1.0),  density_kg_m3: 2400.0, tensile_mpa: 3.0,   cost_per_kg: 0.1, renewable: false, default_thickness_m: 0.15,  note: "Cheap + fire-resistant; very strong in compression, weak in tension (so it is reinforced)."),
+    (id: 3, name: "Oak",            category: "wood",    color: (0.55, 0.40, 0.24, 1.0),  density_kg_m3: 750.0,  tensile_mpa: 90.0,  cost_per_kg: 1.2, renewable: true,  default_thickness_m: 0.10,  note: "Dense renewable hardwood; warm, workable, good along the grain."),
+    (id: 4, name: "Tempered glass", category: "glass",   color: (0.55, 0.78, 0.92, 0.35), density_kg_m3: 2500.0, tensile_mpa: 50.0,  cost_per_kg: 3.0, renewable: false, default_thickness_m: 0.012, note: "Clear safety glass; lets daylight through, shatters into blunt pieces."),
+    (id: 5, name: "Aluminum",       category: "metal",   color: (0.78, 0.80, 0.83, 1.0),  density_kg_m3: 2700.0, tensile_mpa: 310.0, cost_per_kg: 4.0, renewable: false, default_thickness_m: 0.04,  note: "Light, corrosion-resistant metal; a third the density of steel."),
+    (id: 6, name: "Pine",           category: "wood",    color: (0.80, 0.67, 0.45, 1.0),  density_kg_m3: 500.0,  tensile_mpa: 40.0,  cost_per_kg: 0.6, renewable: true,  default_thickness_m: 0.09,  note: "Light, cheap, fast-growing softwood; common framing timber."),
+    (id: 7, name: "Granite",        category: "stone",   color: (0.50, 0.48, 0.50, 1.0),  density_kg_m3: 2700.0, tensile_mpa: 15.0,  cost_per_kg: 0.8, renewable: false, default_thickness_m: 0.20,  note: "Hard igneous stone; very durable + decorative, heavy to move."),
+    (id: 8, name: "HDPE plastic",   category: "plastic", color: (0.85, 0.85, 0.80, 1.0),  density_kg_m3: 950.0,  tensile_mpa: 30.0,  cost_per_kg: 1.5, renewable: false, default_thickness_m: 0.02,  note: "Tough, recyclable, food-safe polymer; floats, resists chemicals."),
 ]

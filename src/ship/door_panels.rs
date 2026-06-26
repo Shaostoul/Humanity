@@ -97,7 +97,9 @@ mod tests {
                 height: 3.0,
                 material: 1,
                 openings,
+                thickness: None,
             }],
+            shell_thickness: None,
         }
     }
 
@@ -159,7 +161,7 @@ mod tests {
 
     #[test]
     fn no_walls_no_panels() {
-        let home = HomeStructure { width: 10.0, depth: 10.0, height: 3.0, shell_material: 1, roof_material: 4, walls: vec![] };
+        let home = HomeStructure { width: 10.0, depth: 10.0, height: 3.0, shell_material: 1, roof_material: 4, walls: vec![], shell_thickness: None };
         assert!(panel_placements(&home).is_empty());
     }
 }

@@ -9,4 +9,5 @@ pub mod fibonacci;
 pub mod home_structure;
 pub mod layout;
 pub mod rooms;
+pub mod wall_collision;
 pub mod room_types;

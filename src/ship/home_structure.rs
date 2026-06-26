@@ -96,6 +96,21 @@ pub struct InteriorWall {
     /// Doors + windows cut into this wall.
     #[serde(default)]
     pub openings: Vec<Opening>,
+    /// Wall thickness in metres. None -> the material's default_thickness_m (sheet metal ~2-4cm,
+    /// framed wood ~10cm, poured stone ~15-20cm; the operator can set 1mm for a paper screen). Drives
+    /// the rendered mesh, the collider, and (later) the wall's HP. (v0.556)
+    #[serde(default)]
+    pub thickness: Option<f32>,
+}
+
+impl InteriorWall {
+    /// Resolved thickness (metres): the wall's explicit override, else its material's default, else
+    /// the legacy 0.15 m fallback.
+    pub fn resolved_thickness(&self) -> f32 {
+        self.thickness
+            .filter(|t| *t > 0.0)
+            .unwrap_or_else(|| wall_material(self.material).map_or(WALL_THICKNESS, |m| m.default_thickness_m))
+    }
 }
 
 /// A home (or any structure): a FIXED outer box + freely-placed interior walls.
@@ -116,6 +131,9 @@ pub struct HomeStructure {
     /// The editable interior walls (segments in the floor plan).
     #[serde(default)]
     pub walls: Vec<InteriorWall>,
+    /// Shell (perimeter + floor) thickness in metres. None -> the shell material's default. (v0.556)
+    #[serde(default)]
+    pub shell_thickness: Option<f32>,
 }
 
 /// A buildable wall material with REAL engineering properties -- the construction picker shows these
@@ -132,6 +150,9 @@ pub struct WallMaterial {
     pub tensile_mpa: f32,
     pub cost_per_kg: f32,
     pub renewable: bool,
+    /// Default wall thickness in metres when a wall does not override it (sheet metals are thin,
+    /// framed/poured materials are thick). Real-ish figures, so thickness teaches too. (v0.556)
+    pub default_thickness_m: f32,
     pub note: String,
 }
 
@@ -210,6 +231,13 @@ impl HomeStructure {
         self.roof_material == 4
     }
 
+    /// Resolved shell (perimeter + floor) thickness in metres. (v0.556)
+    pub fn shell_resolved_thickness(&self) -> f32 {
+        self.shell_thickness
+            .filter(|t| *t > 0.0)
+            .unwrap_or_else(|| wall_material(self.shell_material).map_or(WALL_THICKNESS, |m| m.default_thickness_m))
+    }
+
     /// Generate the renderable meshes: the fixed box shell (one floor + 4 outer walls + ceiling)
     /// plus each interior wall segment, in the existing `HomesteadMeshes` form so the renderer path
     /// is a drop-in. One room ("home") for now -- room subdivision by interior walls is a later stage.
@@ -236,27 +264,29 @@ impl HomeStructure {
             (Vec3::new(w, 0.0, d), Vec3::new(0.0, 0.0, d)),
             (Vec3::new(0.0, 0.0, d), Vec3::new(0.0, 0.0, 0.0)),
         ];
+        let shell_t = self.shell_resolved_thickness();
         for (a, b) in perimeter {
             let g = by_mat.entry(self.shell_material).or_insert_with(|| (Vec::new(), Vec::new()));
-            merge(g, wall_box(a, b, 0.0, h, WALL_THICKNESS));
+            merge(g, wall_box(a, b, 0.0, h, shell_t));
         }
         for wseg in &self.walls {
             let a = Vec3::new(wseg.a.0, 0.0, wseg.a.1);
             let b = Vec3::new(wseg.b.0, 0.0, wseg.b.1);
             let g = by_mat.entry(wseg.material).or_insert_with(|| (Vec::new(), Vec::new()));
-            merge(g, wall_with_openings(a, b, wseg.height.max(0.1), WALL_THICKNESS, &wseg.openings));
+            merge(g, wall_with_openings(a, b, wseg.height.max(0.1), wseg.resolved_thickness(), &wseg.openings));
         }
         // Corner columns (v0.549): fill each interior-wall JOIN -- a corner shared by >= 2 walls --
         // with a slim cylinder of the wall's half-thickness, so the overlapping square wall ends read
         // as a clean round column instead of clipping cubes (operator note). Only at joins (a free
         // wall end keeps its square cap), low-poly, in the most-OPAQUE meeting wall's material (so a
         // junction with any solid wall reads solid, never a see-through gap).
-        let mut joins: std::collections::HashMap<(i32, i32), (f32, u32, (f32, f32), u32)> =
+        let mut joins: std::collections::HashMap<(i32, i32), (f32, u32, (f32, f32), u32, f32)> =
             std::collections::HashMap::new();
         for wseg in &self.walls {
+            let wt = wseg.resolved_thickness();
             for cp in [wseg.a, wseg.b] {
                 let key = ((cp.0 * 20.0).round() as i32, (cp.1 * 20.0).round() as i32);
-                let e = joins.entry(key).or_insert((0.0, 0, cp, wseg.material));
+                let e = joins.entry(key).or_insert((0.0, 0, cp, wseg.material, wt));
                 e.0 = e.0.max(wseg.height.max(0.1));
                 e.1 += 1;
                 // Prefer the higher-alpha (more opaque) material; ties keep the first seen, so the
@@ -264,12 +294,13 @@ impl HomeStructure {
                 if Self::material_color(wseg.material)[3] > Self::material_color(e.3)[3] {
                     e.3 = wseg.material;
                 }
+                e.4 = e.4.max(wt); // the column must cover the THICKEST wall meeting here
             }
         }
-        for (h_col, count, pos, mat) in joins.values() {
+        for (h_col, count, pos, mat, th) in joins.values() {
             if *count >= 2 {
                 let g = by_mat.entry(*mat).or_insert_with(|| (Vec::new(), Vec::new()));
-                merge(g, corner_column(pos.0, pos.1, WALL_THICKNESS * 0.5, *h_col, 10));
+                merge(g, corner_column(pos.0, pos.1, th * 0.5, *h_col, 10));
             }
         }
         // Resolve each material group to (verts, indices, color), sorted by id for a stable order
@@ -317,14 +348,16 @@ impl HomeStructure {
         const CELL: f32 = 0.5;
         let nx = (w / CELL).ceil() as usize;
         let nz = (d / CELL).ceil() as usize;
-        let half = WALL_THICKNESS * 0.5 + CELL * 0.5;
-        // Block every cell within a wall's half-thickness of any interior wall segment.
+        // Block every cell within a wall's half-thickness of any interior wall segment. The grid is
+        // coarse (0.5 m), so even a 1 mm wall still blocks (the CELL term dominates) and rooms stay
+        // separated -- per-wall thickness only widens fat walls. (v0.556)
         let mut blocked = vec![false; nx * nz];
         for cz in 0..nz {
             for cx in 0..nx {
                 let px = (cx as f32 + 0.5) * CELL;
                 let pz = (cz as f32 + 0.5) * CELL;
                 for wall in &self.walls {
+                    let half = wall.resolved_thickness() * 0.5 + CELL * 0.5;
                     if point_seg_dist(px, pz, wall.a, wall.b) < half {
                         blocked[cz * nx + cx] = true;
                         break;
@@ -520,7 +553,7 @@ mod tests {
     use super::*;
 
     fn box_only() -> HomeStructure {
-        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new() }
+        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None }
     }
 
     /// Total wall vertices across BOTH the legacy `walls` family and the per-material `material_walls`
@@ -554,7 +587,7 @@ mod tests {
     }
 
     fn wall(a: (f32, f32), b: (f32, f32), openings: Vec<Opening>) -> InteriorWall {
-        InteriorWall { a, b, height: 3.0, material: 1, openings }
+        InteriorWall { a, b, height: 3.0, material: 1, openings, thickness: None }
     }
 
     #[test]
@@ -604,6 +637,7 @@ mod tests {
                     Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false },
                 ],
             )],
+            shell_thickness: None,
         };
         let tmp = std::env::temp_dir().join("humanity_home_structure_rt.ron");
         h.save(&tmp).expect("save");
