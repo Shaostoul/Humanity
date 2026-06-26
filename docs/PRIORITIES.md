@@ -88,6 +88,41 @@
 > > - Deeper door polish if wanted: a per-door alpha gradient as a door opens (needs per-door materials,
 > >   currently shared), in-PLAY door text (currently build-mode only), an in-world lock toggle.
 
+> **WALL-PHYSICS + EDITOR wave (v0.555-557, operator launch-test feedback 2026-06-26).** Grounded by a
+> 6-agent design workflow (corners/physics/thickness/destructibility) + an adversarial critique; the
+> implementation-ready plan + critique live in this session's workflow transcript.
+> - **v0.555 hull angle** -- a wall ending on the box perimeter now shows its angle vs the hull.
+> - **v0.556 COLLISION + per-wall THICKNESS (the run-through fix).** The player IS the camera (rapier is
+>   DORMANT -- never stepped), so collision is a geometric SLIDE, not a rapier rewrite: `src/ship/
+>   wall_collision.rs` builds thin 2D segments (perimeter + each wall's solid pier spans, DOOR apertures
+>   cut so doorways are gaps, WINDOWS stay solid) + `resolve()` pushes the camera XZ out, SUBSTEPPED so a
+>   sprint/frame-hitch can't tunnel a 1mm wall (the review HIGH, fixed + tested). Doors collide live
+>   (closed/locked block; open+unlocked pass). Per-wall `thickness: Option<f32>` + `shell_thickness` +
+>   `default_thickness_m` per material in wall_materials.ron (resolved override->material->0.15), threaded
+>   into mesh+collider+room-detect; a Thickness control (down to 1mm) + "auto" in the wall editor.
+>   FirstPerson only; third-person + furniture/machine colliders are tracked follow-ups.
+> - **v0.557 build-mode AVATAR** -- a draggable teal figure + pyramid gizmo; leaving build mode spawns
+>   you at it (seeded at your current spot, clamped to the box).
+> > **WALL-MODEL STAGED PLAN (from the workflow, the corner answer to "what better way to fill corners"):**
+> > - **Stage 2 NEXT -- MITER corners.** Replace `corner_column` (a centered half-thickness cylinder that
+> >   PROVABLY can't cover the gap: the miter apex sits at (t/2)/sin(theta/2) > t/2) with true miters:
+> >   relocate each wall_box's 4 end verts onto the offset-edge intersection (ZERO added tris, exact for
+> >   2-wall, thickness-aware). For T/X (valence>=3): sort incident walls by heading, miter adjacent
+> >   pairs + a central hub triangle-fan; square-cap fallback on near-colinear/degenerate. Delete
+> >   corner_column. NOT voxels (lose thin/angled walls), NOT CSG (kills per-segment destructibility).
+> > - **Stage 3 DEFERRED -- destructibility HP.** Do NOT build until the formula is re-derived against the
+> >   REAL 8 materials + proven by an ordering test: the critique caught the draft formula's own numbers
+> >   off ~2.3x, "paper" isn't in the DB, and tensile-as-HP scores granite(15MPa) weaker than oak(90) --
+> >   needs a toughness_factor/hardness blend (add a column to wall_materials.ron) so brittle-thick stone
+> >   resists blunt impact. HP is DERIVED (K*tensile*thickness*area*clamped-density), never serialized.
+> >   Gate damage behind an explicit source (weapon/tool), NOT movement collision (a sprint bump must not
+> >   delete a wall). Mid-span T-junctions (a wall ending on another wall's FACE) are an unhandled join
+> >   class for the miter pass -- resolve before committing the endpoint-snap join model.
+> > **OTHER OPEN WAVE ITEMS (operator-requested, after the wall model):** nanowall = animated water
+> > CAUSTICS (not the current uniform pulse; shader, ref image given); door/wall LABELS with on-door /
+> > on-wall / both placement + a draggable position gizmo; door CONTROL PANELS (interact to open / lock /
+> > unlock / emergency-power / hack).
+
 > **ACTIVE 2026-06-23: HOME-DESIGN AI/PLAYER PARITY arc (operator-directed).** Make the AI's
 > home designs use the SAME machinery players build with, so they're inherently player-workable
 > + real-world-valid (steel-primary + wood; the homestead enclosed in a steel ship where Earth
