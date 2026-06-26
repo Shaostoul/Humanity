@@ -682,6 +682,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         let lbl = format!("{}: ({:.0},{:.0})->({:.0},{:.0})", i + 1, a.0, a.1, b.0, b.1);
                         if ui.selectable_label(selected, RichText::new(lbl).size(theme.font_size_small)).clicked() {
                             state.construction_wall_selected = Some(i);
+                            state.construction_machine_selected = None;
                         }
                         if ui.small_button("Remove").clicked() {
                             remove = Some(i);
@@ -723,6 +724,11 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .default_width(252.0)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
+            // A selected machine takes the panel (v0.553): clicked in the viewport or the list.
+            if state.construction_machine_selected.is_some() {
+                draw_machine_detail(ui, theme, state);
+                return;
+            }
             let sel = match state.construction_wall_selected {
                 Some(s) => s,
                 None => {
@@ -897,6 +903,104 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 /// then routes as a conduit (potable water = rigid copper, power = a flexible cord, else a hose) with
 /// procedural ceiling hangers + material-aware passthrough gaskets. Edits flag
 /// construction_machines_dirty so the conduits rebuild live.
+/// Right-panel detail for the selected machine (v0.553): its type, room, position, power role, live
+/// stats, and the connections it participates in -- so clicking a machine in the viewport or the
+/// list surfaces everything about it, the same way clicking a wall does.
+fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let id = match &state.construction_machine_selected {
+        Some(id) => id.clone(),
+        None => return,
+    };
+    // Resolve the instance + its catalog def + its connections as OWNED data so the immutable
+    // home_machines borrow ends before the Remove/Deselect buttons mutate state.
+    let resolved = state.home_machines.as_ref().and_then(|home| {
+        home.all_instances().into_iter().find(|i| i.id == id).map(|inst| {
+            let def = home.catalog.get(&inst.machine).cloned();
+            let conns: Vec<(String, String, String)> = home
+                .connections
+                .iter()
+                .filter(|c| c.from == id || c.to == id)
+                .map(|c| (c.from.clone(), c.to.clone(), c.kind.clone()))
+                .collect();
+            // A direct instance can be removed; an array-derived one cannot (it is synthesized from
+            // a MachineArray at load, so remove_instance would silently no-op).
+            let is_direct = home.instances.iter().any(|i| i.id == id);
+            (inst, def, conns, is_direct)
+        })
+    });
+    let (inst, def, conns, is_direct) = match resolved {
+        Some(t) => t,
+        None => {
+            // The machine was removed out from under the selection.
+            state.construction_machine_selected = None;
+            return;
+        }
+    };
+
+    let title = def
+        .as_ref()
+        .map(|d| d.label.clone())
+        .filter(|l| !l.is_empty())
+        .unwrap_or_else(|| inst.machine.clone());
+    ui.label(RichText::new(title).strong().size(theme.font_size_body).color(theme.text_primary()));
+    ui.add_space(theme.spacing_xs);
+    ui.label(RichText::new(format!("Type  {}", inst.machine)).size(theme.font_size_small).color(theme.text_muted()));
+    ui.label(RichText::new(format!("Room  {}", inst.room)).size(theme.font_size_small).color(theme.text_muted()));
+    ui.label(RichText::new(format!("Position  {:.1}, {:.1}, {:.1} m", inst.offset.0, inst.offset.1, inst.offset.2))
+        .size(theme.font_size_small).color(theme.text_muted()));
+
+    if let Some(d) = &def {
+        if let Some(power) = &d.power {
+            ui.add_space(theme.spacing_xs);
+            let role = match power {
+                crate::machines::MachinePower::Solar { peak_watts } => format!("Solar  peak {peak_watts:.0} W"),
+                crate::machines::MachinePower::Generator { watts } => format!("Generator  {watts:.0} W"),
+                crate::machines::MachinePower::Consumer { watts, priority } => format!("Consumer  {watts:.0} W  (priority {priority})"),
+                crate::machines::MachinePower::Battery { capacity_wh, .. } => format!("Battery  {capacity_wh:.0} Wh"),
+            };
+            ui.label(RichText::new(role).size(theme.font_size_small).color(theme.text_primary()));
+        }
+        if !d.stats.is_empty() {
+            ui.add_space(theme.spacing_xs);
+            ui.label(RichText::new("Stats").strong().color(theme.text_primary()));
+            for s in &d.stats {
+                ui.label(RichText::new(format!("{}  {}", s.kind, s.value)).size(theme.font_size_small).color(theme.text_muted()));
+            }
+        }
+    }
+
+    ui.add_space(theme.spacing_sm);
+    ui.label(RichText::new("Connections").strong().color(theme.text_primary()));
+    if conns.is_empty() {
+        ui.label(RichText::new("None.").size(theme.font_size_small).color(theme.text_muted()));
+    } else {
+        for (from, to, kind) in &conns {
+            let other = if *from == id { to } else { from };
+            ui.label(RichText::new(format!("{kind}: {other}")).size(theme.font_size_small).color(theme.text_muted()));
+        }
+    }
+
+    ui.add_space(theme.spacing_md);
+    ui.horizontal(|ui| {
+        if ui.button("Deselect").clicked() {
+            state.construction_machine_selected = None;
+        }
+        // Only a direct instance can be removed here; an array machine would silently no-op, so we
+        // hide the button and explain instead of pretending it worked.
+        if is_direct && ui.button("Remove").clicked() {
+            if let Some(h) = state.home_machines.as_mut() {
+                h.remove_instance(&id);
+            }
+            state.construction_machine_selected = None;
+            state.construction_machines_dirty = true;
+        }
+    });
+    if !is_direct {
+        ui.label(RichText::new("Part of a machine array; edit the array to add or remove it.")
+            .size(theme.font_size_small).color(theme.text_muted()));
+    }
+}
+
 fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     /// Friendly short label for a machine id: its last two underscore segments (e.g. "tower_2").
     fn label(s: &str) -> String {
@@ -924,7 +1028,12 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         egui::ScrollArea::vertical().id_salt("hs_machine_list").max_height(110.0).show(ui, |ui| {
             for (id, mtype, room) in &machines {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(format!("{mtype}  ({room})")).size(theme.font_size_small));
+                    // Click selects (v0.553): its detail shows on the right panel, like the viewport.
+                    let sel = state.construction_machine_selected.as_deref() == Some(id.as_str());
+                    if ui.selectable_label(sel, RichText::new(format!("{mtype}  ({room})")).size(theme.font_size_small)).clicked() {
+                        state.construction_machine_selected = Some(id.clone());
+                        state.construction_wall_selected = None;
+                    }
                     if ui.small_button("x").clicked() {
                         remove_machine = Some(id.clone());
                     }

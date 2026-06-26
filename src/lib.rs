@@ -772,10 +772,21 @@ mod native_app {
         // deterministically ordered (instances then array cells), so index i is the same machine.
         if placements.len() == state.machine_objects.len()
             && placements.len() == state.gui_state.machine_labels.len()
+            && placements.len() == state.machine_pick.len()
         {
             for (i, p) in placements.iter().enumerate() {
                 state.machine_objects[i].2 = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
                 state.gui_state.machine_labels[i].pos = Vec3::new(p.pos.0, p.top_y + 0.4, p.pos.2);
+                // Keep the pick volume in sync (v0.553) -- else a move WITHOUT a count change (a room
+                // drag, a clamp-on-resize) leaves the click ray-test + the highlight ring at the OLD
+                // position. Same math as the slow-path build below.
+                let half_h = ((p.top_y - p.pos.1) * 0.5).max(0.2);
+                let half_w = p.size.0.max(p.size.1).max(p.size.2) * 0.5;
+                state.machine_pick[i] = (
+                    p.id.clone(),
+                    Vec3::new(p.pos.0, (p.pos.1 + p.top_y) * 0.5, p.pos.2),
+                    half_h.max(half_w) + 0.35,
+                );
             }
             rebuild_connection_objects(state);
             return;
@@ -786,6 +797,7 @@ mod native_app {
         // once (bounded). (v0.531 -- the renderer free path.)
         let prior = std::mem::take(&mut state.machine_objects);
         state.gui_state.machine_labels.clear();
+        state.machine_pick.clear();
         let mut objs = Vec::with_capacity(placements.len());
         for (i, p) in placements.iter().enumerate() {
             let mesh = machine_mesh(&state.renderer.device, &p.shape, p.size);
@@ -806,6 +818,15 @@ mod native_app {
                 stats: p.stats.clone(),
                 room: p.room.clone(),
             });
+            // Pick volume for viewport selection: a sphere covering the machine body. Center at its
+            // mid-height; radius the larger of half-height / half-width plus a click margin.
+            let half_h = ((p.top_y - p.pos.1) * 0.5).max(0.2);
+            let half_w = p.size.0.max(p.size.1).max(p.size.2) * 0.5;
+            state.machine_pick.push((
+                p.id.clone(),
+                Vec3::new(p.pos.0, (p.pos.1 + p.top_y) * 0.5, p.pos.2),
+                half_h.max(half_w) + 0.35,
+            ));
         }
         state.machine_objects = objs;
         rebuild_connection_objects(state);
@@ -1299,6 +1320,7 @@ mod native_app {
                         });
                         state.gui_state.construction_structure_dirty = true;
                         state.gui_state.construction_wall_selected = Some(hs.walls.len() - 1);
+                        state.gui_state.construction_machine_selected = None; // keep selection exclusive
                     }
                     state.gui_state.construction_wall_start = Some(p); // chain into the next segment
                 }
@@ -1395,6 +1417,37 @@ mod native_app {
         if let Some((c, _)) = best {
             state.construction_node_grab = Some(c);
             state.construction_grab_press = Some(state.cursor_pos); // tap-vs-drag (v0.549)
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Hit-test the cursor ray against the placed machines (v0.553). On a hit, SELECT the nearest one
+    /// (its detail shows on the right panel) and clear any wall selection; returns true so the click
+    /// does not also start a room grab. Build mode only.
+    fn try_pick_machine(state: &mut EngineState) -> bool {
+        if state.machine_pick.is_empty() {
+            return false;
+        }
+        let sz = state.window.inner_size();
+        let (origin, dir) =
+            state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<(String, f32)> = None;
+        for (id, center, radius) in &state.machine_pick {
+            let t = (*center - origin).dot(dir);
+            if t < 0.0 {
+                continue; // behind the camera
+            }
+            let dd = (*center - (origin + dir * t)).length();
+            // Within the machine's bounding radius; keep the one nearest the camera (smallest t).
+            if dd < *radius && best.as_ref().map_or(true, |(_, bt)| t < *bt) {
+                best = Some((id.clone(), t));
+            }
+        }
+        if let Some((id, _)) = best {
+            state.gui_state.construction_machine_selected = Some(id);
+            state.gui_state.construction_wall_selected = None;
             true
         } else {
             false
@@ -2569,6 +2622,10 @@ mod native_app {
         /// positions come from the tested `MachineHome::placements`. Drawn when not in the showroom.
         /// (v0.525, the live-edit preview that makes the build mode feel real.)
         machine_objects: Vec<(usize, usize, Vec3)>,
+        /// Pick volumes for viewport machine SELECTION (v0.553): (id, world center, bounding radius)
+        /// per placed machine. Rebuilt alongside machine_objects; the build-mode click ray-tests this
+        /// to select a machine (its detail then shows on the right panel).
+        machine_pick: Vec<(String, Vec3, f32)>,
         /// Home machine CONNECTIONS as live colored cylinders (v0.530): (mesh, material, position,
         /// rotation, scale). Replaces the static routed pipes so connections appear immediately +
         /// follow rooms in the editor. Rebuilt with the machines; uses one cached unit cylinder mesh
@@ -3179,6 +3236,7 @@ mod native_app {
                 homestead_floors: Vec::new(),
                 placeholder_objects: Vec::new(),
                 machine_objects: Vec::new(),
+                machine_pick: Vec::new(),
                 connection_objects: Vec::new(),
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
@@ -3621,6 +3679,10 @@ mod native_app {
                             } else if state.gui_state.home_structure.is_some() && try_grab_node(state) {
                                 // Grabbed a wall corner-node gizmo (v0.541): the per-frame drag moves
                                 // it (+ any walls sharing it) with snapping.
+                            } else if state.gui_state.home_structure.is_some() && try_pick_machine(state) {
+                                // Selected a machine in the viewport (v0.553) -> its detail shows on
+                                // the right panel. Click only; machines are not dragged here. Gated to
+                                // the box-home path so it never shadows the legacy room-grab.
                             } else {
                                 try_begin_room_grab(state);
                             }
@@ -3638,9 +3700,11 @@ mod native_app {
                                     });
                                     if let Some(i) = sel {
                                         state.gui_state.construction_wall_selected = Some(i);
+                                        state.gui_state.construction_machine_selected = None;
                                     }
                                 } else if let Some((wi, _)) = state.construction_opening_grab {
                                     state.gui_state.construction_wall_selected = Some(wi);
+                                    state.gui_state.construction_machine_selected = None;
                                 }
                             }
                             state.construction_grab = None; // release; keep the selection highlighted
@@ -4786,6 +4850,21 @@ mod native_app {
                                 mesh: ring_mesh,
                                 material: ring_mat,
                             });
+                        }
+                        // Highlight the selected machine with a bright ground ring (v0.553), so the
+                        // viewport shows which machine the right panel is describing.
+                        if let Some(sel_id) = &state.gui_state.construction_machine_selected {
+                            if let Some((_, center, radius)) =
+                                state.machine_pick.iter().find(|(mid, _, _)| mid == sel_id)
+                            {
+                                transparent_objects.push(RenderObject {
+                                    position: Vec3::new(center.x, 0.12, center.z),
+                                    rotation: Quat::IDENTITY,
+                                    scale: Vec3::new(radius + 0.2, 1.0, radius + 0.2),
+                                    mesh: ring_mesh,
+                                    material: hot_mat,
+                                });
+                            }
                         }
                     }
 
