@@ -764,6 +764,33 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     ui.label(RichText::new("Height").color(theme.text_muted()));
                     changed |= ui.add(egui::DragValue::new(&mut wall.height).speed(0.1).range(0.1..=hmax)).changed();
                 });
+                // Material picker (v0.552): pick a real material; the wall re-colors to match and the
+                // panel shows its real properties so the builder learns while building.
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Material").color(theme.text_muted()));
+                    let mats = crate::ship::home_structure::wall_materials();
+                    let cur_name = mats
+                        .iter()
+                        .find(|m| m.id == wall.material)
+                        .map(|m| m.name.as_str())
+                        .unwrap_or("(default)");
+                    egui::ComboBox::from_id_salt("wall_material")
+                        .selected_text(cur_name)
+                        .show_ui(ui, |ui| {
+                            for m in mats {
+                                changed |= ui
+                                    .selectable_value(&mut wall.material, m.id, format!("{} ({})", m.name, m.category))
+                                    .changed();
+                            }
+                        });
+                });
+                if let Some(m) = crate::ship::home_structure::wall_material(wall.material) {
+                    ui.label(RichText::new(format!("Density {:.0} kg/m3   Tensile {:.0} MPa", m.density_kg_m3, m.tensile_mpa))
+                        .size(theme.font_size_small).color(theme.text_muted()));
+                    ui.label(RichText::new(format!("Cost {:.2}/kg   {}", m.cost_per_kg, if m.renewable { "renewable" } else { "non-renewable" }))
+                        .size(theme.font_size_small).color(theme.text_muted()));
+                    ui.label(RichText::new(m.note.clone()).size(theme.font_size_small).color(theme.text_muted()));
+                }
                 let dx = wall.b.0 - wall.a.0;
                 let dz = wall.b.1 - wall.a.1;
                 wall_len = (dx * dx + dz * dz).sqrt();

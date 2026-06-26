@@ -114,6 +114,44 @@ pub struct HomeStructure {
     pub walls: Vec<InteriorWall>,
 }
 
+/// A buildable wall material with REAL engineering properties -- the construction picker shows these
+/// so a builder learns density / strength / cost / renewability while they build. `id` is what
+/// `InteriorWall.material` (and `shell_material`) store. Loaded from data/blueprints/wall_materials.ron.
+#[derive(Debug, Clone, Deserialize)]
+pub struct WallMaterial {
+    pub id: u32,
+    pub name: String,
+    pub category: String,
+    /// rgba; alpha < 1.0 renders in the transparent pass (glass).
+    pub color: (f32, f32, f32, f32),
+    pub density_kg_m3: f32,
+    pub tensile_mpa: f32,
+    pub cost_per_kg: f32,
+    pub renewable: bool,
+    pub note: String,
+}
+
+/// The wall-material registry, parsed once. Embedded at compile time so both the editor and the
+/// renderer read the same list with no runtime path dependency. Edit the .ron + rebuild to change it.
+pub fn wall_materials() -> &'static [WallMaterial] {
+    static REG: std::sync::OnceLock<Vec<WallMaterial>> = std::sync::OnceLock::new();
+    REG.get_or_init(|| {
+        const SRC: &str = include_str!("../../data/blueprints/wall_materials.ron");
+        match ron::from_str::<Vec<WallMaterial>>(SRC) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("wall_materials.ron parse error: {e}");
+                Vec::new()
+            }
+        }
+    })
+}
+
+/// Look up a wall material by id (None if the id is unknown).
+pub fn wall_material(id: u32) -> Option<&'static WallMaterial> {
+    wall_materials().iter().find(|m| m.id == id)
+}
+
 impl HomeStructure {
     /// Load from a RON file; None (with a warning) on a missing/invalid file.
     pub fn load(path: &Path) -> Option<Self> {
@@ -153,14 +191,12 @@ impl HomeStructure {
         std::fs::write(path, format!("{header}{body}")).map_err(|e| e.to_string())
     }
 
-    /// Material color (rgba) for a material id. Steel grey is the default for the all-steel box.
+    /// Material color (rgba) for a material id, sourced from the wall-material registry so the picker,
+    /// the saved data, and the rendered color stay in lockstep. Grid grey for an unknown id.
     fn material_color(m: u32) -> [f32; 4] {
-        match m {
-            1 => [0.55, 0.57, 0.62, 1.0], // steel
-            2 => [0.62, 0.62, 0.60, 1.0], // concrete
-            3 => [0.55, 0.40, 0.24, 1.0], // wood
-            4 => [0.55, 0.78, 0.92, 0.30], // clear glass (transparent)
-            _ => [0.50, 0.52, 0.56, 1.0], // grid / default
+        match wall_material(m) {
+            Some(mat) => [mat.color.0, mat.color.1, mat.color.2, mat.color.3],
+            None => [0.50, 0.52, 0.56, 1.0],
         }
     }
 
@@ -184,8 +220,12 @@ impl HomeStructure {
         let floors = vec![(fv, fi, col, self.shell_material)];
         let ceilings = floor_quad(Vec3::new(0.0, h, 0.0), Vec3::new(w, 0.0, d));
 
-        // Walls: the 4 outer box walls + every interior wall, merged into one mesh.
-        let mut walls: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
+        // Walls grouped BY MATERIAL so each renders in its own color (v0.552): the 4 outer box walls
+        // (shell material) + every interior wall (its own picked material) + the corner columns. A
+        // material with alpha < 1 (glass) is routed to the transparent pass at render time. The legacy
+        // single `walls` family stays EMPTY for the home path -- fibonacci ships still use it.
+        let mut by_mat: std::collections::HashMap<u32, (Vec<Vertex>, Vec<u32>)> =
+            std::collections::HashMap::new();
         let perimeter = [
             (Vec3::new(0.0, 0.0, 0.0), Vec3::new(w, 0.0, 0.0)),
             (Vec3::new(w, 0.0, 0.0), Vec3::new(w, 0.0, d)),
@@ -193,39 +233,54 @@ impl HomeStructure {
             (Vec3::new(0.0, 0.0, d), Vec3::new(0.0, 0.0, 0.0)),
         ];
         for (a, b) in perimeter {
-            merge(&mut walls, wall_box(a, b, 0.0, h, WALL_THICKNESS));
+            let g = by_mat.entry(self.shell_material).or_insert_with(|| (Vec::new(), Vec::new()));
+            merge(g, wall_box(a, b, 0.0, h, WALL_THICKNESS));
         }
         for wseg in &self.walls {
             let a = Vec3::new(wseg.a.0, 0.0, wseg.a.1);
             let b = Vec3::new(wseg.b.0, 0.0, wseg.b.1);
-            merge(
-                &mut walls,
-                wall_with_openings(a, b, wseg.height.max(0.1), WALL_THICKNESS, &wseg.openings),
-            );
+            let g = by_mat.entry(wseg.material).or_insert_with(|| (Vec::new(), Vec::new()));
+            merge(g, wall_with_openings(a, b, wseg.height.max(0.1), WALL_THICKNESS, &wseg.openings));
         }
         // Corner columns (v0.549): fill each interior-wall JOIN -- a corner shared by >= 2 walls --
         // with a slim cylinder of the wall's half-thickness, so the overlapping square wall ends read
         // as a clean round column instead of clipping cubes (operator note). Only at joins (a free
-        // wall end keeps its square cap), and low-poly, to avoid needless hidden geometry.
-        let mut joins: std::collections::HashMap<(i32, i32), (f32, u32, (f32, f32))> =
+        // wall end keeps its square cap), low-poly, in the most-OPAQUE meeting wall's material (so a
+        // junction with any solid wall reads solid, never a see-through gap).
+        let mut joins: std::collections::HashMap<(i32, i32), (f32, u32, (f32, f32), u32)> =
             std::collections::HashMap::new();
         for wseg in &self.walls {
             for cp in [wseg.a, wseg.b] {
                 let key = ((cp.0 * 20.0).round() as i32, (cp.1 * 20.0).round() as i32);
-                let e = joins.entry(key).or_insert((0.0, 0, cp));
+                let e = joins.entry(key).or_insert((0.0, 0, cp, wseg.material));
                 e.0 = e.0.max(wseg.height.max(0.1));
                 e.1 += 1;
+                // Prefer the higher-alpha (more opaque) material; ties keep the first seen, so the
+                // result is deterministic regardless of wall order.
+                if Self::material_color(wseg.material)[3] > Self::material_color(e.3)[3] {
+                    e.3 = wseg.material;
+                }
             }
         }
-        for (h, count, pos) in joins.values() {
+        for (h_col, count, pos, mat) in joins.values() {
             if *count >= 2 {
-                merge(&mut walls, corner_column(pos.0, pos.1, WALL_THICKNESS * 0.5, *h, 10));
+                let g = by_mat.entry(*mat).or_insert_with(|| (Vec::new(), Vec::new()));
+                merge(g, corner_column(pos.0, pos.1, WALL_THICKNESS * 0.5, *h_col, 10));
             }
         }
+        // Resolve each material group to (verts, indices, color), sorted by id for a stable order
+        // (so render-slot reuse does not shuffle frame to frame).
+        let mut groups: Vec<(u32, (Vec<Vertex>, Vec<u32>))> = by_mat.into_iter().collect();
+        groups.sort_by_key(|(mid, _)| *mid);
+        let material_walls: Vec<(Vec<Vertex>, Vec<u32>, [f32; 4])> = groups
+            .into_iter()
+            .map(|(mid, (v, i))| (v, i, Self::material_color(mid)))
+            .collect();
 
         HomesteadMeshes {
             floors,
-            walls,
+            walls: (Vec::new(), Vec::new()),
+            material_walls,
             trim: (Vec::new(), Vec::new()),
             windows: (Vec::new(), Vec::new()),
             mirrors: (Vec::new(), Vec::new()),
@@ -464,12 +519,30 @@ mod tests {
         HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new() }
     }
 
+    /// Total wall vertices across BOTH the legacy `walls` family and the per-material `material_walls`
+    /// groups -- the home path now emits per-material groups (v0.552) instead of one merged family.
+    fn wall_vcount(m: &HomesteadMeshes) -> usize {
+        m.walls.0.len() + m.material_walls.iter().map(|w| w.0.len()).sum::<usize>()
+    }
+
+    #[test]
+    fn wall_material_registry_parses() {
+        // Locks the embedded wall_materials.ron against a syntax break (which would otherwise
+        // silently degrade every wall to grid-grey). Update the count if you add/remove a material.
+        let mats = wall_materials();
+        assert_eq!(mats.len(), 8, "all 8 wall materials parse");
+        let steel = wall_material(1).expect("steel id 1 present");
+        assert_eq!(steel.name, "Steel");
+        assert_eq!(steel.color.3, 1.0, "steel is opaque");
+        assert!(wall_material(4).expect("glass id 4").color.3 < 1.0, "tempered glass is transparent");
+    }
+
     #[test]
     fn box_generates_floor_ceiling_and_outer_walls() {
         let m = box_only().generate_meshes();
         assert_eq!(m.floors.len(), 1, "one floor for the box");
         assert!(!m.ceilings.0.is_empty(), "ceiling generated");
-        assert!(!m.walls.0.is_empty(), "outer walls generated");
+        assert!(wall_vcount(&m) > 0, "outer walls generated");
         assert_eq!(m.room_info.len(), 1, "one 'home' room for now");
         assert_eq!(m.room_info[0].id, "home");
         assert_eq!(m.room_info[0].dimensions, Vec3::new(55.0, 3.0, 89.0));
@@ -482,16 +555,16 @@ mod tests {
 
     #[test]
     fn an_interior_wall_adds_geometry() {
-        let four_walls = box_only().generate_meshes().walls.0.len();
+        let four_walls = wall_vcount(&box_only().generate_meshes());
         let mut h = box_only();
         h.walls.push(wall((10.0, 0.0), (10.0, 40.0), Vec::new()));
-        let with_wall = h.generate_meshes().walls.0.len();
+        let with_wall = wall_vcount(&h.generate_meshes());
         assert!(with_wall > four_walls, "an interior wall segment adds wall vertices");
     }
 
     #[test]
     fn openings_cut_the_wall() {
-        let empty_box = box_only().generate_meshes().walls.0.len();
+        let empty_box = wall_vcount(&box_only().generate_meshes());
         // A door spanning the wall's full width + height -> the whole wall is the opening -> the
         // interior wall contributes NO geometry (only the box's outer walls remain).
         let mut full = box_only();
@@ -500,7 +573,7 @@ mod tests {
             (10.0, 40.0),
             vec![Opening { kind: OpeningKind::Door, at: 0.0, width: 40.0, sill: 0.0, height: 3.0, style: "swing".into(), open_dist: 2.6 }],
         ));
-        assert_eq!(full.generate_meshes().walls.0.len(), empty_box, "a full-size door leaves no wall");
+        assert_eq!(wall_vcount(&full.generate_meshes()), empty_box, "a full-size door leaves no wall");
         // A small centered door -> piers on both sides + a header -> more than the empty box.
         let mut partial = box_only();
         partial.walls.push(wall(
@@ -508,7 +581,7 @@ mod tests {
             (10.0, 40.0),
             vec![Opening { kind: OpeningKind::Door, at: 18.0, width: 1.0, sill: 0.0, height: 2.1, style: "slide".into(), open_dist: 2.6 }],
         ));
-        assert!(partial.generate_meshes().walls.0.len() > empty_box, "a partial door leaves piers + a header");
+        assert!(wall_vcount(&partial.generate_meshes()) > empty_box, "a partial door leaves piers + a header");
     }
 
     #[test]

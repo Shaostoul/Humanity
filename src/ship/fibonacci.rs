@@ -333,8 +333,12 @@ pub struct RoomInfo {
 pub struct HomesteadMeshes {
     /// (vertices, indices, color, material_type) for each room floor
     pub floors: Vec<(Vec<Vertex>, Vec<u32>, [f32; 4], u32)>,
-    /// (vertices, indices) for all walls combined
+    /// (vertices, indices) for all walls combined -- used by the legacy fibonacci ship path.
     pub walls: (Vec<Vertex>, Vec<u32>),
+    /// (vertices, indices, rgba) per WALL MATERIAL -- used by the home-structure path so each wall
+    /// renders in its picked material's color (v0.552). A color with alpha < 1 (glass) renders in
+    /// the transparent pass. Empty for the fibonacci path.
+    pub material_walls: Vec<(Vec<Vertex>, Vec<u32>, [f32; 4])>,
     /// (vertices, indices) for all baseboard + crown + frame trim combined (v0.453).
     pub trim: (Vec<Vertex>, Vec<u32>),
     /// (vertices, indices) for all window glass panes combined (v0.453).
@@ -1576,6 +1580,7 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
     HomesteadMeshes {
         floors,
         walls: (wall_v, wall_i),
+        material_walls: Vec::new(),
         trim: (trim_v, trim_i),
         windows: (win_v, win_i),
         mirrors: (mir_v, mir_i),

@@ -577,6 +577,28 @@ mod native_app {
                 Some((state.renderer.add_mesh(mesh), state.renderer.add_material_typed([0.5, 0.5, 0.5, 1.0], 0.1, 0.6, 0.0)))
             }
         } else { None };
+        // Per-material home walls (v0.552): one mesh+material per picked wall material so each wall
+        // renders in its own color. Reuse prior slots (a per-frame rebuild fires on a drag); the
+        // `is_transparent` flag routes glass (alpha < 1) to the transparent pass at render time.
+        let prior_mw = std::mem::take(&mut state.homestead_material_walls);
+        let mut material_walls = Vec::with_capacity(homestead.material_walls.len());
+        for (i, (verts, indices, color)) in homestead.material_walls.into_iter().enumerate() {
+            let mesh = Mesh::from_vertices(&state.renderer.device, &verts, &indices);
+            let transparent = color[3] < 0.999;
+            // Glass: low roughness + faint emissive through the transparent pass; opaque otherwise.
+            let (met, rough, mtype, emis) =
+                if transparent { (0.0, 0.1, 1.0, 0.05) } else { (0.1, 0.7, 0.0, 0.0) };
+            if let Some(&(mi, ma, _)) = prior_mw.get(i) {
+                state.renderer.replace_mesh(mi, mesh);
+                state.renderer.update_material_full(ma, color, met, rough, mtype, emis);
+                material_walls.push((mi, ma, transparent));
+            } else {
+                let mi = state.renderer.add_mesh(mesh);
+                let ma = state.renderer.add_material_full(color, met, rough, mtype, emis);
+                material_walls.push((mi, ma, transparent));
+            }
+        }
+        state.homestead_material_walls = material_walls;
         let prior = state.homestead_trim;
         state.homestead_trim = if !homestead.trim.0.is_empty() {
             let mesh = Mesh::from_vertices(&state.renderer.device, &homestead.trim.0, &homestead.trim.1);
@@ -2594,8 +2616,11 @@ mod native_app {
         /// Tracks whether the OS cursor is currently freed (visible + ungrabbed), so the
         /// per-frame reconciliation only toggles grab on a real change. (v0.443)
         cursor_free: bool,
-        /// Homestead walls mesh + material.
+        /// Homestead walls mesh + material (legacy fibonacci ship path).
         homestead_walls: Option<(usize, usize)>,
+        /// Per-material home walls (v0.552): (mesh, material, is_transparent) for each picked wall
+        /// material, so each wall renders in its own color (the home-structure path).
+        homestead_material_walls: Vec<(usize, usize, bool)>,
         /// Homestead trim mesh (baseboards, crown, door/window frames) + material. (v0.453)
         homestead_trim: Option<(usize, usize)>,
         /// Homestead window-glass mesh + material. (v0.453)
@@ -3174,6 +3199,7 @@ mod native_app {
                 showroom_return_pos: Vec3::new(0.0, 1.7, 0.0),
                 cursor_free: false,
                 homestead_walls: None,
+                homestead_material_walls: Vec::new(),
                 homestead_trim: None,
                 homestead_windows: None,
                 homestead_mirrors: None,
@@ -4505,6 +4531,22 @@ mod native_app {
                                 mesh: mesh_idx,
                                 material: mat_idx,
                             });
+                        }
+                        // Per-material home walls (v0.552): opaque materials in the main pass, glass
+                        // (transparent) in the transparent pass so it blends behind/through correctly.
+                        for &(mesh_idx, mat_idx, transparent) in &state.homestead_material_walls {
+                            let obj = RenderObject {
+                                position: Vec3::ZERO,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::ONE,
+                                mesh: mesh_idx,
+                                material: mat_idx,
+                            };
+                            if transparent {
+                                transparent_objects.push(obj);
+                            } else {
+                                all_objects.push(obj);
+                            }
                         }
                         // Glass windows + a glass roof -> the transparent pass.
                         if let Some((mesh_idx, mat_idx)) = state.homestead_windows {
