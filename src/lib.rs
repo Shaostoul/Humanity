@@ -1328,9 +1328,10 @@ mod native_app {
             None => return false,
         };
         let sz = state.window.inner_size();
+        // pick_ray already returns a unit dir (or zero for a degenerate ray); re-normalizing a zero
+        // vector would be NaN, so use it as-is. (v0.542)
         let (origin, dir) =
             state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
-        let dir = dir.normalize();
         let mut best: Option<((f32, f32), f32)> = None;
         for c in &corners {
             let p = Vec3::new(c.0, top_y, c.1);
@@ -3944,16 +3945,22 @@ mod native_app {
                         state.gui_state.construction_selected_room = None;
                         state.construction_grab = None;
                         state.construction_gizmo_grab = None;
+                        state.construction_node_grab = None; // v0.542: drop a live corner grab on close
                     }
                     // 3D room drag (v0.466): a grabbed room follows the cursor on its floor.
                     // Slide-gizmo drag (v0.468) takes precedence: a grabbed door/window handle
                     // slides along its wall; a grabbed room follows the cursor on its floor.
-                    if state.construction_node_grab.is_some() {
-                        apply_node_drag(state); // v0.541: a grabbed wall corner follows the cursor
-                    } else if state.construction_gizmo_grab.is_some() {
-                        apply_gizmo_drag(state);
-                    } else {
-                        apply_room_drag(state);
+                    // Gated on the editor being open (v0.542): a grab MUST NOT keep dragging in
+                    // first-person -- a Close click consumes the mouse-release, so without this gate a
+                    // live node grab silently rewrote walls to chase the cursor after leaving the editor.
+                    if state.gui_state.construction_active {
+                        if state.construction_node_grab.is_some() {
+                            apply_node_drag(state); // v0.541: a grabbed wall corner follows the cursor
+                        } else if state.construction_gizmo_grab.is_some() {
+                            apply_gizmo_drag(state);
+                        } else {
+                            apply_room_drag(state);
+                        }
                     }
                     // Construction editor (v0.455/459): apply the edited walls + ceiling height
                     // AND room position/size + add/remove to the live layout, then rebuild.
