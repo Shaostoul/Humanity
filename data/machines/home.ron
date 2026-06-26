@@ -187,62 +187,69 @@
 
     // Placed instances. The energy + water counts are sized to actually CLOSE the loops
     // (8 solar + 8 batteries, an 8000 L cistern, 2 composters, field crops for calories).
+    //
+    // OFFSETS ARE ABSOLUTE box coordinates (metres from the box min corner; the box is 55 x 89).
+    // v0.555 lifted the 3 clusters out of the (0,0) corner pile that the v0.538 box migration created
+    // by reading the OLD room-relative offsets as absolute: the garage power/water cluster sits in one
+    // corner, the garden farm across the far half, fabrication mid-box. The within-cluster arrangement
+    // is unchanged (a constant per-room shift), so the relative notes below still read true. Reposition
+    // any machine live in the construction editor.
     instances: [
         // ── Garage: the power store + water treatment ──
-        (id: "battery_1", machine: "battery_bank", room: "garage", offset: (-1.6, 0.0, -1.6)),
-        (id: "battery_2", machine: "battery_bank", room: "garage", offset: (-0.8, 0.0, -1.6)),
-        (id: "battery_3", machine: "battery_bank", room: "garage", offset: (0.0, 0.0, -1.6)),
-        (id: "battery_4", machine: "battery_bank", room: "garage", offset: (0.8, 0.0, -1.6)),
-        (id: "battery_5", machine: "battery_bank", room: "garage", offset: (-1.6, 0.0, -0.8)),
-        (id: "battery_6", machine: "battery_bank", room: "garage", offset: (-0.8, 0.0, -0.8)),
-        (id: "battery_7", machine: "battery_bank", room: "garage", offset: (0.0, 0.0, -0.8)),
-        (id: "battery_8", machine: "battery_bank", room: "garage", offset: (0.8, 0.0, -0.8)),
-        (id: "gen_1", machine: "generator_portable", room: "garage", offset: (1.8, 0.0, -1.2)),
-        (id: "pump_1", machine: "water_pump", room: "garage", offset: (-2.4, 0.0, 1.4)),
-        (id: "purifier_1", machine: "water_purifier", room: "garage", offset: (-1.4, 0.0, 1.4)),
+        (id: "battery_1", machine: "battery_bank", room: "garage", offset: (8.4, 0.0, 25.4)),
+        (id: "battery_2", machine: "battery_bank", room: "garage", offset: (9.2, 0.0, 25.4)),
+        (id: "battery_3", machine: "battery_bank", room: "garage", offset: (10.0, 0.0, 25.4)),
+        (id: "battery_4", machine: "battery_bank", room: "garage", offset: (10.8, 0.0, 25.4)),
+        (id: "battery_5", machine: "battery_bank", room: "garage", offset: (8.4, 0.0, 26.2)),
+        (id: "battery_6", machine: "battery_bank", room: "garage", offset: (9.2, 0.0, 26.2)),
+        (id: "battery_7", machine: "battery_bank", room: "garage", offset: (10.0, 0.0, 26.2)),
+        (id: "battery_8", machine: "battery_bank", room: "garage", offset: (10.8, 0.0, 26.2)),
+        (id: "gen_1", machine: "generator_portable", room: "garage", offset: (11.8, 0.0, 25.8)),
+        (id: "pump_1", machine: "water_pump", room: "garage", offset: (7.6, 0.0, 28.4)),
+        (id: "purifier_1", machine: "water_purifier", room: "garage", offset: (8.6, 0.0, 28.4)),
 
         // ── Garage hull surface + utility (v0.438). The operator disabled the huge open
         //    ranch (a 233x233 m walk to its centre) and consolidated everything into the
         //    garage, the mothership's outer hull: the solar array spreads across the hull
         //    surface, with the mining-drone hangar + a defense turret on the surface beside
         //    it. The cistern joins the pump/purifier water cluster. ──
-        (id: "solar_1", machine: "solar_panel", room: "garage", offset: (-7.0, 0.0, -22.0)),
-        (id: "solar_2", machine: "solar_panel", room: "garage", offset: (-5.0, 0.0, -22.0)),
-        (id: "solar_3", machine: "solar_panel", room: "garage", offset: (-3.0, 0.0, -22.0)),
-        (id: "solar_4", machine: "solar_panel", room: "garage", offset: (-1.0, 0.0, -22.0)),
-        (id: "solar_5", machine: "solar_panel", room: "garage", offset: (1.0, 0.0, -22.0)),
-        (id: "solar_6", machine: "solar_panel", room: "garage", offset: (3.0, 0.0, -22.0)),
-        (id: "solar_7", machine: "solar_panel", room: "garage", offset: (5.0, 0.0, -22.0)),
-        (id: "solar_8", machine: "solar_panel", room: "garage", offset: (7.0, 0.0, -22.0)),
-        (id: "wind_1", machine: "wind_turbine_small", room: "garage", offset: (11.0, 0.0, -22.0)),
-        (id: "cistern_1", machine: "water_tank", room: "garage", offset: (-6.0, 0.0, 3.0)),
-        (id: "drone_hangar_1", machine: "drone_hangar", room: "garage", offset: (18.0, 0.0, -6.0)),
-        (id: "turret_1", machine: "defense_turret", room: "garage", offset: (18.0, 0.0, -12.0)),
+        (id: "solar_1", machine: "solar_panel", room: "garage", offset: (3.0, 0.0, 5.0)),
+        (id: "solar_2", machine: "solar_panel", room: "garage", offset: (5.0, 0.0, 5.0)),
+        (id: "solar_3", machine: "solar_panel", room: "garage", offset: (7.0, 0.0, 5.0)),
+        (id: "solar_4", machine: "solar_panel", room: "garage", offset: (9.0, 0.0, 5.0)),
+        (id: "solar_5", machine: "solar_panel", room: "garage", offset: (11.0, 0.0, 5.0)),
+        (id: "solar_6", machine: "solar_panel", room: "garage", offset: (13.0, 0.0, 5.0)),
+        (id: "solar_7", machine: "solar_panel", room: "garage", offset: (15.0, 0.0, 5.0)),
+        (id: "solar_8", machine: "solar_panel", room: "garage", offset: (17.0, 0.0, 5.0)),
+        (id: "wind_1", machine: "wind_turbine_small", room: "garage", offset: (21.0, 0.0, 5.0)),
+        (id: "cistern_1", machine: "water_tank", room: "garage", offset: (4.0, 0.0, 30.0)),
+        (id: "drone_hangar_1", machine: "drone_hangar", room: "garage", offset: (28.0, 0.0, 21.0)),
+        (id: "turret_1", machine: "defense_turret", room: "garage", offset: (28.0, 0.0, 15.0)),
 
         // ── Garden (34x34x6 m): the indoor SUN-LIT farm. The bulk towers + beds are placed
         //    by the `arrays` grids below; these are the support machines + connection anchors,
         //    set along the WEST wall right next to the crops they feed so the pipes stay short
         //    (the operator flagged long cross-room diagonals). Herb towers sit among the array.
-        (id: "irrigation_1", machine: "irrigation_system", room: "garden", offset: (-15.5, 0.0, -12.5)),
-        (id: "composter_1", machine: "composter", room: "garden", offset: (-15.5, 0.0, -10.5)),
-        (id: "composter_2", machine: "composter", room: "garden", offset: (-15.5, 0.0, 2.0)),
-        (id: "aqua_1", machine: "aquaponic_tank", room: "garden", offset: (-14.8, 0.0, 0.6)),
-        (id: "aqua_2", machine: "aquaponic_tank", room: "garden", offset: (-14.8, 0.0, -1.8)),
-        (id: "apoth_1", machine: "aeroponic_tower_apothecary", room: "garden", offset: (1.6, 0.0, 4.0)),
-        (id: "apoth_2", machine: "aeroponic_tower_apothecary", room: "garden", offset: (3.0, 0.0, 4.0)),
+        (id: "irrigation_1", machine: "irrigation_system", room: "garden", offset: (4.5, 0.0, 39.5)),
+        (id: "composter_1", machine: "composter", room: "garden", offset: (4.5, 0.0, 41.5)),
+        (id: "composter_2", machine: "composter", room: "garden", offset: (4.5, 0.0, 54.0)),
+        (id: "aqua_1", machine: "aquaponic_tank", room: "garden", offset: (5.2, 0.0, 52.6)),
+        (id: "aqua_2", machine: "aquaponic_tank", room: "garden", offset: (5.2, 0.0, 50.2)),
+        (id: "apoth_1", machine: "aeroponic_tower_apothecary", room: "garden", offset: (21.6, 0.0, 56.0)),
+        (id: "apoth_2", machine: "aeroponic_tower_apothecary", room: "garden", offset: (23.0, 0.0, 56.0)),
         // Field crops, consolidated indoors off the now-disabled ranch (v0.438). They sit in
         // the SE quadrant of the garden; the food loop still treats them as the bulk-calorie
         // source (the closure note may want revisiting now that they are indoors).
-        (id: "grain_field_1", machine: "grain_field", room: "garden", offset: (7.0, 0.0, 13.0)),
-        (id: "tuber_field_1", machine: "tuber_field", room: "garden", offset: (10.5, 0.0, 13.0)),
-        (id: "legume_field_1", machine: "legume_field", room: "garden", offset: (7.0, 0.0, 9.5)),
-        (id: "oilseed_field_1", machine: "oilseed_field", room: "garden", offset: (10.5, 0.0, 9.5)),
-        (id: "silo_1", machine: "grain_silo", room: "garden", offset: (14.0, 0.0, 11.0)),
+        (id: "grain_field_1", machine: "grain_field", room: "garden", offset: (27.0, 0.0, 65.0)),
+        (id: "tuber_field_1", machine: "tuber_field", room: "garden", offset: (30.5, 0.0, 65.0)),
+        (id: "legume_field_1", machine: "legume_field", room: "garden", offset: (27.0, 0.0, 61.5)),
+        (id: "oilseed_field_1", machine: "oilseed_field", room: "garden", offset: (30.5, 0.0, 61.5)),
+        (id: "silo_1", machine: "grain_silo", room: "garden", offset: (34.0, 0.0, 63.0)),
 
         // ── Study: fabrication ──
-        (id: "smelter_1", machine: "smelter", room: "study", offset: (-2.4, 0.0, -2.4)),
-        (id: "forge_1", machine: "forge", room: "study", offset: (-0.8, 0.0, -2.4)),
-        (id: "fuel_1", machine: "fuel_refinery", room: "study", offset: (1.2, 0.0, -2.4)),
+        (id: "smelter_1", machine: "smelter", room: "study", offset: (39.6, 0.0, 24.6)),
+        (id: "forge_1", machine: "forge", room: "study", offset: (41.2, 0.0, 24.6)),
+        (id: "fuel_1", machine: "fuel_refinery", room: "study", offset: (43.2, 0.0, 24.6)),
     ],
 
     // Dense garden fill: grids expanded into instances at load (infinite-of-X, one line per
@@ -254,11 +261,11 @@
     // beds and towers are NOT stacked into tiers: under one sun there is one canopy, a second
     // tier would only shade the first. That single-canopy cap is the whole lesson.
     arrays: [
-        (machine: "potato_grow_bed",   room: "garden", id_prefix: "potato",    origin: (-15.0, 0.0, -15.0), rows: 3, cols: 6, spacing: (2.7, 2.0)),
-        (machine: "oilseed_bed",       room: "garden", id_prefix: "oilbed",    origin: (1.0, 0.0, -15.0),   rows: 2, cols: 5, spacing: (2.7, 2.0)),
-        (machine: "staple_grain_tray", room: "garden", id_prefix: "graintray", origin: (1.0, 0.0, -9.0),    rows: 2, cols: 4, spacing: (2.7, 2.0)),
-        (machine: "aeroponic_tower_nutrition", room: "garden", id_prefix: "ntower", origin: (-13.0, 0.0, 4.0), rows: 4, cols: 6, spacing: (2.2, 2.2)),
-        (machine: "mushroom_rack",     room: "garden", id_prefix: "mush",      origin: (14.0, 0.0, -6.0),   rows: 6, cols: 1, spacing: (0.0, 2.0)),
+        (machine: "potato_grow_bed",   room: "garden", id_prefix: "potato",    origin: (5.0, 0.0, 37.0), rows: 3, cols: 6, spacing: (2.7, 2.0)),
+        (machine: "oilseed_bed",       room: "garden", id_prefix: "oilbed",    origin: (21.0, 0.0, 37.0),   rows: 2, cols: 5, spacing: (2.7, 2.0)),
+        (machine: "staple_grain_tray", room: "garden", id_prefix: "graintray", origin: (21.0, 0.0, 43.0),    rows: 2, cols: 4, spacing: (2.7, 2.0)),
+        (machine: "aeroponic_tower_nutrition", room: "garden", id_prefix: "ntower", origin: (7.0, 0.0, 56.0), rows: 4, cols: 6, spacing: (2.2, 2.2)),
+        (machine: "mushroom_rack",     room: "garden", id_prefix: "mush",      origin: (34.0, 0.0, 46.0),   rows: 6, cols: 1, spacing: (0.0, 2.0)),
     ],
 
     // Connections as colored pipes/tubes: power = amber, water = blue, nutrient = brown,
