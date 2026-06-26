@@ -78,11 +78,15 @@
 > > with a time-driven shimmer (see-through as they dissolve open); each opening's style + lock state
 > > floats as build-mode TEXT. Doors now route energy/nanowall/windows through the transparent pass (the
 > > panel_motion alpha is finally used). Verified green; the look is operator-confirm (native 3D).
-> > **REMAINING (all optional / operator-gated, none blocking):**
+> > **home.ron machine pile RESOLVED v0.554.1 (re-authored, the v0.538-open fork closed):** the box
+> > migration read the old room-relative offsets as absolute, piling every machine at the (0,0) corner.
+> > A constant per-room shift lifted the 3 clusters into distinct in-box areas (garage x[3,28] z[5,30];
+> > garden x[4.5,34] z[37,65]; study x[39.6,43.2] z[24.6]) preserving each cluster's internal layout;
+> > buildability + load/round-trip tests pass. Refinable live now that machines are editor-selectable
+> > (v0.553), so re-author was the clear best of keep / clear / re-author.
+> > **REMAINING (all optional, none blocking, want operator eyes on v0.549-554 first):**
 > > - Deeper door polish if wanted: a per-door alpha gradient as a door opens (needs per-door materials,
 > >   currently shared), in-PLAY door text (currently build-mode only), an in-world lock toggle.
-> > - The still-OPEN operator data decision on the old home.ron machines (keep / clear / re-author) from
-> >   the v0.538 review -- the one real fork that is genuinely the operator's call.
 
 > **ACTIVE 2026-06-23: HOME-DESIGN AI/PLAYER PARITY arc (operator-directed).** Make the AI's
 > home designs use the SAME machinery players build with, so they're inherently player-workable
