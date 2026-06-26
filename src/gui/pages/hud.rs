@@ -432,6 +432,19 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
                             headings.push((w.a.1 - c.1).atan2(w.a.0 - c.0));
                         }
                     }
+                    // Also count the box HULL edges at this corner (v0.555): when an interior wall
+                    // ends ON the fixed perimeter, show the angle it makes with the hull on each side
+                    // (the hull was invisible to the angle math before, so hull joins showed nothing).
+                    let (bw, bd) = (hs.width, hs.depth);
+                    let he = 0.05;
+                    if c.1.abs() < he || (c.1 - bd).abs() < he {
+                        if c.0 < bw - he { headings.push(0.0); }
+                        if c.0 > he { headings.push(std::f32::consts::PI); }
+                    }
+                    if c.0.abs() < he || (c.0 - bw).abs() < he {
+                        if c.1 < bd - he { headings.push(std::f32::consts::FRAC_PI_2); }
+                        if c.1 > he { headings.push(-std::f32::consts::FRAC_PI_2); }
+                    }
                     if headings.len() < 2 {
                         continue;
                     }
@@ -446,6 +459,11 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
                         }
                         let mid = a0 + slice * 0.5;
                         let world = Vec3::new(c.0 + mid.cos() * RING_R * 0.62, 0.12, c.1 + mid.sin() * RING_R * 0.62);
+                        // Drop labels that fall outside the box footprint (e.g. the exterior slice at a
+                        // hull join) so only the meaningful in-room angles show.
+                        if world.x < -0.3 || world.x > bw + 0.3 || world.z < -0.3 || world.z > bd + 0.3 {
+                            continue;
+                        }
                         if let Some(sp) = world_to_screen(world, view_proj, screen) {
                             text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{:.0} deg", slice.to_degrees()), 12.0, theme.warning());
                         }
