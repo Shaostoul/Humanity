@@ -1540,6 +1540,9 @@ pub struct GuiState {
     /// zeroed so a room is lit ONLY by local placed lights -- the "turn off GI and still see" test.
     /// Default true. Toggled in the wall editor.
     pub gi_enabled: bool,
+    /// Max construction-editor undo steps (v0.575), Blender-style configurable depth. Set in the wall
+    /// editor. Default 64; clamped 1..=4096.
+    pub construction_undo_depth: usize,
     /// Set by the panel's Save button -> the engine writes the layout back to the RON.
     pub construction_save: bool,
     /// Index into the backdrop list (the names mirror is `showroom_backdrop_names`).
@@ -2557,6 +2560,7 @@ impl Default for GuiState {
             construction_grid_snap: true,
             construction_dev_overlay: false,
             gi_enabled: true,
+            construction_undo_depth: 64,
             construction_palette_category: String::new(),
             construction_palette_expanded: false,
             construction_place_type: None,

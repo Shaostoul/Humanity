@@ -666,6 +666,91 @@ mod native_app {
     /// Regenerate the homestead meshes from the live layout (the construction editor's apply).
     /// Also refreshes room lights + the sealed-volume bounds, since a height/wall edit changes
     /// them. (v0.455)
+    /// Snapshot the current editor state for undo/redo (v0.575). Structure + machines only -- not the
+    /// selection (restoring a stale selection would yank the right panel).
+    fn editor_snapshot(state: &EngineState) -> EditorSnapshot {
+        EditorSnapshot {
+            structure: state.gui_state.home_structure.clone(),
+            machines: state.gui_state.home_machines.clone(),
+        }
+    }
+
+    /// Restore a snapshot into gui_state and rebuild the home DIRECTLY (v0.575). Rebuilding here rather
+    /// than via the dirty flags means the restore never looks like a fresh edit to the history tick --
+    /// so it can't spuriously checkpoint and there's no restore/edit frame race.
+    fn editor_restore(state: &mut EngineState, snap: EditorSnapshot) {
+        state.gui_state.home_structure = snap.structure;
+        state.gui_state.home_machines = snap.machines;
+        rebuild_homestead(state);
+        rebuild_machine_objects(state);
+    }
+
+    /// Per-frame undo-history tick (v0.575). Call BEFORE the dirty-flag rebuild blocks consume them.
+    /// `edited` = a dirty flag was set this frame. Resets history on editor-open; coalesces a continuous
+    /// drag -- a gizmo OR a slider -- into ONE undo step by checkpointing only while the left mouse
+    /// button is NOT held, plus once on release if an edit happened during the hold.
+    fn construction_history_tick(state: &mut EngineState, edited: bool) {
+        let active = state.gui_state.construction_active;
+        let prev_active = state.construction_history.prev_active;
+        state.construction_history.prev_active = active;
+        if active && !prev_active {
+            // Editor opened: the current state is the baseline; clear the stacks.
+            let base = editor_snapshot(state);
+            let h = &mut state.construction_history;
+            h.undo.clear();
+            h.redo.clear();
+            h.baseline = base;
+            h.edited_during_hold = false;
+            h.prev_held = false;
+            return;
+        }
+        if !active {
+            return; // history is editor-only
+        }
+        let held = state.lmb_held;
+        let prev_held = state.construction_history.prev_held;
+        state.construction_history.prev_held = held;
+        if held {
+            if edited {
+                state.construction_history.edited_during_hold = true;
+            }
+            return; // never checkpoint mid-drag (gizmo or slider)
+        }
+        // Not held: checkpoint on a click-edit, or a release that actually edited during the hold.
+        let released_with_edit = prev_held && state.construction_history.edited_during_hold;
+        if released_with_edit || edited {
+            let cur = editor_snapshot(state);
+            let depth = state.gui_state.construction_undo_depth.clamp(1, 4096);
+            let h = &mut state.construction_history;
+            h.undo.push_back(std::mem::replace(&mut h.baseline, cur));
+            while h.undo.len() > depth {
+                h.undo.pop_front();
+            }
+            h.redo.clear();
+            h.edited_during_hold = false;
+        }
+    }
+
+    /// Undo the last construction edit (v0.575): restore the most recent pre-edit snapshot.
+    fn construction_undo(state: &mut EngineState) {
+        if let Some(prev) = state.construction_history.undo.pop_back() {
+            let cur = editor_snapshot(state);
+            state.construction_history.redo.push(cur);
+            state.construction_history.baseline = prev.clone();
+            editor_restore(state, prev);
+        }
+    }
+
+    /// Redo the last undone construction edit (v0.575).
+    fn construction_redo(state: &mut EngineState) {
+        if let Some(next) = state.construction_history.redo.pop() {
+            let cur = editor_snapshot(state);
+            state.construction_history.undo.push_back(cur);
+            state.construction_history.baseline = next.clone();
+            editor_restore(state, next);
+        }
+    }
+
     fn rebuild_homestead(state: &mut EngineState) {
         // Normalize every corner onto the corner grid (v0.574) so co-located corners are byte-identical
         // -- this self-heals any older home whose snapped corners had sub-tolerance residue (which read
@@ -3154,6 +3239,42 @@ mod native_app {
         /// sees Ctrl+V for an image clipboard. We detect it here instead
         /// and set gui_state.pending_clipboard_paste. v0.234.
         ctrl_held: bool,
+        /// Shift modifier state (v0.575), for Ctrl+Shift+Z redo in the construction editor.
+        shift_held: bool,
+        /// Left-mouse-button held state (v0.575): true while dragging a gizmo or a slider, so the undo
+        /// history coalesces a continuous drag into one step (checkpoint on release).
+        lmb_held: bool,
+        /// Construction-editor undo/redo history (v0.575): bounded snapshot stacks of the editable
+        /// home (structure + machines), captured at the dirty-flag choke point.
+        construction_history: ConstructionHistory,
+    }
+
+    /// One captured editor state for undo/redo (v0.575): a clone of the editable home (structure +
+    /// machines). Selection is intentionally NOT captured -- restoring it would yank the right panel to
+    /// a stale wall; the current selection is kept (and self-clamps if it falls out of range).
+    #[derive(Clone, Default)]
+    struct EditorSnapshot {
+        structure: Option<crate::ship::home_structure::HomeStructure>,
+        machines: Option<crate::machines::MachineHome>,
+    }
+
+    /// Bounded undo/redo history for the construction editor (v0.575). Snapshot model: cheap (the home
+    /// is tens of KB) and robust (no per-action inverse). A continuous DRAG -- a gizmo OR a slider --
+    /// is coalesced into ONE step by only checkpointing while the left mouse button is NOT held, plus
+    /// once on release if an edit happened during the hold.
+    #[derive(Default)]
+    struct ConstructionHistory {
+        undo: std::collections::VecDeque<EditorSnapshot>,
+        redo: Vec<EditorSnapshot>,
+        /// The committed state as of the last checkpoint -- pushed onto `undo` when the next edit lands.
+        baseline: EditorSnapshot,
+        /// Whether an edit happened during the current LMB hold (so a click/drag that changed nothing
+        /// won't checkpoint).
+        edited_during_hold: bool,
+        /// Whether the LMB was held last frame (to detect release).
+        prev_held: bool,
+        /// Whether the editor was open last frame (to reset history on open).
+        prev_active: bool,
     }
 
     impl ApplicationHandler for App {
@@ -3686,6 +3807,9 @@ mod native_app {
                 window_shown: false,
                 data_dir,
                 ctrl_held: false,
+                shift_held: false,
+                lmb_held: false,
+                construction_history: ConstructionHistory::default(),
             });
         }
 
@@ -3740,6 +3864,20 @@ mod native_app {
                             | KeyCode::SuperLeft | KeyCode::SuperRight)
                         {
                             state.ctrl_held = pressed;
+                        }
+                        if matches!(key, KeyCode::ShiftLeft | KeyCode::ShiftRight) {
+                            state.shift_held = pressed; // for Ctrl+Shift+Z redo (v0.575)
+                        }
+                        // Undo/redo in the construction editor (v0.575): Ctrl+Z undo, Ctrl+Shift+Z (or
+                        // Ctrl+Y) redo. Gated to build mode so it never fights the chat Ctrl+V path.
+                        if pressed && state.ctrl_held && state.gui_state.construction_active {
+                            if key == KeyCode::KeyZ && state.shift_held {
+                                construction_redo(state);
+                            } else if key == KeyCode::KeyZ {
+                                construction_undo(state);
+                            } else if key == KeyCode::KeyY {
+                                construction_redo(state);
+                            }
                         }
 
                         // F1 (hold) shows the keymap for the current screen/mode. Works on every
@@ -4066,6 +4204,9 @@ mod native_app {
                     let left = button == MouseButton::Left;
                     let right = button == MouseButton::Right;
                     let pressed = btn_state == ElementState::Pressed;
+                    if left {
+                        state.lmb_held = pressed; // undo drag-coalescing (v0.575)
+                    }
                     // Construction astral editor: LEFT grabs/drops a room (left is a no-op in the
                     // orbit cam, so we own it). Gated on !egui_consumed so panel clicks never
                     // start a grab. (v0.466)
@@ -4881,6 +5022,13 @@ mod native_app {
                             }
                         }
                         rebuild_homestead(state);
+                    }
+                    // Undo-history tick (v0.575): checkpoint at the dirty-flag choke point, BEFORE the
+                    // rebuild blocks below consume the flags. Coalesces a drag into one undo step.
+                    {
+                        let edited = state.gui_state.construction_structure_dirty
+                            || state.gui_state.construction_machines_dirty;
+                        construction_history_tick(state, edited);
                     }
                     // Machine-only edit (offset / add / remove / connect): refresh just the machine
                     // meshes so the change shows live, without a full room rebuild. (v0.525)

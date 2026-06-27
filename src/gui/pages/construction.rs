@@ -695,6 +695,11 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 if ui.checkbox(&mut state.gi_enabled, RichText::new("Sun / global light (off = local lights only)").size(theme.font_size_small).color(theme.text_primary())).changed() {
                     state.construction_structure_dirty = true;
                 }
+                // Undo depth (v0.575, Blender-style): how many editor actions Ctrl+Z can step back.
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Undo steps (Ctrl+Z / Ctrl+Shift+Z)").size(theme.font_size_small).color(theme.text_muted()));
+                    ui.add(egui::DragValue::new(&mut state.construction_undo_depth).speed(1.0).range(1..=4096));
+                });
                 ui.add_space(theme.spacing_sm);
 
                 // Interior walls -- a collapsible section (v0.569) so a long list folds away.
