@@ -396,6 +396,35 @@ impl Mesh {
         Self::from_vertices(device, &v, &idx)
     }
 
+    /// A DIAMOND (octahedron) of half-extent `r`, centred at the origin (v0.572). Six apexes on the
+    /// axes, eight triangular faces, outward-wound with centroid normals. Used as a distinct centre
+    /// marker for placed LIGHTS (vs the sphere orb for wall corners).
+    pub fn octahedron(device: &wgpu::Device, r: f32) -> Self {
+        let top = [0.0, r, 0.0];
+        let bot = [0.0, -r, 0.0];
+        let eq = [[r, 0.0, 0.0], [0.0, 0.0, r], [-r, 0.0, 0.0], [0.0, 0.0, -r]];
+        let mut v: Vec<Vertex> = Vec::new();
+        let mut idx: Vec<u32> = Vec::new();
+        let mut face = |a: [f32; 3], b: [f32; 3], c: [f32; 3]| {
+            // Outward normal = the normalized centroid (the shape is centred on the origin).
+            let cen = [(a[0] + b[0] + c[0]) / 3.0, (a[1] + b[1] + c[1]) / 3.0, (a[2] + b[2] + c[2]) / 3.0];
+            let l = (cen[0] * cen[0] + cen[1] * cen[1] + cen[2] * cen[2]).sqrt().max(1e-6);
+            let n = [cen[0] / l, cen[1] / l, cen[2] / l];
+            let bi = v.len() as u32;
+            v.push(Vertex { position: a, normal: n, uv: [0.0, 0.0] });
+            v.push(Vertex { position: b, normal: n, uv: [1.0, 0.0] });
+            v.push(Vertex { position: c, normal: n, uv: [0.5, 1.0] });
+            idx.extend_from_slice(&[bi, bi + 1, bi + 2]);
+        };
+        for i in 0..4usize {
+            let e0 = eq[i];
+            let e1 = eq[(i + 1) % 4];
+            face(top, e1, e0); // top half (outward winding)
+            face(bot, e0, e1); // bottom half
+        }
+        Self::from_vertices(device, &v, &idx)
+    }
+
     /// A straight ROUND tube (pipe / cable) from world point `a` to `b` with the given
     /// outer `radius` and `sides` (cross-section polygon, 8 reads round). Built in world
     /// space and placed at the origin, since the render path is translation-only. This is

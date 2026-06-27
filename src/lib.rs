@@ -1032,18 +1032,19 @@ mod native_app {
         }
     }
 
-    /// The room point-lights to upload (v0.571). A home's PLACED lights (resolved from light_types.ron
-    /// + per-instance overrides) ALWAYS contribute; the `auto` one-per-room fill is treated as part of
-    /// "global" lighting, so it is added ONLY when GI is ON. Net effect: with GI on, a home with no
-    /// placed lights looks exactly as before (auto fill), and placing a light ADDS to the room rather
-    /// than darkening the rest of the house; with GI OFF, only the placed local lights remain -- the
-    /// "turn off global illumination and still see" test. Each entry is (pos, rgb, intensity, range).
+    /// The room point-lights to upload (v0.571, refined v0.572). A home's PLACED lights (resolved from
+    /// light_types.ron + per-instance overrides) take over once ANY are placed; otherwise the crude
+    /// `auto` one-per-room fill is used, and ONLY when GI is on. Rationale (operator v0.572 feedback):
+    /// the auto fill is a single bright point light at room centre that reads as an ugly "sun spotlight"
+    /// pool -- so once the operator places their own lights, we drop it entirely (their lights ARE the
+    /// room lighting; the directional SUN, gated separately by GI, still provides the even base when GI
+    /// is on). With NO placed lights the old behaviour is unchanged (auto fill when GI on, dark when off).
     fn home_lights(
         home: Option<&crate::ship::home_structure::HomeStructure>,
         auto: Vec<(Vec3, [f32; 3], f32, f32)>,
         gi_on: bool,
     ) -> Vec<(Vec3, [f32; 3], f32, f32)> {
-        let mut out: Vec<(Vec3, [f32; 3], f32, f32)> = home
+        let placed: Vec<(Vec3, [f32; 3], f32, f32)> = home
             .map(|h| {
                 h.lights
                     .iter()
@@ -1061,10 +1062,14 @@ mod native_app {
                     .collect()
             })
             .unwrap_or_default();
-        if gi_on {
-            out.extend(auto);
+        // Any placed lights -> the home is manually lit, no auto centre-spot. Else auto fill if GI on.
+        if !placed.is_empty() {
+            placed
+        } else if gi_on {
+            auto
+        } else {
+            Vec::new()
         }
-        out
     }
 
     /// Per-frame: animate + emit the door/window panels (v0.537). A door eases open as the player
@@ -3002,6 +3007,10 @@ mod native_app {
         construction_node_mesh: Option<usize>,
         construction_node_mat: Option<usize>,
         construction_node_mat_hot: Option<usize>,
+        /// Placed-LIGHT gizmo (v0.572): a cached DIAMOND (octahedron) centre-marker mesh + an emissive
+        /// material, drawn at each placed light in build mode (the range "sphere" is RGB line circles).
+        construction_light_mesh: Option<usize>,
+        construction_light_mat: Option<usize>,
         /// Build-mode gizmo HOVER material (v0.569): a brightened idle colour shown on the gizmo the
         /// cursor is over (idle -> hover -> active, like the header buttons).
         construction_node_mat_hover: Option<usize>,
@@ -3573,6 +3582,8 @@ mod native_app {
                 construction_node_mesh: None,
                 construction_node_mat: None,
                 construction_node_mat_hot: None,
+                construction_light_mesh: None,
+                construction_light_mat: None,
                 construction_node_mat_hover: None,
                 construction_char_grab: false,
                 construction_char_mesh: None,
@@ -5338,6 +5349,54 @@ mod native_app {
                                     &mut ring_lines, [center.x, 0.12, center.z], radius + 0.2, [rr, gg, bb, 1.0], 48,
                                 );
                             }
+                        }
+                    }
+
+                    // Placed-LIGHT gizmos (v0.572): a DIAMOND centre-marker + an RGB range "sphere"
+                    // (three axis great-circles -- X red, Y green, Z blue) at each placed light, so the
+                    // operator (and an AI) can see where each light sits + how far it reaches. Build mode.
+                    if state.gui_state.construction_active && state.gui_state.home_structure.is_some() {
+                        if state.construction_light_mesh.is_none() {
+                            let m = state.renderer.add_mesh(Mesh::octahedron(&state.renderer.device, 1.0));
+                            state.construction_light_mesh = Some(m);
+                        }
+                        if state.construction_light_mat.is_none() {
+                            // theme-exempt: light gizmo marker, emissive so it reads at a glance.
+                            let m = state.renderer.add_material_full([1.0, 0.95, 0.6, 1.0], 0.0, 0.3, 0.0, 1.2);
+                            state.construction_light_mat = Some(m);
+                        }
+                        let dmesh = state.construction_light_mesh.unwrap();
+                        let dmat = state.construction_light_mat.unwrap();
+                        let lights: Vec<(Vec3, f32)> = state
+                            .gui_state
+                            .home_structure
+                            .as_ref()
+                            .map(|h| {
+                                h.lights
+                                    .iter()
+                                    .map(|l| {
+                                        let range = l.range
+                                            .or_else(|| crate::renderer::light::light_type(&l.type_id).map(|t| t.range))
+                                            .unwrap_or(4.0);
+                                        (Vec3::new(l.pos.0, l.pos.1, l.pos.2), range)
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        for (pos, range) in &lights {
+                            // Diamond centre marker (overlay -> visible through walls).
+                            overlay_objects.push(RenderObject {
+                                position: *pos,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::splat(0.12),
+                                mesh: dmesh,
+                                material: dmat,
+                            });
+                            // Range "sphere": three axis great-circles, R/G/B for X/Y/Z (line circles).
+                            let p = [pos.x, pos.y, pos.z];
+                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [1.0, 0.0, 0.0], [1.0, 0.30, 0.30, 0.7], 40);
+                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 1.0, 0.0], [0.35, 1.0, 0.35, 0.7], 40);
+                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 0.0, 1.0], [0.45, 0.55, 1.0, 0.7], 40);
                         }
                     }
 

@@ -42,6 +42,33 @@ pub fn push_circle(out: &mut Vec<LineVertex>, center: [f32; 3], radius: f32, col
     }
 }
 
+/// Append a CIRCLE in 3D in the plane PERPENDICULAR to `normal` (any orientation), into `out`. The
+/// same constant-width primitive as `push_circle` but for an arbitrary plane -- e.g. the three
+/// red/green/blue axis great-circles of a light's range "sphere" gizmo, a tilted orbit, a tilted AoE.
+/// (v0.572) Builds an orthonormal basis from `normal`; a zero normal is skipped.
+pub fn push_circle_3d(out: &mut Vec<LineVertex>, center: [f32; 3], radius: f32, normal: [f32; 3], color: [f32; 4], segments: usize) {
+    use glam::Vec3;
+    let c = Vec3::from(center);
+    let n = Vec3::from(normal).normalize_or_zero();
+    if n == Vec3::ZERO {
+        return;
+    }
+    // Any axis not parallel to n, then Gram-Schmidt for the two in-plane basis vectors.
+    let seed = if n.x.abs() > 0.9 { Vec3::Y } else { Vec3::X };
+    let u = seed.cross(n).normalize();
+    let v = n.cross(u);
+    let n_seg = segments.max(3);
+    let pt = |a: f32| -> [f32; 3] { (c + (u * a.cos() + v * a.sin()) * radius).into() };
+    let mut prev = pt(0.0);
+    for i in 1..=n_seg {
+        let a = (i as f32 / n_seg as f32) * std::f32::consts::TAU;
+        let cur = pt(a);
+        out.push(LineVertex { position: prev, color });
+        out.push(LineVertex { position: cur, color });
+        prev = cur;
+    }
+}
+
 /// Append a POLYLINE (an open connected path) through `points` as line segments into `out`. (v0.568)
 ///
 /// The same constant-width primitive for an ARBITRARY 3D trajectory rather than a circle -- the path a
@@ -126,6 +153,23 @@ mod tests {
         assert!((v[0].position[0] - 3.0).abs() < 1e-5 && (v[0].position[1] - 0.5).abs() < 1e-5);
         // It closes: the last endpoint returns to the start.
         assert!((v[15].position[0] - 3.0).abs() < 1e-4 && (v[15].position[2] + 3.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn circle_3d_lies_in_the_plane_perpendicular_to_the_normal() {
+        // A circle with a +Y normal is horizontal (constant y); radius 2 about (0,5,0).
+        let mut v = Vec::new();
+        push_circle_3d(&mut v, [0.0, 5.0, 0.0], 2.0, [0.0, 1.0, 0.0], [1.0; 4], 16);
+        assert_eq!(v.len(), 32, "16 segments -> 32 verts");
+        for vert in &v {
+            assert!((vert.position[1] - 5.0).abs() < 1e-4, "stays in the y=5 plane");
+            let r = (vert.position[0].powi(2) + vert.position[2].powi(2)).sqrt();
+            assert!((r - 2.0).abs() < 1e-4, "on the radius-2 circle, got {r}");
+        }
+        // A zero normal is skipped (no panic, no verts).
+        let mut z = Vec::new();
+        push_circle_3d(&mut z, [0.0, 0.0, 0.0], 1.0, [0.0, 0.0, 0.0], [1.0; 4], 8);
+        assert!(z.is_empty());
     }
 
     #[test]
