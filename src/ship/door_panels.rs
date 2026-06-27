@@ -13,6 +13,17 @@ use glam::{Quat, Vec3};
 /// Panel thickness (metres) -- a door slab / window pane.
 pub const PANEL_THICKNESS: f32 = 0.06;
 
+/// A lock resolved to world space for the render + the runtime (v0.570): its catalog type, its
+/// AUTHORED initial state, and where it mounts on the door face (a small red/green indicator). The
+/// LIVE state lives in EngineState (parallel to door_panels); this carries the initial value.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResolvedLock {
+    pub type_id: String,
+    pub state: crate::ship::lock_types::LockState,
+    /// World mount position of the lock indicator (on the door face, stacked by index).
+    pub pos: Vec3,
+}
+
 /// A door/window panel's CLOSED placement in world space + the metadata the animator needs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PanelPlacement {
@@ -42,6 +53,9 @@ pub struct PanelPlacement {
     /// (beside the door at hand height) for the render + the interact raycast.
     pub control_panel: bool,
     pub control_panel_pos: Vec3,
+    /// LOCKS on this door (v0.570), resolved to world mount positions + authored initial states. The
+    /// door is passable only when every lock is open; the LIVE state is tracked in EngineState.
+    pub locks: Vec<ResolvedLock>,
 }
 
 /// Compute a PanelPlacement for every opening in the home (world space).
@@ -89,6 +103,22 @@ pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
             };
             let cp_xz = a + dir * s_cp;
             let control_panel_pos = Vec3::new(cp_xz.x, 1.2, cp_xz.y);
+            // Resolve each lock to a world mount on the door face (v0.570): along the wall at the
+            // door centre + the lock's offset, stacked UP by index so multiple locks form a column.
+            let locks: Vec<ResolvedLock> = op
+                .locks
+                .iter()
+                .enumerate()
+                .map(|(li, lock)| {
+                    let s = (op.at + op.width * 0.5 + lock.offset).clamp(0.0, len);
+                    let m = a + dir * s;
+                    ResolvedLock {
+                        type_id: lock.type_id.clone(),
+                        state: lock.state,
+                        pos: Vec3::new(m.x, 1.0 + 0.28 * li as f32, m.y),
+                    }
+                })
+                .collect();
             out.push(PanelPlacement {
                 center: Vec3::new(c_xz.x, cy + inset * 0.5, c_xz.y),
                 rotation,
@@ -101,6 +131,7 @@ pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
                 auto_open: op.auto_open,
                 control_panel: op.control_panel,
                 control_panel_pos,
+                locks,
             });
         }
     }
@@ -139,7 +170,7 @@ mod tests {
             width: 2.0,
             sill: 0.0,
             height: 2.1,
-            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
+            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new()
         }]));
         assert_eq!(p.len(), 1);
         // Centre at s = 4 + 1 = 5 along +X; bottom-anchored at the sill (y = 0 for a door).
@@ -159,7 +190,7 @@ mod tests {
             width: 1.5,
             sill: 1.0,
             height: 1.2,
-            style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
+            style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new()
         }]));
         assert_eq!(p.len(), 1);
         assert!(p[0].is_window);
@@ -177,7 +208,7 @@ mod tests {
             width: 1.0,
             sill: 0.0,
             height: 2.1,
-            style: "slide".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
+            style: "slide".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new()
         }]);
         home.walls[0].a = (5.0, 0.0);
         home.walls[0].b = (5.0, 10.0); // along +Z
@@ -199,7 +230,7 @@ mod tests {
             width: 2.0,
             sill: 0.0,
             height: 2.1,
-            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true
+            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true, locks: Vec::new()
         }]));
         assert_eq!(p.len(), 1);
         assert!(p[0].control_panel, "panel flag carried through");
@@ -219,7 +250,7 @@ mod tests {
             width: 2.0,
             sill: 0.0,
             height: 2.1,
-            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true
+            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true, locks: Vec::new()
         }]));
         let cp = p[0].control_panel_pos;
         assert!((cp.x - 7.75).abs() < 1e-4, "panel falls back inside the wall, got x={}", cp.x);
@@ -231,7 +262,7 @@ mod tests {
         let p = panel_placements(&home_with(vec![Opening {
             kind: OpeningKind::Door,
             at: 4.0, width: 2.0, sill: 0.0, height: 2.1,
-            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
+            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new()
         }]));
         assert!(!p[0].control_panel, "no panel unless requested");
     }

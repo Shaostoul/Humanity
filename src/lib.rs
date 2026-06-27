@@ -1005,6 +1005,29 @@ mod native_app {
         // do NOT trust positional parallelism across an edit -- an open-flag must never land on the
         // wrong door just because the opening count happened to stay equal.
         state.door_manual_open = vec![false; state.door_panels.len()];
+        // Reset live lock state to each door's AUTHORED states on a rebuild (v0.570), parallel to
+        // door_panels. Same reasoning as the manual-open reset above.
+        state.door_locks = state
+            .door_panels
+            .iter()
+            .map(|(p, _)| p.locks.iter().map(|l| l.state).collect())
+            .collect();
+    }
+
+    /// Is door `panel` currently locked, using its LIVE lock states when present (v0.570)? A door with
+    /// locks is locked iff any live lock is not open; an empty lock list falls back to the legacy
+    /// `panel.locked` bool, so v0.567 doors are unchanged. `live` is `door_locks[i]`.
+    fn door_locked_now(
+        panel: &crate::ship::door_panels::PanelPlacement,
+        live: Option<&Vec<crate::ship::lock_types::LockState>>,
+    ) -> bool {
+        if panel.locks.is_empty() {
+            return panel.locked;
+        }
+        match live {
+            Some(states) if states.len() == panel.locks.len() => states.iter().any(|s| !s.is_open()),
+            _ => panel.locks.iter().any(|l| !l.state.is_open()), // fall back to authored
+        }
     }
 
     /// Per-frame: animate + emit the door/window panels (v0.537). A door eases open as the player
@@ -1093,11 +1116,14 @@ mod native_app {
         // Snapshot the per-door manual-open flags (v0.567) so the loop can read them while it holds a
         // &mut on door_panels (a disjoint-field borrow the checker won't always see through).
         let manual = state.door_manual_open.clone();
+        let locks_live = state.door_locks.clone();
         for (di, (p, open)) in state.door_panels.iter_mut().enumerate() {
             // An operable DOOR opens on approach; a window or a "fixed"-styled opening stays shut
             // (v0.538: consult door_anim::is_operable so a door explicitly styled "fixed" does not
             // chase an open target it can never animate to).
             let operable = !p.is_window && crate::systems::door_anim::is_operable(&p.style);
+            // Is the door LOCKED right now (v0.570)? Live lock states if present, else the legacy bool.
+            let locked_now = door_locked_now(p, locks_live.get(di));
             // Interaction-distance ring on the floor at the door (v0.547), drawn as a LINE circle
             // (v0.565, operator's idea -- like the orbit paths) so its width is CONSTANT regardless of
             // radius, instead of a polygon strip that thickened as open_dist grew.
@@ -1113,7 +1139,7 @@ mod native_app {
             // Only on a MANUAL door -- an auto door opens by itself, so its panel would be a dead control.
             if p.control_panel && !p.auto_open {
                 let cp = p.control_panel_pos;
-                let mat = if p.locked { energy_locked_mat } else { energy_open_mat };
+                let mat = if locked_now { energy_locked_mat } else { energy_open_mat };
                 transparent.push(RenderObject {
                     position: Vec3::new(cp.x, cp.y - 0.14, cp.z),
                     rotation: p.rotation,
@@ -1122,13 +1148,33 @@ mod native_app {
                     material: mat,
                 });
             }
+            // Lock indicators (v0.570): a small box per lock on the door face -- RED locked, GREEN
+            // unlocked, GREY broken. Shows whether (and how) a door is secured even without a panel.
+            // Doors only -- a window is a fixed pane (locks on a hand-authored window are inert).
+            if !p.is_window {
+                for (li, lock) in p.locks.iter().enumerate() {
+                    let st = locks_live.get(di).and_then(|v| v.get(li)).copied().unwrap_or(lock.state);
+                    let lm = match st {
+                        crate::ship::lock_types::LockState::Locked => energy_locked_mat,
+                        crate::ship::lock_types::LockState::Unlocked => energy_open_mat,
+                        crate::ship::lock_types::LockState::Broken => slab_mat,
+                    };
+                    transparent.push(RenderObject {
+                        position: Vec3::new(lock.pos.x, lock.pos.y - 0.05, lock.pos.z),
+                        rotation: p.rotation,
+                        scale: Vec3::new(0.1, 0.1, 0.05),
+                        mesh,
+                        material: lm,
+                    });
+                }
+            }
             let dx = cam.x - p.center.x;
             let dz = cam.z - p.center.z;
             let dist = (dx * dx + dz * dz).sqrt(); // horizontal -- the camera's eye height must not count
             // Hysteresis (v0.540): a closed door opens within open_dist; an open one stays open until
             // you back past open_dist + 0.8, so standing near the threshold no longer flickers it.
-            let target = if !operable || p.locked {
-                // A fixed pane or a LOCKED door never opens.
+            let target = if !operable || locked_now {
+                // A fixed pane or a LOCKED door never opens (v0.570: lock-list aware).
                 0.0
             } else if !p.auto_open {
                 // A MANUAL door (v0.564) opens only when toggled at its control panel (v0.567).
@@ -1156,7 +1202,9 @@ mod native_app {
             let (material, is_transparent) = if p.is_window {
                 (glass_mat, true)
             } else if p.style == "energy" {
-                (if p.locked { energy_locked_mat } else { energy_open_mat }, true)
+                // v0.570: lock-list aware (was `p.locked`), so an energy door driven by a lock list
+                // glows red while actually impassable instead of a misleading green.
+                (if locked_now { energy_locked_mat } else { energy_open_mat }, true)
             } else if p.style == "nanowall" {
                 (nanowall_mat, true)
             } else {
@@ -2828,6 +2876,11 @@ mod native_app {
         /// Runtime "opened via its control panel" flag per door (v0.567), parallel to door_panels. A
         /// MANUAL door with this set opens; the player toggles it at the panel. Reset on rebuild.
         door_manual_open: Vec<bool>,
+        /// Live LOCK STATE per door (v0.570): door_locks[i][j] is the runtime state of door i's lock j,
+        /// parallel to door_panels[i].0.locks. The player unlocks/breaks locks at runtime; reset to the
+        /// authored states on a structural rebuild (mirrors door_manual_open). A door is passable only
+        /// when all of its locks are open.
+        door_locks: Vec<Vec<crate::ship::lock_types::LockState>>,
         door_panel_mesh: Option<usize>,
         door_slab_mat: Option<usize>,
         door_glass_mat: Option<usize>,
@@ -3443,6 +3496,7 @@ mod native_app {
                 connection_mats: std::collections::HashMap::new(),
                 door_panels: Vec::new(),
                 door_manual_open: Vec::new(),
+                door_locks: Vec::new(),
                 door_panel_mesh: None,
                 door_slab_mat: None,
                 door_glass_mat: None,
@@ -3719,10 +3773,24 @@ mod native_app {
                             && state.gui_state.active_page == GuiPage::None
                         {
                             if let Some(cp) = state.gui_state.targeted_control_panel {
-                                // Looking at a door control panel (v0.567): toggle the manual door it
-                                // drives. A locked door stays shut (unlock is a later panel action).
-                                if let Some(panel) = state.door_panels.get(cp) {
-                                    if !panel.0.locked {
+                                // Looking at a door control panel (v0.567 + v0.570 locks): if the door
+                                // is LOCKED, E UNLOCKS it (Stage 1 unlocks every lock -- key/code/skill
+                                // enforcement is a follow-up); once unlocked, E opens/closes a manual
+                                // door. So a locked door takes two presses: unlock, then open.
+                                let locked = state
+                                    .door_panels
+                                    .get(cp)
+                                    .map_or(false, |panel| door_locked_now(&panel.0, state.door_locks.get(cp)));
+                                if locked {
+                                    if let Some(live) = state.door_locks.get_mut(cp) {
+                                        for s in live.iter_mut() {
+                                            if *s == crate::ship::lock_types::LockState::Locked {
+                                                *s = crate::ship::lock_types::LockState::Unlocked;
+                                            }
+                                        }
+                                    }
+                                } else if let Some(panel) = state.door_panels.get(cp) {
+                                    if !panel.0.auto_open {
                                         if let Some(m) = state.door_manual_open.get_mut(cp) {
                                             *m = !*m;
                                         }
@@ -4028,13 +4096,16 @@ mod native_app {
                         && !state.gui_state.construction_active
                         && !state.wall_colliders.is_empty()
                     {
+                        let door_locks = state.door_locks.clone();
                         let doors: Vec<crate::ship::wall_collision::WallSegment> = state
                             .door_panels
                             .iter()
-                            .filter_map(|(p, open)| {
+                            .enumerate()
+                            .filter_map(|(i, (p, open))| {
                                 // Windows are handled by their (uncut) wall span; a door blocks only
-                                // when closed or locked.
-                                if p.is_window || (*open >= 0.5 && !p.locked) {
+                                // when closed or locked (v0.570: lock-list aware).
+                                let locked = door_locked_now(p, door_locks.get(i));
+                                if p.is_window || (*open >= 0.5 && !locked) {
                                     return None;
                                 }
                                 let half_w = p.size.x * 0.5;
@@ -4089,9 +4160,11 @@ mod native_app {
                         state.gui_state.targeted_machine = best.map(|b| b.0);
                     }
 
-                    // Walk-up to a door CONTROL PANEL (v0.567): the nearest panel within arm's reach
-                    // that the player is facing. Drives the "[E] open/close door" prompt; E toggles the
-                    // manual door. Only in first person with no menu open (mirrors the machine walk-up).
+                    // Walk-up to a door you can interact with (v0.567 control panel + v0.570 locks): the
+                    // nearest within arm's reach that the player is facing. A MANUAL control-panel door
+                    // (open/close) OR any LOCKED door with locks (unlock) qualifies -- so a locked AUTO
+                    // door, or a panel-less locked door, can still be unlocked at its lock indicators
+                    // instead of being a dead-end. Drives the prompt; E unlocks-then-opens.
                     {
                         let cp_pos = state.camera.position;
                         let cf = state.camera.forward();
@@ -4100,17 +4173,34 @@ mod native_app {
                             && !state.gui_state.construction_active
                             && state.gui_state.active_page == GuiPage::None
                         {
+                            let door_locks = state.door_locks.clone();
                             for (i, (p, _open)) in state.door_panels.iter().enumerate() {
-                                if !p.control_panel || p.auto_open {
+                                if p.is_window {
                                     continue;
                                 }
-                                let to = p.control_panel_pos - cp_pos;
+                                let panel_door = p.control_panel && !p.auto_open;
+                                // A door with locks is interactable while LOCKED (to unlock), and -- if
+                                // MANUAL -- also once unlocked (its locks double as the open surface, so
+                                // a manual lock-door needs no separate control panel). An AUTO door drops
+                                // out once unlocked because it then opens on its own.
+                                let lock_door = !p.locks.is_empty()
+                                    && (door_locked_now(p, door_locks.get(i)) || !p.auto_open);
+                                if !panel_door && !lock_door {
+                                    continue;
+                                }
+                                // Interact point: the control panel if any, else the first lock indicator.
+                                let ipos = if panel_door {
+                                    p.control_panel_pos
+                                } else {
+                                    p.locks.first().map_or(Vec3::new(p.center.x, 1.2, p.center.z), |l| l.pos)
+                                };
+                                let to = ipos - cp_pos;
                                 let dist = to.length();
                                 if !(0.1..=2.5).contains(&dist) {
                                     continue;
                                 }
                                 if (to / dist).dot(cf) < 0.55 {
-                                    continue; // not facing the panel (~57-degree cone)
+                                    continue; // not facing it (~57-degree cone)
                                 }
                                 if best.map_or(true, |b| dist < b.1) {
                                     best = Some((i, dist));
@@ -4122,10 +4212,13 @@ mod native_app {
                         // state, which lives here in EngineState). (v0.567)
                         state.gui_state.control_panel_prompt = match best.map(|b| b.0) {
                             Some(i) => {
-                                let locked = state.door_panels.get(i).map_or(false, |p| p.0.locked);
+                                let locked = state
+                                    .door_panels
+                                    .get(i)
+                                    .map_or(false, |p| door_locked_now(&p.0, state.door_locks.get(i)));
                                 let open = state.door_manual_open.get(i).copied().unwrap_or(false);
                                 if locked {
-                                    "[E] door is locked".to_string()
+                                    "[E] unlock door".to_string()
                                 } else if open {
                                     "[E] close door".to_string()
                                 } else {

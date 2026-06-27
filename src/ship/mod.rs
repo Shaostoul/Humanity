@@ -8,6 +8,7 @@ pub mod door_panels;
 pub mod fibonacci;
 pub mod home_structure;
 pub mod layout;
+pub mod lock_types;
 pub mod rooms;
 pub mod wall_collision;
 pub mod room_types;

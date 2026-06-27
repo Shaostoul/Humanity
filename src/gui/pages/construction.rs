@@ -840,7 +840,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             width: 1.0,
                             sill: 0.0,
                             height: 2.1,
-                            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
+                            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new()
                         });
                     }
                     changed = true;
@@ -853,7 +853,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             width: 1.5,
                             sill: 1.0,
                             height: 1.2,
-                            style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
+                            style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new()
                         });
                     }
                     changed = true;
@@ -923,6 +923,57 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                     .checkbox(&mut op.control_panel, RichText::new("Control panel (walk up + press E)").size(theme.font_size_small).color(theme.text_muted()))
                                     .changed();
                             }
+                            // LOCKS (v0.570): a list of locks on this door; it is passable only when
+                            // every lock is Unlocked/Broken. A locked door with a control panel is
+                            // unlocked at the panel (E). Each lock is a type from lock_types.ron, so an
+                            // AI or human sees every available kind in the Add picker.
+                            ui.add_space(theme.spacing_xs);
+                            ui.label(RichText::new(format!("Locks ({})", op.locks.len())).size(theme.font_size_small).color(theme.text_muted()));
+                            let mut remove_lock: Option<usize> = None;
+                            for li in 0..op.locks.len() {
+                                ui.horizontal(|ui| {
+                                    let name = crate::ship::lock_types::lock_type(&op.locks[li].type_id)
+                                        .map(|t| t.name.clone())
+                                        .unwrap_or_else(|| op.locks[li].type_id.clone());
+                                    ui.label(RichText::new(name).size(theme.font_size_small).color(theme.text_primary()));
+                                    egui::ComboBox::from_id_salt(("lock_state", sel, oi, li))
+                                        .width(80.0)
+                                        .selected_text(format!("{:?}", op.locks[li].state))
+                                        .show_ui(ui, |ui| {
+                                            for s in [
+                                                crate::ship::lock_types::LockState::Locked,
+                                                crate::ship::lock_types::LockState::Unlocked,
+                                                crate::ship::lock_types::LockState::Broken,
+                                            ] {
+                                                if ui.selectable_value(&mut op.locks[li].state, s, format!("{s:?}")).clicked() {
+                                                    changed = true;
+                                                }
+                                            }
+                                        });
+                                    if ui.small_button("x").clicked() {
+                                        remove_lock = Some(li);
+                                    }
+                                });
+                            }
+                            if let Some(li) = remove_lock {
+                                op.locks.remove(li);
+                                changed = true;
+                            }
+                            egui::ComboBox::from_id_salt(("add_lock", sel, oi))
+                                .selected_text("Add lock...")
+                                .show_ui(ui, |ui| {
+                                    for lt in crate::ship::lock_types::lock_types() {
+                                        if ui.selectable_label(false, RichText::new(lt.name.clone()).size(theme.font_size_small)).clicked() {
+                                            op.locks.push(crate::ship::home_structure::LockInstance {
+                                                type_id: lt.id.clone(),
+                                                state: crate::ship::lock_types::LockState::Locked,
+                                                secret: None,
+                                                offset: 0.0,
+                                            });
+                                            changed = true;
+                                        }
+                                    }
+                                });
                         }
                     }
                 });

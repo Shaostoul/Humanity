@@ -87,6 +87,44 @@ pub struct Opening {
     /// later lock/unlock / emergency power / hack). Makes a MANUAL door usable in-world.
     #[serde(default)]
     pub control_panel: bool,
+    /// LOCKS on this door (v0.570): each a `LockInstance` referencing a `lock_types.ron` type. The
+    /// door is PASSABLE only when every lock is Unlocked/Broken. An EMPTY list falls back to the
+    /// legacy `locked` bool (so every existing home + test is unchanged). Generalizes `locked`.
+    #[serde(default)]
+    pub locks: Vec<LockInstance>,
+}
+
+/// A lock placed on a specific door (or, later, wall). References a `lock_types.ron` type by id; its
+/// runtime open/locked state lives in EngineState (mirrors `door_manual_open`), this is the AUTHORED
+/// initial state that saves with the home. (v0.570)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LockInstance {
+    /// -> `lock_types.ron` id (e.g. "metal_key", "keypad").
+    pub type_id: String,
+    /// Initial state when the home loads (defaults Locked, so a placed lock starts secured).
+    #[serde(default)]
+    pub state: crate::ship::lock_types::LockState,
+    /// Keypad code / required key id override (None = the type's default). Stage 1 stubs enforcement.
+    #[serde(default)]
+    pub secret: Option<String>,
+    /// Where along the door face this lock mounts (metres from the door's `a` edge); the render
+    /// stacks multiple locks if they collide. (v0.570)
+    #[serde(default)]
+    pub offset: f32,
+}
+
+impl Opening {
+    /// Is this opening currently locked, per its AUTHORED state? A door with locks is locked iff any
+    /// lock's authored state is Locked; with NO locks it falls back to the legacy `locked` bool. The
+    /// LIVE runtime check (after the player unlocks one) uses EngineState's per-door lock states; this
+    /// is the initial/data view used at load + in tests. (v0.570)
+    pub fn is_locked(&self) -> bool {
+        if self.locks.is_empty() {
+            self.locked
+        } else {
+            self.locks.iter().any(|l| !l.state.is_open())
+        }
+    }
 }
 
 fn default_true() -> bool {
@@ -914,7 +952,7 @@ mod tests {
         full.walls.push(wall(
             (10.0, 0.0),
             (10.0, 40.0),
-            vec![Opening { kind: OpeningKind::Door, at: 0.0, width: 40.0, sill: 0.0, height: 3.0, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false }],
+            vec![Opening { kind: OpeningKind::Door, at: 0.0, width: 40.0, sill: 0.0, height: 3.0, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() }],
         ));
         assert_eq!(wall_vcount(&full.generate_meshes()), empty_box, "a full-size door leaves no wall");
         // A small centered door -> piers on both sides + a header -> more than the empty box.
@@ -922,7 +960,7 @@ mod tests {
         partial.walls.push(wall(
             (10.0, 0.0),
             (10.0, 40.0),
-            vec![Opening { kind: OpeningKind::Door, at: 18.0, width: 1.0, sill: 0.0, height: 2.1, style: "slide".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false }],
+            vec![Opening { kind: OpeningKind::Door, at: 18.0, width: 1.0, sill: 0.0, height: 2.1, style: "slide".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() }],
         ));
         assert!(wall_vcount(&partial.generate_meshes()) > empty_box, "a partial door leaves piers + a header");
     }
@@ -939,8 +977,8 @@ mod tests {
                 (5.0, 5.0),
                 (5.0, 30.0),
                 vec![
-                    Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "iris".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false },
-                    Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false },
+                    Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "iris".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() },
+                    Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() },
                 ],
             )],
             shell_thickness: None,
@@ -955,6 +993,51 @@ mod tests {
         assert_eq!(back.walls[0].openings[0].kind, OpeningKind::Door);
         assert_eq!(back.walls[0].openings[0].style, "iris");
         assert_eq!(back.walls[0].openings[1].kind, OpeningKind::Window);
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn is_locked_generalizes_the_legacy_bool() {
+        use crate::ship::lock_types::LockState;
+        // No locks -> falls back to the legacy `locked` bool (zero behaviour change).
+        let mut op = Opening { kind: OpeningKind::Door, at: 1.0, width: 1.0, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() };
+        assert!(!op.is_locked());
+        op.locked = true;
+        assert!(op.is_locked(), "empty locks -> legacy bool");
+        // With locks, the bool is ignored: locked iff any lock is not open.
+        op.locked = false;
+        op.locks = vec![
+            LockInstance { type_id: "metal_key".into(), state: LockState::Unlocked, secret: None, offset: 0.0 },
+            LockInstance { type_id: "keypad".into(), state: LockState::Locked, secret: None, offset: 0.0 },
+        ];
+        assert!(op.is_locked(), "one Locked lock secures the door");
+        op.locks[1].state = LockState::Broken;
+        assert!(!op.is_locked(), "all locks open/broken -> passable");
+    }
+
+    #[test]
+    fn locks_round_trip_through_save() {
+        use crate::ship::lock_types::LockState;
+        let h = HomeStructure {
+            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None,
+            walls: vec![wall((2.0, 2.0), (2.0, 12.0), vec![
+                Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true,
+                    locks: vec![
+                        LockInstance { type_id: "keypad".into(), state: LockState::Locked, secret: Some("1234".into()), offset: 0.0 },
+                        LockInstance { type_id: "crank".into(), state: LockState::Unlocked, secret: None, offset: 0.1 },
+                    ] },
+            ])],
+        };
+        let tmp = std::env::temp_dir().join("humanity_locks_rt.ron");
+        h.save(&tmp).expect("save");
+        let back = HomeStructure::load(&tmp).expect("reload");
+        let locks = &back.walls[0].openings[0].locks;
+        assert_eq!(locks.len(), 2);
+        assert_eq!(locks[0].type_id, "keypad");
+        assert_eq!(locks[0].state, LockState::Locked);
+        assert_eq!(locks[0].secret.as_deref(), Some("1234"));
+        assert_eq!(locks[1].type_id, "crank");
+        assert_eq!(locks[1].state, LockState::Unlocked);
         let _ = std::fs::remove_file(&tmp);
     }
 

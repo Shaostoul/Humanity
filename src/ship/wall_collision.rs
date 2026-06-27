@@ -174,6 +174,7 @@ mod tests {
                     locked: false,
                     auto_open: true,
                     control_panel: false,
+                    locks: Vec::new(),
                 }],
             }],
         }

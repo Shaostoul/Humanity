@@ -1,0 +1,47 @@
+// HumanityOS LOCK TYPES -- the catalog of locks a door (or, later, a wall) can carry. A door is
+// PASSABLE only when every lock on it is Unlocked or Broken. `id` is what a placed LockInstance
+// stores. Add a lock type by adding a line here; the construction editor lists every entry, and an
+// AI can enumerate them, so this file IS the source of truth for "what locks exist".
+//
+// interaction = how you operate it at the door's control panel / the lock itself:
+//   KeyItem(item_id)  needs a matching key item to toggle (Stage 1 stubs the possession check)
+//   Code(len)         a keypad -- E opens a code-entry prompt (Stage 1 stubs the code)
+//   Knob              just turn it (E); no key, opens an unlocked door
+//   Crank(turns)      hold E to wind it open -- the no-power EMERGENCY OVERRIDE
+//   Biometric(owner)  scans the owner
+//   Panel             a generic E-toggle (the v0.567 control panel)
+// defeats = the ways PAST it (shoot/blow need the future destructibility system -- inert until then):
+//   Lockpick(skill_min, tool, secs) | HackPanel(skill_min, secs) | ShootOut(hp) | BlowOpen | CutPower
+// power_dependent  = stops working when the home loses power (use a Crank override to still get out).
+[
+    (
+        id: "metal_key", name: "Metal Key Lock", category: "mechanical",
+        interaction: KeyItem(item_id: "brass_key_0"),
+        defeats: [ Lockpick(skill_min: 1, tool: "lockpick_0", secs: 4.0), ShootOut(hp: 20.0), BlowOpen ],
+        power_dependent: false, is_emergency_override: false,
+    ),
+    (
+        id: "keypad", name: "Keypad", category: "electronic",
+        interaction: Code(len: 4),
+        defeats: [ HackPanel(skill_min: 2, secs: 6.0), ShootOut(hp: 12.0), CutPower ],
+        power_dependent: true, is_emergency_override: false,
+    ),
+    (
+        id: "knob", name: "Door Knob", category: "mechanical",
+        interaction: Knob,
+        defeats: [ ShootOut(hp: 8.0), BlowOpen ],
+        power_dependent: false, is_emergency_override: false,
+    ),
+    (
+        id: "crank", name: "Emergency Crank", category: "mechanical",
+        interaction: Crank(turns: 6),
+        defeats: [],
+        power_dependent: false, is_emergency_override: true,
+    ),
+    (
+        id: "biometric", name: "Biometric Scanner", category: "electronic",
+        interaction: Biometric(owner_only: true),
+        defeats: [ HackPanel(skill_min: 4, secs: 12.0), ShootOut(hp: 15.0), CutPower ],
+        power_dependent: true, is_emergency_override: false,
+    ),
+]
