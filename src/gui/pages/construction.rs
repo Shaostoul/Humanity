@@ -1232,6 +1232,9 @@ const CONSOLE_VERBS: &[ConsoleVerb] = &[
     ConsoleVerb { usage: "rm_wall <n>", desc: "Remove interior wall #n (1-based, as listed)." },
     ConsoleVerb { usage: "set_material <wall> <mat>", desc: "Set a wall's material (1 steel 2 concrete 3 oak 4 glass 5 aluminum 6 pine 7 granite 8 hdpe)." },
     ConsoleVerb { usage: "add_door <wall> <at> <width>", desc: "Add a door to a wall at distance `at` m, `width` m wide." },
+    ConsoleVerb { usage: "add_window <wall> <at> <width> <sill> <height>", desc: "Add a window to a wall." },
+    ConsoleVerb { usage: "set_style <wall> <opening> <style>", desc: "Set an opening's style (swing/slide/iris/energy/nanowall/fixed)." },
+    ConsoleVerb { usage: "add_lock <wall> <opening> <type>", desc: "Lock an opening (type from lock_types.ron: metal_key/keypad/knob/crank/biometric)." },
     ConsoleVerb { usage: "add_light <type> x y z", desc: "Place a light (type from light_types.ron, e.g. ceiling_panel)." },
     ConsoleVerb { usage: "rm_light <n>", desc: "Remove light #n (1-based)." },
 ];
@@ -1334,6 +1337,56 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                 format!("removed light #{i}")
             } else {
                 format!("no light #{i} (have {})", h.lights.len())
+            }
+        }
+        "add_window" => {
+            let Some(w) = u(1) else { return "usage: add_window <wall> <at> <width> <sill> <height>".into(); };
+            let (Some(at), Some(width), Some(sill), Some(height)) = (f(2), f(3), f(4), f(5)) else {
+                return "usage: add_window <wall> <at> <width> <sill> <height>".into();
+            };
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            if w >= 1 && w <= h.walls.len() {
+                h.walls[w - 1].openings.push(crate::ship::home_structure::Opening {
+                    kind: crate::ship::home_structure::OpeningKind::Window,
+                    at, width, sill, height, style: "fixed".into(), open_dist: 2.6,
+                    locked: false, auto_open: true, control_panel: false, locks: Vec::new(),
+                });
+                state.construction_structure_dirty = true;
+                format!("added window to wall #{w}")
+            } else {
+                format!("no wall #{w}")
+            }
+        }
+        "set_style" => {
+            let (Some(w), Some(o)) = (u(1), u(2)) else { return "usage: set_style <wall> <opening> <style>".into(); };
+            let Some(style) = parts.get(3) else { return "usage: set_style <wall> <opening> <style>".into(); };
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            match h.walls.get_mut(w.wrapping_sub(1)).and_then(|wl| wl.openings.get_mut(o.wrapping_sub(1))) {
+                Some(op) if w >= 1 && o >= 1 => {
+                    op.style = style.to_string();
+                    state.construction_structure_dirty = true;
+                    format!("wall #{w} opening #{o} style -> {style}")
+                }
+                _ => format!("no wall #{w} opening #{o}"),
+            }
+        }
+        "add_lock" => {
+            let (Some(w), Some(o)) = (u(1), u(2)) else { return "usage: add_lock <wall> <opening> <type>".into(); };
+            let Some(tid) = parts.get(3) else { return "usage: add_lock <wall> <opening> <type>".into(); };
+            if crate::ship::lock_types::lock_type(tid).is_none() {
+                let ids: Vec<&str> = crate::ship::lock_types::lock_types().iter().map(|t| t.id.as_str()).collect();
+                return format!("unknown lock type '{tid}'. types: {}", ids.join(", "));
+            }
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            match h.walls.get_mut(w.wrapping_sub(1)).and_then(|wl| wl.openings.get_mut(o.wrapping_sub(1))) {
+                Some(op) if w >= 1 && o >= 1 => {
+                    op.locks.push(crate::ship::home_structure::LockInstance {
+                        type_id: tid.to_string(), state: crate::ship::lock_types::LockState::Locked, secret: None, offset: 0.0,
+                    });
+                    state.construction_structure_dirty = true;
+                    format!("locked wall #{w} opening #{o} with {tid}")
+                }
+                _ => format!("no wall #{w} opening #{o}"),
             }
         }
         other => format!("unknown command '{other}'. try: help"),
