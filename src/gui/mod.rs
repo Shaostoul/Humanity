@@ -1415,6 +1415,10 @@ pub struct GuiState {
     pub home_conn_from: String,
     pub home_conn_to: String,
     pub home_conn_kind: String,
+    /// Construction text-command console (v0.578): the input line + the last result/output. An
+    /// AI-enumerable ACT surface -- the same struct mutations the gizmos make, driven by typed verbs.
+    pub construction_console_input: String,
+    pub construction_console_output: String,
     /// Set by the editor's Save to write home_machines back to home.ron (mirrors
     /// `construction_save` for rooms). The engine clears it after writing.
     pub home_machines_save: bool,
@@ -2516,6 +2520,8 @@ impl Default for GuiState {
             home_conn_from: String::new(),
             home_conn_to: String::new(),
             home_conn_kind: "power".to_string(),
+            construction_console_input: String::new(),
+            construction_console_output: String::new(),
             home_machines_save: false,
             construction_rooms: Vec::new(),
             construction_room_types: Vec::new(),

@@ -741,6 +741,29 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 
                 // Lights (v0.571): place local lights so a room is lit with the sun off.
                 draw_lights_editor(ui, theme, state);
+
+                // Console (v0.578): a text-command ACT surface for an AI + a human -- the same struct
+                // edits the gizmos make, driven by typed verbs. `help` lists them.
+                egui::CollapsingHeader::new(RichText::new("Console (AI / dev)").strong().color(theme.text_primary()))
+                    .id_salt("hs_console")
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        ui.label(RichText::new("Type a command; 'help' lists them. State -> debug/home_snapshot.json")
+                            .size(theme.font_size_small).color(theme.text_muted()));
+                        let resp = ui.add(egui::TextEdit::singleline(&mut state.construction_console_input)
+                            .hint_text("e.g. add_light ceiling_panel 27 2.7 44")
+                            .desired_width(f32::INFINITY));
+                        let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        if ui.button("Run").clicked() || enter {
+                            let line = state.construction_console_input.clone();
+                            state.construction_console_output = exec_construction_command(state, &line);
+                            state.construction_console_input.clear();
+                        }
+                        if !state.construction_console_output.is_empty() {
+                            ui.label(RichText::new(&state.construction_console_output)
+                                .size(theme.font_size_small).color(theme.text_secondary()));
+                        }
+                    });
             });
         });
 
@@ -1196,6 +1219,127 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// Per-home LIGHTS editor (v0.571): place local lights from the light_types.ron catalog so a room is
 /// lit even with the sun / global illumination off. List + on-toggle + xyz position + remove, and an
 /// "Add light..." picker enumerating every type. Edits flag the structure dirty so room_lights rebuild.
+/// A construction-console verb (v0.578): name + usage + description. `help` and the parser both read
+/// this list, so the ACT surface is enumerable -- an AI fetches the verbs, a human sees a cheat sheet.
+struct ConsoleVerb {
+    usage: &'static str,
+    desc: &'static str,
+}
+const CONSOLE_VERBS: &[ConsoleVerb] = &[
+    ConsoleVerb { usage: "help", desc: "List all commands." },
+    ConsoleVerb { usage: "list", desc: "Summarise the home (full state in debug/home_snapshot.json)." },
+    ConsoleVerb { usage: "add_wall x1 z1 x2 z2 [mat]", desc: "Add an interior wall; mat id optional (default 1=steel)." },
+    ConsoleVerb { usage: "rm_wall <n>", desc: "Remove interior wall #n (1-based, as listed)." },
+    ConsoleVerb { usage: "set_material <wall> <mat>", desc: "Set a wall's material (1 steel 2 concrete 3 oak 4 glass 5 aluminum 6 pine 7 granite 8 hdpe)." },
+    ConsoleVerb { usage: "add_door <wall> <at> <width>", desc: "Add a door to a wall at distance `at` m, `width` m wide." },
+    ConsoleVerb { usage: "add_light <type> x y z", desc: "Place a light (type from light_types.ron, e.g. ceiling_panel)." },
+    ConsoleVerb { usage: "rm_light <n>", desc: "Remove light #n (1-based)." },
+];
+
+/// Execute a construction console command against the LIVE home (v0.578) and return a result string.
+/// Mutates gui_state.home_structure and flags it dirty, so the SAME live rebuild the gizmos use redraws
+/// -- one edit path for an AI (typed verbs) and a human (the gizmos). Verbs are enumerable via `help`.
+pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
+    let line = line.trim();
+    if line.is_empty() {
+        return String::new();
+    }
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    let f = |i: usize| -> Option<f32> { parts.get(i).and_then(|s| s.parse::<f32>().ok()) };
+    let u = |i: usize| -> Option<usize> { parts.get(i).and_then(|s| s.parse::<usize>().ok()) };
+    match parts[0] {
+        "help" => {
+            let mut s = String::from("Commands:\n");
+            for v in CONSOLE_VERBS {
+                s.push_str(&format!("  {} -- {}\n", v.usage, v.desc));
+            }
+            s
+        }
+        "list" => match &state.home_structure {
+            Some(h) => format!("{} walls, {} openings, {} lights. Full JSON: debug/home_snapshot.json",
+                h.walls.len(), h.walls.iter().map(|w| w.openings.len()).sum::<usize>(), h.lights.len()),
+            None => "No home loaded.".into(),
+        },
+        "add_wall" => {
+            let (Some(x1), Some(z1), Some(x2), Some(z2)) = (f(1), f(2), f(3), f(4)) else {
+                return "usage: add_wall x1 z1 x2 z2 [mat]".into();
+            };
+            let mat = u(5).unwrap_or(1) as u32;
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let height = h.height;
+            h.walls.push(crate::ship::home_structure::InteriorWall {
+                a: (x1, z1), b: (x2, z2), height, material: mat, openings: Vec::new(), thickness: None,
+            });
+            state.construction_structure_dirty = true;
+            format!("added wall #{} ({x1},{z1})->({x2},{z2}) mat {mat}", h.walls.len())
+        }
+        "rm_wall" => {
+            let Some(i) = u(1) else { return "usage: rm_wall <n>".into(); };
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            if i >= 1 && i <= h.walls.len() {
+                h.walls.remove(i - 1);
+                state.construction_structure_dirty = true;
+                format!("removed wall #{i}")
+            } else {
+                format!("no wall #{i} (have {})", h.walls.len())
+            }
+        }
+        "set_material" => {
+            let (Some(w), Some(mat)) = (u(1), u(2)) else { return "usage: set_material <wall> <mat>".into(); };
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            if w >= 1 && w <= h.walls.len() {
+                h.walls[w - 1].material = mat as u32;
+                state.construction_structure_dirty = true;
+                format!("wall #{w} material -> {mat}")
+            } else {
+                format!("no wall #{w}")
+            }
+        }
+        "add_door" => {
+            let Some(w) = u(1) else { return "usage: add_door <wall> <at> <width>".into(); };
+            let (Some(at), Some(width)) = (f(2), f(3)) else { return "usage: add_door <wall> <at> <width>".into(); };
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            if w >= 1 && w <= h.walls.len() {
+                h.walls[w - 1].openings.push(crate::ship::home_structure::Opening {
+                    kind: crate::ship::home_structure::OpeningKind::Door,
+                    at, width, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6,
+                    locked: false, auto_open: true, control_panel: false, locks: Vec::new(),
+                });
+                state.construction_structure_dirty = true;
+                format!("added door to wall #{w} at {at} w {width}")
+            } else {
+                format!("no wall #{w}")
+            }
+        }
+        "add_light" => {
+            let Some(tid) = parts.get(1) else { return "usage: add_light <type> x y z".into(); };
+            let (Some(x), Some(y), Some(z)) = (f(2), f(3), f(4)) else { return "usage: add_light <type> x y z".into(); };
+            if crate::renderer::light::light_type(tid).is_none() {
+                let ids: Vec<&str> = crate::renderer::light::light_types().iter().map(|t| t.id.as_str()).collect();
+                return format!("unknown light type '{tid}'. types: {}", ids.join(", "));
+            }
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            h.lights.push(crate::ship::home_structure::PlacedLight {
+                type_id: tid.to_string(), pos: (x, y, z), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: None, range: None,
+            });
+            state.construction_structure_dirty = true;
+            format!("added light #{} ({tid}) at ({x},{y},{z})", h.lights.len())
+        }
+        "rm_light" => {
+            let Some(i) = u(1) else { return "usage: rm_light <n>".into(); };
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            if i >= 1 && i <= h.lights.len() {
+                h.lights.remove(i - 1);
+                state.construction_structure_dirty = true;
+                format!("removed light #{i}")
+            } else {
+                format!("no light #{i} (have {})", h.lights.len())
+            }
+        }
+        other => format!("unknown command '{other}'. try: help"),
+    }
+}
+
 fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let mut changed = false;
     {
