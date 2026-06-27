@@ -1677,6 +1677,58 @@ mod native_app {
         }
     }
 
+    /// Hit-test the cursor ray against the WALL SURFACES (v0.573). On a hit, SELECT that wall (its
+    /// corners/openings show on the right panel) -- so clicking anywhere on a wall's face picks it,
+    /// unambiguously, instead of having to click a shared corner orb at a multi-wall intersection.
+    /// Each interior wall is a vertical slab; we intersect the ray with its centre plane and check the
+    /// hit lies within the wall's length + height. Returns true (so the click doesn't also grab a room).
+    fn try_pick_wall(state: &mut EngineState) -> bool {
+        let walls: Vec<(usize, Vec3, Vec3, f32)> = match state.gui_state.home_structure.as_ref() {
+            Some(hs) => hs
+                .walls
+                .iter()
+                .enumerate()
+                .map(|(i, w)| (i, Vec3::new(w.a.0, 0.0, w.a.1), Vec3::new(w.b.0, 0.0, w.b.1), w.height))
+                .collect(),
+            None => return false,
+        };
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<(usize, f32)> = None; // (wall index, ray t)
+        for (i, a, b, h) in &walls {
+            let along = *b - *a;
+            let len = along.length();
+            if len < 1e-4 {
+                continue;
+            }
+            let along_n = along / len;
+            // Horizontal normal of the (vertical) wall plane.
+            let normal = Vec3::new(-along_n.z, 0.0, along_n.x);
+            let denom = dir.dot(normal);
+            if denom.abs() < 1e-6 {
+                continue; // ray parallel to the wall face
+            }
+            let t = (*a - origin).dot(normal) / denom;
+            if t < 0.0 {
+                continue; // behind the camera
+            }
+            let hit = origin + dir * t;
+            let s = (hit - *a).dot(along_n); // distance along the wall from a
+            if s >= -0.1 && s <= len + 0.1 && hit.y >= -0.1 && hit.y <= *h + 0.1 {
+                if best.map_or(true, |(_, bt)| t < bt) {
+                    best = Some((*i, t));
+                }
+            }
+        }
+        if let Some((i, _)) = best {
+            state.gui_state.construction_wall_selected = Some(i);
+            state.gui_state.construction_machine_selected = None;
+            true
+        } else {
+            false
+        }
+    }
+
     /// Hit-test the cursor ray against the build-mode avatar (v0.557). On a hit, start dragging it;
     /// returns true so the click doesn't also grab a room.
     fn try_grab_char(state: &mut EngineState) -> bool {
@@ -3011,6 +3063,9 @@ mod native_app {
         /// material, drawn at each placed light in build mode (the range "sphere" is RGB line circles).
         construction_light_mesh: Option<usize>,
         construction_light_mat: Option<usize>,
+        /// Wall-SELECT gizmo material (v0.573): a RED sphere at each wall's bottom-middle so you can
+        /// click the wall (surface or orb) to select it; the SELECTED wall's orb uses the RGB hot mat.
+        construction_wall_mat: Option<usize>,
         /// Build-mode gizmo HOVER material (v0.569): a brightened idle colour shown on the gizmo the
         /// cursor is over (idle -> hover -> active, like the header buttons).
         construction_node_mat_hover: Option<usize>,
@@ -3584,6 +3639,7 @@ mod native_app {
                 construction_node_mat_hot: None,
                 construction_light_mesh: None,
                 construction_light_mat: None,
+                construction_wall_mat: None,
                 construction_node_mat_hover: None,
                 construction_char_grab: false,
                 construction_char_mesh: None,
@@ -4023,6 +4079,9 @@ mod native_app {
                                 // Selected a machine in the viewport (v0.553) -> its detail shows on
                                 // the right panel. Click only; machines are not dragged here. Gated to
                                 // the box-home path so it never shadows the legacy room-grab.
+                            } else if state.gui_state.home_structure.is_some() && try_pick_wall(state) {
+                                // Clicked a WALL SURFACE (v0.573): select that wall for editing --
+                                // unambiguous vs hunting for the right corner orb at an intersection.
                             } else {
                                 try_begin_room_grab(state);
                             }
@@ -5338,6 +5397,39 @@ mod native_app {
                             crate::renderer::line::push_circle(
                                 &mut ring_lines, [c.0, 0.1, c.1], 1.1, [0.30, 0.85, 1.0, 0.85], 48,
                             );
+                        }
+                        // Wall-SELECT orbs (v0.573): a RED sphere at each wall's bottom-middle. Click
+                        // anywhere on a wall (its surface or this orb) to select it -- unambiguous at a
+                        // multi-wall intersection. The SELECTED wall's orb uses the RGB hot material, so
+                        // it shifts colour like the header menu buttons.
+                        if state.construction_wall_mat.is_none() {
+                            // theme-exempt: wall-select gizmo, red emissive.
+                            let m = state.renderer.add_material_full([1.0, 0.2, 0.2, 1.0], 0.0, 0.4, 0.0, 0.8);
+                            state.construction_wall_mat = Some(m);
+                        }
+                        let wall_mat = state.construction_wall_mat.unwrap();
+                        let sel_wall = state.gui_state.construction_wall_selected;
+                        let wall_mids: Vec<(usize, f32, f32)> = state
+                            .gui_state
+                            .home_structure
+                            .as_ref()
+                            .map(|h| {
+                                h.walls
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, w)| (i, (w.a.0 + w.b.0) * 0.5, (w.a.1 + w.b.1) * 0.5))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        for (i, mx, mz) in &wall_mids {
+                            let selected = sel_wall == Some(*i);
+                            overlay_objects.push(RenderObject {
+                                position: Vec3::new(*mx, -0.07, *mz), // orb top at the floor base
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::splat(0.07),
+                                mesh: node_mesh,
+                                material: if selected { hot_mat } else { wall_mat },
+                            });
                         }
                         // Highlight the selected machine with a ground ring (v0.553) -> also a LINE circle
                         // now (v0.568), in the RGB active colour so it pulses like the header buttons.
