@@ -202,6 +202,10 @@ pub struct HomeStructure {
     /// renderer falls back to its auto one-light-per-room synthesis (no regression).
     #[serde(default)]
     pub lights: Vec<PlacedLight>,
+    /// SPAWN point (v0.582): where the player stands when leaving build mode (x, z in box coords),
+    /// set by dragging the build-mode avatar gizmo. Persisted so the moved spawn survives a save/load.
+    #[serde(default)]
+    pub spawn: Option<(f32, f32)>,
 }
 
 /// A light placed in a home (v0.571): a `light_types.ron` type at a world/home-local position, with
@@ -923,7 +927,7 @@ mod tests {
     use super::*;
 
     fn box_only() -> HomeStructure {
-        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new() }
+        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None }
     }
 
     /// Total wall vertices across BOTH the legacy `walls` family and the per-material `material_walls`
@@ -1075,7 +1079,7 @@ mod tests {
                     Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() },
                 ],
             )],
-            shell_thickness: None, lights: Vec::new(),
+            shell_thickness: None, lights: Vec::new(), spawn: None,
         };
         let tmp = std::env::temp_dir().join("humanity_home_structure_rt.ron");
         h.save(&tmp).expect("save");
@@ -1113,7 +1117,7 @@ mod tests {
     fn locks_round_trip_through_save() {
         use crate::ship::lock_types::LockState;
         let h = HomeStructure {
-            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(),
+            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(), spawn: None,
             walls: vec![wall((2.0, 2.0), (2.0, 12.0), vec![
                 Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true,
                     locks: vec![

@@ -2463,6 +2463,10 @@ mod native_app {
             if let Some(hs) = crate::ship::home_structure::HomeStructure::load(&hs_path) {
                 let meshes = hs.generate_meshes();
                 let info = meshes.room_info.clone();
+                // Restore the persisted build-mode spawn point (v0.582).
+                if let Some(sp) = hs.spawn {
+                    state.gui_state.build_char_pos = Some(sp);
+                }
                 state.gui_state.home_structure = Some(hs);
                 (meshes, info)
             } else {
@@ -5085,12 +5089,17 @@ mod native_app {
                                     Some((p.x.clamp(0.3, hs.width - 0.3), p.z.clamp(0.3, hs.depth - 0.3)));
                             }
                         }
-                        let (center, size) = state.homestead_bounds
+                        let (_center, size) = state.homestead_bounds
                             .map(|(mn, mx)| ((mn + mx) * 0.5, (mx - mn).length()))
                             .unwrap_or((Vec3::new(0.0, 1.5, 0.0), 20.0));
                         state.camera.switch_mode(crate::renderer::camera::CameraMode::Orbit);
-                        state.camera.orbit_target = center;
-                        state.camera.orbit_distance = (size * 0.7).clamp(5.0, 400.0);
+                        // Focus the build cam on WHERE THE PLAYER IS (v0.582, operator) -- the player's
+                        // spot when B was pressed, at roughly chest height -- so you start editing near
+                        // yourself, not the home centre. Start zoomed in close; you can dolly out to the
+                        // whole home (distance_max scales with the box).
+                        let focus = state.construction_return_pos;
+                        state.camera.orbit_target = Vec3::new(focus.x, 1.2, focus.z);
+                        state.camera.orbit_distance = 12.0;
                         state.camera.orbit_distance_max = (size * 4.0).max(400.0);
                     } else if !state.gui_state.construction_active && state.construction_cam_active {
                         state.construction_cam_active = false;
@@ -5263,8 +5272,15 @@ mod native_app {
                         state.gui_state.construction_save = false;
                         // v0.534: the home is a HomeStructure when present -> save it; else the
                         // legacy AABB layout. One file per model; the AI + editor share it.
-                        if let Some(hs) = &state.gui_state.home_structure {
+                        if state.gui_state.home_structure.is_some() {
+                            // Persist the build-mode SPAWN point with the home (v0.582) so the moved
+                            // avatar survives the save (was lost -- spawn lived only in GuiState).
+                            let spawn = state.gui_state.build_char_pos;
+                            if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                                hs.spawn = spawn;
+                            }
                             let path = state.data_dir.join("blueprints").join("home_structure.ron");
+                            let hs = state.gui_state.home_structure.as_ref().unwrap();
                             match hs.save(&path) {
                                 Ok(()) => log::info!("Construction: home structure saved to home_structure.ron"),
                                 Err(e) => log::warn!("Construction: home structure save failed: {e}"),
@@ -5838,7 +5854,9 @@ mod native_app {
                         // block, which runs first under the same condition), so it shifts colour. (v0.576)
                         let hot_light = state.construction_node_mat_hot.unwrap();
                         let sel_light = state.gui_state.construction_light_selected;
-                        let lights: Vec<(usize, Vec3, f32)> = state
+                        // Resolve each light's range + (for a SPOT) its aim direction + cone half-angle,
+                        // so a spotlight draws a CONE instead of the omni range sphere (v0.582, operator).
+                        let lights: Vec<(usize, Vec3, f32, Option<(Vec3, f32)>)> = state
                             .gui_state
                             .home_structure
                             .as_ref()
@@ -5847,15 +5865,21 @@ mod native_app {
                                     .iter()
                                     .enumerate()
                                     .map(|(i, l)| {
-                                        let range = l.range
-                                            .or_else(|| crate::renderer::light::light_type(&l.type_id).map(|t| t.range))
-                                            .unwrap_or(4.0);
-                                        (i, Vec3::new(l.pos.0, l.pos.1, l.pos.2), range)
+                                        let t = crate::renderer::light::light_type(&l.type_id);
+                                        let range = l.range.or_else(|| t.map(|t| t.range)).unwrap_or(4.0);
+                                        let spot = t
+                                            .filter(|t| t.kind == crate::renderer::light::LightKind::Spot)
+                                            .map(|t| {
+                                                let d = Vec3::new(l.dir.0, l.dir.1, l.dir.2).normalize_or_zero();
+                                                let d = if d == Vec3::ZERO { Vec3::NEG_Y } else { d };
+                                                (d, t.cone_outer_deg.max(1.0).to_radians())
+                                            });
+                                        (i, Vec3::new(l.pos.0, l.pos.1, l.pos.2), range, spot)
                                     })
                                     .collect()
                             })
                             .unwrap_or_default();
-                        for (i, pos, range) in &lights {
+                        for (i, pos, range, spot) in &lights {
                             // Diamond centre marker (overlay -> visible through walls); RGB if selected.
                             overlay_objects.push(RenderObject {
                                 position: *pos,
@@ -5864,11 +5888,28 @@ mod native_app {
                                 mesh: dmesh,
                                 material: if sel_light == Some(*i) { hot_light } else { dmat },
                             });
-                            // Range "sphere": three axis great-circles, R/G/B for X/Y/Z (line circles).
                             let p = [pos.x, pos.y, pos.z];
-                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [1.0, 0.0, 0.0], [1.0, 0.30, 0.30, 0.7], 40);
-                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 1.0, 0.0], [0.35, 1.0, 0.35, 0.7], 40);
-                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 0.0, 1.0], [0.45, 0.55, 1.0, 0.7], 40);
+                            if let Some((dir, half)) = spot {
+                                // SPOT: a cone gizmo -- the base circle at `range` + edge lines from the
+                                // apex, warm yellow, using the reusable line primitive.
+                                let base_c = *pos + *dir * *range;
+                                let base_r = (*range) * half.tan();
+                                const COL: [f32; 4] = [1.0, 0.9, 0.4, 0.8];
+                                crate::renderer::line::push_circle_3d(&mut ring_lines, base_c.into(), base_r, (*dir).into(), COL, 32);
+                                let seed = if dir.x.abs() > 0.9 { Vec3::Y } else { Vec3::X };
+                                let u = seed.cross(*dir).normalize();
+                                let v = dir.cross(u);
+                                for k in 0..8 {
+                                    let a = (k as f32 / 8.0) * std::f32::consts::TAU;
+                                    let edge = base_c + (u * a.cos() + v * a.sin()) * base_r;
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[p, edge.into()], COL);
+                                }
+                            } else {
+                                // POINT (etc.): the omni range "sphere" -- three axis great-circles R/G/B.
+                                crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [1.0, 0.0, 0.0], [1.0, 0.30, 0.30, 0.7], 40);
+                                crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 1.0, 0.0], [0.35, 1.0, 0.35, 0.7], 40);
+                                crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 0.0, 1.0], [0.45, 0.55, 1.0, 0.7], 40);
+                            }
                         }
                     }
 
