@@ -232,8 +232,11 @@ impl Pipeline {
             },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::Always, // ignore depth -> always on top
+                // Depth-sort the gizmos AMONG THEMSELVES (so a convex orb/pyramid's near faces win
+                // over its far faces) while the pass CLEARS depth first to ignore the world -- visible
+                // through walls AND self-consistent. Reverse-Z (Greater). (v0.563)
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Greater,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),

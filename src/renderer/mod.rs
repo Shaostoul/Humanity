@@ -840,7 +840,9 @@ impl Renderer {
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_view,
-                    depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }),
+                    // CLEAR depth (reverse-Z far = 0.0) so gizmos ignore the world but still depth-sort
+                    // among themselves; the colour is Loaded so they blend over the rendered scene.
+                    depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Store }),
                     stencil_ops: None,
                 }),
                 ..Default::default()

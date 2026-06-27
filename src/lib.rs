@@ -1459,7 +1459,7 @@ mod native_app {
         // Compute the gizmo set as owned values so the home_structure borrow ends before the
         // mutable grab assignment below.
         let (top_y, corners) = match state.gui_state.home_structure.as_ref() {
-            Some(hs) => (-0.22, unique_corners(hs)), // orb centre (top-at-floor); matches the render (v0.560)
+            Some(hs) => (-0.11, unique_corners(hs)), // orb centre (top-at-floor); matches the render (v0.563)
             None => return false,
         };
         let sz = state.window.inner_size();
@@ -5040,7 +5040,7 @@ mod native_app {
                         };
                         for c in &corners {
                             let hot = grabbed.map_or(false, |g| (g.0 - c.0).abs() < 0.05 && (g.1 - c.1).abs() < 0.05);
-                            let r = if hot { 0.28 } else { 0.22 };
+                            let r = if hot { 0.15 } else { 0.11 }; // smaller orbs (operator); was 0.28/0.22
                             // The orb's TOP touches the wall-corner BASE (operator note): centre at -r
                             // so the top vertex is at the floor. Overlay pass -> visible through walls
                             // + the floor it sits under. (v0.560)
