@@ -1527,6 +1527,9 @@ pub struct GuiState {
     /// None. Mutually exclusive with construction_wall_selected -- the right panel shows whichever is
     /// set. (v0.553)
     pub construction_machine_selected: Option<String>,
+    /// Index into home_structure.lights of the light selected in the editor (clicked its diamond gizmo),
+    /// or None. The right panel shows its detail. Mutually exclusive with wall/machine selection. (v0.576)
+    pub construction_light_selected: Option<usize>,
     /// Where the player avatar stands in BUILD mode (x, z in box coords), draggable by its pyramid
     /// gizmo. Leaving build mode drops you into first person right here. (v0.557)
     pub build_char_pos: Option<(f32, f32)>,
@@ -2556,6 +2559,7 @@ impl Default for GuiState {
             construction_cursor_world: None,
             construction_wall_selected: None,
             construction_machine_selected: None,
+            construction_light_selected: None,
             build_char_pos: None,
             construction_grid_snap: true,
             construction_dev_overlay: false,

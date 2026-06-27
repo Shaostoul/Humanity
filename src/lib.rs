@@ -1767,6 +1767,7 @@ mod native_app {
         if let Some((id, _)) = best {
             state.gui_state.construction_machine_selected = Some(id);
             state.gui_state.construction_wall_selected = None;
+            state.gui_state.construction_light_selected = None;
             true
         } else {
             false
@@ -1818,6 +1819,46 @@ mod native_app {
         }
         if let Some((i, _)) = best {
             state.gui_state.construction_wall_selected = Some(i);
+            state.gui_state.construction_machine_selected = None;
+            state.gui_state.construction_light_selected = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Hit-test the cursor ray against the placed-LIGHT diamond gizmos (v0.576). On a hit, SELECT that
+    /// light (its detail shows on the right panel, like a wall). Returns true so the click doesn't also
+    /// pick a wall / grab a room.
+    fn try_pick_light(state: &mut EngineState) -> bool {
+        let lights: Vec<(usize, Vec3)> = match state.gui_state.home_structure.as_ref() {
+            Some(hs) => hs
+                .lights
+                .iter()
+                .enumerate()
+                .map(|(i, l)| (i, Vec3::new(l.pos.0, l.pos.1, l.pos.2)))
+                .collect(),
+            None => return false,
+        };
+        if lights.is_empty() {
+            return false;
+        }
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<(usize, f32)> = None;
+        for (i, p) in &lights {
+            let t = (*p - origin).dot(dir);
+            if t < 0.0 {
+                continue;
+            }
+            let dd = (*p - (origin + dir * t)).length();
+            if dd < 0.4 && best.map_or(true, |(_, bt)| t < bt) {
+                best = Some((*i, t));
+            }
+        }
+        if let Some((i, _)) = best {
+            state.gui_state.construction_light_selected = Some(i);
+            state.gui_state.construction_wall_selected = None;
             state.gui_state.construction_machine_selected = None;
             true
         } else {
@@ -4227,6 +4268,9 @@ mod native_app {
                             } else if try_grab_char(state) {
                                 // Grabbed the build-mode avatar (v0.557): drag it across the floor; you
                                 // spawn right there when you leave build mode.
+                            } else if state.gui_state.home_structure.is_some() && try_pick_light(state) {
+                                // Clicked a placed-LIGHT diamond gizmo (v0.576) -> its detail shows on
+                                // the right panel, like a wall.
                             } else if state.gui_state.home_structure.is_some() && try_pick_machine(state) {
                                 // Selected a machine in the viewport (v0.553) -> its detail shows on
                                 // the right panel. Click only; machines are not dragged here. Gated to
@@ -5618,30 +5662,35 @@ mod native_app {
                         }
                         let dmesh = state.construction_light_mesh.unwrap();
                         let dmat = state.construction_light_mat.unwrap();
-                        let lights: Vec<(Vec3, f32)> = state
+                        // The selected light's diamond uses the RGB hot material (created by the corner
+                        // block, which runs first under the same condition), so it shifts colour. (v0.576)
+                        let hot_light = state.construction_node_mat_hot.unwrap();
+                        let sel_light = state.gui_state.construction_light_selected;
+                        let lights: Vec<(usize, Vec3, f32)> = state
                             .gui_state
                             .home_structure
                             .as_ref()
                             .map(|h| {
                                 h.lights
                                     .iter()
-                                    .map(|l| {
+                                    .enumerate()
+                                    .map(|(i, l)| {
                                         let range = l.range
                                             .or_else(|| crate::renderer::light::light_type(&l.type_id).map(|t| t.range))
                                             .unwrap_or(4.0);
-                                        (Vec3::new(l.pos.0, l.pos.1, l.pos.2), range)
+                                        (i, Vec3::new(l.pos.0, l.pos.1, l.pos.2), range)
                                     })
                                     .collect()
                             })
                             .unwrap_or_default();
-                        for (pos, range) in &lights {
-                            // Diamond centre marker (overlay -> visible through walls).
+                        for (i, pos, range) in &lights {
+                            // Diamond centre marker (overlay -> visible through walls); RGB if selected.
                             overlay_objects.push(RenderObject {
                                 position: *pos,
                                 rotation: Quat::IDENTITY,
-                                scale: Vec3::splat(0.12),
+                                scale: Vec3::splat(if sel_light == Some(*i) { 0.16 } else { 0.12 }),
                                 mesh: dmesh,
-                                material: dmat,
+                                material: if sel_light == Some(*i) { hot_light } else { dmat },
                             });
                             // Range "sphere": three axis great-circles, R/G/B for X/Y/Z (line circles).
                             let p = [pos.x, pos.y, pos.z];
@@ -8229,6 +8278,21 @@ mod native_app {
                                 {
                                     let cam_pos = state.camera.position;
                                     let mut lights = state.room_lights.clone();
+                                    // EMISSIVE surfaces emit light (v0.576): an ENERGY door is a glowing
+                                    // field, so add a local point light at it (green unlocked / red
+                                    // locked) -- regardless of the GI toggle, since it's a local source.
+                                    // (Generalizing to any emissive material -- TVs, lava, emissive walls
+                                    // -- is a follow-up; the energy door is the case the operator flagged.)
+                                    let dl = state.door_locks.clone();
+                                    for (i, (p, _open)) in state.door_panels.iter().enumerate() {
+                                        if p.style != "energy" {
+                                            continue;
+                                        }
+                                        let locked = door_locked_now(p, dl.get(i));
+                                        let color = if locked { [1.0, 0.25, 0.28] } else { [0.30, 1.0, 0.45] };
+                                        let c = p.center;
+                                        lights.push((Vec3::new(c.x, c.y + p.size.y * 0.5, c.z), color, 5.0, 4.5));
+                                    }
                                     // Sort by distance to camera, take nearest 8
                                     lights.sort_by(|a, b| {
                                         let da = (a.0 - cam_pos).length_squared();

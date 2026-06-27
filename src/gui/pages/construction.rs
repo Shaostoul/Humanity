@@ -717,6 +717,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                 if ui.selectable_label(selected, RichText::new(lbl).size(theme.font_size_small)).clicked() {
                                     state.construction_wall_selected = Some(i);
                                     state.construction_machine_selected = None;
+                                    state.construction_light_selected = None;
                                 }
                                 if ui.small_button("Remove").clicked() {
                                     remove = Some(i);
@@ -749,6 +750,11 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .default_width(252.0)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
+            // A selected LIGHT takes the panel (v0.576): clicked its diamond gizmo in the viewport.
+            if state.construction_light_selected.is_some() {
+                draw_light_detail(ui, theme, state);
+                return;
+            }
             // A selected machine takes the panel (v0.553): clicked in the viewport or the list.
             if state.construction_machine_selected.is_some() {
                 draw_machine_detail(ui, theme, state);
@@ -1015,6 +1021,83 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 /// Right-panel detail for the selected machine (v0.553): its type, room, position, power role, live
 /// stats, and the connections it participates in -- so clicking a machine in the viewport or the
 /// list surfaces everything about it, the same way clicking a wall does.
+/// Right-panel detail for the SELECTED placed light (v0.576): its type, on-state, position, and
+/// intensity/range overrides -- editable, so clicking a light's diamond gizmo brings up its info the
+/// same way clicking a wall does. Deselect / Remove at the bottom.
+fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let li = match state.construction_light_selected {
+        Some(i) => i,
+        None => return,
+    };
+    let n = state.home_structure.as_ref().map_or(0, |h| h.lights.len());
+    if li >= n {
+        state.construction_light_selected = None;
+        return;
+    }
+    let mut changed = false;
+    let mut remove = false;
+    {
+        let hs = match state.home_structure.as_mut() {
+            Some(h) => h,
+            None => return,
+        };
+        let t = crate::renderer::light::light_type(&hs.lights[li].type_id);
+        let name = t.map(|t| t.name.clone()).unwrap_or_else(|| hs.lights[li].type_id.clone());
+        let (def_i, def_r) = t.map(|t| (t.intensity, t.range)).unwrap_or((4.0, 4.0));
+        ui.label(RichText::new(format!("Light: {name}")).strong().size(theme.font_size_body).color(theme.text_primary()));
+        ui.add_space(theme.spacing_xs);
+        ui.label(RichText::new(format!("Type  {}", hs.lights[li].type_id)).size(theme.font_size_small).color(theme.text_muted()));
+        if let Some(t) = t {
+            ui.label(RichText::new(format!("Kind  {:?}", t.kind)).size(theme.font_size_small).color(theme.text_muted()));
+        }
+        let light = &mut hs.lights[li];
+        changed |= ui.checkbox(&mut light.on, RichText::new("On").size(theme.font_size_small).color(theme.text_primary())).changed();
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("pos").size(theme.font_size_small).color(theme.text_muted()));
+            changed |= ui.add(egui::DragValue::new(&mut light.pos.0).speed(0.2).prefix("x ").suffix(" m")).changed();
+            changed |= ui.add(egui::DragValue::new(&mut light.pos.1).speed(0.2).prefix("y ").suffix(" m")).changed();
+            changed |= ui.add(egui::DragValue::new(&mut light.pos.2).speed(0.2).prefix("z ").suffix(" m")).changed();
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("intensity").size(theme.font_size_small).color(theme.text_muted()));
+            let mut v = light.intensity.unwrap_or(def_i);
+            if ui.add(egui::DragValue::new(&mut v).speed(0.2).range(0.0..=50.0)).changed() {
+                light.intensity = Some(v);
+                changed = true;
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("range").size(theme.font_size_small).color(theme.text_muted()));
+            let mut v = light.range.unwrap_or(def_r);
+            if ui.add(egui::DragValue::new(&mut v).speed(0.1).range(0.1..=40.0).suffix(" m")).changed() {
+                light.range = Some(v);
+                changed = true;
+            }
+        });
+    }
+    ui.add_space(theme.spacing_md);
+    ui.horizontal(|ui| {
+        if ui.button(RichText::new("Deselect").color(theme.text_muted())).clicked() {
+            state.construction_light_selected = None;
+        }
+        if ui.button(RichText::new("Remove").color(theme.text_primary())).clicked() {
+            remove = true;
+        }
+    });
+    if remove {
+        if let Some(hs) = state.home_structure.as_mut() {
+            if li < hs.lights.len() {
+                hs.lights.remove(li);
+            }
+        }
+        state.construction_light_selected = None;
+        changed = true;
+    }
+    if changed {
+        state.construction_structure_dirty = true;
+    }
+}
+
 fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let id = match &state.construction_machine_selected {
         Some(id) => id.clone(),
@@ -1213,6 +1296,7 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                             if ui.selectable_label(sel, RichText::new(format!("{mtype}  ({room})")).size(theme.font_size_small)).clicked() {
                                 state.construction_machine_selected = Some(id.clone());
                                 state.construction_wall_selected = None;
+                                state.construction_light_selected = None;
                             }
                             if ui.small_button("x").clicked() {
                                 remove_machine = Some(id.clone());
