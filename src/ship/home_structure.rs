@@ -79,6 +79,14 @@ pub struct Opening {
     /// locked, green while unlocked; other styles simply do not open. Windows ignore it.
     #[serde(default)]
     pub locked: bool,
+    /// Open mode (v0.564, the operator's door-state model): true = AUTO-open within `open_dist`;
+    /// false = MANUAL -- stays shut until acted on (a push / control panel), honouring `locked`.
+    #[serde(default = "default_true")]
+    pub auto_open: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// An interior wall: a straight segment in the floor plan, from corner node `a` to `b` (each is
@@ -813,7 +821,7 @@ mod tests {
         full.walls.push(wall(
             (10.0, 0.0),
             (10.0, 40.0),
-            vec![Opening { kind: OpeningKind::Door, at: 0.0, width: 40.0, sill: 0.0, height: 3.0, style: "swing".into(), open_dist: 2.6, locked: false }],
+            vec![Opening { kind: OpeningKind::Door, at: 0.0, width: 40.0, sill: 0.0, height: 3.0, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true }],
         ));
         assert_eq!(wall_vcount(&full.generate_meshes()), empty_box, "a full-size door leaves no wall");
         // A small centered door -> piers on both sides + a header -> more than the empty box.
@@ -821,7 +829,7 @@ mod tests {
         partial.walls.push(wall(
             (10.0, 0.0),
             (10.0, 40.0),
-            vec![Opening { kind: OpeningKind::Door, at: 18.0, width: 1.0, sill: 0.0, height: 2.1, style: "slide".into(), open_dist: 2.6, locked: false }],
+            vec![Opening { kind: OpeningKind::Door, at: 18.0, width: 1.0, sill: 0.0, height: 2.1, style: "slide".into(), open_dist: 2.6, locked: false, auto_open: true }],
         ));
         assert!(wall_vcount(&partial.generate_meshes()) > empty_box, "a partial door leaves piers + a header");
     }
@@ -838,8 +846,8 @@ mod tests {
                 (5.0, 5.0),
                 (5.0, 30.0),
                 vec![
-                    Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "iris".into(), open_dist: 2.6, locked: false },
-                    Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false },
+                    Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "iris".into(), open_dist: 2.6, locked: false, auto_open: true },
+                    Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true },
                 ],
             )],
             shell_thickness: None,

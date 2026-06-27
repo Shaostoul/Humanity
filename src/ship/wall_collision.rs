@@ -172,6 +172,7 @@ mod tests {
                     style: "swing".into(),
                     open_dist: 2.6,
                     locked: false,
+                    auto_open: true,
                 }],
             }],
         }

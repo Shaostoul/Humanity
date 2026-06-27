@@ -1103,7 +1103,7 @@ mod native_app {
             // chase an open target it can never animate to).
             let operable = !p.is_window && crate::systems::door_anim::is_operable(&p.style);
             // Interaction-distance ring on the floor at the door, scaled by its open_dist (v0.547).
-            if show_widgets && operable {
+            if show_widgets && operable && p.auto_open {
                 if let (Some(rm), Some(rmat)) = (ring_mesh, ring_mat) {
                     transparent.push(RenderObject {
                         position: Vec3::new(p.center.x, 0.03, p.center.z),
@@ -1119,8 +1119,10 @@ mod native_app {
             let dist = (dx * dx + dz * dz).sqrt(); // horizontal -- the camera's eye height must not count
             // Hysteresis (v0.540): a closed door opens within open_dist; an open one stays open until
             // you back past open_dist + 0.8, so standing near the threshold no longer flickers it.
-            let target = if !operable || p.locked {
-                0.0 // a fixed pane or a LOCKED door never opens (v0.554)
+            let target = if !operable || p.locked || !p.auto_open {
+                // A fixed pane, a LOCKED door, or a MANUAL door (v0.564) never auto-opens. (A manual
+                // door opens via interaction -- a push / control panel -- a follow-up.)
+                0.0
             } else if *open > 0.5 {
                 if dist < p.open_dist + 0.8 { 1.0 } else { 0.0 }
             } else if dist < p.open_dist {

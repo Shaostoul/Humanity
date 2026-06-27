@@ -36,6 +36,8 @@ pub struct PanelPlacement {
     pub open_dist: f32,
     /// Locked: the panel stays shut; an energy door glows red (vs green unlocked). (v0.554)
     pub locked: bool,
+    /// AUTO-open within open_dist, vs MANUAL (stays shut until acted on). (v0.564)
+    pub auto_open: bool,
 }
 
 /// Compute a PanelPlacement for every opening in the home (world space).
@@ -64,15 +66,20 @@ pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
             let cy = op.sill;
             let c_xz = a + dir * s_center;
             let h_xz = a + dir * s_a;
+            // A WINDOW's glass pane is INSET (v0.564) so its edges don't sit exactly on the wall frame
+            // around it (which z-fights); a DOOR fills its aperture so it seals.
+            let is_window = op.kind == OpeningKind::Window;
+            let inset = if is_window { 0.05 } else { 0.0 };
             out.push(PanelPlacement {
-                center: Vec3::new(c_xz.x, cy, c_xz.y),
+                center: Vec3::new(c_xz.x, cy + inset * 0.5, c_xz.y),
                 rotation,
                 hinge: Vec3::new(h_xz.x, cy, h_xz.y),
-                size: Vec3::new(op.width, op.height, PANEL_THICKNESS),
+                size: Vec3::new((op.width - inset).max(0.05), (op.height - inset).max(0.05), PANEL_THICKNESS),
                 style: op.style.clone(),
-                is_window: op.kind == OpeningKind::Window,
+                is_window,
                 open_dist: op.open_dist,
                 locked: op.locked,
+                auto_open: op.auto_open,
             });
         }
     }
@@ -111,7 +118,7 @@ mod tests {
             width: 2.0,
             sill: 0.0,
             height: 2.1,
-            style: "swing".into(), open_dist: 2.6, locked: false
+            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true
         }]));
         assert_eq!(p.len(), 1);
         // Centre at s = 4 + 1 = 5 along +X; bottom-anchored at the sill (y = 0 for a door).
@@ -131,12 +138,14 @@ mod tests {
             width: 1.5,
             sill: 1.0,
             height: 1.2,
-            style: "fixed".into(), open_dist: 2.6, locked: false
+            style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true
         }]));
         assert_eq!(p.len(), 1);
         assert!(p[0].is_window);
-        // Bottom-anchored at the sill (1.0); the pane fills [1.0, 2.2].
-        assert!((p[0].center.y - 1.0).abs() < 1e-4);
+        // Anchored just above the sill (1.0) -- the glass is inset 0.05 m so it does not z-fight the
+        // wall frame, so the pane bottom sits at sill + inset/2 = 1.025. (v0.564)
+        assert!((p[0].center.y - 1.025).abs() < 1e-4, "got {}", p[0].center.y);
+        assert!(p[0].size.y < 1.2, "window pane height is inset below the aperture, got {}", p[0].size.y);
     }
 
     #[test]
@@ -147,7 +156,7 @@ mod tests {
             width: 1.0,
             sill: 0.0,
             height: 2.1,
-            style: "slide".into(), open_dist: 2.6, locked: false
+            style: "slide".into(), open_dist: 2.6, locked: false, auto_open: true
         }]);
         home.walls[0].a = (5.0, 0.0);
         home.walls[0].b = (5.0, 10.0); // along +Z
