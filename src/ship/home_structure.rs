@@ -269,17 +269,51 @@ impl HomeStructure {
             let g = by_mat.entry(self.shell_material).or_insert_with(|| (Vec::new(), Vec::new()));
             merge(g, wall_box(a, b, 0.0, h, shell_t));
         }
-        for wseg in &self.walls {
+        // Incidence map for MITRED corners (v0.558): corner-key -> the incident walls' (index, dir
+        // AWAY from the corner, half-thickness). A 2-wall join is mitred (ends cut to meet flush); a
+        // free end stays square; a 3+ join keeps the cylinder fill (a single bisector is undefined).
+        let ck = |p: (f32, f32)| ((p.0 * 20.0).round() as i32, (p.1 * 20.0).round() as i32);
+        let mut incidence: std::collections::HashMap<(i32, i32), Vec<(usize, V2, f32)>> =
+            std::collections::HashMap::new();
+        for (i, wseg) in self.walls.iter().enumerate() {
+            let half = wseg.resolved_thickness() * 0.5;
+            let len = ((wseg.b.0 - wseg.a.0).powi(2) + (wseg.b.1 - wseg.a.1).powi(2)).sqrt().max(1e-6);
+            let dir = ((wseg.b.0 - wseg.a.0) / len, (wseg.b.1 - wseg.a.1) / len);
+            incidence.entry(ck(wseg.a)).or_default().push((i, dir, half));
+            incidence.entry(ck(wseg.b)).or_default().push((i, (-dir.0, -dir.1), half));
+        }
+        // Footprint corners (left, right) of wall `wi`'s end at corner `c`: mitred against the single
+        // adjacent wall at a 2-wall join, else squared off.
+        let end_corners = |wi: usize, c: (f32, f32), fwd: V2, half: f32, is_a: bool| -> (V2, V2) {
+            let p = v_perp(fwd);
+            let sq_l = v_add(c, v_scale(p, half));
+            let sq_r = v_add(c, v_scale(p, -half));
+            if let Some(list) = incidence.get(&ck(c)) {
+                if list.len() == 2 {
+                    if let Some(&(_, adj_dir, adj_half)) = list.iter().find(|(j, _, _)| *j != wi) {
+                        if let Some(m) = wall_end_miter(sq_l, sq_r, fwd, c, adj_dir, adj_half, is_a) {
+                            return m;
+                        }
+                    }
+                }
+            }
+            (sq_l, sq_r)
+        };
+        for (i, wseg) in self.walls.iter().enumerate() {
             let a = Vec3::new(wseg.a.0, 0.0, wseg.a.1);
             let b = Vec3::new(wseg.b.0, 0.0, wseg.b.1);
+            let half = wseg.resolved_thickness() * 0.5;
+            let len = ((wseg.b.0 - wseg.a.0).powi(2) + (wseg.b.1 - wseg.a.1).powi(2)).sqrt().max(1e-6);
+            let fwd = ((wseg.b.0 - wseg.a.0) / len, (wseg.b.1 - wseg.a.1) / len);
+            let (al, ar) = end_corners(i, wseg.a, fwd, half, true);
+            let (bl, br) = end_corners(i, wseg.b, fwd, half, false);
             let g = by_mat.entry(wseg.material).or_insert_with(|| (Vec::new(), Vec::new()));
-            merge(g, wall_with_openings(a, b, wseg.height.max(0.1), wseg.resolved_thickness(), &wseg.openings));
+            merge(g, wall_with_openings(a, b, wseg.height.max(0.1), &wseg.openings, al, ar, bl, br));
         }
-        // Corner columns (v0.549): fill each interior-wall JOIN -- a corner shared by >= 2 walls --
-        // with a slim cylinder of the wall's half-thickness, so the overlapping square wall ends read
-        // as a clean round column instead of clipping cubes (operator note). Only at joins (a free
-        // wall end keeps its square cap), low-poly, in the most-OPAQUE meeting wall's material (so a
-        // junction with any solid wall reads solid, never a see-through gap).
+        // Corner columns (v0.549): fill each 3+-WALL interior-wall JOIN (T / X) with a slim cylinder of
+        // the wall's half-thickness, where a single miter bisector is undefined. 2-wall joins are
+        // MITRED above (v0.558) so they need no column; a free end keeps its square cap. Low-poly, in
+        // the most-OPAQUE meeting wall's material (so a junction with any solid wall reads solid).
         let mut joins: std::collections::HashMap<(i32, i32), (f32, u32, (f32, f32), u32, f32)> =
             std::collections::HashMap::new();
         for wseg in &self.walls {
@@ -298,7 +332,7 @@ impl HomeStructure {
             }
         }
         for (h_col, count, pos, mat, th) in joins.values() {
-            if *count >= 2 {
+            if *count >= 3 {
                 let g = by_mat.entry(*mat).or_insert_with(|| (Vec::new(), Vec::new()));
                 merge(g, corner_column(pos.0, pos.1, th * 0.5, *h_col, 10));
             }
@@ -459,9 +493,107 @@ fn merge(acc: &mut (Vec<Vertex>, Vec<u32>), add: (Vec<Vertex>, Vec<u32>)) {
     acc.1.extend(add.1.into_iter().map(|i| i + base));
 }
 
+// ---------------------------------------------------------------------------
+// Mitred corners (v0.558): two walls meeting at a shared corner get their END faces cut to the
+// angle bisector so they meet FLUSH (the CAD/architecture standard), instead of two square ends
+// overlapping + a round filler column that provably can't cover the gap (the apex sits at
+// (t/2)/sin(theta/2) > t/2). Zero extra triangles, exact at any angle + any thickness.
+// ---------------------------------------------------------------------------
+
+type V2 = (f32, f32);
+fn v_perp((x, z): V2) -> V2 { (-z, x) }
+fn v_add(a: V2, b: V2) -> V2 { (a.0 + b.0, a.1 + b.1) }
+fn v_scale(a: V2, s: f32) -> V2 { (a.0 * s, a.1 * s) }
+fn v_cross(a: V2, b: V2) -> f32 { a.0 * b.1 - a.1 * b.0 }
+
+/// Intersect line (p1, dir d1) with line (p2, dir d2). None if (near-)parallel.
+fn line_intersect(p1: V2, d1: V2, p2: V2, d2: V2) -> Option<V2> {
+    let denom = v_cross(d1, d2);
+    if denom.abs() < 1e-5 {
+        return None;
+    }
+    let diff = (p2.0 - p1.0, p2.1 - p1.1);
+    let t = v_cross(diff, d2) / denom;
+    Some(v_add(p1, v_scale(d1, t)))
+}
+
+/// The two footprint corners of wall W's END at shared corner `c`, mitred against an adjacent wall.
+/// `w_left`/`w_right` are points on W's left/right edge (c +/- perp(W_dir)*half); `w_dir` is W's
+/// FORWARD direction (a->b) so left/right stay consistent along the wall. `adj_dir` is the adjacent
+/// wall's direction AWAY from `c`. `is_a_end` selects which adjacent edge each side meets (it flips
+/// between W's a-end and b-end). Returns (left_corner, right_corner) in W's consistent left/right, or
+/// None on a degenerate (near-parallel / absurdly-acute) join so the caller squares the end off.
+fn wall_end_miter(
+    w_left: V2,
+    w_right: V2,
+    w_dir: V2,
+    c: V2,
+    adj_dir: V2,
+    adj_half: f32,
+    is_a_end: bool,
+) -> Option<(V2, V2)> {
+    let pa = v_perp(adj_dir);
+    let adj_l = v_add(c, v_scale(pa, adj_half));
+    let adj_r = v_add(c, v_scale(pa, -adj_half));
+    let (left_adj, right_adj) = if is_a_end { (adj_r, adj_l) } else { (adj_l, adj_r) };
+    let l = line_intersect(w_left, w_dir, left_adj, adj_dir)?;
+    let r = line_intersect(w_right, w_dir, right_adj, adj_dir)?;
+    // Bail on an absurd cutback (very acute angle) so a degenerate join squares off, not spikes.
+    let far = |p: V2| ((p.0 - c.0).powi(2) + (p.1 - c.1).powi(2)).sqrt() > 6.0 * (adj_half + 0.05);
+    if far(l) || far(r) {
+        return None;
+    }
+    Some((l, r))
+}
+
+/// Build a double-sided wall PIECE: a hexahedral prism whose floor footprint is the quad
+/// (sl, sr, er, el) extruded from y0 to y1. Generalises wall_box to mitred (non-perpendicular) ends.
+fn wall_piece(sl: V2, sr: V2, el: V2, er: V2, y0: f32, y1: f32) -> (Vec<Vertex>, Vec<u32>) {
+    let foot = [sl, sr, er, el];
+    let mut verts: Vec<Vertex> = Vec::new();
+    let mut idx: Vec<u32> = Vec::new();
+    let b = |i: usize| [foot[i].0, y0, foot[i].1];
+    let t = |i: usize| [foot[i].0, y1, foot[i].1];
+    let mut quad = |p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3]| {
+        let u = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+        let w = [p3[0] - p0[0], p3[1] - p0[1], p3[2] - p0[2]];
+        let n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+        let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt().max(1e-6);
+        let n = [n[0] / len, n[1] / len, n[2] / len];
+        let base = verts.len() as u32;
+        for (p, uv) in [(p0, [0.0, 0.0]), (p1, [1.0, 0.0]), (p2, [1.0, 1.0]), (p3, [0.0, 1.0])] {
+            verts.push(Vertex { position: p, normal: n, uv });
+        }
+        idx.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+    };
+    // The footprint quad [sl, sr, er, el] is wound CW-from-above, so these per-face normals come out
+    // pointing INWARD. That is fine ONLY because the double-side pass below adds the outward copies --
+    // do NOT "fix" the winding, and do NOT reuse wall_piece single-sided (it would be inside-out).
+    quad(b(0), b(1), t(1), t(0)); // sl-sr cap
+    quad(b(1), b(2), t(2), t(1)); // sr-er side
+    quad(b(2), b(3), t(3), t(2)); // er-el cap
+    quad(b(3), b(0), t(0), t(3)); // el-sl side
+    quad(t(0), t(1), t(2), t(3)); // top
+    quad(b(3), b(2), b(1), b(0)); // bottom
+    // Double-side (the home is viewed from inside): mirror with inverted normals + reversed winding,
+    // so every face has both an inward-lit and an outward-lit copy (matches wall_box).
+    let n = verts.len() as u32;
+    let mirror: Vec<Vertex> = verts
+        .iter()
+        .map(|v| Vertex { position: v.position, normal: [-v.normal[0], -v.normal[1], -v.normal[2]], uv: v.uv })
+        .collect();
+    verts.extend(mirror);
+    for tri in idx.clone().chunks(3) {
+        idx.push(tri[0] + n);
+        idx.push(tri[2] + n);
+        idx.push(tri[1] + n);
+    }
+    (verts, idx)
+}
+
 /// A vertical cylinder SIDE surface (no caps -- the floor + ceiling hide them) at (cx, cz): the
-/// corner column that fills an interior-wall join so overlapping square wall ends read as a clean
-/// round column. Double-sided (the home is viewed from inside) and low-poly. (v0.549)
+/// corner column that fills a 3+-WALL interior-wall join (T / X), where a single miter bisector is
+/// undefined. 2-wall joins are mitred instead (v0.558). Double-sided + low-poly. (v0.549)
 fn corner_column(cx: f32, cz: f32, radius: f32, height: f32, segments: u32) -> (Vec<Vertex>, Vec<u32>) {
     use std::f32::consts::TAU;
     let mut v: Vec<Vertex> = Vec::new();
@@ -500,20 +632,28 @@ fn corner_column(cx: f32, cz: f32, radius: f32, height: f32, segments: u32) -> (
 /// full-height piers between/around the openings, a header above each opening, and a sill panel
 /// below a window. A door (sill 0, full height) leaves a clean gap; a window leaves sill + header.
 /// Overlapping or off-end openings are skipped for a clean walk. (v0.533)
+/// Build an interior wall as solid pier/sill/header pieces with its DOOR/WINDOW openings cut, using
+/// the wall's 4 footprint corners (al/ar at the a-end, bl/br at the b-end -- mitred or square). Each
+/// piece is a `wall_piece` whose left/right edge points are LERPed along the (al->bl) / (ar->br)
+/// edges, so a mitred end carries through every piece. (v0.558)
 fn wall_with_openings(
     a: Vec3,
     b: Vec3,
     h: f32,
-    thickness: f32,
     openings: &[Opening],
+    al: V2,
+    ar: V2,
+    bl: V2,
+    br: V2,
 ) -> (Vec<Vertex>, Vec<u32>) {
     let mut out: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
-    let total = (b - a).length();
+    let total = ((b.x - a.x).powi(2) + (b.z - a.z).powi(2)).sqrt();
     if total < 1e-4 {
         return out;
     }
-    let dir = (b - a) / total;
-    let pt = |s: f32| a + dir * s.clamp(0.0, total);
+    let lerp = |p: V2, q: V2, f: f32| (p.0 + (q.0 - p.0) * f, p.1 + (q.1 - p.1) * f);
+    let left = |s: f32| lerp(al, bl, (s / total).clamp(0.0, 1.0));
+    let right = |s: f32| lerp(ar, br, (s / total).clamp(0.0, 1.0));
 
     let mut ops: Vec<&Opening> = openings.iter().filter(|o| o.width > 0.01).collect();
     ops.sort_by(|x, y| x.at.partial_cmp(&y.at).unwrap_or(std::cmp::Ordering::Equal));
@@ -528,22 +668,22 @@ fn wall_with_openings(
         let start = raw_start.max(cursor);
         // Full-height pier before this opening.
         if start > cursor + 1e-4 {
-            merge(&mut out, wall_box(pt(cursor), pt(start), 0.0, h, thickness));
+            merge(&mut out, wall_piece(left(cursor), right(cursor), left(start), right(start), 0.0, h));
         }
         // Around the aperture [start, end] x [sill, sill+height]: a sill panel (windows) + a header.
         let sill = op.sill.max(0.0).min(h);
         let top = (sill + op.height).clamp(0.0, h);
         if sill > 0.01 {
-            merge(&mut out, wall_box(pt(start), pt(end), 0.0, sill, thickness));
+            merge(&mut out, wall_piece(left(start), right(start), left(end), right(end), 0.0, sill));
         }
         if top < h - 0.01 {
-            merge(&mut out, wall_box(pt(start), pt(end), top, h - top, thickness));
+            merge(&mut out, wall_piece(left(start), right(start), left(end), right(end), top, h));
         }
         cursor = end;
     }
     // Remaining full-height pier after the last opening.
     if cursor < total - 1e-4 {
-        merge(&mut out, wall_box(pt(cursor), pt(total), 0.0, h, thickness));
+        merge(&mut out, wall_piece(left(cursor), right(cursor), left(total), right(total), 0.0, h));
     }
     out
 }
@@ -588,6 +728,53 @@ mod tests {
 
     fn wall(a: (f32, f32), b: (f32, f32), openings: Vec<Opening>) -> InteriorWall {
         InteriorWall { a, b, height: 3.0, material: 1, openings, thickness: None }
+    }
+
+    #[test]
+    fn miter_a_end_is_inner_and_outer_corner() {
+        // Wall going +X from a=(0,0), half 0.5; adjacent wall going +Z away from a, half 0.5 (a 90 deg
+        // L). The wall's left (z=+0.5) face meets the adjacent's near face at the INNER corner (0.5,0.5);
+        // the right (z=-0.5) face at the OUTER corner (-0.5,-0.5).
+        let (l, r) =
+            wall_end_miter((0.0, 0.5), (0.0, -0.5), (1.0, 0.0), (0.0, 0.0), (0.0, 1.0), 0.5, true).unwrap();
+        assert!((l.0 - 0.5).abs() < 1e-4 && (l.1 - 0.5).abs() < 1e-4, "a-end left, got {l:?}");
+        assert!((r.0 + 0.5).abs() < 1e-4 && (r.1 + 0.5).abs() < 1e-4, "a-end right, got {r:?}");
+    }
+
+    #[test]
+    fn miter_b_end_flips_the_adjacent_side() {
+        // Same wall east, but its b-end at (10,0) with the adjacent going +Z away from b. The flush
+        // miter sits at the INNER (9.5,0.5) + OUTER (10.5,-0.5) corners -- proving the a/b-end side flip.
+        let (l, r) = wall_end_miter((0.0, 0.5), (0.0, -0.5), (1.0, 0.0), (10.0, 0.0), (0.0, 1.0), 0.5, false)
+            .unwrap();
+        assert!((l.0 - 9.5).abs() < 1e-4 && (l.1 - 0.5).abs() < 1e-4, "b-end left, got {l:?}");
+        assert!((r.0 - 10.5).abs() < 1e-4 && (r.1 + 0.5).abs() < 1e-4, "b-end right, got {r:?}");
+    }
+
+    #[test]
+    fn miter_corner_is_shared_flush_by_both_walls() {
+        // The two walls of an L must produce the SAME touching corner at their shared node (a flush
+        // miter -- no gap, no overlap). Compute each wall's end corners at the shared node and assert
+        // their touching corners coincide.
+        let half = 0.5;
+        let c = (20.0, 10.0);
+        // Wall 1 east: a=(10,10) b=(20,10); its b-end is at c, fwd=(1,0). Adjacent (wall 2) goes +Z.
+        let w1l = v_add(c, v_scale(v_perp((1.0, 0.0)), half));
+        let w1r = v_add(c, v_scale(v_perp((1.0, 0.0)), -half));
+        let (w1_l, w1_r) = wall_end_miter(w1l, w1r, (1.0, 0.0), c, (0.0, 1.0), half, false).unwrap();
+        // Wall 2 north: a=(20,10) b=(20,20); its a-end is at c, fwd=(0,1). Adjacent (wall 1) dir away
+        // from c is -X = (-1,0).
+        let w2l = v_add(c, v_scale(v_perp((0.0, 1.0)), half));
+        let w2r = v_add(c, v_scale(v_perp((0.0, 1.0)), -half));
+        let (w2_l, w2_r) = wall_end_miter(w2l, w2r, (0.0, 1.0), c, (-1.0, 0.0), half, true).unwrap();
+        // The walls share the join edge: w1's left == w2's right and w1's right == w2's left (they
+        // approach the shared edge from opposite sides), so the set of corners must match.
+        let near = |a: V2, b: V2| (a.0 - b.0).abs() < 1e-3 && (a.1 - b.1).abs() < 1e-3;
+        let w1 = [w1_l, w1_r];
+        assert!(
+            w1.iter().any(|p| near(*p, w2_l)) && w1.iter().any(|p| near(*p, w2_r)),
+            "walls share their miter corners: w1 {w1_l:?}/{w1_r:?} vs w2 {w2_l:?}/{w2_r:?}"
+        );
     }
 
     #[test]
