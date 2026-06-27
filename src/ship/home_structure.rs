@@ -184,6 +184,34 @@ pub struct HomeStructure {
     /// Shell (perimeter + floor) thickness in metres. None -> the shell material's default. (v0.556)
     #[serde(default)]
     pub shell_thickness: Option<f32>,
+    /// PLACED LIGHTS (v0.571): real local lights the home carries, so a room is lit even with the
+    /// sun / global illumination turned OFF. Each references a `light_types.ron` type. Empty -> the
+    /// renderer falls back to its auto one-light-per-room synthesis (no regression).
+    #[serde(default)]
+    pub lights: Vec<PlacedLight>,
+}
+
+/// A light placed in a home (v0.571): a `light_types.ron` type at a world/home-local position, with
+/// optional per-instance overrides. Pure data -- the renderer resolves it into a GPU light each frame.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlacedLight {
+    /// -> `light_types.ron` id (e.g. "ceiling_panel").
+    pub type_id: String,
+    /// Position (home-local; for the box home that equals world).
+    pub pos: (f32, f32, f32),
+    /// Aim direction for a future spot/bar light (normalized at use). Unused for a point light.
+    #[serde(default)]
+    pub dir: (f32, f32, f32),
+    /// Switched on? A light can be placed but off.
+    #[serde(default = "default_true")]
+    pub on: bool,
+    /// Optional overrides of the type's colour / intensity / range (None = inherit the preset).
+    #[serde(default)]
+    pub color: Option<(f32, f32, f32)>,
+    #[serde(default)]
+    pub intensity: Option<f32>,
+    #[serde(default)]
+    pub range: Option<f32>,
 }
 
 /// A buildable wall material with REAL engineering properties -- the construction picker shows these
@@ -829,7 +857,7 @@ mod tests {
     use super::*;
 
     fn box_only() -> HomeStructure {
-        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None }
+        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new() }
     }
 
     /// Total wall vertices across BOTH the legacy `walls` family and the per-material `material_walls`
@@ -981,7 +1009,7 @@ mod tests {
                     Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() },
                 ],
             )],
-            shell_thickness: None,
+            shell_thickness: None, lights: Vec::new(),
         };
         let tmp = std::env::temp_dir().join("humanity_home_structure_rt.ron");
         h.save(&tmp).expect("save");
@@ -1019,7 +1047,7 @@ mod tests {
     fn locks_round_trip_through_save() {
         use crate::ship::lock_types::LockState;
         let h = HomeStructure {
-            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None,
+            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(),
             walls: vec![wall((2.0, 2.0), (2.0, 12.0), vec![
                 Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true,
                     locks: vec![
@@ -1038,6 +1066,25 @@ mod tests {
         assert_eq!(locks[0].secret.as_deref(), Some("1234"));
         assert_eq!(locks[1].type_id, "crank");
         assert_eq!(locks[1].state, LockState::Unlocked);
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn placed_lights_round_trip_through_save() {
+        let mut h = box_only();
+        h.lights = vec![
+            PlacedLight { type_id: "ceiling_panel".into(), pos: (27.5, 2.7, 44.5), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: Some(12.0), range: None },
+            PlacedLight { type_id: "warm_lamp".into(), pos: (5.0, 1.0, 5.0), dir: (0.0, 0.0, 0.0), on: false, color: Some((1.0, 0.5, 0.2)), intensity: None, range: Some(3.0) },
+        ];
+        let tmp = std::env::temp_dir().join("humanity_lights_rt.ron");
+        h.save(&tmp).expect("save");
+        let back = HomeStructure::load(&tmp).expect("reload");
+        assert_eq!(back.lights.len(), 2);
+        assert_eq!(back.lights[0].type_id, "ceiling_panel");
+        assert!((back.lights[0].pos.1 - 2.7).abs() < 1e-4);
+        assert_eq!(back.lights[0].intensity, Some(12.0));
+        assert!(!back.lights[1].on, "a placed-but-off light survives");
+        assert_eq!(back.lights[1].color, Some((1.0, 0.5, 0.2)));
         let _ = std::fs::remove_file(&tmp);
     }
 

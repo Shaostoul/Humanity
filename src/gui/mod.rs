@@ -1536,6 +1536,10 @@ pub struct GuiState {
     /// Dev overlay (v0.547): when on, the build widgets (dimension overlay + door interaction rings)
     /// stay visible in NORMAL PLAY, not just in the construction editor. Toggled in the wall editor.
     pub construction_dev_overlay: bool,
+    /// Global illumination master switch (v0.571): when FALSE, the sun + fill directional lights are
+    /// zeroed so a room is lit ONLY by local placed lights -- the "turn off GI and still see" test.
+    /// Default true. Toggled in the wall editor.
+    pub gi_enabled: bool,
     /// Set by the panel's Save button -> the engine writes the layout back to the RON.
     pub construction_save: bool,
     /// Index into the backdrop list (the names mirror is `showroom_backdrop_names`).
@@ -2552,6 +2556,7 @@ impl Default for GuiState {
             build_char_pos: None,
             construction_grid_snap: true,
             construction_dev_overlay: false,
+            gi_enabled: true,
             construction_palette_category: String::new(),
             construction_palette_expanded: false,
             construction_place_type: None,

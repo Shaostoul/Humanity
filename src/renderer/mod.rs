@@ -7,6 +7,7 @@ pub mod bloom;
 pub mod camera;
 pub mod floating_origin;
 pub mod hologram;
+pub mod light;
 pub mod line;
 pub mod mesh;
 pub mod multi_scale;
@@ -90,6 +91,14 @@ pub struct Renderer {
     pub bloom_intensity: f32,
     /// Brightness threshold for bloom extraction.
     pub bloom_threshold: f32,
+    /// LIVE local-light state (v0.571). The `_onto` passes rewrite the WHOLE camera uniform at offset
+    /// 0 from `camera.uniforms()` (which carries NO lights + a default sun), which used to CLOBBER the
+    /// sub-range writes of `set_point_lights`/`set_sun_light`/`set_fill_light` -- so point lights never
+    /// lit the interior and the GI toggle did nothing. We now STORE the light state here and inject it
+    /// into each home pass via `lit_uniform`, so it survives the full-uniform write.
+    cur_lights: Vec<(Vec3, [f32; 3], f32, f32)>,
+    cur_sun: ([f32; 3], [f32; 3], f32), // (direction, color, intensity)
+    cur_fill: ([f32; 3], [f32; 3], f32),
 }
 
 impl Renderer {
@@ -281,6 +290,11 @@ impl Renderer {
             bloom: Some(bloom_pass),
             bloom_intensity: 0.0, // Off by default; set > 0 to enable
             bloom_threshold: 0.8,
+            // Defaults match camera.uniforms()'s former hardcoded sun/fill, so behaviour is unchanged
+            // until lights are set (v0.571).
+            cur_lights: Vec::new(),
+            cur_sun: ([0.3, 1.0, 0.5], [1.0, 0.95, 0.9], 2.5),
+            cur_fill: ([-0.5, 0.3, -0.3], [0.4, 0.5, 0.7], 0.6),
         }
     }
 
@@ -465,6 +479,30 @@ impl Renderer {
             light_data_offset + 256,
             bytemuck::cast_slice(&light_count),
         );
+        // Store for re-injection by the home passes (the direct writes above get clobbered by the
+        // full camera-uniform write at offset 0; this is the authoritative copy). (v0.571)
+        self.cur_lights = lights.to_vec();
+    }
+
+    /// Inject the live local-light state (point lights + sun + fill) into a base camera uniform
+    /// (v0.571). The home `_onto` passes call this so the full-uniform write at offset 0 carries the
+    /// real lights instead of `camera.uniforms()`'s empty/default set.
+    fn lit_uniform(&self, mut u: camera::CameraUniforms) -> camera::CameraUniforms {
+        let count = self.cur_lights.len().min(8);
+        u.light_positions = [[0.0; 4]; 8];
+        u.light_colors = [[0.0; 4]; 8];
+        for (i, &(pos, color, intensity, radius)) in self.cur_lights.iter().take(8).enumerate() {
+            u.light_positions[i] = [pos.x, pos.y, pos.z, intensity];
+            u.light_colors[i] = [color[0], color[1], color[2], radius];
+        }
+        u.light_count = [count as f32, 0.0, 0.0, 0.0];
+        let (sd, sc, si) = self.cur_sun;
+        u.sun_direction = [sd[0], sd[1], sd[2], si];
+        u.sun_color = [sc[0], sc[1], sc[2], 0.0];
+        let (fd, fc, fi) = self.cur_fill;
+        u.fill_direction = [fd[0], fd[1], fd[2], fi];
+        u.fill_color = [fc[0], fc[1], fc[2], 0.0];
+        u
     }
 
     /// Set the directional sun light for the next render call.
@@ -484,6 +522,7 @@ impl Renderer {
             368,
             bytemuck::cast_slice(&sun_col),
         );
+        self.cur_sun = ([direction.x, direction.y, direction.z], color, intensity); // v0.571
     }
 
     /// Set the fill light for the next render call.
@@ -503,6 +542,7 @@ impl Renderer {
             400,
             bytemuck::cast_slice(&fill_col),
         );
+        self.cur_fill = ([direction.x, direction.y, direction.z], color, intensity); // v0.571
     }
 
     /// Render a frame with the given camera and objects.
@@ -562,7 +602,7 @@ impl Renderer {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::bytes_of(&camera.uniforms()),
+            bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())),
         );
 
         let output = self.surface.get_current_texture()?;
@@ -662,7 +702,7 @@ impl Renderer {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::bytes_of(&camera.uniforms()),
+            bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())),
         );
 
         let mut encoder = self
@@ -756,7 +796,7 @@ impl Renderer {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::bytes_of(&camera.uniforms()),
+            bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())),
         );
 
         let mut encoder = self
@@ -826,7 +866,7 @@ impl Renderer {
         if objects.is_empty() {
             return;
         }
-        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&camera.uniforms()));
+        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())));
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Overlay Encoder") });
@@ -985,7 +1025,7 @@ impl Renderer {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::bytes_of(&camera.uniforms()),
+            bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())),
         );
         let vbuf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("World Line VB"),
@@ -1105,7 +1145,7 @@ impl Renderer {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::bytes_of(&camera.uniforms()),
+            bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())),
         );
 
         let output = self.surface.get_current_texture()?;

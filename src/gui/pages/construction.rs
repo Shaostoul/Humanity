@@ -689,6 +689,12 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // Dev overlay (v0.547): keep the dimension overlay + door interaction rings visible in
                 // normal play, not just in the editor.
                 ui.checkbox(&mut state.construction_dev_overlay, RichText::new("Dev overlay in play").size(theme.font_size_small).color(theme.text_primary()));
+                // GI master switch (v0.571): off = only LOCAL placed lights illuminate (the "turn off
+                // global illumination and still see" test). Toggling it rebuilds room_lights so the
+                // auto per-room fill (part of "global" lighting) is added/removed accordingly.
+                if ui.checkbox(&mut state.gi_enabled, RichText::new("Sun / global light (off = local lights only)").size(theme.font_size_small).color(theme.text_primary())).changed() {
+                    state.construction_structure_dirty = true;
+                }
                 ui.add_space(theme.spacing_sm);
 
                 // Interior walls -- a collapsible section (v0.569) so a long list folds away.
@@ -726,6 +732,9 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // Machines + utility-line connections (v0.536): collapsible sections (v0.569), the
                 // connections grouped by utility kind.
                 draw_machines_and_connections(ui, theme, state);
+
+                // Lights (v0.571): place local lights so a room is lit with the sun off.
+                draw_lights_editor(ui, theme, state);
             });
         });
 
@@ -1093,6 +1102,74 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if !is_direct {
         ui.label(RichText::new("Part of a machine array; edit the array to add or remove it.")
             .size(theme.font_size_small).color(theme.text_muted()));
+    }
+}
+
+/// Per-home LIGHTS editor (v0.571): place local lights from the light_types.ron catalog so a room is
+/// lit even with the sun / global illumination off. List + on-toggle + xyz position + remove, and an
+/// "Add light..." picker enumerating every type. Edits flag the structure dirty so room_lights rebuild.
+fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let mut changed = false;
+    {
+        let hs = match state.home_structure.as_mut() {
+            Some(h) => h,
+            None => return,
+        };
+        egui::CollapsingHeader::new(RichText::new(format!("Lights ({})", hs.lights.len())).strong().color(theme.text_primary()))
+            .id_salt("hs_lights_sec")
+            .default_open(true)
+            .show(ui, |ui| {
+                ui.label(RichText::new("Local lights -- turn off Sun / global light above to see them alone.")
+                    .size(theme.font_size_small).color(theme.text_muted()));
+                let mut remove: Option<usize> = None;
+                for li in 0..hs.lights.len() {
+                    ui.horizontal(|ui| {
+                        let name = crate::renderer::light::light_type(&hs.lights[li].type_id)
+                            .map(|t| t.name.clone())
+                            .unwrap_or_else(|| hs.lights[li].type_id.clone());
+                        if ui.checkbox(&mut hs.lights[li].on, RichText::new(name).size(theme.font_size_small).color(theme.text_primary())).changed() {
+                            changed = true;
+                        }
+                        if ui.small_button("x").clicked() {
+                            remove = Some(li);
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("pos").size(theme.font_size_small).color(theme.text_muted()));
+                        let p = &mut hs.lights[li].pos;
+                        changed |= ui.add(egui::DragValue::new(&mut p.0).speed(0.2).prefix("x ").suffix(" m")).changed();
+                        changed |= ui.add(egui::DragValue::new(&mut p.1).speed(0.2).prefix("y ").suffix(" m")).changed();
+                        changed |= ui.add(egui::DragValue::new(&mut p.2).speed(0.2).prefix("z ").suffix(" m")).changed();
+                    });
+                }
+                if let Some(li) = remove {
+                    hs.lights.remove(li);
+                    changed = true;
+                }
+                egui::ComboBox::from_id_salt("hs_add_light")
+                    .selected_text("Add light...")
+                    .show_ui(ui, |ui| {
+                        for lt in crate::renderer::light::light_types() {
+                            if ui.selectable_label(false, RichText::new(lt.name.clone()).size(theme.font_size_small)).clicked() {
+                                let pos = (hs.width * 0.5, (hs.height - 0.3).max(0.3), hs.depth * 0.5);
+                                hs.lights.push(crate::ship::home_structure::PlacedLight {
+                                    type_id: lt.id.clone(),
+                                    pos,
+                                    dir: (0.0, -1.0, 0.0),
+                                    on: true,
+                                    color: None,
+                                    intensity: None,
+                                    range: None,
+                                });
+                                changed = true;
+                            }
+                        }
+                    });
+            });
+    }
+    if changed {
+        // Rebuild the homestead so room_lights pick up the new placed lights (home_lights_or).
+        state.construction_structure_dirty = true;
     }
 }
 

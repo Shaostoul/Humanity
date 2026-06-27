@@ -156,7 +156,7 @@ mod tests {
             height: 3.0,
             shell_material: 1,
             roof_material: 4,
-            shell_thickness: None,
+            shell_thickness: None, lights: Vec::new(),
             walls: vec![InteriorWall {
                 a: (0.0, 5.0),
                 b: (10.0, 5.0),

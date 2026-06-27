@@ -685,12 +685,14 @@ mod native_app {
         };
         apply_homestead_meshes(state, homestead);
         // Refresh lights + sealed bounds from the new room_info (height edits move them).
-        state.room_lights = room_info.iter().map(|r| {
+        let auto_lights = room_info.iter().map(|r| {
             let light_pos = Vec3::new(r.center.x, r.center.y + r.dimensions.y * 0.5 - 0.1, r.center.z);
             let room_size = r.dimensions.x.max(r.dimensions.z);
             let intensity = (room_size * 0.5).clamp(2.0, 15.0);
             (light_pos, [1.0, 0.95, 0.85], intensity, room_size * 1.5)
         }).collect();
+        // v0.571: a home's PLACED lights override the auto one-per-room synthesis (empty -> auto).
+        state.room_lights = home_lights(state.gui_state.home_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
         state.homestead_bounds = room_info.iter().fold(None, |acc, r| {
             let rmin = r.center - r.dimensions * 0.5;
             let rmax = r.center + r.dimensions * 0.5;
@@ -1028,6 +1030,41 @@ mod native_app {
             Some(states) if states.len() == panel.locks.len() => states.iter().any(|s| !s.is_open()),
             _ => panel.locks.iter().any(|l| !l.state.is_open()), // fall back to authored
         }
+    }
+
+    /// The room point-lights to upload (v0.571). A home's PLACED lights (resolved from light_types.ron
+    /// + per-instance overrides) ALWAYS contribute; the `auto` one-per-room fill is treated as part of
+    /// "global" lighting, so it is added ONLY when GI is ON. Net effect: with GI on, a home with no
+    /// placed lights looks exactly as before (auto fill), and placing a light ADDS to the room rather
+    /// than darkening the rest of the house; with GI OFF, only the placed local lights remain -- the
+    /// "turn off global illumination and still see" test. Each entry is (pos, rgb, intensity, range).
+    fn home_lights(
+        home: Option<&crate::ship::home_structure::HomeStructure>,
+        auto: Vec<(Vec3, [f32; 3], f32, f32)>,
+        gi_on: bool,
+    ) -> Vec<(Vec3, [f32; 3], f32, f32)> {
+        let mut out: Vec<(Vec3, [f32; 3], f32, f32)> = home
+            .map(|h| {
+                h.lights
+                    .iter()
+                    .filter(|l| l.on)
+                    .filter_map(|l| {
+                        let t = crate::renderer::light::light_type(&l.type_id)?;
+                        let c = l.color.unwrap_or(t.color);
+                        Some((
+                            Vec3::new(l.pos.0, l.pos.1, l.pos.2),
+                            [c.0, c.1, c.2],
+                            l.intensity.unwrap_or(t.intensity),
+                            l.range.unwrap_or(t.range),
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if gi_on {
+            out.extend(auto);
+        }
+        out
     }
 
     /// Per-frame: animate + emit the door/window panels (v0.537). A door eases open as the player
@@ -2088,13 +2125,15 @@ mod native_app {
         apply_homestead_meshes(state, homestead);
 
         // Room ceiling lights
-        state.room_lights = room_info.iter().map(|r| {
+        let auto_lights = room_info.iter().map(|r| {
             let light_pos = Vec3::new(r.center.x, r.center.y + r.dimensions.y * 0.5 - 0.1, r.center.z);
             let room_size = r.dimensions.x.max(r.dimensions.z);
             let intensity = (room_size * 0.5).clamp(2.0, 15.0);
             let radius = room_size * 1.5;
             (light_pos, [1.0, 0.95, 0.85], intensity, radius)
         }).collect();
+        // v0.571: placed lights override the auto synthesis (empty -> auto).
+        state.room_lights = home_lights(state.gui_state.home_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
 
         // Sealed-volume AABB (encompasses every room) for the survival environment
         // context — inside it the player is sealed/oxygenated, outside = vacuum.
@@ -5762,6 +5801,10 @@ mod native_app {
                         // fixed [0.3,1,0.5] that disagreed with the disc).
                         state.sun_world_pos = sun_rel_earth_m;
                         let sun_dir = sun_rel_earth_m.normalize_or_zero();
+                        // GI master switch (v0.571): when OFF, zero the sun + fill so only LOCAL placed
+                        // lights illuminate -- the operator's "turn off global illumination and still
+                        // see" test. Default ON restores the normal sun (2.5) + the cool fill (0.6).
+                        let gi = state.gui_state.gi_enabled;
                         if sun_dir != glam::DVec3::ZERO {
                             state.renderer.set_sun_light(
                                 Vec3::new(
@@ -5770,9 +5813,16 @@ mod native_app {
                                     sun_dir.z as f32,
                                 ),
                                 [1.0, 0.97, 0.92],
-                                2.5,
+                                if gi { 2.5 } else { 0.0 },
                             );
                         }
+                        // The fill is otherwise set once at init; re-assert it each frame so the GI
+                        // toggle is authoritative (restores the default when GI is back on).
+                        state.renderer.set_fill_light(
+                            Vec3::new(-0.5, 0.3, -0.3),
+                            [0.4, 0.5, 0.7],
+                            if gi { 0.6 } else { 0.0 },
+                        );
                     }
 
                     // Update FPS counter
