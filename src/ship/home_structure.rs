@@ -308,15 +308,20 @@ impl HomeStructure {
             (sq_l, sq_r)
         };
         for (i, wseg) in self.walls.iter().enumerate() {
-            let a = Vec3::new(wseg.a.0, 0.0, wseg.a.1);
-            let b = Vec3::new(wseg.b.0, 0.0, wseg.b.1);
+            // Clip each end OUT of any wall it would pass through (mid-span T) before building, so a
+            // thick wall butts the other's face instead of spearing through it (v0.566). A shared
+            // corner / free end is left as-is (clip 0).
+            let (ca, clip_a) = clip_end_to_walls(wseg.a, wseg.b, i, &self.walls);
+            let (cb, _clip_b) = clip_end_to_walls(wseg.b, wseg.a, i, &self.walls);
+            let a = Vec3::new(ca.0, 0.0, ca.1);
+            let b = Vec3::new(cb.0, 0.0, cb.1);
             let half = wseg.resolved_thickness() * 0.5;
-            let len = ((wseg.b.0 - wseg.a.0).powi(2) + (wseg.b.1 - wseg.a.1).powi(2)).sqrt().max(1e-6);
-            let fwd = ((wseg.b.0 - wseg.a.0) / len, (wseg.b.1 - wseg.a.1) / len);
-            let (al, ar) = end_corners(i, wseg.a, fwd, half, true);
-            let (bl, br) = end_corners(i, wseg.b, fwd, half, false);
+            let len = ((cb.0 - ca.0).powi(2) + (cb.1 - ca.1).powi(2)).sqrt().max(1e-6);
+            let fwd = ((cb.0 - ca.0) / len, (cb.1 - ca.1) / len);
+            let (al, ar) = end_corners(i, ca, fwd, half, true);
+            let (bl, br) = end_corners(i, cb, fwd, half, false);
             let g = by_mat.entry(wseg.material).or_insert_with(|| (Vec::new(), Vec::new()));
-            merge(g, wall_with_openings(a, b, wseg.height.max(0.1), half * 2.0, &wseg.openings, al, ar, bl, br));
+            merge(g, wall_with_openings(a, b, wseg.height.max(0.1), half * 2.0, clip_a, &wseg.openings, al, ar, bl, br));
         }
         // Corner columns (v0.549): fill each 3+-WALL interior-wall JOIN (T / X) with a slim cylinder of
         // the wall's half-thickness, where a single miter bisector is undefined. 2-wall joins are
@@ -554,6 +559,68 @@ fn wall_end_miter(
     Some((l, r))
 }
 
+/// If wall `wi`'s end `e` (approached from its other end `from`) lands INSIDE another wall's body -- a
+/// mid-span T-junction (a wall ending on another wall's FACE, not at a shared corner), where the miter
+/// can't help and the thick wall would PASS THROUGH the other -- pull `e` back to that wall's NEAR
+/// face so it butts cleanly. Returns (clipped_end, distance pulled back); (e, 0.0) if the end is free /
+/// at a shared corner / not inside anything. (v0.566)
+fn clip_end_to_walls(e: V2, from: V2, wi: usize, walls: &[InteriorWall]) -> (V2, f32) {
+    let wd = (e.0 - from.0, e.1 - from.1);
+    let wlen = (wd.0 * wd.0 + wd.1 * wd.1).sqrt();
+    if wlen < 1e-4 {
+        return (e, 0.0);
+    }
+    let wdir = (wd.0 / wlen, wd.1 / wlen);
+    let mut best_t = wlen; // only accept a clip CLOSER to `from` than the original end
+    let mut best_e = e;
+    let mut clipped = false;
+    for (j, m) in walls.iter().enumerate() {
+        if j == wi {
+            continue;
+        }
+        let md = (m.b.0 - m.a.0, m.b.1 - m.a.1);
+        let mlen = (md.0 * md.0 + md.1 * md.1).sqrt();
+        if mlen < 1e-4 {
+            continue;
+        }
+        let mdir = (md.0 / mlen, md.1 / mlen);
+        let mperp = (-mdir.1, mdir.0);
+        let mh = m.resolved_thickness() * 0.5;
+        // Is E inside M's body -- perp distance < half thickness, projecting onto M's INTERIOR (not
+        // its endpoints, which would be a shared-corner miter case, handled elsewhere)?
+        let rel = (e.0 - m.a.0, e.1 - m.a.1);
+        let along_e = rel.0 * mdir.0 + rel.1 * mdir.1;
+        let perp_e = rel.0 * mperp.0 + rel.1 * mperp.1;
+        if along_e < 0.15 || along_e > mlen - 0.15 || perp_e.abs() >= mh + 0.005 {
+            continue;
+        }
+        // Pull E back to whichever of M's two faces the ray (from -> E) crosses NEAREST `from`.
+        for sign in [1.0_f32, -1.0_f32] {
+            let fp = (m.a.0 + mperp.0 * mh * sign, m.a.1 + mperp.1 * mh * sign);
+            let denom = wdir.0 * mdir.1 - wdir.1 * mdir.0;
+            if denom.abs() < 1e-5 {
+                continue;
+            }
+            let diff = (fp.0 - from.0, fp.1 - from.1);
+            let t = (diff.0 * mdir.1 - diff.1 * mdir.0) / denom;
+            if t > 0.05 && t < best_t {
+                let cx = (from.0 + wdir.0 * t, from.1 + wdir.1 * t);
+                let along_c = (cx.0 - m.a.0) * mdir.0 + (cx.1 - m.a.1) * mdir.1;
+                if along_c > 0.0 && along_c < mlen {
+                    best_t = t;
+                    best_e = cx;
+                    clipped = true;
+                }
+            }
+        }
+    }
+    if clipped {
+        (best_e, ((best_e.0 - e.0).powi(2) + (best_e.1 - e.1).powi(2)).sqrt())
+    } else {
+        (e, 0.0)
+    }
+}
+
 /// Build a double-sided wall PIECE: a hexahedral prism whose floor footprint is the quad
 /// (sl, sr, er, el) extruded from y0 to y1. Generalises wall_box to mitred (non-perpendicular) ends.
 fn wall_piece(sl: V2, sr: V2, el: V2, er: V2, y0: f32, y1: f32) -> (Vec<Vertex>, Vec<u32>) {
@@ -645,6 +712,7 @@ fn wall_with_openings(
     b: Vec3,
     h: f32,
     thickness: f32,
+    op_shift: f32, // a-end clip distance (v0.566): openings are authored from the ORIGINAL a, so shift
     openings: &[Opening],
     al: V2,
     ar: V2,
@@ -686,8 +754,8 @@ fn wall_with_openings(
 
     let mut cursor = 0.0f32;
     for op in ops {
-        let raw_start = op.at.clamp(0.0, total);
-        let end = (op.at + op.width).clamp(0.0, total);
+        let raw_start = (op.at - op_shift).clamp(0.0, total);
+        let end = (op.at + op.width - op_shift).clamp(0.0, total);
         if end <= cursor || raw_start >= total {
             continue; // overlaps the previous opening or runs off the end
         }
@@ -754,6 +822,27 @@ mod tests {
 
     fn wall(a: (f32, f32), b: (f32, f32), openings: Vec<Opening>) -> InteriorWall {
         InteriorWall { a, b, height: 3.0, material: 1, openings, thickness: None }
+    }
+
+    #[test]
+    fn clip_pulls_a_mid_span_t_back_to_the_face() {
+        // M runs along +X at z=0, 0.4 m thick (half 0.2). W comes up from (5,-3) and its end (5,0.1)
+        // lands INSIDE M's body; it should clip back to M's NEAR face at z = -0.2.
+        let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), height: 3.0, material: 1, openings: vec![], thickness: Some(0.4) };
+        let w = InteriorWall { a: (5.0, -3.0), b: (5.0, 0.1), height: 3.0, material: 1, openings: vec![], thickness: Some(0.1) };
+        let walls = vec![m, w];
+        let (clipped, dist) = clip_end_to_walls((5.0, 0.1), (5.0, -3.0), 1, &walls);
+        assert!((clipped.1 + 0.2).abs() < 1e-3, "clipped to M near face z=-0.2, got {clipped:?}");
+        assert!(dist > 0.0, "end was pulled back, dist {dist}");
+    }
+
+    #[test]
+    fn clip_leaves_a_free_end_alone() {
+        let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), height: 3.0, material: 1, openings: vec![], thickness: Some(0.4) };
+        let walls = vec![m];
+        let (clipped, dist) = clip_end_to_walls((5.0, 5.0), (5.0, 3.0), 99, &walls);
+        assert_eq!(dist, 0.0, "a free end in open space is unchanged");
+        assert!((clipped.0 - 5.0).abs() < 1e-6 && (clipped.1 - 5.0).abs() < 1e-6);
     }
 
     #[test]
