@@ -119,10 +119,25 @@
 > >   Gate damage behind an explicit source (weapon/tool), NOT movement collision (a sprint bump must not
 > >   delete a wall). Mid-span T-junctions (a wall ending on another wall's FACE) are an unhandled join
 > >   class for the miter pass -- resolve before committing the endpoint-snap join model.
-> > **OTHER OPEN WAVE ITEMS (operator-requested, after the wall model):** nanowall = animated water
-> > CAUSTICS (not the current uniform pulse; shader, ref image given); door/wall LABELS with on-door /
-> > on-wall / both placement + a draggable position gizmo; door CONTROL PANELS (interact to open / lock /
-> > unlock / emergency-power / hack).
+> > **WAVE v0.559-567 SHIPPED (operator launch-test feedback, 2026-06-26).** v0.559 miter no longer
+> > deforms door/window frames (mitre ONLY true wall ends; opening cuts square); v0.563 fixed "flipped"
+> > gizmo normals (overlay pass clears depth + depth-sorts) + smaller orbs; v0.564 door AUTO/MANUAL-open
+> > states + window-glass z-fight inset; v0.565 constant-width auto-open LINE ring (drawn like orbit
+> > paths); v0.566 mid-span T-junction CLIP (the deferred join class -- a thick wall T-ing into another no
+> > longer spears through); **v0.567 door CONTROL PANELS** (a MANUAL door, inert before, gets a
+> > wall-mounted panel; walk up in first person + press E to open/close; green/red glowing box; HUD
+> > "[E] open/close door"; manual door's open target reads a per-door flag, collision follows it). All
+> > native+relay green, ship/door tests + lints green, exes archived; v0.567 adversarially reviewed (4
+> > fixes: flag-reset-on-rebuild, panel wall-end fallback, manual-only + no-menu gating).
+> > **STILL OPEN (operator-requested, none blocking):**
+> > - **Door-content system** -- data-driven multi-PART doors (parts + per-part materials + animation) for
+> >   a premade catalog, custom/stained-glass, REAL iris doors (sliding petals -- the operator flagged the
+> >   current iris as "totally wrong"), revolving/spinning doors. The big remaining door feature.
+> > - **Control-panel actions beyond open/close** -- lock/unlock, emergency power, hack (v0.567 does
+> >   open/close only; a LOCKED manual door with a panel is currently un-openable in-world).
+> > - **nanowall = animated water CAUSTICS** (not the current uniform pulse; shader, ref image given).
+> > - **door/wall LABELS** with on-door / on-wall / both placement + a draggable position gizmo.
+> > - **Destructibility Stage 3** (HP/physics) -- per the deferral above (re-derive the formula first).
 
 > **ACTIVE 2026-06-23: HOME-DESIGN AI/PLAYER PARITY arc (operator-directed).** Make the AI's
 > home designs use the SAME machinery players build with, so they're inherently player-workable
