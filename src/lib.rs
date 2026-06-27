@@ -667,6 +667,15 @@ mod native_app {
     /// Also refreshes room lights + the sealed-volume bounds, since a height/wall edit changes
     /// them. (v0.455)
     fn rebuild_homestead(state: &mut EngineState) {
+        // Normalize every corner onto the corner grid (v0.574) so co-located corners are byte-identical
+        // -- this self-heals any older home whose snapped corners had sub-tolerance residue (which read
+        // as two overlapping orbs that dragged apart). Idempotent: an on-grid corner is unchanged.
+        if let Some(hs) = state.gui_state.home_structure.as_mut() {
+            for wall in hs.walls.iter_mut() {
+                wall.a = crate::ship::home_structure::quantize_corner(wall.a);
+                wall.b = crate::ship::home_structure::quantize_corner(wall.b);
+            }
+        }
         // v0.534: regenerate from the new HomeStructure (fixed box + interior walls) when present,
         // else the legacy AABB-room layout.
         let homestead = if let Some(hs) = &state.gui_state.home_structure {
@@ -1532,7 +1541,9 @@ mod native_app {
             }
         }
         if let Some((c, _)) = best {
-            return c;
+            // Snap onto the existing corner, quantized to the corner grid so the two become
+            // BYTE-IDENTICAL (one orb, one draggable group; no overlapping-but-distinct duplicate).
+            return crate::ship::home_structure::quantize_corner(c);
         }
         // 2. Grid snap, then edge snap to the box perimeter.
         let (w, d) = (hs.width, hs.depth);
@@ -1552,7 +1563,7 @@ mod native_app {
         } else if z > d - 0.5 {
             z = d;
         }
-        (x.clamp(0.0, w), z.clamp(0.0, d))
+        crate::ship::home_structure::quantize_corner((x.clamp(0.0, w), z.clamp(0.0, d)))
     }
 
     /// Which build-mode gizmo the cursor is hovering this frame (v0.569), for the hover highlight.

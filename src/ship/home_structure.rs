@@ -131,6 +131,19 @@ fn default_true() -> bool {
     true
 }
 
+/// The corner-position grid (1/m). Corners are SNAPPED to this grid so two "co-located" corners are
+/// BYTE-IDENTICAL, not merely within an epsilon. MUST match the mesh corner-keyer (`ck` in
+/// `generate_meshes`), so editor identity == render identity (shared corners drag together; mitres,
+/// joins, and columns line up). 20.0 = a 0.05 m (5 cm) grid. (v0.574)
+pub const CORNER_GRID: f32 = 20.0;
+
+/// Snap a corner (x, z) to `CORNER_GRID`, so co-located corners become exactly equal. The single
+/// source of truth for "what is the same corner" -- the editor snap/drag, on-load normalization, and
+/// the mesh keyer all go through this grid. (v0.574)
+pub fn quantize_corner(p: (f32, f32)) -> (f32, f32) {
+    ((p.0 * CORNER_GRID).round() / CORNER_GRID, (p.1 * CORNER_GRID).round() / CORNER_GRID)
+}
+
 /// An interior wall: a straight segment in the floor plan, from corner node `a` to `b` (each is
 /// (x, z) metres from the box's min corner), rising `height` metres from the floor. Openings
 /// (doors/windows) come in a later stage.
@@ -1086,6 +1099,18 @@ mod tests {
         assert!(!back.lights[1].on, "a placed-but-off light survives");
         assert_eq!(back.lights[1].color, Some((1.0, 0.5, 0.2)));
         let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn co_located_corners_quantize_to_one_point() {
+        // Two corners a hair apart (sub-grid residue) snap to the SAME grid point -> byte-identical,
+        // so they read as one orb and drag together (the v0.574 overlapping-node fix).
+        let a = quantize_corner((5.021, 12.013));
+        let b = quantize_corner((5.018, 12.009));
+        assert_eq!(a, b, "near-co-located corners quantize to one point: {a:?} vs {b:?}");
+        // On-grid corners are unchanged (idempotent), and a full grid step apart stays distinct.
+        assert_eq!(quantize_corner((5.05, 12.0)), (5.05, 12.0));
+        assert_ne!(quantize_corner((5.0, 0.0)), quantize_corner((5.05, 0.0)));
     }
 
     #[test]
