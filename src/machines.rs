@@ -134,6 +134,37 @@ pub struct HomeLoop {
     pub note: String,
 }
 
+/// A conduit junction NODE (v0.581): a draggable point where conduit edges meet / branch. Position is
+/// absolute world metres (box home: box min corner at world origin), matching MachineInstance.offset.
+/// The node graph is the operator's "edit nodes, software auto-routes the pipe" model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConduitNode {
+    pub id: String,
+    pub pos: (f32, f32, f32),
+    /// Tier in the eventual hierarchy: 0 = main, 1 = sub, 2 = subsub. Stage 1 routes all as 0.
+    #[serde(default)]
+    pub tier: u8,
+    /// Utility-kind hint for colour when an edge doesn't override ("water"|"power"|"gas"|...).
+    #[serde(default)]
+    pub kind: String,
+}
+
+/// One endpoint of a conduit edge: a placed MACHINE id or a conduit NODE id. (v0.581)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ConduitEnd {
+    Machine(String),
+    Node(String),
+}
+
+/// A routed conduit EDGE between two endpoints (v0.581) -- a graph edge that can pass through junction
+/// nodes, routed by the SAME `conduits::route_conduit` a machine-to-machine connection uses today.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConduitEdge {
+    pub from: ConduitEnd,
+    pub to: ConduitEnd,
+    pub kind: String,
+}
+
 /// The whole home machine layout.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MachineHome {
@@ -152,6 +183,12 @@ pub struct MachineHome {
     /// older RON without it still parses.
     #[serde(default)]
     pub loops: Vec<HomeLoop>,
+    /// Conduit junction NODES (v0.581) -- the node graph the user edits; pipes auto-route through them.
+    #[serde(default)]
+    pub conduit_nodes: Vec<ConduitNode>,
+    /// Conduit EDGES (v0.581) -- node/machine-to-node/machine links, each routed as a real pipe.
+    #[serde(default)]
+    pub conduit_edges: Vec<ConduitEdge>,
 }
 
 /// Pass / warn / fail verdict for one buildability check.
@@ -296,6 +333,102 @@ impl MachineHome {
     pub fn remove_instance(&mut self, id: &str) {
         self.instances.retain(|i| i.id != id);
         self.connections.retain(|c| c.from != id && c.to != id);
+        // Also prune conduit edges referencing this machine (v0.581), so deleting a machine never
+        // leaves a dangling graph edge.
+        self.conduit_edges.retain(|e| {
+            e.from != ConduitEnd::Machine(id.to_string()) && e.to != ConduitEnd::Machine(id.to_string())
+        });
+    }
+
+    /// Mint a unique conduit-node id (v0.581), e.g. "node_3".
+    pub fn unique_node_id(&self) -> String {
+        let mut n = self.conduit_nodes.len();
+        loop {
+            let id = format!("node_{n}");
+            if !self.conduit_nodes.iter().any(|c| c.id == id) {
+                return id;
+            }
+            n += 1;
+        }
+    }
+
+    /// Add a conduit junction node at `pos`; returns its new id. (v0.581)
+    pub fn add_conduit_node(&mut self, pos: (f32, f32, f32), kind: &str) -> String {
+        let id = self.unique_node_id();
+        self.conduit_nodes.push(ConduitNode { id: id.clone(), pos, tier: 0, kind: kind.to_string() });
+        id
+    }
+
+    /// Move a conduit node; returns true if found. (v0.581)
+    pub fn move_conduit_node(&mut self, id: &str, pos: (f32, f32, f32)) -> bool {
+        if let Some(n) = self.conduit_nodes.iter_mut().find(|n| n.id == id) {
+            n.pos = pos;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Remove a conduit node AND prune every edge touching it. (v0.581)
+    pub fn remove_conduit_node(&mut self, id: &str) {
+        self.conduit_nodes.retain(|n| n.id != id);
+        let end = ConduitEnd::Node(id.to_string());
+        self.conduit_edges.retain(|e| e.from != end && e.to != end);
+    }
+
+    /// Whether a ConduitEnd resolves to a live machine or an existing node. (v0.581)
+    fn conduit_end_is_live(&self, end: &ConduitEnd) -> bool {
+        match end {
+            ConduitEnd::Machine(id) => self.all_instances().into_iter().any(|i| &i.id == id),
+            ConduitEnd::Node(id) => self.conduit_nodes.iter().any(|n| &n.id == id),
+        }
+    }
+
+    /// Add a conduit edge between two endpoints. Refuses a self-edge, a dead endpoint, or an exact
+    /// duplicate -- so the editor + an AI can only ever produce valid, routable wiring. (v0.581)
+    pub fn add_conduit_edge(&mut self, from: ConduitEnd, to: ConduitEnd, kind: &str) -> bool {
+        if from == to || !self.conduit_end_is_live(&from) || !self.conduit_end_is_live(&to) {
+            return false;
+        }
+        if self.conduit_edges.iter().any(|e| e.from == from && e.to == to) {
+            return false;
+        }
+        self.conduit_edges.push(ConduitEdge { from, to, kind: kind.to_string() });
+        true
+    }
+
+    /// Remove a conduit edge by index; returns true if removed. (v0.581)
+    pub fn remove_conduit_edge(&mut self, idx: usize) -> bool {
+        if idx < self.conduit_edges.len() {
+            self.conduit_edges.remove(idx);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Resolve a ConduitEnd to a world anchor (v0.581): a MACHINE uses the SAME low pipe anchor the
+    /// renderer uses (placement pos + 0.35 m up); a NODE uses its clamped position. `placements` are
+    /// the resolved machine placements; `box_dims` is (width, depth, height) for clamping.
+    pub fn conduit_anchor(
+        &self,
+        end: &ConduitEnd,
+        placements: &[(String, (f32, f32, f32), f32)], // (id, pos, floor_y)
+        box_dims: (f32, f32, f32),
+    ) -> Option<(f32, f32, f32)> {
+        match end {
+            ConduitEnd::Machine(id) => placements
+                .iter()
+                .find(|(pid, _, _)| pid == id)
+                .map(|(_, pos, floor_y)| (pos.0, floor_y + 0.35, pos.2)),
+            ConduitEnd::Node(id) => self.conduit_nodes.iter().find(|n| &n.id == id).map(|n| {
+                (
+                    n.pos.0.clamp(0.3, box_dims.0 - 0.3),
+                    n.pos.1.clamp(0.1, box_dims.2),
+                    n.pos.2.clamp(0.3, box_dims.1 - 0.3),
+                )
+            }),
+        }
     }
 
     /// Drop every machine (explicit instance + array grid) placed in `room_id`, then prune any
@@ -725,6 +858,8 @@ mod tests {
             }],
             connections: Vec::new(),
             loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
         };
         let id = home.unique_instance_id("solar_panel");
         // The four array cells occupy _0.._3, so the next free id must be _4 (not _0).
@@ -757,6 +892,8 @@ mod tests {
             arrays: Vec::new(),
             connections: vec![conn("a", "b"), conn("b", "c"), conn("c", "a")],
             loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
         };
         home.remove_instance("b");
         assert!(!home.instances.iter().any(|i| i.id == "b"), "instance b removed");
@@ -796,6 +933,8 @@ mod tests {
                 kind: "power".to_string(),
             }],
             loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
         };
         let changed = home.remove_room("garden");
         assert!(changed, "remove_room reports it removed something");
@@ -825,6 +964,8 @@ mod tests {
             arrays: Vec::new(),
             connections: Vec::new(),
             loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
         };
         assert!(home.add_connection("a", "b", "power"), "valid connection added");
         assert!(!home.add_connection("a", "b", "power"), "exact duplicate refused");
@@ -853,6 +994,8 @@ mod tests {
             arrays: Vec::new(),
             connections: Vec::new(),
             loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
         };
         let report = home.buildability_report(4.5);
         assert_eq!(report.worst(), CheckStatus::Fail);
@@ -873,6 +1016,8 @@ mod tests {
             arrays: Vec::new(),
             connections: Vec::new(),
             loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
         };
         // 1000W * 4.5h = 4500 Wh/day made vs 100W * 24h = 2400 used; night need = 100W * 19.5h =
         // 1950 Wh <= 2000 Wh battery, so every check passes.
@@ -894,6 +1039,8 @@ mod tests {
             arrays: Vec::new(),
             connections: Vec::new(),
             loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
         };
         let report = home.buildability_report(4.5);
         assert_eq!(report.worst(), CheckStatus::Warn, "tiny battery warns: {:?}", report.checks);
@@ -910,6 +1057,8 @@ mod tests {
             arrays: Vec::new(),
             connections: vec![MachineConnection { from: "a".into(), to: "ghost".into(), kind: "power".into() }],
             loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
         };
         let report = home.buildability_report(4.5);
         assert!(report.checks.iter().any(|c| c.name == "Wiring" && c.status == CheckStatus::Fail));
@@ -950,6 +1099,8 @@ mod tests {
             arrays: Vec::new(),
             connections: Vec::new(),
             loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
         }
     }
 
@@ -967,6 +1118,33 @@ mod tests {
         let s = placed.iter().find(|p| p.id == "s1").unwrap();
         assert_eq!(s.pos, (10.0, 5.5, 20.0), "sphere lifted by its radius to rest on the floor");
         assert_eq!(s.floor_y, 5.0);
+    }
+
+    #[test]
+    fn conduit_graph_nodes_edges_and_pruning() {
+        let mut home = pos_test_home();
+        let ids: Vec<String> = home.all_instances().into_iter().map(|i| i.id).collect();
+        assert!(ids.len() >= 2);
+        let nid = home.add_conduit_node((10.0, 1.0, 10.0), "water");
+        assert_eq!(home.conduit_nodes.len(), 1);
+        // machine -> node, node -> machine
+        assert!(home.add_conduit_edge(ConduitEnd::Machine(ids[0].clone()), ConduitEnd::Node(nid.clone()), "water"));
+        assert!(home.add_conduit_edge(ConduitEnd::Node(nid.clone()), ConduitEnd::Machine(ids[1].clone()), "water"));
+        assert_eq!(home.conduit_edges.len(), 2);
+        // refuse self / dead-endpoint / duplicate
+        assert!(!home.add_conduit_edge(ConduitEnd::Node(nid.clone()), ConduitEnd::Node(nid.clone()), "water"));
+        assert!(!home.add_conduit_edge(ConduitEnd::Node("nope".into()), ConduitEnd::Machine(ids[0].clone()), "water"));
+        assert!(!home.add_conduit_edge(ConduitEnd::Machine(ids[0].clone()), ConduitEnd::Node(nid.clone()), "water"));
+        assert!(home.move_conduit_node(&nid, (12.0, 1.5, 12.0)));
+        assert_eq!(home.conduit_nodes[0].pos, (12.0, 1.5, 12.0));
+        // removing the node prunes both edges; removing a machine prunes its edge too
+        home.remove_conduit_node(&nid);
+        assert_eq!(home.conduit_nodes.len(), 0);
+        assert!(home.conduit_edges.is_empty(), "edges touching the node are pruned");
+        let n2 = home.add_conduit_node((5.0, 1.0, 5.0), "power");
+        assert!(home.add_conduit_edge(ConduitEnd::Machine(ids[0].clone()), ConduitEnd::Node(n2), "power"));
+        home.remove_instance(&ids[0]);
+        assert!(home.conduit_edges.is_empty(), "removing a machine prunes its conduit edges");
     }
 
     /// v0.538: in BOX mode (box_mode=true) offset is ABSOLUTE world x/z, NOTHING is skipped on a

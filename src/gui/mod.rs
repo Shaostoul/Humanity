@@ -1415,6 +1415,11 @@ pub struct GuiState {
     pub home_conn_from: String,
     pub home_conn_to: String,
     pub home_conn_kind: String,
+    /// Conduit node-graph branch picker (v0.581): the from/to endpoints ("m:id" machine or "n:id" node)
+    /// + the kind for the Branch button that adds a conduit edge.
+    pub conduit_from: String,
+    pub conduit_to: String,
+    pub conduit_kind: String,
     /// Construction text-command console (v0.578): the input line + the last result/output. An
     /// AI-enumerable ACT surface -- the same struct mutations the gizmos make, driven by typed verbs.
     pub construction_console_input: String,
@@ -2520,6 +2525,9 @@ impl Default for GuiState {
             home_conn_from: String::new(),
             home_conn_to: String::new(),
             home_conn_kind: "power".to_string(),
+            conduit_from: String::new(),
+            conduit_to: String::new(),
+            conduit_kind: "water".to_string(),
             construction_console_input: String::new(),
             construction_console_output: String::new(),
             home_machines_save: false,

@@ -977,14 +977,35 @@ mod native_app {
             Some(h) => (h.placements(&rooms, box_mode, box_dims), h.connections.clone()),
             None => return,
         };
-        if connections.is_empty() {
-            return;
-        }
         // Low pipe-height anchor per machine id (the fixture port the conduit drops to).
         let anchors: HashMap<String, Vec3> = placements
             .iter()
             .map(|p| (p.id.clone(), Vec3::new(p.pos.0, p.floor_y + 0.35, p.pos.2)))
             .collect();
+        // Combined routing list (v0.581): both the legacy point-to-point connections AND the conduit
+        // NODE GRAPH edges (machine/node -> machine/node) become (a, b, kind) routes, fed through the
+        // SAME route_conduit + emit below. A node edge renders as a real routed pipe with zero new mesh.
+        let mut routes: Vec<(Vec3, Vec3, String)> = connections
+            .iter()
+            .filter_map(|c| Some((*anchors.get(&c.from)?, *anchors.get(&c.to)?, c.kind.clone())))
+            .collect();
+        {
+            let placement_tuples: Vec<(String, (f32, f32, f32), f32)> =
+                placements.iter().map(|p| (p.id.clone(), p.pos, p.floor_y)).collect();
+            if let Some(home) = state.gui_state.home_machines.as_ref() {
+                for e in &home.conduit_edges {
+                    if let (Some(a), Some(b)) = (
+                        home.conduit_anchor(&e.from, &placement_tuples, box_dims),
+                        home.conduit_anchor(&e.to, &placement_tuples, box_dims),
+                    ) {
+                        routes.push((Vec3::new(a.0, a.1, a.2), Vec3::new(b.0, b.1, b.2), e.kind.clone()));
+                    }
+                }
+            }
+        }
+        if routes.is_empty() {
+            return;
+        }
         // Cached unit cylinder mesh (+Y, base at origin, radius 0.05, height 1) -- reused for every
         // conduit segment + fitting, scaled/rotated, so a rebuild never leaks.
         let cyl = match state.connection_cyl {
@@ -1007,11 +1028,9 @@ mod native_app {
         };
         let service_y = (home_h - 0.3).max(0.6);
         const CYL_R: f32 = 0.05; // the unit cylinder's modeled radius
-        for c in &connections {
-            let (Some(&a), Some(&b)) = (anchors.get(&c.from), anchors.get(&c.to)) else {
-                continue;
-            };
-            let kind = crate::ship::conduits::ConduitKind::for_resource(&c.kind);
+        for (a, b, kind_str) in &routes {
+            let (a, b) = (*a, *b);
+            let kind = crate::ship::conduits::ConduitKind::for_resource(kind_str);
             let route = crate::ship::conduits::route_conduit(a, b, kind, service_y, shell_mat, &walls);
             // Pipe material cached per conduit kind (copper / rubber hose / black cord).
             let pkey = format!("conduit:{kind:?}");

@@ -742,6 +742,9 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // Lights (v0.571): place local lights so a room is lit with the sun off.
                 draw_lights_editor(ui, theme, state);
 
+                // Conduit node graph (v0.581): place junction nodes + branch edges; pipes auto-route.
+                draw_conduit_nodes(ui, theme, state);
+
                 // Console (v0.578): a text-command ACT surface for an AI + a human -- the same struct
                 // edits the gizmos make, driven by typed verbs. `help` lists them.
                 egui::CollapsingHeader::new(RichText::new("Console (AI / dev)").strong().color(theme.text_primary()))
@@ -1390,6 +1393,125 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             }
         }
         other => format!("unknown command '{other}'. try: help"),
+    }
+}
+
+/// Display string for a conduit endpoint (v0.581).
+fn conduit_end_str(e: &crate::machines::ConduitEnd) -> String {
+    match e {
+        crate::machines::ConduitEnd::Machine(id) => format!("M:{id}"),
+        crate::machines::ConduitEnd::Node(id) => format!("N:{id}"),
+    }
+}
+/// Parse a combo key ("m:id" / "n:id") back to a ConduitEnd (v0.581).
+fn conduit_parse_end(k: &str) -> Option<crate::machines::ConduitEnd> {
+    if let Some(id) = k.strip_prefix("m:") {
+        Some(crate::machines::ConduitEnd::Machine(id.to_string()))
+    } else {
+        k.strip_prefix("n:").map(|id| crate::machines::ConduitEnd::Node(id.to_string()))
+    }
+}
+
+/// Conduit NODE-GRAPH editor (v0.581): place junction nodes + branch edges (machine/node -> machine/
+/// node); each edge auto-routes as a real pipe (reusing route_conduit). The node-graph model the
+/// operator asked for; main/sub/subsub hierarchy is a later stage. Uses deferred actions so it never
+/// holds a home_machines borrow across the egui closures.
+fn draw_conduit_nodes(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let (bw, bd, bh) = state.home_structure.as_ref().map(|h| (h.width, h.depth, h.height)).unwrap_or((55.0, 89.0, 3.0));
+    let machine_ids: Vec<String> = state.home_machines.as_ref().map(|h| h.all_instances().into_iter().map(|i| i.id).collect()).unwrap_or_default();
+    let nodes: Vec<(String, (f32, f32, f32))> = state.home_machines.as_ref().map(|h| h.conduit_nodes.iter().map(|n| (n.id.clone(), n.pos)).collect()).unwrap_or_default();
+    let edges: Vec<(String, String, String)> = state.home_machines.as_ref().map(|h| h.conduit_edges.iter().map(|e| (conduit_end_str(&e.from), conduit_end_str(&e.to), e.kind.clone())).collect()).unwrap_or_default();
+    let mut add_node = false;
+    let mut remove_node: Option<String> = None;
+    let mut set_pos: Option<(String, (f32, f32, f32))> = None;
+    let mut add_edge: Option<(String, String, String)> = None;
+    let mut remove_edge: Option<usize> = None;
+    egui::CollapsingHeader::new(RichText::new(format!("Conduit nodes ({}) / edges ({})", nodes.len(), edges.len())).strong().color(theme.text_primary()))
+        .id_salt("hs_conduit")
+        .default_open(false)
+        .show(ui, |ui| {
+            ui.label(RichText::new("Junction nodes; pipes auto-route through them. (Stage 1)").size(theme.font_size_small).color(theme.text_muted()));
+            if ui.button("Add node (box centre)").clicked() {
+                add_node = true;
+            }
+            for (id, pos) in &nodes {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(id).size(theme.font_size_small).color(theme.text_primary()));
+                    let mut p = *pos;
+                    let mut ch = false;
+                    ch |= ui.add(egui::DragValue::new(&mut p.0).speed(0.2).prefix("x ").range(0.0..=bw)).changed();
+                    ch |= ui.add(egui::DragValue::new(&mut p.1).speed(0.1).prefix("y ").range(0.0..=bh)).changed();
+                    ch |= ui.add(egui::DragValue::new(&mut p.2).speed(0.2).prefix("z ").range(0.0..=bd)).changed();
+                    if ch {
+                        set_pos = Some((id.clone(), p));
+                    }
+                    if ui.small_button("x").clicked() {
+                        remove_node = Some(id.clone());
+                    }
+                });
+            }
+            let endpoints: Vec<(String, String)> = machine_ids.iter().map(|id| (format!("m:{id}"), format!("M:{id}")))
+                .chain(nodes.iter().map(|(id, _)| (format!("n:{id}"), format!("N:{id}")))).collect();
+            if endpoints.len() >= 2 {
+                if state.conduit_from.is_empty() { state.conduit_from = endpoints[0].0.clone(); }
+                if state.conduit_to.is_empty() { state.conduit_to = endpoints[1].0.clone(); }
+                ui.horizontal(|ui| {
+                    egui::ComboBox::from_id_salt("cd_from").width(78.0).selected_text(state.conduit_from.clone()).show_ui(ui, |ui| {
+                        for (k, l) in &endpoints { ui.selectable_value(&mut state.conduit_from, k.clone(), l); }
+                    });
+                    ui.label("->");
+                    egui::ComboBox::from_id_salt("cd_to").width(78.0).selected_text(state.conduit_to.clone()).show_ui(ui, |ui| {
+                        for (k, l) in &endpoints { ui.selectable_value(&mut state.conduit_to, k.clone(), l); }
+                    });
+                });
+                ui.horizontal(|ui| {
+                    egui::ComboBox::from_id_salt("cd_kind").width(82.0).selected_text(state.conduit_kind.clone()).show_ui(ui, |ui| {
+                        for k in ["water", "power", "greywater", "gas"] { ui.selectable_value(&mut state.conduit_kind, k.to_string(), k); }
+                    });
+                    if ui.button("Branch").clicked() {
+                        add_edge = Some((state.conduit_from.clone(), state.conduit_to.clone(), state.conduit_kind.clone()));
+                    }
+                });
+            } else {
+                ui.label(RichText::new("Place 2+ machines/nodes to branch.").size(theme.font_size_small).color(theme.text_muted()));
+            }
+            for (i, (fr, to, k)) in edges.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("{fr} -> {to} ({k})")).size(theme.font_size_small).color(theme.text_muted()));
+                    if ui.small_button("x").clicked() {
+                        remove_edge = Some(i);
+                    }
+                });
+            }
+        });
+    let mut changed = false;
+    if let Some(h) = state.home_machines.as_mut() {
+        if add_node {
+            h.add_conduit_node((bw * 0.5, bh * 0.5, bd * 0.5), "water");
+            changed = true;
+        }
+        if let Some((id, p)) = set_pos {
+            h.move_conduit_node(&id, p);
+            changed = true;
+        }
+        if let Some(id) = remove_node {
+            h.remove_conduit_node(&id);
+            changed = true;
+        }
+        if let Some((fk, tk, kind)) = add_edge {
+            if let (Some(from), Some(to)) = (conduit_parse_end(&fk), conduit_parse_end(&tk)) {
+                if h.add_conduit_edge(from, to, &kind) {
+                    changed = true;
+                }
+            }
+        }
+        if let Some(i) = remove_edge {
+            h.remove_conduit_edge(i);
+            changed = true;
+        }
+    }
+    if changed {
+        state.construction_machines_dirty = true;
     }
 }
 
