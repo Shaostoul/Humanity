@@ -1010,6 +1010,7 @@ mod native_app {
         state: &mut EngineState,
         opaque: &mut Vec<RenderObject>,
         transparent: &mut Vec<RenderObject>,
+        ring_lines: &mut Vec<crate::renderer::line::LineVertex>,
         dt: f32,
     ) {
         if state.door_panels.is_empty() {
@@ -1102,16 +1103,20 @@ mod native_app {
             // (v0.538: consult door_anim::is_operable so a door explicitly styled "fixed" does not
             // chase an open target it can never animate to).
             let operable = !p.is_window && crate::systems::door_anim::is_operable(&p.style);
-            // Interaction-distance ring on the floor at the door, scaled by its open_dist (v0.547).
+            // Interaction-distance ring on the floor at the door (v0.547), drawn as a LINE circle
+            // (v0.565, operator's idea -- like the orbit paths) so its width is CONSTANT regardless of
+            // radius, instead of a polygon strip that thickened as open_dist grew.
             if show_widgets && operable && p.auto_open {
-                if let (Some(rm), Some(rmat)) = (ring_mesh, ring_mat) {
-                    transparent.push(RenderObject {
-                        position: Vec3::new(p.center.x, 0.03, p.center.z),
-                        rotation: Quat::IDENTITY,
-                        scale: Vec3::new(p.open_dist, 1.0, p.open_dist),
-                        mesh: rm,
-                        material: rmat,
-                    });
+                let _ = (ring_mesh, ring_mat); // kept for the corner angle-circles
+                const N: usize = 72;
+                const RING_COL: [f32; 4] = [0.35, 0.85, 1.0, 0.9]; // cyan
+                let mut prev = [p.center.x + p.open_dist, 0.04, p.center.z];
+                for i in 1..=N {
+                    let a = (i as f32 / N as f32) * std::f32::consts::TAU;
+                    let cur = [p.center.x + a.cos() * p.open_dist, 0.04, p.center.z + a.sin() * p.open_dist];
+                    ring_lines.push(crate::renderer::line::LineVertex { position: prev, color: RING_COL });
+                    ring_lines.push(crate::renderer::line::LineVertex { position: cur, color: RING_COL });
+                    prev = cur;
                 }
             }
             let dx = cam.x - p.center.x;
@@ -4642,6 +4647,8 @@ mod native_app {
                     // World-space orbit lines, built this frame, drawn
                     // after the scene so they depth-occlude behind planets.
                     let mut orbit_lines: Vec<crate::renderer::line::LineVertex> = Vec::new();
+                    // Build-mode door auto-open RINGS as constant-width line circles (v0.565).
+                    let mut ring_lines: Vec<crate::renderer::line::LineVertex> = Vec::new();
 
                     // During the character-select showroom the home is HIDDEN so the avatar
                     // floats against the backdrop; otherwise draw the full home.
@@ -4881,7 +4888,7 @@ mod native_app {
                         }
                         // Door + window panels: doors ease open as the player nears (by style);
                         // windows are fixed glass (transparent pass). (v0.537)
-                        render_door_panels(state, &mut all_objects, &mut transparent_objects, dt);
+                        render_door_panels(state, &mut all_objects, &mut transparent_objects, &mut ring_lines, dt);
                     }
                     // Placement ghost: the held palette item, previewed (semi-transparent, faintly
                     // glowing) on the room floor under the cursor, so you see where a click drops it.
@@ -7657,6 +7664,8 @@ mod native_app {
                                 state.renderer.render_transparent_onto(&state.camera, &transparent_objects, &view);
                                 // Pass 2.6: editor gizmos on top (depth off), visible through walls. (v0.560)
                                 state.renderer.render_overlay_onto(&state.camera, &overlay_objects, &view);
+                                // Pass 2.7: door auto-open rings as constant-width lines (v0.565).
+                                state.renderer.draw_lines_onto(&state.camera, &ring_lines, &view);
                                 Ok((output, view))
                             }
                             Err(e) => Err(e),
