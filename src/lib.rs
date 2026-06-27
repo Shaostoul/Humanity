@@ -1442,7 +1442,7 @@ mod native_app {
         // Compute the gizmo set as owned values so the home_structure borrow ends before the
         // mutable grab assignment below.
         let (top_y, corners) = match state.gui_state.home_structure.as_ref() {
-            Some(hs) => (0.0, unique_corners(hs)), // at the wall-corner BASE; matches the render (v0.549)
+            Some(hs) => (-0.22, unique_corners(hs)), // orb centre (top-at-floor); matches the render (v0.560)
             None => return false,
         };
         let sz = state.window.inner_size();
@@ -4613,6 +4613,9 @@ mod native_app {
                     // Transparent surfaces (glass windows): rendered in a SEPARATE alpha-blend
                     // pass AFTER the opaque scene so you can see through them. (v0.456)
                     let mut transparent_objects: Vec<RenderObject> = Vec::new();
+                    // Editor GIZMOS (corner orbs, the avatar, its pyramid): rendered LAST with depth
+                    // test off, so they show THROUGH walls + floors in build mode. (v0.560)
+                    let mut overlay_objects: Vec<RenderObject> = Vec::new();
                     // Celestial bodies (planet + Sun + solar bodies): rendered in a SEPARATE
                     // pass with a huge far plane (v0.450), since they sit at astronomical
                     // distances the ~500 m gameplay far would clip.
@@ -5008,26 +5011,25 @@ mod native_app {
                         let ring_mesh = state.construction_ring_mesh.unwrap();
                         let ring_mat = state.construction_ring_mat.unwrap();
                         let grabbed = state.construction_node_grab;
-                        let (top_y, corners) = {
+                        let corners = {
                             let hs = state.gui_state.home_structure.as_ref().unwrap();
-                            // At the wall-corner BASE (operator note), small: a little orb straddling
-                            // the floor at the corner (top half above the floor, visible from the
-                            // orbit cam). Clickable regardless of what occludes it (the hit-test is
-                            // geometric). Kept in sync with try_grab_node's height (0.0). (v0.549)
-                            (0.0_f32, unique_corners(hs))
+                            unique_corners(hs)
                         };
                         for c in &corners {
                             let hot = grabbed.map_or(false, |g| (g.0 - c.0).abs() < 0.05 && (g.1 - c.1).abs() < 0.05);
                             let r = if hot { 0.28 } else { 0.22 };
-                            all_objects.push(RenderObject {
-                                position: Vec3::new(c.0, top_y, c.1),
+                            // The orb's TOP touches the wall-corner BASE (operator note): centre at -r
+                            // so the top vertex is at the floor. Overlay pass -> visible through walls
+                            // + the floor it sits under. (v0.560)
+                            overlay_objects.push(RenderObject {
+                                position: Vec3::new(c.0, -r, c.1),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::splat(r),
                                 mesh: node_mesh,
                                 material: if hot { hot_mat } else { node_mat },
                             });
                             // Ground angle-circle (radius matches the overlay's RING_R = 1.1).
-                            transparent_objects.push(RenderObject {
+                            overlay_objects.push(RenderObject {
                                 position: Vec3::new(c.0, 0.1, c.1),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::new(1.1, 1.0, 1.1),
@@ -5058,7 +5060,8 @@ mod native_app {
                     if state.gui_state.construction_active {
                         if let Some((cx, cz)) = state.gui_state.build_char_pos {
                             if state.construction_char_mesh.is_none() {
-                                let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 0.42, 1.3, 0.26));
+                                // Player-sized body (~0.5 wide x 1.55 tall x 0.3 deep). (v0.560)
+                                let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 0.5, 1.55, 0.3));
                                 state.construction_char_mesh = Some(m);
                             }
                             if state.construction_char_pyramid_mesh.is_none() {
@@ -5093,24 +5096,27 @@ mod native_app {
                             } else {
                                 state.construction_node_mat.unwrap()
                             };
-                            // Body (lifted so the pyramid handle reads clearly underneath).
-                            all_objects.push(RenderObject {
-                                position: Vec3::new(cx, 0.45, cz),
+                            // Player-sized avatar STANDING on the floor (v0.560): body box ~1.55 m + a
+                            // head, so the marker reads as the player's height/width. Overlay pass ->
+                            // visible through walls.
+                            overlay_objects.push(RenderObject {
+                                position: Vec3::new(cx, 0.0, cz),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
                                 mesh: body_mesh,
                                 material: char_mat,
                             });
-                            all_objects.push(RenderObject {
-                                position: Vec3::new(cx, 1.9, cz),
+                            overlay_objects.push(RenderObject {
+                                position: Vec3::new(cx, 1.66, cz),
                                 rotation: Quat::IDENTITY,
-                                scale: Vec3::splat(0.18),
+                                scale: Vec3::splat(0.2),
                                 mesh: head_mesh,
                                 material: char_mat,
                             });
-                            // Pyramid gizmo handle on the floor under the avatar.
-                            all_objects.push(RenderObject {
-                                position: Vec3::new(cx, 0.0, cz),
+                            // Pyramid gizmo BELOW the floor with its top vertex at the floor (operator
+                            // note): apex at y=0, base at -0.4.
+                            overlay_objects.push(RenderObject {
+                                position: Vec3::new(cx, -0.4, cz),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::new(0.5, 0.4, 0.5),
                                 mesh: pyr_mesh,
@@ -7617,6 +7623,8 @@ mod native_app {
                                 // Pass 2.5: transparent surfaces (glass windows) blended over
                                 // the opaque scene so you can see through them. (v0.456)
                                 state.renderer.render_transparent_onto(&state.camera, &transparent_objects, &view);
+                                // Pass 2.6: editor gizmos on top (depth off), visible through walls. (v0.560)
+                                state.renderer.render_overlay_onto(&state.camera, &overlay_objects, &view);
                                 Ok((output, view))
                             }
                             Err(e) => Err(e),

@@ -28,6 +28,10 @@ pub struct Pipeline {
     /// shader + layout, but blends over the scene and does NOT write depth, so you see
     /// THROUGH it. (v0.456)
     pub transparent_pipeline: wgpu::RenderPipeline,
+    /// Editor-GIZMO variant (v0.560): alpha-blended, double-sided, and depth-test DISABLED
+    /// (depth_compare Always) so build-mode gizmos (corner orbs, the avatar, rings) draw ON TOP of
+    /// the world -- visible through walls + floors. No depth write either.
+    pub overlay_pipeline: wgpu::RenderPipeline,
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub object_bind_group_layout: wgpu::BindGroupLayout,
     pub material_bind_group_layout: wgpu::BindGroupLayout,
@@ -196,9 +200,52 @@ impl Pipeline {
             cache: None,
         });
 
+        // Overlay variant (v0.560): same as transparent but depth-test DISABLED, so editor gizmos
+        // render on top of everything (visible through walls/floors).
+        let overlay_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("PBR-lite Overlay Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: shader,
+                entry_point: Some("vs_main"),
+                buffers: &[Vertex::layout()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Always, // ignore depth -> always on top
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState { count: 1, mask: !0, alpha_to_coverage_enabled: false },
+            multiview: None,
+            cache: None,
+        });
+
         Self {
             render_pipeline,
             transparent_pipeline,
+            overlay_pipeline,
             camera_bind_group_layout,
             object_bind_group_layout,
             material_bind_group_layout,
