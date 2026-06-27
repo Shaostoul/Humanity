@@ -829,7 +829,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             width: 1.0,
                             sill: 0.0,
                             height: 2.1,
-                            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true
+                            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
                         });
                     }
                     changed = true;
@@ -842,7 +842,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             width: 1.5,
                             sill: 1.0,
                             height: 1.2,
-                            style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true
+                            style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
                         });
                     }
                     changed = true;
@@ -905,6 +905,11 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             } else {
                                 changed |= ui
                                     .checkbox(&mut op.locked, RichText::new("Locked (stays shut; energy door glows red)").size(theme.font_size_small).color(theme.text_muted()))
+                                    .changed();
+                                // A manual door needs a way to open it (v0.567): a wall-mounted control
+                                // panel beside the door the player walks up to and presses E.
+                                changed |= ui
+                                    .checkbox(&mut op.control_panel, RichText::new("Control panel (walk up + press E)").size(theme.font_size_small).color(theme.text_muted()))
                                     .changed();
                             }
                         }

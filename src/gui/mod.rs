@@ -1140,6 +1140,13 @@ pub struct GuiState {
     /// Index into machine_labels of the machine the player is currently looking at
     /// within interact range (walk-up interaction, v0.431). Recomputed each frame.
     pub targeted_machine: Option<usize>,
+    /// Index into `door_panels` of the door CONTROL PANEL the player is looking at within
+    /// arm's reach (v0.567). Drives the "[E] open/close door" prompt; E toggles the door.
+    /// Recomputed each frame in first person. Mirrors `targeted_machine`.
+    pub targeted_control_panel: Option<usize>,
+    /// The crosshair prompt for the targeted control panel (v0.567), precomputed each frame
+    /// (the HUD can't see the door's open/locked state, which lives in EngineState). Empty = none.
+    pub control_panel_prompt: String,
     /// Index of the machine whose card is pinned open (toggled with E). Stays until E
     /// again or it is cleared. Survives walking away (it is the "opened station").
     pub selected_machine: Option<usize>,
@@ -2349,6 +2356,8 @@ impl Default for GuiState {
             profile_directory_listed: true,
             machine_labels: Vec::new(),
             targeted_machine: None,
+            targeted_control_panel: None,
+            control_panel_prompt: String::new(),
             selected_machine: None,
             room_bounds: Vec::new(),
             reveal_held: false,

@@ -173,6 +173,7 @@ mod tests {
                     open_dist: 2.6,
                     locked: false,
                     auto_open: true,
+                    control_panel: false,
                 }],
             }],
         }

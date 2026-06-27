@@ -1000,6 +1000,11 @@ mod native_app {
         } else {
             state.door_panels = placements.into_iter().map(|p| (p, 0.0)).collect();
         }
+        // Reset every manual door to CLOSED on a structural rebuild (v0.567). This runs only on a
+        // structure edit / world load (build mode, orbit cam), never while walking, so we deliberately
+        // do NOT trust positional parallelism across an edit -- an open-flag must never land on the
+        // wrong door just because the opening count happened to stay equal.
+        state.door_manual_open = vec![false; state.door_panels.len()];
     }
 
     /// Per-frame: animate + emit the door/window panels (v0.537). A door eases open as the player
@@ -1098,7 +1103,10 @@ mod native_app {
         // Frame-rate-independent exponential ease toward the target (v0.540): smooth open/close,
         // no linear stepping, no extra keyframes. ~0.3 s to settle.
         let ease = 1.0 - (-dt.max(0.0) * 9.0).exp();
-        for (p, open) in state.door_panels.iter_mut() {
+        // Snapshot the per-door manual-open flags (v0.567) so the loop can read them while it holds a
+        // &mut on door_panels (a disjoint-field borrow the checker won't always see through).
+        let manual = state.door_manual_open.clone();
+        for (di, (p, open)) in state.door_panels.iter_mut().enumerate() {
             // An operable DOOR opens on approach; a window or a "fixed"-styled opening stays shut
             // (v0.538: consult door_anim::is_operable so a door explicitly styled "fixed" does not
             // chase an open target it can never animate to).
@@ -1119,15 +1127,32 @@ mod native_app {
                     prev = cur;
                 }
             }
+            // Wall-mounted CONTROL PANEL beside a manual/controlled door (v0.567): a glowing tech panel
+            // the player walks up to and presses E. Green while openable, red while LOCKED. Routed to the
+            // transparent pass since it glows. Drawn before the door's hidden-check so it always shows.
+            // Only on a MANUAL door -- an auto door opens by itself, so its panel would be a dead control.
+            if p.control_panel && !p.auto_open {
+                let cp = p.control_panel_pos;
+                let mat = if p.locked { energy_locked_mat } else { energy_open_mat };
+                transparent.push(RenderObject {
+                    position: Vec3::new(cp.x, cp.y - 0.14, cp.z),
+                    rotation: p.rotation,
+                    scale: Vec3::new(0.18, 0.28, 0.06),
+                    mesh,
+                    material: mat,
+                });
+            }
             let dx = cam.x - p.center.x;
             let dz = cam.z - p.center.z;
             let dist = (dx * dx + dz * dz).sqrt(); // horizontal -- the camera's eye height must not count
             // Hysteresis (v0.540): a closed door opens within open_dist; an open one stays open until
             // you back past open_dist + 0.8, so standing near the threshold no longer flickers it.
-            let target = if !operable || p.locked || !p.auto_open {
-                // A fixed pane, a LOCKED door, or a MANUAL door (v0.564) never auto-opens. (A manual
-                // door opens via interaction -- a push / control panel -- a follow-up.)
+            let target = if !operable || p.locked {
+                // A fixed pane or a LOCKED door never opens.
                 0.0
+            } else if !p.auto_open {
+                // A MANUAL door (v0.564) opens only when toggled at its control panel (v0.567).
+                if manual.get(di).copied().unwrap_or(false) { 1.0 } else { 0.0 }
             } else if *open > 0.5 {
                 if dist < p.open_dist + 0.8 { 1.0 } else { 0.0 }
             } else if dist < p.open_dist {
@@ -2753,6 +2778,9 @@ mod native_app {
         /// (systems::door_anim); windows are fixed glass. One cached unit-box mesh + a slab + a glass
         /// material, reused (scaled/rotated/animated per frame), so it never leaks.
         door_panels: Vec<(crate::ship::door_panels::PanelPlacement, f32)>,
+        /// Runtime "opened via its control panel" flag per door (v0.567), parallel to door_panels. A
+        /// MANUAL door with this set opens; the player toggles it at the panel. Reset on rebuild.
+        door_manual_open: Vec<bool>,
         door_panel_mesh: Option<usize>,
         door_slab_mat: Option<usize>,
         door_glass_mat: Option<usize>,
@@ -3369,6 +3397,7 @@ mod native_app {
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
                 door_panels: Vec::new(),
+                door_manual_open: Vec::new(),
                 door_panel_mesh: None,
                 door_slab_mat: None,
                 door_glass_mat: None,
@@ -3645,7 +3674,17 @@ mod native_app {
                         if key == KeyCode::KeyE && pressed
                             && state.gui_state.active_page == GuiPage::None
                         {
-                            if let Some(t) = state.gui_state.targeted_machine {
+                            if let Some(cp) = state.gui_state.targeted_control_panel {
+                                // Looking at a door control panel (v0.567): toggle the manual door it
+                                // drives. A locked door stays shut (unlock is a later panel action).
+                                if let Some(panel) = state.door_panels.get(cp) {
+                                    if !panel.0.locked {
+                                        if let Some(m) = state.door_manual_open.get_mut(cp) {
+                                            *m = !*m;
+                                        }
+                                    }
+                                }
+                            } else if let Some(t) = state.gui_state.targeted_machine {
                                 // Looking at a machine: toggle its card open/closed.
                                 state.gui_state.selected_machine =
                                     if state.gui_state.selected_machine == Some(t) {
@@ -4004,6 +4043,53 @@ mod native_app {
                             }
                         }
                         state.gui_state.targeted_machine = best.map(|b| b.0);
+                    }
+
+                    // Walk-up to a door CONTROL PANEL (v0.567): the nearest panel within arm's reach
+                    // that the player is facing. Drives the "[E] open/close door" prompt; E toggles the
+                    // manual door. Only in first person with no menu open (mirrors the machine walk-up).
+                    {
+                        let cp_pos = state.camera.position;
+                        let cf = state.camera.forward();
+                        let mut best: Option<(usize, f32)> = None;
+                        if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
+                            && !state.gui_state.construction_active
+                            && state.gui_state.active_page == GuiPage::None
+                        {
+                            for (i, (p, _open)) in state.door_panels.iter().enumerate() {
+                                if !p.control_panel || p.auto_open {
+                                    continue;
+                                }
+                                let to = p.control_panel_pos - cp_pos;
+                                let dist = to.length();
+                                if !(0.1..=2.5).contains(&dist) {
+                                    continue;
+                                }
+                                if (to / dist).dot(cf) < 0.55 {
+                                    continue; // not facing the panel (~57-degree cone)
+                                }
+                                if best.map_or(true, |b| dist < b.1) {
+                                    best = Some((i, dist));
+                                }
+                            }
+                        }
+                        state.gui_state.targeted_control_panel = best.map(|b| b.0);
+                        // Precompute the crosshair prompt (the HUD can't see the door's open/locked
+                        // state, which lives here in EngineState). (v0.567)
+                        state.gui_state.control_panel_prompt = match best.map(|b| b.0) {
+                            Some(i) => {
+                                let locked = state.door_panels.get(i).map_or(false, |p| p.0.locked);
+                                let open = state.door_manual_open.get(i).copied().unwrap_or(false);
+                                if locked {
+                                    "[E] door is locked".to_string()
+                                } else if open {
+                                    "[E] close door".to_string()
+                                } else {
+                                    "[E] open door".to_string()
+                                }
+                            }
+                            None => String::new(),
+                        };
                     }
 
                     // Survival environment context: is the player inside the sealed

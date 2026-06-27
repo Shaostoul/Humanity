@@ -38,6 +38,10 @@ pub struct PanelPlacement {
     pub locked: bool,
     /// AUTO-open within open_dist, vs MANUAL (stays shut until acted on). (v0.564)
     pub auto_open: bool,
+    /// This door has a wall-mounted control panel (v0.567); `control_panel_pos` is its world position
+    /// (beside the door at hand height) for the render + the interact raycast.
+    pub control_panel: bool,
+    pub control_panel_pos: Vec3,
 }
 
 /// Compute a PanelPlacement for every opening in the home (world space).
@@ -70,6 +74,21 @@ pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
             // around it (which z-fights); a DOOR fills its aperture so it seals.
             let is_window = op.kind == OpeningKind::Window;
             let inset = if is_window { 0.05 } else { 0.0 };
+            // Control panel beside the door at hand height (v0.567): prefer just past the door's FAR
+            // edge, but if that falls off the wall end, place it past the NEAR edge instead; if the
+            // door spans (almost) the whole wall, centre it. Always lands on the wall span, never
+            // floating in the void past a corner.
+            let far = (op.at + op.width).clamp(0.0, len);
+            let near = op.at.clamp(0.0, len);
+            let s_cp = if far + 0.25 <= len {
+                far + 0.25
+            } else if near - 0.25 >= 0.0 {
+                near - 0.25
+            } else {
+                (far + near) * 0.5
+            };
+            let cp_xz = a + dir * s_cp;
+            let control_panel_pos = Vec3::new(cp_xz.x, 1.2, cp_xz.y);
             out.push(PanelPlacement {
                 center: Vec3::new(c_xz.x, cy + inset * 0.5, c_xz.y),
                 rotation,
@@ -80,6 +99,8 @@ pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
                 open_dist: op.open_dist,
                 locked: op.locked,
                 auto_open: op.auto_open,
+                control_panel: op.control_panel,
+                control_panel_pos,
             });
         }
     }
@@ -118,7 +139,7 @@ mod tests {
             width: 2.0,
             sill: 0.0,
             height: 2.1,
-            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true
+            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
         }]));
         assert_eq!(p.len(), 1);
         // Centre at s = 4 + 1 = 5 along +X; bottom-anchored at the sill (y = 0 for a door).
@@ -138,7 +159,7 @@ mod tests {
             width: 1.5,
             sill: 1.0,
             height: 1.2,
-            style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true
+            style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
         }]));
         assert_eq!(p.len(), 1);
         assert!(p[0].is_window);
@@ -156,7 +177,7 @@ mod tests {
             width: 1.0,
             sill: 0.0,
             height: 2.1,
-            style: "slide".into(), open_dist: 2.6, locked: false, auto_open: true
+            style: "slide".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
         }]);
         home.walls[0].a = (5.0, 0.0);
         home.walls[0].b = (5.0, 10.0); // along +Z
@@ -166,6 +187,53 @@ mod tests {
         let mapped = p[0].rotation * Vec3::X;
         assert!((mapped.z - 1.0).abs() < 1e-4, "wall along +Z yaws local X to world +Z");
         assert!(mapped.y.abs() < 1e-4, "up stays up");
+    }
+
+    #[test]
+    fn a_control_panel_sits_beside_the_door_at_hand_height() {
+        // Door spans s = 4..6 along the +X wall; the panel goes just past the far edge (6) + 0.25 m,
+        // on the wall line, at hand height 1.2 m. (v0.567)
+        let p = panel_placements(&home_with(vec![Opening {
+            kind: OpeningKind::Door,
+            at: 4.0,
+            width: 2.0,
+            sill: 0.0,
+            height: 2.1,
+            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true
+        }]));
+        assert_eq!(p.len(), 1);
+        assert!(p[0].control_panel, "panel flag carried through");
+        let cp = p[0].control_panel_pos;
+        assert!((cp.x - 6.25).abs() < 1e-4, "panel past the far door edge, got x={}", cp.x);
+        assert!((cp.z - 0.0).abs() < 1e-4, "panel on the wall line, got z={}", cp.z);
+        assert!((cp.y - 1.2).abs() < 1e-4, "panel at hand height, got y={}", cp.y);
+    }
+
+    #[test]
+    fn a_control_panel_at_the_wall_end_falls_back_to_the_near_side() {
+        // Door at s = 8..10 -- its far edge IS the wall end (len 10), so far+0.25 would float past the
+        // corner; the panel must fall back to the near edge (8) - 0.25 = 7.75, still on the wall. (v0.567)
+        let p = panel_placements(&home_with(vec![Opening {
+            kind: OpeningKind::Door,
+            at: 8.0,
+            width: 2.0,
+            sill: 0.0,
+            height: 2.1,
+            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true
+        }]));
+        let cp = p[0].control_panel_pos;
+        assert!((cp.x - 7.75).abs() < 1e-4, "panel falls back inside the wall, got x={}", cp.x);
+        assert!(cp.x <= 10.0, "panel never floats past the wall end, got x={}", cp.x);
+    }
+
+    #[test]
+    fn no_control_panel_by_default() {
+        let p = panel_placements(&home_with(vec![Opening {
+            kind: OpeningKind::Door,
+            at: 4.0, width: 2.0, sill: 0.0, height: 2.1,
+            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false
+        }]));
+        assert!(!p[0].control_panel, "no panel unless requested");
     }
 
     #[test]

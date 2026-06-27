@@ -258,6 +258,18 @@ pub fn draw(
                     );
                 }
             }
+            // Door control panel prompt at the crosshair (v0.567): looking at a panel within reach
+            // shows [E] open/close (or "locked"). Precomputed in the walk-up block in lib.rs.
+            if !state.control_panel_prompt.is_empty() {
+                text_shadowed(
+                    painter,
+                    Pos2::new(center.x, center.y + 22.0),
+                    Align2::CENTER_TOP,
+                    &state.control_panel_prompt,
+                    13.0,
+                    theme.accent(),
+                );
+            }
             // Pinned (E-opened) machine card: fixed top-left, stays until E again.
             if let Some(i) = state.selected_machine {
                 if let Some(label) = state.machine_labels.get(i) {
