@@ -1168,7 +1168,7 @@ fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             });
     }
     if changed {
-        // Rebuild the homestead so room_lights pick up the new placed lights (home_lights_or).
+        // Rebuild the homestead so room_lights pick up the new placed lights (home_lights).
         state.construction_structure_dirty = true;
     }
 }
