@@ -5144,10 +5144,17 @@ mod native_app {
                             opening_gizmos(hs)
                         };
                         const S: f32 = 0.35;
-                        for (_, p) in &gizmos {
+                        let hs = state.gui_state.home_structure.as_ref().unwrap();
+                        for (idx, p) in &gizmos {
+                            // Align the cube to ITS wall (v0.560) instead of fixed north/south: rotate
+                            // by the wall's heading so its faces sit square to the wall at any angle.
+                            let yaw = hs
+                                .walls
+                                .get(idx.0)
+                                .map_or(0.0, |w| (w.b.1 - w.a.1).atan2(w.b.0 - w.a.0));
                             all_objects.push(RenderObject {
                                 position: Vec3::new(p.x, p.y - S * 0.5, p.z), // box_xyz y-bottom -> centre
-                                rotation: Quat::IDENTITY,
+                                rotation: Quat::from_rotation_y(-yaw),
                                 scale: Vec3::splat(S),
                                 mesh,
                                 material: mat,
