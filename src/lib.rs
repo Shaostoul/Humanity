@@ -1465,13 +1465,69 @@ mod native_app {
         (x.clamp(0.0, w), z.clamp(0.0, d))
     }
 
+    /// Which build-mode gizmo the cursor is hovering this frame (v0.569), for the hover highlight.
+    /// Mirrors the grab picks (try_grab_node/_char + the opening pick) but is read-only and picks the
+    /// NEAREST gizmo across all three kinds. Returns None while drawing a wall, holding a machine, or
+    /// already dragging (the grabbed one is highlighted instead). Generous pick radii since the orbs
+    /// are tiny (0.05 m).
+    fn compute_construction_hover(state: &EngineState) -> HoverGizmo {
+        if !state.gui_state.construction_active
+            || state.gui_state.construction_wall_mode
+            || state.gui_state.construction_place_type.is_some()
+            || state.construction_node_grab.is_some()
+            || state.construction_opening_grab.is_some()
+            || state.construction_char_grab
+        {
+            return HoverGizmo::None;
+        }
+        let Some(hs) = state.gui_state.home_structure.as_ref() else {
+            return HoverGizmo::None;
+        };
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        // Closest approach of the ray to a point p, returning its forward distance t if within pick_r.
+        let test = |p: Vec3, pick_r: f32| -> Option<f32> {
+            let t = (p - origin).dot(dir);
+            if t < 0.0 {
+                return None;
+            }
+            if (p - (origin + dir * t)).length() < pick_r { Some(t) } else { None }
+        };
+        let mut best_t = f32::INFINITY;
+        let mut best = HoverGizmo::None;
+        for c in unique_corners(hs) {
+            if let Some(t) = test(Vec3::new(c.0, -0.05, c.1), 0.45) {
+                if t < best_t {
+                    best_t = t;
+                    best = HoverGizmo::Corner(c.0, c.1);
+                }
+            }
+        }
+        for (idx, p) in opening_gizmos(hs) {
+            if let Some(t) = test(p, 0.4) {
+                if t < best_t {
+                    best_t = t;
+                    best = HoverGizmo::Opening(idx.0, idx.1);
+                }
+            }
+        }
+        if let Some((cx, cz)) = state.gui_state.build_char_pos {
+            if let Some(t) = test(Vec3::new(cx, 0.7, cz), 0.7) {
+                if t < best_t {
+                    best = HoverGizmo::Char;
+                }
+            }
+        }
+        best
+    }
+
     /// On a build-mode click, try to grab the nearest corner-node gizmo under the cursor (ray vs the
     /// pin position). Returns true if a node was grabbed. (v0.541)
     fn try_grab_node(state: &mut EngineState) -> bool {
         // Compute the gizmo set as owned values so the home_structure borrow ends before the
         // mutable grab assignment below.
         let (top_y, corners) = match state.gui_state.home_structure.as_ref() {
-            Some(hs) => (-0.11, unique_corners(hs)), // orb centre (top-at-floor); matches the render (v0.563)
+            Some(hs) => (-0.05, unique_corners(hs)), // orb centre (top-at-floor); matches the render (v0.568)
             None => return false,
         };
         let sz = state.window.inner_size();
@@ -2663,6 +2719,17 @@ mod native_app {
         ResizeTop,
     }
 
+    /// Which build-mode gizmo the cursor is hovering (v0.569), so a gizmo reads idle -> hover ->
+    /// active (grabbed) by colour, like the menu header buttons. Computed each frame by
+    /// `compute_construction_hover` and consumed by the gizmo render.
+    #[derive(Clone, Copy, PartialEq)]
+    enum HoverGizmo {
+        None,
+        Corner(f32, f32),
+        Opening(usize, usize),
+        Char,
+    }
+
     /// Construction opening-gizmo drag (v0.468, rebuilt v0.469): which room+opening is grabbed,
     /// the captured wall-face plane (so the cursor projects onto the VERTICAL wall, giving u along
     /// + v up), and the grab role. `room_index` indexes `gui_state.construction_rooms` (the editor
@@ -2843,6 +2910,9 @@ mod native_app {
         construction_node_mesh: Option<usize>,
         construction_node_mat: Option<usize>,
         construction_node_mat_hot: Option<usize>,
+        /// Build-mode gizmo HOVER material (v0.569): a brightened idle colour shown on the gizmo the
+        /// cursor is over (idle -> hover -> active, like the header buttons).
+        construction_node_mat_hover: Option<usize>,
         /// Build-mode player avatar (v0.557): whether its pyramid gizmo is grabbed, plus its cached
         /// body box / pyramid-gizmo meshes + material.
         construction_char_grab: bool,
@@ -3410,6 +3480,7 @@ mod native_app {
                 construction_node_mesh: None,
                 construction_node_mat: None,
                 construction_node_mat_hot: None,
+                construction_node_mat_hover: None,
                 construction_char_grab: false,
                 construction_char_mesh: None,
                 construction_char_pyramid_mesh: None,
@@ -5059,9 +5130,13 @@ mod native_app {
                         }
                     }
 
+                    // Which build-mode gizmo the cursor is hovering this frame (v0.569) -- drives the
+                    // hover highlight on the corner orbs, the opening cubes, and the avatar pyramid.
+                    let hover = compute_construction_hover(state);
+
                     // Corner-node gizmos (v0.541): a bright pin above each wall corner in BUILD MODE.
                     // Click + drag one to reposition the corner (walls sharing it move together) with
-                    // snapping; the grabbed one is highlighted + larger. Cached sphere mesh + two
+                    // snapping; idle -> hover -> active (grabbed) by colour. Cached sphere mesh + three
                     // materials, reused -- no per-frame allocation.
                     if state.gui_state.construction_active && state.gui_state.home_structure.is_some() {
                         if state.construction_node_mesh.is_none() {
@@ -5078,9 +5153,16 @@ mod native_app {
                             let m = state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.3, 0.0, 1.0);
                             state.construction_node_mat_hot = Some(m);
                         }
+                        if state.construction_node_mat_hover.is_none() {
+                            // theme-exempt: hover highlight -- brighter/whiter than idle, calmer than the
+                            // active RGB cycle (idle yellow -> hover cream -> active RGB).
+                            let m = state.renderer.add_material_full([1.0, 0.96, 0.62, 1.0], 0.0, 0.35, 0.0, 0.95);
+                            state.construction_node_mat_hover = Some(m);
+                        }
                         let node_mesh = state.construction_node_mesh.unwrap();
                         let node_mat = state.construction_node_mat.unwrap();
                         let hot_mat = state.construction_node_mat_hot.unwrap();
+                        let hover_mat = state.construction_node_mat_hover.unwrap();
                         // RGB-cycle the ACTIVE (grabbed/selected) gizmo material like the menu header
                         // buttons (v0.562). Only HOT gizmos use this material, so static ones keep
                         // their colour. door_anim_time advances each build-mode frame (with doors).
@@ -5094,16 +5176,17 @@ mod native_app {
                         };
                         for c in &corners {
                             let hot = grabbed.map_or(false, |g| (g.0 - c.0).abs() < 0.05 && (g.1 - c.1).abs() < 0.05);
+                            let hovered = hover == HoverGizmo::Corner(c.0, c.1);
                             let r = 0.05; // operator: orbs at 0.05 m; state shown by COLOUR (active = RGB), not size
                             // The orb's TOP touches the wall-corner BASE (operator note): centre at -r
                             // so the top vertex is at the floor. Overlay pass -> visible through walls
-                            // + the floor it sits under. (v0.560)
+                            // + the floor it sits under. (v0.560). Idle -> hover -> active by colour (v0.569).
                             overlay_objects.push(RenderObject {
                                 position: Vec3::new(c.0, -r, c.1),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::splat(r),
                                 mesh: node_mesh,
-                                material: if hot { hot_mat } else { node_mat },
+                                material: if hot { hot_mat } else if hovered { hover_mat } else { node_mat },
                             });
                             // Ground angle-circle (v0.568): a constant-width LINE circle (line::push_circle
                             // into ring_lines, like the orbit paths) instead of a polygon ring whose band
@@ -5159,12 +5242,20 @@ mod native_app {
                                 let m = state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.3, 0.0, 1.0);
                                 state.construction_node_mat_hot = Some(m);
                             }
+                            if state.construction_node_mat_hover.is_none() {
+                                // theme-exempt: hover highlight.
+                                let m = state.renderer.add_material_full([1.0, 0.96, 0.62, 1.0], 0.0, 0.35, 0.0, 0.95);
+                                state.construction_node_mat_hover = Some(m);
+                            }
                             let body_mesh = state.construction_char_mesh.unwrap();
                             let pyr_mesh = state.construction_char_pyramid_mesh.unwrap();
                             let head_mesh = state.construction_node_mesh.unwrap();
                             let char_mat = state.construction_char_mat.unwrap();
+                            // Pyramid handle: idle -> hover -> active (grabbed) by colour (v0.569).
                             let pyr_mat = if state.construction_char_grab {
                                 state.construction_node_mat_hot.unwrap()
+                            } else if hover == HoverGizmo::Char {
+                                state.construction_node_mat_hover.unwrap()
                             } else {
                                 state.construction_node_mat.unwrap()
                             };
@@ -5211,6 +5302,11 @@ mod native_app {
                         }
                         let mesh = state.construction_opening_mesh.unwrap();
                         let mat = state.construction_opening_mat.unwrap();
+                        // Grabbed/hover highlight materials (created by the corner block, which runs first
+                        // under the same condition). Idle cyan -> hover cream -> active RGB. (v0.569)
+                        let hot_mat = state.construction_node_mat_hot.unwrap();
+                        let hover_mat = state.construction_node_mat_hover.unwrap();
+                        let grabbed_op = state.construction_opening_grab;
                         let gizmos = {
                             let hs = state.gui_state.home_structure.as_ref().unwrap();
                             opening_gizmos(hs)
@@ -5224,12 +5320,19 @@ mod native_app {
                                 .walls
                                 .get(idx.0)
                                 .map_or(0.0, |w| (w.b.1 - w.a.1).atan2(w.b.0 - w.a.0));
+                            let m = if grabbed_op == Some(*idx) {
+                                hot_mat
+                            } else if hover == HoverGizmo::Opening(idx.0, idx.1) {
+                                hover_mat
+                            } else {
+                                mat
+                            };
                             all_objects.push(RenderObject {
                                 position: Vec3::new(p.x, p.y - S * 0.5, p.z), // box_xyz y-bottom -> centre
                                 rotation: Quat::from_rotation_y(-yaw),
                                 scale: Vec3::splat(S),
                                 mesh,
-                                material: mat,
+                                material: m,
                             });
                         }
                     }

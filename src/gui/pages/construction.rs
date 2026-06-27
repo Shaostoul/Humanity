@@ -628,94 +628,105 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .resizable(true)
         .default_width(238.0)
         .show(ctx, |ui| {
-            ui.add_space(theme.spacing_md);
-            ui.label(RichText::new("Home structure").size(theme.font_size_body).strong().color(theme.text_primary()));
-            if let Some(hs) = &state.home_structure {
-                ui.label(RichText::new(format!("Fixed box  {:.0} x {:.0} x {:.0} m", hs.width, hs.depth, hs.height))
-                    .size(theme.font_size_small).color(theme.text_muted()));
-            }
-            ui.add_space(theme.spacing_sm);
+            // Pin Save/Close at the BOTTOM so they never get pushed off-screen no matter how many
+            // walls/machines/connections the home has (operator, v0.569). Declared before the scroll
+            // so egui reserves its space; the scrollable content fills what remains above it.
+            egui::TopBottomPanel::bottom("hs_left_actions")
+                .frame(egui::Frame::none())
+                .show_inside(ui, |ui| {
+                    ui.add_space(theme.spacing_xs);
+                    ui.separator();
+                    ui.add_space(theme.spacing_xs);
+                    if ui.button(RichText::new("Save home").color(theme.text_primary())).clicked() {
+                        state.construction_save = true;
+                    }
+                    if ui.button(RichText::new("Close").color(theme.text_muted())).clicked() {
+                        state.construction_wall_mode = false;
+                        state.construction_wall_start = None;
+                        state.construction_place_type = None;
+                        state.construction_active = false;
+                    }
+                    ui.add_space(theme.spacing_xs);
+                });
 
-            // The wall-drawing tool: a toggle that lets the floor clicks drop corner nodes.
-            let mode = state.construction_wall_mode;
-            let label = if mode { "Stop drawing" } else { "Add wall" };
-            let mut btn = egui::Button::new(
-                RichText::new(label).color(if mode { theme.bg_primary() } else { theme.text_primary() }),
-            );
-            if mode {
-                btn = btn.fill(theme.accent());
-            }
-            if ui.add(btn).clicked() {
-                state.construction_wall_mode = !mode;
-                state.construction_wall_start = None;
-                state.construction_place_type = None; // can't hold a machine + draw a wall at once
-            }
-            if state.construction_wall_mode {
-                let hint = if state.construction_wall_start.is_some() {
-                    "Click the next corner. Right-click to finish."
+            egui::ScrollArea::vertical().id_salt("hs_left_scroll").show(ui, |ui| {
+                ui.add_space(theme.spacing_md);
+                ui.label(RichText::new("Home structure").size(theme.font_size_body).strong().color(theme.text_primary()));
+                if let Some(hs) = &state.home_structure {
+                    ui.label(RichText::new(format!("Fixed box  {:.0} x {:.0} x {:.0} m", hs.width, hs.depth, hs.height))
+                        .size(theme.font_size_small).color(theme.text_muted()));
+                }
+                ui.add_space(theme.spacing_sm);
+
+                // The wall-drawing tool: a toggle that lets the floor clicks drop corner nodes.
+                let mode = state.construction_wall_mode;
+                let label = if mode { "Stop drawing" } else { "Add wall" };
+                let mut btn = egui::Button::new(
+                    RichText::new(label).color(if mode { theme.bg_primary() } else { theme.text_primary() }),
+                );
+                if mode {
+                    btn = btn.fill(theme.accent());
+                }
+                if ui.add(btn).clicked() {
+                    state.construction_wall_mode = !mode;
+                    state.construction_wall_start = None;
+                    state.construction_place_type = None; // can't hold a machine + draw a wall at once
+                }
+                if state.construction_wall_mode {
+                    let hint = if state.construction_wall_start.is_some() {
+                        "Click the next corner. Right-click to finish."
+                    } else {
+                        "Click the first corner on the floor."
+                    };
+                    ui.label(RichText::new(hint).size(theme.font_size_small).color(theme.accent()));
                 } else {
-                    "Click the first corner on the floor."
-                };
-                ui.label(RichText::new(hint).size(theme.font_size_small).color(theme.accent()));
-            } else {
-                ui.label(RichText::new("Drag the pins above the wall corners to move them; corners that meet move together.")
-                    .size(theme.font_size_small).color(theme.text_muted()));
-            }
-            // Grid snap toggle (v0.541): endpoint + edge snapping are always on (airtight seals); this
-            // toggles the 0.25 m grid.
-            ui.checkbox(&mut state.construction_grid_snap, RichText::new("Grid snap (0.25 m)").size(theme.font_size_small).color(theme.text_primary()));
-            // Dev overlay (v0.547): keep the dimension overlay + door interaction rings visible in
-            // normal play, not just in the editor.
-            ui.checkbox(&mut state.construction_dev_overlay, RichText::new("Dev overlay in play").size(theme.font_size_small).color(theme.text_primary()));
-            ui.add_space(theme.spacing_sm);
+                    ui.label(RichText::new("Drag the pins above the wall corners to move them; corners that meet move together.")
+                        .size(theme.font_size_small).color(theme.text_muted()));
+                }
+                // Grid snap toggle (v0.541): endpoint + edge snapping are always on (airtight seals);
+                // this toggles the 0.25 m grid.
+                ui.checkbox(&mut state.construction_grid_snap, RichText::new("Grid snap (0.25 m)").size(theme.font_size_small).color(theme.text_primary()));
+                // Dev overlay (v0.547): keep the dimension overlay + door interaction rings visible in
+                // normal play, not just in the editor.
+                ui.checkbox(&mut state.construction_dev_overlay, RichText::new("Dev overlay in play").size(theme.font_size_small).color(theme.text_primary()));
+                ui.add_space(theme.spacing_sm);
 
-            // The interior-wall list (click to select for editing; Remove deletes).
-            let n = state.home_structure.as_ref().map_or(0, |h| h.walls.len());
-            ui.label(RichText::new(format!("{n} interior wall(s)")).size(theme.font_size_small).color(theme.text_muted()));
-            ui.add_space(theme.spacing_xs);
-            egui::ScrollArea::vertical().id_salt("hs_wall_list").max_height(260.0).show(ui, |ui| {
-                let mut remove: Option<usize> = None;
-                for i in 0..n {
-                    let (a, b) = state.home_structure.as_ref().map(|h| (h.walls[i].a, h.walls[i].b)).unwrap();
-                    let selected = state.construction_wall_selected == Some(i);
-                    ui.horizontal(|ui| {
-                        let lbl = format!("{}: ({:.0},{:.0})->({:.0},{:.0})", i + 1, a.0, a.1, b.0, b.1);
-                        if ui.selectable_label(selected, RichText::new(lbl).size(theme.font_size_small)).clicked() {
-                            state.construction_wall_selected = Some(i);
-                            state.construction_machine_selected = None;
+                // Interior walls -- a collapsible section (v0.569) so a long list folds away.
+                let n = state.home_structure.as_ref().map_or(0, |h| h.walls.len());
+                egui::CollapsingHeader::new(RichText::new(format!("Interior walls ({n})")).strong().color(theme.text_primary()))
+                    .id_salt("hs_walls_sec")
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        let mut remove: Option<usize> = None;
+                        for i in 0..n {
+                            let (a, b) = state.home_structure.as_ref().map(|h| (h.walls[i].a, h.walls[i].b)).unwrap();
+                            let selected = state.construction_wall_selected == Some(i);
+                            ui.horizontal(|ui| {
+                                let lbl = format!("{}: ({:.0},{:.0})->({:.0},{:.0})", i + 1, a.0, a.1, b.0, b.1);
+                                if ui.selectable_label(selected, RichText::new(lbl).size(theme.font_size_small)).clicked() {
+                                    state.construction_wall_selected = Some(i);
+                                    state.construction_machine_selected = None;
+                                }
+                                if ui.small_button("Remove").clicked() {
+                                    remove = Some(i);
+                                }
+                            });
                         }
-                        if ui.small_button("Remove").clicked() {
-                            remove = Some(i);
+                        if let Some(i) = remove {
+                            if let Some(hs) = state.home_structure.as_mut() {
+                                if i < hs.walls.len() {
+                                    hs.walls.remove(i);
+                                }
+                            }
+                            state.construction_wall_selected = None;
+                            state.construction_structure_dirty = true;
                         }
                     });
-                }
-                if let Some(i) = remove {
-                    if let Some(hs) = state.home_structure.as_mut() {
-                        if i < hs.walls.len() {
-                            hs.walls.remove(i);
-                        }
-                    }
-                    state.construction_wall_selected = None;
-                    state.construction_structure_dirty = true;
-                }
+
+                // Machines + utility-line connections (v0.536): collapsible sections (v0.569), the
+                // connections grouped by utility kind.
+                draw_machines_and_connections(ui, theme, state);
             });
-
-            // Machines + connections (v0.536): place machines from the footer palette, then wire
-            // them here -- each connection routes as a copper/flexible conduit with brackets + gaskets.
-            draw_machines_and_connections(ui, theme, state);
-
-            ui.add_space(theme.spacing_md);
-            ui.separator();
-            ui.add_space(theme.spacing_sm);
-            if ui.button(RichText::new("Save home").color(theme.text_primary())).clicked() {
-                state.construction_save = true;
-            }
-            if ui.button(RichText::new("Close").color(theme.text_muted())).clicked() {
-                state.construction_wall_mode = false;
-                state.construction_wall_start = None;
-                state.construction_place_type = None;
-                state.construction_active = false;
-            }
         });
 
     // ── RIGHT: the selected wall's corners + openings (doors/windows with animation styles) ──
@@ -1041,10 +1052,7 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         if p.len() >= 2 { format!("{}_{}", p[p.len() - 2], p[p.len() - 1]) } else { s.to_string() }
     }
 
-    ui.add_space(theme.spacing_md);
-    ui.separator();
     ui.add_space(theme.spacing_sm);
-    ui.label(RichText::new("Machines").strong().color(theme.text_primary()));
 
     // Snapshot the placed machines (id, type, room) for the list + the connection combos.
     let machines: Vec<(String, String, String)> = state
@@ -1052,101 +1060,130 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         .as_ref()
         .map(|h| h.all_instances().into_iter().map(|i| (i.id, i.machine, i.room)).collect())
         .unwrap_or_default();
-    if machines.is_empty() {
-        ui.label(RichText::new("None yet -- pick one from the palette below and click the floor.")
-            .size(theme.font_size_small).color(theme.text_muted()));
-    } else {
-        ui.label(RichText::new(format!("{} placed", machines.len())).size(theme.font_size_small).color(theme.text_muted()));
-        let mut remove_machine: Option<String> = None;
-        egui::ScrollArea::vertical().id_salt("hs_machine_list").max_height(110.0).show(ui, |ui| {
-            for (id, mtype, room) in &machines {
-                ui.horizontal(|ui| {
-                    // Click selects (v0.553): its detail shows on the right panel, like the viewport.
-                    let sel = state.construction_machine_selected.as_deref() == Some(id.as_str());
-                    if ui.selectable_label(sel, RichText::new(format!("{mtype}  ({room})")).size(theme.font_size_small)).clicked() {
-                        state.construction_machine_selected = Some(id.clone());
-                        state.construction_wall_selected = None;
-                    }
-                    if ui.small_button("x").clicked() {
-                        remove_machine = Some(id.clone());
+
+    // ── Machines (collapsible, v0.569) -- a big list (the showroom home has 100+) folds away;
+    // default it CLOSED past two dozen so it doesn't dominate the panel.
+    egui::CollapsingHeader::new(RichText::new(format!("Machines ({})", machines.len())).strong().color(theme.text_primary()))
+        .id_salt("hs_machines_sec")
+        .default_open(machines.len() <= 24)
+        .show(ui, |ui| {
+            if machines.is_empty() {
+                ui.label(RichText::new("None yet -- pick one from the palette below and click the floor.")
+                    .size(theme.font_size_small).color(theme.text_muted()));
+            } else {
+                let mut remove_machine: Option<String> = None;
+                egui::ScrollArea::vertical().id_salt("hs_machine_list").max_height(160.0).show(ui, |ui| {
+                    for (id, mtype, room) in &machines {
+                        ui.horizontal(|ui| {
+                            // Click selects (v0.553): its detail shows on the right panel.
+                            let sel = state.construction_machine_selected.as_deref() == Some(id.as_str());
+                            if ui.selectable_label(sel, RichText::new(format!("{mtype}  ({room})")).size(theme.font_size_small)).clicked() {
+                                state.construction_machine_selected = Some(id.clone());
+                                state.construction_wall_selected = None;
+                            }
+                            if ui.small_button("x").clicked() {
+                                remove_machine = Some(id.clone());
+                            }
+                        });
                     }
                 });
-            }
-        });
-        if let Some(id) = remove_machine {
-            if let Some(h) = state.home_machines.as_mut() {
-                h.remove_instance(&id);
-            }
-            state.construction_machines_dirty = true;
-        }
-    }
-
-    ui.add_space(theme.spacing_sm);
-    ui.label(RichText::new("Connections").strong().color(theme.text_primary()));
-    if machines.len() >= 2 {
-        if state.home_conn_from.is_empty() {
-            state.home_conn_from = machines[0].0.clone();
-        }
-        if state.home_conn_to.is_empty() {
-            state.home_conn_to = machines[1].0.clone();
-        }
-        ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("hs_conn_from").width(68.0).selected_text(label(&state.home_conn_from)).show_ui(ui, |ui| {
-                for (id, _, _) in &machines {
-                    ui.selectable_value(&mut state.home_conn_from, id.clone(), label(id));
-                }
-            });
-            ui.label("->");
-            egui::ComboBox::from_id_salt("hs_conn_to").width(68.0).selected_text(label(&state.home_conn_to)).show_ui(ui, |ui| {
-                for (id, _, _) in &machines {
-                    ui.selectable_value(&mut state.home_conn_to, id.clone(), label(id));
-                }
-            });
-        });
-        ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("hs_conn_kind").width(82.0).selected_text(state.home_conn_kind.clone()).show_ui(ui, |ui| {
-                for k in ["water", "power", "greywater", "gas"] {
-                    ui.selectable_value(&mut state.home_conn_kind, k.to_string(), k);
-                }
-            });
-            if ui.button("Connect").clicked() {
-                let (from, to, kind) = (state.home_conn_from.clone(), state.home_conn_to.clone(), state.home_conn_kind.clone());
-                if from != to && !from.is_empty() && !to.is_empty() {
+                if let Some(id) = remove_machine {
                     if let Some(h) = state.home_machines.as_mut() {
-                        h.add_connection(&from, &to, &kind);
+                        h.remove_instance(&id);
                     }
                     state.construction_machines_dirty = true;
                 }
             }
         });
-    } else {
-        ui.label(RichText::new("Place at least two machines to wire them.").size(theme.font_size_small).color(theme.text_muted()));
-    }
 
-    // The connection list (resource: from -> to), each removable.
+    // ── Utility lines / connections (collapsible, grouped by kind, v0.569). The operator wanted
+    // "utility lines for gas, liquid, solids, electricity": each kind is its own sub-section.
     let conns: Vec<(String, String, String)> = state
         .home_machines
         .as_ref()
         .map(|h| h.connections.iter().map(|c| (c.from.clone(), c.to.clone(), c.kind.clone())).collect())
         .unwrap_or_default();
-    if !conns.is_empty() {
-        let mut remove_conn: Option<usize> = None;
-        for (i, (from, to, kind)) in conns.iter().enumerate() {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("{kind}: {} -> {}", label(from), label(to)))
-                    .size(theme.font_size_small).color(theme.text_muted()));
-                if ui.small_button("x").clicked() {
-                    remove_conn = Some(i);
+    egui::CollapsingHeader::new(RichText::new(format!("Utility lines ({})", conns.len())).strong().color(theme.text_primary()))
+        .id_salt("hs_conns_sec")
+        .default_open(true)
+        .show(ui, |ui| {
+            // The wire tool: from -> to + kind + Connect.
+            if machines.len() >= 2 {
+                if state.home_conn_from.is_empty() {
+                    state.home_conn_from = machines[0].0.clone();
                 }
-            });
-        }
-        if let Some(i) = remove_conn {
-            if let Some(h) = state.home_machines.as_mut() {
-                h.remove_connection(i);
+                if state.home_conn_to.is_empty() {
+                    state.home_conn_to = machines[1].0.clone();
+                }
+                ui.horizontal(|ui| {
+                    egui::ComboBox::from_id_salt("hs_conn_from").width(68.0).selected_text(label(&state.home_conn_from)).show_ui(ui, |ui| {
+                        for (id, _, _) in &machines {
+                            ui.selectable_value(&mut state.home_conn_from, id.clone(), label(id));
+                        }
+                    });
+                    ui.label("->");
+                    egui::ComboBox::from_id_salt("hs_conn_to").width(68.0).selected_text(label(&state.home_conn_to)).show_ui(ui, |ui| {
+                        for (id, _, _) in &machines {
+                            ui.selectable_value(&mut state.home_conn_to, id.clone(), label(id));
+                        }
+                    });
+                });
+                ui.horizontal(|ui| {
+                    egui::ComboBox::from_id_salt("hs_conn_kind").width(82.0).selected_text(state.home_conn_kind.clone()).show_ui(ui, |ui| {
+                        for k in ["water", "power", "greywater", "gas"] {
+                            ui.selectable_value(&mut state.home_conn_kind, k.to_string(), k);
+                        }
+                    });
+                    if ui.button("Connect").clicked() {
+                        let (from, to, kind) = (state.home_conn_from.clone(), state.home_conn_to.clone(), state.home_conn_kind.clone());
+                        if from != to && !from.is_empty() && !to.is_empty() {
+                            if let Some(h) = state.home_machines.as_mut() {
+                                h.add_connection(&from, &to, &kind);
+                            }
+                            state.construction_machines_dirty = true;
+                        }
+                    }
+                });
+            } else {
+                ui.label(RichText::new("Place at least two machines to wire them.").size(theme.font_size_small).color(theme.text_muted()));
             }
-            state.construction_machines_dirty = true;
-        }
-    }
+
+            // The existing lines, grouped under a sub-section per utility kind, each removable.
+            if conns.is_empty() {
+                ui.label(RichText::new("No lines yet.").size(theme.font_size_small).color(theme.text_muted()));
+            } else {
+                let mut kinds: Vec<String> = conns.iter().map(|(_, _, k)| k.clone()).collect();
+                kinds.sort();
+                kinds.dedup();
+                let mut remove_conn: Option<usize> = None;
+                for k in &kinds {
+                    let count = conns.iter().filter(|(_, _, ck)| ck == k).count();
+                    egui::CollapsingHeader::new(RichText::new(format!("{k} ({count})")).color(theme.text_secondary()))
+                        .id_salt(format!("hs_conn_kind_{k}"))
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            for (i, (from, to, kind)) in conns.iter().enumerate() {
+                                if kind != k {
+                                    continue;
+                                }
+                                ui.horizontal(|ui| {
+                                    ui.label(RichText::new(format!("{} -> {}", label(from), label(to)))
+                                        .size(theme.font_size_small).color(theme.text_muted()));
+                                    if ui.small_button("x").clicked() {
+                                        remove_conn = Some(i);
+                                    }
+                                });
+                            }
+                        });
+                }
+                if let Some(i) = remove_conn {
+                    if let Some(h) = state.home_machines.as_mut() {
+                        h.remove_connection(i);
+                    }
+                    state.construction_machines_dirty = true;
+                }
+            }
+        });
 }
 
 /// The placement palette (v0.527): a game-style footer bar. Category tabs across the top, then a
