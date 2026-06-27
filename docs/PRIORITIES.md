@@ -129,15 +129,34 @@
 > > "[E] open/close door"; manual door's open target reads a per-door flag, collision follows it). All
 > > native+relay green, ship/door tests + lints green, exes archived; v0.567 adversarially reviewed (4
 > > fixes: flag-reset-on-rebuild, panel wall-end fallback, manual-only + no-menu gating).
+> > **WAVE v0.568-571 SHIPPED (the big multi-topic feedback batch, 2026-06-27).** v0.568 all gizmo
+> > BOUNDS are constant-width LINE circles via a reusable `line::push_circle`/`push_polyline` primitive
+> > (docs/design/line-overlays.md saves the idea for grenade-arc / laser reuse) + orbs to 0.05 m; v0.569
+> > collapsible nested left panel (walls / machines / utility-lines-by-kind) with Save/Close PINNED +
+> > gizmo HOVER states (idle->hover->active) on orbs/cubes/pyramid; v0.570 data-driven door LOCKS Stage 1
+> > (lock_types.ron key/keypad/knob/crank/biometric; Opening.locks generalizes locked:bool; control-panel
+> > unlock; docs/design/locks.md staged plan); v0.571 data-driven local LIGHTS Stage 1 (light_types.ron,
+> > HomeStructure.lights, GI-off toggle) + a fix to a pre-existing renderer CLOBBER (point lights never lit
+> > the interior; now the Renderer stores live light state + injects via lit_uniform). All adversarially
+> > reviewed; native+relay+lints+tests green; exes archived.
+> > **THE remaining big wave item -- NODE-BASED CONDUITS (grounded, deferred, ranked LAST):** the operator
+> > wants pipes/conduits as a node GRAPH (main/sub/subsub lines; edit nodes, software auto-routes the mesh)
+> > replacing the delete-only connection list. Plan in the ground-construction-systems workflow output;
+> > synthesis ranked it last (biggest system, most borrow churn, no urgent pull now the collapsible panel
+> > shipped). Build when the operator calls it.
 > > **STILL OPEN (operator-requested, none blocking):**
-> > - **Door-content system** -- data-driven multi-PART doors (parts + per-part materials + animation) for
-> >   a premade catalog, custom/stained-glass, REAL iris doors (sliding petals -- the operator flagged the
-> >   current iris as "totally wrong"), revolving/spinning doors. The big remaining door feature.
-> > - **Control-panel actions beyond open/close** -- lock/unlock, emergency power, hack (v0.567 does
-> >   open/close only; a LOCKED manual door with a panel is currently un-openable in-world).
+> > - **Locks Stages 2-5** (knob/crank + key-item gating; lockpick/hack; wall-mounted locks; shoot/blow ->
+> >   needs destructibility). docs/design/locks.md.
+> > - **Lighting Stages 2+** -- real spot CONES + bar AREA shading (shader maths), emissive-surface-as-light
+> >   (harvest the energy-door / lock-indicator glow), click-to-place, >8-light culling. NOTE: the v0.571
+> >   renderer fix makes point lights + the real sun direction reach the interior for the FIRST time --
+> >   launch-test the home still looks right with GI ON.
+> > - **Door-content system** -- data-driven multi-PART doors for a premade catalog, custom/stained-glass,
+> >   REAL iris doors (sliding petals -- operator: the current iris is "totally wrong"), revolving doors.
+> > - **Control-panel actions beyond open/close** -- emergency power, hack (lock/unlock now ships in v0.570).
 > > - **nanowall = animated water CAUSTICS** (not the current uniform pulse; shader, ref image given).
 > > - **door/wall LABELS** with on-door / on-wall / both placement + a draggable position gizmo.
-> > - **Destructibility Stage 3** (HP/physics) -- per the deferral above (re-derive the formula first).
+> > - **Destructibility Stage 3** (HP/physics) -- re-derive the formula first; Locks Stage 5 hooks it.
 
 > **ACTIVE 2026-06-23: HOME-DESIGN AI/PLAYER PARITY arc (operator-directed).** Make the AI's
 > home designs use the SAME machinery players build with, so they're inherently player-workable
