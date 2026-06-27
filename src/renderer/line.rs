@@ -23,6 +23,38 @@ pub struct LineVertex {
     pub color: [f32; 4],
 }
 
+/// Append a horizontal CIRCLE (in the XZ plane) centred at `center`, radius `radius`, as `segments`
+/// connected line segments, into `out`. (v0.568)
+///
+/// This is the reusable form of the "orbit path" primitive the operator asked us to keep handy: a
+/// constant-width world-space line that stays ~1px regardless of how far away or how large it is
+/// (unlike a polygon ring/strip, whose band thickness scales with its radius). Use it for any
+/// floor/boundary ring -- a door's auto-open radius, a gizmo's reach, an area-of-effect marker.
+pub fn push_circle(out: &mut Vec<LineVertex>, center: [f32; 3], radius: f32, color: [f32; 4], segments: usize) {
+    let n = segments.max(3);
+    let mut prev = [center[0] + radius, center[1], center[2]];
+    for i in 1..=n {
+        let a = (i as f32 / n as f32) * std::f32::consts::TAU;
+        let cur = [center[0] + a.cos() * radius, center[1], center[2] + a.sin() * radius];
+        out.push(LineVertex { position: prev, color });
+        out.push(LineVertex { position: cur, color });
+        prev = cur;
+    }
+}
+
+/// Append a POLYLINE (an open connected path) through `points` as line segments into `out`. (v0.568)
+///
+/// The same constant-width primitive for an ARBITRARY 3D trajectory rather than a circle -- the path a
+/// thrown grenade will arc along before you throw it, a gun's laser-pointer beam, a planned travel
+/// route, a constellation. Open (does not close back to the first point); pass a closed point list if
+/// you want a loop.
+pub fn push_polyline(out: &mut Vec<LineVertex>, points: &[[f32; 3]], color: [f32; 4]) {
+    for w in points.windows(2) {
+        out.push(LineVertex { position: w[0], color });
+        out.push(LineVertex { position: w[1], color });
+    }
+}
+
 impl LineVertex {
     pub fn layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
@@ -80,6 +112,31 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     return in.color;
 }
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn circle_emits_two_verts_per_segment_starting_at_plus_x() {
+        let mut v = Vec::new();
+        push_circle(&mut v, [2.0, 0.5, -3.0], 1.0, [1.0, 1.0, 1.0, 1.0], 8);
+        assert_eq!(v.len(), 16, "8 segments -> 16 line verts");
+        // The ring starts at center + (radius, 0, 0) and stays in the y plane.
+        assert!((v[0].position[0] - 3.0).abs() < 1e-5 && (v[0].position[1] - 0.5).abs() < 1e-5);
+        // It closes: the last endpoint returns to the start.
+        assert!((v[15].position[0] - 3.0).abs() < 1e-4 && (v[15].position[2] + 3.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn polyline_connects_consecutive_points() {
+        let mut v = Vec::new();
+        push_polyline(&mut v, &[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 1.0]], [1.0; 4]);
+        assert_eq!(v.len(), 4, "3 points -> 2 segments -> 4 verts");
+        assert_eq!(v[1].position, [1.0, 0.0, 0.0]);
+        assert_eq!(v[2].position, [1.0, 0.0, 0.0]);
+    }
+}
 
 /// Build the world-space line pipeline. `camera_bgl` is the SAME
 /// group(0) layout the main PBR pipeline uses, so the existing

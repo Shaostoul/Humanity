@@ -1085,21 +1085,8 @@ mod native_app {
         state.renderer.update_material_full(nanowall_mat, [g * 0.94, g, g * 1.06, 0.60], 0.85, 0.10 + 0.08 * shimmer, 1.0, 0.08 + 0.16 * shimmer);
         let cam = state.camera.position;
         // v0.547: per-door open distance. The interaction ring shows it in build mode / dev overlay.
+        // The ring is a constant-width LINE circle now (v0.568), so there is no polygon-ring mesh.
         let show_widgets = state.gui_state.construction_active || state.gui_state.construction_dev_overlay;
-        let (ring_mesh, ring_mat) = if show_widgets {
-            if state.construction_ring_mesh.is_none() {
-                let m = state.renderer.add_mesh(Mesh::flat_ring(&state.renderer.device, 64));
-                state.construction_ring_mesh = Some(m);
-            }
-            if state.construction_ring_mat.is_none() {
-                // theme-exempt: editor overlay ring, translucent cyan.
-                let m = state.renderer.add_material_full([0.3, 0.85, 1.0, 0.5], 0.0, 0.5, 0.0, 0.4);
-                state.construction_ring_mat = Some(m);
-            }
-            (state.construction_ring_mesh, state.construction_ring_mat)
-        } else {
-            (None, None)
-        };
         // Frame-rate-independent exponential ease toward the target (v0.540): smooth open/close,
         // no linear stepping, no extra keyframes. ~0.3 s to settle.
         let ease = 1.0 - (-dt.max(0.0) * 9.0).exp();
@@ -1115,17 +1102,10 @@ mod native_app {
             // (v0.565, operator's idea -- like the orbit paths) so its width is CONSTANT regardless of
             // radius, instead of a polygon strip that thickened as open_dist grew.
             if show_widgets && operable && p.auto_open {
-                let _ = (ring_mesh, ring_mat); // kept for the corner angle-circles
-                const N: usize = 72;
                 const RING_COL: [f32; 4] = [0.35, 0.85, 1.0, 0.9]; // cyan
-                let mut prev = [p.center.x + p.open_dist, 0.04, p.center.z];
-                for i in 1..=N {
-                    let a = (i as f32 / N as f32) * std::f32::consts::TAU;
-                    let cur = [p.center.x + a.cos() * p.open_dist, 0.04, p.center.z + a.sin() * p.open_dist];
-                    ring_lines.push(crate::renderer::line::LineVertex { position: prev, color: RING_COL });
-                    ring_lines.push(crate::renderer::line::LineVertex { position: cur, color: RING_COL });
-                    prev = cur;
-                }
+                crate::renderer::line::push_circle(
+                    ring_lines, [p.center.x, 0.04, p.center.z], p.open_dist, RING_COL, 72,
+                );
             }
             // Wall-mounted CONTROL PANEL beside a manual/controlled door (v0.567): a glowing tech panel
             // the player walks up to and presses E. Green while openable, red while LOCKED. Routed to the
@@ -2791,11 +2771,6 @@ mod native_app {
         door_nanowall_mat: Option<usize>,
         /// Accumulated time (s) driving the nanowall's shifting "water" shimmer. (v0.554)
         door_anim_time: f32,
-        /// Cached flat-ring mesh + translucent material for the door interaction-distance ground ring
-        /// (v0.547), shown in build mode (or when the dev overlay is on), scaled by each door's
-        /// open_dist.
-        construction_ring_mesh: Option<usize>,
-        construction_ring_mat: Option<usize>,
         /// Index in `placeholder_objects` where the player avatar's parts begin (the avatar
         /// is added last in load_world). Lets the showroom render only the avatar + rebuild
         /// it on appearance change by truncating to this index. (v0.441)
@@ -3405,8 +3380,6 @@ mod native_app {
                 door_energy_locked_mat: None,
                 door_nanowall_mat: None,
                 door_anim_time: 0.0,
-                construction_ring_mesh: None,
-                construction_ring_mat: None,
                 avatar_obj_start: 0,
                 avatar_base: Vec3::ZERO,
                 fps_spawn: Vec3::new(0.0, 1.7, 0.0),
@@ -5105,18 +5078,6 @@ mod native_app {
                             let m = state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.3, 0.0, 1.0);
                             state.construction_node_mat_hot = Some(m);
                         }
-                        // Ground angle-circle (v0.551): a translucent ring on the floor at each corner
-                        // (raised 10 cm to avoid z-fight) so the per-slice angle labels read clearly.
-                        // Reuses the flat-ring mesh; lazy-created here so it works without doors too.
-                        if state.construction_ring_mesh.is_none() {
-                            let m = state.renderer.add_mesh(Mesh::flat_ring(&state.renderer.device, 48));
-                            state.construction_ring_mesh = Some(m);
-                        }
-                        if state.construction_ring_mat.is_none() {
-                            // theme-exempt: editor overlay ring, translucent cyan.
-                            let m = state.renderer.add_material_full([0.3, 0.85, 1.0, 0.5], 0.0, 0.5, 0.0, 0.4);
-                            state.construction_ring_mat = Some(m);
-                        }
                         let node_mesh = state.construction_node_mesh.unwrap();
                         let node_mat = state.construction_node_mat.unwrap();
                         let hot_mat = state.construction_node_mat_hot.unwrap();
@@ -5126,8 +5087,6 @@ mod native_app {
                         let hue = (state.door_anim_time * 0.25).rem_euclid(1.0);
                         let (rr, gg, bb) = hsv_rgb(hue, 0.85, 1.0);
                         state.renderer.update_material_full(hot_mat, [rr, gg, bb, 1.0], 0.0, 0.3, 0.0, 1.2);
-                        let ring_mesh = state.construction_ring_mesh.unwrap();
-                        let ring_mat = state.construction_ring_mat.unwrap();
                         let grabbed = state.construction_node_grab;
                         let corners = {
                             let hs = state.gui_state.home_structure.as_ref().unwrap();
@@ -5135,7 +5094,7 @@ mod native_app {
                         };
                         for c in &corners {
                             let hot = grabbed.map_or(false, |g| (g.0 - c.0).abs() < 0.05 && (g.1 - c.1).abs() < 0.05);
-                            let r = if hot { 0.15 } else { 0.11 }; // smaller orbs (operator); was 0.28/0.22
+                            let r = 0.05; // operator: orbs at 0.05 m; state shown by COLOUR (active = RGB), not size
                             // The orb's TOP touches the wall-corner BASE (operator note): centre at -r
                             // so the top vertex is at the floor. Overlay pass -> visible through walls
                             // + the floor it sits under. (v0.560)
@@ -5146,28 +5105,23 @@ mod native_app {
                                 mesh: node_mesh,
                                 material: if hot { hot_mat } else { node_mat },
                             });
-                            // Ground angle-circle (radius matches the overlay's RING_R = 1.1).
-                            overlay_objects.push(RenderObject {
-                                position: Vec3::new(c.0, 0.1, c.1),
-                                rotation: Quat::IDENTITY,
-                                scale: Vec3::new(1.1, 1.0, 1.1),
-                                mesh: ring_mesh,
-                                material: ring_mat,
-                            });
+                            // Ground angle-circle (v0.568): a constant-width LINE circle (line::push_circle
+                            // into ring_lines, like the orbit paths) instead of a polygon ring whose band
+                            // thickened with radius. Radius 1.1 matches the overlay's RING_R; the per-slice
+                            // angle labels are painted separately by the egui overlay.
+                            crate::renderer::line::push_circle(
+                                &mut ring_lines, [c.0, 0.1, c.1], 1.1, [0.30, 0.85, 1.0, 0.85], 48,
+                            );
                         }
-                        // Highlight the selected machine with a bright ground ring (v0.553), so the
-                        // viewport shows which machine the right panel is describing.
+                        // Highlight the selected machine with a ground ring (v0.553) -> also a LINE circle
+                        // now (v0.568), in the RGB active colour so it pulses like the header buttons.
                         if let Some(sel_id) = &state.gui_state.construction_machine_selected {
                             if let Some((_, center, radius)) =
                                 state.machine_pick.iter().find(|(mid, _, _)| mid == sel_id)
                             {
-                                transparent_objects.push(RenderObject {
-                                    position: Vec3::new(center.x, 0.12, center.z),
-                                    rotation: Quat::IDENTITY,
-                                    scale: Vec3::new(radius + 0.2, 1.0, radius + 0.2),
-                                    mesh: ring_mesh,
-                                    material: hot_mat,
-                                });
+                                crate::renderer::line::push_circle(
+                                    &mut ring_lines, [center.x, 0.12, center.z], radius + 0.2, [rr, gg, bb, 1.0], 48,
+                                );
                             }
                         }
                     }
