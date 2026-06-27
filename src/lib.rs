@@ -2043,6 +2043,141 @@ mod native_app {
         state.gui_state.construction_structure_dirty = true;
     }
 
+    /// World positions of every opening RESIZE handle (v0.578): 4 per opening at the aperture edges --
+    /// left/right (mid-height) resize width, top/bottom (mid-width) resize height. Returns
+    /// ((wall, opening, edge), pos) with edge 0=left 1=right 2=top 3=bottom.
+    fn opening_resize_handles(hs: &crate::ship::home_structure::HomeStructure) -> Vec<((usize, usize, u8), Vec3)> {
+        let mut out = Vec::new();
+        for (wi, wall) in hs.walls.iter().enumerate() {
+            let (ax, az) = wall.a;
+            let (dx, dz) = (wall.b.0 - ax, wall.b.1 - az);
+            let len = (dx * dx + dz * dz).sqrt();
+            if len < 1e-4 {
+                continue;
+            }
+            let (ux, uz) = (dx / len, dz / len);
+            for (oi, op) in wall.openings.iter().enumerate() {
+                let s_l = op.at.clamp(0.0, len);
+                let s_r = (op.at + op.width).clamp(0.0, len);
+                let s_c = (op.at + op.width * 0.5).clamp(0.0, len);
+                let cy_c = op.sill + op.height * 0.5;
+                out.push(((wi, oi, 0), Vec3::new(ax + ux * s_l, cy_c, az + uz * s_l)));
+                out.push(((wi, oi, 1), Vec3::new(ax + ux * s_r, cy_c, az + uz * s_r)));
+                out.push(((wi, oi, 2), Vec3::new(ax + ux * s_c, op.sill + op.height, az + uz * s_c)));
+                out.push(((wi, oi, 3), Vec3::new(ax + ux * s_c, op.sill, az + uz * s_c)));
+            }
+        }
+        out
+    }
+
+    /// On a build-mode click, try to grab an opening RESIZE handle under the cursor (v0.578). Returns
+    /// true (so the click doesn't also grab the move-cube or a wall).
+    fn try_grab_opening_resize(state: &mut EngineState) -> bool {
+        let handles = match state.gui_state.home_structure.as_ref() {
+            Some(hs) => opening_resize_handles(hs),
+            None => return false,
+        };
+        if handles.is_empty() {
+            return false;
+        }
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<((usize, usize, u8), f32)> = None;
+        for (id, p) in &handles {
+            let t = (*p - origin).dot(dir);
+            if t < 0.0 {
+                continue;
+            }
+            let dd = (*p - (origin + dir * t)).length();
+            if dd < 0.3 && best.map_or(true, |(_, b)| dd < b) {
+                best = Some((*id, dd));
+            }
+        }
+        if let Some((id, _)) = best {
+            state.construction_opening_resize = Some(id);
+            state.gui_state.construction_wall_selected = Some(id.0); // show the wall on the panel
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Per-frame while an opening resize handle is grabbed (v0.578): left/right project the cursor onto
+    /// the wall axis (resize width, keeping the opposite edge fixed); top/bottom intersect the cursor
+    /// ray with the wall plane and take its height (resize height/sill). Grid-snapped, min 0.2 m.
+    fn apply_opening_resize(state: &mut EngineState) {
+        let Some((wi, oi, edge)) = state.construction_opening_resize else {
+            return;
+        };
+        // Copy the wall axis to locals so the cursor calls below don't conflict with the home borrow.
+        let (ax, az, ux, uz, len, wall_h) = match state.gui_state.home_structure.as_ref().and_then(|hs| hs.walls.get(wi)) {
+            Some(wall) => {
+                let (ax, az) = wall.a;
+                let (dx, dz) = (wall.b.0 - ax, wall.b.1 - az);
+                let len = (dx * dx + dz * dz).sqrt();
+                if len < 1e-4 {
+                    return;
+                }
+                (ax, az, dx / len, dz / len, len, wall.height)
+            }
+            None => return,
+        };
+        let grid = state.gui_state.construction_grid_snap;
+        let val = if edge <= 1 {
+            let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+                return;
+            };
+            let mut along = ((hx - ax) * ux + (hz - az) * uz).clamp(0.0, len);
+            if grid {
+                along = (along * 4.0).round() / 4.0;
+            }
+            along
+        } else {
+            let sz = state.window.inner_size();
+            let (origin, ddir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+            let normal = Vec3::new(-uz, 0.0, ux);
+            let denom = ddir.dot(normal);
+            if denom.abs() < 1e-6 {
+                return;
+            }
+            let t = (Vec3::new(ax, 0.0, az) - origin).dot(normal) / denom;
+            if t < 0.0 {
+                return;
+            }
+            let mut y = (origin + ddir * t).y.clamp(0.0, wall_h);
+            if grid {
+                y = (y * 4.0).round() / 4.0;
+            }
+            y
+        };
+        if let Some(op) = state
+            .gui_state
+            .home_structure
+            .as_mut()
+            .and_then(|hs| hs.walls.get_mut(wi))
+            .and_then(|w| w.openings.get_mut(oi))
+        {
+            match edge {
+                0 => {
+                    let right = op.at + op.width;
+                    let at = val.min(right - 0.2).max(0.0);
+                    op.width = right - at;
+                    op.at = at;
+                }
+                1 => op.width = (val - op.at).max(0.2).min(len - op.at),
+                2 => op.height = (val - op.sill).max(0.2),
+                3 => {
+                    let top = op.sill + op.height;
+                    let sill = val.min(top - 0.2).max(0.0);
+                    op.height = top - sill;
+                    op.sill = sill;
+                }
+                _ => {}
+            }
+        }
+        state.gui_state.construction_structure_dirty = true;
+    }
+
     /// Per-frame: while a room is grabbed, intersect the pick ray with its floor plane, move
     /// the room so it follows the cursor (minus the grab offset), snap to 0.25 m, and flag a
     /// rebuild. Computed from the live cursor (not deltas) so it never drifts. (v0.466)
@@ -3223,6 +3358,9 @@ mod native_app {
         /// gizmo is grabbed -- dragging slides it ALONG its wall (updates `at`). A visually distinct
         /// cube gizmo (vs the corner spheres) + its cached mesh/material.
         construction_opening_grab: Option<(usize, usize)>,
+        /// Opening RESIZE-handle grab (v0.578): (wall, opening, edge) where edge 0=left 1=right 2=top
+        /// 3=bottom. Dragging a left/right handle changes width+at; top/bottom changes height+sill.
+        construction_opening_resize: Option<(usize, usize, u8)>,
         construction_opening_mesh: Option<usize>,
         construction_opening_mat: Option<usize>,
         /// Cursor pixel position when a corner/opening gizmo was first pressed (v0.549). While this is
@@ -3826,6 +3964,7 @@ mod native_app {
                 construction_char_pyramid_mesh: None,
                 construction_char_mat: None,
                 construction_opening_grab: None,
+                construction_opening_resize: None,
                 construction_opening_mesh: None,
                 construction_opening_mat: None,
                 construction_gizmo_grab: None,
@@ -4266,6 +4405,9 @@ mod native_app {
                                 try_place_wall_node(state);
                             } else if state.gui_state.construction_place_type.is_some() {
                                 try_place_held_machine(state);
+                            } else if state.gui_state.home_structure.is_some() && try_grab_opening_resize(state) {
+                                // Grabbed an opening RESIZE handle (v0.578): the per-frame drag resizes
+                                // the door/window (width via left/right, height via top/bottom).
                             } else if state.gui_state.home_structure.is_some() && try_grab_opening(state) {
                                 // Grabbed a door/window opening gizmo (v0.546): the per-frame drag
                                 // slides it along its wall.
@@ -4313,6 +4455,7 @@ mod native_app {
                             state.construction_gizmo_grab = None; // release a slid handle too
                             state.construction_node_grab = None; // release a dragged corner node
                             state.construction_opening_grab = None; // release a dragged opening
+                            state.construction_opening_resize = None; // release a resize handle (v0.578)
                             state.construction_char_grab = false; // release a dragged avatar (v0.557)
                             state.construction_grab_press = None;
                         }
@@ -4944,6 +5087,7 @@ mod native_app {
                         state.construction_gizmo_grab = None;
                         state.construction_node_grab = None; // v0.542: drop a live corner grab on close
                         state.construction_opening_grab = None; // v0.546: drop a live opening grab
+                        state.construction_opening_resize = None; // v0.578: drop a live resize handle
                         state.construction_char_grab = false; // v0.557: drop a live avatar grab
                         state.construction_grab_press = None;
                     }
@@ -4956,6 +5100,8 @@ mod native_app {
                     if state.gui_state.construction_active {
                         if state.construction_char_grab {
                             apply_char_drag(state); // v0.557: a grabbed avatar follows the cursor floor
+                        } else if state.construction_opening_resize.is_some() {
+                            apply_opening_resize(state); // v0.578: a grabbed resize handle resizes the opening
                         } else if state.construction_opening_grab.is_some() {
                             apply_opening_drag(state); // v0.546: a grabbed opening slides along its wall
                         } else if state.construction_node_grab.is_some() {
@@ -5804,7 +5950,9 @@ mod native_app {
                         // under the same condition). Idle cyan -> hover cream -> active RGB. (v0.569)
                         let hot_mat = state.construction_node_mat_hot.unwrap();
                         let hover_mat = state.construction_node_mat_hover.unwrap();
+                        let node_mat = state.construction_node_mat.unwrap(); // yellow, for resize handles
                         let grabbed_op = state.construction_opening_grab;
+                        let resize_grab = state.construction_opening_resize;
                         let gizmos = {
                             let hs = state.gui_state.home_structure.as_ref().unwrap();
                             opening_gizmos(hs)
@@ -5829,6 +5977,21 @@ mod native_app {
                                 position: Vec3::new(p.x, p.y - S * 0.5, p.z), // box_xyz y-bottom -> centre
                                 rotation: Quat::from_rotation_y(-yaw),
                                 scale: Vec3::splat(S),
+                                mesh,
+                                material: m,
+                            });
+                        }
+                        // RESIZE handles (v0.578): 4 smaller YELLOW cubes per opening at its aperture
+                        // edges (left/right resize width, top/bottom resize height); centred on the seam
+                        // between the opening and the wall/frame. The grabbed one shifts RGB.
+                        const RS: f32 = 0.16;
+                        for ((wi, oi, edge), p) in opening_resize_handles(hs) {
+                            let yaw = hs.walls.get(wi).map_or(0.0, |w| (w.b.1 - w.a.1).atan2(w.b.0 - w.a.0));
+                            let m = if resize_grab == Some((wi, oi, edge)) { hot_mat } else { node_mat };
+                            all_objects.push(RenderObject {
+                                position: Vec3::new(p.x, p.y - RS * 0.5, p.z),
+                                rotation: Quat::from_rotation_y(-yaw),
+                                scale: Vec3::splat(RS),
                                 mesh,
                                 material: m,
                             });
