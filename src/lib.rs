@@ -1393,6 +1393,23 @@ mod native_app {
     /// Snap a dragged corner: to the nearest OTHER corner within 0.6 m (a shared node / airtight
     /// seal), else to the box perimeter if near an edge, else to the 0.25 m grid when grid snap is
     /// on. Always clamped into the box footprint. (v0.541)
+    /// HSV (h,s,v in 0..1) -> linear RGB, for the gizmo colour cycle. (v0.562)
+    fn hsv_rgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
+        let i = (h * 6.0).floor();
+        let f = h * 6.0 - i;
+        let p = v * (1.0 - s);
+        let q = v * (1.0 - f * s);
+        let t = v * (1.0 - (1.0 - f) * s);
+        match (i as i32).rem_euclid(6) {
+            0 => (v, t, p),
+            1 => (q, v, p),
+            2 => (p, v, t),
+            3 => (p, q, v),
+            4 => (t, p, v),
+            _ => (v, p, q),
+        }
+    }
+
     fn snap_node_position(
         hs: &crate::ship::home_structure::HomeStructure,
         grabbed: (f32, f32),
@@ -5008,6 +5025,12 @@ mod native_app {
                         let node_mesh = state.construction_node_mesh.unwrap();
                         let node_mat = state.construction_node_mat.unwrap();
                         let hot_mat = state.construction_node_mat_hot.unwrap();
+                        // RGB-cycle the ACTIVE (grabbed/selected) gizmo material like the menu header
+                        // buttons (v0.562). Only HOT gizmos use this material, so static ones keep
+                        // their colour. door_anim_time advances each build-mode frame (with doors).
+                        let hue = (state.door_anim_time * 0.25).rem_euclid(1.0);
+                        let (rr, gg, bb) = hsv_rgb(hue, 0.85, 1.0);
+                        state.renderer.update_material_full(hot_mat, [rr, gg, bb, 1.0], 0.0, 0.3, 0.0, 1.2);
                         let ring_mesh = state.construction_ring_mesh.unwrap();
                         let ring_mat = state.construction_ring_mat.unwrap();
                         let grabbed = state.construction_node_grab;
