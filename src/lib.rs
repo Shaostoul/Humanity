@@ -4406,9 +4406,20 @@ mod native_app {
                         } else {
                             apply_room_drag(state);
                         }
-                        // Track the cursor's floor position for the dimension overlay (v0.545).
-                        state.gui_state.construction_cursor_world =
-                            cursor_floor_hit(state).map(|(_, hx, hz)| (hx, hz));
+                        // Track the cursor's floor position for the dimension overlay (v0.545). While
+                        // DRAWING a wall, snap the preview to the same grid/endpoint/edge the placed node
+                        // will use, so the selector visibly snaps (v0.559 -- it tracked the raw cursor).
+                        let hit = cursor_floor_hit(state).map(|(_, hx, hz)| (hx, hz));
+                        state.gui_state.construction_cursor_world = hit.map(|(hx, hz)| {
+                            if state.gui_state.construction_wall_mode {
+                                if let Some(hs) = &state.gui_state.home_structure {
+                                    let grabbed =
+                                        state.gui_state.construction_wall_start.unwrap_or((f32::NAN, f32::NAN));
+                                    return snap_node_position(hs, grabbed, (hx, hz), state.gui_state.construction_grid_snap);
+                                }
+                            }
+                            (hx, hz)
+                        });
                     }
                     // Construction editor (v0.455/459): apply the edited walls + ceiling height
                     // AND room position/size + add/remove to the live layout, then rebuild.

@@ -308,7 +308,7 @@ impl HomeStructure {
             let (al, ar) = end_corners(i, wseg.a, fwd, half, true);
             let (bl, br) = end_corners(i, wseg.b, fwd, half, false);
             let g = by_mat.entry(wseg.material).or_insert_with(|| (Vec::new(), Vec::new()));
-            merge(g, wall_with_openings(a, b, wseg.height.max(0.1), &wseg.openings, al, ar, bl, br));
+            merge(g, wall_with_openings(a, b, wseg.height.max(0.1), half * 2.0, &wseg.openings, al, ar, bl, br));
         }
         // Corner columns (v0.549): fill each 3+-WALL interior-wall JOIN (T / X) with a slim cylinder of
         // the wall's half-thickness, where a single miter bisector is undefined. 2-wall joins are
@@ -628,18 +628,15 @@ fn corner_column(cx: f32, cz: f32, radius: f32, height: f32, segments: u32) -> (
     (v, idx)
 }
 
-/// Build a wall from `a` to `b` (height `h`, given thickness) with door/window openings CUT OUT:
-/// full-height piers between/around the openings, a header above each opening, and a sill panel
-/// below a window. A door (sill 0, full height) leaves a clean gap; a window leaves sill + header.
-/// Overlapping or off-end openings are skipped for a clean walk. (v0.533)
-/// Build an interior wall as solid pier/sill/header pieces with its DOOR/WINDOW openings cut, using
-/// the wall's 4 footprint corners (al/ar at the a-end, bl/br at the b-end -- mitred or square). Each
-/// piece is a `wall_piece` whose left/right edge points are LERPed along the (al->bl) / (ar->br)
-/// edges, so a mitred end carries through every piece. (v0.558)
+/// Build an interior wall as solid pier/sill/header pieces with its DOOR/WINDOW openings cut. The 4
+/// footprint corners (al/ar at a, bl/br at b) carry the MITRE at the true wall ENDS only; every
+/// opening cut stays PERPENDICULAR to the wall (90 deg jambs + headers), so a mitred corner never
+/// skews a door/window frame -- the v0.559 fix for "the door frame is at a weird angle". (v0.559)
 fn wall_with_openings(
     a: Vec3,
     b: Vec3,
     h: f32,
+    thickness: f32,
     openings: &[Opening],
     al: V2,
     ar: V2,
@@ -651,9 +648,30 @@ fn wall_with_openings(
     if total < 1e-4 {
         return out;
     }
-    let lerp = |p: V2, q: V2, f: f32| (p.0 + (q.0 - p.0) * f, p.1 + (q.1 - p.1) * f);
-    let left = |s: f32| lerp(al, bl, (s / total).clamp(0.0, 1.0));
-    let right = |s: f32| lerp(ar, br, (s / total).clamp(0.0, 1.0));
+    let half = thickness * 0.5;
+    let (dx, dz) = ((b.x - a.x) / total, (b.z - a.z) / total);
+    let (px, pz) = (-dz, dx); // wall left-perpendicular
+    // Left/right footprint point at distance s along the wall: the MITRED corner EXACTLY at a wall
+    // end, else a square PERPENDICULAR offset from the centreline -- so opening jambs stay at 90 deg
+    // and only the corners are mitred.
+    let left = |s: f32| -> V2 {
+        if s < 1e-3 {
+            al
+        } else if s > total - 1e-3 {
+            bl
+        } else {
+            (a.x + dx * s + px * half, a.z + dz * s + pz * half)
+        }
+    };
+    let right = |s: f32| -> V2 {
+        if s < 1e-3 {
+            ar
+        } else if s > total - 1e-3 {
+            br
+        } else {
+            (a.x + dx * s - px * half, a.z + dz * s - pz * half)
+        }
+    };
 
     let mut ops: Vec<&Opening> = openings.iter().filter(|o| o.width > 0.01).collect();
     ops.sort_by(|x, y| x.at.partial_cmp(&y.at).unwrap_or(std::cmp::Ordering::Equal));

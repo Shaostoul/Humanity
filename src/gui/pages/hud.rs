@@ -402,9 +402,10 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
             egui::Id::new("construction_dim_overlay"),
         ));
         let painter = &p;
-            // Each interior wall's length at its midpoint (the selected one in accent).
+            // Each interior wall's length at the BOTTOM middle of the wall (v0.559, by the floor like
+            // the gizmo orb -- was mid-wall height).
             for (i, wall) in hs.walls.iter().enumerate() {
-                let mid = Vec3::new((wall.a.0 + wall.b.0) * 0.5, y, (wall.a.1 + wall.b.1) * 0.5);
+                let mid = Vec3::new((wall.a.0 + wall.b.0) * 0.5, 0.06, (wall.a.1 + wall.b.1) * 0.5);
                 let len = ((wall.b.0 - wall.a.0).powi(2) + (wall.b.1 - wall.a.1).powi(2)).sqrt();
                 let col = if state.construction_wall_selected == Some(i) { theme.accent() } else { theme.text_primary() };
                 if let Some(sp) = world_to_screen(mid, view_proj, screen) {
