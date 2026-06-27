@@ -761,6 +761,13 @@ mod native_app {
                 wall.b = crate::ship::home_structure::quantize_corner(wall.b);
             }
         }
+        // Dev tool (v0.576): write a machine-readable snapshot of the live home so an AI can READ what
+        // the operator is building (the act surface -- a text-command console -- is the next stage).
+        if let Some(hs) = state.gui_state.home_structure.as_ref() {
+            let json = hs.to_introspection_json();
+            let _ = std::fs::create_dir_all("debug");
+            let _ = std::fs::write("debug/home_snapshot.json", json);
+        }
         // v0.534: regenerate from the new HomeStructure (fixed box + interior walls) when present,
         // else the legacy AABB-room layout.
         let homestead = if let Some(hs) = &state.gui_state.home_structure {

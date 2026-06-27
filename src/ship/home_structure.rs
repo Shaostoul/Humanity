@@ -307,6 +307,59 @@ impl HomeStructure {
         std::fs::write(path, format!("{header}{body}")).map_err(|e| e.to_string())
     }
 
+    /// A machine-readable introspection snapshot of the live home (v0.576): the full struct as JSON
+    /// PLUS a `derived` block (per-wall length + heading + thickness + opening count; corner valence)
+    /// that an AI can read to "see" the home without parsing the mesh. Written to a debug file each
+    /// rebuild so an agent can inspect what the operator is building. (A read surface for the AI; the
+    /// matching ACT surface -- a text-command console -- is the next dev-tool stage.)
+    pub fn to_introspection_json(&self) -> String {
+        let mut v = serde_json::to_value(self).unwrap_or(serde_json::Value::Null);
+        // Per-wall derived geometry.
+        let walls: Vec<serde_json::Value> = self
+            .walls
+            .iter()
+            .enumerate()
+            .map(|(i, w)| {
+                let dx = w.b.0 - w.a.0;
+                let dz = w.b.1 - w.a.1;
+                serde_json::json!({
+                    "index": i,
+                    "a": [w.a.0, w.a.1],
+                    "b": [w.b.0, w.b.1],
+                    "length_m": (dx * dx + dz * dz).sqrt(),
+                    "heading_deg": dz.atan2(dx).to_degrees(),
+                    "thickness_m": w.resolved_thickness(),
+                    "material": wall_material(w.material).map(|m| m.name.clone()),
+                    "openings": w.openings.len(),
+                })
+            })
+            .collect();
+        // Corner valence: how many wall ends meet at each grid-snapped corner.
+        let mut valence: std::collections::HashMap<(i32, i32), u32> = std::collections::HashMap::new();
+        for w in &self.walls {
+            for c in [w.a, w.b] {
+                let q = quantize_corner(c);
+                *valence.entry(((q.0 * CORNER_GRID) as i32, (q.1 * CORNER_GRID) as i32)).or_insert(0) += 1;
+            }
+        }
+        let corners: Vec<serde_json::Value> = valence
+            .iter()
+            .map(|((kx, kz), n)| serde_json::json!({
+                "x": *kx as f32 / CORNER_GRID, "z": *kz as f32 / CORNER_GRID, "walls_meeting": n,
+            }))
+            .collect();
+        if let serde_json::Value::Object(ref mut map) = v {
+            map.insert("derived".into(), serde_json::json!({
+                "wall_count": self.walls.len(),
+                "light_count": self.lights.len(),
+                "box_m": [self.width, self.depth, self.height],
+                "walls": walls,
+                "corners": corners,
+            }));
+        }
+        serde_json::to_string_pretty(&v).unwrap_or_default()
+    }
+
     /// Material color (rgba) for a material id, sourced from the wall-material registry so the picker,
     /// the saved data, and the rendered color stay in lockstep. Grid grey for an unknown id.
     fn material_color(m: u32) -> [f32; 4] {
@@ -1099,6 +1152,18 @@ mod tests {
         assert!(!back.lights[1].on, "a placed-but-off light survives");
         assert_eq!(back.lights[1].color, Some((1.0, 0.5, 0.2)));
         let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn introspection_json_is_valid_with_a_derived_block() {
+        let mut h = box_only();
+        h.walls = vec![InteriorWall { a: (5.0, 5.0), b: (10.0, 5.0), height: 3.0, material: 1, openings: vec![], thickness: None }];
+        let s = h.to_introspection_json();
+        let v: serde_json::Value = serde_json::from_str(&s).expect("valid JSON");
+        let d = &v["derived"];
+        assert_eq!(d["wall_count"], 1);
+        assert!((d["walls"][0]["length_m"].as_f64().unwrap() - 5.0).abs() < 1e-4);
+        assert!(d["corners"].as_array().unwrap().len() >= 2, "two wall ends -> two corners");
     }
 
     #[test]
