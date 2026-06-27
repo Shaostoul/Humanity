@@ -104,12 +104,13 @@
 > - **v0.557 build-mode AVATAR** -- a draggable teal figure + pyramid gizmo; leaving build mode spawns
 >   you at it (seeded at your current spot, clamped to the box).
 > > **WALL-MODEL STAGED PLAN (from the workflow, the corner answer to "what better way to fill corners"):**
-> > - **Stage 2 NEXT -- MITER corners.** Replace `corner_column` (a centered half-thickness cylinder that
-> >   PROVABLY can't cover the gap: the miter apex sits at (t/2)/sin(theta/2) > t/2) with true miters:
-> >   relocate each wall_box's 4 end verts onto the offset-edge intersection (ZERO added tris, exact for
-> >   2-wall, thickness-aware). For T/X (valence>=3): sort incident walls by heading, miter adjacent
-> >   pairs + a central hub triangle-fan; square-cap fallback on near-colinear/degenerate. Delete
-> >   corner_column. NOT voxels (lose thin/angled walls), NOT CSG (kills per-segment destructibility).
+> > - **Stage 2 SHIPPED v0.558 -- MITER corners.** 2-wall joins cut each end to the bisector (wall_end_miter
+> >   intersects the offset edges; a/b-end side flip; degenerate -> square; 3+ joins keep the cylinder;
+> >   free/hull ends square). wall_piece builds the prism from the 4 footprint corners; wall_with_openings
+> >   lerps the side edges so a mitred end carries through piers/sill/header. 3 geometry tests + an
+> >   adversarial review (flushness 0.00000 m all angles, no bugs). Follow-ups (minor): perimeter/hull
+> >   corners still square (interior-only); opening jamb skews slightly if placed hard against a mitred
+> >   corner; the per-face wall_piece normals point inward (benign via double-siding, commented).
 > > - **Stage 3 DEFERRED -- destructibility HP.** Do NOT build until the formula is re-derived against the
 > >   REAL 8 materials + proven by an ordering test: the critique caught the draft formula's own numbers
 > >   off ~2.3x, "paper" isn't in the DB, and tensile-as-HP scores granite(15MPa) weaker than oak(90) --
