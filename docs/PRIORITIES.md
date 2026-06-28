@@ -11,6 +11,29 @@
 
 ## Active focus
 
+> **STRUCTURAL BACKLOG WAVE COMPLETE (v0.583-587, operator "proceed until we're all caught up on the
+> backlog", 2026-06-27).** The v0.582 "keep working" feedback wave's structural list, cleared as one
+> data-driven system (see `docs/design/structure-pieces.md`):
+> - **v0.583** -- data-driven `StructurePiece` registry (`structure_types.ron`: wall/stairs/ramp/
+>   ladder/elevator/teleporter/train/road) + a "Structure" footer palette (leftmost; "Add wall" moved
+>   there) + viewport placement/ghost/bounds-gizmo/select + console `add_structure`/`rm_structure`.
+> - **v0.584** -- WALKABLE stairs/ramps/platforms (the first-person ground sampler raises the player's
+>   floor to the structure surface under them, step-up capped) + working TELEPORTERS (pair jump + cooldown).
+> - **v0.585** -- material LAYERING: `SurfaceLayer` stack on walls (exposed top layer drives colour +
+>   `total_thickness`) + `road_types.ron` fixed stacks (footpath/residential/highway/runway) + editor + `add_layer`.
+> - **v0.586** -- ROADS as a node+edge GRAPH (`RoadNode`/`RoadEdge`; ribbon mesh per edge coloured by
+>   the class top layer; editor + node-ring/edge-line gizmo + `add_road*` console).
+> - **v0.587** -- helper widgets on EVERYTHING: machine bounds cubes + conduit-node markers + a master
+>   "Helper gizmos" toggle gating the passive overlays (interactive handles always shown).
+> - Each release: native+relay compile, lib tests, 3 lints, archived exe, + an adversarial subagent
+>   review that caught/fixed 3 real bugs (boxes rendered inside-out; a road-list panic; an untracked-file CI break).
+>
+> > **NEXT CANDIDATES = the honest deferrals (operator's pick; docs/design/structure-pieces.md):**
+> > elevator RIDE + ladder CLIMB (a moving/animated structure-state increment + a destination floor);
+> > multi-level landings (upper storeys the stairs connect to); curved road SPLINES + road FOOTING
+> > (walk/drive on the surface); the RAIL LINE between train platforms; solid-body collision for tall
+> > structure pieces. Each is a focused next increment, none blocking.
+
 > **HOME-CONSTRUCTION REDESIGN -- MAJOR PIECES COMPLETE (v0.532-0.537, operator-directed "build it
 > all" push, 2026-06-25).** Node/wall construction: a FIXED outer box (55 x 89 x 3 m steel allotment)
 > + freely-designed INTERIOR WALLS placed as segments between corner nodes; same tools for any
