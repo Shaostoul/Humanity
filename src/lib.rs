@@ -376,13 +376,101 @@ mod native_app {
         log::info!("Data extraction complete");
     }
 
+    /// Tee writer (v0.601): env_logger pipes every log line here; we write it to the crash-safe log
+    /// FILE (flushed each line so nothing is lost on a hard crash) AND stderr (visible in a dev/console
+    /// build). Shared via Arc so the panic hook can append to the same file.
+    struct LogTee {
+        file: std::sync::Arc<std::sync::Mutex<std::fs::File>>,
+    }
+    impl std::io::Write for LogTee {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if let Ok(mut f) = self.file.lock() {
+                let _ = std::io::Write::write_all(&mut *f, buf);
+                let _ = std::io::Write::flush(&mut *f);
+            }
+            let _ = std::io::Write::write_all(&mut std::io::stderr(), buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            if let Ok(mut f) = self.file.lock() {
+                let _ = std::io::Write::flush(&mut *f);
+            }
+            Ok(())
+        }
+    }
+
+    /// The logs directory: `%APPDATA%/HumanityOS/logs` on Windows (stable, always writable, findable
+    /// no matter where the exe runs from), `~/.local/share/...` on unix, else the temp dir. (v0.601)
+    fn log_dir() -> std::path::PathBuf {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            std::path::PathBuf::from(appdata).join("HumanityOS").join("logs")
+        } else if let Ok(home) = std::env::var("HOME") {
+            std::path::PathBuf::from(home).join(".local").join("share").join("HumanityOS").join("logs")
+        } else {
+            std::env::temp_dir().join("HumanityOS-logs")
+        }
+    }
+
+    /// Crash-safe logging (v0.601): a file logger at `<logs>/run.log` (truncated each launch, tee'd to
+    /// stderr) PLUS a panic hook that writes the panic message + location + backtrace to the log AND a
+    /// persistent `crash.log` (appended across launches). So when the windowed exe crashes there is NO
+    /// console to read -- the cause is already on disk. The operator says "it crashed"; I read run.log.
+    fn init_logging() {
+        let dir = log_dir();
+        let _ = std::fs::create_dir_all(&dir);
+        let run_path = dir.join("run.log");
+        let crash_path = dir.join("crash.log");
+        let Ok(file) = std::fs::File::create(&run_path) else {
+            env_logger::init(); // fall back to plain stderr if the file can't be opened
+            return;
+        };
+        let shared = std::sync::Arc::new(std::sync::Mutex::new(file));
+        let tee = LogTee { file: shared.clone() };
+        let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+            .format_timestamp_millis()
+            .target(env_logger::Target::Pipe(Box::new(tee)))
+            .try_init();
+        // PANIC HOOK: capture the full panic to disk before the process dies.
+        let panic_file = shared.clone();
+        let crash = crash_path.clone();
+        let default_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            let bt = std::backtrace::Backtrace::force_capture();
+            let body = format!(
+                "\n========== PANIC (HumanityOS v{}) ==========\n{}\n--- backtrace ---\n{}\n============================================\n",
+                env!("CARGO_PKG_VERSION"),
+                info,
+                bt
+            );
+            if let Ok(mut f) = panic_file.lock() {
+                let _ = std::io::Write::write_all(&mut *f, body.as_bytes());
+                let _ = std::io::Write::flush(&mut *f);
+            }
+            if let Ok(mut cf) = std::fs::OpenOptions::new().create(true).append(true).open(&crash) {
+                let _ = std::io::Write::write_all(&mut cf, body.as_bytes());
+                let _ = std::io::Write::flush(&mut cf);
+            }
+            eprintln!("{body}");
+            default_hook(info);
+        }));
+        log::info!("===== HumanityOS v{} starting =====", env!("CARGO_PKG_VERSION"));
+        log::info!("log file:  {}", run_path.display());
+        log::info!("crash log: {}", crash_path.display());
+        log::info!("os: {} arch: {}", std::env::consts::OS, std::env::consts::ARCH);
+    }
+
     /// Run the engine standalone — opens a window, renders a test scene.
     /// Supports three camera modes (Tab to cycle, F to toggle FP/TP, M for orbit).
     pub fn run() {
-        env_logger::init();
+        init_logging();
         let event_loop = EventLoop::new().expect("Failed to create event loop");
         let mut app = App::new();
-        event_loop.run_app(&mut app).expect("Event loop error");
+        let result = event_loop.run_app(&mut app);
+        match &result {
+            Ok(()) => log::info!("===== HumanityOS clean shutdown ====="),
+            Err(e) => log::error!("===== HumanityOS event-loop error: {e} ====="),
+        }
+        result.expect("Event loop error");
     }
 
     /// Place a blockman avatar standing on a podium at `base` (the podium floor position),
