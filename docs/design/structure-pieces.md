@@ -53,6 +53,25 @@ inside-out before this test existed; do not regress it).
 - TELEPORTERS (v0.584): stepping onto a teleporter whose `pair` is linked jumps you to
   the partner pad (a 1.2 s cooldown stops ping-ponging on arrival).
 
+## Material layering (v0.585)
+
+Surfaces carry a stack of `SurfaceLayer { material, thickness_m }`, ordered top
+(exposed) to bottom. "Rhino-lining on a truck bed" + "a road is asphalt over base over
+subgrade." On a wall (`InteriorWall.layers`):
+- `exposed_material()` = the top layer (else the bare wall material) and drives the
+  rendered face colour, so a coated wall reads as its coating. A glass-clad wall (top
+  layer alpha < 1) renders through the transparent pass by design -- the coating is what
+  you see; collision still uses the structural `resolved_thickness()`.
+- `total_thickness()` = the structural wall + every coat (shown in the editor's teach panel).
+- Editor: the wall detail's "Surface layers" section (add on top / remove / reorder /
+  per-layer thickness). Console: `add_layer <wall> <mat> <thickness>` / `rm_layer <wall> <n>`.
+
+Road CLASSES are FIXED stacks in `data/blueprints/road_types.ron` (`structure::road_types()`):
+footpath / residential / highway / runway, each a `SurfaceLayer` stack so "a runway has
+different needs than a residential side road." A road piece / graph edge (v0.586) carries
+one of these. The stacks reuse the `wall_materials.ron` ids so they teach the same
+density / strength / cost.
+
 ## Deferred (next stages, intentionally NOT faked)
 
 - **Elevator ride + ladder climb** need an animated/moving structure state (a moving

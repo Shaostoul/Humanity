@@ -100,6 +100,39 @@ pub fn structure_type(id: &str) -> Option<&'static StructureType> {
     structure_types().iter().find(|t| t.id == id)
 }
 
+/// A ROAD CLASS (v0.585): a named, FIXED top-to-bottom material stack -- "an airplane runway has
+/// different needs than a residential side road" (operator). The stack reuses `SurfaceLayer` (the
+/// same model walls layer with), so road materials teach the same density/strength/cost. Used when a
+/// road piece (or, v0.586, a road graph edge) is placed: it carries this class's layers.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RoadType {
+    pub id: String,
+    pub label: String,
+    /// Layers from the wearing course (top) down to the subgrade (bottom).
+    pub layers: Vec<crate::ship::home_structure::SurfaceLayer>,
+    pub note: String,
+}
+
+/// The road-class registry, parsed once + embedded (same pattern as the others).
+pub fn road_types() -> &'static [RoadType] {
+    static REG: std::sync::OnceLock<Vec<RoadType>> = std::sync::OnceLock::new();
+    REG.get_or_init(|| {
+        const SRC: &str = include_str!("../../data/blueprints/road_types.ron");
+        match ron::from_str::<Vec<RoadType>>(SRC) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("road_types.ron parse error: {e}");
+                Vec::new()
+            }
+        }
+    })
+}
+
+/// Look up a road class by id (None if unknown).
+pub fn road_type(id: &str) -> Option<&'static RoadType> {
+    road_types().iter().find(|t| t.id == id)
+}
+
 /// Palette items grouped by category, sorted by label -- mirrors `MachineHome::palette_categories`
 /// so the construction palette renders structural pieces with the same widget. Wall sorts FIRST in
 /// its category (a leading space) since it is the most-used tool.
@@ -401,6 +434,20 @@ mod tests {
         let mid = walk_surface(ramp, pos, 0.0, 0.0, 0.0).unwrap(); // local z = 0 -> halfway
         assert!((mid - h * 0.5).abs() < 0.05, "ramp midpoint ~ half height, got {mid}");
         let _ = d;
+    }
+
+    #[test]
+    fn road_types_parse_with_layered_stacks() {
+        let roads = road_types();
+        assert!(!roads.is_empty(), "road_types.ron should parse");
+        for id in ["footpath", "residential", "highway", "runway"] {
+            let r = road_type(id).unwrap_or_else(|| panic!("missing road class {id}"));
+            assert!(!r.layers.is_empty(), "{id} has a material stack");
+            assert!(r.layers.iter().all(|l| l.thickness_m > 0.0), "{id} layer thickness positive");
+        }
+        // The runway is the heaviest stack (operator: thickest of any class).
+        let total = |id: &str| road_type(id).unwrap().layers.iter().map(|l| l.thickness_m).sum::<f32>();
+        assert!(total("runway") > total("residential"), "runway is thicker than a residential road");
     }
 
     #[test]

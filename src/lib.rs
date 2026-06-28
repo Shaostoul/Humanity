@@ -1612,6 +1612,7 @@ mod native_app {
                             material,
                             openings: Vec::new(),
                             thickness: None,
+                            layers: Vec::new(),
                         });
                         state.gui_state.construction_structure_dirty = true;
                         state.gui_state.construction_wall_selected = Some(hs.walls.len() - 1);

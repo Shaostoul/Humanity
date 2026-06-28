@@ -157,6 +157,7 @@ mod tests {
                 material: 1,
                 openings,
                 thickness: None,
+                layers: Vec::new(),
             }],
             shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(),
         }

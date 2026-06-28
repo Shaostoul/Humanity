@@ -1,0 +1,42 @@
+// Road classes (v0.585) -- each a FIXED top-to-bottom material STACK, the operator's "an airplane
+// runway has different needs than a residential side road." Layers run from the wearing course (what
+// tyres touch) down to the subgrade. material ids come from wall_materials.ron (shared registry, so
+// the stack teaches density / strength / cost). A road piece / graph edge carries one of these.
+//   1 Steel  2 Concrete  3 Oak  4 Glass  5 Aluminum  6 Pine  7 Granite(aggregate)  8 HDPE
+[
+    (
+        id: "footpath", label: "Footpath / sidewalk",
+        layers: [
+            (material: 2, thickness_m: 0.08),   // concrete wearing slab
+            (material: 7, thickness_m: 0.10),   // compacted granite aggregate base
+        ],
+        note: "A light pedestrian path -- a thin slab on a shallow aggregate base. Foot + cart loads only.",
+    ),
+    (
+        id: "residential", label: "Residential road",
+        layers: [
+            (material: 2, thickness_m: 0.10),   // concrete wearing course
+            (material: 7, thickness_m: 0.20),   // granite aggregate base
+            (material: 2, thickness_m: 0.15),   // lean-concrete subbase
+        ],
+        note: "A neighbourhood street: moderate slab over a deep aggregate base. Cars + the odd truck.",
+    ),
+    (
+        id: "highway", label: "Highway",
+        layers: [
+            (material: 2, thickness_m: 0.20),   // thick reinforced concrete
+            (material: 7, thickness_m: 0.30),   // granite aggregate base
+            (material: 2, thickness_m: 0.20),   // cement-treated subbase
+        ],
+        note: "Heavy continuous truck loading -- a thick reinforced slab on a deep, stiff base.",
+    ),
+    (
+        id: "runway", label: "Airport runway",
+        layers: [
+            (material: 2, thickness_m: 0.40),   // very thick PCC slab for wheel loads
+            (material: 7, thickness_m: 0.45),   // crushed-granite base
+            (material: 2, thickness_m: 0.25),   // stabilised subbase
+        ],
+        note: "Aircraft point loads + jet blast: the thickest slab + base of any class. Built to last decades.",
+    ),
+]

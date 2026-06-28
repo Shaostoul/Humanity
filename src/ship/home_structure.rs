@@ -164,15 +164,45 @@ pub struct InteriorWall {
     /// the rendered mesh, the collider, and (later) the wall's HP. (v0.556)
     #[serde(default)]
     pub thickness: Option<f32>,
+    /// SURFACE LAYERS (v0.585): extra materials layered ON the structural wall, ordered top (exposed)
+    /// to bottom (against the base). "Rhino-lining on a truck bed": a thin protective coat that changes
+    /// the exposed surface + adds resilience without remaking the wall. Empty -> the bare `material`
+    /// (every existing wall is unchanged). The FIRST layer is what you see + touch.
+    #[serde(default)]
+    pub layers: Vec<SurfaceLayer>,
+}
+
+/// One material layer applied to a surface (v0.585): a `wall_materials.ron` id + its thickness. A
+/// stack of these (top-to-bottom) is how a road is "asphalt over base over subgrade" and how a wall
+/// gets a protective coat. Pure data; the renderer shows the top layer, the editor sums the stack.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SurfaceLayer {
+    /// -> `wall_materials.ron` id (shares the material registry so layers teach the same properties).
+    pub material: u32,
+    /// Layer thickness in metres (a coat is mm-thin; a road base is tens of cm).
+    pub thickness_m: f32,
 }
 
 impl InteriorWall {
-    /// Resolved thickness (metres): the wall's explicit override, else its material's default, else
-    /// the legacy 0.15 m fallback.
+    /// Resolved STRUCTURAL thickness (metres): the wall's explicit override, else its material's
+    /// default, else the legacy 0.15 m fallback. (Surface layers are a treatment ON this; they add to
+    /// `total_thickness` but do not change the structural mesh in Stage 1.)
     pub fn resolved_thickness(&self) -> f32 {
         self.thickness
             .filter(|t| *t > 0.0)
             .unwrap_or_else(|| wall_material(self.material).map_or(WALL_THICKNESS, |m| m.default_thickness_m))
+    }
+
+    /// The EXPOSED material id -- the top surface layer if any, else the bare wall material. Drives the
+    /// rendered face colour so a layered wall reads as its coating. (v0.585)
+    pub fn exposed_material(&self) -> u32 {
+        self.layers.first().map_or(self.material, |l| l.material)
+    }
+
+    /// Total thickness including surface layers (metres) -- the structural wall plus every coat. Shown
+    /// in the editor so a builder sees what the stack adds up to. (v0.585)
+    pub fn total_thickness(&self) -> f32 {
+        self.resolved_thickness() + self.layers.iter().map(|l| l.thickness_m.max(0.0)).sum::<f32>()
     }
 }
 
@@ -483,7 +513,9 @@ impl HomeStructure {
             let fwd = ((cb.0 - ca.0) / len, (cb.1 - ca.1) / len);
             let (al, ar) = end_corners(i, ca, fwd, half, true);
             let (bl, br) = end_corners(i, cb, fwd, half, false);
-            let g = by_mat.entry(wseg.material).or_insert_with(|| (Vec::new(), Vec::new()));
+            // Group by the EXPOSED material (the top surface layer if any) so a layered wall renders
+            // as its coating -- the "rhino-lining" you see. (v0.585)
+            let g = by_mat.entry(wseg.exposed_material()).or_insert_with(|| (Vec::new(), Vec::new()));
             merge(g, wall_with_openings(a, b, wseg.height.max(0.1), half * 2.0, clip_a, &wseg.openings, al, ar, bl, br));
         }
         // Corner columns (v0.549): fill each 3+-WALL interior-wall JOIN (T / X) with a slim cylinder of
@@ -494,15 +526,16 @@ impl HomeStructure {
             std::collections::HashMap::new();
         for wseg in &self.walls {
             let wt = wseg.resolved_thickness();
+            let exposed = wseg.exposed_material(); // colour the join to match the visible wall face
             for cp in [wseg.a, wseg.b] {
                 let key = ((cp.0 * 20.0).round() as i32, (cp.1 * 20.0).round() as i32);
-                let e = joins.entry(key).or_insert((0.0, 0, cp, wseg.material, wt));
+                let e = joins.entry(key).or_insert((0.0, 0, cp, exposed, wt));
                 e.0 = e.0.max(wseg.height.max(0.1));
                 e.1 += 1;
                 // Prefer the higher-alpha (more opaque) material; ties keep the first seen, so the
                 // result is deterministic regardless of wall order.
-                if Self::material_color(wseg.material)[3] > Self::material_color(e.3)[3] {
-                    e.3 = wseg.material;
+                if Self::material_color(exposed)[3] > Self::material_color(e.3)[3] {
+                    e.3 = exposed;
                 }
                 e.4 = e.4.max(wt); // the column must cover the THICKEST wall meeting here
             }
@@ -1012,15 +1045,28 @@ mod tests {
     }
 
     fn wall(a: (f32, f32), b: (f32, f32), openings: Vec<Opening>) -> InteriorWall {
-        InteriorWall { a, b, height: 3.0, material: 1, openings, thickness: None }
+        InteriorWall { a, b, height: 3.0, material: 1, openings, thickness: None, layers: Vec::new() }
+    }
+
+    #[test]
+    fn surface_layers_drive_exposed_material_and_total_thickness() {
+        let mut w = wall((0.0, 0.0), (4.0, 0.0), vec![]);
+        w.thickness = Some(0.10);
+        assert_eq!(w.exposed_material(), 1, "bare wall exposes its base material");
+        assert!((w.total_thickness() - 0.10).abs() < 1e-4, "no layers -> just the wall");
+        // Coat it: aluminum (5) on top, then HDPE (8) added on top of THAT -> 8 is exposed.
+        w.layers.push(SurfaceLayer { material: 5, thickness_m: 0.02 });
+        w.layers.insert(0, SurfaceLayer { material: 8, thickness_m: 0.01 });
+        assert_eq!(w.exposed_material(), 8, "the top (first) layer is the exposed face");
+        assert!((w.total_thickness() - 0.13).abs() < 1e-4, "wall + both coats = 13 cm");
     }
 
     #[test]
     fn clip_pulls_a_mid_span_t_back_to_the_face() {
         // M runs along +X at z=0, 0.4 m thick (half 0.2). W comes up from (5,-3) and its end (5,0.1)
         // lands INSIDE M's body; it should clip back to M's NEAR face at z = -0.2.
-        let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), height: 3.0, material: 1, openings: vec![], thickness: Some(0.4) };
-        let w = InteriorWall { a: (5.0, -3.0), b: (5.0, 0.1), height: 3.0, material: 1, openings: vec![], thickness: Some(0.1) };
+        let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), height: 3.0, material: 1, openings: vec![], thickness: Some(0.4), layers: Vec::new() };
+        let w = InteriorWall { a: (5.0, -3.0), b: (5.0, 0.1), height: 3.0, material: 1, openings: vec![], thickness: Some(0.1), layers: Vec::new() };
         let walls = vec![m, w];
         let (clipped, dist) = clip_end_to_walls((5.0, 0.1), (5.0, -3.0), 1, &walls);
         assert!((clipped.1 + 0.2).abs() < 1e-3, "clipped to M near face z=-0.2, got {clipped:?}");
@@ -1029,7 +1075,7 @@ mod tests {
 
     #[test]
     fn clip_leaves_a_free_end_alone() {
-        let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), height: 3.0, material: 1, openings: vec![], thickness: Some(0.4) };
+        let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), height: 3.0, material: 1, openings: vec![], thickness: Some(0.4), layers: Vec::new() };
         let walls = vec![m];
         let (clipped, dist) = clip_end_to_walls((5.0, 5.0), (5.0, 3.0), 99, &walls);
         assert_eq!(dist, 0.0, "a free end in open space is unchanged");
@@ -1212,7 +1258,7 @@ mod tests {
     #[test]
     fn introspection_json_is_valid_with_a_derived_block() {
         let mut h = box_only();
-        h.walls = vec![InteriorWall { a: (5.0, 5.0), b: (10.0, 5.0), height: 3.0, material: 1, openings: vec![], thickness: None }];
+        h.walls = vec![InteriorWall { a: (5.0, 5.0), b: (10.0, 5.0), height: 3.0, material: 1, openings: vec![], thickness: None, layers: Vec::new() }];
         let s = h.to_introspection_json();
         let v: serde_json::Value = serde_json::from_str(&s).expect("valid JSON");
         let d = &v["derived"];

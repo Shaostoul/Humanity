@@ -163,6 +163,7 @@ mod tests {
                 height: 3.0,
                 material: 1,
                 thickness: Some(0.2),
+                layers: Vec::new(),
                 openings: vec![Opening {
                     kind: OpeningKind::Door,
                     at: 4.0,

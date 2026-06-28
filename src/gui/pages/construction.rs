@@ -877,6 +877,48 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 let dz = wall.b.1 - wall.a.1;
                 wall_len = (dx * dx + dz * dz).sqrt();
                 ui.label(RichText::new(format!("Length {wall_len:.1} m")).size(theme.font_size_small).color(theme.text_muted()));
+
+                // Surface layers (v0.585): coat the wall top-to-bottom (rhino-lining, cladding, ...).
+                // Layer 1 is the EXPOSED face -- it drives the rendered colour. Add/remove/reorder.
+                ui.add_space(theme.spacing_sm);
+                ui.label(RichText::new(format!("Surface layers ({})", wall.layers.len())).strong().color(theme.text_secondary()));
+                ui.label(RichText::new(format!("Total {:.0} cm with layers; exposed = {}",
+                        wall.total_thickness() * 100.0,
+                        crate::ship::home_structure::wall_material(wall.exposed_material()).map(|m| m.name.clone()).unwrap_or_default()))
+                    .size(theme.font_size_small).color(theme.text_muted()));
+                let mut rm_layer: Option<usize> = None;
+                let mut mv_layer: Option<(usize, usize)> = None;
+                let nlayers = wall.layers.len();
+                for li in 0..nlayers {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("{}.", li + 1)).size(theme.font_size_small).color(theme.text_muted()));
+                        let mname = crate::ship::home_structure::wall_material(wall.layers[li].material)
+                            .map(|m| m.name.clone())
+                            .unwrap_or_else(|| format!("#{}", wall.layers[li].material));
+                        ui.label(RichText::new(mname).size(theme.font_size_small).color(theme.text_primary()));
+                        changed |= ui.add(egui::DragValue::new(&mut wall.layers[li].thickness_m)
+                            .speed(0.002).range(0.001..=1.0).suffix(" m").fixed_decimals(3)).changed();
+                        if li > 0 && ui.small_button("up").clicked() { mv_layer = Some((li, li - 1)); }
+                        if li + 1 < nlayers && ui.small_button("dn").clicked() { mv_layer = Some((li, li + 1)); }
+                        if ui.small_button("x").clicked() { rm_layer = Some(li); }
+                    });
+                }
+                if let Some(i) = rm_layer { wall.layers.remove(i); changed = true; }
+                if let Some((i, j)) = mv_layer { wall.layers.swap(i, j); changed = true; }
+                egui::ComboBox::from_id_salt("wall_add_layer")
+                    .selected_text("Add surface layer...")
+                    .show_ui(ui, |ui| {
+                        for m in crate::ship::home_structure::wall_materials() {
+                            if ui.selectable_label(false, format!("{} ({})", m.name, m.category)).clicked() {
+                                // New coat goes on TOP (index 0) -> it becomes the exposed face.
+                                wall.layers.insert(0, crate::ship::home_structure::SurfaceLayer {
+                                    material: m.id,
+                                    thickness_m: 0.01,
+                                });
+                                changed = true;
+                            }
+                        }
+                    });
             }
 
             ui.add_space(theme.spacing_md);
@@ -1246,6 +1288,8 @@ const CONSOLE_VERBS: &[ConsoleVerb] = &[
     ConsoleVerb { usage: "rm_light <n>", desc: "Remove light #n (1-based)." },
     ConsoleVerb { usage: "add_structure <type> x y z [yaw]", desc: "Place a structural piece (type from structure_types.ron: stairs/ramp/ladder/elevator/teleporter/train/road)." },
     ConsoleVerb { usage: "rm_structure <n>", desc: "Remove structural piece #n (1-based)." },
+    ConsoleVerb { usage: "add_layer <wall> <material> <thickness>", desc: "Coat a wall: add a surface layer (material 1-8, thickness m). New layer becomes the exposed face." },
+    ConsoleVerb { usage: "rm_layer <wall> <n>", desc: "Remove surface layer #n from a wall (1-based, top-first)." },
 ];
 
 /// Execute a construction console command against the LIVE home (v0.578) and return a result string.
@@ -1280,7 +1324,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
             let height = h.height;
             h.walls.push(crate::ship::home_structure::InteriorWall {
-                a: (x1, z1), b: (x2, z2), height, material: mat, openings: Vec::new(), thickness: None,
+                a: (x1, z1), b: (x2, z2), height, material: mat, openings: Vec::new(), thickness: None, layers: Vec::new(),
             });
             state.construction_structure_dirty = true;
             format!("added wall #{} ({x1},{z1})->({x2},{z2}) mat {mat}", h.walls.len())
@@ -1387,6 +1431,36 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                 format!("removed structure #{i}")
             } else {
                 format!("no structure #{i} (have {})", h.structures.len())
+            }
+        }
+        "add_layer" => {
+            let (Some(w), Some(mat)) = (u(1), u(2)) else { return "usage: add_layer <wall> <material> <thickness>".into(); };
+            let Some(th) = f(3) else { return "usage: add_layer <wall> <material> <thickness>".into(); };
+            if crate::ship::home_structure::wall_material(mat as u32).is_none() {
+                return format!("unknown material {mat} (1-8).");
+            }
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            if w >= 1 && w <= h.walls.len() {
+                // New coat goes on TOP (index 0) -> the exposed face, matching the gizmo editor.
+                h.walls[w - 1].layers.insert(0, crate::ship::home_structure::SurfaceLayer {
+                    material: mat as u32, thickness_m: th.max(0.001),
+                });
+                state.construction_structure_dirty = true;
+                format!("wall #{w}: added {:.0} cm layer of material {mat} on top", th * 100.0)
+            } else {
+                format!("no wall #{w}")
+            }
+        }
+        "rm_layer" => {
+            let (Some(w), Some(n)) = (u(1), u(2)) else { return "usage: rm_layer <wall> <n>".into(); };
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            match h.walls.get_mut(w.wrapping_sub(1)) {
+                Some(wl) if w >= 1 && n >= 1 && n <= wl.layers.len() => {
+                    wl.layers.remove(n - 1);
+                    state.construction_structure_dirty = true;
+                    format!("wall #{w}: removed layer #{n}")
+                }
+                _ => format!("no wall #{w} layer #{n}"),
             }
         }
         "add_window" => {
