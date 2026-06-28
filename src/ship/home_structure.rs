@@ -616,17 +616,17 @@ impl HomeStructure {
             material_walls.push((v, i, [c[0], c[1], c[2], 1.0]));
         }
 
-        // ROAD GRAPH (v0.586): each edge is a flat ribbon (reusing wall_box) between its two nodes,
-        // sitting on the floor, coloured by its road class's TOP layer (the wearing course). Grouped
-        // by colour like the structures so identical road classes share a draw.
+        // ROAD GRAPH (v0.586; CURVED v0.591): each edge is a smooth ribbon following its Catmull-Rom
+        // centerline (a chain of wall_box sub-segments), sitting on the floor, coloured by its road
+        // class's TOP layer (the wearing course). Bends through degree-2 nodes, straight at junctions.
+        // Grouped by colour like the structures so identical road classes share a draw.
         use crate::ship::structure::road_type;
-        let node_pos = |id: u32| self.road_nodes.iter().find(|n| n.id == id).map(|n| n.pos);
         let mut rcolor: std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])> =
             std::collections::HashMap::new();
         for e in &self.road_edges {
-            let (Some(a), Some(b)) = (node_pos(e.from), node_pos(e.to)) else { continue };
-            if (a.0 - b.0).abs() < 1e-4 && (a.1 - b.1).abs() < 1e-4 {
-                continue; // zero-length edge
+            let center = self.road_edge_centerline(e);
+            if center.len() < 2 {
+                continue; // a node is missing
             }
             // Colour + slab thickness from the road class's stack (top layer = wearing course).
             let (col, slab) = match road_type(&e.class) {
@@ -637,21 +637,27 @@ impl HomeStructure {
                 }
                 None => ([0.25, 0.25, 0.27, 1.0], 0.1),
             };
-            let ribbon = wall_box(
-                Vec3::new(a.0, 0.0, a.1),
-                Vec3::new(b.0, 0.0, b.1),
-                0.0,
-                slab,
-                e.width.max(0.2),
-            );
             let key = [(col[0] * 64.0) as i32, (col[1] * 64.0) as i32, (col[2] * 64.0) as i32];
             let g = rcolor
                 .entry(key)
                 .or_insert_with(|| (Vec::new(), Vec::new(), [col[0], col[1], col[2]]));
-            let base = g.0.len() as u32;
-            let (mut rv, ri) = ribbon;
-            g.0.append(&mut rv);
-            g.1.extend(ri.into_iter().map(|i| i + base));
+            // One ribbon box per centerline sub-segment -- approximates the curve.
+            for w in center.windows(2) {
+                let (a, b) = (w[0], w[1]);
+                if (a.0 - b.0).abs() < 1e-4 && (a.1 - b.1).abs() < 1e-4 {
+                    continue;
+                }
+                let (mut rv, ri) = wall_box(
+                    Vec3::new(a.0, 0.0, a.1),
+                    Vec3::new(b.0, 0.0, b.1),
+                    0.0,
+                    slab,
+                    e.width.max(0.2),
+                );
+                let base = g.0.len() as u32;
+                g.0.append(&mut rv);
+                g.1.extend(ri.into_iter().map(|i| i + base));
+            }
         }
         let mut rlist: Vec<_> = rcolor.into_iter().collect();
         rlist.sort_by_key(|(k, _)| *k);
@@ -685,6 +691,62 @@ impl HomeStructure {
     pub fn remove_road_node(&mut self, id: u32) {
         self.road_nodes.retain(|n| n.id != id);
         self.road_edges.retain(|e| e.from != id && e.to != id);
+    }
+
+    /// The sampled CENTERLINE (x, z) of a road edge as a smooth CURVE (v0.591). A Catmull-Rom spline
+    /// through the edge's two nodes, with the off-curve control points taken from each node's SINGLE
+    /// other neighbour -- so a road bends smoothly through a degree-2 "through" node. At a junction
+    /// (3+ edges), a dead-end (1 edge), or an isolated edge, the control point mirrors the segment, so
+    /// Catmull-Rom degenerates to a STRAIGHT line -- junctions/ends stay sharp automatically. Returns
+    /// >= 2 points (empty if a node is missing). generate_meshes ribbons consecutive points; the curve
+    /// editor + tests read the same path.
+    pub fn road_edge_centerline(&self, e: &RoadEdge) -> Vec<(f32, f32)> {
+        let (a, b) = match (self.road_node_pos(e.from), self.road_node_pos(e.to)) {
+            (Some(a), Some(b)) => (a, b),
+            _ => return Vec::new(),
+        };
+        // The single OTHER neighbour of `node` (excluding `exclude`), or None if it isn't degree-2.
+        let other = |node: u32, exclude: u32| -> Option<(f32, f32)> {
+            let mut found = None;
+            let mut count = 0usize;
+            for ed in &self.road_edges {
+                let n = if ed.from == node {
+                    Some(ed.to)
+                } else if ed.to == node {
+                    Some(ed.from)
+                } else {
+                    None
+                };
+                if let Some(n) = n {
+                    if n != exclude {
+                        count += 1;
+                        found = self.road_node_pos(n);
+                    }
+                }
+            }
+            if count == 1 {
+                found
+            } else {
+                None
+            }
+        };
+        // Control points: a through-node bends toward its other neighbour; else mirror -> straight.
+        let p0 = other(e.from, e.to).unwrap_or((2.0 * a.0 - b.0, 2.0 * a.1 - b.1));
+        let p3 = other(e.to, e.from).unwrap_or((2.0 * b.0 - a.0, 2.0 * b.1 - a.1));
+        const N: usize = 8;
+        let cr = |p0: f32, p1: f32, p2: f32, p3: f32, t: f32| -> f32 {
+            let (t2, t3) = (t * t, t * t * t);
+            0.5 * (2.0 * p1
+                + (-p0 + p2) * t
+                + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+                + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
+        };
+        (0..=N)
+            .map(|k| {
+                let t = k as f32 / N as f32;
+                (cr(p0.0, a.0, b.0, p3.0, t), cr(p0.1, a.1, b.1, p3.1, t))
+            })
+            .collect()
     }
 
     /// Subdivide the box interior into the ROOMS the interior walls enclose (v0.535, the operator's
@@ -1138,6 +1200,35 @@ mod tests {
 
     fn wall(a: (f32, f32), b: (f32, f32), openings: Vec<Opening>) -> InteriorWall {
         InteriorWall { a, b, height: 3.0, material: 1, openings, thickness: None, layers: Vec::new() }
+    }
+
+    #[test]
+    fn road_centerline_curves_through_a_through_node_but_stays_straight_when_isolated() {
+        let mut h = HomeStructure {
+            width: 30.0, depth: 30.0, height: 3.0, shell_material: 1, roof_material: 4,
+            walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(),
+        };
+        // A right-angle chain A(0,0) - B(10,0) - C(10,10): B is a degree-2 through-node.
+        h.road_nodes.push(RoadNode { id: 1, pos: (0.0, 0.0) });
+        h.road_nodes.push(RoadNode { id: 2, pos: (10.0, 0.0) });
+        h.road_nodes.push(RoadNode { id: 3, pos: (10.0, 10.0) });
+        h.road_edges.push(RoadEdge { from: 1, to: 2, class: "residential".into(), width: 4.0 });
+        h.road_edges.push(RoadEdge { from: 2, to: 3, class: "residential".into(), width: 4.0 });
+        // The A-B edge should BEND toward C near B (some sample leaves the z=0 line).
+        let ab = h.road_edge_centerline(&h.road_edges[0]);
+        assert!(ab.len() >= 3, "centerline is sampled");
+        assert_eq!(ab.first().copied(), Some((0.0, 0.0)), "starts at A");
+        assert!((ab.last().unwrap().0 - 10.0).abs() < 1e-3 && ab.last().unwrap().1.abs() < 1e-3, "ends at B");
+        assert!(ab.iter().any(|p| p.1.abs() > 0.05), "the A-B edge curves off the straight z=0 line");
+
+        // An ISOLATED straight edge stays straight (all samples on the z=0 line).
+        let mut h2 = h.clone();
+        h2.road_edges.clear();
+        h2.road_nodes = vec![RoadNode { id: 1, pos: (0.0, 0.0) }, RoadNode { id: 2, pos: (10.0, 0.0) }];
+        h2.road_edges.push(RoadEdge { from: 1, to: 2, class: "residential".into(), width: 4.0 });
+        let iso = h2.road_edge_centerline(&h2.road_edges[0]);
+        assert!(iso.iter().all(|p| p.1.abs() < 1e-3), "an isolated edge is a straight line");
     }
 
     #[test]

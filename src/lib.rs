@@ -6380,8 +6380,12 @@ mod native_app {
                                 crate::renderer::line::push_circle(&mut ring_lines, [n.pos.0, 0.06, n.pos.1], 0.4, RN, 20);
                             }
                             for e in &hs.road_edges {
-                                if let (Some(a), Some(b)) = (hs.road_node_pos(e.from), hs.road_node_pos(e.to)) {
-                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[a.0, 0.08, a.1], [b.0, 0.08, b.1]], RE);
+                                // Draw the CURVED centerline (v0.591) so the gizmo matches the rendered
+                                // road -- a polyline through the Catmull-Rom samples.
+                                let center = hs.road_edge_centerline(e);
+                                if center.len() >= 2 {
+                                    let pts: Vec<[f32; 3]> = center.iter().map(|p| [p.0, 0.08, p.1]).collect();
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &pts, RE);
                                 }
                             }
 

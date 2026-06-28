@@ -116,9 +116,15 @@ density / strength / cost.
   edge is a ribbon (reusing `wall_box`) between two nodes, coloured by its road CLASS's top
   layer. Editor: the left-panel "Roads" section (add node / drag x-z / wire an edge with a
   class + width). Console: `add_road_node` / `add_road` / `rm_road_node` / `rm_road`. A
-  build-mode gizmo draws node rings + edge centerlines (the line primitive). STRAIGHT
-  segments in Stage 1; curved splines + road footing (driving/walking on the surface) are the
-  next refinement. The **rail line** between train platforms is still pending.
+  build-mode gizmo draws node rings + the curved edge centerlines (the line primitive).
+- **Curved splines (v0.591):** each edge follows a Catmull-Rom curve (`road_edge_centerline`)
+  whose off-curve control points come from each node's single other neighbour -- so a road
+  BENDS smoothly through a degree-2 "through" node and stays STRAIGHT at junctions (3+ edges)
+  and dead-ends (the control point mirrors the segment, degenerating Catmull-Rom to a line).
+  generate_meshes ribbons consecutive curve samples (8 per edge) with `wall_box`. Add
+  intermediate nodes for tighter control; very sharp through-angles can overshoot slightly.
+  Still pending: the **rail line** between train platforms, and road FOOTING (walk/drive on
+  the surface -- marginal on a flat floor, matters once roads sit at varied heights).
 - **Solid-body collision for tall pieces**: structures aren't wall-colliders yet, so you can
   walk into the side of a tall solid box. The default pieces are short (platform 0.4 m) so
   this isn't visible; add structure colliders when a tall solid piece ships.
