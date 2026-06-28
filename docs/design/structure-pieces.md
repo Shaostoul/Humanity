@@ -33,6 +33,18 @@ by colour in `generate_meshes`). Winding is CCW-front / back-cull correct -- loc
 `every_triangle_winds_outward` (an adversarial review caught every box rendering
 inside-out before this test existed; do not regress it).
 
+## Helper gizmos (v0.587)
+
+Every object type carries a passive HELPER widget drawn with the line primitive (shows
+through walls), so the operator + an AI can see extents/topology at a glance:
+- placed structures + machines: a wireframe bounds cube (selected structure glows amber);
+- roads: amber node rings + cyan edge centerlines;
+- conduits: a ring marker at each pipe-graph node (edges already render as solid pipes);
+- lights: the diamond + RGB range sphere / spotlight cone (v0.572-582).
+A master toggle ("Helper gizmos") quiets the passive bounds/range/node overlays when the
+view is busy; the INTERACTIVE editing handles (corner orbs, opening slide/resize cubes,
+the light diamond) are always shown so you never lose the ability to edit.
+
 ## Editor
 
 - Footer "Structure" palette (leftmost, gated to the HomeStructure editor). Pick a piece

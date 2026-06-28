@@ -1526,6 +1526,11 @@ pub struct GuiState {
     pub construction_road_to: u32,
     pub construction_road_class: String,
     pub construction_road_width: f32,
+    /// Master toggle for the build-mode HELPER overlays (v0.587): the non-interactive bounds gizmos on
+    /// machines + structures, the road graph (node rings + edge lines), and conduit-node markers.
+    /// Default on. The interactive editing handles (corner orbs, resize cubes) + the light gizmos (the
+    /// diamond is clickable) are always shown -- this only quiets the passive helpers.
+    pub construction_show_helpers: bool,
     /// The home as a FIXED outer box + freely-designed interior walls (v0.534, the node/wall
     /// redesign). The editor edits THIS; the engine renders it (load_world + rebuild_homestead via
     /// generate_meshes) instead of the old room-AABB layout when present. Loaded in load_world.
@@ -2602,6 +2607,7 @@ impl Default for GuiState {
             construction_road_to: 0,
             construction_road_class: String::new(),
             construction_road_width: 4.0,
+            construction_show_helpers: true,
             construction_save: false,
             showroom_backdrop: 0,
             showroom_backdrop_names: Vec::new(),

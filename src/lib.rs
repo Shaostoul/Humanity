@@ -6155,11 +6155,12 @@ mod native_app {
                         }
                     }
 
-                    // Placed-STRUCTURE bounds gizmos (v0.583): a wireframe box around each placed piece
-                    // (its ROTATED footprint, floor to top), drawn with the reusable line primitive so it
-                    // shows through walls. The selected piece glows brighter -- the helper widget the
-                    // operator asked for on "everything." Build mode only.
-                    if state.gui_state.construction_active {
+                    // HELPER GIZMOS (v0.583/586/587): bounds boxes on placed structures + machines, the
+                    // road graph (node rings + edge centerlines), and conduit-node markers -- the helper
+                    // widgets the operator asked for "on everything." All drawn with the reusable line
+                    // primitive (shows through walls), gated by the master toggle so a busy view can quiet
+                    // them. The interactive editing handles (corner orbs, resize cubes) are NOT gated.
+                    if state.gui_state.construction_active && state.gui_state.construction_show_helpers {
                         if let Some(hs) = state.gui_state.home_structure.as_ref() {
                             let sel = state.gui_state.construction_structure_selected;
                             for (i, ps) in hs.structures.iter().enumerate() {
@@ -6205,6 +6206,33 @@ mod native_app {
                             for e in &hs.road_edges {
                                 if let (Some(a), Some(b)) = (hs.road_node_pos(e.from), hs.road_node_pos(e.to)) {
                                     crate::renderer::line::push_polyline(&mut ring_lines, &[[a.0, 0.08, a.1], [b.0, 0.08, b.1]], RE);
+                                }
+                            }
+
+                            // MACHINE bounds gizmos (v0.587): a wireframe cube around each placed machine
+                            // (from its pick volume centre+radius), so every machine has a helper widget
+                            // like the structures. Trims the click margin so the cube ~ the body.
+                            const MB: [f32; 4] = [0.55, 0.8, 0.95, 0.5];
+                            for (_id, center, radius) in &state.machine_pick {
+                                let r = (radius - 0.3).max(0.2);
+                                let c = *center;
+                                let fc = [(c.x - r, c.z - r), (c.x + r, c.z - r), (c.x + r, c.z + r), (c.x - r, c.z + r)];
+                                let (y0, y1) = ((c.y - r).max(0.0), c.y + r);
+                                for k in 0..4 {
+                                    let (x0, z0) = fc[k];
+                                    let (x1, z1) = fc[(k + 1) % 4];
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[x0, y0, z0], [x1, y0, z1]], MB);
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[x0, y1, z0], [x1, y1, z1]], MB);
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[x0, y0, z0], [x0, y1, z0]], MB);
+                                }
+                            }
+
+                            // CONDUIT-NODE markers (v0.587): a small ring at each pipe-graph junction --
+                            // the edges already render as solid pipes, this gives the nodes a helper too.
+                            if let Some(hm) = state.gui_state.home_machines.as_ref() {
+                                const CN: [f32; 4] = [0.4, 0.85, 0.95, 0.85];
+                                for n in &hm.conduit_nodes {
+                                    crate::renderer::line::push_circle(&mut ring_lines, [n.pos.0, n.pos.1, n.pos.2], 0.18, CN, 14);
                                 }
                             }
                         }

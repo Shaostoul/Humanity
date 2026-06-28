@@ -684,6 +684,9 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // Dev overlay (v0.547): keep the dimension overlay + door interaction rings visible in
                 // normal play, not just in the editor.
                 ui.checkbox(&mut state.construction_dev_overlay, RichText::new("Dev overlay in play").size(theme.font_size_small).color(theme.text_primary()));
+                // Helper-gizmo master toggle (v0.587): quiet the bounds/range overlays on machines,
+                // structures, roads, conduits + light ranges when the view gets busy. Editing handles stay.
+                ui.checkbox(&mut state.construction_show_helpers, RichText::new("Helper gizmos (bounds / range / nodes)").size(theme.font_size_small).color(theme.text_primary()));
                 // GI master switch (v0.571): off = only LOCAL placed lights illuminate (the "turn off
                 // global illumination and still see" test). Toggling it rebuilds room_lights so the
                 // auto per-room fill (part of "global" lighting) is added/removed accordingly.
