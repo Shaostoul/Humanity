@@ -20,6 +20,9 @@ pub mod ship;
 // placement lives in load_world (native); the structs + RON loader compile everywhere.
 pub mod machines;
 pub mod showroom;
+/// Utility wiring -- connection ports + cables/conduit with real specs (v0.604). Ungated (pure
+/// serde + math) so it compiles under relay too.
+pub mod utilities;
 pub mod cosmetics;
 
 /// Canonical Sol-system model (one `SolBody` set + one Kepler

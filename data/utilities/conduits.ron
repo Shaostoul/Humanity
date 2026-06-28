@@ -1,0 +1,51 @@
+// Cable + pipe registry (v0.604) -- the conduit CATALOG for the utility-wiring system. Infinite-of-X:
+// add a cable/pipe by adding a row; no code. Electrical rows use REAL-ish NEC copper ampacity + the
+// actual resistance/m so voltage-drop math teaches real engineering. Start with COPPER; the
+// sc_room_temp superconductor is the late-game upgrade target (near-zero loss, huge ampacity).
+//   awg = American Wire Gauge (electrical)   ampacity_a = continuous amps   ohm_per_m = one conductor
+//   voltage_max = insulation rating          grade = Home / Commercial / Industrial
+// Fluid rows use diameter_mm + flow_max_lpm instead of awg/ampacity.
+[
+    (
+        id: "cu_awg14", label: "Copper 14 AWG", utility: Electricity, material: Copper,
+        awg: 14, ampacity_a: 15.0, voltage_max: 600.0, ohm_per_m: 0.008286,
+        diameter_mm: 0.0, flow_max_lpm: 0.0, shielded: false, grade: Home, cost_per_m: 0.8,
+        note: "Standard 15 A home lighting + receptacle circuit. Cheapest; fine for lamps + small loads.",
+    ),
+    (
+        id: "cu_awg12", label: "Copper 12 AWG", utility: Electricity, material: Copper,
+        awg: 12, ampacity_a: 20.0, voltage_max: 600.0, ohm_per_m: 0.005211,
+        diameter_mm: 0.0, flow_max_lpm: 0.0, shielded: false, grade: Home, cost_per_m: 1.2,
+        note: "20 A home circuit -- kitchen/appliance + pumps. The workhorse residential cable.",
+    ),
+    (
+        id: "cu_awg10", label: "Copper 10 AWG", utility: Electricity, material: Copper,
+        awg: 10, ampacity_a: 30.0, voltage_max: 600.0, ohm_per_m: 0.003277,
+        diameter_mm: 0.0, flow_max_lpm: 0.0, shielded: false, grade: Home, cost_per_m: 1.9,
+        note: "30 A circuit -- water heater, dryer, EV charger, heavier machines.",
+    ),
+    (
+        id: "cu_awg6_ind", label: "Copper 6 AWG (industrial)", utility: Electricity, material: Copper,
+        awg: 6, ampacity_a: 55.0, voltage_max: 600.0, ohm_per_m: 0.001296,
+        diameter_mm: 0.0, flow_max_lpm: 0.0, shielded: true, grade: Industrial, cost_per_m: 4.5,
+        note: "55 A shielded feeder for industrial machines / sub-panels. Overkill (+expensive) at home.",
+    ),
+    (
+        id: "sc_room_temp", label: "Room-temp superconductor", utility: Electricity, material: Superconductor,
+        awg: 8, ampacity_a: 2000.0, voltage_max: 50000.0, ohm_per_m: 0.0000001,
+        diameter_mm: 0.0, flow_max_lpm: 0.0, shielded: true, grade: Industrial, cost_per_m: 60.0,
+        note: "Late-game upgrade target: near-zero loss, enormous ampacity. A mission swaps copper for this.",
+    ),
+    (
+        id: "pex_half", label: "PEX 1/2\" water", utility: Water, material: Copper,
+        awg: 0, ampacity_a: 0.0, voltage_max: 0.0, ohm_per_m: 0.0,
+        diameter_mm: 12.0, flow_max_lpm: 14.0, shielded: false, grade: Home, cost_per_m: 0.6,
+        note: "Flexible 1/2-inch potable line -- sinks, fixtures, low-flow branches. (Stage 2 plumbing.)",
+    ),
+    (
+        id: "copper_threequarter", label: "Copper 3/4\" water", utility: Water, material: Copper,
+        awg: 0, ampacity_a: 0.0, voltage_max: 0.0, ohm_per_m: 0.0,
+        diameter_mm: 19.0, flow_max_lpm: 26.0, shielded: false, grade: Home, cost_per_m: 2.2,
+        note: "Rigid 3/4-inch main/trunk -- supplies a whole home branch. (Stage 2 plumbing.)",
+    ),
+]
