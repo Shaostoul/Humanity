@@ -6439,6 +6439,25 @@ mod native_app {
                     if state.gui_state.construction_active && state.gui_state.construction_show_helpers {
                         if let Some(hs) = state.gui_state.home_structure.as_ref() {
                             let sel = state.gui_state.construction_structure_selected;
+                            // WALL WIREFRAME (v0.594, operator): the layout outline -- top + bottom edge
+                            // of every wall (box perimeter + interior walls) + a vertical at each corner,
+                            // like looking at the floor-plan wireframe. Param-closure so it doesn't hold a
+                            // borrow on ring_lines across the rest of the helper block.
+                            const WF: [f32; 4] = [0.80, 0.86, 0.92, 0.45];
+                            let wire = |lines: &mut Vec<crate::renderer::line::LineVertex>, a: (f32, f32), b: (f32, f32), h: f32| {
+                                crate::renderer::line::push_polyline(lines, &[[a.0, 0.0, a.1], [b.0, 0.0, b.1]], WF); // bottom
+                                crate::renderer::line::push_polyline(lines, &[[a.0, h, a.1], [b.0, h, b.1]], WF); // top
+                                crate::renderer::line::push_polyline(lines, &[[a.0, 0.0, a.1], [a.0, h, a.1]], WF); // vert @a
+                                crate::renderer::line::push_polyline(lines, &[[b.0, 0.0, b.1], [b.0, h, b.1]], WF); // vert @b
+                            };
+                            let (bw, bd, bh) = (hs.width, hs.depth, hs.height);
+                            wire(&mut ring_lines, (0.0, 0.0), (bw, 0.0), bh);
+                            wire(&mut ring_lines, (bw, 0.0), (bw, bd), bh);
+                            wire(&mut ring_lines, (bw, bd), (0.0, bd), bh);
+                            wire(&mut ring_lines, (0.0, bd), (0.0, 0.0), bh);
+                            for w in &hs.walls {
+                                wire(&mut ring_lines, w.a, w.b, w.height.max(0.1));
+                            }
                             for (i, ps) in hs.structures.iter().enumerate() {
                                 let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) else { continue };
                                 if ty.kind == crate::ship::structure::StructureKind::Wall {
