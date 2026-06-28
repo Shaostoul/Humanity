@@ -11,9 +11,28 @@
 
 ## Active focus
 
-> **STRUCTURAL BACKLOG WAVE COMPLETE (v0.583-587, operator "proceed until we're all caught up on the
-> backlog", 2026-06-27).** The v0.582 "keep working" feedback wave's structural list, cleared as one
-> data-driven system (see `docs/design/structure-pieces.md`):
+> **STRUCTURAL BACKLOG WAVE FULLY COMPLETE (v0.583-592, operator "proceed until caught up" + "enable
+> loop mode", 2026-06-27).** The v0.582 "keep working" feedback wave's structural list AND its
+> deferrals, all cleared as one data-driven system (see `docs/design/structure-pieces.md`). The
+> autonomous loop (operator away) added the deferrals on top of the directed v0.583-587:
+> - **v0.588** -- multi-level foundation: a `Deck` piece + "Place at height" so a deck lands as an
+>   upper landing atop stairs; footing sampler uses the player's live height (gated) so it's reachable.
+> - **v0.589** -- LADDER CLIMB (hold Space at a ladder, gravity suspended, clamped to span).
+> - **v0.590** -- ELEVATOR RIDE (a moving car carries the rider; step on to ride, wait in-shaft to recall).
+> - **v0.591** -- CURVED ROADS (Catmull-Rom splines bending through degree-2 nodes, straight at junctions).
+> - **v0.592** -- RAIL LINE between paired train platforms (steel rails + ties, deduped).
+> - Movement-touching releases (ladder/elevator) each got an adversarial review that caught + fixed real
+>   bugs (a blocking deck-rejection, a clamp teleport-snap, a wall-flush drop-out, a jump-cheese regression).
+> The home tech demo is now buildable end to end + multi-level THREE ways (stairs / ladder / elevator).
+>
+> > **NEXT CANDIDATES = the structural REFINEMENTS (operator's pick; not started -- new work, awaiting
+> > direction; docs/design/structure-pieces.md):** a ridable moving TRAIN CAR (horizontal
+> > elevator-equivalent) + platform-beside-track placement; a glassy elevator DESCENT + a distance CALL;
+> > road FOOTING (walk/drive on the surface; marginal on a flat floor); auto-stacking PLACEMENT
+> > (click-to-place-on-the-surface-under-the-cursor vs the manual height field); solid-body collision for
+> > tall structure pieces. All cosmetic/nice-to-have, none blocking. The directed backlog is DONE.
+>
+> The directed-then-deferred structural list:
 > - **v0.583** -- data-driven `StructurePiece` registry (`structure_types.ron`: wall/stairs/ramp/
 >   ladder/elevator/teleporter/train/road) + a "Structure" footer palette (leftmost; "Add wall" moved
 >   there) + viewport placement/ghost/bounds-gizmo/select + console `add_structure`/`rm_structure`.
