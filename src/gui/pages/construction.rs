@@ -572,6 +572,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     // Drop any held placement item so reopening doesn't drop a machine on the first
                     // click (the ghost slot itself is harmless + reused on reopen). (v0.531)
                     state.construction_place_type = None;
+                    state.construction_structure_type = None; // safety, though structures need a HomeStructure
                 }
             });
             ui.label(
@@ -644,6 +645,8 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         state.construction_wall_mode = false;
                         state.construction_wall_start = None;
                         state.construction_place_type = None;
+                        state.construction_structure_type = None;
+                        state.construction_structure_selected = None;
                         state.construction_active = false;
                     }
                     ui.add_space(theme.spacing_xs);
@@ -658,29 +661,21 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 }
                 ui.add_space(theme.spacing_sm);
 
-                // The wall-drawing tool: a toggle that lets the floor clicks drop corner nodes.
-                let mode = state.construction_wall_mode;
-                let label = if mode { "Stop drawing" } else { "Add wall" };
-                let mut btn = egui::Button::new(
-                    RichText::new(label).color(if mode { theme.bg_primary() } else { theme.text_primary() }),
-                );
-                if mode {
-                    btn = btn.fill(theme.accent());
-                }
-                if ui.add(btn).clicked() {
-                    state.construction_wall_mode = !mode;
-                    state.construction_wall_start = None;
-                    state.construction_place_type = None; // can't hold a machine + draw a wall at once
-                }
+                // Wall drawing + all structural pieces moved to the footer "Structure" palette
+                // (v0.583, operator: a dedicated section to the left of Defense). This panel keeps the
+                // live status hint so the active tool's flow is always visible.
                 if state.construction_wall_mode {
                     let hint = if state.construction_wall_start.is_some() {
-                        "Click the next corner. Right-click to finish."
+                        "Drawing wall: click the next corner. Right-click to finish."
                     } else {
-                        "Click the first corner on the floor."
+                        "Drawing wall: click the first corner on the floor."
                     };
                     ui.label(RichText::new(hint).size(theme.font_size_small).color(theme.accent()));
+                } else if state.construction_structure_type.is_some() {
+                    ui.label(RichText::new("Placing a structure: click the floor to drop it. [ and ] rotate it. Right-click cancels.")
+                        .size(theme.font_size_small).color(theme.accent()));
                 } else {
-                    ui.label(RichText::new("Drag the pins above the wall corners to move them; corners that meet move together.")
+                    ui.label(RichText::new("Build from the footer palette below -- Structure (walls, stairs, ladders, ...) is the leftmost tab. Drag corner pins to move walls.")
                         .size(theme.font_size_small).color(theme.text_muted()));
                 }
                 // Grid snap toggle (v0.541): endpoint + edge snapping are always on (airtight seals);
@@ -735,6 +730,10 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         }
                     });
 
+                // Structural pieces (v0.583): stairs / ladders / elevators / teleporters / etc.
+                // placed from the Structure palette. List + select + remove, like the wall list.
+                draw_structures_editor(ui, theme, state);
+
                 // Machines + utility-line connections (v0.536): collapsible sections (v0.569), the
                 // connections grouped by utility kind.
                 draw_machines_and_connections(ui, theme, state);
@@ -776,6 +775,11 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .default_width(252.0)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
+            // A selected STRUCTURE takes the panel (v0.583): clicked its gizmo or list row.
+            if state.construction_structure_selected.is_some() {
+                draw_structure_detail(ui, theme, state);
+                return;
+            }
             // A selected LIGHT takes the panel (v0.576): clicked its diamond gizmo in the viewport.
             if state.construction_light_selected.is_some() {
                 draw_light_detail(ui, theme, state);
@@ -1240,6 +1244,8 @@ const CONSOLE_VERBS: &[ConsoleVerb] = &[
     ConsoleVerb { usage: "add_lock <wall> <opening> <type>", desc: "Lock an opening (type from lock_types.ron: metal_key/keypad/knob/crank/biometric)." },
     ConsoleVerb { usage: "add_light <type> x y z", desc: "Place a light (type from light_types.ron, e.g. ceiling_panel)." },
     ConsoleVerb { usage: "rm_light <n>", desc: "Remove light #n (1-based)." },
+    ConsoleVerb { usage: "add_structure <type> x y z [yaw]", desc: "Place a structural piece (type from structure_types.ron: stairs/ramp/ladder/elevator/teleporter/train/road)." },
+    ConsoleVerb { usage: "rm_structure <n>", desc: "Remove structural piece #n (1-based)." },
 ];
 
 /// Execute a construction console command against the LIVE home (v0.578) and return a result string.
@@ -1340,6 +1346,47 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                 format!("removed light #{i}")
             } else {
                 format!("no light #{i} (have {})", h.lights.len())
+            }
+        }
+        "add_structure" => {
+            let Some(tid) = parts.get(1) else { return "usage: add_structure <type> x y z [yaw]".into(); };
+            let (Some(x), Some(y), Some(z)) = (f(2), f(3), f(4)) else { return "usage: add_structure <type> x y z [yaw]".into(); };
+            if crate::ship::structure::structure_type(tid).is_none() {
+                let ids: Vec<&str> = crate::ship::structure::structure_types().iter().map(|t| t.id.as_str()).collect();
+                return format!("unknown structure type '{tid}'. types: {}", ids.join(", "));
+            }
+            if *tid == "wall" {
+                return "wall is drawn, not placed -- use add_wall x1 z1 x2 z2 [mat].".into();
+            }
+            let yaw = f(5).unwrap_or(0.0);
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            h.structures.push(crate::ship::home_structure::PlacedStructure {
+                type_id: tid.to_string(), pos: (x, y, z), rot_deg: yaw, pair: None,
+            });
+            state.construction_structure_dirty = true;
+            format!("added structure #{} ({tid}) at ({x},{y},{z}) yaw {yaw}", h.structures.len())
+        }
+        "rm_structure" => {
+            let Some(i) = u(1) else { return "usage: rm_structure <n>".into(); };
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            if i >= 1 && i <= h.structures.len() {
+                h.structures.remove(i - 1);
+                for s in &mut h.structures {
+                    if let Some(p) = s.pair {
+                        if p + 1 == i { s.pair = None; } else if p + 1 > i { s.pair = Some(p - 1); }
+                    }
+                }
+                // Keep the right-panel selection consistent (same fixup the GUI removers do), so a
+                // console remove never leaves the detail panel pointed at a shifted piece. (v0.583)
+                state.construction_structure_selected = match state.construction_structure_selected {
+                    Some(s) if s + 1 == i => None,
+                    Some(s) if s + 1 > i => Some(s - 1),
+                    other => other,
+                };
+                state.construction_structure_dirty = true;
+                format!("removed structure #{i}")
+            } else {
+                format!("no structure #{i} (have {})", h.structures.len())
             }
         }
         "add_window" => {
@@ -1580,6 +1627,157 @@ fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 }
 
+/// The placed-structure list (v0.583): every stairs / ladder / elevator / etc. dropped from the
+/// Structure palette, with select + remove. Selecting one opens its detail on the right panel.
+fn draw_structures_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let n = state.home_structure.as_ref().map_or(0, |h| h.structures.len());
+    if n == 0 {
+        return; // nothing placed -- keep the panel uncluttered until the first piece exists
+    }
+    let mut select: Option<usize> = None;
+    let mut remove: Option<usize> = None;
+    egui::CollapsingHeader::new(RichText::new(format!("Structures ({n})")).strong().color(theme.text_primary()))
+        .id_salt("hs_structures_sec")
+        .default_open(true)
+        .show(ui, |ui| {
+            for i in 0..n {
+                let (tid, pos) = state
+                    .home_structure
+                    .as_ref()
+                    .map(|h| (h.structures[i].type_id.clone(), h.structures[i].pos))
+                    .unwrap();
+                let label = crate::ship::structure::structure_type(&tid)
+                    .map(|t| t.label.clone())
+                    .unwrap_or(tid);
+                let selected = state.construction_structure_selected == Some(i);
+                ui.horizontal(|ui| {
+                    let txt = format!("{}: {} ({:.0},{:.0})", i + 1, label, pos.0, pos.2);
+                    if ui.selectable_label(selected, RichText::new(txt).size(theme.font_size_small)).clicked() {
+                        select = Some(i);
+                    }
+                    if ui.small_button("Remove").clicked() {
+                        remove = Some(i);
+                    }
+                });
+            }
+        });
+    if let Some(i) = select {
+        state.construction_structure_selected = Some(i);
+        state.construction_wall_selected = None;
+        state.construction_machine_selected = None;
+        state.construction_light_selected = None;
+    }
+    if let Some(i) = remove {
+        if let Some(hs) = state.home_structure.as_mut() {
+            if i < hs.structures.len() {
+                hs.structures.remove(i);
+                // Drop any teleporter pairing that referenced a now-shifted index (Stage 1: clear all
+                // pairs >= i; re-link in the detail panel -- simpler + safe vs reindexing).
+                for s in &mut hs.structures {
+                    if let Some(p) = s.pair {
+                        if p == i { s.pair = None; } else if p > i { s.pair = Some(p - 1); }
+                    }
+                }
+            }
+        }
+        state.construction_structure_selected = None;
+        state.construction_structure_dirty = true;
+    }
+}
+
+/// The selected-structure detail (v0.583): type, pose (x/y/z + yaw), teleporter pairing, remove.
+/// Edits mark the home dirty so the mesh rebuilds live.
+fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let sel = match state.construction_structure_selected {
+        Some(s) => s,
+        None => return,
+    };
+    let n = state.home_structure.as_ref().map_or(0, |h| h.structures.len());
+    if sel >= n {
+        state.construction_structure_selected = None;
+        return;
+    }
+    let mut changed = false;
+    let mut deselect = false;
+    // Snapshot fields needed for the pairing combo (other teleporters) before the mutable borrow.
+    let pieces: Vec<(usize, String)> = state
+        .home_structure
+        .as_ref()
+        .map(|h| {
+            h.structures
+                .iter()
+                .enumerate()
+                .map(|(i, s)| (i, s.type_id.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+    if let Some(hs) = state.home_structure.as_mut() {
+        let ps = &mut hs.structures[sel];
+        let ty = crate::ship::structure::structure_type(&ps.type_id);
+        let label = ty.map(|t| t.label.clone()).unwrap_or_else(|| ps.type_id.clone());
+        let kind = ty.map(|t| t.kind);
+        ui.label(RichText::new(label).strong().size(theme.font_size_body).color(theme.text_primary()));
+        if let Some(t) = ty {
+            ui.label(RichText::new(&t.note).size(theme.font_size_small).color(theme.text_muted()));
+        }
+        ui.add_space(theme.spacing_xs);
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("pos").size(theme.font_size_small).color(theme.text_muted()));
+            changed |= ui.add(egui::DragValue::new(&mut ps.pos.0).speed(0.1).prefix("x ").suffix(" m")).changed();
+            changed |= ui.add(egui::DragValue::new(&mut ps.pos.1).speed(0.1).prefix("y ").suffix(" m")).changed();
+            changed |= ui.add(egui::DragValue::new(&mut ps.pos.2).speed(0.1).prefix("z ").suffix(" m")).changed();
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("yaw").size(theme.font_size_small).color(theme.text_muted()));
+            changed |= ui.add(egui::DragValue::new(&mut ps.rot_deg).speed(5.0).range(0.0..=360.0).suffix(" deg")).changed();
+            if ui.small_button("rotate 90").clicked() {
+                ps.rot_deg = (ps.rot_deg + 90.0) % 360.0;
+                changed = true;
+            }
+        });
+        // Teleporter pairing: pick another teleporter as the jump destination. (v0.584 reads it.)
+        if kind == Some(crate::ship::structure::StructureKind::Teleporter) {
+            ui.add_space(theme.spacing_xs);
+            let cur = ps.pair;
+            let cur_txt = cur.map(|p| format!("-> #{}", p + 1)).unwrap_or_else(|| "(no pair)".into());
+            egui::ComboBox::from_id_salt("hs_teleport_pair")
+                .selected_text(cur_txt)
+                .show_ui(ui, |ui| {
+                    if ui.selectable_label(cur.is_none(), "(no pair)").clicked() {
+                        ps.pair = None;
+                        changed = true;
+                    }
+                    for (i, tid) in &pieces {
+                        if *i == sel || tid != "teleporter" {
+                            continue;
+                        }
+                        if ui.selectable_label(cur == Some(*i), format!("#{} teleporter", i + 1)).clicked() {
+                            ps.pair = Some(*i);
+                            changed = true;
+                        }
+                    }
+                });
+        }
+        ui.add_space(theme.spacing_sm);
+        if ui.button(RichText::new("Remove").color(theme.danger())).clicked() {
+            hs.structures.remove(sel);
+            for s in &mut hs.structures {
+                if let Some(p) = s.pair {
+                    if p == sel { s.pair = None; } else if p > sel { s.pair = Some(p - 1); }
+                }
+            }
+            deselect = true;
+            changed = true;
+        }
+    }
+    if deselect {
+        state.construction_structure_selected = None;
+    }
+    if changed {
+        state.construction_structure_dirty = true;
+    }
+}
+
 fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     /// Friendly short label for a machine id: its last two underscore segments (e.g. "tower_2").
     fn label(s: &str) -> String {
@@ -1727,10 +1925,19 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
 /// Expand for more. Clicking an item asks to place it (added to the selected room for now; viewport
 /// click-to-place is the next step). Data-driven: categories + items come from the catalog.
 fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
-    let categories = match &state.home_machines {
-        Some(h) => h.palette_categories(),
-        None => return,
+    // STRUCTURE category first (leftmost -- the operator's "dedicated section to the left of
+    // Defense"): walls + stairs/ladders/elevators/teleporters/trains/roads, from structure_types.ron.
+    // Then the machine catalog's categories. One palette, two data sources. The Structure category is
+    // gated to the new HomeStructure editor (placement needs a HomeStructure) so the legacy room-AABB
+    // home never shows a placeable-looking ghost that can't drop. (v0.583)
+    let mut categories: Vec<(String, Vec<(String, String)>)> = if state.home_structure.is_some() {
+        crate::ship::structure::palette_categories()
+    } else {
+        Vec::new()
     };
+    if let Some(h) = &state.home_machines {
+        categories.extend(h.palette_categories());
+    }
     if categories.is_empty() {
         return;
     }
@@ -1749,6 +1956,7 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_xs);
             // Category tabs + the expand toggle (right-aligned).
+            let is_structure = state.construction_palette_category == "Structure";
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Place").strong().color(theme.text_primary()));
                 ui.separator();
@@ -1785,8 +1993,17 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     .show(ui, |ui| {
                         for (i, (id, label)) in items.iter().enumerate() {
                             // The HELD item (the one you are placing) is filled accent + outlined,
-                            // so you can see what is attached to the cursor. (v0.529)
-                            let held = state.construction_place_type.as_deref() == Some(id.as_str());
+                            // so you can see what is attached to the cursor. (v0.529) For the
+                            // Structure category, "held" tracks the structure type OR -- for the
+                            // Wall tool -- the wall-DRAW mode (Wall is drawn, not placed). (v0.583)
+                            let is_wall_tool = is_structure && id == "wall";
+                            let held = if is_wall_tool {
+                                state.construction_wall_mode
+                            } else if is_structure {
+                                state.construction_structure_type.as_deref() == Some(id.as_str())
+                            } else {
+                                state.construction_place_type.as_deref() == Some(id.as_str())
+                            };
                             let mut btn = egui::Button::new(
                                 RichText::new(label)
                                     .size(theme.font_size_small)
@@ -1797,8 +2014,21 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             }
                             if ui.add_sized([92.0, 30.0], btn).clicked() {
                                 // Toggle: click the held item to cancel; click another to switch.
-                                state.construction_place_type =
-                                    if held { None } else { Some(id.clone()) };
+                                // Selecting any one tool clears the others (can't hold two at once).
+                                if is_wall_tool {
+                                    state.construction_wall_mode = !held;
+                                    state.construction_wall_start = None;
+                                    state.construction_place_type = None;
+                                    state.construction_structure_type = None;
+                                } else if is_structure {
+                                    state.construction_structure_type = if held { None } else { Some(id.clone()) };
+                                    state.construction_place_type = None;
+                                    state.construction_wall_mode = false;
+                                } else {
+                                    state.construction_place_type = if held { None } else { Some(id.clone()) };
+                                    state.construction_structure_type = None;
+                                    state.construction_wall_mode = false;
+                                }
                             }
                             if (i + 1) % 10 == 0 {
                                 ui.end_row();

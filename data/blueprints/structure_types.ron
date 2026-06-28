@@ -1,0 +1,48 @@
+// Structural building pieces (v0.583) -- the data-driven registry the construction "Structure"
+// palette renders and an AI can enumerate. Add a buildable by adding one entry; no code.
+//   kind  = what it DOES (drives behaviour: Stairs/Ladder ascend, Elevator/Teleporter transport).
+//   shape = the placeholder GEOMETRY builder (Box/Steps/Ramp/Ladder/Frame/Slab).
+//   size  = (width X, height Y, depth Z) in metres.   color = rgb.   steps = step/rung count.
+// Wall is special: selecting it enters the wall-DRAW tool (segment chains), it is never "placed".
+[
+    (
+        id: "wall", label: "Wall", category: "Structure",
+        kind: Wall, shape: Box, size: (0.15, 3.0, 1.0), color: (0.6, 0.6, 0.62), steps: 0,
+        note: "Draw interior wall segments by clicking corner nodes on the floor. Right-click finishes.",
+    ),
+    (
+        id: "stairs", label: "Stairs", category: "Structure",
+        kind: Stairs, shape: Steps, size: (1.4, 3.0, 3.6), color: (0.55, 0.55, 0.58), steps: 14,
+        note: "A staircase climbing one storey. Walk up it (the ground-height sampler lifts you step to step).",
+    ),
+    (
+        id: "ramp", label: "Ramp", category: "Structure",
+        kind: Stairs, shape: Ramp, size: (1.8, 1.2, 4.5), color: (0.5, 0.5, 0.52), steps: 0,
+        note: "A smooth inclined ramp -- cart / wheelchair friendly. Walk straight up the slope.",
+    ),
+    (
+        id: "ladder", label: "Ladder", category: "Structure",
+        kind: Ladder, shape: Ladder, size: (0.6, 3.0, 0.16), color: (0.72, 0.55, 0.2), steps: 10,
+        note: "A vertical ladder. Face it and climb to reach the next level in a tight footprint.",
+    ),
+    (
+        id: "elevator", label: "Elevator", category: "Structure",
+        kind: Elevator, shape: Frame, size: (1.8, 3.0, 1.8), color: (0.45, 0.5, 0.6), steps: 0,
+        note: "An elevator car / shaft frame. Step in and it raises or lowers the rider between floors.",
+    ),
+    (
+        id: "teleporter", label: "Teleporter", category: "Structure",
+        kind: Teleporter, shape: Frame, size: (1.4, 2.6, 0.4), color: (0.3, 0.8, 0.9), steps: 0,
+        note: "A teleport arch. Step through to jump instantly to its paired pad (set the pair in its detail).",
+    ),
+    (
+        id: "train", label: "Train platform", category: "Structure",
+        kind: Train, shape: Box, size: (3.0, 0.4, 8.0), color: (0.4, 0.42, 0.45), steps: 0,
+        note: "A boarding platform for a future rail line. Place two and a track connects them (later stage).",
+    ),
+    (
+        id: "road", label: "Road", category: "Structure",
+        kind: Road, shape: Slab, size: (4.0, 0.12, 6.0), color: (0.22, 0.22, 0.24), steps: 0,
+        note: "A paved road segment. Carries a fixed top-to-bottom material stack (asphalt / base / subgrade).",
+    ),
+]

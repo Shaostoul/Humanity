@@ -1555,6 +1555,31 @@ mod native_app {
         }
     }
 
+    /// Drop the currently-held STRUCTURAL piece (stairs/ladder/elevator/...) where the cursor hits a
+    /// room floor (v0.583). Stores an ABSOLUTE home-local pose (box min at origin) at the floor height,
+    /// with the current placement yaw. Stays held so you can place several; right-click cancels.
+    fn try_place_structure(state: &mut EngineState) {
+        let Some(tid) = state.gui_state.construction_structure_type.clone() else {
+            return;
+        };
+        if crate::ship::structure::structure_type(&tid).is_none() {
+            return;
+        }
+        let Some((rb_i, hx, hz)) = cursor_floor_hit(state) else {
+            return;
+        };
+        let floor_y = state.gui_state.room_bounds[rb_i].min.y;
+        if let Some(hs) = state.gui_state.home_structure.as_mut() {
+            hs.structures.push(crate::ship::home_structure::PlacedStructure {
+                type_id: tid,
+                pos: (hx, floor_y, hz),
+                rot_deg: state.gui_state.construction_structure_yaw,
+                pair: None,
+            });
+            state.gui_state.construction_structure_dirty = true;
+        }
+    }
+
     /// Drop a corner node while drawing an interior wall (v0.534). The first click sets the wall's
     /// start corner; the second click adds a wall segment from the start to here and CHAINS (the new
     /// corner becomes the next start), so you can walk a whole floor plan with successive clicks. The
@@ -1686,6 +1711,7 @@ mod native_app {
         if !state.gui_state.construction_active
             || state.gui_state.construction_wall_mode
             || state.gui_state.construction_place_type.is_some()
+            || state.gui_state.construction_structure_type.is_some()
             || state.construction_node_grab.is_some()
             || state.construction_opening_grab.is_some()
             || state.construction_char_grab
@@ -1886,6 +1912,87 @@ mod native_app {
             state.gui_state.construction_light_selected = Some(i);
             state.gui_state.construction_wall_selected = None;
             state.gui_state.construction_machine_selected = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Ray vs axis-aligned box (the slab method): the ray `origin + t*dir` against the box [min,max].
+    /// Returns the nearest positive `t` of entry, or None if the ray misses / the box is behind. Used
+    /// to pick placed structures by their bounding box. (v0.583)
+    fn ray_aabb_hit(origin: Vec3, dir: Vec3, min: Vec3, max: Vec3) -> Option<f32> {
+        let mut tmin = 0.0_f32;
+        let mut tmax = f32::INFINITY;
+        for a in 0..3 {
+            let (o, d, lo, hi) = (origin[a], dir[a], min[a], max[a]);
+            if d.abs() < 1e-8 {
+                if o < lo || o > hi {
+                    return None; // parallel + outside the slab
+                }
+            } else {
+                let inv = 1.0 / d;
+                let mut t1 = (lo - o) * inv;
+                let mut t2 = (hi - o) * inv;
+                if t1 > t2 {
+                    std::mem::swap(&mut t1, &mut t2);
+                }
+                tmin = tmin.max(t1);
+                tmax = tmax.min(t2);
+                if tmin > tmax {
+                    return None;
+                }
+            }
+        }
+        if tmax < 0.0 {
+            None
+        } else {
+            Some(tmin)
+        }
+    }
+
+    /// Hit-test the cursor ray against the placed STRUCTURE pieces (v0.583). On a hit, SELECT that
+    /// piece (its detail shows on the right panel). Uses a ray-vs-AABB test against each piece's
+    /// rotated bounding box so clicking the visible body (the elevator frame, the stair mass) selects
+    /// it. Returns true so the click doesn't also pick a wall / grab a room.
+    fn try_pick_structure(state: &mut EngineState) -> bool {
+        use crate::ship::structure::{rotated_half_extents, structure_type, StructureKind};
+        let pieces: Vec<(usize, Vec3, Vec3)> = match state.gui_state.home_structure.as_ref() {
+            Some(hs) => hs
+                .structures
+                .iter()
+                .enumerate()
+                .filter_map(|(i, ps)| {
+                    let ty = structure_type(&ps.type_id)?;
+                    if ty.kind == StructureKind::Wall {
+                        return None;
+                    }
+                    let (hw, h, hd) = rotated_half_extents(ty, ps.rot_deg.to_radians());
+                    let min = Vec3::new(ps.pos.0 - hw, ps.pos.1, ps.pos.2 - hd);
+                    let max = Vec3::new(ps.pos.0 + hw, ps.pos.1 + h, ps.pos.2 + hd);
+                    Some((i, min, max))
+                })
+                .collect(),
+            None => return false,
+        };
+        if pieces.is_empty() {
+            return false;
+        }
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<(usize, f32)> = None;
+        for (i, min, max) in &pieces {
+            if let Some(t) = ray_aabb_hit(origin, dir, *min, *max) {
+                if best.map_or(true, |(_, bt)| t < bt) {
+                    best = Some((*i, t));
+                }
+            }
+        }
+        if let Some((i, _)) = best {
+            state.gui_state.construction_structure_selected = Some(i);
+            state.gui_state.construction_wall_selected = None;
+            state.gui_state.construction_machine_selected = None;
+            state.gui_state.construction_light_selected = None;
             true
         } else {
             false
@@ -3348,6 +3455,10 @@ mod native_app {
         /// material idx). Rebuilt only when the held type changes, so the cursor-following ghost
         /// does not leak a fresh mesh every frame.
         construction_ghost: Option<(String, usize, usize)>,
+        /// Held-STRUCTURE placement ghost (v0.583): (type_id ‖ yaw key, mesh idx, material idx).
+        /// Rebuilt when the held type OR the placement yaw changes (the key encodes both), so the
+        /// cursor-following structure preview is correct without leaking a mesh per frame.
+        construction_structure_ghost: Option<(String, usize, usize)>,
         /// Cached unit-box mesh + translucent material for the wall-drawing tool (v0.534): the corner
         /// node marker under the cursor and the preview wall from the pending start to the cursor.
         /// Lazy-created once and reused (scaled/rotated per frame) so the preview never leaks a mesh.
@@ -3971,6 +4082,7 @@ mod native_app {
                 cursor_pos: (0.0, 0.0),
                 construction_grab: None,
                 construction_ghost: None,
+                construction_structure_ghost: None,
                 wall_tool_mesh: None,
                 wall_tool_mat: None,
                 construction_node_grab: None,
@@ -4087,6 +4199,20 @@ mod native_app {
                                 construction_undo(state);
                             } else if key == KeyCode::KeyY {
                                 construction_redo(state);
+                            }
+                        }
+                        // Rotate the held STRUCTURE piece with [ and ] (v0.583): 15-degree steps. Only
+                        // while a structure is held for placement, so it never fights other keys.
+                        if pressed
+                            && state.gui_state.construction_active
+                            && state.gui_state.construction_structure_type.is_some()
+                        {
+                            if key == KeyCode::BracketLeft {
+                                state.gui_state.construction_structure_yaw =
+                                    (state.gui_state.construction_structure_yaw - 15.0).rem_euclid(360.0);
+                            } else if key == KeyCode::BracketRight {
+                                state.gui_state.construction_structure_yaw =
+                                    (state.gui_state.construction_structure_yaw + 15.0).rem_euclid(360.0);
                             }
                         }
 
@@ -4428,6 +4554,9 @@ mod native_app {
                                 try_place_wall_node(state);
                             } else if state.gui_state.construction_place_type.is_some() {
                                 try_place_held_machine(state);
+                            } else if state.gui_state.construction_structure_type.is_some() {
+                                // Holding a STRUCTURAL piece (v0.583) -> drop it on the floor.
+                                try_place_structure(state);
                             } else if state.gui_state.home_structure.is_some() && try_grab_opening_resize(state) {
                                 // Grabbed an opening RESIZE handle (v0.578): the per-frame drag resizes
                                 // the door/window (width via left/right, height via top/bottom).
@@ -4443,6 +4572,8 @@ mod native_app {
                             } else if state.gui_state.home_structure.is_some() && try_pick_light(state) {
                                 // Clicked a placed-LIGHT diamond gizmo (v0.576) -> its detail shows on
                                 // the right panel, like a wall.
+                            } else if state.gui_state.home_structure.is_some() && try_pick_structure(state) {
+                                // Clicked a placed STRUCTURE (v0.583) -> its detail shows on the right.
                             } else if state.gui_state.home_structure.is_some() && try_pick_machine(state) {
                                 // Selected a machine in the viewport (v0.553) -> its detail shows on
                                 // the right panel. Click only; machines are not dragged here. Gated to
@@ -4486,11 +4617,13 @@ mod native_app {
                         && right
                         && pressed
                         && (state.gui_state.construction_place_type.is_some()
+                            || state.gui_state.construction_structure_type.is_some()
                             || state.gui_state.construction_wall_mode)
                     {
-                        // Right-click cancels the held placement item OR exits wall-drawing and
-                        // clears the pending corner (v0.529/v0.534).
+                        // Right-click cancels the held placement item / structure OR exits
+                        // wall-drawing and clears the pending corner (v0.529/v0.534/v0.583).
                         state.gui_state.construction_place_type = None;
+                        state.gui_state.construction_structure_type = None;
                         state.gui_state.construction_wall_mode = false;
                         state.gui_state.construction_wall_start = None;
                     } else if !egui_consumed && state.gui_state.active_page == GuiPage::None {
@@ -5665,6 +5798,54 @@ mod native_app {
                         } else {
                             state.construction_ghost = None;
                         }
+                        // STRUCTURE placement ghost (v0.583): the held structural piece, previewed
+                        // translucent on the floor under the cursor with the current placement yaw.
+                        // The key encodes type + yaw so rotating ([ / ]) rebuilds the cached mesh.
+                        if let Some(tid) = state.gui_state.construction_structure_type.clone() {
+                            let yaw = state.gui_state.construction_structure_yaw;
+                            let key = format!("{tid}@{:.0}", yaw);
+                            let need = state
+                                .construction_structure_ghost
+                                .as_ref()
+                                .map_or(true, |(k, _, _)| k != &key);
+                            if need {
+                                if let Some(ty) = crate::ship::structure::structure_type(&tid) {
+                                    let (verts, indices) =
+                                        crate::ship::structure::structure_mesh(ty, Vec3::ZERO, yaw.to_radians());
+                                    let mesh = Mesh::from_vertices(&state.renderer.device, &verts, &indices);
+                                    let color = [ty.color.0, ty.color.1, ty.color.2, 0.45];
+                                    let slot = state
+                                        .construction_structure_ghost
+                                        .as_ref()
+                                        .map(|(_, m, mt)| (*m, *mt));
+                                    let (mesh_idx, mat) = if let Some((mi, ma)) = slot {
+                                        state.renderer.replace_mesh(mi, mesh);
+                                        state.renderer.update_material_typed(ma, color, 0.1, 0.6, 0.4);
+                                        (mi, ma)
+                                    } else {
+                                        let mi = state.renderer.add_mesh(mesh);
+                                        let ma = state.renderer.add_material_typed(color, 0.1, 0.6, 0.4);
+                                        (mi, ma)
+                                    };
+                                    state.construction_structure_ghost = Some((key.clone(), mesh_idx, mat));
+                                }
+                            }
+                            let ghost = state.construction_structure_ghost.as_ref().map(|(_, m, mt)| (*m, *mt));
+                            if let Some((mesh_idx, mat)) = ghost {
+                                if let Some((rb_i, hx, hz)) = cursor_floor_hit(state) {
+                                    let floor_y = state.gui_state.room_bounds[rb_i].min.y;
+                                    transparent_objects.push(RenderObject {
+                                        position: Vec3::new(hx, floor_y, hz),
+                                        rotation: Quat::IDENTITY,
+                                        scale: Vec3::ONE,
+                                        mesh: mesh_idx,
+                                        material: mat,
+                                    });
+                                }
+                            }
+                        } else {
+                            state.construction_structure_ghost = None;
+                        }
                     }
 
                     // Wall-drawing tool preview (v0.534): a corner-node marker under the cursor and,
@@ -5909,6 +6090,47 @@ mod native_app {
                                 crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [1.0, 0.0, 0.0], [1.0, 0.30, 0.30, 0.7], 40);
                                 crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 1.0, 0.0], [0.35, 1.0, 0.35, 0.7], 40);
                                 crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 0.0, 1.0], [0.45, 0.55, 1.0, 0.7], 40);
+                            }
+                        }
+                    }
+
+                    // Placed-STRUCTURE bounds gizmos (v0.583): a wireframe box around each placed piece
+                    // (its ROTATED footprint, floor to top), drawn with the reusable line primitive so it
+                    // shows through walls. The selected piece glows brighter -- the helper widget the
+                    // operator asked for on "everything." Build mode only.
+                    if state.gui_state.construction_active {
+                        if let Some(hs) = state.gui_state.home_structure.as_ref() {
+                            let sel = state.gui_state.construction_structure_selected;
+                            for (i, ps) in hs.structures.iter().enumerate() {
+                                let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) else { continue };
+                                if ty.kind == crate::ship::structure::StructureKind::Wall {
+                                    continue;
+                                }
+                                let (w, h, d) = ty.size;
+                                let (hw, hd) = (w * 0.5, d * 0.5);
+                                let yaw = ps.rot_deg.to_radians();
+                                let (s, c) = yaw.sin_cos();
+                                // The 4 footprint corners, yaw-rotated around the piece centre.
+                                let corner = |lx: f32, lz: f32| {
+                                    let rx = lx * c + lz * s;
+                                    let rz = -lx * s + lz * c;
+                                    (ps.pos.0 + rx, ps.pos.2 + rz)
+                                };
+                                let fc = [corner(-hw, -hd), corner(hw, -hd), corner(hw, hd), corner(-hw, hd)];
+                                let (y0, y1) = (ps.pos.1, ps.pos.1 + h.max(0.1));
+                                let col: [f32; 4] = if sel == Some(i) {
+                                    [1.0, 0.85, 0.25, 0.95] // selected: bright amber
+                                } else {
+                                    [0.45, 0.85, 1.0, 0.6] // cyan, like other build gizmos
+                                };
+                                for k in 0..4 {
+                                    let (x0, z0) = fc[k];
+                                    let (x1, z1) = fc[(k + 1) % 4];
+                                    // Bottom ring, top ring, and a vertical riser at each corner.
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[x0, y0, z0], [x1, y0, z1]], col);
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[x0, y1, z0], [x1, y1, z1]], col);
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[x0, y0, z0], [x0, y1, z0]], col);
+                                }
                             }
                         }
                     }

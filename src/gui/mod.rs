@@ -1513,6 +1513,14 @@ pub struct GuiState {
     /// editor renders it as a ghost following the cursor + drops it where you click the floor (click
     /// the same item again, or Escape/right-click, to cancel). None = not placing.
     pub construction_place_type: Option<String>,
+    /// The STRUCTURAL piece type currently "held" for placement (v0.583): set by the "Structure"
+    /// palette category, dropped where you click the floor. Mutually exclusive with
+    /// construction_place_type (a machine) + wall_mode. None = not placing a structure.
+    pub construction_structure_type: Option<String>,
+    /// Index of the placed structure selected in the editor (its detail shows on the right). (v0.583)
+    pub construction_structure_selected: Option<usize>,
+    /// Yaw (degrees) applied to the next placed structure -- rotate the held piece with [ and ].
+    pub construction_structure_yaw: f32,
     /// The home as a FIXED outer box + freely-designed interior walls (v0.534, the node/wall
     /// redesign). The editor edits THIS; the engine renders it (load_world + rebuild_homestead via
     /// generate_meshes) instead of the old room-AABB layout when present. Loaded in load_world.
@@ -2582,6 +2590,9 @@ impl Default for GuiState {
             construction_palette_category: String::new(),
             construction_palette_expanded: false,
             construction_place_type: None,
+            construction_structure_type: None,
+            construction_structure_selected: None,
+            construction_structure_yaw: 0.0,
             construction_save: false,
             showroom_backdrop: 0,
             showroom_backdrop_names: Vec::new(),

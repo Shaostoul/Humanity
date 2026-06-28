@@ -206,6 +206,29 @@ pub struct HomeStructure {
     /// set by dragging the build-mode avatar gizmo. Persisted so the moved spawn survives a save/load.
     #[serde(default)]
     pub spawn: Option<(f32, f32)>,
+    /// PLACED STRUCTURAL PIECES (v0.583): stairs, ramps, ladders, elevators, teleporters, train
+    /// platforms, roads -- each a `structure_types.ron` type at a home-local pose. Empty by default
+    /// (every existing home + test is unchanged). The mesh + (v0.584) function resolve from the type.
+    #[serde(default)]
+    pub structures: Vec<PlacedStructure>,
+}
+
+/// A structural piece placed in a home (v0.583): a `structure_types.ron` type at a home-local pose.
+/// Pure data -- `structure::structure_mesh` resolves it into geometry, the gameplay layer (v0.584)
+/// reads its `kind` for behaviour (ascend / climb / ride / teleport).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlacedStructure {
+    /// -> `structure_types.ron` id (e.g. "stairs", "elevator").
+    pub type_id: String,
+    /// Home-local position (x, y, z); y > 0 places it on an upper level.
+    pub pos: (f32, f32, f32),
+    /// Yaw orientation in degrees (0 = footprint axis-aligned, +Z is "up the stairs").
+    #[serde(default)]
+    pub rot_deg: f32,
+    /// Teleporter pairing (v0.584): the index of the partner piece this one jumps you to. None until
+    /// the operator links a pair in the detail panel. Ignored for non-teleporter kinds.
+    #[serde(default)]
+    pub pair: Option<usize>,
 }
 
 /// A light placed in a home (v0.571): a `light_types.ron` type at a world/home-local position, with
@@ -494,10 +517,38 @@ impl HomeStructure {
         // (so render-slot reuse does not shuffle frame to frame).
         let mut groups: Vec<(u32, (Vec<Vertex>, Vec<u32>))> = by_mat.into_iter().collect();
         groups.sort_by_key(|(mid, _)| *mid);
-        let material_walls: Vec<(Vec<Vertex>, Vec<u32>, [f32; 4])> = groups
+        let mut material_walls: Vec<(Vec<Vertex>, Vec<u32>, [f32; 4])> = groups
             .into_iter()
             .map(|(mid, (v, i))| (v, i, Self::material_color(mid)))
             .collect();
+
+        // PLACED STRUCTURES (v0.583): stairs/ramps/ladders/elevators/teleporters/platforms/roads
+        // render through the SAME material_walls path -- one buffer per distinct piece colour (keyed
+        // by an rgb quantization so a dozen identical stairs share a draw). Geometry comes from the
+        // type's parametric `shape`; Wall-kind entries are drawn by the wall tool, never placed.
+        use crate::ship::structure::{structure_mesh, structure_type, StructureKind};
+        let mut by_color: std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])> =
+            std::collections::HashMap::new();
+        for ps in &self.structures {
+            let Some(ty) = structure_type(&ps.type_id) else { continue };
+            if ty.kind == StructureKind::Wall {
+                continue;
+            }
+            let pos = Vec3::new(ps.pos.0, ps.pos.1, ps.pos.2);
+            let (mut verts, indices) = structure_mesh(ty, pos, ps.rot_deg.to_radians());
+            let key = [(ty.color.0 * 64.0) as i32, (ty.color.1 * 64.0) as i32, (ty.color.2 * 64.0) as i32];
+            let g = by_color
+                .entry(key)
+                .or_insert_with(|| (Vec::new(), Vec::new(), [ty.color.0, ty.color.1, ty.color.2]));
+            let base = g.0.len() as u32;
+            g.0.append(&mut verts);
+            g.1.extend(indices.into_iter().map(|i| i + base));
+        }
+        let mut scolor: Vec<_> = by_color.into_iter().collect();
+        scolor.sort_by_key(|(k, _)| *k);
+        for (_, (v, i, c)) in scolor {
+            material_walls.push((v, i, [c[0], c[1], c[2], 1.0]));
+        }
 
         HomesteadMeshes {
             floors,
@@ -927,7 +978,7 @@ mod tests {
     use super::*;
 
     fn box_only() -> HomeStructure {
-        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None }
+        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new() }
     }
 
     /// Total wall vertices across BOTH the legacy `walls` family and the per-material `material_walls`
@@ -1079,7 +1130,7 @@ mod tests {
                     Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() },
                 ],
             )],
-            shell_thickness: None, lights: Vec::new(), spawn: None,
+            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(),
         };
         let tmp = std::env::temp_dir().join("humanity_home_structure_rt.ron");
         h.save(&tmp).expect("save");
@@ -1117,7 +1168,7 @@ mod tests {
     fn locks_round_trip_through_save() {
         use crate::ship::lock_types::LockState;
         let h = HomeStructure {
-            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(), spawn: None,
+            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(),
             walls: vec![wall((2.0, 2.0), (2.0, 12.0), vec![
                 Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true,
                     locks: vec![
