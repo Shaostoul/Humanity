@@ -23,7 +23,7 @@
     (
         id: "ladder", label: "Ladder", category: "Structure",
         kind: Ladder, shape: Ladder, size: (0.6, 3.0, 0.16), color: (0.72, 0.55, 0.2), steps: 10,
-        note: "A vertical ladder. Face it and climb to reach the next level in a tight footprint.",
+        note: "A vertical ladder. Stand at it and hold Space to climb up (Shift to descend); step off at the top onto a deck.",
     ),
     (
         id: "elevator", label: "Elevator", category: "Structure",

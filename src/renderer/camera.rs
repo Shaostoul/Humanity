@@ -466,6 +466,10 @@ pub struct CameraController {
     /// World-Y the camera rests at when grounded (floor_y + eye_height). Set each frame
     /// by the main loop from the room the player is standing in; defaults to floor 0.
     ground_y: f32,
+    /// Ladder CLIMB zone (v0.589): Some((base_floor, top_floor)) when the player stands at a ladder,
+    /// set each frame by the main loop. While set AND an up/down input is held, the player moves
+    /// vertically (gravity suspended) clamped to the ladder span -- so they climb to an upper deck.
+    climb_zone: Option<(f32, f32)>,
     /// Character-showroom lock (v0.443): when true the orbit camera is FIXED on the avatar
     /// -- only a mouse drag spins it and the wheel zooms; WASD and panning are disabled.
     pub showroom_lock: bool,
@@ -498,6 +502,7 @@ impl CameraController {
             eye_height: 1.7,
             jump_speed: 5.0,
             ground_y: 1.7,
+            climb_zone: None,
             showroom_lock: false,
         }
     }
@@ -667,6 +672,26 @@ impl CameraController {
         self.ground_y - self.eye_height
     }
 
+    /// Set (or clear) the ladder CLIMB zone (v0.589): Some((base_floor, top_floor)) when the player
+    /// is at a ladder. Set each frame by the main loop from the structure pieces near the player.
+    pub fn set_climb_zone(&mut self, zone: Option<(f32, f32)>) {
+        self.climb_zone = zone;
+    }
+
+    /// Eye height (camera Y above the feet). The footing sampler uses it to get the player's ACTUAL
+    /// feet height (`camera.y - eye_height`) -- which, unlike `ground_floor()`, tracks the live
+    /// climbed height, so a deck at a ladder top is reachable. (v0.589)
+    pub fn eye_height(&self) -> f32 {
+        self.eye_height
+    }
+
+    /// Is the player currently at a ladder (climb zone set)? The footing sampler uses LIVE height for
+    /// the step-up cap ONLY while climbing -- so a deck at the ladder top is reachable -- but the
+    /// lagging rest floor otherwise, so a normal JUMP can't cheese you up a tall box. (v0.589)
+    pub fn in_climb_zone(&self) -> bool {
+        self.climb_zone.is_some()
+    }
+
     /// First-person: WASD walks (Shift = sprint), Space = jump, gravity pulls you to the
     /// floor. Mouse rotates the view. (Was free-fly noclip: Shift floated you down and
     /// Space up with no sprint, the operator's BUG-039.)
@@ -703,6 +728,32 @@ impl CameraController {
             // Horizontal only — gravity owns Y so a sprint can't cancel a jump.
             camera.position.x += velocity.x;
             camera.position.z += velocity.z;
+        }
+
+        // ── Ladder climb (v0.589) ──
+        // At a ladder (climb_zone set) WITH an up/down input held, move vertically + suspend gravity,
+        // clamped to the ladder span -- so you climb to an upper deck. Space = up, Shift = down. No
+        // input near a ladder falls through to normal gravity, so you can still walk past one.
+        if let Some((base, top)) = self.climb_zone {
+            let lo = base + self.eye_height;
+            let hi = top + self.eye_height + 0.2; // eye can reach just over the top rung
+            // Only ENGAGE the ladder when the camera is already near its span -- if you jumped in
+            // from above or arrived from below, fall through to gravity and LAND first, so the clamp
+            // never teleport-snaps you onto the ladder. (v0.589 review fix)
+            let near = camera.position.y >= lo - 0.5 && camera.position.y <= hi + 0.5;
+            if near && (self.ascend || self.descend) {
+                let climb = self.speed * 0.6 * dt;
+                if self.ascend {
+                    camera.position.y += climb;
+                }
+                if self.descend {
+                    camera.position.y -= climb;
+                }
+                camera.position.y = camera.position.y.clamp(lo, hi);
+                self.vertical_velocity = 0.0;
+                self.is_grounded = false;
+                return; // skip gravity this frame -- the ladder holds you
+            }
         }
 
         // ── Gravity + jump (grounded on the room floor) ──

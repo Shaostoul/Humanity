@@ -64,6 +64,17 @@ the light diamond) are always shown so you never lose the ability to edit.
   walkable. Frames + Ladders give no footing (you pass through / climb).
 - TELEPORTERS (v0.584): stepping onto a teleporter whose `pair` is linked jumps you to
   the partner pad (a 1.2 s cooldown stops ping-ponging on arrival).
+- MULTI-LEVEL (v0.588): a `Deck` piece (flat Slab) + a "Place at height" field drops a
+  piece any height above the floor, so a deck becomes an upper-level landing at a
+  staircase top. The footing sampler uses the player's ACTUAL height (`camera.y -
+  eye_height`, v0.589), not the lagging rest floor -- so a deck at a stair/ladder top is
+  reachable as you climb to it (the old lagging value rejected anything > 0.6 m up).
+- LADDER CLIMB (v0.589): standing within a ladder's reach, holding Space climbs up (Shift
+  down), gravity suspended, clamped to the ladder span; the climb only engages when the
+  camera is already near the span (no teleport-snap), and a generous reach keeps a
+  wall-flush ladder usable. Step off the top onto a deck (place the deck so it OVERLAPS the
+  ladder top for a seamless dismount). `CameraController::climb_zone`, set per-frame from
+  the structure pieces near the player.
 
 ## Material layering (v0.585)
 
@@ -86,13 +97,13 @@ density / strength / cost.
 
 ## Deferred (next stages, intentionally NOT faked)
 
-- **Elevator ride + ladder climb** need an animated/moving structure state (a moving
-  floor the player rides, or a climb mode that overrides gravity) + a destination floor.
-  That is its own increment ("moving structure state") -- a fake that drops you in mid-air
-  would be a bandaid. Until then an elevator/teleporter Frame is a visible, placeable arch.
-- **Multi-level landings**: stairs currently climb to their top step; standing past the top
-  falls back to the room floor until an upper platform/floor exists there. Real upper
-  storeys (a second room-floor plane the stairs connect) are a home-design follow-up.
+- **Elevator ride** needs an animated/moving structure state (a moving floor the player
+  rides) + a destination floor. That is its own increment ("moving structure state") -- a
+  fake that drops you in mid-air would be a bandaid. Until then an elevator Frame is a
+  visible, placeable arch; use a ladder or stairs + a deck to change levels.
+- **Auto-stacking placement**: placing a deck at an upper level uses the manual "Place at
+  height" field; click-to-place-on-the-surface-under-the-cursor (raycast against piece
+  tops) is a nicer follow-up. The height field is the robust control for now.
 - **Roads as a graph (v0.586, shipped):** `HomeStructure.road_nodes` + `road_edges`. Each
   edge is a ribbon (reusing `wall_box`) between two nodes, coloured by its road CLASS's top
   layer. Editor: the left-panel "Roads" section (add node / drag x-z / wire an edge with a

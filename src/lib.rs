@@ -4700,8 +4700,18 @@ mod native_app {
                             // highest reachable structure surface under the player. A STEP_UP cap means a
                             // tall solid box can't yank you up its side -- you use the stairs. Descending
                             // is always allowed (a lower surface just lowers the floor next frame).
+                            // `feet` for the STEP_UP cap: the lagging REST floor normally (so a jump
+                            // can't cheese you onto a tall box -- the v0.584 intent), but the player's
+                            // LIVE height while at a ladder, so a deck at the ladder top is reachable as
+                            // you climb (the rest floor lags at the base). `max` never lowers it.
+                            // Stairs need neither -- you are grounded on each step, so the rest floor
+                            // already tracks them. (v0.589, gated after a movement review.)
                             if let Some(hs) = state.gui_state.home_structure.as_ref() {
-                                let feet = state.controller.ground_floor();
+                                let feet = if state.controller.in_climb_zone() {
+                                    (p.y - state.controller.eye_height()).max(state.controller.ground_floor())
+                                } else {
+                                    state.controller.ground_floor()
+                                };
                                 const STEP_UP: f32 = 0.6;
                                 for ps in &hs.structures {
                                     if let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) {
@@ -4754,6 +4764,36 @@ mod native_app {
                             state.camera.position.z = dest.2;
                             state.teleport_cooldown = 1.2; // seconds; clears once you step off the pad
                         }
+                    }
+
+                    // Ladder CLIMB zone (v0.589): if the player stands at a ladder, tell the controller
+                    // its span so an up/down input climbs it (instead of jumping/falling). First person,
+                    // not build. Proximity (XZ within the ladder footprint + a reach margin) is the
+                    // trigger -- you do not have to be pixel-perfect on the rungs.
+                    if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
+                        && !state.gui_state.construction_active
+                    {
+                        let p = state.camera.position;
+                        let zone = state.gui_state.home_structure.as_ref().and_then(|hs| {
+                            for ps in &hs.structures {
+                                let ty = crate::ship::structure::structure_type(&ps.type_id)?;
+                                if ty.kind != crate::ship::structure::StructureKind::Ladder {
+                                    continue;
+                                }
+                                let (dx, dz) = (p.x - ps.pos.0, p.z - ps.pos.2);
+                                // Generous reach (v0.589 review fix): a ladder mounted flush against a
+                                // wall gets the player pushed ~radius+half_thickness off the wall by the
+                                // XZ collider; a wider zone keeps them ON the ladder instead of dropping.
+                                let reach = ty.size.0.max(ty.size.2) * 0.5 + 0.9;
+                                if dx * dx + dz * dz <= reach * reach {
+                                    return Some((ps.pos.1, ps.pos.1 + ty.size.1));
+                                }
+                            }
+                            None
+                        });
+                        state.controller.set_climb_zone(zone);
+                    } else {
+                        state.controller.set_climb_zone(None);
                     }
 
                     // Update camera from input (capture the pre-move position for swept collision).
