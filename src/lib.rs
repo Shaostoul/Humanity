@@ -1569,10 +1569,11 @@ mod native_app {
             return;
         };
         let floor_y = state.gui_state.room_bounds[rb_i].min.y;
+        let place_y = floor_y + state.gui_state.construction_structure_place_y.max(0.0);
         if let Some(hs) = state.gui_state.home_structure.as_mut() {
             hs.structures.push(crate::ship::home_structure::PlacedStructure {
                 type_id: tid,
-                pos: (hx, floor_y, hz),
+                pos: (hx, place_y, hz),
                 rot_deg: state.gui_state.construction_structure_yaw,
                 pair: None,
             });
@@ -5894,9 +5895,19 @@ mod native_app {
                             let ghost = state.construction_structure_ghost.as_ref().map(|(_, m, mt)| (*m, *mt));
                             if let Some((mesh_idx, mat)) = ghost {
                                 if let Some((rb_i, hx, hz)) = cursor_floor_hit(state) {
+                                    // Show the ghost at the place-height (v0.588) so you see where a deck
+                                    // lands at an upper level; a faint riser line marks the lift.
                                     let floor_y = state.gui_state.room_bounds[rb_i].min.y;
+                                    let py = floor_y + state.gui_state.construction_structure_place_y.max(0.0);
+                                    if py > floor_y + 0.01 {
+                                        crate::renderer::line::push_polyline(
+                                            &mut ring_lines,
+                                            &[[hx, floor_y, hz], [hx, py, hz]],
+                                            [0.45, 0.85, 1.0, 0.6],
+                                        );
+                                    }
                                     transparent_objects.push(RenderObject {
-                                        position: Vec3::new(hx, floor_y, hz),
+                                        position: Vec3::new(hx, py, hz),
                                         rotation: Quat::IDENTITY,
                                         scale: Vec3::ONE,
                                         mesh: mesh_idx,

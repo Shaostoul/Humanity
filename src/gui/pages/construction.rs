@@ -674,6 +674,15 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 } else if state.construction_structure_type.is_some() {
                     ui.label(RichText::new("Placing a structure: click the floor to drop it. [ and ] rotate it. Right-click cancels.")
                         .size(theme.font_size_small).color(theme.accent()));
+                    // Place-at-height (v0.588): drop the piece this far above the floor -- set it to a
+                    // staircase's top so a deck lands as an upper-level landing.
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Place at height").size(theme.font_size_small).color(theme.text_muted()));
+                        ui.add(egui::DragValue::new(&mut state.construction_structure_place_y).speed(0.1).range(0.0..=200.0).suffix(" m"));
+                        if ui.small_button("floor").clicked() {
+                            state.construction_structure_place_y = 0.0;
+                        }
+                    });
                 } else {
                     ui.label(RichText::new("Build from the footer palette below -- Structure (walls, stairs, ladders, ...) is the leftmost tab. Drag corner pins to move walls.")
                         .size(theme.font_size_small).color(theme.text_muted()));

@@ -38,6 +38,8 @@ pub enum StructureKind {
     Train,
     /// A drive/walk surface -- a road or path segment (gets a layered material stack in v0.585).
     Road,
+    /// A flat walkable FLOOR placed at a height -- an upper-level landing the stairs lead onto. (v0.588)
+    Deck,
 }
 
 /// The parametric placeholder GEOMETRY for a piece. Each maps to a builder below so a new shape is a
@@ -424,6 +426,17 @@ mod tests {
         let train = structure_type("train").unwrap();
         let top = walk_surface(train, pos, 0.0, 10.0, 10.0).unwrap();
         assert!((top - (pos.1 + train.size.1)).abs() < 1e-3, "platform top = base + height");
+    }
+
+    #[test]
+    fn a_deck_gives_footing_at_its_placed_height() {
+        // The multi-level core (v0.588): a deck placed at height H is a standable floor at ~H, so the
+        // ground sampler keeps the player up there after they climb the stairs.
+        let deck = structure_type("deck").expect("deck piece exists");
+        let h = 3.0_f32;
+        let top = walk_surface(deck, (10.0, h, 10.0), 0.0, 10.0, 10.0).expect("deck has footing");
+        assert!((top - (h + deck.size.1.clamp(0.02, 0.3))).abs() < 1e-3, "deck top = base height + slab");
+        assert!(top > h, "footing is above the placed base, i.e. an upper level");
     }
 
     #[test]

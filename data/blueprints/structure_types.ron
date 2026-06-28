@@ -45,4 +45,9 @@
         kind: Road, shape: Slab, size: (4.0, 0.12, 6.0), color: (0.22, 0.22, 0.24), steps: 0,
         note: "A paved road segment. Carries a fixed top-to-bottom material stack (asphalt / base / subgrade).",
     ),
+    (
+        id: "deck", label: "Floor / deck", category: "Structure",
+        kind: Deck, shape: Slab, size: (4.0, 0.2, 4.0), color: (0.5, 0.52, 0.55), steps: 0,
+        note: "A flat upper-level floor. Set 'Place at height' to the top of a staircase, then walk up onto it.",
+    ),
 ]

@@ -1521,6 +1521,9 @@ pub struct GuiState {
     pub construction_structure_selected: Option<usize>,
     /// Yaw (degrees) applied to the next placed structure -- rotate the held piece with [ and ].
     pub construction_structure_yaw: f32,
+    /// Height above the room floor (metres) the next placed structure drops at (v0.588): 0 = on the
+    /// floor; set it to a staircase's top so a deck lands as an upper-level landing.
+    pub construction_structure_place_y: f32,
     /// Road-graph editor form state (v0.586): the from/to nodes, class, and width for the next edge.
     pub construction_road_from: u32,
     pub construction_road_to: u32,
@@ -2603,6 +2606,7 @@ impl Default for GuiState {
             construction_structure_type: None,
             construction_structure_selected: None,
             construction_structure_yaw: 0.0,
+            construction_structure_place_y: 0.0,
             construction_road_from: 0,
             construction_road_to: 0,
             construction_road_class: String::new(),
