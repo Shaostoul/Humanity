@@ -2013,6 +2013,66 @@ mod native_app {
         }
     }
 
+    /// Hit-test the cursor ray against ROAD + CONDUIT (pipe) graph nodes (v0.599). On a hit, SELECT
+    /// the node (its detail shows on the right) + arm an object grab so click-and-hold drags it across
+    /// the floor (keeping a conduit node's height) -- the "dedicated widget gizmo like the walls" the
+    /// operator wanted for nodes. Returns true so the click doesn't also grab a room.
+    fn try_pick_node(state: &mut EngineState) -> bool {
+        enum Sel {
+            Road(u32),
+            Conduit(String),
+        }
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<(f32, Sel)> = None;
+        if let Some(hs) = state.gui_state.home_structure.as_ref() {
+            for n in &hs.road_nodes {
+                let p = Vec3::new(n.pos.0, 0.06, n.pos.1);
+                let t = (p - origin).dot(dir);
+                if t < 0.0 {
+                    continue;
+                }
+                if (p - (origin + dir * t)).length() < 0.5 && best.as_ref().map_or(true, |(bt, _)| t < *bt) {
+                    best = Some((t, Sel::Road(n.id)));
+                }
+            }
+        }
+        if let Some(h) = state.gui_state.home_machines.as_ref() {
+            for cn in &h.conduit_nodes {
+                let p = Vec3::new(cn.pos.0, cn.pos.1, cn.pos.2);
+                let t = (p - origin).dot(dir);
+                if t < 0.0 {
+                    continue;
+                }
+                if (p - (origin + dir * t)).length() < 0.5 && best.as_ref().map_or(true, |(bt, _)| t < *bt) {
+                    best = Some((t, Sel::Conduit(cn.id.clone())));
+                }
+            }
+        }
+        let Some((_, sel)) = best else {
+            return false;
+        };
+        // Clear every selection, then set the picked node + arm its grab.
+        state.gui_state.construction_wall_selected = None;
+        state.gui_state.construction_structure_selected = None;
+        state.gui_state.construction_light_selected = None;
+        state.gui_state.construction_machine_selected = None;
+        state.gui_state.construction_road_node_selected = None;
+        state.gui_state.construction_conduit_node_selected = None;
+        match sel {
+            Sel::Road(id) => {
+                state.gui_state.construction_road_node_selected = Some(id);
+                state.construction_object_grab = Some(ObjectGrab::RoadNode(id));
+            }
+            Sel::Conduit(id) => {
+                state.gui_state.construction_conduit_node_selected = Some(id.clone());
+                state.construction_object_grab = Some(ObjectGrab::ConduitNode(id));
+            }
+        }
+        state.construction_grab_press = Some(state.cursor_pos);
+        true
+    }
+
     /// Hit-test the cursor ray against the build-mode avatar (v0.557). On a hit, start dragging it;
     /// returns true so the click doesn't also grab a room.
     fn try_grab_char(state: &mut EngineState) -> bool {
@@ -2135,6 +2195,24 @@ mod native_app {
                     if let Some(inst) = home.instances.iter_mut().find(|m| m.id == id) {
                         inst.offset.0 = nx;
                         inst.offset.2 = nz; // offset.1 (height) preserved; box-mode offset is absolute
+                    }
+                }
+                state.gui_state.construction_machines_dirty = true;
+            }
+            ObjectGrab::RoadNode(id) => {
+                // Road nodes live in the XZ plane (v0.599): drag moves both.
+                if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                    if let Some(n) = hs.road_nodes.iter_mut().find(|n| n.id == id) {
+                        n.pos = (nx, nz);
+                    }
+                }
+                state.gui_state.construction_structure_dirty = true;
+            }
+            ObjectGrab::ConduitNode(id) => {
+                if let Some(home) = state.gui_state.home_machines.as_mut() {
+                    if let Some(cn) = home.conduit_nodes.iter_mut().find(|n| n.id == id) {
+                        cn.pos.0 = nx;
+                        cn.pos.2 = nz; // cn.pos.1 (height) preserved
                     }
                 }
                 state.gui_state.construction_machines_dirty = true;
@@ -3357,6 +3435,8 @@ mod native_app {
         Light(usize),
         Machine(String),
         Structure(usize),
+        RoadNode(u32),
+        ConduitNode(String),
     }
 
     /// Construction opening-gizmo drag (v0.468, rebuilt v0.469): which room+opening is grabbed,
@@ -4667,6 +4747,8 @@ mod native_app {
                             } else if try_grab_char(state) {
                                 // Grabbed the build-mode avatar (v0.557): drag it across the floor; you
                                 // spawn right there when you leave build mode.
+                            } else if try_pick_node(state) {
+                                // Clicked a ROAD / CONDUIT node orb (v0.599): select + drag it.
                             } else if state.gui_state.home_structure.is_some() && try_pick_light(state) {
                                 // Clicked a placed-LIGHT diamond gizmo (v0.576) -> its detail shows on
                                 // the right panel, like a wall.
@@ -6494,9 +6576,19 @@ mod native_app {
                             // each edge, drawn with the line primitive so the graph reads at a glance in
                             // build mode (the ribbon mesh shows the carriageway; this shows the topology).
                             const RN: [f32; 4] = [1.0, 0.75, 0.2, 0.9]; // node ring (amber)
+                            const RN_SEL: [f32; 4] = [1.0, 1.0, 1.0, 1.0]; // selected node (white, double ring)
                             const RE: [f32; 4] = [0.5, 0.8, 1.0, 0.8]; // edge centerline (cyan)
+                            let sel_road = state.gui_state.construction_road_node_selected;
                             for n in &hs.road_nodes {
-                                crate::renderer::line::push_circle(&mut ring_lines, [n.pos.0, 0.06, n.pos.1], 0.4, RN, 20);
+                                // Grabbable handle: a ring at the node (white double-ring when selected,
+                                // so you see which you're dragging). Click + hold to drag it. (v0.599)
+                                let c = [n.pos.0, 0.06, n.pos.1];
+                                if sel_road == Some(n.id) {
+                                    crate::renderer::line::push_circle(&mut ring_lines, c, 0.4, RN_SEL, 24);
+                                    crate::renderer::line::push_circle(&mut ring_lines, c, 0.6, RN_SEL, 24);
+                                } else {
+                                    crate::renderer::line::push_circle(&mut ring_lines, c, 0.4, RN, 20);
+                                }
                             }
                             for e in &hs.road_edges {
                                 // Draw the CURVED centerline (v0.591) so the gizmo matches the rendered
@@ -6545,11 +6637,20 @@ mod native_app {
                             }
 
                             // CONDUIT-NODE markers (v0.587): a small ring at each pipe-graph junction --
-                            // the edges already render as solid pipes, this gives the nodes a helper too.
+                            // grabbable (v0.599): white double-ring when selected, so you see which
+                            // you're dragging; click + hold drags it (keeping its height).
                             if let Some(hm) = state.gui_state.home_machines.as_ref() {
                                 const CN: [f32; 4] = [0.4, 0.85, 0.95, 0.85];
+                                const CN_SEL: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+                                let sel_pipe = state.gui_state.construction_conduit_node_selected.as_deref();
                                 for n in &hm.conduit_nodes {
-                                    crate::renderer::line::push_circle(&mut ring_lines, [n.pos.0, n.pos.1, n.pos.2], 0.18, CN, 14);
+                                    let c = [n.pos.0, n.pos.1, n.pos.2];
+                                    if sel_pipe == Some(n.id.as_str()) {
+                                        crate::renderer::line::push_circle(&mut ring_lines, c, 0.18, CN_SEL, 18);
+                                        crate::renderer::line::push_circle(&mut ring_lines, c, 0.3, CN_SEL, 18);
+                                    } else {
+                                        crate::renderer::line::push_circle(&mut ring_lines, c, 0.18, CN, 14);
+                                    }
                                 }
                             }
                         }
