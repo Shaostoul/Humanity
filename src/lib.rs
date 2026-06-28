@@ -3459,6 +3459,9 @@ mod native_app {
         /// Rebuilt when the held type OR the placement yaw changes (the key encodes both), so the
         /// cursor-following structure preview is correct without leaking a mesh per frame.
         construction_structure_ghost: Option<(String, usize, usize)>,
+        /// Teleporter re-fire cooldown in seconds (v0.584): set when the player jumps through a
+        /// teleport pad; counts down each frame so standing on the destination pad doesn't ping-pong.
+        teleport_cooldown: f32,
         /// Cached unit-box mesh + translucent material for the wall-drawing tool (v0.534): the corner
         /// node marker under the cursor and the preview wall from the pending start to the cursor.
         /// Lazy-created once and reused (scaled/rotated per frame) so the preview never leaks a mesh.
@@ -4083,6 +4086,7 @@ mod native_app {
                 construction_grab: None,
                 construction_ghost: None,
                 construction_structure_ghost: None,
+                teleport_cooldown: 0.0,
                 wall_tool_mesh: None,
                 wall_tool_mat: None,
                 construction_node_grab: None,
@@ -4681,7 +4685,7 @@ mod native_app {
                     // floor when outside every room. Room floors are coplanar in the home.
                     {
                         let p = state.camera.position;
-                        if let Some(floor) = state
+                        if let Some(mut floor) = state
                             .gui_state
                             .room_bounds
                             .iter()
@@ -4690,7 +4694,63 @@ mod native_app {
                             })
                             .map(|r| r.min.y)
                         {
+                            // Walk UP stairs / ramps + ONTO platforms (v0.584): raise the ground to the
+                            // highest reachable structure surface under the player. A STEP_UP cap means a
+                            // tall solid box can't yank you up its side -- you use the stairs. Descending
+                            // is always allowed (a lower surface just lowers the floor next frame).
+                            if let Some(hs) = state.gui_state.home_structure.as_ref() {
+                                let feet = state.controller.ground_floor();
+                                const STEP_UP: f32 = 0.6;
+                                for ps in &hs.structures {
+                                    if let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) {
+                                        if let Some(top) = crate::ship::structure::walk_surface(
+                                            ty, ps.pos, ps.rot_deg.to_radians(), p.x, p.z,
+                                        ) {
+                                            if top <= feet + STEP_UP && top > floor {
+                                                floor = top;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             state.controller.set_ground_floor(floor);
+                        }
+                    }
+
+                    // Teleporter pads (v0.584): stepping onto a teleporter that has a linked pair jumps
+                    // the player to the partner pad. A cooldown (set on jump, also blocks arrival re-fire)
+                    // prevents ping-ponging while you stand on the destination. First person, not build.
+                    if state.teleport_cooldown > 0.0 {
+                        state.teleport_cooldown = (state.teleport_cooldown - dt).max(0.0);
+                    }
+                    if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
+                        && !state.gui_state.construction_active
+                        && state.teleport_cooldown <= 0.0
+                    {
+                        let p = state.camera.position;
+                        let jump: Option<(f32, f32, f32)> =
+                            state.gui_state.home_structure.as_ref().and_then(|hs| {
+                                for ps in &hs.structures {
+                                    let ty = crate::ship::structure::structure_type(&ps.type_id)?;
+                                    if ty.kind != crate::ship::structure::StructureKind::Teleporter {
+                                        continue;
+                                    }
+                                    let Some(pair) = ps.pair else { continue };
+                                    if pair >= hs.structures.len() {
+                                        continue;
+                                    }
+                                    if crate::ship::structure::in_footprint(
+                                        ty, ps.pos, ps.rot_deg.to_radians(), p.x, p.z,
+                                    ) {
+                                        return Some(hs.structures[pair].pos);
+                                    }
+                                }
+                                None
+                            });
+                        if let Some(dest) = jump {
+                            state.camera.position.x = dest.0;
+                            state.camera.position.z = dest.2;
+                            state.teleport_cooldown = 1.2; // seconds; clears once you step off the pad
                         }
                     }
 

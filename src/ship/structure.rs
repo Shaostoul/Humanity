@@ -254,6 +254,49 @@ pub fn structure_mesh(ty: &StructureType, pos: Vec3, yaw_rad: f32) -> (Vec<Verte
     (verts, indices)
 }
 
+/// World (px,pz) -> the piece's LOCAL (x,z) coordinates (inverse of `structure_mesh`'s yaw): used
+/// by the footing + footprint tests so they agree exactly with the rendered geometry. (v0.584)
+fn world_to_local_xz(pos: (f32, f32, f32), yaw_rad: f32, px: f32, pz: f32) -> (f32, f32) {
+    let (s, c) = yaw_rad.sin_cos();
+    let (dx, dz) = (px - pos.0, pz - pos.2);
+    // structure_mesh maps local->world by (x*c + z*s, -x*s + z*c); this is the inverse rotation.
+    (dx * c - dz * s, dx * s + dz * c)
+}
+
+/// Is world (px,pz) within this piece's footprint (a small tolerance so edges count)? (v0.584)
+pub fn in_footprint(ty: &StructureType, pos: (f32, f32, f32), yaw_rad: f32, px: f32, pz: f32) -> bool {
+    let (w, _, d) = ty.size;
+    let (lx, lz) = world_to_local_xz(pos, yaw_rad, px, pz);
+    lx.abs() <= w * 0.5 + 0.05 && lz.abs() <= d * 0.5 + 0.05
+}
+
+/// The WALKABLE-surface world height at (px,pz) for a piece placed at `pos`/`yaw_rad`, or None if
+/// (px,pz) is outside the footprint or the piece has no standable top (a hollow Frame -- elevator /
+/// teleporter -- or a Ladder, which you climb). For Steps it's the top of the step under you; for a
+/// Ramp the interpolated slope; for a Box / Slab the flat top. Lets the player WALK UP stairs/ramps
+/// and ONTO platforms (the ground-floor sampler reads this each frame). (v0.584)
+pub fn walk_surface(ty: &StructureType, pos: (f32, f32, f32), yaw_rad: f32, px: f32, pz: f32) -> Option<f32> {
+    let (w, h, d) = ty.size;
+    let (lx, lz) = world_to_local_xz(pos, yaw_rad, px, pz);
+    if lx.abs() > w * 0.5 + 0.05 || lz.abs() > d * 0.5 + 0.05 {
+        return None;
+    }
+    let surf = match ty.shape {
+        MeshShape::Frame | MeshShape::Ladder => return None,
+        MeshShape::Box => h.max(0.05),
+        MeshShape::Slab => h.clamp(0.02, 0.3),
+        MeshShape::Steps => {
+            let n = ty.steps.max(1);
+            let tread = d / n as f32;
+            let riser = h / n as f32;
+            let idx = (((lz + d * 0.5) / tread).floor() as i32).clamp(0, n as i32 - 1);
+            (idx as f32 + 1.0) * riser
+        }
+        MeshShape::Ramp => h * ((lz + d * 0.5) / d).clamp(0.0, 1.0),
+    };
+    Some(pos.1 + surf)
+}
+
 /// The footprint half-extents (X, Z) of a piece AFTER a yaw rotation -- used to draw its bounds
 /// gizmo + (v0.584) test the player's footing. Returns (half_w_world, height, half_d_world) of the
 /// axis-aligned bounding box enclosing the rotated footprint.
@@ -327,6 +370,37 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn walk_surface_ascends_stairs_and_skips_frames() {
+        let stairs = structure_type("stairs").unwrap();
+        let (_, h, d) = stairs.size;
+        let pos = (10.0, 0.0, 10.0);
+        // Near edge (low z) is a low step; far edge (high z) is near the full height. yaw 0 -> +Z up.
+        let near = walk_surface(stairs, pos, 0.0, 10.0, 10.0 - d * 0.5 + 0.05).unwrap();
+        let far = walk_surface(stairs, pos, 0.0, 10.0, 10.0 + d * 0.5 - 0.05).unwrap();
+        assert!(far > near, "stairs ascend front-to-back ({near} -> {far})");
+        assert!(far <= pos.1 + h + 1e-3 && near >= pos.1, "within [base, base+h]");
+        // Outside the footprint -> no footing.
+        assert!(walk_surface(stairs, pos, 0.0, 100.0, 100.0).is_none());
+        // A hollow frame (teleporter) gives no footing -- you walk through the arch.
+        let tp = structure_type("teleporter").unwrap();
+        assert!(walk_surface(tp, pos, 0.0, 10.0, 10.0).is_none());
+        // A train platform (Box) lifts you onto its flat top.
+        let train = structure_type("train").unwrap();
+        let top = walk_surface(train, pos, 0.0, 10.0, 10.0).unwrap();
+        assert!((top - (pos.1 + train.size.1)).abs() < 1e-3, "platform top = base + height");
+    }
+
+    #[test]
+    fn ramp_surface_interpolates_linearly() {
+        let ramp = structure_type("ramp").unwrap();
+        let (_, h, d) = ramp.size;
+        let pos = (0.0, 0.0, 0.0);
+        let mid = walk_surface(ramp, pos, 0.0, 0.0, 0.0).unwrap(); // local z = 0 -> halfway
+        assert!((mid - h * 0.5).abs() < 0.05, "ramp midpoint ~ half height, got {mid}");
+        let _ = d;
     }
 
     #[test]

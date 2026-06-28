@@ -661,6 +661,12 @@ impl CameraController {
         self.ground_y = floor_y + self.eye_height;
     }
 
+    /// The floor the player currently rests on (world Y), i.e. the inverse of `set_ground_floor`.
+    /// The structure footing sampler (v0.584) reads this to cap how high a single step-up may be.
+    pub fn ground_floor(&self) -> f32 {
+        self.ground_y - self.eye_height
+    }
+
     /// First-person: WASD walks (Shift = sprint), Space = jump, gravity pulls you to the
     /// floor. Mouse rotates the view. (Was free-fly noclip: Shift floated you down and
     /// Space up with no sprint, the operator's BUG-039.)
