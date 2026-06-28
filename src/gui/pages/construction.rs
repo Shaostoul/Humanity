@@ -713,11 +713,18 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     });
                 ui.add_space(theme.spacing_sm);
 
-                // Interior walls -- a collapsible section (v0.569) so a long list folds away.
+                // Unified object browser (v0.596): the one consistent single-line-per-object list.
+                // Click a row -> edit on the right; the per-category sections below fold away (their
+                // ADD controls + graph/connection editors stay) and are removed once this is confirmed.
+                draw_object_browser(ui, theme, state);
+                ui.add_space(theme.spacing_sm);
+
+                // Interior walls -- a collapsible section (v0.569) so a long list folds away. Default
+                // CLOSED now (v0.596): the unified browser above is the primary list.
                 let n = state.home_structure.as_ref().map_or(0, |h| h.walls.len());
                 egui::CollapsingHeader::new(RichText::new(format!("Interior walls ({n})")).strong().color(theme.text_primary()))
                     .id_salt("hs_walls_sec")
-                    .default_open(true)
+                    .default_open(false)
                     .show(ui, |ui| {
                         let mut remove: Option<usize> = None;
                         for i in 0..n {
@@ -1726,7 +1733,7 @@ fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         };
         egui::CollapsingHeader::new(RichText::new(format!("Lights ({})", hs.lights.len())).strong().color(theme.text_primary()))
             .id_salt("hs_lights_sec")
-            .default_open(true)
+            .default_open(false)
             .show(ui, |ui| {
                 ui.label(RichText::new("Local lights -- turn off Sun / global light above to see them alone.")
                     .size(theme.font_size_small).color(theme.text_muted()));
@@ -1802,7 +1809,7 @@ fn draw_structures_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     let mut remove: Option<usize> = None;
     egui::CollapsingHeader::new(RichText::new(format!("Structures ({n})")).strong().color(theme.text_primary()))
         .id_salt("hs_structures_sec")
-        .default_open(true)
+        .default_open(false)
         .show(ui, |ui| {
             for i in 0..n {
                 let (tid, pos) = state
@@ -2068,6 +2075,172 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 }
 
+/// Unified single-line OBJECT BROWSER (v0.596): every placed object -- walls, structures, machines,
+/// lights -- as ONE consistent row "[type] name (x,z) [x]". Click selects it (its full detail shows
+/// on the RIGHT panel, where the editing lives); double-click snaps the camera to it; [x] removes it.
+/// Replaces the per-category list widgets so the left panel reads consistently (operator: "single line
+/// per object, unify the styling, click pulls up the detail on the right"). Snapshot-then-apply so the
+/// borrow on the home ends before any mutation; egui delivers one click per frame, so the single
+/// pending action is index-safe even though removes shift indices.
+fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    #[derive(Clone)]
+    enum Key {
+        Wall(usize),
+        Structure(usize),
+        Light(usize),
+        Machine(String),
+    }
+    struct Row {
+        tag: &'static str,
+        key: Key,
+        name: String,
+        pos: (f32, f32, f32),
+        selected: bool,
+        /// Whether the [x] remove affordance applies -- false for ARRAY-derived machines (not a direct
+        /// instance; you edit the array, mirroring draw_machine_detail's is_direct gate). (v0.596)
+        removable: bool,
+    }
+    let short = |s: &str| -> String {
+        let p: Vec<&str> = s.split('_').collect();
+        if p.len() >= 2 { format!("{}_{}", p[p.len() - 2], p[p.len() - 1]) } else { s.to_string() }
+    };
+    let mut rows: Vec<Row> = Vec::new();
+    if let Some(hs) = state.home_structure.as_ref() {
+        for (i, w) in hs.walls.iter().enumerate() {
+            rows.push(Row {
+                tag: "Wall",
+                key: Key::Wall(i),
+                name: format!("Wall {}", i + 1),
+                pos: ((w.a.0 + w.b.0) * 0.5, hs.height * 0.5, (w.a.1 + w.b.1) * 0.5),
+                selected: state.construction_wall_selected == Some(i),
+                removable: true,
+            });
+        }
+        for (i, ps) in hs.structures.iter().enumerate() {
+            let name = crate::ship::structure::structure_type(&ps.type_id)
+                .map(|t| t.label.clone())
+                .unwrap_or_else(|| ps.type_id.clone());
+            rows.push(Row { tag: "Struct", key: Key::Structure(i), name, pos: ps.pos, selected: state.construction_structure_selected == Some(i), removable: true });
+        }
+        for (i, l) in hs.lights.iter().enumerate() {
+            let name = crate::renderer::light::light_type(&l.type_id)
+                .map(|t| t.name.clone())
+                .unwrap_or_else(|| l.type_id.clone());
+            rows.push(Row { tag: "Light", key: Key::Light(i), name, pos: l.pos, selected: state.construction_light_selected == Some(i), removable: true });
+        }
+    }
+    if let Some(h) = state.home_machines.as_ref() {
+        // DIRECT instances can be removed; ARRAY-derived ones (from all_instances() but not in
+        // `instances`) are edited via their array, so they get no [x] (matches draw_machine_detail).
+        let direct: std::collections::HashSet<String> = h.instances.iter().map(|m| m.id.clone()).collect();
+        for inst in h.all_instances() {
+            let selected = state.construction_machine_selected.as_deref() == Some(inst.id.as_str());
+            let removable = direct.contains(&inst.id);
+            rows.push(Row { tag: "Machine", key: Key::Machine(inst.id.clone()), name: short(&inst.machine), pos: inst.offset, selected, removable });
+        }
+    }
+    let total = rows.len();
+    enum Act {
+        Select(Key),
+        Focus((f32, f32, f32)),
+        Remove(Key),
+    }
+    let mut act: Option<Act> = None;
+    egui::CollapsingHeader::new(RichText::new(format!("Objects ({total})")).strong().color(theme.text_primary()))
+        .id_salt("hs_object_browser")
+        .default_open(true)
+        .show(ui, |ui| {
+            ui.label(RichText::new("Click a row to edit it on the right; double-click to fly there.")
+                .size(theme.font_size_small).color(theme.text_muted()));
+            egui::ScrollArea::vertical().id_salt("hs_obj_scroll").max_height(300.0).show(ui, |ui| {
+                for row in &rows {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("[{}]", row.tag)).size(theme.font_size_small).color(theme.text_muted()));
+                        let txt = format!("{}  ({:.0},{:.0})", row.name, row.pos.0, row.pos.2);
+                        let resp = ui.selectable_label(row.selected, RichText::new(txt).size(theme.font_size_small)
+                            .color(if row.selected { theme.accent() } else { theme.text_secondary() }));
+                        if resp.clicked() {
+                            act = Some(Act::Select(row.key.clone()));
+                        }
+                        if resp.double_clicked() {
+                            act = Some(Act::Focus((row.pos.0, row.pos.1 + 0.5, row.pos.2)));
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if row.removable {
+                                if ui.small_button("x").clicked() {
+                                    act = Some(Act::Remove(row.key.clone()));
+                                }
+                            }
+                        });
+                    });
+                }
+            });
+        });
+    // Apply the single pending action after the borrow on `rows`/home ends.
+    let clear_sel = |s: &mut GuiState| {
+        s.construction_wall_selected = None;
+        s.construction_structure_selected = None;
+        s.construction_light_selected = None;
+        s.construction_machine_selected = None;
+    };
+    match act {
+        Some(Act::Select(k)) => {
+            clear_sel(state);
+            match k {
+                Key::Wall(i) => state.construction_wall_selected = Some(i),
+                Key::Structure(i) => state.construction_structure_selected = Some(i),
+                Key::Light(i) => state.construction_light_selected = Some(i),
+                Key::Machine(id) => state.construction_machine_selected = Some(id),
+            }
+        }
+        Some(Act::Focus(p)) => state.construction_focus_request = Some(p),
+        Some(Act::Remove(k)) => {
+            match k {
+                Key::Wall(i) => {
+                    if let Some(hs) = state.home_structure.as_mut() {
+                        if i < hs.walls.len() {
+                            hs.walls.remove(i);
+                        }
+                    }
+                    state.construction_wall_selected = None;
+                    state.construction_structure_dirty = true;
+                }
+                Key::Structure(i) => {
+                    if let Some(hs) = state.home_structure.as_mut() {
+                        if i < hs.structures.len() {
+                            hs.structures.remove(i);
+                            for s in &mut hs.structures {
+                                if let Some(p) = s.pair {
+                                    if p == i { s.pair = None; } else if p > i { s.pair = Some(p - 1); }
+                                }
+                            }
+                        }
+                    }
+                    state.construction_structure_selected = None;
+                    state.construction_structure_dirty = true;
+                }
+                Key::Light(i) => {
+                    if let Some(hs) = state.home_structure.as_mut() {
+                        if i < hs.lights.len() {
+                            hs.lights.remove(i);
+                        }
+                    }
+                    state.construction_light_selected = None;
+                    state.construction_structure_dirty = true;
+                }
+                Key::Machine(id) => {
+                    if let Some(h) = state.home_machines.as_mut() {
+                        h.remove_instance(&id); // prunes connections + conduit edges too (v0.596 fix)
+                    }
+                    state.construction_machine_selected = None;
+                    state.construction_machines_dirty = true;
+                }
+            }
+        }
+        None => {}
+    }
+}
+
 fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     /// Friendly short label for a machine id: its last two underscore segments (e.g. "tower_2").
     fn label(s: &str) -> String {
@@ -2088,7 +2261,7 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
     // default it CLOSED past two dozen so it doesn't dominate the panel.
     egui::CollapsingHeader::new(RichText::new(format!("Machines ({})", machines.len())).strong().color(theme.text_primary()))
         .id_salt("hs_machines_sec")
-        .default_open(machines.len() <= 24)
+        .default_open(false)
         .show(ui, |ui| {
             if machines.is_empty() {
                 ui.label(RichText::new("None yet -- pick one from the palette below and click the floor.")
