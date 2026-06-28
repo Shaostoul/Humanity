@@ -687,6 +687,16 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     ui.label(RichText::new("Build from the footer palette below -- Structure (walls, stairs, ladders, ...) is the leftmost tab. Drag corner pins to move walls.")
                         .size(theme.font_size_small).color(theme.text_muted()));
                 }
+                // Object SEARCH at the very top of the panel (v0.603, operator: "move the search to the
+                // top of the left panel above options"). Filters the Objects browser below.
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Search").size(theme.font_size_small).color(theme.text_muted()));
+                    ui.add(egui::TextEdit::singleline(&mut state.construction_object_filter).hint_text("object name...").desired_width(150.0));
+                    if ui.small_button("clear").clicked() {
+                        state.construction_object_filter.clear();
+                    }
+                });
+                ui.add_space(theme.spacing_xs);
                 // Options / Dev (v0.595): a dedicated, collapsible home for every build-mode toggle so
                 // they stop cluttering the panel top (operator: "a section dedicated to the toggles").
                 egui::CollapsingHeader::new(RichText::new("Options / Dev").strong().color(theme.text_primary()))
@@ -2221,17 +2231,10 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .show(ui, |ui| {
             ui.label(RichText::new("Click a row to edit it on the right; double-click to fly there; Ctrl+D duplicates the selected.")
                 .size(theme.font_size_small).color(theme.text_muted()));
-            // Filter box (v0.598): narrows rows to those whose name contains the text. With a filter,
-            // matching type-groups auto-expand. Essential once the home has 100+ machines.
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Filter").size(theme.font_size_small).color(theme.text_muted()));
-                ui.add(egui::TextEdit::singleline(&mut state.construction_object_filter).hint_text("name...").desired_width(150.0));
-                if ui.small_button("clear").clicked() {
-                    state.construction_object_filter.clear();
-                }
-            });
+            // Filter comes from the box at the TOP of the left panel (v0.603). NO inner scroll area --
+            // the left panel's single scrollbar handles overflow (nested scroll is confusing, operator).
             let filter = state.construction_object_filter.to_lowercase();
-            egui::ScrollArea::vertical().id_salt("hs_obj_scroll").max_height(360.0).show(ui, |ui| {
+            {
                 // Group rows by type into collapsible sub-headers, in a stable order. (v0.598)
                 for (tag, plural) in [("Wall", "Walls"), ("Struct", "Structures"), ("Machine", "Machines"), ("Light", "Lights"), ("Road", "Road nodes"), ("Pipe", "Pipe nodes")] {
                     let group: Vec<&Row> = rows.iter()
@@ -2276,7 +2279,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             }
                         });
                 }
-            });
+            }
         });
     // Apply the single pending action after the borrow on `rows`/home ends.
     let clear_sel = |s: &mut GuiState| {
