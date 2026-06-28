@@ -69,6 +69,14 @@ the light diamond) are always shown so you never lose the ability to edit.
   staircase top. The footing sampler uses the player's ACTUAL height (`camera.y -
   eye_height`, v0.589), not the lagging rest floor -- so a deck at a stair/ladder top is
   reachable as you climb to it (the old lagging value rejected anything > 0.6 m up).
+- ELEVATOR RIDE (v0.590): an elevator car is a MOVING floor. Runtime state lives in
+  `EngineState.elevator_state` (keyed by structure index, not saved): `(anim 0..1, target,
+  was_riding)`. Stepping onto the car toggles its destination (ride to the other end);
+  waiting in the shaft at floor level recalls the car down to you; an idle car stays put.
+  The footing sampler returns the car's animated height for anyone in the shaft footprint,
+  so the rider is carried (ascending snaps up each frame; descending tracks via gravity --
+  slightly hoppy but correct). A cached slab mesh renders the car at its live height. Place
+  a deck at the top to step off. ELEVATOR_TRAVEL=3.0 m (one storey), rate ~1.5 m/s.
 - LADDER CLIMB (v0.589): standing within a ladder's reach, holding Space climbs up (Shift
   down), gravity suspended, clamped to the ladder span; the climb only engages when the
   camera is already near the span (no teleport-snap), and a generous reach keeps a
@@ -97,10 +105,10 @@ density / strength / cost.
 
 ## Deferred (next stages, intentionally NOT faked)
 
-- **Elevator ride** needs an animated/moving structure state (a moving floor the player
-  rides) + a destination floor. That is its own increment ("moving structure state") -- a
-  fake that drops you in mid-air would be a bandaid. Until then an elevator Frame is a
-  visible, placeable arch; use a ladder or stairs + a deck to change levels.
+- **Elevator polish** (shipped functional in v0.590): a glassy *descent* (glue the rider to
+  the car instead of gravity-hopping), a footing footprint that matches the visual slab
+  exactly (today footing uses the full piece footprint, ~forgiving), and a distance CALL
+  (today you board or wait in-shaft to summon it). All cosmetic/nice-to-have.
 - **Auto-stacking placement**: placing a deck at an upper level uses the manual "Place at
   height" field; click-to-place-on-the-surface-under-the-cursor (raycast against piece
   tops) is a nicer follow-up. The height field is the robust control for now.

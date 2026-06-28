@@ -28,7 +28,7 @@
     (
         id: "elevator", label: "Elevator", category: "Structure",
         kind: Elevator, shape: Frame, size: (1.8, 3.0, 1.8), color: (0.45, 0.5, 0.6), steps: 0,
-        note: "An elevator car / shaft frame. Step in and it raises or lowers the rider between floors.",
+        note: "An elevator: step onto the car and it rides to the other floor; wait in the shaft to recall it. Place a deck at the top to step off.",
     ),
     (
         id: "teleporter", label: "Teleporter", category: "Structure",

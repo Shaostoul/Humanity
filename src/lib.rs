@@ -3464,6 +3464,15 @@ mod native_app {
         /// Teleporter re-fire cooldown in seconds (v0.584): set when the player jumps through a
         /// teleport pad; counts down each frame so standing on the destination pad doesn't ping-pong.
         teleport_cooldown: f32,
+        /// ELEVATOR runtime state (v0.590), keyed by the placed-structure index: (anim 0..1 between
+        /// base + top, target 0/1, was_riding). Pure runtime -- not saved with the home; resynced each
+        /// frame during play. An idle elevator stays put (anim == target); stepping on toggles the
+        /// target (ride to the other end); waiting in the shaft at floor level recalls the car.
+        elevator_state: std::collections::HashMap<usize, (f32, f32, bool)>,
+        /// Cached unit-box mesh + material for the moving elevator CAR slab (v0.590), scaled + posed
+        /// per elevator per frame so the moving floor never leaks a mesh.
+        elevator_car_mesh: Option<usize>,
+        elevator_car_mat: Option<usize>,
         /// Cached unit-box mesh + translucent material for the wall-drawing tool (v0.534): the corner
         /// node marker under the cursor and the preview wall from the pending start to the cursor.
         /// Lazy-created once and reused (scaled/rotated per frame) so the preview never leaks a mesh.
@@ -4089,6 +4098,9 @@ mod native_app {
                 construction_ghost: None,
                 construction_structure_ghost: None,
                 teleport_cooldown: 0.0,
+                elevator_state: std::collections::HashMap::new(),
+                elevator_car_mesh: None,
+                elevator_car_mat: None,
                 wall_tool_mesh: None,
                 wall_tool_mat: None,
                 construction_node_grab: None,
@@ -4682,6 +4694,62 @@ mod native_app {
                         state.controller.speed_multiplier = mult;
                     }
 
+                    // ELEVATOR tick (v0.590): animate each elevator car toward its target end, and
+                    // CALL it -- stepping onto the car toggles its destination (ride to the other end),
+                    // and waiting in the shaft at floor level recalls the car down to you. Runtime state
+                    // lives in `elevator_state` keyed by structure index (not saved). First person, not
+                    // build. The footing sampler below reads the updated car height so the rider rides.
+                    const ELEVATOR_TRAVEL: f32 = 3.0; // one storey
+                    const ELEVATOR_RATE: f32 = 0.5; // anim units / s (0..1 over the full travel ~2 s)
+                    if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
+                        && !state.gui_state.construction_active
+                    {
+                        let p = state.camera.position;
+                        let feet = p.y - state.controller.eye_height();
+                        // Collect the elevator indices + poses first (immutable borrow), then update the
+                        // runtime map (mutable) -- avoids overlapping borrows of state.
+                        let elevators: Vec<(usize, (f32, f32, f32), f32, bool)> = state
+                            .gui_state
+                            .home_structure
+                            .as_ref()
+                            .map(|hs| {
+                                hs.structures
+                                    .iter()
+                                    .enumerate()
+                                    .filter_map(|(i, ps)| {
+                                        let ty = crate::ship::structure::structure_type(&ps.type_id)?;
+                                        if ty.kind != crate::ship::structure::StructureKind::Elevator {
+                                            return None;
+                                        }
+                                        let inside = crate::ship::structure::in_footprint(
+                                            ty, ps.pos, ps.rot_deg.to_radians(), p.x, p.z,
+                                        );
+                                        Some((i, ps.pos, ty.size.1, inside))
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        let live: std::collections::HashSet<usize> = elevators.iter().map(|e| e.0).collect();
+                        state.elevator_state.retain(|k, _| live.contains(k));
+                        for (i, pos, _h, inside) in elevators {
+                            let e = state.elevator_state.entry(i).or_insert((0.0, 0.0, false));
+                            let (anim, target, was_riding) = *e;
+                            let car_floor = pos.1 + anim * ELEVATOR_TRAVEL;
+                            let riding = inside && (feet - car_floor).abs() < 0.45;
+                            let mut new_target = target;
+                            if riding && !was_riding {
+                                new_target = if target < 0.5 { 1.0 } else { 0.0 }; // toggle on board
+                            } else if inside && (feet - pos.1).abs() < 0.45 && anim > 0.15 {
+                                new_target = 0.0; // a waiter at the base recalls the car down
+                            }
+                            let step = ELEVATOR_RATE * dt;
+                            let new_anim = anim + (new_target - anim).clamp(-step, step);
+                            *e = (new_anim, new_target, riding);
+                        }
+                    } else if !state.elevator_state.is_empty() {
+                        state.elevator_state.clear(); // reset when leaving play (build mode / other cam)
+                    }
+
                     // Keep the player grounded on the floor of whatever room they are in
                     // (so gravity + jump land on the right deck). Falls back to the last
                     // floor when outside every room. Room floors are coplanar in the home.
@@ -4713,11 +4781,24 @@ mod native_app {
                                     state.controller.ground_floor()
                                 };
                                 const STEP_UP: f32 = 0.6;
-                                for ps in &hs.structures {
+                                for (i, ps) in hs.structures.iter().enumerate() {
                                     if let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) {
-                                        if let Some(top) = crate::ship::structure::walk_surface(
-                                            ty, ps.pos, ps.rot_deg.to_radians(), p.x, p.z,
-                                        ) {
+                                        // An ELEVATOR's footing is its MOVING car (v0.590): the car floor
+                                        // = base + anim*travel, so standing on it rides you up/down. Other
+                                        // pieces use the static walk_surface.
+                                        let surf = if ty.kind == crate::ship::structure::StructureKind::Elevator {
+                                            if crate::ship::structure::in_footprint(ty, ps.pos, ps.rot_deg.to_radians(), p.x, p.z) {
+                                                let anim = state.elevator_state.get(&i).map_or(0.0, |e| e.0);
+                                                Some(ps.pos.1 + anim * ELEVATOR_TRAVEL)
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            crate::ship::structure::walk_surface(
+                                                ty, ps.pos, ps.rot_deg.to_radians(), p.x, p.z,
+                                            )
+                                        };
+                                        if let Some(top) = surf {
                                             if top <= feet + STEP_UP && top > floor {
                                                 floor = top;
                                             }
@@ -5847,6 +5928,50 @@ mod native_app {
                         // Door + window panels: doors ease open as the player nears (by style);
                         // windows are fixed glass (transparent pass). (v0.537)
                         render_door_panels(state, &mut all_objects, &mut transparent_objects, &mut ring_lines, dt);
+
+                        // Elevator CARS (v0.590): a moving floor slab per elevator at its animated
+                        // height, so you see + stand on the lift. Cached unit box, scaled/posed per car.
+                        if state.elevator_car_mesh.is_none() {
+                            let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+                            state.elevator_car_mesh = Some(m);
+                        }
+                        if state.elevator_car_mat.is_none() {
+                            // theme-exempt: elevator car platform, neutral brushed metal.
+                            let m = state.renderer.add_material_typed([0.4, 0.43, 0.48, 1.0], 0.3, 0.5, 0.0);
+                            state.elevator_car_mat = Some(m);
+                        }
+                        let car_mesh = state.elevator_car_mesh.unwrap();
+                        let car_mat = state.elevator_car_mat.unwrap();
+                        let cars: Vec<(Vec3, Quat, Vec3)> = state
+                            .gui_state
+                            .home_structure
+                            .as_ref()
+                            .map(|hs| {
+                                hs.structures
+                                    .iter()
+                                    .enumerate()
+                                    .filter_map(|(i, ps)| {
+                                        let ty = crate::ship::structure::structure_type(&ps.type_id)?;
+                                        if ty.kind != crate::ship::structure::StructureKind::Elevator {
+                                            return None;
+                                        }
+                                        let anim = state.elevator_state.get(&i).map_or(0.0, |e| e.0);
+                                        let car_top = ps.pos.1 + anim * 3.0; // ELEVATOR_TRAVEL
+                                        let (w, _h, d) = ty.size;
+                                        let thick = 0.15;
+                                        // box_xyz is y-bottom-origin + XZ-centered: place the slab so its
+                                        // TOP sits at car_top (the standing surface).
+                                        let pos = Vec3::new(ps.pos.0, car_top - thick, ps.pos.2);
+                                        let scale = Vec3::new(w * 0.85, thick, d * 0.85);
+                                        let rot = Quat::from_rotation_y(ps.rot_deg.to_radians());
+                                        Some((pos, rot, scale))
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        for (position, rotation, scale) in cars {
+                            all_objects.push(RenderObject { position, rotation, scale, mesh: car_mesh, material: car_mat });
+                        }
                     }
                     // Placement ghost: the held palette item, previewed (semi-transparent, faintly
                     // glowing) on the room floor under the cursor, so you see where a click drops it.
