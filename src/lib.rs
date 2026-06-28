@@ -1715,6 +1715,7 @@ mod native_app {
             || state.gui_state.construction_place_type.is_some()
             || state.gui_state.construction_structure_type.is_some()
             || state.construction_node_grab.is_some()
+            || state.construction_object_grab.is_some()
             || state.construction_opening_grab.is_some()
             || state.construction_char_grab
         {
@@ -1819,9 +1820,13 @@ mod native_app {
             }
         }
         if let Some((id, _)) = best {
+            // Arm a drag (v0.593): click-and-hold the machine to move it (keeping its height).
+            state.construction_object_grab = Some(ObjectGrab::Machine(id.clone()));
+            state.construction_grab_press = Some(state.cursor_pos);
             state.gui_state.construction_machine_selected = Some(id);
             state.gui_state.construction_wall_selected = None;
             state.gui_state.construction_light_selected = None;
+            state.gui_state.construction_structure_selected = None;
             true
         } else {
             false
@@ -1911,9 +1916,13 @@ mod native_app {
             }
         }
         if let Some((i, _)) = best {
+            // Arm a drag (v0.593): click-and-hold the diamond to move the light (keeping its height).
+            state.construction_object_grab = Some(ObjectGrab::Light(i));
+            state.construction_grab_press = Some(state.cursor_pos);
             state.gui_state.construction_light_selected = Some(i);
             state.gui_state.construction_wall_selected = None;
             state.gui_state.construction_machine_selected = None;
+            state.gui_state.construction_structure_selected = None;
             true
         } else {
             false
@@ -1991,6 +2000,9 @@ mod native_app {
             }
         }
         if let Some((i, _)) = best {
+            // Arm a drag (v0.593): click-and-hold the piece to move it (keeping its height).
+            state.construction_object_grab = Some(ObjectGrab::Structure(i));
+            state.construction_grab_press = Some(state.cursor_pos);
             state.gui_state.construction_structure_selected = Some(i);
             state.gui_state.construction_wall_selected = None;
             state.gui_state.construction_machine_selected = None;
@@ -2075,6 +2087,59 @@ mod native_app {
         }
         state.construction_node_grab = Some(snapped);
         state.gui_state.construction_structure_dirty = true;
+    }
+
+    /// Per-frame while an OBJECT (light / machine / structure) is grabbed (v0.593): move it to the
+    /// cursor's floor hit, keeping its Y (height) -- the operator's "maintain their vertical height
+    /// while dragging." Tap-vs-drag like the wall corners, and honours the 0.25 m grid-snap toggle.
+    fn apply_object_drag(state: &mut EngineState) {
+        let Some(grab) = state.construction_object_grab.clone() else {
+            return;
+        };
+        if let Some(press) = state.construction_grab_press {
+            let d = ((state.cursor_pos.0 - press.0).powi(2) + (state.cursor_pos.1 - press.1).powi(2)).sqrt();
+            if d < DRAG_THRESHOLD_PX {
+                return; // still a tap -- selection already happened on press
+            }
+            state.construction_grab_press = None; // armed: this is now a drag
+        }
+        let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+            return;
+        };
+        let (nx, nz) = if state.gui_state.construction_grid_snap {
+            ((hx * 4.0).round() / 4.0, (hz * 4.0).round() / 4.0)
+        } else {
+            (hx, hz)
+        };
+        match grab {
+            ObjectGrab::Light(i) => {
+                if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                    if let Some(l) = hs.lights.get_mut(i) {
+                        l.pos.0 = nx;
+                        l.pos.2 = nz; // l.pos.1 (height) preserved
+                    }
+                }
+                state.gui_state.construction_structure_dirty = true;
+            }
+            ObjectGrab::Structure(i) => {
+                if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                    if let Some(ps) = hs.structures.get_mut(i) {
+                        ps.pos.0 = nx;
+                        ps.pos.2 = nz; // ps.pos.1 (height) preserved
+                    }
+                }
+                state.gui_state.construction_structure_dirty = true;
+            }
+            ObjectGrab::Machine(id) => {
+                if let Some(home) = state.gui_state.home_machines.as_mut() {
+                    if let Some(inst) = home.instances.iter_mut().find(|m| m.id == id) {
+                        inst.offset.0 = nx;
+                        inst.offset.2 = nz; // offset.1 (height) preserved; box-mode offset is absolute
+                    }
+                }
+                state.gui_state.construction_machines_dirty = true;
+            }
+        }
     }
 
     /// World positions of every door/window opening gizmo: ((wall index, opening index), centre).
@@ -3285,6 +3350,15 @@ mod native_app {
         Char,
     }
 
+    /// A draggable build-mode object (v0.593): a placed light (by index), a machine (by id), or a
+    /// structural piece (by index). Dragging its gizmo moves its X/Z on the floor, keeping its height.
+    #[derive(Clone, Debug)]
+    enum ObjectGrab {
+        Light(usize),
+        Machine(String),
+        Structure(usize),
+    }
+
     /// Construction opening-gizmo drag (v0.468, rebuilt v0.469): which room+opening is grabbed,
     /// the captured wall-face plane (so the cursor projects onto the VERTICAL wall, giving u along
     /// + v up), and the grab role. `room_index` indexes `gui_state.construction_rooms` (the editor
@@ -3486,6 +3560,11 @@ mod native_app {
         construction_node_mesh: Option<usize>,
         construction_node_mat: Option<usize>,
         construction_node_mat_hot: Option<usize>,
+        /// A grabbed OBJECT (light / machine / structure) being dragged across the floor (v0.593):
+        /// drag moves its X/Z, keeping its Y (height). Armed by the pick fns, moved per frame by
+        /// apply_object_drag past the tap-vs-drag threshold, cleared on release. Walls keep their own
+        /// corner-orb drag; this is for the other object types the operator wanted movable.
+        construction_object_grab: Option<ObjectGrab>,
         /// Placed-LIGHT gizmo (v0.572): a cached DIAMOND (octahedron) centre-marker mesh + an emissive
         /// material, drawn at each placed light in build mode (the range "sphere" is RGB line circles).
         construction_light_mesh: Option<usize>,
@@ -4104,6 +4183,7 @@ mod native_app {
                 wall_tool_mesh: None,
                 wall_tool_mat: None,
                 construction_node_grab: None,
+                construction_object_grab: None,
                 construction_grab_press: None,
                 construction_node_mesh: None,
                 construction_node_mat: None,
@@ -4626,6 +4706,7 @@ mod native_app {
                             state.construction_grab = None; // release; keep the selection highlighted
                             state.construction_gizmo_grab = None; // release a slid handle too
                             state.construction_node_grab = None; // release a dragged corner node
+                            state.construction_object_grab = None; // release a dragged object (v0.593)
                             state.construction_opening_grab = None; // release a dragged opening
                             state.construction_opening_resize = None; // release a resize handle (v0.578)
                             state.construction_char_grab = false; // release a dragged avatar (v0.557)
@@ -5430,10 +5511,19 @@ mod native_app {
                         state.construction_grab = None;
                         state.construction_gizmo_grab = None;
                         state.construction_node_grab = None; // v0.542: drop a live corner grab on close
+                        state.construction_object_grab = None; // v0.593: drop a live object grab
                         state.construction_opening_grab = None; // v0.546: drop a live opening grab
                         state.construction_opening_resize = None; // v0.578: drop a live resize handle
                         state.construction_char_grab = false; // v0.557: drop a live avatar grab
                         state.construction_grab_press = None;
+                    }
+                    // Double-click-to-focus (v0.593): a left-list row asked the camera to snap to an
+                    // object so you can see what you clicked. Re-aim the orbit target + zoom in if far.
+                    if state.gui_state.construction_active {
+                        if let Some((fx, fy, fz)) = state.gui_state.construction_focus_request.take() {
+                            state.camera.orbit_target = Vec3::new(fx, fy, fz);
+                            state.camera.orbit_distance = state.camera.orbit_distance.min(9.0);
+                        }
                     }
                     // 3D room drag (v0.466): a grabbed room follows the cursor on its floor.
                     // Slide-gizmo drag (v0.468) takes precedence: a grabbed door/window handle
@@ -5442,18 +5532,28 @@ mod native_app {
                     // first-person -- a Close click consumes the mouse-release, so without this gate a
                     // live node grab silently rewrote walls to chase the cursor after leaving the editor.
                     if state.gui_state.construction_active {
-                        if state.construction_char_grab {
-                            apply_char_drag(state); // v0.557: a grabbed avatar follows the cursor floor
-                        } else if state.construction_opening_resize.is_some() {
-                            apply_opening_resize(state); // v0.578: a grabbed resize handle resizes the opening
-                        } else if state.construction_opening_grab.is_some() {
-                            apply_opening_drag(state); // v0.546: a grabbed opening slides along its wall
-                        } else if state.construction_node_grab.is_some() {
-                            apply_node_drag(state); // v0.541: a grabbed wall corner follows the cursor
-                        } else if state.construction_gizmo_grab.is_some() {
-                            apply_gizmo_drag(state);
-                        } else {
-                            apply_room_drag(state);
+                        // Only DRAG while the left button is physically held (v0.593): `lmb_held` is set
+                        // from raw input before the egui-consumed gate, so if a mouse-up is consumed by a
+                        // side panel mid-drag (the release-clear is skipped), a grab can no longer keep
+                        // chasing the cursor -- it just stops. Fixes a latent stuck-grab across every grab
+                        // type, made easier to hit now that objects are draggable across the floor. (The
+                        // cursor-floor tracking below still runs every move so the dimension overlay lives.)
+                        if state.lmb_held {
+                            if state.construction_char_grab {
+                                apply_char_drag(state); // v0.557: a grabbed avatar follows the cursor floor
+                            } else if state.construction_opening_resize.is_some() {
+                                apply_opening_resize(state); // v0.578: a grabbed resize handle resizes the opening
+                            } else if state.construction_opening_grab.is_some() {
+                                apply_opening_drag(state); // v0.546: a grabbed opening slides along its wall
+                            } else if state.construction_node_grab.is_some() {
+                                apply_node_drag(state); // v0.541: a grabbed wall corner follows the cursor
+                            } else if state.construction_object_grab.is_some() {
+                                apply_object_drag(state); // v0.593: a grabbed light/machine/structure follows the cursor
+                            } else if state.construction_gizmo_grab.is_some() {
+                                apply_gizmo_drag(state);
+                            } else {
+                                apply_room_drag(state);
+                            }
                         }
                         // Track the cursor's floor position for the dimension overlay (v0.545). While
                         // DRAWING a wall, snap the preview to the same grid/endpoint/edge the placed node

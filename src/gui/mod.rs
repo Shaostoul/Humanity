@@ -1519,6 +1519,9 @@ pub struct GuiState {
     pub construction_structure_type: Option<String>,
     /// Index of the placed structure selected in the editor (its detail shows on the right). (v0.583)
     pub construction_structure_selected: Option<usize>,
+    /// Camera FOCUS request (v0.593): set to a world (x,y,z) when a left-list row is double-clicked;
+    /// the engine snaps the orbit camera to it next frame (so you can see what you clicked) + clears it.
+    pub construction_focus_request: Option<(f32, f32, f32)>,
     /// Yaw (degrees) applied to the next placed structure -- rotate the held piece with [ and ].
     pub construction_structure_yaw: f32,
     /// Height above the room floor (metres) the next placed structure drops at (v0.588): 0 = on the
@@ -2605,6 +2608,7 @@ impl Default for GuiState {
             construction_place_type: None,
             construction_structure_type: None,
             construction_structure_selected: None,
+            construction_focus_request: None,
             construction_structure_yaw: 0.0,
             construction_structure_place_y: 0.0,
             construction_road_from: 0,

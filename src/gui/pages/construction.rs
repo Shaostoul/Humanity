@@ -721,10 +721,16 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             let selected = state.construction_wall_selected == Some(i);
                             ui.horizontal(|ui| {
                                 let lbl = format!("{}: ({:.0},{:.0})->({:.0},{:.0})", i + 1, a.0, a.1, b.0, b.1);
-                                if ui.selectable_label(selected, RichText::new(lbl).size(theme.font_size_small)).clicked() {
+                                let resp = ui.selectable_label(selected, RichText::new(lbl).size(theme.font_size_small));
+                                if resp.clicked() {
                                     state.construction_wall_selected = Some(i);
                                     state.construction_machine_selected = None;
                                     state.construction_light_selected = None;
+                                }
+                                if resp.double_clicked() {
+                                    // Snap the camera to the wall's midpoint (v0.593).
+                                    let h = state.home_structure.as_ref().map_or(3.0, |hs| hs.height);
+                                    state.construction_focus_request = Some(((a.0 + b.0) * 0.5, h * 0.5, (a.1 + b.1) * 0.5));
                                 }
                                 if ui.small_button("Remove").clicked() {
                                     remove = Some(i);
@@ -1708,6 +1714,7 @@ fn draw_conduit_nodes(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let mut changed = false;
+    let mut focus: Option<(f32, f32, f32)> = None; // double-click-to-focus (v0.593)
     {
         let hs = match state.home_structure.as_mut() {
             Some(h) => h,
@@ -1725,8 +1732,14 @@ fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         let name = crate::renderer::light::light_type(&hs.lights[li].type_id)
                             .map(|t| t.name.clone())
                             .unwrap_or_else(|| hs.lights[li].type_id.clone());
-                        if ui.checkbox(&mut hs.lights[li].on, RichText::new(name).size(theme.font_size_small).color(theme.text_primary())).changed() {
+                        let cb = ui.checkbox(&mut hs.lights[li].on, RichText::new(name).size(theme.font_size_small).color(theme.text_primary()));
+                        if cb.changed() {
                             changed = true;
+                        }
+                        if cb.double_clicked() {
+                            // Double-click toggles twice (net unchanged) + snaps the camera here. (v0.593)
+                            let p = hs.lights[li].pos;
+                            focus = Some((p.0, p.1, p.2));
                         }
                         if ui.small_button("x").clicked() {
                             remove = Some(li);
@@ -1769,6 +1782,9 @@ fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // Rebuild the homestead so room_lights pick up the new placed lights (home_lights).
         state.construction_structure_dirty = true;
     }
+    if let Some(f) = focus {
+        state.construction_focus_request = Some(f); // applied after the hs borrow ends (v0.593)
+    }
 }
 
 /// The placed-structure list (v0.583): every stairs / ladder / elevator / etc. dropped from the
@@ -1796,8 +1812,12 @@ fn draw_structures_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
                 let selected = state.construction_structure_selected == Some(i);
                 ui.horizontal(|ui| {
                     let txt = format!("{}: {} ({:.0},{:.0})", i + 1, label, pos.0, pos.2);
-                    if ui.selectable_label(selected, RichText::new(txt).size(theme.font_size_small)).clicked() {
+                    let resp = ui.selectable_label(selected, RichText::new(txt).size(theme.font_size_small));
+                    if resp.clicked() {
                         select = Some(i);
+                    }
+                    if resp.double_clicked() {
+                        state.construction_focus_request = Some((pos.0, pos.1 + 1.0, pos.2)); // v0.593
                     }
                     if ui.small_button("Remove").clicked() {
                         remove = Some(i);
@@ -2076,10 +2096,20 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                         ui.horizontal(|ui| {
                             // Click selects (v0.553): its detail shows on the right panel.
                             let sel = state.construction_machine_selected.as_deref() == Some(id.as_str());
-                            if ui.selectable_label(sel, RichText::new(format!("{mtype}  ({room})")).size(theme.font_size_small)).clicked() {
+                            let resp = ui.selectable_label(sel, RichText::new(format!("{mtype}  ({room})")).size(theme.font_size_small));
+                            if resp.clicked() {
                                 state.construction_machine_selected = Some(id.clone());
                                 state.construction_wall_selected = None;
                                 state.construction_light_selected = None;
+                            }
+                            if resp.double_clicked() {
+                                // Snap the camera to the machine (its box-mode offset = world XZ). (v0.593)
+                                // all_instances() so array-tower machines (not in `instances`) focus too.
+                                let pos = state.home_machines.as_ref()
+                                    .and_then(|h| h.all_instances().iter().find(|m| m.id == *id).map(|m| m.offset));
+                                if let Some(p) = pos {
+                                    state.construction_focus_request = Some((p.0, p.1 + 0.5, p.2));
+                                }
                             }
                             if ui.small_button("x").clicked() {
                                 remove_machine = Some(id.clone());
