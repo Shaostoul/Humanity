@@ -731,6 +731,82 @@ mod native_app {
         }
     }
 
+    /// DUPLICATE the selected object (v0.600, Ctrl+D): clone it offset +1 m in X/Z and select the
+    /// copy, so you can stamp many. Handles a structure / light / wall / direct machine (the common
+    /// placeables); a road/conduit node or an array-machine is skipped (graph nodes + array-derived
+    /// instances aren't duplicated this way). Marks the right dirty flag so the copy renders live.
+    fn construction_duplicate(state: &mut EngineState) {
+        let g = &mut state.gui_state;
+        if let Some(i) = g.construction_structure_selected {
+            let mut new_idx = None;
+            if let Some(hs) = g.home_structure.as_mut() {
+                if let Some(mut np) = hs.structures.get(i).cloned() {
+                    np.pos.0 += 1.0;
+                    np.pos.2 += 1.0;
+                    np.pair = None; // a copy starts unpaired
+                    hs.structures.push(np);
+                    new_idx = Some(hs.structures.len() - 1);
+                }
+            }
+            if let Some(ni) = new_idx {
+                g.construction_structure_selected = Some(ni);
+            }
+            g.construction_structure_dirty = true;
+            return;
+        }
+        if let Some(i) = g.construction_light_selected {
+            let mut new_idx = None;
+            if let Some(hs) = g.home_structure.as_mut() {
+                if let Some(mut nl) = hs.lights.get(i).cloned() {
+                    nl.pos.0 += 1.0;
+                    nl.pos.2 += 1.0;
+                    hs.lights.push(nl);
+                    new_idx = Some(hs.lights.len() - 1);
+                }
+            }
+            if let Some(ni) = new_idx {
+                g.construction_light_selected = Some(ni);
+            }
+            g.construction_structure_dirty = true;
+            return;
+        }
+        if let Some(i) = g.construction_wall_selected {
+            let mut new_idx = None;
+            if let Some(hs) = g.home_structure.as_mut() {
+                if let Some(mut nw) = hs.walls.get(i).cloned() {
+                    nw.a.0 += 1.0;
+                    nw.a.1 += 1.0;
+                    nw.b.0 += 1.0;
+                    nw.b.1 += 1.0;
+                    hs.walls.push(nw);
+                    new_idx = Some(hs.walls.len() - 1);
+                }
+            }
+            if let Some(ni) = new_idx {
+                g.construction_wall_selected = Some(ni);
+            }
+            g.construction_structure_dirty = true;
+            return;
+        }
+        if let Some(id) = g.construction_machine_selected.clone() {
+            let mut new_id = None;
+            if let Some(h) = g.home_machines.as_mut() {
+                if let Some(mut ni) = h.instances.iter().find(|m| m.id == id).cloned() {
+                    let fresh = h.unique_instance_id(&ni.machine);
+                    ni.id = fresh.clone();
+                    ni.offset.0 += 1.0;
+                    ni.offset.2 += 1.0;
+                    h.instances.push(ni);
+                    new_id = Some(fresh);
+                }
+            }
+            if let Some(nid) = new_id {
+                g.construction_machine_selected = Some(nid);
+            }
+            g.construction_machines_dirty = true;
+        }
+    }
+
     /// Undo the last construction edit (v0.575): restore the most recent pre-edit snapshot.
     fn construction_undo(state: &mut EngineState) {
         if let Some(prev) = state.construction_history.undo.pop_back() {
@@ -4377,6 +4453,8 @@ mod native_app {
                                 construction_undo(state);
                             } else if key == KeyCode::KeyY {
                                 construction_redo(state);
+                            } else if key == KeyCode::KeyD {
+                                construction_duplicate(state); // v0.600: stamp a copy of the selection
                             }
                         }
                         // Rotate the held STRUCTURE piece with [ and ] (v0.583): 15-degree steps. Only

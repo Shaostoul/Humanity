@@ -2131,7 +2131,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .id_salt("hs_object_browser")
         .default_open(true)
         .show(ui, |ui| {
-            ui.label(RichText::new("Click a row to edit it on the right; double-click to fly there.")
+            ui.label(RichText::new("Click a row to edit it on the right; double-click to fly there; Ctrl+D duplicates the selected.")
                 .size(theme.font_size_small).color(theme.text_muted()));
             // Filter box (v0.598): narrows rows to those whose name contains the text. With a filter,
             // matching type-groups auto-expand. Essential once the home has 100+ machines.
