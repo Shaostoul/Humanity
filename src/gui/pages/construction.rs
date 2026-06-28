@@ -1879,12 +1879,21 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
                 changed = true;
             }
         });
-        // Teleporter pairing: pick another teleporter as the jump destination. (v0.584 reads it.)
-        if kind == Some(crate::ship::structure::StructureKind::Teleporter) {
+        // Pairing (the generic `pair` field): a TELEPORTER pairs with another teleporter (jump
+        // destination, v0.584); a TRAIN platform pairs with another platform (a rail line connects
+        // them, v0.592). Pick a SAME-TYPE partner. The kind decides how the pair is interpreted.
+        let pairable = matches!(
+            kind,
+            Some(crate::ship::structure::StructureKind::Teleporter)
+                | Some(crate::ship::structure::StructureKind::Train)
+        );
+        if pairable {
             ui.add_space(theme.spacing_xs);
             let cur = ps.pair;
+            let my_type = ps.type_id.clone();
+            let noun = if kind == Some(crate::ship::structure::StructureKind::Train) { "platform" } else { "teleporter" };
             let cur_txt = cur.map(|p| format!("-> #{}", p + 1)).unwrap_or_else(|| "(no pair)".into());
-            egui::ComboBox::from_id_salt("hs_teleport_pair")
+            egui::ComboBox::from_id_salt("hs_structure_pair")
                 .selected_text(cur_txt)
                 .show_ui(ui, |ui| {
                     if ui.selectable_label(cur.is_none(), "(no pair)").clicked() {
@@ -1892,10 +1901,10 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
                         changed = true;
                     }
                     for (i, tid) in &pieces {
-                        if *i == sel || tid != "teleporter" {
+                        if *i == sel || *tid != my_type {
                             continue;
                         }
-                        if ui.selectable_label(cur == Some(*i), format!("#{} teleporter", i + 1)).clicked() {
+                        if ui.selectable_label(cur == Some(*i), format!("#{} {noun}", i + 1)).clicked() {
                             ps.pair = Some(*i);
                             changed = true;
                         }

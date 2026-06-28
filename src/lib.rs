@@ -6388,6 +6388,24 @@ mod native_app {
                                     crate::renderer::line::push_polyline(&mut ring_lines, &pts, RE);
                                 }
                             }
+                            // Rail-link gizmo (v0.592): a line between PAIRED train platforms (j>i dedup).
+                            for (i, ps) in hs.structures.iter().enumerate() {
+                                let is_train = crate::ship::structure::structure_type(&ps.type_id)
+                                    .map_or(false, |t| t.kind == crate::ship::structure::StructureKind::Train);
+                                if !is_train {
+                                    continue;
+                                }
+                                if let Some(j) = ps.pair {
+                                    if j > i && j < hs.structures.len() {
+                                        let pj = &hs.structures[j];
+                                        crate::renderer::line::push_polyline(
+                                            &mut ring_lines,
+                                            &[[ps.pos.0, 0.2, ps.pos.2], [pj.pos.0, 0.2, pj.pos.2]],
+                                            [0.9, 0.7, 0.3, 0.8],
+                                        );
+                                    }
+                                }
+                            }
 
                             // MACHINE bounds gizmos (v0.587): a wireframe cube around each placed machine
                             // (from its pick volume centre+radius), so every machine has a helper widget

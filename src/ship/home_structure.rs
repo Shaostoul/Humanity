@@ -665,6 +665,70 @@ impl HomeStructure {
             material_walls.push((v, i, [c[0], c[1], c[2], 1.0]));
         }
 
+        // RAIL LINES (v0.592): a track between PAIRED train platforms -- two parallel rails + cross
+        // ties (reusing wall_box), on the floor, deduped by sorted index so a mutual pair draws once.
+        // Stage 1: the track runs between platform centres (a clear "rail-connected" indicator);
+        // platform-beside-track placement is a cosmetic refinement.
+        use crate::ship::structure::{structure_type as rail_stype, StructureKind as RailKind};
+        let mut seen_rails: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+        let mut rail_geo: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
+        let mut tie_geo: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
+        const GAUGE: f32 = 1.435; // standard gauge (m)
+        for (i, ps) in self.structures.iter().enumerate() {
+            let Some(ty) = rail_stype(&ps.type_id) else { continue };
+            if ty.kind != RailKind::Train {
+                continue;
+            }
+            let Some(j) = ps.pair else { continue };
+            if j == i || j >= self.structures.len() {
+                continue;
+            }
+            if !seen_rails.insert((i.min(j), i.max(j))) {
+                continue; // already drawn (mutual pair)
+            }
+            let pj = &self.structures[j];
+            match rail_stype(&pj.type_id) {
+                Some(t) if t.kind == RailKind::Train => {}
+                _ => continue, // partner must be a platform
+            }
+            let (a, b) = ((ps.pos.0, ps.pos.2), (pj.pos.0, pj.pos.2));
+            let len = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
+            if len < 0.5 {
+                continue;
+            }
+            let d = ((b.0 - a.0) / len, (b.1 - a.1) / len);
+            let perp = (-d.1, d.0);
+            let y = ps.pos.1.min(pj.pos.1); // rails at the lower (base) level
+            // Two rails, offset +/- half-gauge from the centreline.
+            for s in [1.0f32, -1.0] {
+                let off = (perp.0 * GAUGE * 0.5 * s, perp.1 * GAUGE * 0.5 * s);
+                let ra = Vec3::new(a.0 + off.0, 0.0, a.1 + off.1);
+                let rb = Vec3::new(b.0 + off.0, 0.0, b.1 + off.1);
+                let (mut v, idx) = wall_box(ra, rb, y, 0.12, 0.08);
+                let base = rail_geo.0.len() as u32;
+                rail_geo.0.append(&mut v);
+                rail_geo.1.extend(idx.into_iter().map(|k| k + base));
+            }
+            // Cross ties every ~0.6 m.
+            let n = (len / 0.6).floor().max(1.0) as usize;
+            for k in 0..=n {
+                let t = k as f32 / n as f32;
+                let (cx, cz) = (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t);
+                let ta = Vec3::new(cx - perp.0 * GAUGE * 0.62, 0.0, cz - perp.1 * GAUGE * 0.62);
+                let tb = Vec3::new(cx + perp.0 * GAUGE * 0.62, 0.0, cz + perp.1 * GAUGE * 0.62);
+                let (mut v, idx) = wall_box(ta, tb, y, 0.06, 0.2);
+                let base = tie_geo.0.len() as u32;
+                tie_geo.0.append(&mut v);
+                tie_geo.1.extend(idx.into_iter().map(|k| k + base));
+            }
+        }
+        if !rail_geo.0.is_empty() {
+            material_walls.push((rail_geo.0, rail_geo.1, Self::material_color(1))); // steel rails
+        }
+        if !tie_geo.0.is_empty() {
+            material_walls.push((tie_geo.0, tie_geo.1, Self::material_color(3))); // oak ties
+        }
+
         HomesteadMeshes {
             floors,
             walls: (Vec::new(), Vec::new()),
@@ -1229,6 +1293,28 @@ mod tests {
         h2.road_edges.push(RoadEdge { from: 1, to: 2, class: "residential".into(), width: 4.0 });
         let iso = h2.road_edge_centerline(&h2.road_edges[0]);
         assert!(iso.iter().all(|p| p.1.abs() < 1e-3), "an isolated edge is a straight line");
+    }
+
+    #[test]
+    fn paired_train_platforms_render_a_rail_track_once() {
+        let mut h = HomeStructure {
+            width: 40.0, depth: 40.0, height: 3.0, shell_material: 1, roof_material: 4,
+            walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(),
+        };
+        let base = wall_vcount(&h.generate_meshes());
+        // Two train platforms; unpaired -> no track yet.
+        h.structures.push(PlacedStructure { type_id: "train".into(), pos: (5.0, 0.0, 5.0), rot_deg: 0.0, pair: None });
+        h.structures.push(PlacedStructure { type_id: "train".into(), pos: (25.0, 0.0, 5.0), rot_deg: 0.0, pair: None });
+        let unpaired = wall_vcount(&h.generate_meshes());
+        // Pair them BOTH ways -> a rail track appears, and it is drawn only ONCE (dedup).
+        h.structures[0].pair = Some(1);
+        let one_way = wall_vcount(&h.generate_meshes());
+        assert!(one_way > unpaired, "pairing two platforms renders a rail track");
+        h.structures[1].pair = Some(0);
+        let both_ways = wall_vcount(&h.generate_meshes());
+        assert_eq!(both_ways, one_way, "a mutual pair draws the track once (deduped)");
+        let _ = base;
     }
 
     #[test]

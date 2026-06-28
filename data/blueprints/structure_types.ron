@@ -38,7 +38,7 @@
     (
         id: "train", label: "Train platform", category: "Structure",
         kind: Train, shape: Box, size: (3.0, 0.4, 8.0), color: (0.4, 0.42, 0.45), steps: 0,
-        note: "A boarding platform for a future rail line. Place two and a track connects them (later stage).",
+        note: "A boarding platform. Pair it with another platform (in its detail panel) and a rail track connects the two.",
     ),
     (
         id: "road", label: "Road", category: "Structure",

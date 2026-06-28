@@ -123,8 +123,14 @@ density / strength / cost.
   and dead-ends (the control point mirrors the segment, degenerating Catmull-Rom to a line).
   generate_meshes ribbons consecutive curve samples (8 per edge) with `wall_box`. Add
   intermediate nodes for tighter control; very sharp through-angles can overshoot slightly.
-  Still pending: the **rail line** between train platforms, and road FOOTING (walk/drive on
-  the surface -- marginal on a flat floor, matters once roads sit at varied heights).
+- **Rail line (v0.592):** pair a train platform with another (its detail panel, reusing the
+  generic `pair` field -- the kind decides the meaning: a teleporter pair jumps, a train pair
+  lays track) and `generate_meshes` renders a track between them -- two steel rails at standard
+  gauge + oak cross ties (reusing `wall_box`), deduped by sorted index so a mutual pair draws
+  once. A build-mode gizmo links paired platforms. Stage 1 runs the track between platform
+  CENTRES; a ridable moving train car (the horizontal elevator-equivalent) + platform-beside-
+  track placement are the further stages. Road FOOTING (walk/drive on the surface) stays a
+  marginal follow-up (it matters once roads sit at varied heights, not on a flat floor).
 - **Solid-body collision for tall pieces**: structures aren't wall-colliders yet, so you can
   walk into the side of a tall solid box. The default pieces are short (platform 0.4 m) so
   this isn't visible; add structure colliders when a tall solid piece ships.
