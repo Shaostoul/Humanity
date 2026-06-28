@@ -2133,35 +2133,60 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .show(ui, |ui| {
             ui.label(RichText::new("Click a row to edit it on the right; double-click to fly there.")
                 .size(theme.font_size_small).color(theme.text_muted()));
-            egui::ScrollArea::vertical().id_salt("hs_obj_scroll").max_height(320.0).show(ui, |ui| {
-                for row in &rows {
-                    ui.horizontal(|ui| {
-                        // A LIGHT row gets a dedicated on/off checkbox; clicking it toggles power and
-                        // ONLY that (the name no longer toggles -- operator's fix). (v0.597)
-                        if let (Some(on), Key::Light(i)) = (row.on, &row.key) {
-                            let mut v = on;
-                            if ui.add(egui::Checkbox::without_text(&mut v)).clicked() {
-                                act = Some(Act::ToggleLight(*i));
-                            }
-                        }
-                        ui.label(RichText::new(format!("[{}]", row.tag)).size(theme.font_size_small).color(theme.text_muted()));
-                        let txt = format!("{}  ({:.0},{:.0})", row.name, row.pos.0, row.pos.2);
-                        let resp = ui.selectable_label(row.selected, RichText::new(txt).size(theme.font_size_small)
-                            .color(if row.selected { theme.accent() } else { theme.text_secondary() }));
-                        if resp.clicked() {
-                            act = Some(Act::Select(row.key.clone()));
-                        }
-                        if resp.double_clicked() {
-                            act = Some(Act::Focus((row.pos.0, row.pos.1 + 0.5, row.pos.2)));
-                        }
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if row.removable {
-                                if ui.small_button("x").clicked() {
-                                    act = Some(Act::Remove(row.key.clone()));
-                                }
+            // Filter box (v0.598): narrows rows to those whose name contains the text. With a filter,
+            // matching type-groups auto-expand. Essential once the home has 100+ machines.
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Filter").size(theme.font_size_small).color(theme.text_muted()));
+                ui.add(egui::TextEdit::singleline(&mut state.construction_object_filter).hint_text("name...").desired_width(150.0));
+                if ui.small_button("clear").clicked() {
+                    state.construction_object_filter.clear();
+                }
+            });
+            let filter = state.construction_object_filter.to_lowercase();
+            egui::ScrollArea::vertical().id_salt("hs_obj_scroll").max_height(360.0).show(ui, |ui| {
+                // Group rows by type into collapsible sub-headers, in a stable order. (v0.598)
+                for (tag, plural) in [("Wall", "Walls"), ("Struct", "Structures"), ("Machine", "Machines"), ("Light", "Lights"), ("Road", "Road nodes"), ("Pipe", "Pipe nodes")] {
+                    let group: Vec<&Row> = rows.iter()
+                        .filter(|r| r.tag == tag && (filter.is_empty() || r.name.to_lowercase().contains(filter.as_str())))
+                        .collect();
+                    if group.is_empty() {
+                        continue;
+                    }
+                    // Auto-open while filtering, or when the group is small enough to not dominate.
+                    let open = !filter.is_empty() || group.len() <= 12;
+                    egui::CollapsingHeader::new(RichText::new(format!("{plural} ({})", group.len())).color(theme.text_secondary()))
+                        .id_salt(tag)
+                        .default_open(open)
+                        .show(ui, |ui| {
+                            for row in &group {
+                                ui.horizontal(|ui| {
+                                    // A LIGHT row gets a dedicated on/off checkbox; clicking it toggles
+                                    // power and ONLY that (the name no longer toggles -- operator's fix).
+                                    if let (Some(on), Key::Light(i)) = (row.on, &row.key) {
+                                        let mut v = on;
+                                        if ui.add(egui::Checkbox::without_text(&mut v)).clicked() {
+                                            act = Some(Act::ToggleLight(*i));
+                                        }
+                                    }
+                                    let txt = format!("{}  ({:.0},{:.0})", row.name, row.pos.0, row.pos.2);
+                                    let resp = ui.selectable_label(row.selected, RichText::new(txt).size(theme.font_size_small)
+                                        .color(if row.selected { theme.accent() } else { theme.text_secondary() }));
+                                    if resp.clicked() {
+                                        act = Some(Act::Select(row.key.clone()));
+                                    }
+                                    if resp.double_clicked() {
+                                        act = Some(Act::Focus((row.pos.0, row.pos.1 + 0.5, row.pos.2)));
+                                    }
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        if row.removable {
+                                            if ui.small_button("x").clicked() {
+                                                act = Some(Act::Remove(row.key.clone()));
+                                            }
+                                        }
+                                    });
+                                });
                             }
                         });
-                    });
                 }
             });
         });

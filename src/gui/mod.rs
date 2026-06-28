@@ -1522,6 +1522,9 @@ pub struct GuiState {
     /// Camera FOCUS request (v0.593): set to a world (x,y,z) when a left-list row is double-clicked;
     /// the engine snaps the orbit camera to it next frame (so you can see what you clicked) + clears it.
     pub construction_focus_request: Option<(f32, f32, f32)>,
+    /// Objects-browser filter text (v0.598): rows whose name contains it (case-insensitive) show;
+    /// empty = all. With a non-empty filter, matching type-groups auto-expand.
+    pub construction_object_filter: String,
     /// Selected ROAD-graph node id (v0.597): its detail shows on the right; draggable in the viewport.
     pub construction_road_node_selected: Option<u32>,
     /// Selected CONDUIT-graph node id (v0.597): its detail shows on the right; draggable in the viewport.
@@ -2616,6 +2619,7 @@ impl Default for GuiState {
             construction_structure_type: None,
             construction_structure_selected: None,
             construction_focus_request: None,
+            construction_object_filter: String::new(),
             construction_road_node_selected: None,
             construction_conduit_node_selected: None,
             construction_structure_yaw: 0.0,
