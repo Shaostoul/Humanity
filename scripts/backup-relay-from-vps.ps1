@@ -17,6 +17,17 @@
 # Relies on the `humanity-vps` SSH alias in ~/.ssh/config. No secrets
 # in this script.
 #
+# SCHEDULED-TASK CONFIG (must stay SILENT): the Windows task "HumanityOS Relay
+# Backup Pull" MUST run with LogonType **S4U** ("Run whether user is logged on
+# or not") + Settings.Hidden = $true. Under the Interactive logon type,
+# powershell.exe flashes a console window every run that STEALS FOCUS and kicks
+# the operator out of whatever app is in front (reported 2026-06-28). S4U runs
+# it non-interactively (no window) and key-based SSH still works headless. To
+# re-apply after any task re-create (needs admin):
+#   $p=New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U -RunLevel Limited
+#   $s=(Get-ScheduledTask -TaskName 'HumanityOS Relay Backup Pull').Settings; $s.Hidden=$true
+#   Set-ScheduledTask -TaskName 'HumanityOS Relay Backup Pull' -Principal $p -Settings $s
+#
 # IMPLEMENTATION NOTES:
 #  - Pure ASCII on purpose. PowerShell 5.1 reads script files in the
 #    system codepage, not UTF-8, so any em-dash / box-drawing glyph
