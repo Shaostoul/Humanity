@@ -1532,6 +1532,9 @@ pub struct GuiState {
     pub construction_road_to: u32,
     pub construction_road_class: String,
     pub construction_road_width: f32,
+    /// Dimension overlay toggle (v0.595): the floating measurement text (wall lengths, corner angles,
+    /// feature gaps). Default on; turn off from the Options/Dev section to de-clutter the view.
+    pub construction_dimension_overlay: bool,
     /// Master toggle for the build-mode HELPER overlays (v0.587): the non-interactive bounds gizmos on
     /// machines + structures, the road graph (node rings + edge lines), and conduit-node markers.
     /// Default on. The interactive editing handles (corner orbs, resize cubes) + the light gizmos (the
@@ -2615,6 +2618,7 @@ impl Default for GuiState {
             construction_road_to: 0,
             construction_road_class: String::new(),
             construction_road_width: 4.0,
+            construction_dimension_overlay: true,
             construction_show_helpers: true,
             construction_save: false,
             showroom_backdrop: 0,

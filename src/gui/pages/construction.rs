@@ -687,26 +687,30 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     ui.label(RichText::new("Build from the footer palette below -- Structure (walls, stairs, ladders, ...) is the leftmost tab. Drag corner pins to move walls.")
                         .size(theme.font_size_small).color(theme.text_muted()));
                 }
-                // Grid snap toggle (v0.541): endpoint + edge snapping are always on (airtight seals);
-                // this toggles the 0.25 m grid.
-                ui.checkbox(&mut state.construction_grid_snap, RichText::new("Grid snap (0.25 m)").size(theme.font_size_small).color(theme.text_primary()));
-                // Dev overlay (v0.547): keep the dimension overlay + door interaction rings visible in
-                // normal play, not just in the editor.
-                ui.checkbox(&mut state.construction_dev_overlay, RichText::new("Dev overlay in play").size(theme.font_size_small).color(theme.text_primary()));
-                // Helper-gizmo master toggle (v0.587): quiet the bounds/range overlays on machines,
-                // structures, roads, conduits + light ranges when the view gets busy. Editing handles stay.
-                ui.checkbox(&mut state.construction_show_helpers, RichText::new("Helper gizmos (bounds / range / nodes)").size(theme.font_size_small).color(theme.text_primary()));
-                // GI master switch (v0.571): off = only LOCAL placed lights illuminate (the "turn off
-                // global illumination and still see" test). Toggling it rebuilds room_lights so the
-                // auto per-room fill (part of "global" lighting) is added/removed accordingly.
-                if ui.checkbox(&mut state.gi_enabled, RichText::new("Sun / global light (off = local lights only)").size(theme.font_size_small).color(theme.text_primary())).changed() {
-                    state.construction_structure_dirty = true;
-                }
-                // Undo depth (v0.575, Blender-style): how many editor actions Ctrl+Z can step back.
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Undo steps (Ctrl+Z / Ctrl+Shift+Z)").size(theme.font_size_small).color(theme.text_muted()));
-                    ui.add(egui::DragValue::new(&mut state.construction_undo_depth).speed(1.0).range(1..=4096));
-                });
+                // Options / Dev (v0.595): a dedicated, collapsible home for every build-mode toggle so
+                // they stop cluttering the panel top (operator: "a section dedicated to the toggles").
+                egui::CollapsingHeader::new(RichText::new("Options / Dev").strong().color(theme.text_primary()))
+                    .id_salt("hs_options_sec")
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        // Grid snap: endpoint + edge snapping are always on (airtight seals); this is the 0.25 m grid.
+                        ui.checkbox(&mut state.construction_grid_snap, RichText::new("Grid snap (0.25 m)").size(theme.font_size_small).color(theme.text_primary()));
+                        // Dimension overlay (v0.595): the floating measurement text -- toggle off to de-clutter.
+                        ui.checkbox(&mut state.construction_dimension_overlay, RichText::new("Dimension overlay (measurements)").size(theme.font_size_small).color(theme.text_primary()));
+                        // Dev overlay: keep the dimension overlay + door interaction rings visible in normal play too.
+                        ui.checkbox(&mut state.construction_dev_overlay, RichText::new("Dev overlay in play").size(theme.font_size_small).color(theme.text_primary()));
+                        // Helper gizmos: quiet the bounds/range overlays on machines/structures/roads/conduits + the wall wireframe.
+                        ui.checkbox(&mut state.construction_show_helpers, RichText::new("Helper gizmos (bounds / wireframe / nodes)").size(theme.font_size_small).color(theme.text_primary()));
+                        // GI master switch: off = only LOCAL placed lights illuminate. Rebuilds room_lights.
+                        if ui.checkbox(&mut state.gi_enabled, RichText::new("Sun / global light (off = local lights only)").size(theme.font_size_small).color(theme.text_primary())).changed() {
+                            state.construction_structure_dirty = true;
+                        }
+                        // Undo depth (Blender-style): how many editor actions Ctrl+Z can step back.
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Undo steps (Ctrl+Z / Ctrl+Shift+Z)").size(theme.font_size_small).color(theme.text_muted()));
+                            ui.add(egui::DragValue::new(&mut state.construction_undo_depth).speed(1.0).range(1..=4096));
+                        });
+                    });
                 ui.add_space(theme.spacing_sm);
 
                 // Interior walls -- a collapsible section (v0.569) so a long list folds away.

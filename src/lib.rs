@@ -9347,6 +9347,7 @@ mod native_app {
                                 if state.gui_state.active_page == GuiPage::None
                                     && (state.gui_state.construction_active
                                         || state.gui_state.construction_dev_overlay)
+                                    && state.gui_state.construction_dimension_overlay // v0.595 toggle
                                     && !state.gui_state.showroom_active
                                 {
                                     hud::draw_construction_overlay(
