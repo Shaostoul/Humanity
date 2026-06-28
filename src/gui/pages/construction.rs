@@ -719,55 +719,15 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 draw_object_browser(ui, theme, state);
                 ui.add_space(theme.spacing_sm);
 
-                // Interior walls -- a collapsible section (v0.569) so a long list folds away. Default
-                // CLOSED now (v0.596): the unified browser above is the primary list.
-                let n = state.home_structure.as_ref().map_or(0, |h| h.walls.len());
-                egui::CollapsingHeader::new(RichText::new(format!("Interior walls ({n})")).strong().color(theme.text_primary()))
-                    .id_salt("hs_walls_sec")
-                    .default_open(false)
-                    .show(ui, |ui| {
-                        let mut remove: Option<usize> = None;
-                        for i in 0..n {
-                            let (a, b) = state.home_structure.as_ref().map(|h| (h.walls[i].a, h.walls[i].b)).unwrap();
-                            let selected = state.construction_wall_selected == Some(i);
-                            ui.horizontal(|ui| {
-                                let lbl = format!("{}: ({:.0},{:.0})->({:.0},{:.0})", i + 1, a.0, a.1, b.0, b.1);
-                                let resp = ui.selectable_label(selected, RichText::new(lbl).size(theme.font_size_small));
-                                if resp.clicked() {
-                                    state.construction_wall_selected = Some(i);
-                                    state.construction_machine_selected = None;
-                                    state.construction_light_selected = None;
-                                }
-                                if resp.double_clicked() {
-                                    // Snap the camera to the wall's midpoint (v0.593).
-                                    let h = state.home_structure.as_ref().map_or(3.0, |hs| hs.height);
-                                    state.construction_focus_request = Some(((a.0 + b.0) * 0.5, h * 0.5, (a.1 + b.1) * 0.5));
-                                }
-                                if ui.small_button("Remove").clicked() {
-                                    remove = Some(i);
-                                }
-                            });
-                        }
-                        if let Some(i) = remove {
-                            if let Some(hs) = state.home_structure.as_mut() {
-                                if i < hs.walls.len() {
-                                    hs.walls.remove(i);
-                                }
-                            }
-                            state.construction_wall_selected = None;
-                            state.construction_structure_dirty = true;
-                        }
-                    });
+                // Walls + Structures lists REMOVED (v0.597): they're in the unified Objects browser
+                // above now (one consistent row each; click -> edit on the right). Walls are drawn from
+                // the Structure palette; structural pieces are placed from it too.
 
-                // Structural pieces (v0.583): stairs / ladders / elevators / teleporters / etc.
-                // placed from the Structure palette. List + select + remove, like the wall list.
-                draw_structures_editor(ui, theme, state);
-
-                // Machines + utility-line connections (v0.536): collapsible sections (v0.569), the
-                // connections grouped by utility kind.
+                // Machines + utility-line CONNECTIONS (v0.536): the machine list moved to the browser;
+                // this keeps the utility-line connection editor (wire machine A -> B by kind).
                 draw_machines_and_connections(ui, theme, state);
 
-                // Lights (v0.571): place local lights so a room is lit with the sun off.
+                // Lights: the list moved to the browser; this keeps the "Add light..." picker. (v0.597)
                 draw_lights_editor(ui, theme, state);
 
                 // Conduit node graph (v0.581): place junction nodes + branch edges; pipes auto-route.
@@ -807,6 +767,22 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .default_width(252.0)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
+            // A selected ROAD / CONDUIT node takes the panel (v0.597): clicked its list row / gizmo.
+            // Gate on NO other object being selected so a viewport pick of a wall/light/etc. (which
+            // doesn't clear the browser's node selection) is never SHADOWED by a stale node detail --
+            // node selections are only ever set by the browser, which clears the others first. (v0.597)
+            let other_selected = state.construction_structure_selected.is_some()
+                || state.construction_light_selected.is_some()
+                || state.construction_machine_selected.is_some()
+                || state.construction_wall_selected.is_some();
+            if !other_selected && state.construction_road_node_selected.is_some() {
+                draw_road_node_detail(ui, theme, state);
+                return;
+            }
+            if !other_selected && state.construction_conduit_node_selected.is_some() {
+                draw_conduit_node_detail(ui, theme, state);
+                return;
+            }
             // A selected STRUCTURE takes the panel (v0.583): clicked its gizmo or list row.
             if state.construction_structure_selected.is_some() {
                 draw_structure_detail(ui, theme, state);
@@ -1724,50 +1700,20 @@ fn draw_conduit_nodes(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    // The light LIST + on/off + position editing moved to the Objects browser (toggle) + the right
+    // detail panel (v0.597). This keeps only the "Add light" picker. One consistent style.
     let mut changed = false;
-    let mut focus: Option<(f32, f32, f32)> = None; // double-click-to-focus (v0.593)
     {
         let hs = match state.home_structure.as_mut() {
             Some(h) => h,
             None => return,
         };
-        egui::CollapsingHeader::new(RichText::new(format!("Lights ({})", hs.lights.len())).strong().color(theme.text_primary()))
+        egui::CollapsingHeader::new(RichText::new("Add light").strong().color(theme.text_primary()))
             .id_salt("hs_lights_sec")
             .default_open(false)
             .show(ui, |ui| {
-                ui.label(RichText::new("Local lights -- turn off Sun / global light above to see them alone.")
+                ui.label(RichText::new("Lights appear in Objects above (checkbox = on/off, click = edit). Turn off Sun / global light to see them alone.")
                     .size(theme.font_size_small).color(theme.text_muted()));
-                let mut remove: Option<usize> = None;
-                for li in 0..hs.lights.len() {
-                    ui.horizontal(|ui| {
-                        let name = crate::renderer::light::light_type(&hs.lights[li].type_id)
-                            .map(|t| t.name.clone())
-                            .unwrap_or_else(|| hs.lights[li].type_id.clone());
-                        let cb = ui.checkbox(&mut hs.lights[li].on, RichText::new(name).size(theme.font_size_small).color(theme.text_primary()));
-                        if cb.changed() {
-                            changed = true;
-                        }
-                        if cb.double_clicked() {
-                            // Double-click toggles twice (net unchanged) + snaps the camera here. (v0.593)
-                            let p = hs.lights[li].pos;
-                            focus = Some((p.0, p.1, p.2));
-                        }
-                        if ui.small_button("x").clicked() {
-                            remove = Some(li);
-                        }
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("pos").size(theme.font_size_small).color(theme.text_muted()));
-                        let p = &mut hs.lights[li].pos;
-                        changed |= ui.add(egui::DragValue::new(&mut p.0).speed(0.2).prefix("x ").suffix(" m")).changed();
-                        changed |= ui.add(egui::DragValue::new(&mut p.1).speed(0.2).prefix("y ").suffix(" m")).changed();
-                        changed |= ui.add(egui::DragValue::new(&mut p.2).speed(0.2).prefix("z ").suffix(" m")).changed();
-                    });
-                }
-                if let Some(li) = remove {
-                    hs.lights.remove(li);
-                    changed = true;
-                }
                 egui::ComboBox::from_id_salt("hs_add_light")
                     .selected_text("Add light...")
                     .show_ui(ui, |ui| {
@@ -1793,72 +1739,9 @@ fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // Rebuild the homestead so room_lights pick up the new placed lights (home_lights).
         state.construction_structure_dirty = true;
     }
-    if let Some(f) = focus {
-        state.construction_focus_request = Some(f); // applied after the hs borrow ends (v0.593)
-    }
 }
 
-/// The placed-structure list (v0.583): every stairs / ladder / elevator / etc. dropped from the
-/// Structure palette, with select + remove. Selecting one opens its detail on the right panel.
-fn draw_structures_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let n = state.home_structure.as_ref().map_or(0, |h| h.structures.len());
-    if n == 0 {
-        return; // nothing placed -- keep the panel uncluttered until the first piece exists
-    }
-    let mut select: Option<usize> = None;
-    let mut remove: Option<usize> = None;
-    egui::CollapsingHeader::new(RichText::new(format!("Structures ({n})")).strong().color(theme.text_primary()))
-        .id_salt("hs_structures_sec")
-        .default_open(false)
-        .show(ui, |ui| {
-            for i in 0..n {
-                let (tid, pos) = state
-                    .home_structure
-                    .as_ref()
-                    .map(|h| (h.structures[i].type_id.clone(), h.structures[i].pos))
-                    .unwrap();
-                let label = crate::ship::structure::structure_type(&tid)
-                    .map(|t| t.label.clone())
-                    .unwrap_or(tid);
-                let selected = state.construction_structure_selected == Some(i);
-                ui.horizontal(|ui| {
-                    let txt = format!("{}: {} ({:.0},{:.0})", i + 1, label, pos.0, pos.2);
-                    let resp = ui.selectable_label(selected, RichText::new(txt).size(theme.font_size_small));
-                    if resp.clicked() {
-                        select = Some(i);
-                    }
-                    if resp.double_clicked() {
-                        state.construction_focus_request = Some((pos.0, pos.1 + 1.0, pos.2)); // v0.593
-                    }
-                    if ui.small_button("Remove").clicked() {
-                        remove = Some(i);
-                    }
-                });
-            }
-        });
-    if let Some(i) = select {
-        state.construction_structure_selected = Some(i);
-        state.construction_wall_selected = None;
-        state.construction_machine_selected = None;
-        state.construction_light_selected = None;
-    }
-    if let Some(i) = remove {
-        if let Some(hs) = state.home_structure.as_mut() {
-            if i < hs.structures.len() {
-                hs.structures.remove(i);
-                // Drop any teleporter pairing that referenced a now-shifted index (Stage 1: clear all
-                // pairs >= i; re-link in the detail panel -- simpler + safe vs reindexing).
-                for s in &mut hs.structures {
-                    if let Some(p) = s.pair {
-                        if p == i { s.pair = None; } else if p > i { s.pair = Some(p - 1); }
-                    }
-                }
-            }
-        }
-        state.construction_structure_selected = None;
-        state.construction_structure_dirty = true;
-    }
-}
+// draw_structures_editor REMOVED (v0.597): structures are in the unified Objects browser now.
 
 /// The selected-structure detail (v0.583): type, pose (x/y/z + yaw), teleporter pairing, remove.
 /// Edits mark the home dirty so the mesh rebuilds live.
@@ -2075,6 +1958,89 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 }
 
+/// Right-panel detail for a selected ROAD-graph node (v0.597): its id, editable x/z position, how
+/// many road edges connect here, and Remove. Edits flag the home dirty so the mesh rebuilds live.
+fn draw_road_node_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let id = match state.construction_road_node_selected {
+        Some(i) => i,
+        None => return,
+    };
+    let mut changed = false;
+    let mut deselect = false;
+    let edges = state.home_structure.as_ref().map_or(0, |h| h.road_edges.iter().filter(|e| e.from == id || e.to == id).count());
+    if let Some(hs) = state.home_structure.as_mut() {
+        if let Some(idx) = hs.road_nodes.iter().position(|n| n.id == id) {
+            ui.label(RichText::new(format!("Road node N{id}")).strong().size(theme.font_size_body).color(theme.text_primary()));
+            ui.label(RichText::new(format!("{edges} road segment(s) connect here")).size(theme.font_size_small).color(theme.text_muted()));
+            ui.add_space(theme.spacing_xs);
+            let p = &mut hs.road_nodes[idx].pos;
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("pos").size(theme.font_size_small).color(theme.text_muted()));
+                changed |= ui.add(egui::DragValue::new(&mut p.0).speed(0.25).prefix("x ").suffix(" m")).changed();
+                changed |= ui.add(egui::DragValue::new(&mut p.1).speed(0.25).prefix("z ").suffix(" m")).changed();
+            });
+            ui.add_space(theme.spacing_sm);
+            if ui.button(RichText::new("Remove").color(theme.danger())).clicked() {
+                hs.remove_road_node(id);
+                deselect = true;
+                changed = true;
+            }
+        } else {
+            deselect = true; // stale id -- the node was removed
+        }
+    }
+    if deselect {
+        state.construction_road_node_selected = None;
+    }
+    if changed {
+        state.construction_structure_dirty = true;
+    }
+}
+
+/// Right-panel detail for a selected CONDUIT-graph (pipe) node (v0.597): id, editable x/y/z, kind,
+/// connected-edge count, Remove. Edits flag the machines dirty so the routing rebuilds.
+fn draw_conduit_node_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use crate::machines::ConduitEnd;
+    let id = match &state.construction_conduit_node_selected {
+        Some(i) => i.clone(),
+        None => return,
+    };
+    let mut changed = false;
+    let mut deselect = false;
+    let touches = |e: &crate::machines::ConduitEdge| {
+        matches!(&e.from, ConduitEnd::Node(n) if *n == id) || matches!(&e.to, ConduitEnd::Node(n) if *n == id)
+    };
+    let edges = state.home_machines.as_ref().map_or(0, |h| h.conduit_edges.iter().filter(|e| touches(e)).count());
+    if let Some(h) = state.home_machines.as_mut() {
+        if let Some(cn) = h.conduit_nodes.iter_mut().find(|n| n.id == id) {
+            ui.label(RichText::new(format!("Pipe node {id}")).strong().size(theme.font_size_body).color(theme.text_primary()));
+            ui.label(RichText::new(format!("kind: {}   {edges} pipe(s) connect here", if cn.kind.is_empty() { "any" } else { &cn.kind }))
+                .size(theme.font_size_small).color(theme.text_muted()));
+            ui.add_space(theme.spacing_xs);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("pos").size(theme.font_size_small).color(theme.text_muted()));
+                changed |= ui.add(egui::DragValue::new(&mut cn.pos.0).speed(0.2).prefix("x ").suffix(" m")).changed();
+                changed |= ui.add(egui::DragValue::new(&mut cn.pos.1).speed(0.2).prefix("y ").suffix(" m")).changed();
+                changed |= ui.add(egui::DragValue::new(&mut cn.pos.2).speed(0.2).prefix("z ").suffix(" m")).changed();
+            });
+            ui.add_space(theme.spacing_sm);
+            if ui.button(RichText::new("Remove").color(theme.danger())).clicked() {
+                h.remove_conduit_node(&id);
+                deselect = true;
+                changed = true;
+            }
+        } else {
+            deselect = true; // stale id
+        }
+    }
+    if deselect {
+        state.construction_conduit_node_selected = None;
+    }
+    if changed {
+        state.construction_machines_dirty = true;
+    }
+}
+
 /// Unified single-line OBJECT BROWSER (v0.596): every placed object -- walls, structures, machines,
 /// lights -- as ONE consistent row "[type] name (x,z) [x]". Click selects it (its full detail shows
 /// on the RIGHT panel, where the editing lives); double-click snaps the camera to it; [x] removes it.
@@ -2089,6 +2055,8 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Structure(usize),
         Light(usize),
         Machine(String),
+        RoadNode(u32),
+        ConduitNode(String),
     }
     struct Row {
         tag: &'static str,
@@ -2099,6 +2067,10 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         /// Whether the [x] remove affordance applies -- false for ARRAY-derived machines (not a direct
         /// instance; you edit the array, mirroring draw_machine_detail's is_direct gate). (v0.596)
         removable: bool,
+        /// On/off state for a LIGHT row (v0.597): Some(on) shows a checkbox that toggles power; None
+        /// for everything else. Clicking the NAME selects (the buggy "click name toggles" is gone now
+        /// the light gets a dedicated checkbox, per the operator).
+        on: Option<bool>,
     }
     let short = |s: &str| -> String {
         let p: Vec<&str> = s.split('_').collect();
@@ -2114,19 +2086,23 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 pos: ((w.a.0 + w.b.0) * 0.5, hs.height * 0.5, (w.a.1 + w.b.1) * 0.5),
                 selected: state.construction_wall_selected == Some(i),
                 removable: true,
+                on: None,
             });
         }
         for (i, ps) in hs.structures.iter().enumerate() {
             let name = crate::ship::structure::structure_type(&ps.type_id)
                 .map(|t| t.label.clone())
                 .unwrap_or_else(|| ps.type_id.clone());
-            rows.push(Row { tag: "Struct", key: Key::Structure(i), name, pos: ps.pos, selected: state.construction_structure_selected == Some(i), removable: true });
+            rows.push(Row { tag: "Struct", key: Key::Structure(i), name, pos: ps.pos, selected: state.construction_structure_selected == Some(i), removable: true, on: None });
         }
         for (i, l) in hs.lights.iter().enumerate() {
             let name = crate::renderer::light::light_type(&l.type_id)
                 .map(|t| t.name.clone())
                 .unwrap_or_else(|| l.type_id.clone());
-            rows.push(Row { tag: "Light", key: Key::Light(i), name, pos: l.pos, selected: state.construction_light_selected == Some(i), removable: true });
+            rows.push(Row { tag: "Light", key: Key::Light(i), name, pos: l.pos, selected: state.construction_light_selected == Some(i), removable: true, on: Some(l.on) });
+        }
+        for n in &hs.road_nodes {
+            rows.push(Row { tag: "Road", key: Key::RoadNode(n.id), name: format!("Node N{}", n.id), pos: (n.pos.0, 0.0, n.pos.1), selected: state.construction_road_node_selected == Some(n.id), removable: true, on: None });
         }
     }
     if let Some(h) = state.home_machines.as_ref() {
@@ -2136,7 +2112,11 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         for inst in h.all_instances() {
             let selected = state.construction_machine_selected.as_deref() == Some(inst.id.as_str());
             let removable = direct.contains(&inst.id);
-            rows.push(Row { tag: "Machine", key: Key::Machine(inst.id.clone()), name: short(&inst.machine), pos: inst.offset, selected, removable });
+            rows.push(Row { tag: "Machine", key: Key::Machine(inst.id.clone()), name: short(&inst.machine), pos: inst.offset, selected, removable, on: None });
+        }
+        for cn in &h.conduit_nodes {
+            let selected = state.construction_conduit_node_selected.as_deref() == Some(cn.id.as_str());
+            rows.push(Row { tag: "Pipe", key: Key::ConduitNode(cn.id.clone()), name: format!("Node {}", cn.id), pos: cn.pos, selected, removable: true, on: None });
         }
     }
     let total = rows.len();
@@ -2144,6 +2124,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Select(Key),
         Focus((f32, f32, f32)),
         Remove(Key),
+        ToggleLight(usize),
     }
     let mut act: Option<Act> = None;
     egui::CollapsingHeader::new(RichText::new(format!("Objects ({total})")).strong().color(theme.text_primary()))
@@ -2152,9 +2133,17 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .show(ui, |ui| {
             ui.label(RichText::new("Click a row to edit it on the right; double-click to fly there.")
                 .size(theme.font_size_small).color(theme.text_muted()));
-            egui::ScrollArea::vertical().id_salt("hs_obj_scroll").max_height(300.0).show(ui, |ui| {
+            egui::ScrollArea::vertical().id_salt("hs_obj_scroll").max_height(320.0).show(ui, |ui| {
                 for row in &rows {
                     ui.horizontal(|ui| {
+                        // A LIGHT row gets a dedicated on/off checkbox; clicking it toggles power and
+                        // ONLY that (the name no longer toggles -- operator's fix). (v0.597)
+                        if let (Some(on), Key::Light(i)) = (row.on, &row.key) {
+                            let mut v = on;
+                            if ui.add(egui::Checkbox::without_text(&mut v)).clicked() {
+                                act = Some(Act::ToggleLight(*i));
+                            }
+                        }
                         ui.label(RichText::new(format!("[{}]", row.tag)).size(theme.font_size_small).color(theme.text_muted()));
                         let txt = format!("{}  ({:.0},{:.0})", row.name, row.pos.0, row.pos.2);
                         let resp = ui.selectable_label(row.selected, RichText::new(txt).size(theme.font_size_small)
@@ -2182,6 +2171,8 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         s.construction_structure_selected = None;
         s.construction_light_selected = None;
         s.construction_machine_selected = None;
+        s.construction_road_node_selected = None;
+        s.construction_conduit_node_selected = None;
     };
     match act {
         Some(Act::Select(k)) => {
@@ -2191,9 +2182,19 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 Key::Structure(i) => state.construction_structure_selected = Some(i),
                 Key::Light(i) => state.construction_light_selected = Some(i),
                 Key::Machine(id) => state.construction_machine_selected = Some(id),
+                Key::RoadNode(id) => state.construction_road_node_selected = Some(id),
+                Key::ConduitNode(id) => state.construction_conduit_node_selected = Some(id),
             }
         }
         Some(Act::Focus(p)) => state.construction_focus_request = Some(p),
+        Some(Act::ToggleLight(i)) => {
+            if let Some(hs) = state.home_structure.as_mut() {
+                if let Some(l) = hs.lights.get_mut(i) {
+                    l.on = !l.on;
+                }
+            }
+            state.construction_structure_dirty = true;
+        }
         Some(Act::Remove(k)) => {
             match k {
                 Key::Wall(i) => {
@@ -2235,6 +2236,20 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     state.construction_machine_selected = None;
                     state.construction_machines_dirty = true;
                 }
+                Key::RoadNode(id) => {
+                    if let Some(hs) = state.home_structure.as_mut() {
+                        hs.remove_road_node(id); // prunes edges touching it
+                    }
+                    state.construction_road_node_selected = None;
+                    state.construction_structure_dirty = true;
+                }
+                Key::ConduitNode(id) => {
+                    if let Some(h) = state.home_machines.as_mut() {
+                        h.remove_conduit_node(&id); // prunes edges touching it
+                    }
+                    state.construction_conduit_node_selected = None;
+                    state.construction_machines_dirty = true;
+                }
             }
         }
         None => {}
@@ -2257,51 +2272,9 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         .map(|h| h.all_instances().into_iter().map(|i| (i.id, i.machine, i.room)).collect())
         .unwrap_or_default();
 
-    // ── Machines (collapsible, v0.569) -- a big list (the showroom home has 100+) folds away;
-    // default it CLOSED past two dozen so it doesn't dominate the panel.
-    egui::CollapsingHeader::new(RichText::new(format!("Machines ({})", machines.len())).strong().color(theme.text_primary()))
-        .id_salt("hs_machines_sec")
-        .default_open(false)
-        .show(ui, |ui| {
-            if machines.is_empty() {
-                ui.label(RichText::new("None yet -- pick one from the palette below and click the floor.")
-                    .size(theme.font_size_small).color(theme.text_muted()));
-            } else {
-                let mut remove_machine: Option<String> = None;
-                egui::ScrollArea::vertical().id_salt("hs_machine_list").max_height(160.0).show(ui, |ui| {
-                    for (id, mtype, room) in &machines {
-                        ui.horizontal(|ui| {
-                            // Click selects (v0.553): its detail shows on the right panel.
-                            let sel = state.construction_machine_selected.as_deref() == Some(id.as_str());
-                            let resp = ui.selectable_label(sel, RichText::new(format!("{mtype}  ({room})")).size(theme.font_size_small));
-                            if resp.clicked() {
-                                state.construction_machine_selected = Some(id.clone());
-                                state.construction_wall_selected = None;
-                                state.construction_light_selected = None;
-                            }
-                            if resp.double_clicked() {
-                                // Snap the camera to the machine (its box-mode offset = world XZ). (v0.593)
-                                // all_instances() so array-tower machines (not in `instances`) focus too.
-                                let pos = state.home_machines.as_ref()
-                                    .and_then(|h| h.all_instances().iter().find(|m| m.id == *id).map(|m| m.offset));
-                                if let Some(p) = pos {
-                                    state.construction_focus_request = Some((p.0, p.1 + 0.5, p.2));
-                                }
-                            }
-                            if ui.small_button("x").clicked() {
-                                remove_machine = Some(id.clone());
-                            }
-                        });
-                    }
-                });
-                if let Some(id) = remove_machine {
-                    if let Some(h) = state.home_machines.as_mut() {
-                        h.remove_instance(&id);
-                    }
-                    state.construction_machines_dirty = true;
-                }
-            }
-        });
+    // Machines list REMOVED (v0.597): machines are in the unified Objects browser above now (click
+    // a row -> edit on the right). This function keeps only the utility-line connection editor below.
+    let _ = &machines; // still used to build the connection-endpoint pickers
 
     // ── Utility lines / connections (collapsible, grouped by kind, v0.569). The operator wanted
     // "utility lines for gas, liquid, solids, electricity": each kind is its own sub-section.
