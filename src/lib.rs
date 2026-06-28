@@ -6193,6 +6193,20 @@ mod native_app {
                                     crate::renderer::line::push_polyline(&mut ring_lines, &[[x0, y0, z0], [x0, y1, z0]], col);
                                 }
                             }
+
+                            // ROAD-GRAPH gizmo (v0.586): a ring marker at each node + a centerline along
+                            // each edge, drawn with the line primitive so the graph reads at a glance in
+                            // build mode (the ribbon mesh shows the carriageway; this shows the topology).
+                            const RN: [f32; 4] = [1.0, 0.75, 0.2, 0.9]; // node ring (amber)
+                            const RE: [f32; 4] = [0.5, 0.8, 1.0, 0.8]; // edge centerline (cyan)
+                            for n in &hs.road_nodes {
+                                crate::renderer::line::push_circle(&mut ring_lines, [n.pos.0, 0.06, n.pos.1], 0.4, RN, 20);
+                            }
+                            for e in &hs.road_edges {
+                                if let (Some(a), Some(b)) = (hs.road_node_pos(e.from), hs.road_node_pos(e.to)) {
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[a.0, 0.08, a.1], [b.0, 0.08, b.1]], RE);
+                                }
+                            }
                         }
                     }
 

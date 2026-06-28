@@ -1521,6 +1521,11 @@ pub struct GuiState {
     pub construction_structure_selected: Option<usize>,
     /// Yaw (degrees) applied to the next placed structure -- rotate the held piece with [ and ].
     pub construction_structure_yaw: f32,
+    /// Road-graph editor form state (v0.586): the from/to nodes, class, and width for the next edge.
+    pub construction_road_from: u32,
+    pub construction_road_to: u32,
+    pub construction_road_class: String,
+    pub construction_road_width: f32,
     /// The home as a FIXED outer box + freely-designed interior walls (v0.534, the node/wall
     /// redesign). The editor edits THIS; the engine renders it (load_world + rebuild_homestead via
     /// generate_meshes) instead of the old room-AABB layout when present. Loaded in load_world.
@@ -2593,6 +2598,10 @@ impl Default for GuiState {
             construction_structure_type: None,
             construction_structure_selected: None,
             construction_structure_yaw: 0.0,
+            construction_road_from: 0,
+            construction_road_to: 0,
+            construction_road_class: String::new(),
+            construction_road_width: 4.0,
             construction_save: false,
             showroom_backdrop: 0,
             showroom_backdrop_names: Vec::new(),

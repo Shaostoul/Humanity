@@ -159,7 +159,7 @@ mod tests {
                 thickness: None,
                 layers: Vec::new(),
             }],
-            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(),
+            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(),
         }
     }
 
@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn no_walls_no_panels() {
-        let home = HomeStructure { width: 10.0, depth: 10.0, height: 3.0, shell_material: 1, roof_material: 4, walls: vec![], shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new() };
+        let home = HomeStructure { width: 10.0, depth: 10.0, height: 3.0, shell_material: 1, roof_material: 4, walls: vec![], shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new() };
         assert!(panel_placements(&home).is_empty());
     }
 }

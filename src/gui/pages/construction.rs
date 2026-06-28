@@ -744,6 +744,9 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // Conduit node graph (v0.581): place junction nodes + branch edges; pipes auto-route.
                 draw_conduit_nodes(ui, theme, state);
 
+                // Road graph (v0.586): nodes + edges; each edge a ribbon of a fixed road-class stack.
+                draw_roads_editor(ui, theme, state);
+
                 // Console (v0.578): a text-command ACT surface for an AI + a human -- the same struct
                 // edits the gizmos make, driven by typed verbs. `help` lists them.
                 egui::CollapsingHeader::new(RichText::new("Console (AI / dev)").strong().color(theme.text_primary()))
@@ -1290,6 +1293,10 @@ const CONSOLE_VERBS: &[ConsoleVerb] = &[
     ConsoleVerb { usage: "rm_structure <n>", desc: "Remove structural piece #n (1-based)." },
     ConsoleVerb { usage: "add_layer <wall> <material> <thickness>", desc: "Coat a wall: add a surface layer (material 1-8, thickness m). New layer becomes the exposed face." },
     ConsoleVerb { usage: "rm_layer <wall> <n>", desc: "Remove surface layer #n from a wall (1-based, top-first)." },
+    ConsoleVerb { usage: "add_road_node <x> <z>", desc: "Add a road-graph node at (x,z); returns its N-id." },
+    ConsoleVerb { usage: "rm_road_node <id>", desc: "Remove road node Nid + any edges touching it." },
+    ConsoleVerb { usage: "add_road <fromN> <toN> <class> [width]", desc: "Wire a road edge of a class (footpath/residential/highway/runway)." },
+    ConsoleVerb { usage: "rm_road <n>", desc: "Remove road edge #n (1-based)." },
 ];
 
 /// Execute a construction console command against the LIVE home (v0.578) and return a result string.
@@ -1511,6 +1518,57 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                     format!("locked wall #{w} opening #{o} with {tid}")
                 }
                 _ => format!("no wall #{w} opening #{o}"),
+            }
+        }
+        "add_road_node" => {
+            let (Some(x), Some(z)) = (f(1), f(2)) else { return "usage: add_road_node <x> <z>".into(); };
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let id = h.unique_road_node_id();
+            h.road_nodes.push(crate::ship::home_structure::RoadNode { id, pos: (x, z) });
+            state.construction_structure_dirty = true;
+            format!("added road node N{id} at ({x},{z})")
+        }
+        "rm_road_node" => {
+            let Some(id) = u(1).map(|v| v as u32) else { return "usage: rm_road_node <id>".into(); };
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            if h.road_node_pos(id).is_some() {
+                h.remove_road_node(id);
+                state.construction_structure_dirty = true;
+                format!("removed road node N{id} (+ its edges)")
+            } else {
+                format!("no road node N{id}")
+            }
+        }
+        "add_road" => {
+            let (Some(from), Some(to)) = (u(1).map(|v| v as u32), u(2).map(|v| v as u32)) else {
+                return "usage: add_road <fromN> <toN> <class> [width]".into();
+            };
+            let Some(cls) = parts.get(3) else { return "usage: add_road <fromN> <toN> <class> [width]".into(); };
+            if crate::ship::structure::road_type(cls).is_none() {
+                let ids: Vec<&str> = crate::ship::structure::road_types().iter().map(|t| t.id.as_str()).collect();
+                return format!("unknown road class '{cls}'. classes: {}", ids.join(", "));
+            }
+            if from == to {
+                return "a road edge needs two different nodes.".into();
+            }
+            let width = f(4).unwrap_or(4.0).max(0.5);
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            if h.road_node_pos(from).is_none() || h.road_node_pos(to).is_none() {
+                return format!("need both nodes (N{from}, N{to}).");
+            }
+            h.road_edges.push(crate::ship::home_structure::RoadEdge { from, to, class: cls.to_string(), width });
+            state.construction_structure_dirty = true;
+            format!("added {cls} road N{from}->N{to} ({width} m wide)")
+        }
+        "rm_road" => {
+            let Some(i) = u(1) else { return "usage: rm_road <n>".into(); };
+            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            if i >= 1 && i <= h.road_edges.len() {
+                h.road_edges.remove(i - 1);
+                state.construction_structure_dirty = true;
+                format!("removed road edge #{i}")
+            } else {
+                format!("no road edge #{i} (have {})", h.road_edges.len())
             }
         }
         other => format!("unknown command '{other}'. try: help"),
@@ -1847,6 +1905,119 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     if deselect {
         state.construction_structure_selected = None;
     }
+    if changed {
+        state.construction_structure_dirty = true;
+    }
+}
+
+/// The road-graph editor (v0.586): nodes + edges. Each edge is a ribbon of a fixed road CLASS (its
+/// material stack). Add nodes, wire edges between them with a class + width; the mesh rebuilds live.
+fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let (nn, ne) = state.home_structure.as_ref().map_or((0, 0), |h| (h.road_nodes.len(), h.road_edges.len()));
+    let mut changed = false;
+    // Default the class picker to the first road type.
+    if state.construction_road_class.is_empty() {
+        if let Some(rt) = crate::ship::structure::road_types().first() {
+            state.construction_road_class = rt.id.clone();
+        }
+    }
+    egui::CollapsingHeader::new(RichText::new(format!("Roads ({nn} nodes, {ne} edges)")).strong().color(theme.text_primary()))
+        .id_salt("hs_roads_sec")
+        .default_open(false)
+        .show(ui, |ui| {
+            ui.label(RichText::new("Lay roads as a graph: drop nodes, then wire edges of a road class.")
+                .size(theme.font_size_small).color(theme.text_muted()));
+            // Add a node at the home centre (drag it from there, or set x/z below).
+            if ui.button("+ Road node").clicked() {
+                if let Some(h) = state.home_structure.as_mut() {
+                    let id = h.unique_road_node_id();
+                    let pos = (h.width * 0.5, h.depth * 0.5);
+                    h.road_nodes.push(crate::ship::home_structure::RoadNode { id, pos });
+                    changed = true;
+                }
+            }
+            // Node list: id + x/z drag + remove.
+            let mut rm_node: Option<u32> = None;
+            for i in 0..nn {
+                let id = state.home_structure.as_ref().unwrap().road_nodes[i].id;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("N{id}")).size(theme.font_size_small).color(theme.text_secondary()));
+                    if let Some(h) = state.home_structure.as_mut() {
+                        let p = &mut h.road_nodes[i].pos;
+                        changed |= ui.add(egui::DragValue::new(&mut p.0).speed(0.25).prefix("x ").suffix(" m")).changed();
+                        changed |= ui.add(egui::DragValue::new(&mut p.1).speed(0.25).prefix("z ").suffix(" m")).changed();
+                    }
+                    if ui.small_button("x").clicked() {
+                        rm_node = Some(id);
+                    }
+                });
+            }
+            if let Some(id) = rm_node {
+                if let Some(h) = state.home_structure.as_mut() {
+                    h.remove_road_node(id);
+                }
+                changed = true;
+            }
+            // Add-edge form: from/to node + class + width.
+            if nn >= 2 {
+                ui.separator();
+                ui.horizontal(|ui| {
+                    let ids: Vec<u32> = state.home_structure.as_ref().map(|h| h.road_nodes.iter().map(|n| n.id).collect()).unwrap_or_default();
+                    egui::ComboBox::from_id_salt("road_from").selected_text(format!("from N{}", state.construction_road_from))
+                        .show_ui(ui, |ui| { for id in &ids { ui.selectable_value(&mut state.construction_road_from, *id, format!("N{id}")); } });
+                    egui::ComboBox::from_id_salt("road_to").selected_text(format!("to N{}", state.construction_road_to))
+                        .show_ui(ui, |ui| { for id in &ids { ui.selectable_value(&mut state.construction_road_to, *id, format!("N{id}")); } });
+                });
+                ui.horizontal(|ui| {
+                    egui::ComboBox::from_id_salt("road_class").selected_text(state.construction_road_class.clone())
+                        .show_ui(ui, |ui| {
+                            for rt in crate::ship::structure::road_types() {
+                                ui.selectable_value(&mut state.construction_road_class, rt.id.clone(), rt.label.clone());
+                            }
+                        });
+                    ui.add(egui::DragValue::new(&mut state.construction_road_width).speed(0.25).range(0.5..=30.0).prefix("w ").suffix(" m"));
+                    if ui.button("Add edge").clicked() {
+                        let (f, t, cls, w) = (state.construction_road_from, state.construction_road_to, state.construction_road_class.clone(), state.construction_road_width);
+                        if f != t {
+                            if let Some(h) = state.home_structure.as_mut() {
+                                if h.road_node_pos(f).is_some() && h.road_node_pos(t).is_some() {
+                                    h.road_edges.push(crate::ship::home_structure::RoadEdge { from: f, to: t, class: cls, width: w });
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            // Edge list + remove. Re-read the count: a node removal above may have PRUNED edges this
+            // same frame, so the captured `ne` is stale -- indexing it would panic. (v0.586 fix)
+            let mut rm_edge: Option<usize> = None;
+            let ne_now = state.home_structure.as_ref().map_or(0, |h| h.road_edges.len());
+            for i in 0..ne_now {
+                let Some((f, t, cls)) = state
+                    .home_structure
+                    .as_ref()
+                    .and_then(|h| h.road_edges.get(i))
+                    .map(|e| (e.from, e.to, e.class.clone()))
+                else {
+                    break;
+                };
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("N{f}->N{t}  {cls}")).size(theme.font_size_small).color(theme.text_secondary()));
+                    if ui.small_button("x").clicked() {
+                        rm_edge = Some(i);
+                    }
+                });
+            }
+            if let Some(i) = rm_edge {
+                if let Some(h) = state.home_structure.as_mut() {
+                    if i < h.road_edges.len() {
+                        h.road_edges.remove(i);
+                    }
+                }
+                changed = true;
+            }
+        });
     if changed {
         state.construction_structure_dirty = true;
     }

@@ -241,6 +241,39 @@ pub struct HomeStructure {
     /// (every existing home + test is unchanged). The mesh + (v0.584) function resolve from the type.
     #[serde(default)]
     pub structures: Vec<PlacedStructure>,
+    /// ROAD GRAPH (v0.586): roads as a NODE + EDGE graph (the operator's "laying the road out being
+    /// simple graph like nodes with splines"). Each edge is a ribbon between two nodes, carrying a
+    /// FIXED road-class material stack (`road_types.ron`). Empty by default. Straight segments in
+    /// Stage 1; curved splines are a later refinement.
+    #[serde(default)]
+    pub road_nodes: Vec<RoadNode>,
+    #[serde(default)]
+    pub road_edges: Vec<RoadEdge>,
+}
+
+/// A road-graph junction (v0.586): a point on the ground the road network routes through.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoadNode {
+    pub id: u32,
+    /// Home-local ground position (x, z).
+    pub pos: (f32, f32),
+}
+
+/// A road segment (v0.586): a ribbon between two `RoadNode`s, of a fixed road CLASS + width. The
+/// class (`road_types.ron`) supplies the top-to-bottom material stack; the top layer drives colour.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoadEdge {
+    pub from: u32,
+    pub to: u32,
+    /// -> `road_types.ron` id (footpath / residential / highway / runway).
+    pub class: String,
+    /// Carriageway width in metres.
+    #[serde(default = "default_road_width")]
+    pub width: f32,
+}
+
+fn default_road_width() -> f32 {
+    4.0
 }
 
 /// A structural piece placed in a home (v0.583): a `structure_types.ron` type at a home-local pose.
@@ -583,6 +616,49 @@ impl HomeStructure {
             material_walls.push((v, i, [c[0], c[1], c[2], 1.0]));
         }
 
+        // ROAD GRAPH (v0.586): each edge is a flat ribbon (reusing wall_box) between its two nodes,
+        // sitting on the floor, coloured by its road class's TOP layer (the wearing course). Grouped
+        // by colour like the structures so identical road classes share a draw.
+        use crate::ship::structure::road_type;
+        let node_pos = |id: u32| self.road_nodes.iter().find(|n| n.id == id).map(|n| n.pos);
+        let mut rcolor: std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])> =
+            std::collections::HashMap::new();
+        for e in &self.road_edges {
+            let (Some(a), Some(b)) = (node_pos(e.from), node_pos(e.to)) else { continue };
+            if (a.0 - b.0).abs() < 1e-4 && (a.1 - b.1).abs() < 1e-4 {
+                continue; // zero-length edge
+            }
+            // Colour + slab thickness from the road class's stack (top layer = wearing course).
+            let (col, slab) = match road_type(&e.class) {
+                Some(rt) => {
+                    let top = rt.layers.first().map(|l| l.material).unwrap_or(2);
+                    let total: f32 = rt.layers.iter().map(|l| l.thickness_m.max(0.0)).sum();
+                    (Self::material_color(top), total.clamp(0.04, 0.2))
+                }
+                None => ([0.25, 0.25, 0.27, 1.0], 0.1),
+            };
+            let ribbon = wall_box(
+                Vec3::new(a.0, 0.0, a.1),
+                Vec3::new(b.0, 0.0, b.1),
+                0.0,
+                slab,
+                e.width.max(0.2),
+            );
+            let key = [(col[0] * 64.0) as i32, (col[1] * 64.0) as i32, (col[2] * 64.0) as i32];
+            let g = rcolor
+                .entry(key)
+                .or_insert_with(|| (Vec::new(), Vec::new(), [col[0], col[1], col[2]]));
+            let base = g.0.len() as u32;
+            let (mut rv, ri) = ribbon;
+            g.0.append(&mut rv);
+            g.1.extend(ri.into_iter().map(|i| i + base));
+        }
+        let mut rlist: Vec<_> = rcolor.into_iter().collect();
+        rlist.sort_by_key(|(k, _)| *k);
+        for (_, (v, i, c)) in rlist {
+            material_walls.push((v, i, [c[0], c[1], c[2], 1.0]));
+        }
+
         HomesteadMeshes {
             floors,
             walls: (Vec::new(), Vec::new()),
@@ -593,6 +669,22 @@ impl HomeStructure {
             ceilings,
             room_info: self.detect_rooms(),
         }
+    }
+
+    /// A fresh road-node id (max existing + 1, or 1). (v0.586)
+    pub fn unique_road_node_id(&self) -> u32 {
+        self.road_nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1
+    }
+
+    /// A road node's position by id (None if unknown). (v0.586)
+    pub fn road_node_pos(&self, id: u32) -> Option<(f32, f32)> {
+        self.road_nodes.iter().find(|n| n.id == id).map(|n| n.pos)
+    }
+
+    /// Remove a road node + every edge touching it (v0.586) -- keeps the graph consistent.
+    pub fn remove_road_node(&mut self, id: u32) {
+        self.road_nodes.retain(|n| n.id != id);
+        self.road_edges.retain(|e| e.from != id && e.to != id);
     }
 
     /// Subdivide the box interior into the ROOMS the interior walls enclose (v0.535, the operator's
@@ -1011,7 +1103,7 @@ mod tests {
     use super::*;
 
     fn box_only() -> HomeStructure {
-        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new() }
+        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new() }
     }
 
     /// Total wall vertices across BOTH the legacy `walls` family and the per-material `material_walls`
@@ -1046,6 +1138,30 @@ mod tests {
 
     fn wall(a: (f32, f32), b: (f32, f32), openings: Vec<Opening>) -> InteriorWall {
         InteriorWall { a, b, height: 3.0, material: 1, openings, thickness: None, layers: Vec::new() }
+    }
+
+    #[test]
+    fn road_graph_meshes_edges_and_node_removal_prunes() {
+        let mut h = HomeStructure {
+            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4,
+            walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(),
+        };
+        let n1 = h.unique_road_node_id();
+        h.road_nodes.push(RoadNode { id: n1, pos: (2.0, 2.0) });
+        let n2 = h.unique_road_node_id();
+        assert_ne!(n1, n2, "fresh ids are unique");
+        h.road_nodes.push(RoadNode { id: n2, pos: (18.0, 2.0) });
+        h.road_edges.push(RoadEdge { from: n1, to: n2, class: "residential".into(), width: 5.0 });
+        // The edge contributes ribbon geometry: a home with the edge has more wall verts than without.
+        let with_edge = wall_vcount(&h.generate_meshes());
+        let mut bare = h.clone();
+        bare.road_edges.clear();
+        assert!(with_edge > wall_vcount(&bare.generate_meshes()), "the road edge added ribbon geometry");
+        // Removing a node prunes the edge that touched it.
+        h.remove_road_node(n1);
+        assert!(h.road_edges.is_empty(), "removing a node drops edges touching it");
+        assert_eq!(h.road_nodes.len(), 1);
     }
 
     #[test]
@@ -1176,7 +1292,7 @@ mod tests {
                     Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() },
                 ],
             )],
-            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(),
+            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(),
         };
         let tmp = std::env::temp_dir().join("humanity_home_structure_rt.ron");
         h.save(&tmp).expect("save");
@@ -1214,7 +1330,7 @@ mod tests {
     fn locks_round_trip_through_save() {
         use crate::ship::lock_types::LockState;
         let h = HomeStructure {
-            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(),
+            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(),
             walls: vec![wall((2.0, 2.0), (2.0, 12.0), vec![
                 Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true,
                     locks: vec![

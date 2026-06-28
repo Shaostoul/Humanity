@@ -81,10 +81,13 @@ density / strength / cost.
 - **Multi-level landings**: stairs currently climb to their top step; standing past the top
   falls back to the room floor until an upper platform/floor exists there. Real upper
   storeys (a second room-floor plane the stairs connect) are a home-design follow-up.
-- **Trains + roads as networks**: a train platform / road slab is placeable now; the rail
-  line + road graph (node+spline, per-class material stack) is v0.585-586 (see
-  `conduits-node-graph.md` for the reusable node-graph pattern, and the material-layering
-  design).
+- **Roads as a graph (v0.586, shipped):** `HomeStructure.road_nodes` + `road_edges`. Each
+  edge is a ribbon (reusing `wall_box`) between two nodes, coloured by its road CLASS's top
+  layer. Editor: the left-panel "Roads" section (add node / drag x-z / wire an edge with a
+  class + width). Console: `add_road_node` / `add_road` / `rm_road_node` / `rm_road`. A
+  build-mode gizmo draws node rings + edge centerlines (the line primitive). STRAIGHT
+  segments in Stage 1; curved splines + road footing (driving/walking on the surface) are the
+  next refinement. The **rail line** between train platforms is still pending.
 - **Solid-body collision for tall pieces**: structures aren't wall-colliders yet, so you can
   walk into the side of a tall solid box. The default pieces are short (platform 0.4 m) so
   this isn't visible; add structure colliders when a tall solid piece ships.
