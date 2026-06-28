@@ -767,6 +767,17 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .default_width(252.0)
         .show(ctx, |ui| {
             ui.add_space(theme.spacing_md);
+            // HELD building / structure to place takes the panel (v0.602): show its details +
+            // connection points BEFORE you drop it (operator: "click a building to build... bring up
+            // details + pertinent connection points -- water, electricity, internet, conveyor").
+            if state.construction_place_type.is_some() {
+                draw_building_info(ui, theme, state);
+                return;
+            }
+            if state.construction_structure_type.is_some() {
+                draw_held_structure_info(ui, theme, state);
+                return;
+            }
             // A selected ROAD / CONDUIT node takes the panel (v0.597): clicked its list row / gizmo.
             // Gate on NO other object being selected so a viewport pick of a wall/light/etc. (which
             // doesn't clear the browser's node selection) is never SHADOWED by a stale node detail --
@@ -1176,6 +1187,83 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if changed {
         state.construction_structure_dirty = true;
     }
+}
+
+/// Right-panel info for the building (machine) currently HELD for placement (v0.602): name, category,
+/// size, electrical role, stat readouts, and its CONNECTION POINTS -- the utility kinds it ties into
+/// (power / water / nutrient / fuel / air / waste), coloured to match the pipes. Derived from the
+/// machine def's stats + power role (no schema change). Read-only; shown while you hold it to place.
+fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let Some(tid) = state.construction_place_type.clone() else { return };
+    let def = state.home_machines.as_ref().and_then(|h| h.catalog.get(&tid).cloned());
+    let Some(def) = def else {
+        ui.label(RichText::new(format!("Placing {tid}")).strong().color(theme.text_primary()));
+        ui.label(RichText::new("Click the floor to place. Right-click cancels.").size(theme.font_size_small).color(theme.text_muted()));
+        return;
+    };
+    let name = if def.label.is_empty() { tid.clone() } else { def.label.clone() };
+    ui.label(RichText::new(name).strong().size(theme.font_size_body).color(theme.text_primary()));
+    ui.label(RichText::new(format!("{} -- {:.1} x {:.1} x {:.1} m", def.category, def.size.0, def.size.1, def.size.2))
+        .size(theme.font_size_small).color(theme.text_muted()));
+    ui.add_space(theme.spacing_xs);
+    if let Some(power) = &def.power {
+        use crate::machines::MachinePower::*;
+        let s = match power {
+            Solar { peak_watts } => format!("Solar source -- up to {peak_watts:.0} W in full sun"),
+            Generator { watts } => format!("Generator -- {watts:.0} W steady"),
+            Consumer { watts, priority } => format!("Draws {watts:.0} W (shed priority {priority})"),
+            Battery { capacity_wh, max_charge_w, max_discharge_w } => format!("Battery -- {capacity_wh:.0} Wh ({max_charge_w:.0}/{max_discharge_w:.0} W)"),
+        };
+        ui.label(RichText::new(s).size(theme.font_size_small).color(theme.text_secondary()));
+    }
+    if !def.stats.is_empty() {
+        ui.add_space(theme.spacing_xs);
+        ui.label(RichText::new("Readouts").size(theme.font_size_small).strong().color(theme.text_muted()));
+        for st in &def.stats {
+            ui.label(RichText::new(format!("  {} : {}  ({})", st.kind, st.value, st.status)).size(theme.font_size_small).color(theme.text_muted()));
+        }
+    }
+    // Connection points: the utility kinds this machine ties into, coloured to match the pipes.
+    let mut kinds: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    for st in &def.stats {
+        if matches!(st.kind.as_str(), "power" | "water" | "nutrient" | "fuel" | "air" | "waste") {
+            kinds.insert(st.kind.as_str());
+        }
+    }
+    if def.power.is_some() {
+        kinds.insert("power");
+    }
+    ui.add_space(theme.spacing_sm);
+    ui.label(RichText::new("Connection points").strong().size(theme.font_size_small).color(theme.text_primary()));
+    if kinds.is_empty() {
+        ui.label(RichText::new("  (standalone -- no utility hookups)").size(theme.font_size_small).color(theme.text_muted()));
+    } else {
+        for k in &kinds {
+            let c = crate::machines::MachineHome::connection_color(k);
+            let col = egui::Color32::from_rgb((c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8); // theme-exempt: utility-kind colour matching the pipes
+            ui.label(RichText::new(format!("  {k}")).size(theme.font_size_small).color(col));
+        }
+    }
+    ui.add_space(theme.spacing_sm);
+    ui.label(RichText::new("Click the floor to place. Right-click cancels.").size(theme.font_size_small).color(theme.text_muted()));
+}
+
+/// Right-panel info for the STRUCTURE piece currently held for placement (v0.602): label, category,
+/// size, and its note. Read-only.
+fn draw_held_structure_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let Some(tid) = state.construction_structure_type.clone() else { return };
+    let Some(ty) = crate::ship::structure::structure_type(&tid) else {
+        ui.label(RichText::new(format!("Placing {tid}")).strong().color(theme.text_primary()));
+        return;
+    };
+    ui.label(RichText::new(&ty.label).strong().size(theme.font_size_body).color(theme.text_primary()));
+    ui.label(RichText::new(format!("{} -- {:.1} x {:.1} x {:.1} m", ty.category, ty.size.0, ty.size.1, ty.size.2))
+        .size(theme.font_size_small).color(theme.text_muted()));
+    ui.add_space(theme.spacing_xs);
+    ui.label(RichText::new(&ty.note).size(theme.font_size_small).color(theme.text_secondary()));
+    ui.add_space(theme.spacing_sm);
+    ui.label(RichText::new("Click the floor to place. [ and ] rotate it. Right-click cancels.")
+        .size(theme.font_size_small).color(theme.text_muted()));
 }
 
 fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
