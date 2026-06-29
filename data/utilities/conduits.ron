@@ -48,4 +48,27 @@
         diameter_mm: 19.0, flow_max_lpm: 26.0, shielded: false, grade: Home, cost_per_m: 2.2,
         note: "Rigid 3/4-inch main/trunk -- supplies a whole home branch. (Stage 2 plumbing.)",
     ),
+
+    // ── DATA / telecom media (v0.619). Real-ish telecom specs so the player learns the tradeoffs:
+    //    bandwidth_mbps + range_m + latency_ms + rf_emission (0..1) + wireless. See docs/design/telecom.md.
+    //    Stage 1 ships the three core media; the design doc catalogs more (coax, single-mode fibre,
+    //    Bluetooth, LoRa, cellular, satellite, powerline, Li-Fi) for later stages.
+    (
+        id: "eth_cat6", label: "Cat6 ethernet", utility: Data, material: Copper,
+        shielded: true, grade: Home, cost_per_m: 0.9,
+        bandwidth_mbps: 1000.0, wireless: false, rf_emission: 0.0, range_m: 100.0, latency_ms: 1.0,
+        note: "Twisted-pair copper. Cheap, secure, NO RF emission -- but the run caps at ~100 m. The safe wired default near sensitive grows.",
+    ),
+    (
+        id: "fiber_om4", label: "Fibre optic (OM4)", utility: Data, material: Glass,
+        shielded: false, grade: Commercial, cost_per_m: 3.5,
+        bandwidth_mbps: 10000.0, wireless: false, rf_emission: 0.0, range_m: 400.0, latency_ms: 0.5,
+        note: "Glass fibre. Huge bandwidth, long range, immune to EMI, zero RF -- but pricier + needs transceivers at each end.",
+    ),
+    (
+        id: "wifi_6", label: "WiFi 6 (wireless)", utility: Data, material: Radio,
+        shielded: false, grade: Home, cost_per_m: 0.2,
+        bandwidth_mbps: 600.0, wireless: true, rf_emission: 0.6, range_m: 30.0, latency_ms: 8.0,
+        note: "No cable to run -- but EMITS RF (rf_emission 0.6): it can harm a sensitive crop nearby AND it is detectable (a signature). Shared bandwidth, walls cut range, less secure.",
+    ),
 ]

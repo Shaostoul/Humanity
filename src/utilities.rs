@@ -109,6 +109,11 @@ pub enum ConductorMaterial {
     Aluminum,
     /// Room-temperature/pressure superconductor -- the late-game upgrade target (near-zero loss).
     Superconductor,
+    /// Glass fibre -- the data medium for fibre-optic links (immune to EMI, no RF emission). (v0.619)
+    Glass,
+    /// Radio / the air itself -- the "material" of a WIRELESS link (WiFi/Bluetooth/cellular). It emits
+    /// RF, so it's the medium with a detectable + plant-affecting signature. (v0.619)
+    Radio,
 }
 
 /// Build grade -- a home does not need industrial feeders.
@@ -151,6 +156,24 @@ pub struct ConduitType {
     /// Cost per metre (cred-equivalent) -- so the auto-picker chooses the cheapest cable that fits.
     #[serde(default)]
     pub cost_per_m: f32,
+    // ── DATA media fields (v0.619): for `utility: Data` rows (ethernet / fibre / WiFi / ...). All
+    //    `#[serde(default)]` so the electrical + water rows parse unchanged. Teach real telecom tradeoffs.
+    /// Throughput in megabits/sec (Cat6 ~1000, fibre ~10000, WiFi shared ~600). 0 for non-data.
+    #[serde(default)]
+    pub bandwidth_mbps: f32,
+    /// A WIRELESS link (WiFi/Bluetooth/cellular): no physical cable, but emits RF. Wired = false.
+    #[serde(default)]
+    pub wireless: bool,
+    /// RF emission level 0..1 (0 = none/shielded-wired/fibre; ~0.6 = a WiFi router). Drives the
+    /// plant-harm consequence + the detection signature. (Stage 3/4.)
+    #[serde(default)]
+    pub rf_emission: f32,
+    /// Max usable distance in metres (a wired run length limit ~100 m for Cat6; a wireless signal range).
+    #[serde(default)]
+    pub range_m: f32,
+    /// One-way latency in milliseconds (fibre lowest; wireless higher) -- for teaching + future routing.
+    #[serde(default)]
+    pub latency_ms: f32,
     pub note: String,
 }
 
@@ -241,6 +264,78 @@ pub fn cheapest_cable_for(load_watts: f32, volts: f32, length_m: f32) -> Option<
         .min_by(|a, b| a.cost_per_m.partial_cmp(&b.cost_per_m).unwrap_or(std::cmp::Ordering::Equal))
 }
 
+// ── DATA / telecom links (v0.619) ───────────────────────────────────────────────────────────────
+// Real media (copper ethernet, fibre, WiFi, ...) with real tradeoffs: bandwidth, range, latency, cost,
+// and RF emission. Mirrors the electrical cable physics. See docs/design/telecom.md.
+
+/// Verdict of checking a data link against a demand + run length.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DataVerdict {
+    /// Comfortably within bandwidth + range.
+    Pass,
+    /// Carries it but marginal (near bandwidth/range) -- a real install would up-rate.
+    Warn,
+    /// Over bandwidth or beyond range -- the link won't hold.
+    Fail,
+}
+
+/// Result of a data-link check: verdict, the headroom numbers, and a human reason.
+#[derive(Debug, Clone)]
+pub struct DataCheck {
+    pub verdict: DataVerdict,
+    /// Demand as a fraction of the link's bandwidth (1.0 = at capacity).
+    pub load_frac: f32,
+    /// Run length as a fraction of the link's range (1.0 = at the edge).
+    pub range_frac: f32,
+    pub reason: String,
+}
+
+/// Every DATA medium in the registry (ethernet / fibre / WiFi / ...).
+pub fn data_media() -> impl Iterator<Item = &'static ConduitType> {
+    conduit_types().iter().filter(|c| c.utility == Utility::Data)
+}
+
+/// Look up a data medium by id (must be a `utility: Data` row).
+pub fn data_medium(id: &str) -> Option<&'static ConduitType> {
+    conduit_type(id).filter(|c| c.utility == Utility::Data)
+}
+
+/// Check a DATA link against a throughput demand (Mbps) over a run/link length (m). Pass if demand <=
+/// 80% bandwidth AND length <= 80% range; Warn up to 100% of either; Fail beyond. A wireless link's
+/// "length" is the distance to the far node (its signal range); a wired link's is the cable run.
+pub fn check_data_link(link: &ConduitType, demand_mbps: f32, length_m: f32) -> DataCheck {
+    if link.utility != Utility::Data {
+        return DataCheck { verdict: DataVerdict::Fail, load_frac: 0.0, range_frac: 0.0, reason: format!("{} is not a data medium", link.label) };
+    }
+    let bw = link.bandwidth_mbps.max(0.001);
+    let range = link.range_m.max(0.001);
+    let load_frac = demand_mbps.max(0.0) / bw;
+    let range_frac = length_m.max(0.0) / range;
+    let verdict = if load_frac > 1.0 || range_frac > 1.0 {
+        DataVerdict::Fail
+    } else if load_frac > 0.8 || range_frac > 0.8 {
+        DataVerdict::Warn
+    } else {
+        DataVerdict::Pass
+    };
+    let reason = if load_frac > 1.0 {
+        format!("{:.0} Mbps demand over a {:.0} Mbps {} link", demand_mbps, link.bandwidth_mbps, link.label)
+    } else if range_frac > 1.0 {
+        format!("{:.0} m exceeds the {} {:.0} m range", length_m, link.label, link.range_m)
+    } else {
+        format!("{:.0}/{:.0} Mbps, {:.0}/{:.0} m on {}", demand_mbps, link.bandwidth_mbps, length_m, link.range_m, link.label)
+    };
+    DataCheck { verdict, load_frac, range_frac, reason }
+}
+
+/// The cheapest data medium that PASSES the demand over the length (the auto-picker for data runs).
+/// Wireless media (no cable) are compared on `cost_per_m` too -- treat it as an amortised per-metre cost.
+pub fn cheapest_data_link_for(demand_mbps: f32, length_m: f32) -> Option<&'static ConduitType> {
+    data_media()
+        .filter(|m| check_data_link(m, demand_mbps, length_m).verdict == DataVerdict::Pass)
+        .min_by(|a, b| a.cost_per_m.partial_cmp(&b.cost_per_m).unwrap_or(std::cmp::Ordering::Equal))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -286,6 +381,38 @@ mod tests {
         let heavy = cheapest_cable_for(5000.0, 240.0, 5.0).expect("a cable fits ~21 A");
         assert!(heavy.ampacity_a >= light.ampacity_a, "heavier load -> >= ampacity cable");
         assert_eq!(check_cable(light, 5000.0, 240.0, 5.0).verdict != CableVerdict::Pass, true, "the light cable can't carry the heavy load");
+    }
+
+    #[test]
+    fn data_media_parse_with_real_telecom_tradeoffs() {
+        // The three Stage-1 media exist + carry the teaching tradeoffs (v0.619).
+        let eth = data_medium("eth_cat6").expect("Cat6");
+        let fiber = data_medium("fiber_om4").expect("fibre");
+        let wifi = data_medium("wifi_6").expect("WiFi");
+        // Fibre has the most bandwidth + range; WiFi the least range; only WiFi is wireless + emits RF.
+        assert!(fiber.bandwidth_mbps > eth.bandwidth_mbps && eth.bandwidth_mbps >= wifi.bandwidth_mbps);
+        assert!(fiber.range_m > eth.range_m && eth.range_m > wifi.range_m);
+        assert!(wifi.wireless && !eth.wireless && !fiber.wireless, "only WiFi is wireless");
+        assert!(wifi.rf_emission > 0.0 && eth.rf_emission == 0.0 && fiber.rf_emission == 0.0, "only WiFi emits RF");
+        // A pipe / cable is NOT a data medium.
+        assert!(data_medium("cu_awg12").is_none(), "an electrical cable is not a data link");
+    }
+
+    #[test]
+    fn check_data_link_passes_warns_and_fails() {
+        let eth = data_medium("eth_cat6").unwrap(); // 1000 Mbps, 100 m
+        // 100 Mbps over 20 m -> comfortable Pass.
+        assert_eq!(check_data_link(eth, 100.0, 20.0).verdict, DataVerdict::Pass);
+        // 1500 Mbps over a 1000 Mbps link -> over bandwidth -> Fail.
+        assert_eq!(check_data_link(eth, 1500.0, 20.0).verdict, DataVerdict::Fail);
+        // 150 m on a 100 m cable -> out of range -> Fail.
+        assert_eq!(check_data_link(eth, 100.0, 150.0).verdict, DataVerdict::Fail);
+        // A WiFi link only reaches 30 m: 50 m away -> Fail (the wall-less ideal still can't reach).
+        let wifi = data_medium("wifi_6").unwrap();
+        assert_eq!(check_data_link(wifi, 100.0, 50.0).verdict, DataVerdict::Fail);
+        // The auto-picker finds the cheapest medium that carries a modest short link (WiFi is cheapest).
+        let pick = cheapest_data_link_for(100.0, 10.0).expect("something carries 100 Mbps over 10 m");
+        assert!(pick.cost_per_m <= eth.cost_per_m, "auto-picks the cheapest that fits");
     }
 
     #[test]

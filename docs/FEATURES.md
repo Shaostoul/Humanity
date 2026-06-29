@@ -1039,6 +1039,15 @@ plumbing with real limits (volts, watts, amps, AWG gauge, ampacity, shielded vs 
 declares physical IN/OUT ports by utility. Stages 1-3 shipped; the wire-A-to-B gizmo + the superconductor
 upgrade mission are the next stages.
 
+### Data / Telecom Media, Stage 1 (v0.619)
+The internet/telecom utility: teach real telecommunications. Data is `Utility::Data` in the same
+`conduits.ron` registry, with media that have real tradeoffs -- bandwidth, range, latency, cost, and RF
+emission. Stage 1 ships the data model + link physics + 3 core media; the consequences (RF harms a
+sensitive plant; emissions become detection signatures) + the full media catalog are later stages.
+- Native: `src/utilities.rs` (`ConduitType` data fields `bandwidth_mbps`/`range_m`/`latency_ms`/`wireless`/`rf_emission`, `ConductorMaterial::{Glass,Radio}`, `check_data_link`/`cheapest_data_link_for`/`data_media`)
+- Data: `data/utilities/conduits.ron` (`eth_cat6` quiet wired workhorse, `fiber_om4` high-bandwidth no-RF, `wifi_6` convenient but RF-loud)
+- Design: `docs/design/telecom.md` (the 21-media catalog + the emissions-as-signature design + the staged plan)
+
 ### Conduit / Cable Data Model + Physics
 A closed `Utility` enum (Electricity, Water, HotWater, Air, Data, Fuel, Nutrient, Waste);
 `Port { utility, dir: In/Out/Bidirectional, label, watts, flow_lpm, anchor }`; a cable registry with real
