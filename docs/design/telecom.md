@@ -168,6 +168,11 @@ cellular modem, satellite dish) near a sensitive crop slows its growth + drains 
 
 ### (b) Emissions-as-signature -> detection (the awareness layer)
 
+> **EXPANDED + moved to its own doc:** the operator's full multi-modal vision (sight/light, RF, smell/
+> pheromones with wind dispersion, sound, seismic; the MMO performance constraint; the tech/material
+> tradeoffs) now lives in **`docs/design/detection-sensing.md`**. RF (below) is just one channel feeding
+> that layer. Read that doc for the canonical design; this section is the telecom-RF slice of it.
+
 Generalize "RF is a real signal" into a stealth/awareness layer. This is the BRIDGE into the
 otherwise-deferred combat work -- framed as **awareness, not weapons**: who can sense whom, not who
 shoots whom.

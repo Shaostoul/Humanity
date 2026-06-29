@@ -305,6 +305,9 @@ Every operator gets the same sovereignty tools, not just the original.
 
 Newest first. For older history see `docs/history/` and `git log`.
 
+- `v0.622` Build-editor: conduit FLOW VISUALIZATION -- emissive colour-coded spheres flow
+  along each pipe so you can read where connections go + which utility (legible in the dark).
+  Plus the multi-modal detection/sensing vision captured in docs/design/detection-sensing.md.
 - `v0.621` Telecom Stage 2: data routing -- machines demand internet (Mbps), a data
   connection picks its medium (Cat6 / fibre / WiFi) in the editor, and a Data-links
   buildability check sizes bandwidth + range + cautions when a wireless link's RF is near a grow.

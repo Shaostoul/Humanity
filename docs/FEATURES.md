@@ -862,6 +862,15 @@ axis, applied after grid-snap), and a faint amber guide line spans the box along
 see what you are lining up with. Walls contribute both corners; the dragged object is excluded.
 - Native: `src/lib.rs` (`snap_to_alignment` pure helper + `gather_other_positions`, wired into `apply_object_drag`; the guide line drawn into the construction overlay's `ring_lines`)
 
+### Conduit Flow Visualization (v0.622)
+Makes connections legible in a dark room. Each conduit/pipe gets animated EMISSIVE marker spheres
+travelling along its routed path in the flow direction, coloured by utility (the `connection_color`
+legend: yellow=power, blue=water, red=hot water, cyan=air, violet=data, ...), so you can see WHERE a
+connection goes + WHICH utility it carries. Build-mode only, gated on the "Helper gizmos" toggle. Cheap:
+a few spheres per pipe, positioned from `start_time` (no per-frame allocation; materials/mesh pre-created
+on rebuild). The `connection_color` legend gained distinct hues for hot_water / gas / data / greywater.
+- Native: `src/lib.rs` (`connection_flow_paths` built in `rebuild_connection_objects`, animated in the render loop), `src/machines.rs` (`connection_color` legend)
+
 ### Multi-Select + Group Delete / Nudge (v0.612)
 Ctrl+click rows in the object browser to build a multi-select set (across every type -- walls, machines,
 lights, structures, road/pipe nodes); selected rows show a `*` and the accent colour. A group-action bar

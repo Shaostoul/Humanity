@@ -1144,15 +1144,23 @@ impl MachineHome {
     }
 
     /// Color (rgba) for a connection kind.
+    /// The utility-colour LEGEND (v0.622): one distinct hue per conduit kind, chosen so they read apart
+    /// in the build editor's flow markers + pipes. Picked around real conventions (electricity = yellow,
+    /// water = blue, hot = red). There are many possible chemicals/utilities, so keep new kinds visually
+    /// distinct from these; a fully data-driven utility-colour registry is a future refinement.
     pub fn connection_color(kind: &str) -> [f32; 4] {
         match kind {
-            "power" => [0.95, 0.75, 0.15, 1.0],    // amber (energized conduit)
-            "water" => [0.20, 0.45, 0.85, 1.0],    // blue (utility/AWWA potable)
-            "nutrient" => [0.45, 0.30, 0.16, 1.0], // brown
-            "fuel" => [0.55, 0.50, 0.18, 1.0],     // olive (flammable)
-            "air" => [0.30, 0.70, 0.85, 1.0],      // cyan (compressed air/gas, ASME safety blue family)
-            "waste" => [0.30, 0.36, 0.30, 1.0],    // grey-green (drain/greywater)
-            _ => [0.6, 0.6, 0.6, 1.0],
+            "power" => [0.95, 0.75, 0.15, 1.0],      // amber/yellow (electricity)
+            "water" => [0.20, 0.45, 0.85, 1.0],      // blue (potable)
+            "hot_water" => [0.90, 0.35, 0.25, 1.0],  // warm red (hot)
+            "air" => [0.35, 0.80, 0.90, 1.0],        // cyan (compressed air / ventilation)
+            "gas" => [0.70, 0.85, 0.25, 1.0],        // yellow-green (gaseous fuel)
+            "fuel" => [0.55, 0.50, 0.18, 1.0],       // olive (liquid fuel / oil)
+            "data" => [0.70, 0.35, 0.95, 1.0],       // violet (telecom / internet)
+            "nutrient" => [0.55, 0.35, 0.18, 1.0],   // brown (compost / nutrients)
+            "waste" => [0.35, 0.40, 0.32, 1.0],      // dark grey-green (sewage / drain)
+            "greywater" => [0.55, 0.52, 0.40, 1.0],  // muddy tan (recycled greywater)
+            _ => [0.6, 0.6, 0.6, 1.0],               // unknown -> neutral grey
         }
     }
 }

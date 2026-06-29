@@ -1200,6 +1200,7 @@ mod native_app {
     fn rebuild_connection_objects(state: &mut EngineState) {
         use std::collections::HashMap;
         state.connection_objects.clear();
+        state.connection_flow_paths.clear();
         let rooms: HashMap<String, crate::machines::RoomGeom> = state
             .gui_state
             .room_bounds
@@ -1284,6 +1285,28 @@ mod native_app {
             let (a, b) = (*a, *b);
             let kind = crate::ship::conduits::ConduitKind::for_resource(kind_str);
             let route = crate::ship::conduits::route_conduit(a, b, kind, service_y, shell_mat, &walls);
+            // Stash the routed path + a bright EMISSIVE material in the utility colour, for the animated
+            // flow markers (v0.622). Emissive so the markers (and thus the connection's route + which
+            // utility it carries) are legible even in a dark room.
+            if route.points.len() >= 2 {
+                if state.connection_flow_sphere.is_none() {
+                    let s = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 0.11, 10, 10));
+                    state.connection_flow_sphere = Some(s);
+                }
+                let fkey = format!("flow:{kind_str}");
+                let flow_mat = match state.connection_mats.get(&fkey) {
+                    Some(&m) => m,
+                    None => {
+                        let c = crate::machines::MachineHome::connection_color(kind_str);
+                        // Emissive (3.0) so it glows; the colour IS the utility legend (yellow=power,
+                        // blue=water, cyan=air, ...). See MachineHome::connection_color.
+                        let m = state.renderer.add_material_full([c[0], c[1], c[2], 1.0], 0.0, 0.4, 0.0, 3.0);
+                        state.connection_mats.insert(fkey, m);
+                        m
+                    }
+                };
+                state.connection_flow_paths.push((route.points.clone(), flow_mat));
+            }
             // Pipe material cached per conduit kind (copper / rubber hose / black cord).
             let pkey = format!("conduit:{kind:?}");
             let pipe_mat = match state.connection_mats.get(&pkey) {
@@ -3841,6 +3864,14 @@ mod native_app {
         connection_objects: Vec<(usize, usize, Vec3, Quat, Vec3)>,
         connection_cyl: Option<usize>,
         connection_mats: std::collections::HashMap<String, usize>,
+        /// Conduit FLOW paths (v0.622): the routed polyline + a precreated EMISSIVE material handle (the
+        /// utility colour) for every connection, so the build editor can animate emissive flow markers
+        /// travelling along each pipe (showing direction + which utility, legible in the dark). Rebuilt
+        /// with `connection_objects`; the material handle is created at rebuild time so the per-frame
+        /// render loop borrows nothing mutable.
+        connection_flow_paths: Vec<(Vec<Vec3>, usize)>,
+        /// Cached small sphere mesh for the flow markers.
+        connection_flow_sphere: Option<usize>,
         /// Door + window panels (v0.537): each opening's world placement + its current open fraction
         /// (0 closed, 1 open). Doors animate open on the player's approach by their data-driven style
         /// (systems::door_anim); windows are fixed glass. One cached unit-box mesh + a slab + a glass
@@ -4554,6 +4585,8 @@ mod native_app {
                 machine_pick: Vec::new(),
                 wall_colliders: Vec::new(),
                 connection_objects: Vec::new(),
+                connection_flow_paths: Vec::new(),
+                connection_flow_sphere: None,
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
                 door_panels: Vec::new(),
@@ -6483,6 +6516,52 @@ mod native_app {
                                 mesh: mesh_idx,
                                 material: mat_idx,
                             });
+                        }
+                        // Animated FLOW markers (v0.622): emissive spheres travel along each conduit in
+                        // its flow direction, so in a dark room you can read WHERE a connection goes +
+                        // WHICH utility it carries (the colour: yellow=power, blue=water, cyan=air, ...).
+                        // Build mode + the "Helper gizmos" toggle. Cheap: a few spheres per pipe, placed
+                        // from start_time (no per-frame allocation, materials/mesh pre-created on rebuild).
+                        if state.gui_state.construction_active
+                            && state.gui_state.construction_show_helpers
+                        {
+                            if let Some(sphere) = state.connection_flow_sphere {
+                                let t = state.start_time.elapsed().as_secs_f32();
+                                const FLOW_SPEED: f32 = 1.5; // m/s the markers travel along the pipe
+                                const SPACING: f32 = 2.5; // m between markers on a pipe
+                                for (path, mat) in &state.connection_flow_paths {
+                                    let total: f32 = path.windows(2).map(|w| (w[1] - w[0]).length()).sum();
+                                    if total < 0.1 {
+                                        continue;
+                                    }
+                                    let phase = (t * FLOW_SPEED).rem_euclid(SPACING);
+                                    let count = (total / SPACING) as usize + 1;
+                                    for k in 0..count {
+                                        let mut d = k as f32 * SPACING + phase;
+                                        if d > total {
+                                            continue;
+                                        }
+                                        // Walk the polyline to arc-length d.
+                                        let mut pos = path[0];
+                                        for w in path.windows(2) {
+                                            let seg = w[1] - w[0];
+                                            let l = seg.length();
+                                            if d <= l || l < 1e-4 {
+                                                pos = w[0] + seg * (d / l.max(1e-4)).clamp(0.0, 1.0);
+                                                break;
+                                            }
+                                            d -= l;
+                                        }
+                                        all_objects.push(RenderObject {
+                                            position: pos,
+                                            rotation: Quat::IDENTITY,
+                                            scale: Vec3::ONE,
+                                            mesh: sphere,
+                                            material: *mat,
+                                        });
+                                    }
+                                }
+                            }
                         }
                         // Door + window panels: doors ease open as the player nears (by style);
                         // windows are fixed glass (transparent pass). (v0.537)
