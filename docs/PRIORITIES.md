@@ -11,7 +11,19 @@
 
 ## Active focus
 
-> **UTILITY-WIRING + LIVE WATER SIM ARC COMPLETE (v0.604-610, operator "do the wiring; no magic
+> **BUILD-EDITOR BACKLOG CLEARED (v0.612-614, operator-picked after the wiring arc, 2026-06-29).** The
+> object-management trio: **multi-select** + group delete/nudge (Ctrl+click rows, v0.612), **alignment
+> snap guides** while dragging (v0.613), and **lock-per-type** (fat-finger protection, v0.614). Deferred
+> as low-value/high-effort (logged): a rotation gizmo (machines are primitive shapes, no rot field;
+> structures already rotate via `[`/`]`) + viewport hide-per-type (fiddly multi-site render filtering).
+>
+> > **NEXT (open forks -- operator steer or pick the reasonable one):** the **water->FOOD** chain shipped
+> > (v0.611), so power->water->food->vitals runs end to end. Remaining big threads: AIR/atmosphere
+> > life-support utility (the 3rd of the energy/water/air trio; integrate the existing AtmosphereSystem),
+> > INTERNET/data utility, the **superconductor upgrade mission** + a wire-A-to-B gizmo + per-cable type
+> > picker (the `spec` field exists, no UI yet), or the deferred build-editor polish above.
+>
+> **UTILITY-WIRING + LIVE WATER SIM ARC COMPLETE (v0.604-611, operator "do the wiring; no magic
 > transmission; spin up subagents", 2026-06-29).** Power + water are now REAL at design-time AND runtime:
 > - **Power (v0.604-607):** `src/utilities.rs` cable physics + `conduits.ron` registry (real NEC copper,
 >   superconductor as the upgrade target); machine `ports` + `storage`; buildability **Conduits** check
