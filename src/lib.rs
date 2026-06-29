@@ -2362,6 +2362,81 @@ mod native_app {
     /// Per-frame while an OBJECT (light / machine / structure) is grabbed (v0.593): move it to the
     /// cursor's floor hit, keeping its Y (height) -- the operator's "maintain their vertical height
     /// while dragging." Tap-vs-drag like the wall corners, and honours the 0.25 m grid-snap toggle.
+    /// Collect the floor (x,z) of every placed object EXCEPT the one being dragged, for alignment
+    /// snapping (v0.613). Walls contribute both corners.
+    fn gather_other_positions(state: &EngineState, grab: &ObjectGrab) -> Vec<(f32, f32)> {
+        let mut out = Vec::new();
+        if let Some(hs) = state.gui_state.home_structure.as_ref() {
+            for (i, l) in hs.lights.iter().enumerate() {
+                if !matches!(grab, ObjectGrab::Light(g) if *g == i) { out.push((l.pos.0, l.pos.2)); }
+            }
+            for (i, s) in hs.structures.iter().enumerate() {
+                if !matches!(grab, ObjectGrab::Structure(g) if *g == i) { out.push((s.pos.0, s.pos.2)); }
+            }
+            for n in &hs.road_nodes {
+                if !matches!(grab, ObjectGrab::RoadNode(g) if *g == n.id) { out.push((n.pos.0, n.pos.1)); }
+            }
+            for w in &hs.walls {
+                out.push((w.a.0, w.a.1));
+                out.push((w.b.0, w.b.1));
+            }
+        }
+        if let Some(h) = state.gui_state.home_machines.as_ref() {
+            for inst in h.all_instances() {
+                if !matches!(grab, ObjectGrab::Machine(g) if *g == inst.id) { out.push((inst.offset.0, inst.offset.2)); }
+            }
+            for cn in &h.conduit_nodes {
+                if !matches!(grab, ObjectGrab::ConduitNode(g) if *g == cn.id) { out.push((cn.pos.0, cn.pos.2)); }
+            }
+        }
+        out
+    }
+
+    /// Snap (x,z) to the nearest other object's X and/or Z within `tol` metres (independent per axis),
+    /// so a dragged object lines up with existing ones. Returns the snapped coords + the guide coord per
+    /// axis (Some when that axis snapped, for drawing the guide line). Pure -> unit-tested. (v0.613)
+    fn snap_to_alignment(x: f32, z: f32, others: &[(f32, f32)], tol: f32) -> (f32, f32, Option<f32>, Option<f32>) {
+        let (mut sx, mut gx, mut bestx) = (x, None, tol);
+        let (mut sz, mut gz, mut bestz) = (z, None, tol);
+        for &(ox, oz) in others {
+            let dx = (x - ox).abs();
+            if dx < bestx {
+                bestx = dx;
+                sx = ox;
+                gx = Some(ox);
+            }
+            let dz = (z - oz).abs();
+            if dz < bestz {
+                bestz = dz;
+                sz = oz;
+                gz = Some(oz);
+            }
+        }
+        (sx, sz, gx, gz)
+    }
+
+    #[cfg(test)]
+    mod snap_align_tests {
+        use super::snap_to_alignment;
+
+        #[test]
+        fn snaps_each_axis_to_the_nearest_neighbour_within_tolerance() {
+            let others = [(5.0_f32, 9.0_f32), (5.2, 20.0)];
+            // x=5.05 is within 0.3 of 5.0 -> snaps to 5.0; z=8.9 within 0.3 of 9.0 -> snaps to 9.0.
+            let (sx, sz, gx, gz) = snap_to_alignment(5.05, 8.9, &others, 0.3);
+            assert!((sx - 5.0).abs() < 1e-6 && gx == Some(5.0), "x snapped to nearest");
+            assert!((sz - 9.0).abs() < 1e-6 && gz == Some(9.0), "z snapped to nearest");
+        }
+
+        #[test]
+        fn leaves_axes_unsnapped_when_no_neighbour_is_close() {
+            let others = [(5.0_f32, 9.0_f32)];
+            let (sx, sz, gx, gz) = snap_to_alignment(50.0, 50.0, &others, 0.3);
+            assert!((sx - 50.0).abs() < 1e-6 && gx.is_none(), "far x is unchanged + no guide");
+            assert!((sz - 50.0).abs() < 1e-6 && gz.is_none(), "far z is unchanged + no guide");
+        }
+    }
+
     fn apply_object_drag(state: &mut EngineState) {
         let Some(grab) = state.construction_object_grab.clone() else {
             return;
@@ -2376,11 +2451,20 @@ mod native_app {
         let Some((_, hx, hz)) = cursor_floor_hit(state) else {
             return;
         };
-        let (nx, nz) = if state.gui_state.construction_grid_snap {
+        let (mut nx, mut nz) = if state.gui_state.construction_grid_snap {
             ((hx * 4.0).round() / 4.0, (hz * 4.0).round() / 4.0)
         } else {
             (hx, hz)
         };
+        // Alignment snap (v0.613): line up with an existing object's X and/or Z (within 0.3 m); stash the
+        // snapped axis so the overlay can draw a guide line. Applied after grid-snap, so it wins when an
+        // existing object is closer than the grid step.
+        let others = gather_other_positions(state, &grab);
+        let (ax, az, gx, gz) = snap_to_alignment(nx, nz, &others, 0.3);
+        nx = ax;
+        nz = az;
+        state.construction_snap_x = gx;
+        state.construction_snap_z = gz;
         match grab {
             ObjectGrab::Light(i) => {
                 if let Some(hs) = state.gui_state.home_structure.as_mut() {
@@ -3829,6 +3913,11 @@ mod native_app {
         /// apply_object_drag past the tap-vs-drag threshold, cleared on release. Walls keep their own
         /// corner-orb drag; this is for the other object types the operator wanted movable.
         construction_object_grab: Option<ObjectGrab>,
+        /// Alignment-snap guides (v0.613): while dragging an object, if its X (or Z) lines up with
+        /// another object's, the drag snaps to it and we stash the snapped coord here so the overlay can
+        /// draw a guide line along that axis. None = no snap this frame. Cleared when no drag is active.
+        construction_snap_x: Option<f32>,
+        construction_snap_z: Option<f32>,
         /// Placed-LIGHT gizmo (v0.572): a cached DIAMOND (octahedron) centre-marker mesh + an emissive
         /// material, drawn at each placed light in build mode (the range "sphere" is RGB line circles).
         construction_light_mesh: Option<usize>,
@@ -4456,6 +4545,8 @@ mod native_app {
                 wall_tool_mat: None,
                 construction_node_grab: None,
                 construction_object_grab: None,
+                construction_snap_x: None,
+                construction_snap_z: None,
                 construction_grab_press: None,
                 construction_node_mesh: None,
                 construction_node_mat: None,
@@ -6064,6 +6155,22 @@ mod native_app {
                     let mut orbit_lines: Vec<crate::renderer::line::LineVertex> = Vec::new();
                     // Build-mode door auto-open RINGS as constant-width line circles (v0.565).
                     let mut ring_lines: Vec<crate::renderer::line::LineVertex> = Vec::new();
+
+                    // Alignment-snap guide lines (v0.613): while dragging an object, draw a faint amber
+                    // line along the snapped X and/or Z axis (spanning the box) so you see what you are
+                    // lining up with. Only while a drag is active; cleared implicitly when the grab ends.
+                    if state.gui_state.construction_active && state.construction_object_grab.is_some() {
+                        if let Some(hs) = state.gui_state.home_structure.as_ref() {
+                            let (bw, bd, gy) = (hs.width, hs.depth, 0.05_f32);
+                            const GUIDE: [f32; 4] = [1.0, 0.85, 0.2, 0.8]; // amber
+                            if let Some(gx) = state.construction_snap_x {
+                                crate::renderer::line::push_polyline(&mut ring_lines, &[[gx, gy, 0.0], [gx, gy, bd]], GUIDE);
+                            }
+                            if let Some(gz) = state.construction_snap_z {
+                                crate::renderer::line::push_polyline(&mut ring_lines, &[[0.0, gy, gz], [bw, gy, gz]], GUIDE);
+                            }
+                        }
+                    }
 
                     // During the character-select showroom the home is HIDDEN so the avatar
                     // floats against the backdrop; otherwise draw the full home.

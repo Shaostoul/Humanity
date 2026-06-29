@@ -849,6 +849,12 @@ with Ctrl+D. Grid-snap toggle (0.25 m). Constant-width "line circle" gizmo bound
 the active grabbed gizmo RGB-cycles.
 - Native: `src/lib.rs` (`construction_duplicate`, the `construction_*_grab` states), `src/gui/pages/construction.rs` (browser hints, grid-snap toggle)
 
+### Alignment Snap Guides (v0.613)
+While dragging any object, its X and/or Z snaps to the nearest other object within 0.3 m (independent per
+axis, applied after grid-snap), and a faint amber guide line spans the box along the snapped axis so you
+see what you are lining up with. Walls contribute both corners; the dragged object is excluded.
+- Native: `src/lib.rs` (`snap_to_alignment` pure helper + `gather_other_positions`, wired into `apply_object_drag`; the guide line drawn into the construction overlay's `ring_lines`)
+
 ### Multi-Select + Group Delete / Nudge (v0.612)
 Ctrl+click rows in the object browser to build a multi-select set (across every type -- walls, machines,
 lights, structures, road/pipe nodes); selected rows show a `*` and the accent colour. A group-action bar
