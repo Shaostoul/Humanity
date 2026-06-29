@@ -181,58 +181,90 @@ mod native_app {
     /// strings). load_world re-spawns these WITH meshes on Enter World after despawning
     /// every HomeMachine, so there is no double-spawn. Silent no-op if home.ron is absent.
     fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std::path::Path) {
-        use crate::ecs::components::{Battery, HomeMachine, PowerCircuit, PowerConsumer, PowerGenerator, SolarPanel};
-        use crate::machines::MachinePower;
         let path = data_dir.join("machines").join("home.ron");
         let Some(home) = crate::machines::MachineHome::load(&path) else {
             return;
         };
         let all = home.all_instances();
-        // Each power entity carries its electrical ISLAND so ElectricalSystem flows per circuit. (v0.607)
-        let islands = home.electrical_islands(&all);
+        // Each machine carries its electrical + plumbing ISLAND so the sims flow per circuit. (v0.607/v0.608)
+        let power_islands = home.electrical_islands(&all);
+        let water_islands = home.water_islands(&all);
         for inst in &all {
             let Some(def) = home.catalog.get(&inst.machine) else {
                 continue;
             };
-            let Some(power) = &def.power else {
-                continue;
-            };
-            let pc = PowerCircuit { island: islands.get(&inst.id).copied().unwrap_or(0) };
+            spawn_home_machine_entity(world, inst, def, &power_islands, &water_islands);
+        }
+    }
+
+    /// Spawn ONE ECS entity for a placed home machine, attaching its power role + electrical island AND
+    /// its water role (producer / consumer / tank) + plumbing island (v0.608). One entity per machine so
+    /// the PlumbingSystem can gate a water producer/consumer on the SAME entity's power state (the
+    /// power -> water consequence chain). No-op if the machine has neither a power nor a water role.
+    /// Shared by `spawn_home_power_entities` (MENU mode) + `load_world` (in-world), so both stay in sync.
+    fn spawn_home_machine_entity(
+        world: &mut hecs::World,
+        inst: &crate::machines::MachineInstance,
+        def: &crate::machines::MachineDef,
+        power_islands: &std::collections::HashMap<String, u32>,
+        water_islands: &std::collections::HashMap<String, u32>,
+    ) {
+        use crate::ecs::components::{
+            Battery, HomeMachine, PlumbingCircuit, PowerCircuit, PowerConsumer, PowerGenerator, SolarPanel,
+            WaterConsumer, WaterProducer, WaterTank,
+        };
+        use crate::machines::MachinePower;
+        let is_water = def.is_water_machine();
+        if def.power.is_none() && !is_water {
+            return;
+        }
+        let e = world.spawn((HomeMachine,));
+        if let Some(power) = &def.power {
+            let _ = world.insert_one(e, PowerCircuit { island: power_islands.get(&inst.id).copied().unwrap_or(0) });
             match power {
                 MachinePower::Solar { peak_watts } => {
-                    world.spawn((
-                        HomeMachine,
-                        PowerGenerator { output_watts: *peak_watts, fuel_per_second: 0.0, active: true },
-                        SolarPanel { peak_watts: *peak_watts },
-                        pc,
-                    ));
+                    let _ = world.insert(
+                        e,
+                        (
+                            PowerGenerator { output_watts: *peak_watts, fuel_per_second: 0.0, active: true },
+                            SolarPanel { peak_watts: *peak_watts },
+                        ),
+                    );
                 }
                 MachinePower::Generator { watts } => {
-                    world.spawn((
-                        HomeMachine,
-                        PowerGenerator { output_watts: *watts, fuel_per_second: 0.0, active: true },
-                        pc,
-                    ));
+                    let _ = world.insert_one(e, PowerGenerator { output_watts: *watts, fuel_per_second: 0.0, active: true });
                 }
                 MachinePower::Consumer { watts, priority } => {
-                    world.spawn((
-                        HomeMachine,
-                        PowerConsumer { draw_watts: *watts, priority: *priority, enabled: true },
-                        pc,
-                    ));
+                    let _ = world.insert_one(e, PowerConsumer { draw_watts: *watts, priority: *priority, enabled: true });
                 }
                 MachinePower::Battery { capacity_wh, max_charge_w, max_discharge_w } => {
-                    world.spawn((
-                        HomeMachine,
+                    let _ = world.insert_one(
+                        e,
                         Battery {
                             charge_wh: capacity_wh * 0.5,
                             capacity_wh: *capacity_wh,
                             max_charge_w: *max_charge_w,
                             max_discharge_w: *max_discharge_w,
                         },
-                        pc,
-                    ));
+                    );
                 }
+            }
+        }
+        if is_water {
+            let _ = world.insert_one(e, PlumbingCircuit { island: water_islands.get(&inst.id).copied().unwrap_or(0) });
+            // Does this machine need power to move/produce water? (a pump/purifier draws power)
+            let needs_power = def.draws_power();
+            let cap = def.water_capacity_l();
+            if cap > 0.0 {
+                let _ = world.insert_one(e, WaterTank { liters: cap * 0.5, capacity_l: cap });
+            }
+            let prod = def.water_production_lpm();
+            if prod > 0.0 {
+                let _ = world.insert_one(e, WaterProducer { lpm: prod, needs_power });
+            }
+            let dem = def.water_demand_lpm();
+            if dem > 0.0 {
+                let _ = world.insert_one(e, WaterConsumer { lpm: dem, needs_power });
             }
         }
     }
@@ -3029,8 +3061,9 @@ mod native_app {
                 };
                 // Explicit instances + every `arrays` grid expanded (dense garden towers).
                 let all_instances = home.all_instances();
-                // Electrical island per machine, so each spawned power entity flows on its circuit. (v0.607)
-                let islands = home.electrical_islands(&all_instances);
+                // Electrical + plumbing island per machine, so spawned entities flow on their circuit. (v0.607/v0.608)
+                let power_islands = home.electrical_islands(&all_instances);
+                let water_islands = home.water_islands(&all_instances);
                 for inst in &all_instances {
                     let Some(def) = home.catalog.get(&inst.machine) else { continue };
                     // Position formula mirrored by the tested MachineHome::placements (the editor's
@@ -3074,50 +3107,16 @@ mod native_app {
                         stats: def.stats.clone(),
                         room: inst.room.clone(),
                     });
-                    // Spawn the machine's electrical role as a LIVE ECS entity so the
-                    // SolarSystem + ElectricalSystem tick against the real home (v0.437).
-                    if let Some(power) = &def.power {
-                        use crate::ecs::components::{HomeMachine, PowerCircuit, PowerConsumer, PowerGenerator, SolarPanel};
-                        use crate::machines::MachinePower;
-                        let pc = PowerCircuit { island: islands.get(&inst.id).copied().unwrap_or(0) };
-                        match power {
-                            MachinePower::Solar { peak_watts } => {
-                                state.game_world.world.spawn((
-                                    HomeMachine,
-                                    PowerGenerator { output_watts: *peak_watts, fuel_per_second: 0.0, active: true },
-                                    SolarPanel { peak_watts: *peak_watts },
-                                    pc,
-                                ));
-                            }
-                            MachinePower::Generator { watts } => {
-                                state.game_world.world.spawn((
-                                    HomeMachine,
-                                    PowerGenerator { output_watts: *watts, fuel_per_second: 0.0, active: true },
-                                    pc,
-                                ));
-                            }
-                            MachinePower::Consumer { watts, priority } => {
-                                state.game_world.world.spawn((
-                                    HomeMachine,
-                                    PowerConsumer { draw_watts: *watts, priority: *priority, enabled: true },
-                                    pc,
-                                ));
-                            }
-                            MachinePower::Battery { capacity_wh, max_charge_w, max_discharge_w } => {
-                                state.game_world.world.spawn((
-                                    HomeMachine,
-                                    crate::ecs::components::Battery {
-                                        // Start half-charged so the swing is visible immediately.
-                                        charge_wh: capacity_wh * 0.5,
-                                        capacity_wh: *capacity_wh,
-                                        max_charge_w: *max_charge_w,
-                                        max_discharge_w: *max_discharge_w,
-                                    },
-                                    pc,
-                                ));
-                            }
-                        }
-                    }
+                    // Spawn the machine's electrical + water roles as a LIVE ECS entity so the
+                    // SolarSystem + ElectricalSystem + PlumbingSystem tick against the real home
+                    // (v0.437/v0.608). One entity per machine (power + water on the same entity).
+                    spawn_home_machine_entity(
+                        &mut state.game_world.world,
+                        inst,
+                        def,
+                        &power_islands,
+                        &water_islands,
+                    );
                     placed += 1;
                 }
                 log::info!("Machines: placed {placed} machines");
@@ -4039,6 +4038,11 @@ mod native_app {
                 "power_status",
                 std::sync::Mutex::new(crate::systems::electrical::PowerStatus::default()),
             );
+            // Live home WATER readout (production/demand/stored L): PlumbingSystem writes it each tick.
+            data_store.insert(
+                "water_status",
+                std::sync::Mutex::new(crate::systems::plumbing::WaterStatus::default()),
+            );
             system_runner.register(TimeSystem::new());
             // WeatherSystem ticks after TimeSystem (reads the exported season) and
             // exports Weather; the exposed-environment temperature consumes it.
@@ -4048,6 +4052,9 @@ mod native_app {
             // home power sim against the machine entities spawned in load_world (v0.437).
             system_runner.register(crate::systems::solar::SolarSystem::new());
             system_runner.register(crate::systems::electrical::ElectricalSystem::new(&data_dir));
+            // PlumbingSystem ticks AFTER electrical so it sees this frame's shed state -- a pump/purifier
+            // shed in a power deficit stops producing water THIS tick (the power -> water chain). (v0.608)
+            system_runner.register(crate::systems::plumbing::PlumbingSystem::new());
             system_runner.register(PlayerControllerSystem);
             data_store.insert("interaction_prompt", std::sync::Mutex::new(String::new()));
             // GUI -> ECS command channels (interior-mutable; the main loop writes
@@ -7760,6 +7767,19 @@ mod native_app {
                         state.gui_state.power_battery_wh = ps.battery_wh;
                         state.gui_state.power_battery_capacity_wh = ps.battery_capacity_wh;
                         state.gui_state.power_autonomy_hours = ps.autonomy_hours;
+                    }
+
+                    // Bridge the live home WATER readout (PlumbingSystem writes it via Mutex). (v0.608)
+                    if let Some(ws) = state
+                        .data_store
+                        .get::<std::sync::Mutex<crate::systems::plumbing::WaterStatus>>("water_status")
+                        .and_then(|m| m.lock().ok())
+                    {
+                        state.gui_state.water_production_lpm = ws.production_lpm;
+                        state.gui_state.water_demand_lpm = ws.demand_lpm;
+                        state.gui_state.water_stored_l = ws.stored_l;
+                        state.gui_state.water_capacity_l = ws.capacity_l;
+                        state.gui_state.water_days_autonomy = ws.days_autonomy;
                     }
 
                     // ── Auto-connect to server if configured AND seed unlocked ──

@@ -1,123 +1,240 @@
-//! Plumbing system — drains `WaterTank` entities to satisfy nearby
-//! `WaterFixture` demand. Each tick, each fixture tries to draw enough water
-//! to cover its share of `demand_per_day` from the closest tank within range.
+//! Plumbing system -- water production, storage, and demand, PER PLUMBING ISLAND (v0.608).
 //!
-//! No pipe topology yet — distance check is the only routing.
-//! Future: real pipe network with valves + pressure simulation.
+//! The water mirror of `ElectricalSystem`, and the first real POWER -> WATER consequence chain: a
+//! `WaterProducer`/`WaterConsumer` flagged `needs_power` only flows while the SAME ECS entity's
+//! `PowerConsumer` is enabled. Cut the power (or shed it in a deficit) and the pump stops, the cistern
+//! stops filling, and `days_autonomy` starts ticking down -- exactly like a real off-grid home.
+//!
+//! Each tick, per `PlumbingCircuit.island`:
+//!   1. Sum production from powered `WaterProducer`s (L/min).
+//!   2. Sum demand from powered `WaterConsumer`s (L/min).
+//!   3. Integrate the net flow into the island's `WaterTank`s (clamped 0..capacity), sequential bite.
+//!   4. Aggregate across islands into a live `WaterStatus` for the GUI.
+//!
+//! Entities WITHOUT a `PlumbingCircuit` share the `None` bucket (one global island), so a test or a
+//! legacy spawn behaves as a single connected system.
+//!
+//! (Replaced the v0.x distance-based `WaterFixture`/`WaterTank` scaffold, which was never registered.)
 
-use std::path::Path;
-
-use serde::Deserialize;
-
-use crate::ecs::components::{Transform, WaterFixture, WaterTank};
+use crate::ecs::components::{PlumbingCircuit, PowerConsumer, WaterConsumer, WaterProducer, WaterTank};
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
-/// Max distance (meters) a fixture will draw from a tank.
-const MAX_DRAW_DIST: f32 = 12.0;
-
-/// 1 game day = 1200 real seconds.
-const REAL_SECONDS_PER_GAME_DAY: f32 = 1200.0;
-
-/// Top-level RON schema for `data/plumbing.ron`.
-#[derive(Debug, Deserialize)]
-pub struct PlumbingData {
-    #[serde(default)] pub pipes: Vec<ron::Value>,
-    #[serde(default)] pub fixtures: Vec<ron::Value>,
-    #[serde(default)] pub treatment: Vec<ron::Value>,
-    #[serde(default)] pub storage: Vec<ron::Value>,
-    #[serde(default)] pub valves: Vec<ron::Value>,
+/// Live water readout, published to the DataStore each tick (key `water_status`) so the GUI can show the
+/// home's running water balance. Litres + litres/min.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WaterStatus {
+    /// Total production from powered producers (L/min).
+    pub production_lpm: f32,
+    /// Total demand from powered consumers (L/min).
+    pub demand_lpm: f32,
+    /// production - demand (L/min). Positive fills storage, negative drains it.
+    pub balance_lpm: f32,
+    /// Total water currently stored across all cisterns/tanks (litres).
+    pub stored_l: f32,
+    /// Total storage capacity (litres). 0 = no tanks.
+    pub capacity_l: f32,
+    /// Days the stored water would meet the current demand with zero production.
+    pub days_autonomy: f32,
 }
 
-/// Tracks water flow, pressure, and fixture demand.
+/// Tracks the home's water production / storage / demand.
 pub struct PlumbingSystem {
-    pub data: PlumbingData,
-    /// Total liters delivered system-wide since startup (lifetime stat).
-    pub lifetime_liters_delivered: f64,
+    pub status: WaterStatus,
+    /// Throttle log spam (seconds since last log).
+    log_cooldown: f32,
 }
 
 impl PlumbingSystem {
-    pub fn new(data_dir: &Path) -> Self {
-        let path = data_dir.join("plumbing.ron");
-        let text = std::fs::read_to_string(&path).unwrap_or_else(|e| {
-            log::warn!("Failed to read {}: {e}", path.display());
-            "(pipes:[],fixtures:[],treatment:[],storage:[],valves:[])".to_string()
-        });
-        let data: PlumbingData = ron::from_str(&text).unwrap_or_else(|e| {
-            log::warn!("Failed to parse plumbing.ron: {e}");
-            PlumbingData { pipes: vec![], fixtures: vec![], treatment: vec![], storage: vec![], valves: vec![] }
-        });
-        log::info!("Loaded plumbing data: {} pipes, {} fixtures", data.pipes.len(), data.fixtures.len());
-        Self { data, lifetime_liters_delivered: 0.0 }
+    pub fn new() -> Self {
+        Self { status: WaterStatus::default(), log_cooldown: 0.0 }
+    }
+}
+
+impl Default for PlumbingSystem {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl System for PlumbingSystem {
-    fn name(&self) -> &str { "PlumbingSystem" }
+    fn name(&self) -> &str {
+        "PlumbingSystem"
+    }
 
-    fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
-        let day_fraction = dt / REAL_SECONDS_PER_GAME_DAY;
-        if day_fraction <= 0.0 { return; }
+    fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
+        use std::collections::HashMap;
 
-        // Snapshot tank positions so we can mutate tank levels without alias issues.
-        let tank_positions: Vec<(hecs::Entity, glam::Vec3)> = world
-            .query::<(&Transform, &WaterTank)>()
-            .iter()
-            .map(|(e, (t, _))| (e, t.position))
-            .collect();
+        // 1. Per-island production from powered producers. A producer that needs power only counts when
+        //    the SAME entity's PowerConsumer is enabled (the power -> water consequence chain).
+        let mut prod_by: HashMap<Option<u32>, f32> = HashMap::new();
+        for (_, (p, pc, power)) in
+            world.query::<(&WaterProducer, Option<&PlumbingCircuit>, Option<&PowerConsumer>)>().iter()
+        {
+            let powered = !p.needs_power || power.map(|c| c.enabled).unwrap_or(false);
+            if powered {
+                *prod_by.entry(pc.map(|c| c.island)).or_default() += p.lpm;
+            }
+        }
+        // 2. Per-island demand from powered consumers.
+        let mut dem_by: HashMap<Option<u32>, f32> = HashMap::new();
+        for (_, (c, pc, power)) in
+            world.query::<(&WaterConsumer, Option<&PlumbingCircuit>, Option<&PowerConsumer>)>().iter()
+        {
+            let powered = !c.needs_power || power.map(|p| p.enabled).unwrap_or(false);
+            if powered {
+                *dem_by.entry(pc.map(|c| c.island)).or_default() += c.lpm;
+            }
+        }
+        // Tanks grouped by island (Entity is Copy; the query borrow releases after collect).
+        let mut tanks_by: HashMap<Option<u32>, Vec<hecs::Entity>> = HashMap::new();
+        for (e, (_t, pc)) in world.query::<(&WaterTank, Option<&PlumbingCircuit>)>().iter() {
+            tanks_by.entry(pc.map(|c| c.island)).or_default().push(e);
+        }
 
-        // Compute draws: for each fixture, find the nearest tank within range,
-        // then collect (tank, fixture, requested_liters).
-        let mut draws: Vec<(hecs::Entity, hecs::Entity, f32)> = Vec::new();
-        let max_d2 = MAX_DRAW_DIST * MAX_DRAW_DIST;
+        let mut keys: std::collections::BTreeSet<Option<u32>> = std::collections::BTreeSet::new();
+        keys.extend(prod_by.keys().copied());
+        keys.extend(dem_by.keys().copied());
+        keys.extend(tanks_by.keys().copied());
 
-        for (fix_entity, (fix, fix_t)) in world.query::<(&WaterFixture, &Transform)>().iter() {
-            let requested = fix.demand_per_day * day_fraction;
-            if requested <= 0.0 { continue; }
+        let dt_min = dt / 60.0;
+        let (mut prod_all, mut dem_all, mut stored_all, mut cap_all) = (0.0_f32, 0.0_f32, 0.0_f32, 0.0_f32);
 
-            let mut best: Option<(hecs::Entity, f32)> = None;
-            for (tank_entity, tank_pos) in &tank_positions {
-                let d2 = fix_t.position.distance_squared(*tank_pos);
-                if d2 > max_d2 { continue; }
-                if best.map(|(_, b)| d2 < b).unwrap_or(true) {
-                    best = Some((*tank_entity, d2));
+        // 3. Integrate the net flow into each island's tanks (sequential bite, no double counting).
+        for key in keys {
+            let prod = prod_by.get(&key).copied().unwrap_or(0.0);
+            let dem = dem_by.get(&key).copied().unwrap_or(0.0);
+            prod_all += prod;
+            dem_all += dem;
+            let mut delta_l = (prod - dem) * dt_min; // +fills, -drains
+            if let Some(tanks) = tanks_by.get(&key) {
+                for e in tanks {
+                    if let Ok(mut t) = world.get::<&mut WaterTank>(*e) {
+                        if delta_l >= 0.0 {
+                            let add = delta_l.min((t.capacity_l - t.liters).max(0.0));
+                            t.liters += add;
+                            delta_l -= add;
+                        } else {
+                            let take = (-delta_l).min(t.liters.max(0.0));
+                            t.liters -= take;
+                            delta_l += take;
+                        }
+                        stored_all += t.liters;
+                        cap_all += t.capacity_l;
+                    }
                 }
             }
-            if let Some((tank_entity, _)) = best {
-                draws.push((tank_entity, fix_entity, requested));
+        }
+
+        let days_autonomy = if dem_all > 0.001 { stored_all / (dem_all * 1440.0) } else { 0.0 };
+        self.status = WaterStatus {
+            production_lpm: prod_all,
+            demand_lpm: dem_all,
+            balance_lpm: prod_all - dem_all,
+            stored_l: stored_all,
+            capacity_l: cap_all,
+            days_autonomy,
+        };
+
+        if let Some(status) = data.get::<std::sync::Mutex<WaterStatus>>("water_status") {
+            if let Ok(mut s) = status.lock() {
+                *s = self.status;
             }
         }
 
-        // Apply draws: deplete tanks, mark fixtures satisfied/unsatisfied.
-        let mut delivered_total = 0.0;
-        for (tank_entity, fix_entity, requested) in draws {
-            let mut delivered = 0.0;
-            if let Ok(mut tank) = world.get::<&mut WaterTank>(tank_entity) {
-                delivered = tank.current.min(requested);
-                tank.current -= delivered;
+        self.log_cooldown -= dt;
+        if self.log_cooldown <= 0.0 {
+            self.log_cooldown = 5.0;
+            if dem_all > prod_all && cap_all > 0.0 {
+                log::debug!(
+                    "Water deficit: draining {:.1} L/min (demand {:.1}, production {:.1}); {:.1} days left",
+                    dem_all - prod_all, dem_all, prod_all, days_autonomy
+                );
             }
-            if let Ok(mut fix) = world.get::<&mut WaterFixture>(fix_entity) {
-                fix.supplied_today += delivered;
-                fix.satisfied = delivered >= requested * 0.99;
-            }
-            delivered_total += delivered;
         }
+    }
+}
 
-        // Mark unmet fixtures as unsatisfied (no nearby tank).
-        let mut unmet: Vec<hecs::Entity> = Vec::new();
-        for (entity, (fix, _)) in world.query::<(&WaterFixture, &Transform)>().iter() {
-            if !fix.satisfied {
-                unmet.push(entity);
-            }
-        }
-        for entity in unmet {
-            if let Ok(mut fix) = world.get::<&mut WaterFixture>(entity) {
-                if fix.supplied_today <= 0.0 {
-                    fix.satisfied = false;
-                }
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ecs::components::{PlumbingCircuit, PowerConsumer, WaterConsumer, WaterProducer, WaterTank};
+    use crate::ecs::systems::System;
 
-        self.lifetime_liters_delivered += delivered_total as f64;
+    fn status(data: &DataStore) -> WaterStatus {
+        *data.get::<std::sync::Mutex<WaterStatus>>("water_status").unwrap().lock().unwrap()
+    }
+
+    /// A powered producer fills the tank; cutting its power stops production so the tank drains -- the
+    /// power -> water consequence chain.
+    #[test]
+    fn power_loss_stops_water_production() {
+        let mut data = DataStore::new();
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
+        let mut world = hecs::World::new();
+        // A purifier: produces 10 L/min but NEEDS power; its PowerConsumer starts enabled.
+        let purifier = world.spawn((
+            WaterProducer { lpm: 10.0, needs_power: true },
+            PowerConsumer { draw_watts: 50.0, priority: 2, enabled: true },
+            PlumbingCircuit { island: 0 },
+        ));
+        // A household draw of 2 L/min (passive).
+        world.spawn((WaterConsumer { lpm: 2.0, needs_power: false }, PlumbingCircuit { island: 0 }));
+        // A 1000 L cistern starting at 500 L.
+        let cistern = world.spawn((WaterTank { liters: 500.0, capacity_l: 1000.0 }, PlumbingCircuit { island: 0 }));
+
+        let mut sys = PlumbingSystem::new();
+        // 60 s powered: net +8 L/min -> +8 L into the tank.
+        sys.tick(&mut world, 60.0, &data);
+        let s = status(&data);
+        assert!((s.production_lpm - 10.0).abs() < 0.01, "powered production {}", s.production_lpm);
+        assert!(world.get::<&WaterTank>(cistern).unwrap().liters > 500.0, "tank filled while powered");
+
+        // Cut the purifier's power: production stops, only the 2 L/min draw remains -> tank drains.
+        world.get::<&mut PowerConsumer>(purifier).unwrap().enabled = false;
+        let before = world.get::<&WaterTank>(cistern).unwrap().liters;
+        sys.tick(&mut world, 60.0, &data);
+        let s = status(&data);
+        assert!(s.production_lpm.abs() < 0.01, "no production once unpowered: {}", s.production_lpm);
+        assert!(world.get::<&WaterTank>(cistern).unwrap().liters < before, "tank drains with power cut");
+    }
+
+    /// Water flows PER ISLAND: a producer on island 0 does not fill island 1's tank.
+    #[test]
+    fn water_does_not_cross_islands() {
+        let mut data = DataStore::new();
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
+        let mut world = hecs::World::new();
+        // Island 0: passive producer 5 L/min + a tank.
+        world.spawn((WaterProducer { lpm: 5.0, needs_power: false }, PlumbingCircuit { island: 0 }));
+        let t0 = world.spawn((WaterTank { liters: 100.0, capacity_l: 1000.0 }, PlumbingCircuit { island: 0 }));
+        // Island 1: a tank with NO producer -- it must not fill from island 0.
+        let t1 = world.spawn((WaterTank { liters: 100.0, capacity_l: 1000.0 }, PlumbingCircuit { island: 1 }));
+
+        let mut sys = PlumbingSystem::new();
+        sys.tick(&mut world, 60.0, &data);
+        assert!(world.get::<&WaterTank>(t0).unwrap().liters > 100.0, "island 0 tank fills");
+        assert!((world.get::<&WaterTank>(t1).unwrap().liters - 100.0).abs() < 0.01, "island 1 tank unchanged");
+    }
+
+    /// A tank never overfills or drains below zero.
+    #[test]
+    fn tank_clamps_to_capacity_and_empty() {
+        let mut data = DataStore::new();
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
+        let mut sys = PlumbingSystem::new();
+
+        let mut world = hecs::World::new();
+        world.spawn((WaterProducer { lpm: 1000.0, needs_power: false }, PlumbingCircuit { island: 0 }));
+        let full = world.spawn((WaterTank { liters: 990.0, capacity_l: 1000.0 }, PlumbingCircuit { island: 0 }));
+        sys.tick(&mut world, 600.0, &data); // way more than enough to overfill
+        assert!((world.get::<&WaterTank>(full).unwrap().liters - 1000.0).abs() < 0.01, "clamped to capacity");
+
+        // A heavy draw on an island with no production drains to exactly 0, not negative.
+        let mut world2 = hecs::World::new();
+        world2.spawn((WaterConsumer { lpm: 1000.0, needs_power: false }, PlumbingCircuit { island: 0 }));
+        let empty = world2.spawn((WaterTank { liters: 10.0, capacity_l: 1000.0 }, PlumbingCircuit { island: 0 }));
+        sys.tick(&mut world2, 600.0, &data);
+        assert!(world2.get::<&WaterTank>(empty).unwrap().liters.abs() < 0.01, "drained to zero, not negative");
     }
 }

@@ -78,6 +78,19 @@ pub struct MachineDef {
     /// declared ports falls back to `derive_ports()`, which infers electrical ports from `power`.
     #[serde(default)]
     pub ports: Vec<Port>,
+    /// Bulk STORAGE this machine provides for a utility (v0.608): a cistern stores water, a silo food, a
+    /// tank fuel. Optional + `#[serde(default)]`. Fluid capacity is litres. Drives the live PlumbingSystem
+    /// (a cistern's level is a draining number, not a static "33 days" string).
+    #[serde(default)]
+    pub storage: Vec<MachineStorage>,
+}
+
+/// Bulk storage a machine provides for one utility (v0.608). `capacity` is litres for a fluid
+/// (Water/HotWater/Fuel), or units/kg for a solid (Food/Nutrient).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MachineStorage {
+    pub utility: Utility,
+    pub capacity: f32,
 }
 
 impl MachineDef {
@@ -117,6 +130,49 @@ impl MachineDef {
             .iter()
             .filter(|p| p.utility == Utility::Electricity && p.dir == PortDir::Out)
             .map(|p| p.watts)
+            .sum()
+    }
+
+    /// Whether this machine draws electricity (has an electrical IN / bidirectional port). The water sim
+    /// uses this to GATE a powered producer/mover (a pump only moves water while it has power). (v0.608)
+    pub fn draws_power(&self) -> bool {
+        self.derive_ports()
+            .iter()
+            .any(|p| p.utility == Utility::Electricity && matches!(p.dir, PortDir::In | PortDir::Bidirectional))
+    }
+
+    /// True if this machine participates in the water network: it has a water/hot-water port, or it
+    /// stores water. (v0.608)
+    pub fn is_water_machine(&self) -> bool {
+        let is_w = |u: Utility| matches!(u, Utility::Water | Utility::HotWater);
+        self.derive_ports().iter().any(|p| is_w(p.utility))
+            || self.storage.iter().any(|s| is_w(s.utility))
+    }
+
+    /// Litres/min of water this machine PRODUCES (its water/hot-water OUT ports). (v0.608)
+    pub fn water_production_lpm(&self) -> f32 {
+        self.derive_ports()
+            .iter()
+            .filter(|p| matches!(p.utility, Utility::Water | Utility::HotWater) && p.dir == PortDir::Out)
+            .map(|p| p.flow_lpm)
+            .sum()
+    }
+
+    /// Litres/min of water this machine DRAWS (its water/hot-water IN ports). (v0.608)
+    pub fn water_demand_lpm(&self) -> f32 {
+        self.derive_ports()
+            .iter()
+            .filter(|p| matches!(p.utility, Utility::Water | Utility::HotWater) && p.dir == PortDir::In)
+            .map(|p| p.flow_lpm)
+            .sum()
+    }
+
+    /// Litres of water this machine STORES (a cistern). (v0.608)
+    pub fn water_capacity_l(&self) -> f32 {
+        self.storage
+            .iter()
+            .filter(|s| matches!(s.utility, Utility::Water | Utility::HotWater))
+            .map(|s| s.capacity)
             .sum()
     }
 }
@@ -747,12 +803,18 @@ impl MachineHome {
         BuildabilityReport { checks }
     }
 
-    /// Union-find over the POWER graph (power connections + power conduit edges, traversing junction
-    /// nodes), returning each ELECTRICAL machine id -> its component ROOT id (a stable representative).
-    /// Shared by `power_circuit_check` (design-time) + `electrical_islands` (runtime gating). An unwired
-    /// machine is its own component. Node endpoints are keyed "node:<id>" so they can't collide with a
-    /// machine id. (v0.607)
-    fn power_component_roots(&self, all: &[MachineInstance]) -> std::collections::HashMap<String, String> {
+    /// Union-find over a UTILITY graph (connections + conduit edges of one `kind`, traversing junction
+    /// nodes), returning each MEMBER machine id -> its component ROOT id (a stable representative).
+    /// Generic over the utility so power + water (+ future air/data) share one tested implementation.
+    /// `is_member` decides which machines participate (e.g. has a power role, or has a water port). An
+    /// unwired member is its own component. Node endpoints are keyed "node:<id>" so they can't collide
+    /// with a machine id. (v0.607/v0.608)
+    fn utility_component_roots(
+        &self,
+        all: &[MachineInstance],
+        kind: &str,
+        is_member: &dyn Fn(&MachineInstance) -> bool,
+    ) -> std::collections::HashMap<String, String> {
         use std::collections::HashMap;
         let mut parent: HashMap<String, String> = HashMap::new();
         fn find(parent: &mut HashMap<String, String>, x: &str) -> String {
@@ -771,43 +833,60 @@ impl MachineHome {
                 parent.insert(ra, rb);
             }
         }
-        let is_electrical =
-            |inst: &MachineInstance| self.catalog.get(&inst.machine).and_then(|d| d.power.as_ref()).is_some();
-        // Seed every electrical machine as its own node (so an unwired load is its own component).
-        for inst in all.iter().filter(|i| is_electrical(i)) {
+        // Seed every member machine as its own node (so an unwired member is its own component).
+        for inst in all.iter().filter(|i| is_member(i)) {
             find(&mut parent, &inst.id);
         }
-        for c in self.connections.iter().filter(|c| c.kind == "power") {
+        for c in self.connections.iter().filter(|c| c.kind == kind) {
             union(&mut parent, &c.from, &c.to);
         }
         let end_key = |e: &ConduitEnd| match e {
             ConduitEnd::Machine(id) => id.clone(),
             ConduitEnd::Node(id) => format!("node:{id}"),
         };
-        for e in self.conduit_edges.iter().filter(|e| e.kind == "power") {
+        for e in self.conduit_edges.iter().filter(|e| e.kind == kind) {
             union(&mut parent, &end_key(&e.from), &end_key(&e.to));
         }
         let mut roots = HashMap::new();
-        for inst in all.iter().filter(|i| is_electrical(i)) {
+        for inst in all.iter().filter(|i| is_member(i)) {
             let r = find(&mut parent, &inst.id);
             roots.insert(inst.id.clone(), r);
         }
         roots
     }
 
-    /// Map each ELECTRICAL machine id -> a 0-based ISLAND index (its connected power component), for the
-    /// runtime `ElectricalSystem` to flow power per island instead of summing globally (sim-realism gap
-    /// #2 -- no magic transmission). Stable, deterministic island ids (assigned in sorted root order).
-    /// (v0.607)
-    pub fn electrical_islands(&self, all: &[MachineInstance]) -> std::collections::HashMap<String, u32> {
-        let roots = self.power_component_roots(all);
-        // Assign island indices in sorted-root order so the mapping is deterministic across runs.
+    /// Each ELECTRICAL machine id -> its component ROOT over the power graph. (v0.607)
+    fn power_component_roots(&self, all: &[MachineInstance]) -> std::collections::HashMap<String, String> {
+        let is_electrical =
+            |inst: &MachineInstance| self.catalog.get(&inst.machine).and_then(|d| d.power.as_ref()).is_some();
+        self.utility_component_roots(all, "power", &is_electrical)
+    }
+
+    /// Assign 0-based, deterministic ISLAND indices from a roots map (sorted-root order). (v0.607)
+    fn islands_from_roots(roots: std::collections::HashMap<String, String>) -> std::collections::HashMap<String, u32> {
         let mut distinct: Vec<&String> = roots.values().collect();
         distinct.sort();
         distinct.dedup();
         let index: std::collections::HashMap<&String, u32> =
             distinct.iter().enumerate().map(|(i, r)| (*r, i as u32)).collect();
         roots.iter().map(|(id, r)| (id.clone(), index[r])).collect()
+    }
+
+    /// Map each ELECTRICAL machine id -> a 0-based ISLAND index (its connected power component), for the
+    /// runtime `ElectricalSystem` to flow power per island instead of summing globally (sim-realism gap
+    /// #2 -- no magic transmission). (v0.607)
+    pub fn electrical_islands(&self, all: &[MachineInstance]) -> std::collections::HashMap<String, u32> {
+        Self::islands_from_roots(self.power_component_roots(all))
+    }
+
+    /// Map each WATER machine id -> a 0-based ISLAND index over the water-pipe graph, so the
+    /// `PlumbingSystem` flows water per plumbed circuit (no magic transmission). A "water machine" is one
+    /// with a water/hot-water port OR water storage. (v0.608)
+    pub fn water_islands(&self, all: &[MachineInstance]) -> std::collections::HashMap<String, u32> {
+        let is_water = |inst: &MachineInstance| {
+            self.catalog.get(&inst.machine).map(|d| d.is_water_machine()).unwrap_or(false)
+        };
+        Self::islands_from_roots(self.utility_component_roots(all, "water", &is_water))
     }
 
     /// The "Power circuit" buildability check (v0.606): build the electrical graph from power
@@ -1108,6 +1187,7 @@ mod tests {
             stats: Vec::new(),
             power: None,
             ports: Vec::new(),
+            storage: Vec::new(),
         }
     }
 
@@ -1683,6 +1763,25 @@ mod tests {
         assert!(home.add_conduit_edge(ConduitEnd::Node(nid), ConduitEnd::Machine("l1".into()), "power"));
         let circuit = home.power_circuit_check(&home.all_instances()).expect("a circuit check");
         assert_eq!(circuit.status, CheckStatus::Pass, "panel->node->load is wired: {}", circuit.detail);
+    }
+
+    /// The shipped seed home has a coherent water sim: the cistern stores 8000 L, the pump produces,
+    /// and the aeroponic towers + irrigation draw -- so the PlumbingSystem has something to run.
+    #[test]
+    fn seed_home_water_topology_is_sane() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
+        let home = MachineHome::load(&path).expect("home.ron parses");
+        let cistern = home.catalog.get("water_tank").expect("a cistern type");
+        assert!((cistern.water_capacity_l() - 8000.0).abs() < 1.0, "cistern stores 8000 L");
+        assert!(cistern.is_water_machine(), "cistern is a water machine");
+        let pump = home.catalog.get("water_pump").expect("a pump type");
+        assert!(pump.water_production_lpm() > 0.0, "pump produces water");
+        assert!(pump.draws_power(), "pump needs power (so its water output is power-gated)");
+        let tower = home.catalog.get("aeroponic_tower_nutrition").expect("a tower type");
+        assert!(tower.water_demand_lpm() > 0.0, "tower draws water");
+        // The water graph yields at least one island over the real instances.
+        let islands = home.water_islands(&home.all_instances());
+        assert!(!islands.is_empty(), "the seed home has water machines on the water graph");
     }
 
     /// The shipped seed home is a fully-wired network: every load traces to a generator (no FAIL).

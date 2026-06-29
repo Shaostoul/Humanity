@@ -37,6 +37,9 @@
             label: "Cistern (8000 L)",
             category: "Water",
             stats: [(kind: "storage", value: "33 days", status: "ok"), (kind: "water", value: "rain + well fed", status: "ok")],
+            // Live water sim (v0.608): stores 8000 L and has a passive rain/well inflow (no power needed).
+            storage: [(utility: Water, capacity: 8000.0)],
+            ports: [(utility: Water, dir: Out, label: "rain + well", flow_lpm: 0.3)],
         ),
         "water_pump": (
             shape: "box", size: (0.35, 0.35, 0.35), color: (0.30, 0.50, 0.60),
@@ -74,10 +77,11 @@
             category: "Food",
             stats: [(kind: "food", value: "+92 kcal/d", status: "warn"), (kind: "nutrient", value: "vitamins + protein", status: "ok"), (kind: "power", value: "sun-lit, -15 W", status: "ok")],
             // Explicit ports (v0.605): the operator's example -- an aeroponic tower needs BOTH water
-            // (the misting feed) AND electricity (pump + supplemental grow light).
+            // (the misting feed) AND electricity (pump + supplemental grow light). Aeroponics
+            // recirculates, so net water draw is small (v0.608): ~0.05 L/min top-up per tower.
             ports: [
                 (utility: Electricity, dir: In, label: "pump + light", watts: 15.0),
-                (utility: Water, dir: In, label: "mist feed", flow_lpm: 0.5),
+                (utility: Water, dir: In, label: "mist feed", flow_lpm: 0.05),
             ],
         ),
         "aeroponic_tower_apothecary": (
@@ -122,6 +126,11 @@
             category: "Water",
             stats: [(kind: "water", value: "60 L/d to plants", status: "ok"), (kind: "power", value: "-0.16 kWh/d", status: "ok")],
             power: Some(Consumer(watts: 7.0, priority: 3)),
+            // Live water sim (v0.608): draws ~0.04 L/min (~60 L/day) to the plants when powered.
+            ports: [
+                (utility: Electricity, dir: In, label: "pump", watts: 7.0),
+                (utility: Water, dir: In, label: "to plants", flow_lpm: 0.04),
+            ],
         ),
         "grain_field": (
             shape: "box", size: (2.4, 0.18, 2.4), color: (0.78, 0.66, 0.30),

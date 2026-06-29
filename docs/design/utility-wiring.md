@@ -56,10 +56,19 @@ shielded industrial feeder for a lamp).
   must share a component with real generation (a battery is storage, not a source). This is the
   design-time half of "no magic transmission". The seed `home.ron` was rewired from a symbolic diagram
   into a physically connected network (PV array + wind + generator -> battery bus -> loads).
-- **Stage 3 (next):** runtime graph-gating -- `ElectricalSystem`/`PlumbingSystem` stop summing globally
-  and flow only through kind-matched, in-spec components (sim-realism-roadmap gap #2). Needs the spawned
-  power entities to carry their instance id so the tick can group them by the union-find islands above.
-  This is where the rating actually *trips* under load, not just warns at design time.
+- **Stage 3 (v0.607, SHIPPED):** runtime power-flow gating -- each spawned power entity carries a
+  `PowerCircuit { island }` (from `electrical_islands`), and `ElectricalSystem` balances + sheds PER
+  ISLAND instead of summing the world. A load on an unconnected circuit is shed. Entities without the
+  component share one bucket (the old global behaviour).
+- **Stage 3b -- water (v0.608, SHIPPED):** the `PlumbingSystem` mirrors the electrical one for water,
+  and adds the first POWER -> WATER consequence chain. Water producers/consumers derive from machine
+  PORTS (`flow_lpm`); a cistern's capacity comes from `MachineDef.storage`; `water_islands` groups them.
+  A producer/consumer flagged `needs_power` only flows while the SAME entity's `PowerConsumer` is enabled
+  -- cut the power (or shed it) and the pump stops, the cistern drains, `days_autonomy` ticks down. The
+  live `WaterStatus` shows on the Home page next to Live power. (`src/systems/plumbing.rs`,
+  `src/ecs/components.rs` WaterTank/WaterProducer/WaterConsumer/PlumbingCircuit.)
+- **Stage 3c (next):** generalise the runtime gate so a powered TRANSPORT machine (pump) gates delivery
+  across a chain, and add a water buildability check (every fixture reaches a source/tank).
 - **Stage 4:** editor UX -- wire port A -> port B with a gizmo, pick the cable type, per-port render
   anchors, and the **superconductor upgrade mission** (swap every copper run for `sc_room_temp`).
 

@@ -414,32 +414,9 @@ impl Default for ProductionFacility {
 }
 
 // ── Plumbing & Water ────────────────────────────────────────
-
-/// A water storage tank. Capacity in liters; current is the live level.
-/// `PlumbingSystem` drains tanks to satisfy nearby `WaterFixture` demand.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WaterTank {
-    pub current: f32,
-    pub capacity: f32,
-}
-
-impl Default for WaterTank {
-    fn default() -> Self {
-        Self { current: 0.0, capacity: 1000.0 }
-    }
-}
-
-/// A water-consuming fixture (sink, shower, hydroponics tray, livestock trough).
-/// `demand_per_day` is target liters/day; `supplied_today` accumulates as
-/// water is delivered from a nearby `WaterTank`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WaterFixture {
-    pub demand_per_day: f32,
-    pub supplied_today: f32,
-    /// Whether the fixture got water on the last tick (drives "no water" UI feedback).
-    #[serde(default)]
-    pub satisfied: bool,
-}
+// The live water components (WaterTank, WaterProducer, WaterConsumer, PlumbingCircuit) live further
+// down next to PowerCircuit (v0.608). The old distance-based WaterTank/WaterFixture scaffold was
+// replaced by the island-coupled PlumbingSystem.
 
 // ── HVAC & Room Environment ─────────────────────────────────
 
@@ -626,6 +603,39 @@ pub struct HomeMachine;
 /// component (legacy / test spawns) fall into one shared bucket, preserving the old global behaviour.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct PowerCircuit {
+    pub island: u32,
+}
+
+/// A bulk water store (a cistern/tank) (v0.608). `liters` is the live level; `PlumbingSystem` fills it
+/// from powered producers and drains it for consumers, so the day's water budget is a draining number.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct WaterTank {
+    pub liters: f32,
+    pub capacity_l: f32,
+}
+
+/// Produces `lpm` litres/min of water into its plumbing island (a purifier/well) (v0.608). If
+/// `needs_power`, it only produces while the SAME entity's `PowerConsumer` is enabled -- the first real
+/// power -> water consequence chain (cut the power, the pump stops, the cistern stops filling).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct WaterProducer {
+    pub lpm: f32,
+    pub needs_power: bool,
+}
+
+/// Draws `lpm` litres/min of water from its plumbing island (household / irrigation / a tower) (v0.608).
+/// If `needs_power`, it only draws while the same entity is powered.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct WaterConsumer {
+    pub lpm: f32,
+    pub needs_power: bool,
+}
+
+/// The plumbing ISLAND (connected water-pipe component) a water entity belongs to (v0.608). Parallels
+/// `PowerCircuit`: the `PlumbingSystem` balances production/storage/demand PER ISLAND so water cannot
+/// teleport between unconnected pipe runs. Entities without it share the `None` bucket.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct PlumbingCircuit {
     pub island: u32,
 }
 

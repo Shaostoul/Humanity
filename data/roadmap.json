@@ -347,8 +347,8 @@
         },
         {
           "status": "building",
-          "version": "v0.604 to v0.607",
-          "text": "Utility wiring, no magic transmission (v0.604 to v0.607): power, water, air, and data travel through rated cables and pipes (real AWG / ampacity / voltage-drop physics); machines declare IN / OUT ports by utility. SHIPPED: the data model + cable registry + physics, machine ports + the Conduits buildability check, the Power-circuit connectivity check, and runtime per-island power-flow gating. Next: a wire-A-to-B gizmo and the room-temperature superconductor upgrade mission. Design in docs/design/utility-wiring.md."
+          "version": "v0.604 to v0.608",
+          "text": "Utility wiring, no magic transmission (v0.604 to v0.608): power, water, air, and data travel through rated cables and pipes (real AWG / ampacity / voltage-drop physics); machines declare IN / OUT ports by utility. SHIPPED: the data model + cable registry + physics, machine ports + the Conduits buildability check, the Power-circuit connectivity check, runtime per-island power-flow gating, and a live water / plumbing sim coupled to power (powered pumps fill the cistern; cut the power and it drains). Next: a wire-A-to-B gizmo and the room-temperature superconductor upgrade mission. Design in docs/design/utility-wiring.md."
         },
         {
           "status": "next",
@@ -537,6 +537,11 @@
     }
   ],
   "recent": [
+    {
+      "status": "done",
+      "version": "v0.608",
+      "text": "Live water / plumbing sim coupled to power: cisterns store, powered pumps + purifiers fill them, fixtures draw, all per pipe island -- and cutting the power stops the water (the first power -> water consequence chain). Shown live on the Home page."
+    },
     {
       "status": "done",
       "version": "v0.604 to v0.607",

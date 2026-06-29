@@ -216,12 +216,13 @@ The game teaches the homestead; the homestead is real.
   entities (generators / consumers / batteries) that load-shed by priority and charge /
   discharge with the solar swing; a design-time buildability validator (power source,
   energy balance, wiring, conduits, power circuit).
-- `[building]` Utility wiring, no magic transmission (v0.604 to v0.607): power, water,
+- `[building]` Utility wiring, no magic transmission (v0.604 to v0.608): power, water,
   air, and data travel through rated cables and pipes (real AWG / ampacity / voltage-drop
   physics); machines declare IN / OUT ports by utility. SHIPPED: the data model + cable
   registry + physics, machine ports + the Conduits buildability check, the Power-circuit
-  connectivity check, and runtime per-island power-flow gating. Next: a wire-A-to-B gizmo
-  and the room-temperature superconductor upgrade mission. Design in
+  connectivity check, runtime per-island power-flow gating, and a live water / plumbing sim
+  coupled to power (powered pumps fill the cistern; cut the power and it drains). Next: a
+  wire-A-to-B gizmo and the room-temperature superconductor upgrade mission. Design in
   `docs/design/utility-wiring.md`.
 - `[next]` Multiplayer co-presence + the character / server model: two players in one
   world on the VPS; self-custodial local characters vs server-authoritative ones (open
@@ -304,6 +305,9 @@ Every operator gets the same sovereignty tools, not just the original.
 
 Newest first. For older history see `docs/history/` and `git log`.
 
+- `v0.608` Live water / plumbing sim coupled to power: cisterns store, powered pumps +
+  purifiers fill them, fixtures draw, all per pipe island -- and cutting the power stops
+  the water (the first power -> water consequence chain). Shown live on the Home page.
 - `v0.604 to v0.607` Utility wiring: real copper-cable physics + a conduit registry,
   machine IN / OUT ports, the Conduits + Power-circuit buildability checks, a physically
   wired seed home, and runtime per-island power-flow gating (no magic transmission).

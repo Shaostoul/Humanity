@@ -1392,6 +1392,13 @@ pub struct GuiState {
     pub power_battery_wh: f32,
     pub power_battery_capacity_wh: f32,
     pub power_autonomy_hours: f32,
+    /// Live home WATER readout (v0.608), mirrored from PlumbingSystem each frame: production + demand
+    /// (L/min), stored + capacity (litres), and days of autonomy at the current demand.
+    pub water_production_lpm: f32,
+    pub water_demand_lpm: f32,
+    pub water_stored_l: f32,
+    pub water_capacity_l: f32,
+    pub water_days_autonomy: f32,
     /// Character-select showroom (v0.441): when active, the home is hidden and the avatar is
     /// previewed against a backdrop with an orbit camera + the customization panel.
     pub showroom_active: bool,
@@ -2551,6 +2558,11 @@ impl Default for GuiState {
             power_autonomy_hours: 0.0,
             power_consumption: 0.0,
             power_balance: 0.0,
+            water_production_lpm: 0.0,
+            water_demand_lpm: 0.0,
+            water_stored_l: 0.0,
+            water_capacity_l: 0.0,
+            water_days_autonomy: 0.0,
             showroom_active: false,
             show_roof: false,
             construction_active: false,

@@ -103,7 +103,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 capacity_wh: state.power_battery_capacity_wh,
                 autonomy: state.power_autonomy_hours,
             };
-            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops, power);
+            let water = LiveWater {
+                production: state.water_production_lpm,
+                demand: state.water_demand_lpm,
+                stored: state.water_stored_l,
+                capacity: state.water_capacity_l,
+                days_autonomy: state.water_days_autonomy,
+            };
+            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops, power, water);
         });
 }
 
@@ -120,6 +127,17 @@ struct LivePower {
     autonomy: f32,
 }
 
+/// Live WATER readout from the running sim (PlumbingSystem -> WaterStatus -> GuiState), passed into
+/// `draw_design`. Zero with no water machines -> the Live water card hides itself. (v0.608)
+#[derive(Clone, Copy, Default)]
+struct LiveWater {
+    production: f32,
+    demand: f32,
+    stored: f32,
+    capacity: f32,
+    days_autonomy: f32,
+}
+
 fn draw_design(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -128,6 +146,7 @@ fn draw_design(
     compat: &[TowerCompat],
     loops: &[crate::machines::HomeLoop],
     power: LivePower,
+    water: LiveWater,
 ) {
     ui.label(RichText::new("Your Home").size(theme.font_size_title).color(theme.text_primary()));
     ui.label(RichText::new(&design.name).size(theme.font_size_heading).color(theme.accent()));
@@ -239,6 +258,42 @@ fn draw_design(
                         theme,
                         "Battery",
                         &format!("{:.0}%  ({:.1} kWh)  ~{:.1} h autonomy", pct, live_battery_wh / 1000.0, live_autonomy),
+                    );
+                }
+            });
+            ui.add_space(theme.spacing_sm);
+        }
+
+        // ── Live water (the running PlumbingSystem, v0.608) ──
+        // Production needs power (cut the power and the cistern stops filling); the cistern buffers
+        // the difference, so "days of water" is a draining number coupled to the power sim.
+        if water.production > 0.0 || water.demand > 0.0 || water.capacity > 0.0 {
+            widgets::card(ui, theme, |ui| {
+                ui.label(RichText::new("Live water").size(theme.font_size_body).strong().color(theme.text_primary()));
+                ui.label(
+                    RichText::new("The running sim: powered pumps + purifiers fill the cistern; cut the power and it drains.")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+                ui.add_space(theme.spacing_xs);
+                widgets::detail_row(ui, theme, "Production", &format!("{:.1} L/min", water.production));
+                widgets::detail_row(ui, theme, "Demand", &format!("{:.1} L/min", water.demand));
+                let (bal_text, bal_color) = if water.production - water.demand >= 0.0 {
+                    (format!("+{:.1} L/min filling", water.production - water.demand), theme.success())
+                } else {
+                    (format!("{:.1} L/min draining", water.production - water.demand), theme.danger())
+                };
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Balance").size(theme.font_size_small).color(theme.text_secondary()));
+                    ui.label(RichText::new(bal_text).size(theme.font_size_small).strong().color(bal_color));
+                });
+                if water.capacity > 0.0 {
+                    let pct = (water.stored / water.capacity * 100.0).clamp(0.0, 100.0);
+                    widgets::detail_row(
+                        ui,
+                        theme,
+                        "Cistern",
+                        &format!("{:.0}%  ({:.0} / {:.0} L)  ~{:.1} days", pct, water.stored, water.capacity, water.days_autonomy),
                     );
                 }
             });

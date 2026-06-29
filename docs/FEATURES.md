@@ -1042,6 +1042,16 @@ unconnected circuit is shed (no magic transmission). Entities without the compon
 bucket (the old global behaviour, for tests/legacy).
 - Native: `src/ecs/components.rs` (`PowerCircuit`), `src/machines.rs` (`electrical_islands`, `power_component_roots`), `src/systems/electrical.rs`
 
+### Live Water / Plumbing Sim + Power Coupling (v0.608)
+The water mirror of the electrical sim, and the first POWER -> WATER consequence chain. A machine's
+water producers/consumers derive from its PORTS (`flow_lpm`); a cistern's capacity from
+`MachineDef.storage`; `water_islands` groups them per pipe network. `PlumbingSystem` fills/drains the
+cistern per island and publishes a live `WaterStatus` (production, demand, stored, days autonomy). A
+producer/consumer flagged `needs_power` only flows while the SAME entity is powered -- cut the power and
+the pump stops, the cistern drains. Shown on the Home page next to Live power.
+- Native: `src/systems/plumbing.rs` (`PlumbingSystem`, `WaterStatus`), `src/ecs/components.rs` (`WaterTank`, `WaterProducer`, `WaterConsumer`, `PlumbingCircuit`), `src/machines.rs` (`water_islands`, `MachineStorage`, `water_production_lpm`/`water_demand_lpm`/`water_capacity_l`), `src/gui/pages/homes.rs` (Live water card)
+- Data: `data/machines/home.ron` (cistern storage + rain inflow, pump water-out, tower/irrigation water-in)
+
 ### Node-Based Conduits (v0.535, v0.581)
 Conduit junction nodes + auto-routed edges in the editor (draggable node gizmos), plus the
 Manhattan/service-height auto-router that runs pipes up to the ceiling and down to the fixture
