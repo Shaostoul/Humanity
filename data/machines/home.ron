@@ -37,9 +37,11 @@
             label: "Cistern (8000 L)",
             category: "Water",
             stats: [(kind: "storage", value: "33 days", status: "ok"), (kind: "water", value: "rain + well fed", status: "ok")],
-            // Live water sim (v0.608): stores 8000 L and has a passive rain/well inflow (no power needed).
+            // Live water sim (v0.610): stores 8000 L. Passive rain catchment trickles in WITHOUT power
+            // (0.1 L/min ~ 144 L/day). It is deliberately SMALLER than household demand, so when the
+            // powered well pump is cut the cistern actually drains (rain alone can't keep up).
             storage: [(utility: Water, capacity: 8000.0)],
-            ports: [(utility: Water, dir: Out, label: "rain + well", flow_lpm: 0.3)],
+            ports: [(utility: Water, dir: Out, label: "rain catchment", flow_lpm: 0.1)],
         ),
         "water_pump": (
             shape: "box", size: (0.35, 0.35, 0.35), color: (0.30, 0.50, 0.60),
@@ -47,10 +49,12 @@
             category: "Water",
             stats: [(kind: "power", value: "-0.24 kWh/d", status: "ok"), (kind: "water", value: "12 L/min", status: "ok")],
             power: Some(Consumer(watts: 10.0, priority: 2)),
-            // Explicit ports (v0.605): draws electricity for its motor, pushes pressurised water out.
+            // Ports (v0.610): the well pump is the POWERED water SOURCE -- it lifts new groundwater into
+            // the cistern (2.0 L/min when running). Needs power, so cutting the grid stops the inflow.
+            // (Was 12 L/min, which over-modelled it as a giant source that pinned the cistern full.)
             ports: [
                 (utility: Electricity, dir: In, label: "motor", watts: 10.0),
-                (utility: Water, dir: Out, label: "pressure out", flow_lpm: 12.0),
+                (utility: Water, dir: Out, label: "well lift", flow_lpm: 2.0),
             ],
         ),
         "water_purifier": (
@@ -59,6 +63,20 @@
             category: "Water",
             stats: [(kind: "water", value: "+240 L/d potable", status: "ok"), (kind: "power", value: "-0.30 kWh/d", status: "ok")],
             power: Some(Consumer(watts: 13.0, priority: 2)),
+            // Treatment CONSERVES water (it polishes what the pump already lifted), so it is NOT a net
+            // water source -- modelling it as one would double-count. It stays a power load + an inline
+            // node on the water run (cistern -> pump -> purifier -> irrigation). (v0.610)
+        ),
+        "home_water_use": (
+            shape: "box", size: (0.3, 0.3, 0.3), color: (0.40, 0.60, 0.78),
+            label: "Household water (taps + showers)",
+            category: "Water",
+            stats: [(kind: "water", value: "-240 L/d (drink/wash)", status: "ok")],
+            // The household sink (v0.610): drinking, cooking, washing -- ~0.17 L/min (~240 L/day for 3
+            // people). NO power role: a gravity/pressure-fed tap still flows in a blackout. This is the
+            // demand that keeps draining the cistern after a power cut stops the well pump, so the live
+            // water sim shows the consequence (the cistern's "days left" actually ticks down).
+            ports: [(utility: Water, dir: In, label: "taps", flow_lpm: 0.17)],
         ),
         "composter": (
             shape: "box", size: (0.7, 0.55, 0.7), color: (0.35, 0.25, 0.14),
@@ -76,12 +94,13 @@
             label: "Variety tower",
             category: "Food",
             stats: [(kind: "food", value: "+92 kcal/d", status: "warn"), (kind: "nutrient", value: "vitamins + protein", status: "ok"), (kind: "power", value: "sun-lit, -15 W", status: "ok")],
-            // Explicit ports (v0.605): the operator's example -- an aeroponic tower needs BOTH water
-            // (the misting feed) AND electricity (pump + supplemental grow light). Aeroponics
-            // recirculates, so net water draw is small (v0.608): ~0.05 L/min top-up per tower.
+            // Ports (v0.610): an aeroponic tower needs electricity (its misting pump + light). Its water
+            // is a CLOSED RECIRCULATING loop topped up by the garden's irrigation manifold, so the net
+            // continuous draw is ~0 -- modelling each of the 24 towers as its own standalone water sink
+            // made 24 disconnected demand-with-no-supply islands. The garden's real water demand lives on
+            // the `irrigation_system` (one sink on the cistern circuit) instead. Electricity stays here.
             ports: [
                 (utility: Electricity, dir: In, label: "pump + light", watts: 15.0),
-                (utility: Water, dir: In, label: "mist feed", flow_lpm: 0.05),
             ],
         ),
         "aeroponic_tower_apothecary": (
@@ -126,10 +145,12 @@
             category: "Water",
             stats: [(kind: "water", value: "60 L/d to plants", status: "ok"), (kind: "power", value: "-0.16 kWh/d", status: "ok")],
             power: Some(Consumer(watts: 7.0, priority: 3)),
-            // Live water sim (v0.608): draws ~0.04 L/min (~60 L/day) to the plants when powered.
+            // Live water sim (v0.610): the garden's water sink -- waters the beds + tops up the towers'
+            // recirculating reservoirs. ~0.5 L/min when powered (~720 L/day across the indoor farm).
+            // Power-gated: cut the grid and the plants stop being watered (a second consequence).
             ports: [
                 (utility: Electricity, dir: In, label: "pump", watts: 7.0),
-                (utility: Water, dir: In, label: "to plants", flow_lpm: 0.04),
+                (utility: Water, dir: In, label: "to garden", flow_lpm: 0.5),
             ],
         ),
         "grain_field": (
@@ -227,6 +248,7 @@
         (id: "gen_1", machine: "generator_portable", room: "garage", offset: (11.8, 0.0, 25.8)),
         (id: "pump_1", machine: "water_pump", room: "garage", offset: (7.6, 0.0, 28.4)),
         (id: "purifier_1", machine: "water_purifier", room: "garage", offset: (8.6, 0.0, 28.4)),
+        (id: "household_1", machine: "home_water_use", room: "garage", offset: (6.6, 0.0, 29.2)),
 
         // ── Garage hull surface + utility (v0.438). The operator disabled the huge open
         //    ranch (a 233x233 m walk to its centre) and consolidated everything into the
@@ -323,10 +345,12 @@
         (from: "battery_7", to: "irrigation_1", kind: "power"),
         (from: "battery_8", to: "turret_1", kind: "power"),
 
-        // Water: cistern -> pump -> purifier -> irrigation -> greenhouse.
+        // Water: cistern -> pump -> purifier -> irrigation + the household taps. All on ONE plumbing
+        // island so the live PlumbingSystem actually fills + drains the cistern (v0.610).
         (from: "cistern_1", to: "pump_1", kind: "water"),
         (from: "pump_1", to: "purifier_1", kind: "water"),
         (from: "purifier_1", to: "irrigation_1", kind: "water"),
+        (from: "cistern_1", to: "household_1", kind: "water"),
         // Garden: irrigation feeds the staple beds; the aquaponic loop feeds the towers
         // (fish water + waste), so the towers are watered AND fertilized by the fish.
         (from: "irrigation_1", to: "potato_0", kind: "water"),

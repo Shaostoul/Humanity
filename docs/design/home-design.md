@@ -35,7 +35,7 @@ The litmus test for "done": **an AI-authored home opens in the construction edit
 The numbers are already real; the gap is wiring + a check, not the model.
 
 - **Energy** — kWh/day, not nameplate. `home.ron` (per `docs/design/self-sufficiency.md`): 8×400W panels ≈ 11.5 kWh/day at 4.5 sun-hours. Live: `ElectricalSystem` publishes `PowerStatus {generation, consumption, balance, battery_wh, autonomy_hours}` (`src/systems/electrical.rs`); `integrate_battery` is unit-tested.
-- **Water** — L/day. 8000 L cistern = 33 days at 240 L/d. `PlumbingSystem` exists (`src/systems/plumbing.rs`) but the machines aren't spawned as the `WaterTank`/`WaterFixture` entities it needs, so it's not yet live.
+- **Water** -- L/day. 8000 L cistern. Live (v0.608): `PlumbingSystem` (`src/systems/plumbing.rs`) fills the cistern from powered producers (the well pump) and drains it for demand (household + irrigation), per plumbing island, publishing `WaterStatus`. Coupled to power -- cut the grid and the pump stops, the cistern drains. Machines spawn as `WaterTank`/`WaterProducer`/`WaterConsumer`/`PlumbingCircuit` entities (derived from machine ports + `MachineStorage`).
 - **Food** — kcal/day with honest limits (indoor canopy is light-capped, grow-lights are EROI-negative, aquaponics closes B12/omega-3). Static specs today, no live FoodSystem.
 - **Structure** — `materials.csv` carries real density / tensile strength / cost (steel 7850 kg/m³, 500 MPa; oak 750, 100 MPa). `src/systems/construction/solver.rs` already derives member capacity from yield strength; it's a pure de-risk spike, not yet wired to room/machine edits.
 
@@ -79,7 +79,7 @@ Each stage ships independently + leaves the home buildable.
 
 1. **Machines in the editor (the #1 parity gap).** Add a Machines panel to the construction editor: for the selected room, list its `home.ron` instances; add (from the catalog), remove, nudge offset; render them in the 3D view; Save writes `home.ron` instances. Players can finally place machines; the AI keeps editing the same file. **SHIPPED v0.519.0** (list / add-from-catalog / remove per selected room, persisted via `MachineHome::save` to `home.ron` behind a "Save machines" button; `MachineHome` is now `Serialize` + round-trip tested). Still to do in this stage: offset-nudge + rendering the placed machine in the editor's 3D view.
 2. **Connections in the editor.** Draw a power/water/nutrient pipe between two machines; Save writes `home.ron` connections.
-3. **Buildability validator.** Spawn machines as the ECS bodies the sims need (`WaterTank`/`WaterFixture`/power roles — power already done at startup in v0.518); add a validation pass (power balances, water closes, structure holds, materials accounted) surfaced in the editor + callable by the AI.
+3. **Buildability validator. SHIPPED (v0.524 to v0.608).** Machines spawn as the ECS bodies the sims need (power roles + `WaterTank`/`WaterProducer`/`WaterConsumer`); the validation pass (Power source / Energy balance / Wiring / Conduits / Power circuit) is in `MachineHome::buildability_report`, surfaced in the editor + callable by the AI. Remaining: a water-closes check + structure/materials checks.
 4. **Unify the model.** Collapse rooms + machines + connections + BOM into one Home representation (or one coordinated save transaction), so a room move re-roots its machines and the blueprint BOM derives from the actual machines + walls.
 5. **Action registry.** Register the home-design actions so the AI invokes the same surface the player uses; document in `in-app-ops.md`.
 

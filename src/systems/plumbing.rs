@@ -217,6 +217,55 @@ mod tests {
         assert!((world.get::<&WaterTank>(t1).unwrap().liters - 100.0).abs() < 0.01, "island 1 tank unchanged");
     }
 
+    /// End-to-end with the SEED home's exact island numbers (v0.610): cistern (8000 L) + passive rain
+    /// 0.1 L/min + a POWERED well pump 2.0 + POWERED irrigation 0.5 + a NON-powered household tap 0.17.
+    /// Powered -> the cistern fills; cut the power (pump + irrigation shed) -> rain 0.1 < tap 0.17 -> it
+    /// drains. Proves the seed actually demonstrates the power -> water consequence the card advertises.
+    #[test]
+    fn seed_island_fills_when_powered_and_drains_when_cut() {
+        let mut data = DataStore::new();
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
+        let mut world = hecs::World::new();
+        // Cistern: tank + passive rain producer (no power).
+        let cistern = world.spawn((
+            WaterTank { liters: 4000.0, capacity_l: 8000.0 },
+            WaterProducer { lpm: 0.1, needs_power: false },
+            PlumbingCircuit { island: 0 },
+        ));
+        // Well pump: powered producer.
+        let pump = world.spawn((
+            WaterProducer { lpm: 2.0, needs_power: true },
+            PowerConsumer { draw_watts: 10.0, priority: 2, enabled: true },
+            PlumbingCircuit { island: 0 },
+        ));
+        // Irrigation: powered consumer.
+        let irrigation = world.spawn((
+            WaterConsumer { lpm: 0.5, needs_power: true },
+            PowerConsumer { draw_watts: 7.0, priority: 3, enabled: true },
+            PlumbingCircuit { island: 0 },
+        ));
+        // Household tap: NON-powered consumer.
+        world.spawn((WaterConsumer { lpm: 0.17, needs_power: false }, PlumbingCircuit { island: 0 }));
+
+        let mut sys = PlumbingSystem::new();
+        // Powered: net +1.43 L/min -> the cistern fills.
+        let before = world.get::<&WaterTank>(cistern).unwrap().liters;
+        sys.tick(&mut world, 60.0, &data);
+        let after_powered = world.get::<&WaterTank>(cistern).unwrap().liters;
+        assert!(after_powered > before, "powered cistern fills ({before} -> {after_powered})");
+        assert!(status(&data).balance_lpm > 0.0, "powered balance is positive");
+
+        // Cut the grid: a power deficit sheds the pump + irrigation.
+        world.get::<&mut PowerConsumer>(pump).unwrap().enabled = false;
+        world.get::<&mut PowerConsumer>(irrigation).unwrap().enabled = false;
+        sys.tick(&mut world, 60.0, &data);
+        let after_cut = world.get::<&WaterTank>(cistern).unwrap().liters;
+        assert!(after_cut < after_powered, "power cut -> cistern drains ({after_powered} -> {after_cut})");
+        let s = status(&data);
+        assert!(s.balance_lpm < 0.0, "power-cut balance is negative (draining): {}", s.balance_lpm);
+        assert!(s.days_autonomy > 0.0 && s.days_autonomy.is_finite(), "finite days of water left: {}", s.days_autonomy);
+    }
+
     /// A tank never overfills or drains below zero.
     #[test]
     fn tank_clamps_to_capacity_and_empty() {

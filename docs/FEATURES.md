@@ -1148,8 +1148,12 @@ Autonomous agent presets for off-screen NPC simulation (patrol, trade, farm, bui
 - Data: `data/offline_behaviors.ron`
 
 ### Simulation Systems (v0.90.0)
-Data-driven simulation modules for engineering and infrastructure. **⚠️ The consuming systems are 47–52 LOC scaffolds, NOT registered, they never tick (see `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`); the data files exist but nothing consumes them at runtime.**
-- Data: `data/electrical.ron`, `data/plumbing.ron`, `data/hvac.ron`, `data/transportation.ron`, `data/fire_system.ron`, `data/docking.ron`
+Data-driven simulation modules for engineering and infrastructure. **⚠️ Most consuming systems are still
+unregistered scaffolds (see `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`); their data files exist but
+nothing consumes them at runtime. EXCEPTIONS now LIVE: `ElectricalSystem` + `SolarSystem` (home power
+sim) and `PlumbingSystem` (home water sim, v0.608) -- see "Home Power and Electrical Sim" + "Utility
+Wiring" above. The old `plumbing.ron`/`WaterFixture` scaffold was removed when PlumbingSystem went live.**
+- Data: `data/electrical.ron`, `data/hvac.ron`, `data/transportation.ron`, `data/fire_system.ron`, `data/docking.ron`
 
 ### Real-World Systems (v0.90.0)
 Data definitions for social and biological simulation. **⚠️ The consuming systems are scaffolds, NOT registered, they never tick (see the lint); data exists but isn't consumed at runtime.**

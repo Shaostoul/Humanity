@@ -1765,23 +1765,50 @@ mod tests {
         assert_eq!(circuit.status, CheckStatus::Pass, "panel->node->load is wired: {}", circuit.detail);
     }
 
-    /// The shipped seed home has a coherent water sim: the cistern stores 8000 L, the pump produces,
-    /// and the aeroponic towers + irrigation draw -- so the PlumbingSystem has something to run.
+    /// The shipped seed home has a COHERENT, CONNECTED water sim (v0.610, after the adversarial-review
+    /// fixes): the cistern + the powered well pump + the irrigation draw + the non-powered household tap
+    /// all share ONE plumbing island, and there is a non-powered demand that exceeds the passive rain --
+    /// so the cistern actually fills when powered and DRAINS when the grid is cut (the consequence the
+    /// Live water card advertises). Guards against a regression to the old inert/disconnected topology.
     #[test]
     fn seed_home_water_topology_is_sane() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
+        let all = home.all_instances();
+
+        // Cistern stores 8000 L; its passive rain inflow is small (less than the household demand).
         let cistern = home.catalog.get("water_tank").expect("a cistern type");
         assert!((cistern.water_capacity_l() - 8000.0).abs() < 1.0, "cistern stores 8000 L");
-        assert!(cistern.is_water_machine(), "cistern is a water machine");
+        let rain = cistern.water_production_lpm();
+        // The well pump is the POWERED water source.
         let pump = home.catalog.get("water_pump").expect("a pump type");
         assert!(pump.water_production_lpm() > 0.0, "pump produces water");
-        assert!(pump.draws_power(), "pump needs power (so its water output is power-gated)");
+        assert!(pump.draws_power(), "pump is power-gated (its water output stops on a power cut)");
+        // The household tap is a NON-powered demand that exceeds rain -> drains the cistern when the
+        // powered pump stops. This is what makes the consequence visible.
+        let household = home.catalog.get("home_water_use").expect("a household-water type");
+        let tap = household.water_demand_lpm();
+        assert!(tap > 0.0, "household draws water");
+        assert!(!household.draws_power(), "household tap is NOT power-gated (taps flow in a blackout)");
+        assert!(tap > rain, "non-powered demand {tap} must exceed passive rain {rain} so the cistern can drain");
+
+        // The aeroponic towers no longer each form a standalone water island (HIGH-1 fix): they are
+        // electricity-only now (water recirculates), so they are not water-graph members.
         let tower = home.catalog.get("aeroponic_tower_nutrition").expect("a tower type");
-        assert!(tower.water_demand_lpm() > 0.0, "tower draws water");
-        // The water graph yields at least one island over the real instances.
-        let islands = home.water_islands(&home.all_instances());
-        assert!(!islands.is_empty(), "the seed home has water machines on the water graph");
+        assert!(!tower.is_water_machine(), "towers recirculate -> not standalone water sinks");
+        assert!(tower.draws_power(), "towers still need electricity");
+
+        // ONE connected plumbing island for the home's water (not 25). cistern + pump + irrigation +
+        // household must share it.
+        let islands = home.water_islands(&all);
+        let distinct: std::collections::HashSet<u32> = islands.values().copied().collect();
+        assert_eq!(distinct.len(), 1, "the seed home's water is ONE island, got {distinct:?}");
+        for id in ["cistern_1", "pump_1", "irrigation_1", "household_1"] {
+            assert!(islands.contains_key(id), "{id} is on the water graph");
+        }
+        let i = islands["cistern_1"];
+        assert!(["pump_1", "irrigation_1", "household_1"].iter().all(|m| islands[*m] == i),
+            "cistern, pump, irrigation, household share one island");
     }
 
     /// The shipped seed home is a fully-wired network: every load traces to a generator (no FAIL).
