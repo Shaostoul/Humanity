@@ -849,6 +849,14 @@ with Ctrl+D. Grid-snap toggle (0.25 m). Constant-width "line circle" gizmo bound
 the active grabbed gizmo RGB-cycles.
 - Native: `src/lib.rs` (`construction_duplicate`, the `construction_*_grab` states), `src/gui/pages/construction.rs` (browser hints, grid-snap toggle)
 
+### Multi-Select + Group Delete / Nudge (v0.612)
+Ctrl+click rows in the object browser to build a multi-select set (across every type -- walls, machines,
+lights, structures, road/pipe nodes); selected rows show a `*` and the accent colour. A group-action bar
+gives Delete (removes them all, index-keyed types in descending order, id-keyed types via the pruning
+helpers so connections stay consistent), Clear, and Nudge (+/-X, +/-Z by 0.5 m, keeping each object's
+height). A plain click resets the set to single-selection.
+- Native: `src/gui/pages/construction.rs` (`group_delete`, `group_nudge`, the browser's Ctrl+click + group bar), `src/gui/mod.rs` (`construction_multi`)
+
 ### Construction Console (AI / dev act surface) (v0.578 - v0.580)
 A text-command console, the discoverable act surface for both a human and an AI. Verbs: `help`, `list`,
 `add_wall`, `rm_wall`, `set_material`, `add_door`, `add_window`, `set_style`, `add_lock`, `add_light`,

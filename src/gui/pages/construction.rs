@@ -2245,19 +2245,57 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     }
     let total = rows.len();
+    // Stable "tag:id" key for the multi-select set (v0.612). Index-based for wall/struct/light (resolved
+    // at delete time, descending, to dodge shift bugs); id-based for machines + nodes.
+    fn key_str(k: &Key) -> String {
+        match k {
+            Key::Wall(i) => format!("Wall:{i}"),
+            Key::Structure(i) => format!("Struct:{i}"),
+            Key::Light(i) => format!("Light:{i}"),
+            Key::Machine(id) => format!("Machine:{id}"),
+            Key::RoadNode(id) => format!("Road:{id}"),
+            Key::ConduitNode(id) => format!("Pipe:{id}"),
+        }
+    }
+    // Snapshot the multi-set so the row loop can highlight members without holding a borrow on state.
+    let multi = state.construction_multi.clone();
     enum Act {
         Select(Key),
+        ToggleMulti(String),
         Focus((f32, f32, f32)),
         Remove(Key),
         ToggleLight(usize),
+        DeleteMulti,
+        NudgeMulti(f32, f32),
+        ClearMulti,
     }
     let mut act: Option<Act> = None;
     egui::CollapsingHeader::new(RichText::new(format!("Objects ({total})")).strong().color(theme.text_primary()))
         .id_salt("hs_object_browser")
         .default_open(true)
         .show(ui, |ui| {
-            ui.label(RichText::new("Click a row to edit it on the right; double-click to fly there; Ctrl+D duplicates the selected.")
+            ui.label(RichText::new("Click a row to edit it; Ctrl+click to multi-select; double-click to fly there; Ctrl+D duplicates.")
                 .size(theme.font_size_small).color(theme.text_muted()));
+            // Group-action bar (v0.612): appears whenever the multi-select set is non-empty.
+            if !multi.is_empty() {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("{} selected", multi.len())).strong().color(theme.accent()));
+                    if ui.small_button("Delete").clicked() {
+                        act = Some(Act::DeleteMulti);
+                    }
+                    if ui.small_button("Clear").clicked() {
+                        act = Some(Act::ClearMulti);
+                    }
+                });
+                // Nudge the whole set on the floor by 0.5 m (keeps each object's height/Y).
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Nudge").size(theme.font_size_small).color(theme.text_muted()));
+                    if ui.small_button("-X").clicked() { act = Some(Act::NudgeMulti(-0.5, 0.0)); }
+                    if ui.small_button("+X").clicked() { act = Some(Act::NudgeMulti(0.5, 0.0)); }
+                    if ui.small_button("-Z").clicked() { act = Some(Act::NudgeMulti(0.0, -0.5)); }
+                    if ui.small_button("+Z").clicked() { act = Some(Act::NudgeMulti(0.0, 0.5)); }
+                });
+            }
             // Filter comes from the box at the TOP of the left panel (v0.603). NO inner scroll area --
             // the left panel's single scrollbar handles overflow (nested scroll is confusing, operator).
             let filter = state.construction_object_filter.to_lowercase();
@@ -2286,11 +2324,18 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                             act = Some(Act::ToggleLight(*i));
                                         }
                                     }
-                                    let txt = format!("{}  ({:.0},{:.0})", row.name, row.pos.0, row.pos.2);
-                                    let resp = ui.selectable_label(row.selected, RichText::new(txt).size(theme.font_size_small)
-                                        .color(if row.selected { theme.accent() } else { theme.text_secondary() }));
+                                    let in_multi = multi.contains(&key_str(&row.key));
+                                    let txt = format!("{}{}  ({:.0},{:.0})", if in_multi { "* " } else { "" }, row.name, row.pos.0, row.pos.2);
+                                    let resp = ui.selectable_label(row.selected || in_multi, RichText::new(txt).size(theme.font_size_small)
+                                        .color(if row.selected || in_multi { theme.accent() } else { theme.text_secondary() }));
                                     if resp.clicked() {
-                                        act = Some(Act::Select(row.key.clone()));
+                                        // Ctrl+click toggles multi-select membership; a plain click is the
+                                        // usual single-select (which the handler also clears the set on).
+                                        if ui.input(|i| i.modifiers.ctrl) {
+                                            act = Some(Act::ToggleMulti(key_str(&row.key)));
+                                        } else {
+                                            act = Some(Act::Select(row.key.clone()));
+                                        }
                                     }
                                     if resp.double_clicked() {
                                         act = Some(Act::Focus((row.pos.0, row.pos.1 + 0.5, row.pos.2)));
@@ -2320,6 +2365,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     match act {
         Some(Act::Select(k)) => {
             clear_sel(state);
+            state.construction_multi.clear(); // a plain single-select resets the multi-set
             match k {
                 Key::Wall(i) => state.construction_wall_selected = Some(i),
                 Key::Structure(i) => state.construction_structure_selected = Some(i),
@@ -2329,6 +2375,18 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 Key::ConduitNode(id) => state.construction_conduit_node_selected = Some(id),
             }
         }
+        Some(Act::ToggleMulti(key)) => {
+            if !state.construction_multi.remove(&key) {
+                state.construction_multi.insert(key);
+            }
+        }
+        Some(Act::ClearMulti) => state.construction_multi.clear(),
+        Some(Act::DeleteMulti) => {
+            group_delete(state);
+            clear_sel(state);
+            state.construction_multi.clear();
+        }
+        Some(Act::NudgeMulti(dx, dz)) => group_nudge(state, dx, dz),
         Some(Act::Focus(p)) => state.construction_focus_request = Some(p),
         Some(Act::ToggleLight(i)) => {
             if let Some(hs) = state.home_structure.as_mut() {
@@ -2397,6 +2455,111 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
         None => {}
     }
+}
+
+/// Delete every object in the multi-select set (v0.612). Index-keyed types (walls/structures/lights)
+/// are removed in DESCENDING index order so earlier removals don't shift later indices; id-keyed types
+/// (machines, road/pipe nodes) remove via the pruning helpers (so connections/edges stay consistent).
+fn group_delete(state: &mut GuiState) {
+    let keys: Vec<String> = state.construction_multi.iter().cloned().collect();
+    let (mut wall_idx, mut struct_idx, mut light_idx) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut machine_ids, mut road_ids, mut pipe_ids) = (Vec::new(), Vec::new(), Vec::new());
+    for k in &keys {
+        let Some((tag, rest)) = k.split_once(':') else { continue };
+        match tag {
+            "Wall" => if let Ok(i) = rest.parse::<usize>() { wall_idx.push(i); },
+            "Struct" => if let Ok(i) = rest.parse::<usize>() { struct_idx.push(i); },
+            "Light" => if let Ok(i) = rest.parse::<usize>() { light_idx.push(i); },
+            "Machine" => machine_ids.push(rest.to_string()),
+            "Road" => if let Ok(i) = rest.parse::<u32>() { road_ids.push(i); },
+            "Pipe" => pipe_ids.push(rest.to_string()),
+            _ => {}
+        }
+    }
+    let mut struct_dirty = false;
+    let mut mach_dirty = false;
+    if let Some(hs) = state.home_structure.as_mut() {
+        struct_idx.sort_unstable();
+        struct_idx.dedup();
+        for &i in struct_idx.iter().rev() {
+            if i < hs.structures.len() {
+                hs.structures.remove(i);
+                // Re-point teleporter/train pairs across the removed index (mirrors single-remove).
+                for s in &mut hs.structures {
+                    if let Some(p) = s.pair {
+                        if p == i { s.pair = None; } else if p > i { s.pair = Some(p - 1); }
+                    }
+                }
+            }
+        }
+        wall_idx.sort_unstable();
+        wall_idx.dedup();
+        for &i in wall_idx.iter().rev() {
+            if i < hs.walls.len() { hs.walls.remove(i); }
+        }
+        light_idx.sort_unstable();
+        light_idx.dedup();
+        for &i in light_idx.iter().rev() {
+            if i < hs.lights.len() { hs.lights.remove(i); }
+        }
+        for id in &road_ids { hs.remove_road_node(*id); }
+        struct_dirty = !struct_idx.is_empty() || !wall_idx.is_empty() || !light_idx.is_empty() || !road_ids.is_empty();
+    }
+    if let Some(h) = state.home_machines.as_mut() {
+        for id in &machine_ids { h.remove_instance(id); }
+        for id in &pipe_ids { h.remove_conduit_node(id); }
+        mach_dirty = !machine_ids.is_empty() || !pipe_ids.is_empty();
+    }
+    if struct_dirty { state.construction_structure_dirty = true; }
+    if mach_dirty { state.construction_machines_dirty = true; }
+}
+
+/// Nudge every object in the multi-select set by (dx, dz) metres on the floor, keeping each object's
+/// height (v0.612). Walls move both corners; array-derived machines are skipped (only direct instances
+/// can move). Mirrors the per-object drag, just applied to the whole set at once.
+fn group_nudge(state: &mut GuiState, dx: f32, dz: f32) {
+    let keys: Vec<String> = state.construction_multi.iter().cloned().collect();
+    let mut struct_dirty = false;
+    let mut mach_dirty = false;
+    if let Some(hs) = state.home_structure.as_mut() {
+        for k in &keys {
+            let Some((tag, rest)) = k.split_once(':') else { continue };
+            match tag {
+                "Wall" => if let Ok(i) = rest.parse::<usize>() {
+                    if let Some(w) = hs.walls.get_mut(i) {
+                        w.a.0 += dx; w.a.1 += dz; w.b.0 += dx; w.b.1 += dz;
+                        struct_dirty = true;
+                    }
+                },
+                "Struct" => if let Ok(i) = rest.parse::<usize>() {
+                    if let Some(s) = hs.structures.get_mut(i) { s.pos.0 += dx; s.pos.2 += dz; struct_dirty = true; }
+                },
+                "Light" => if let Ok(i) = rest.parse::<usize>() {
+                    if let Some(l) = hs.lights.get_mut(i) { l.pos.0 += dx; l.pos.2 += dz; struct_dirty = true; }
+                },
+                "Road" => if let Ok(id) = rest.parse::<u32>() {
+                    if let Some(n) = hs.road_nodes.iter_mut().find(|n| n.id == id) { n.pos.0 += dx; n.pos.1 += dz; struct_dirty = true; }
+                },
+                _ => {}
+            }
+        }
+    }
+    if let Some(h) = state.home_machines.as_mut() {
+        for k in &keys {
+            let Some((tag, rest)) = k.split_once(':') else { continue };
+            match tag {
+                "Machine" => if let Some(m) = h.instances.iter_mut().find(|m| m.id == rest) {
+                    m.offset.0 += dx; m.offset.2 += dz; mach_dirty = true;
+                },
+                "Pipe" => if let Some(n) = h.conduit_nodes.iter_mut().find(|n| n.id == rest) {
+                    n.pos.0 += dx; n.pos.2 += dz; mach_dirty = true;
+                },
+                _ => {}
+            }
+        }
+    }
+    if struct_dirty { state.construction_structure_dirty = true; }
+    if mach_dirty { state.construction_machines_dirty = true; }
 }
 
 fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
@@ -2756,5 +2919,86 @@ fn draw_floorplan_canvas(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
         p[2] = snap(p[2] + dwz);
         r.position = Some(p);
         state.construction_dirty = true;
+    }
+}
+
+#[cfg(test)]
+mod multi_select_tests {
+    use super::*;
+    use crate::machines::{MachineConnection, MachineDef, MachineHome, MachineInstance};
+    use std::collections::BTreeMap;
+
+    fn box_def() -> MachineDef {
+        MachineDef {
+            shape: "box".into(),
+            size: (1.0, 1.0, 1.0),
+            color: (0.5, 0.5, 0.5),
+            label: String::new(),
+            category: "Machines".into(),
+            stats: Vec::new(),
+            power: None,
+            ports: Vec::new(),
+            storage: Vec::new(),
+        }
+    }
+
+    fn home_abc() -> MachineHome {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("box".to_string(), box_def());
+        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0) };
+        MachineHome {
+            catalog,
+            instances: vec![inst("a"), inst("b"), inst("c")],
+            arrays: Vec::new(),
+            connections: vec![MachineConnection { from: "a".into(), to: "b".into(), kind: "power".into(), spec: None }],
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+        }
+    }
+
+    /// v0.612: group_delete removes every selected machine + prunes connections that touched them.
+    #[test]
+    fn group_delete_removes_selected_machines_and_prunes_connections() {
+        let mut state = GuiState::default();
+        state.home_machines = Some(home_abc());
+        state.construction_multi.insert("Machine:a".into());
+        state.construction_multi.insert("Machine:b".into());
+        group_delete(&mut state);
+        let h = state.home_machines.as_ref().unwrap();
+        assert_eq!(h.instances.len(), 1, "a + b deleted, c remains");
+        assert_eq!(h.instances[0].id, "c");
+        assert!(h.connections.is_empty(), "the a-b connection was pruned");
+        assert!(state.construction_machines_dirty, "machines marked dirty");
+    }
+
+    /// v0.612: group_nudge shifts only the selected machines' floor offsets, keeping the rest put.
+    #[test]
+    fn group_nudge_shifts_only_selected_machines() {
+        let mut state = GuiState::default();
+        state.home_machines = Some(home_abc());
+        state.construction_multi.insert("Machine:a".into());
+        group_nudge(&mut state, 0.5, -0.5);
+        let h = state.home_machines.as_ref().unwrap();
+        let a = h.instances.iter().find(|i| i.id == "a").unwrap();
+        assert!((a.offset.0 - 0.5).abs() < 1e-6 && (a.offset.2 + 0.5).abs() < 1e-6, "selected 'a' nudged");
+        let b = h.instances.iter().find(|i| i.id == "b").unwrap();
+        assert!(b.offset.0.abs() < 1e-6 && b.offset.2.abs() < 1e-6, "unselected 'b' unchanged");
+    }
+
+    /// The exact descending-index removal pattern group_delete uses for index-keyed types
+    /// (walls/lights/structures): removing sorted-desc indices never shifts a not-yet-removed one.
+    #[test]
+    fn descending_index_removal_keeps_remaining_valid() {
+        let mut v = vec!['a', 'b', 'c', 'd', 'e'];
+        let mut idx = vec![3usize, 1, 1];
+        idx.sort_unstable();
+        idx.dedup();
+        for &i in idx.iter().rev() {
+            if i < v.len() {
+                v.remove(i);
+            }
+        }
+        assert_eq!(v, vec!['a', 'c', 'e'], "removed b (idx 1) + d (idx 3), order preserved");
     }
 }

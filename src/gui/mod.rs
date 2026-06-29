@@ -1532,6 +1532,10 @@ pub struct GuiState {
     /// Objects-browser filter text (v0.598): rows whose name contains it (case-insensitive) show;
     /// empty = all. With a non-empty filter, matching type-groups auto-expand.
     pub construction_object_filter: String,
+    /// Multi-select set for the object browser (v0.612): Ctrl+click a row to add/remove it; the set is
+    /// keyed by a stable "tag:id" string (e.g. "Machine:tower_0", "Wall:3"). Drives group delete +
+    /// group nudge. Empty = normal single-selection.
+    pub construction_multi: std::collections::HashSet<String>,
     /// Selected ROAD-graph node id (v0.597): its detail shows on the right; draggable in the viewport.
     pub construction_road_node_selected: Option<u32>,
     /// Selected CONDUIT-graph node id (v0.597): its detail shows on the right; draggable in the viewport.
@@ -2632,6 +2636,7 @@ impl Default for GuiState {
             construction_structure_selected: None,
             construction_focus_request: None,
             construction_object_filter: String::new(),
+            construction_multi: std::collections::HashSet::new(),
             construction_road_node_selected: None,
             construction_conduit_node_selected: None,
             construction_structure_yaw: 0.0,
