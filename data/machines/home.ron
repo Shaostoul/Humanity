@@ -93,6 +93,22 @@
                 (utility: Air, dir: Out, label: "fresh air", flow_lpm: 20.0),
             ],
         ),
+        "wifi_router": (
+            shape: "box", size: (0.25, 0.08, 0.18), color: (0.20, 0.22, 0.26),
+            label: "WiFi router (wireless)",
+            category: "Data",
+            stats: [(kind: "power", value: "-0.1 kWh/d", status: "ok"), (kind: "air", value: "emits RF", status: "warn")],
+            // Telecom (v0.620): convenient wireless data, but it EMITS RF while powered -- which harms a
+            // sensitive grow nearby (the FarmingSystem drains crop health by the home RF level). Run a
+            // wired link (Cat6/fibre, zero RF) instead to keep a clean grow. NOT placed in the seed home
+            // by default, so the reference grow stays safe; drop one in to see the tradeoff bite.
+            power: Some(Consumer(watts: 8.0, priority: 4)),
+            rf_emission: 0.6,
+            ports: [
+                (utility: Electricity, dir: In, label: "power", watts: 8.0),
+                (utility: Data, dir: Out, label: "wireless", flow_lpm: 0.0),
+            ],
+        ),
         "composter": (
             shape: "box", size: (0.7, 0.55, 0.7), color: (0.35, 0.25, 0.14),
             label: "Composter",

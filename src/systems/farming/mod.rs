@@ -236,6 +236,12 @@ const HEALTH_RECOVERY_RATE: f32 = 0.5;
 /// Health decay rate per second when water-stressed.
 const HEALTH_DECAY_RATE: f32 = 1.0;
 
+/// Home RF level above which crops start taking RF stress (v0.620). Any notable wireless emission.
+const RF_HARM_THRESHOLD: f32 = 0.1;
+/// Crop health lost per second per unit of home RF level. Scaled so one WiFi router (~0.6) outpaces the
+/// well-watered recovery rate, so the grow visibly declines while RF is present + recovers once it stops.
+const RF_HEALTH_PENALTY: f32 = 1.5;
+
 /// Seconds per in-game day (must match time system).
 const SECONDS_PER_DAY: f64 = 1200.0;
 
@@ -349,6 +355,21 @@ impl System for FarmingSystem {
             .and_then(|m| m.lock().ok())
             .map(|ws| ws.capacity_l <= 0.0 || ws.stored_l > ws.capacity_l * 0.02)
             .unwrap_or(true);
+
+        // RF -> FOOD coupling (v0.620): sum every POWERED RF emitter (a WiFi router) into a home RF
+        // level. Sensitive crops lose health under RF -- the operator's "the user doesn't want a WiFi
+        // router because it harms a plant they're growing." Run wired (Cat6/fibre, zero RF) to stay clean.
+        let home_rf: f32 = {
+            use crate::ecs::components::{PowerConsumer, RfEmitter};
+            let mut rf = 0.0f32;
+            for (_, (em, power)) in world.query::<(&RfEmitter, Option<&PowerConsumer>)>().iter() {
+                let powered = !em.needs_power || power.map(|c| c.enabled).unwrap_or(false);
+                if powered {
+                    rf += em.strength;
+                }
+            }
+            rf
+        };
 
         // Creative mode (default ON in early dev): planting + fertilizing skip the
         // inventory requirement + consumption. Absent flag (tests) = survival =
@@ -686,6 +707,13 @@ impl System for FarmingSystem {
             } else {
                 // Well watered -- health recovers toward 100
                 crop.health = (crop.health + HEALTH_RECOVERY_RATE * dt).min(100.0);
+            }
+
+            // RF stress (v0.620): a powered wireless emitter (WiFi router) bathes the grow in RF; crops
+            // lose health proportional to the home RF level. Run wired / Li-Fi or remove the emitter to
+            // protect the grow (the operator's "tradeoffs bite"). Outpaces recovery at one router's worth.
+            if home_rf > RF_HARM_THRESHOLD {
+                crop.health = (crop.health - RF_HEALTH_PENALTY * home_rf * dt).max(0.0);
             }
 
             // If health hits zero, crop dies
@@ -1147,6 +1175,39 @@ mod gardening_tests {
         let dry = w_dry.get::<&CropInstance>(c_dry).unwrap();
         assert!(dry.water_level < 0.15, "dry cistern -> the crop dehydrates (not topped up), got {}", dry.water_level);
         assert!(dry.health < 80.0, "dry cistern -> the water-stressed crop loses health, got {}", dry.health);
+    }
+
+    /// RF -> FOOD coupling (v0.620): a POWERED WiFi router (RF emitter) harms a well-watered crop (RF
+    /// stress outpaces recovery); with NO emitter the same crop holds/recovers. The operator's tradeoff.
+    #[test]
+    fn powered_rf_emitter_harms_crops() {
+        use crate::ecs::components::{CropInstance, PowerConsumer, RfEmitter};
+        let well_watered = || CropInstance {
+            crop_def_id: "tomato".to_string(),
+            growth_stage: "sprout".to_string(),
+            planted_at: 0.0,
+            water_level: 1.0, // not water-stressed, so we isolate RF
+            health: 80.0,
+            tower_id: None,
+            tower_slot: None,
+        };
+        let data = make_store();
+        let mut sys = FarmingSystem::new();
+
+        // A powered WiFi router (RF 0.6) bathes the grow -> the crop loses health.
+        let mut world = hecs::World::new();
+        let c = world.spawn((well_watered(),));
+        world.spawn((RfEmitter { strength: 0.6, needs_power: true }, PowerConsumer { draw_watts: 8.0, priority: 4, enabled: true }));
+        for _ in 0..5 { sys.tick(&mut world, 1.0, &data); }
+        let harmed = world.get::<&CropInstance>(c).unwrap().health;
+        assert!(harmed < 80.0, "powered RF harms the crop, got {harmed}");
+
+        // No emitter -> the same well-watered crop holds or recovers.
+        let mut world2 = hecs::World::new();
+        let c2 = world2.spawn((well_watered(),));
+        for _ in 0..5 { sys.tick(&mut world2, 1.0, &data); }
+        let safe = world2.get::<&CropInstance>(c2).unwrap().health;
+        assert!(safe >= 80.0, "no RF -> the crop holds/recovers, got {safe}");
     }
 
     /// Per-area nutrient strength (garden edit slider) scales growth speed: a

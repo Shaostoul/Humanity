@@ -3018,6 +3018,7 @@ mod multi_select_tests {
             power: None,
             ports: Vec::new(),
             storage: Vec::new(),
+            rf_emission: 0.0,
         }
     }
 

@@ -539,8 +539,13 @@
   "recent": [
     {
       "status": "done",
+      "version": "v0.620",
+      "text": "Telecom consequence: a powered WiFi router's RF now HARMS the grow -- the FarmingSystem drains crop health by the home RF level, so you run wired (Cat6/fibre, zero RF) to protect a sensitive crop. The operator's \"the tradeoffs bite\" example."
+    },
+    {
+      "status": "done",
       "version": "v0.619",
-      "text": "Telecom / internet utility Stage 1: real data media (Cat6 ethernet, fibre, WiFi) with bandwidth / range / latency / RF-emission tradeoffs + a link-physics check. Next: RF harms sensitive plants, and emissions become enemy/player detection signatures."
+      "text": "Telecom / internet utility Stage 1: real data media (Cat6 ethernet, fibre, WiFi) with bandwidth / range / latency / RF-emission tradeoffs + a link-physics check. Next: emissions become enemy/player detection signatures + pheromones."
     },
     {
       "status": "done",

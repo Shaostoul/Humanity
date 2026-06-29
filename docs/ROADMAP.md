@@ -305,9 +305,12 @@ Every operator gets the same sovereignty tools, not just the original.
 
 Newest first. For older history see `docs/history/` and `git log`.
 
+- `v0.620` Telecom consequence: a powered WiFi router's RF now HARMS the grow -- the
+  FarmingSystem drains crop health by the home RF level, so you run wired (Cat6/fibre,
+  zero RF) to protect a sensitive crop. The operator's "the tradeoffs bite" example.
 - `v0.619` Telecom / internet utility Stage 1: real data media (Cat6 ethernet, fibre,
   WiFi) with bandwidth / range / latency / RF-emission tradeoffs + a link-physics check.
-  Next: RF harms sensitive plants, and emissions become enemy/player detection signatures.
+  Next: emissions become enemy/player detection signatures + pheromones.
 - `v0.618` Air life-support Stage 2: occupancy + a powered air recycler -- cut the power
   and the scrubbers stop, O2 falls, and the player suffocates (power -> air -> Vitals).
   All three life-support utilities (energy, water, air) now have real consequences.

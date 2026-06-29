@@ -1039,6 +1039,16 @@ plumbing with real limits (volts, watts, amps, AWG gauge, ampacity, shielded vs 
 declares physical IN/OUT ports by utility. Stages 1-3 shipped; the wire-A-to-B gizmo + the superconductor
 upgrade mission are the next stages.
 
+### Telecom RF -> Plant Harm (v0.620)
+The first telecom consequence, the operator's headline ("the user doesn't want a WiFi router because the
+frequencies harm a plant they're growing"). A machine with `rf_emission > 0` (a `wifi_router`) spawns an
+`RfEmitter`; while powered it adds to the home RF level; the FarmingSystem drains crop health by that
+level (outpacing recovery at one router's worth). Run a wired link (Cat6/fibre, zero RF) -- or remove the
+router -- to keep a clean grow. The `wifi_router` is placeable but NOT in the seed home, so the reference
+grow stays safe until you choose to add one.
+- Native: `src/ecs/components.rs` (`RfEmitter`), `src/machines.rs` (`MachineDef.rf_emission`), `src/lib.rs` (spawns `RfEmitter`), `src/systems/farming/mod.rs` (the home-RF sum + the crop RF-stress drain)
+- Data: `data/machines/home.ron` (`wifi_router`: a powered wireless device, `rf_emission: 0.6`)
+
 ### Data / Telecom Media, Stage 1 (v0.619)
 The internet/telecom utility: teach real telecommunications. Data is `Utility::Data` in the same
 `conduits.ron` registry, with media that have real tradeoffs -- bandwidth, range, latency, cost, and RF

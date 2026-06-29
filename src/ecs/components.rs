@@ -639,6 +639,17 @@ pub struct PlumbingCircuit {
     pub island: u32,
 }
 
+/// A radio-frequency emitter (v0.620): a wireless device (a WiFi router) bathes the home in RF while
+/// powered. `strength` is a 0..1 level; `needs_power` gates it on the same entity's PowerConsumer. The
+/// FarmingSystem reads the summed powered RF and harms sensitive crops -- so a player who wants a clean
+/// grow runs WIRED (Cat6/fibre, zero RF) instead. The bridge to the emissions-as-detection signature
+/// layer (docs/design/telecom.md).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct RfEmitter {
+    pub strength: f32,
+    pub needs_power: bool,
+}
+
 /// The player's visual appearance (v0.440, the avatar foundation). Drives the blockman
 /// avatar mesh and, later, the character-select showroom + the wetroom mirror editor + the
 /// bedroom wardrobe. `body_type` / `hair_style` are ids into future data/appearance/*.ron;

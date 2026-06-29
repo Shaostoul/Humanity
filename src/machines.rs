@@ -83,6 +83,11 @@ pub struct MachineDef {
     /// (a cistern's level is a draining number, not a static "33 days" string).
     #[serde(default)]
     pub storage: Vec<MachineStorage>,
+    /// RF emission level 0..1 (v0.620): a wireless device (a WiFi router) emits RF while powered, which
+    /// harms sensitive crops nearby (run wired instead to keep a grow clean) and is a detection signature.
+    /// 0 = a quiet wired/optical device. Spawns an `RfEmitter` ECS component.
+    #[serde(default)]
+    pub rf_emission: f32,
 }
 
 /// Bulk storage a machine provides for one utility (v0.608). `capacity` is litres for a fluid
@@ -1188,6 +1193,7 @@ mod tests {
             power: None,
             ports: Vec::new(),
             storage: Vec::new(),
+            rf_emission: 0.0,
         }
     }
 

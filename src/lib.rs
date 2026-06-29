@@ -236,7 +236,7 @@ mod native_app {
             .filter(|p| p.utility == crate::utilities::Utility::Air && p.dir == crate::utilities::PortDir::Out)
             .map(|p| p.flow_lpm)
             .sum();
-        if def.power.is_none() && !is_water && air_out <= 0.0 {
+        if def.power.is_none() && !is_water && air_out <= 0.0 && def.rf_emission <= 0.0 {
             return;
         }
         let e = world.spawn((HomeMachine,));
@@ -299,6 +299,16 @@ mod native_app {
                 crate::systems::atmosphere::AirScrubber {
                     o2_regen_per_s: air_out * 0.001,
                     co2_scrub_per_s: air_out * 0.0003,
+                    needs_power: matches!(&def.power, Some(MachinePower::Consumer { .. })),
+                },
+            );
+        }
+        // RF emitter (v0.620): a wireless device (WiFi router) bathes the home in RF while powered.
+        if def.rf_emission > 0.0 {
+            let _ = world.insert_one(
+                e,
+                crate::ecs::components::RfEmitter {
+                    strength: def.rf_emission,
                     needs_power: matches!(&def.power, Some(MachinePower::Consumer { .. })),
                 },
             );
