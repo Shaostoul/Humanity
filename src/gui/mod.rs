@@ -1399,6 +1399,13 @@ pub struct GuiState {
     pub water_stored_l: f32,
     pub water_capacity_l: f32,
     pub water_days_autonomy: f32,
+    /// Live home AIR readout (v0.617), mirrored from AtmosphereSystem each frame: O2/CO2 percent, total
+    /// pressure (atm), temperature (C), and whether the mix is breathable.
+    pub air_o2_pct: f32,
+    pub air_co2_pct: f32,
+    pub air_pressure_atm: f32,
+    pub air_temp_c: f32,
+    pub air_breathable: bool,
     /// Character-select showroom (v0.441): when active, the home is hidden and the avatar is
     /// previewed against a backdrop with an orbit camera + the customization panel.
     pub showroom_active: bool,
@@ -2571,6 +2578,11 @@ impl Default for GuiState {
             water_stored_l: 0.0,
             water_capacity_l: 0.0,
             water_days_autonomy: 0.0,
+            air_o2_pct: 0.0,
+            air_co2_pct: 0.0,
+            air_pressure_atm: 0.0,
+            air_temp_c: 0.0,
+            air_breathable: false,
             showroom_active: false,
             show_roof: false,
             construction_active: false,

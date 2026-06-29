@@ -1087,6 +1087,15 @@ the pump stops, the cistern drains. Shown on the Home page next to Live power.
 - Native: `src/systems/plumbing.rs` (`PlumbingSystem`, `WaterStatus`), `src/ecs/components.rs` (`WaterTank`, `WaterProducer`, `WaterConsumer`, `PlumbingCircuit`), `src/machines.rs` (`water_islands`, `MachineStorage`, `water_production_lpm`/`water_demand_lpm`/`water_capacity_l`), `src/gui/pages/homes.rs` (Live water card)
 - Data: `data/machines/home.ron` (cistern storage + rain inflow, pump water-out, tower/irrigation water-in)
 
+### Live Air / Atmosphere Sim, Stage 1 (v0.617)
+The 3rd life-support utility. The AtmosphereSystem is now REGISTERED and ticks the home's sealed air
+space (a HomeAir + HomeMachine tagged `EnclosedSpace`, spawned with the home), publishing a live
+`AirStatus` (O2/CO2 percent, pressure, temp, breathable) to a "Live air" Home-page card beside Live
+power + Live water. Stage 1 holds an Earth-like mix (no damage); Stage 2 adds occupancy O2-draw/CO2-rise
++ powered scrubbers + the power -> air -> Vitals consequence (cut the power, the scrubbers stop, the air
+goes bad).
+- Native: `src/systems/atmosphere.rs` (`AtmosphereSystem` registered, `AirStatus`, `HomeAir`, the publish), `src/lib.rs` (`spawn_home_air_space` + the AirStatus bridge), `src/gui/pages/homes.rs` (Live air card)
+
 ### Water to Food Coupling (v0.611)
 The downstream end of the power to water to food consequence chain. The `FarmingSystem` reads the live
 `WaterStatus`: if the home has a real cistern and it has run DRY, automated irrigation can no longer top

@@ -36,7 +36,8 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // not misbehave against the live player/NPC entities.
     ("EcologySystem", "operates on disease/population entities not yet spawned; verify no player/NPC component collisions before registering"),
     ("HydrologySystem", "operates on WaterBody entities not yet spawned + needs Weather exported"),
-    ("AtmosphereSystem", "operates on EnclosedSpace/IgnitionSource entities not yet spawned"),
+    // AtmosphereSystem is now REGISTERED (v0.617): ticks the home's sealed EnclosedSpace (spawned with
+    // the home) + publishes the live AirStatus. Left this allowlist.
     ("DisasterSystem", "spawn is intentionally manual; operates on Disaster entities not yet spawned"),
     // Gameplay systems — implemented but need their content/UI/data layer wired.
     ("CombatSystem", "needs combat encounters + live-behaviour verification vs player/NPC"),

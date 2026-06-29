@@ -195,6 +195,20 @@ mod native_app {
             };
             spawn_home_machine_entity(world, inst, def, &power_islands, &water_islands);
         }
+        spawn_home_air_space(world);
+    }
+
+    /// Spawn the home's sealed AIR space (v0.617) if one doesn't already exist: a HomeMachine + HomeAir
+    /// tagged `EnclosedSpace` with an Earth-like atmosphere. The AtmosphereSystem ticks it + publishes the
+    /// live AirStatus. Sealed (a habitat/ship hull), so it doesn't equalize with the outside (space). The
+    /// HomeMachine tag means load_world's despawn-on-reenter clears it, then this re-creates it once.
+    fn spawn_home_air_space(world: &mut hecs::World) {
+        use crate::ecs::components::HomeMachine;
+        use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
+        if world.query::<&HomeAir>().iter().next().is_some() {
+            return; // already present
+        }
+        world.spawn((HomeMachine, HomeAir, EnclosedSpace::new_sealed(14_000.0)));
     }
 
     /// Spawn ONE ECS entity for a placed home machine, attaching its power role + electrical island AND
@@ -3210,6 +3224,8 @@ mod native_app {
                 log::info!("Machines: placed {placed} machines");
             }
         }
+        // The home's sealed air space for the live AtmosphereSystem readout (v0.617).
+        spawn_home_air_space(&mut state.game_world.world);
         // Build the live connection cylinders (replaces the old static routed pipes). (v0.530)
         rebuild_connection_objects(state);
         // Build the door/window panels from the home structure's openings. (v0.537)
@@ -4136,6 +4152,11 @@ mod native_app {
                 "water_status",
                 std::sync::Mutex::new(crate::systems::plumbing::WaterStatus::default()),
             );
+            // Live home AIR readout (O2/CO2/pressure): AtmosphereSystem writes it from the home space. (v0.617)
+            data_store.insert(
+                "air_status",
+                std::sync::Mutex::new(crate::systems::atmosphere::AirStatus::default()),
+            );
             system_runner.register(TimeSystem::new());
             // WeatherSystem ticks after TimeSystem (reads the exported season) and
             // exports Weather; the exposed-environment temperature consumes it.
@@ -4148,6 +4169,10 @@ mod native_app {
             // PlumbingSystem ticks AFTER electrical so it sees this frame's shed state -- a pump/purifier
             // shed in a power deficit stops producing water THIS tick (the power -> water chain). (v0.608)
             system_runner.register(crate::systems::plumbing::PlumbingSystem::new());
+            // AtmosphereSystem (v0.617): ticks the home's sealed air space + publishes AirStatus. Earth-
+            // like for now (Stage 1); occupancy + powered scrubbers + the power -> air -> Vitals
+            // consequence are Stage 2.
+            system_runner.register(crate::systems::atmosphere::AtmosphereSystem::new());
             system_runner.register(PlayerControllerSystem);
             data_store.insert("interaction_prompt", std::sync::Mutex::new(String::new()));
             // GUI -> ECS command channels (interior-mutable; the main loop writes
@@ -7902,6 +7927,19 @@ mod native_app {
                         state.gui_state.water_stored_l = ws.stored_l;
                         state.gui_state.water_capacity_l = ws.capacity_l;
                         state.gui_state.water_days_autonomy = ws.days_autonomy;
+                    }
+
+                    // Bridge the live home AIR readout (AtmosphereSystem writes it via Mutex). (v0.617)
+                    if let Some(asr) = state
+                        .data_store
+                        .get::<std::sync::Mutex<crate::systems::atmosphere::AirStatus>>("air_status")
+                        .and_then(|m| m.lock().ok())
+                    {
+                        state.gui_state.air_o2_pct = asr.o2_pct;
+                        state.gui_state.air_co2_pct = asr.co2_pct;
+                        state.gui_state.air_pressure_atm = asr.pressure_atm;
+                        state.gui_state.air_temp_c = asr.temp_c;
+                        state.gui_state.air_breathable = asr.breathable;
                     }
 
                     // ── Auto-connect to server if configured AND seed unlocked ──

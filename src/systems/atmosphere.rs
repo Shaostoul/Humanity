@@ -128,6 +128,27 @@ pub struct InEnclosedSpace {
 #[derive(Debug, Clone)]
 pub struct IgnitionSource;
 
+/// Marks THE home's enclosed space (v0.617): the one whose atmosphere the live "Air" readout reflects.
+/// Spawned with the home (alongside the HomeMachine marker so re-entering the world re-spawns it once).
+#[derive(Debug, Clone, Copy)]
+pub struct HomeAir;
+
+/// Live air readout, published to the DataStore each tick (key `air_status`) so the GUI can show the
+/// home's running life-support state -- mirrors PowerStatus / WaterStatus. (v0.617)
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AirStatus {
+    /// Oxygen, percent of the mix (Earth ~21).
+    pub o2_pct: f32,
+    /// Carbon dioxide, percent (Earth ~0.04; rises with occupancy if scrubbing stops).
+    pub co2_pct: f32,
+    /// Total pressure, atmospheres.
+    pub pressure_atm: f32,
+    /// Temperature, Celsius (converted from the model's Kelvin for display).
+    pub temp_c: f32,
+    /// Whether the mix is breathable right now.
+    pub breathable: bool,
+}
+
 // ── Flammable gas data ─────────────────────────────────────
 
 /// Lower explosive limit (percentage in air) for common flammable gases.
@@ -299,7 +320,7 @@ impl System for AtmosphereSystem {
         "AtmosphereSystem"
     }
 
-    fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
+    fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         self.elapsed += dt;
         if self.elapsed < self.tick_interval {
             return;
@@ -385,6 +406,23 @@ impl System for AtmosphereSystem {
                 }
             }
         }
+
+        // Publish the HOME space's air to the GUI (v0.617), mirroring PowerStatus / WaterStatus. Clone
+        // the atmosphere first so the immutable query borrow releases before we lock + write.
+        if let Some(status) = data.get::<std::sync::Mutex<AirStatus>>("air_status") {
+            let home_atmo = world
+                .query::<(&HomeAir, &EnclosedSpace)>()
+                .iter()
+                .next()
+                .map(|(_, (_, sp))| sp.atmosphere.clone());
+            if let (Ok(mut s), Some(atmo)) = (status.lock(), home_atmo) {
+                s.o2_pct = atmo.gas_percent("O2");
+                s.co2_pct = atmo.gas_percent("CO2");
+                s.pressure_atm = atmo.pressure_atm;
+                s.temp_c = atmo.temperature_k - 273.15;
+                s.breathable = atmo.breathable;
+            }
+        }
     }
 }
 
@@ -430,6 +468,24 @@ mod tests {
         atmo.composition.insert("O2".to_string(), 12.0);
         AtmosphereSystem::evaluate_atmosphere(&mut atmo);
         assert!(!atmo.breathable);
+    }
+
+    /// v0.617: the registered AtmosphereSystem publishes the HOME space's air to `air_status` for the
+    /// Live air card. An Earth-like sealed home reads ~21% O2 and breathable.
+    #[test]
+    fn publishes_home_air_status() {
+        use crate::ecs::systems::System;
+        use crate::hot_reload::data_store::DataStore;
+        let mut data = DataStore::new();
+        data.insert("air_status", std::sync::Mutex::new(AirStatus::default()));
+        let mut world = hecs::World::new();
+        world.spawn((HomeAir, EnclosedSpace::new_sealed(14_000.0)));
+        let mut sys = AtmosphereSystem::new();
+        sys.tick(&mut world, 1.0, &data); // dt >= tick_interval so the step runs
+        let s = *data.get::<std::sync::Mutex<AirStatus>>("air_status").unwrap().lock().unwrap();
+        assert!((s.o2_pct - 21.0).abs() < 1.0, "home O2 ~21%, got {}", s.o2_pct);
+        assert!((s.pressure_atm - 1.0).abs() < 0.01, "1 atm, got {}", s.pressure_atm);
+        assert!(s.breathable, "Earth-like home air is breathable");
     }
 
     #[test]

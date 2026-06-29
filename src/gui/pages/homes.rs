@@ -110,7 +110,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 capacity: state.water_capacity_l,
                 days_autonomy: state.water_days_autonomy,
             };
-            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops, power, water);
+            let air = LiveAir {
+                o2: state.air_o2_pct,
+                co2: state.air_co2_pct,
+                pressure: state.air_pressure_atm,
+                temp_c: state.air_temp_c,
+                breathable: state.air_breathable,
+            };
+            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops, power, water, air);
         });
 }
 
@@ -138,6 +145,17 @@ struct LiveWater {
     days_autonomy: f32,
 }
 
+/// Live AIR readout from the running sim (AtmosphereSystem -> AirStatus -> GuiState). Zero pressure ->
+/// no home air space spawned yet -> the Live air card hides itself. (v0.617)
+#[derive(Clone, Copy, Default)]
+struct LiveAir {
+    o2: f32,
+    co2: f32,
+    pressure: f32,
+    temp_c: f32,
+    breathable: bool,
+}
+
 fn draw_design(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -147,6 +165,7 @@ fn draw_design(
     loops: &[crate::machines::HomeLoop],
     power: LivePower,
     water: LiveWater,
+    air: LiveAir,
 ) {
     ui.label(RichText::new("Your Home").size(theme.font_size_title).color(theme.text_primary()));
     ui.label(RichText::new(&design.name).size(theme.font_size_heading).color(theme.accent()));
@@ -296,6 +315,35 @@ fn draw_design(
                         &format!("{:.0}%  ({:.0} / {:.0} L)  ~{:.1} days", pct, water.stored, water.capacity, water.days_autonomy),
                     );
                 }
+            });
+            ui.add_space(theme.spacing_sm);
+        }
+
+        // ── Live air (the running AtmosphereSystem, v0.617) ──
+        // The home is a sealed habitat: this is its life-support air. Stage 1 holds an Earth-like mix;
+        // occupancy + powered scrubbers (the power -> air consequence) land next.
+        if air.pressure > 0.0 {
+            widgets::card(ui, theme, |ui| {
+                ui.label(RichText::new("Live air").size(theme.font_size_body).strong().color(theme.text_primary()));
+                ui.label(
+                    RichText::new("The sealed home's life-support mix. Powered scrubbers will keep it breathable.")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+                ui.add_space(theme.spacing_xs);
+                widgets::detail_row(ui, theme, "Oxygen", &format!("{:.1}%", air.o2));
+                widgets::detail_row(ui, theme, "CO2", &format!("{:.2}%", air.co2));
+                widgets::detail_row(ui, theme, "Pressure", &format!("{:.2} atm", air.pressure));
+                widgets::detail_row(ui, theme, "Temp", &format!("{:.0} C", air.temp_c));
+                let (txt, col) = if air.breathable {
+                    ("breathable".to_string(), theme.success())
+                } else {
+                    ("NOT breathable".to_string(), theme.danger())
+                };
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Status").size(theme.font_size_small).color(theme.text_secondary()));
+                    ui.label(RichText::new(txt).size(theme.font_size_small).strong().color(col));
+                });
             });
             ui.add_space(theme.spacing_sm);
         }

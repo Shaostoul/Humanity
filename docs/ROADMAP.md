@@ -305,6 +305,9 @@ Every operator gets the same sovereignty tools, not just the original.
 
 Newest first. For older history see `docs/history/` and `git log`.
 
+- `v0.612 to v0.617` Build-editor backlog (multi-select, snap guides, lock-per-type), the
+  cable picker + superconductor bulk-upgrade, a CI-lint fix, and AIR life-support Stage 1
+  (the AtmosphereSystem is live: a sealed home air space + a Live air Home-page card).
 - `v0.611` Water to food: the FarmingSystem reads the live cistern level -- a dry cistern
   stops auto-irrigation and the garden wilts, completing power to water to food (cut the
   power, the pump stops, the cistern drains, then days later the crops die).

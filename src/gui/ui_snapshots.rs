@@ -47,6 +47,12 @@ fn demo_state() -> GuiState {
     s.water_stored_l = 7400.0;
     s.water_capacity_l = 8000.0;
     s.water_days_autonomy = 4.3;
+    // Sample LIVE air so the Home page's "Live air" card renders (AtmosphereSystem, v0.617).
+    s.air_o2_pct = 20.9;
+    s.air_co2_pct = 0.04;
+    s.air_pressure_atm = 1.0;
+    s.air_temp_c = 20.0;
+    s.air_breathable = true;
     s.tower_configs = crate::gui::load_tower_configs(data);
     s.equipment_slots = crate::gui::load_equipment_slots(data);
     s.crafting_category_groups = crate::gui::load_crafting_category_groups(data);
