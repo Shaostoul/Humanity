@@ -1049,6 +1049,13 @@ display.
 - Data: `data/utilities/conduits.ron` (copper 14/12/10 AWG home, 6 AWG industrial shielded, the `sc_room_temp` superconductor upgrade target, two water pipes)
 - Design: `docs/design/utility-wiring.md`
 
+### Per-Connection Cable Picker (v0.615)
+The utility-lines editor gives every POWER run a cable dropdown: "auto (cheapest copper)" or a pinned
+type from the registry (copper 14/12/10/6 AWG ... the room-temp superconductor). Picking sets the
+connection's `spec`; the Conduits buildability check then validates it (over-ampacity or >5% voltage drop
+-> warn/fail), so the whole cable-physics system is finally interactive in the editor.
+- Native: `src/gui/pages/construction.rs` (`draw_machines_and_connections`, the cable ComboBox writing `MachineConnection.spec`), choices from `src/utilities.rs::conduit_types`
+
 ### Machine Ports + Conduit Checks (v0.605 - v0.606)
 `MachineDef` gained `ports: Vec<Port>` + a `derive_ports()` fallback (electrical ports inferred from the
 power role; fluid ports declared); `MachineConnection` gained `spec: Option<String>` (a pinned cable id,

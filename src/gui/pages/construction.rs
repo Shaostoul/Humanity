@@ -2599,11 +2599,18 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
 
     // ── Utility lines / connections (collapsible, grouped by kind, v0.569). The operator wanted
     // "utility lines for gas, liquid, solids, electricity": each kind is its own sub-section.
-    let conns: Vec<(String, String, String)> = state
+    let conns: Vec<(String, String, String, Option<String>)> = state
         .home_machines
         .as_ref()
-        .map(|h| h.connections.iter().map(|c| (c.from.clone(), c.to.clone(), c.kind.clone())).collect())
+        .map(|h| h.connections.iter().map(|c| (c.from.clone(), c.to.clone(), c.kind.clone(), c.spec.clone())).collect())
         .unwrap_or_default();
+    // The electrical cable choices for the per-power-connection picker (v0.615): "auto" + every
+    // electrical conduit in the registry (copper AWG ... the room-temp superconductor).
+    let cable_choices: Vec<(String, String)> = crate::utilities::conduit_types()
+        .iter()
+        .filter(|c| c.utility == crate::utilities::Utility::Electricity)
+        .map(|c| (c.id.clone(), c.label.clone()))
+        .collect();
     egui::CollapsingHeader::new(RichText::new(format!("Utility lines ({})", conns.len())).strong().color(theme.text_primary()))
         .id_salt("hs_conns_sec")
         .default_open(true)
@@ -2653,29 +2660,61 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             if conns.is_empty() {
                 ui.label(RichText::new("No lines yet.").size(theme.font_size_small).color(theme.text_muted()));
             } else {
-                let mut kinds: Vec<String> = conns.iter().map(|(_, _, k)| k.clone()).collect();
+                let mut kinds: Vec<String> = conns.iter().map(|(_, _, k, _)| k.clone()).collect();
                 kinds.sort();
                 kinds.dedup();
                 let mut remove_conn: Option<usize> = None;
+                // (connection index, new spec) when the operator picks a cable for a power run. (v0.615)
+                let mut set_spec: Option<(usize, Option<String>)> = None;
                 for k in &kinds {
-                    let count = conns.iter().filter(|(_, _, ck)| ck == k).count();
+                    let count = conns.iter().filter(|(_, _, ck, _)| ck == k).count();
                     egui::CollapsingHeader::new(RichText::new(format!("{k} ({count})")).color(theme.text_secondary()))
                         .id_salt(format!("hs_conn_kind_{k}"))
                         .default_open(true)
                         .show(ui, |ui| {
-                            for (i, (from, to, kind)) in conns.iter().enumerate() {
+                            for (i, (from, to, kind, spec)) in conns.iter().enumerate() {
                                 if kind != k {
                                     continue;
                                 }
                                 ui.horizontal(|ui| {
                                     ui.label(RichText::new(format!("{} -> {}", label(from), label(to)))
                                         .size(theme.font_size_small).color(theme.text_muted()));
+                                    // Per-power-run CABLE picker (v0.615): "auto" (cheapest copper that
+                                    // carries the load) or a pinned type. The Conduits buildability check
+                                    // validates the choice (over-ampacity / voltage-drop -> warn/fail).
+                                    if kind == "power" {
+                                        let cur = spec
+                                            .as_ref()
+                                            .and_then(|id| cable_choices.iter().find(|(cid, _)| cid == id).map(|(_, l)| l.clone()))
+                                            .unwrap_or_else(|| "auto".to_string());
+                                        egui::ComboBox::from_id_salt(format!("cable_{i}"))
+                                            .width(120.0)
+                                            .selected_text(cur)
+                                            .show_ui(ui, |ui| {
+                                                if ui.selectable_label(spec.is_none(), "auto (cheapest copper)").clicked() {
+                                                    set_spec = Some((i, None));
+                                                }
+                                                for (cid, clabel) in &cable_choices {
+                                                    if ui.selectable_label(spec.as_deref() == Some(cid.as_str()), clabel).clicked() {
+                                                        set_spec = Some((i, Some(cid.clone())));
+                                                    }
+                                                }
+                                            });
+                                    }
                                     if ui.small_button("x").clicked() {
                                         remove_conn = Some(i);
                                     }
                                 });
                             }
                         });
+                }
+                if let Some((i, sp)) = set_spec {
+                    if let Some(h) = state.home_machines.as_mut() {
+                        if let Some(c) = h.connections.get_mut(i) {
+                            c.spec = sp;
+                        }
+                    }
+                    state.construction_machines_dirty = true;
                 }
                 if let Some(i) = remove_conn {
                     if let Some(h) = state.home_machines.as_mut() {
