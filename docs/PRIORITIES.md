@@ -21,11 +21,17 @@
 > CAN'T-CLICK-MACHINES regression (build-mode entry never rebuilt `machine_pick`; now it does). All
 > verified (relay+native compile, 33 machines tests, 5 lints, snapshot).
 >
+> > **VIEWPORT DRAG-TO-CONNECT shipped (v0.625):** wiring is now a 3D gesture -- select a machine, drag
+> > one of its coloured port handles onto another machine to wire them (the confusing from/to dropdowns
+> > are now just a fallback). Array-member machines (e.g. a grain tray) are now movable too (first drag
+> > explodes the array into instances). AWAITING operator visual verify of the handles + rubber-band.
+> >
 > > **Build-editor NEXT = conduit TRUNK HIERARCHY (Stage 2 of `conduits-node-graph.md`).** The operator's
 > > "moveable main lines + machines branch to them, some paths look wrong" is the Stage-1 node-graph
 > > (shipped) limited by per-edge Manhattan routing; Stage 2 (tier 0/1/2 main/sub/subsub + routing that
 > > follows the parent line before dropping to the child) is the realism fix. No new data model -- `tier`
-> > already exists on `ConduitNode`.
+> > already exists on `ConduitNode`. Drag-to-connect could also extend to dropping a port on a conduit
+> > NODE (not just another machine) once the trunk hierarchy lands.
 >
 > > **NEXT (open forks -- operator steer, or take the reasonable one):**
 > > 1. **detection-sensing implementation** (`docs/design/detection-sensing.md`) -- the big combat-adjacent

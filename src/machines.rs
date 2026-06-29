@@ -467,6 +467,42 @@ impl MachineHome {
         });
     }
 
+    /// If `id` is an ARRAY-expanded cell (not a direct instance), EXPLODE its whole array into direct
+    /// `instances` so each cell becomes individually movable, then return true. The cells keep the EXACT
+    /// ids + positions `all_instances()` generated (`{prefix}_{idx}` at origin + step), so any connection
+    /// or selection referencing a cell stays valid and nothing visually jumps. A direct instance (or an
+    /// unknown id) returns false. This is what makes "drag a grain tray that's part of an array" work --
+    /// the editor calls it the moment such a cell is actually dragged. (v0.625)
+    pub fn detach_array_member(&mut self, id: &str) -> bool {
+        if self.instances.iter().any(|i| i.id == id) {
+            return false; // already a direct, movable instance
+        }
+        let Some(arr_idx) = self.arrays.iter().position(|arr| {
+            let count = (arr.rows * arr.cols) as usize;
+            (0..count).any(|k| format!("{}_{}", arr.id_prefix, k) == id)
+        }) else {
+            return false; // not an array cell either -- unknown id
+        };
+        let arr = self.arrays.remove(arr_idx);
+        let mut idx = 0usize;
+        for r in 0..arr.rows {
+            for c in 0..arr.cols {
+                self.instances.push(MachineInstance {
+                    id: format!("{}_{}", arr.id_prefix, idx),
+                    machine: arr.machine.clone(),
+                    room: arr.room.clone(),
+                    offset: (
+                        arr.origin.0 + c as f32 * arr.spacing.0,
+                        arr.origin.1,
+                        arr.origin.2 + r as f32 * arr.spacing.1,
+                    ),
+                });
+                idx += 1;
+            }
+        }
+        true
+    }
+
     /// Mint a unique conduit-node id (v0.581), e.g. "node_3".
     pub fn unique_node_id(&self) -> String {
         let mut n = self.conduit_nodes.len();
@@ -1424,6 +1460,48 @@ mod tests {
         assert!(!home.remove_connection(9), "out-of-range index is a no-op");
         assert!(home.remove_connection(0), "in-range index removes");
         assert!(home.connections.is_empty(), "connection removed");
+    }
+
+    /// v0.625: detach_array_member explodes an array into direct instances (so a single array cell
+    /// becomes movable) keeping the EXACT ids + positions all_instances() generated, and is a no-op
+    /// for a direct instance or an unknown id.
+    #[test]
+    fn detach_array_member_explodes_into_movable_instances() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("box".to_string(), test_def("box"));
+        let mut home = MachineHome {
+            catalog,
+            instances: vec![MachineInstance { id: "solo".into(), machine: "box".into(), room: "garden".into(), offset: (1.0, 0.0, 2.0) }],
+            arrays: vec![MachineArray {
+                machine: "box".to_string(),
+                room: "garden".to_string(),
+                origin: (10.0, 0.0, 20.0),
+                rows: 2,
+                cols: 3, // 6 cells: tray_0..tray_5
+                spacing: (1.5, 2.0),
+                id_prefix: "tray".to_string(),
+            }],
+            connections: Vec::new(),
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+        };
+        // A direct instance is already movable -> no-op.
+        assert!(!home.detach_array_member("solo"), "a direct instance does not detach");
+        // An unknown id -> no-op.
+        assert!(!home.detach_array_member("ghost"), "an unknown id does not detach");
+        // The world position of tray_4 BEFORE detaching (from all_instances).
+        let before = home.all_instances().into_iter().find(|i| i.id == "tray_4").unwrap().offset;
+        // Detach an array cell -> the whole array explodes into instances.
+        assert!(home.detach_array_member("tray_4"), "an array cell detaches");
+        assert!(home.arrays.is_empty(), "the array is consumed into instances");
+        assert_eq!(home.instances.len(), 1 + 6, "solo + the 6 exploded cells");
+        // tray_4 is now a DIRECT instance at the IDENTICAL position (nothing jumps).
+        let after = home.instances.iter().find(|i| i.id == "tray_4").expect("tray_4 is now a direct instance");
+        assert_eq!(after.offset, before, "the detached cell keeps its exact world position");
+        // It is now movable (the editor would write a new offset here).
+        // A second detach of the same id is a no-op (it's a direct instance now).
+        assert!(!home.detach_array_member("tray_4"), "already-direct cell does not re-detach");
     }
 
     /// A machine def carrying a specific electrical role, for buildability tests.

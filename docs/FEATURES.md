@@ -873,6 +873,18 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Viewport drag-to-connect (machine ports) + array-member move (v0.625)
+The panel dropdowns ("pick from, pick to, Connect") were a confusing way to wire machines, so wiring is
+now a VIEWPORT gesture. Select a machine and its declared ports (`derive_ports()`) show as coloured
+handles floating above it (amber power, blue water, violet data, ... -- the pipe legend; an OUT port
+gets an outer "target" ring). Click-drag a handle and a rubber-band line follows the cursor: it turns
+the utility colour over a machine that has a compatible (same-utility) port and RED over one that
+doesn't. Release to create the connection (`add_connection`, oriented supply->demand). The dropdown
+panel stays as a fallback. Also fixed: dragging a machine that is part of an ARRAY (e.g. a grain tray)
+now WORKS -- the first drag explodes that array into individual instances (`detach_array_member`, ids +
+positions preserved so nothing jumps), since array cells had no editable offset before.
+- Native: `src/lib.rs` (`port_pick` built in `rebuild_machine_objects`; `port_gizmo_pos`; `try_pick_port` + `port_drop_target` + `machine_has_port`; the release-handler wiring; port-gizmo + rubber-band render; `ObjectGrab::Machine` detach-on-drag), `src/machines.rs` (`detach_array_member`), `src/gui/pages/construction.rs` (the "drag a port handle" tip)
+
 ### Build-editor click fix + lock/list footgun guards (v0.623 + v0.624)
 **v0.624 (the real root cause):** entering build mode never rebuilt the machine PICK VOLUMES
 (`machine_pick`), so machines were not clickable in the viewport until some *other* edit (e.g. nudging a

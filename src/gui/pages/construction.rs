@@ -1363,6 +1363,10 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             for p in &ports {
                 ui.label(RichText::new(port_line(p)).size(theme.font_size_small).color(port_color(p)));
             }
+            // v0.625: the ports also show as coloured handles above this machine in the 3D view --
+            // DRAG one onto another machine to wire them (no dropdowns needed).
+            ui.label(RichText::new("Tip: drag a port handle in the 3D view onto another machine to wire them.")
+                .size(theme.font_size_small).italics().color(theme.text_muted()));
         }
     }
 

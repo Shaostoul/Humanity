@@ -1089,6 +1089,19 @@ mod native_app {
         }
     }
 
+    /// World position of a machine's port gizmo (v0.625, the viewport drag-to-connect handles). Ports
+    /// carry no authored anchor (they default to 0,0,0), so spread a machine's N ports in a ring just
+    /// ABOVE the body, so each reads as its own grab-able handle that never overlaps the machine mesh.
+    fn port_gizmo_pos(p: &crate::machines::PlacedMachine, i: usize, n: usize) -> Vec3 {
+        let top = p.top_y + 0.3;
+        if n <= 1 {
+            return Vec3::new(p.pos.0, top, p.pos.2);
+        }
+        let r = (p.size.0.max(p.size.2)) * 0.5 + 0.3;
+        let a = (i as f32 / n as f32) * std::f32::consts::TAU;
+        Vec3::new(p.pos.0 + r * a.cos(), top, p.pos.2 + r * a.sin())
+    }
+
     /// Rebuild ONLY the home machine meshes + floating labels from the live editor state
     /// (gui_state.home_machines + room_bounds), so a construction-editor edit (move/add/remove/
     /// connect) shows immediately instead of only on the next world entry. Positions come from the
@@ -1128,6 +1141,28 @@ mod native_app {
             Some(h) => h.placements(&rooms, box_mode, box_dims),
             None => return,
         };
+        // Port pick volumes (v0.625): every machine's derived ports -> a grab-able world gizmo, so the
+        // viewport can DRAG a port onto another machine to wire them. Keyed by id (placements may skip a
+        // machine whose catalog/room is missing), so zip-by-index is unsafe -- look the type up by id.
+        {
+            let pp = {
+                let home = state.gui_state.home_machines.as_ref().unwrap();
+                let type_by_id: HashMap<String, String> =
+                    home.all_instances().into_iter().map(|i| (i.id, i.machine)).collect();
+                let mut pp: Vec<(String, usize, crate::utilities::Port, Vec3)> = Vec::new();
+                for p in &placements {
+                    let Some(ty) = type_by_id.get(&p.id) else { continue };
+                    let Some(def) = home.catalog.get(ty) else { continue };
+                    let ports = def.derive_ports();
+                    let n = ports.len();
+                    for (i, port) in ports.into_iter().enumerate() {
+                        pp.push((p.id.clone(), i, port, port_gizmo_pos(p, i, n)));
+                    }
+                }
+                pp
+            };
+            state.port_pick = pp;
+        }
         // Fast path: the machine COUNT is unchanged (an offset drag / room move, not add/remove).
         // Reuse the existing meshes + materials and only update positions, so a per-frame drag does
         // NOT leak a fresh mesh per machine every frame (the v0.527 regression). placements() is
@@ -2138,6 +2173,81 @@ mod native_app {
         }
     }
 
+    /// Hit-test the cursor ray against the SELECTED machine's PORT gizmos (v0.625, viewport drag-to-
+    /// connect). On a hit, arm a port drag: a rubber-band line then follows the cursor and releasing
+    /// over a machine with a compatible port wires them (see the release handler). Only the selected
+    /// machine's ports are grab-able (they're the only ones rendered), so this never fights the machine
+    /// pick. Returns true on a hit so the click doesn't also start moving the machine.
+    fn try_pick_port(state: &mut EngineState) -> bool {
+        let Some(sel) = state.gui_state.construction_machine_selected.clone() else {
+            return false;
+        };
+        if state.port_pick.is_empty() {
+            return false;
+        }
+        let sz = state.window.inner_size();
+        let (origin, dir) =
+            state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<(f32, crate::utilities::Utility, crate::utilities::PortDir, Vec3)> = None;
+        for (mid, _idx, port, wp) in &state.port_pick {
+            if mid != &sel {
+                continue;
+            }
+            let t = (*wp - origin).dot(dir);
+            if t < 0.0 {
+                continue;
+            }
+            // Generous 0.22 m pick radius (the gizmos are small, the operator wanted easy grabbing).
+            if (*wp - (origin + dir * t)).length() < 0.22 && best.as_ref().map_or(true, |(bt, ..)| t < *bt) {
+                best = Some((t, port.utility, port.dir, *wp));
+            }
+        }
+        if let Some((_, util, pdir, wp)) = best {
+            state.construction_port_drag = Some((sel, util, pdir, wp));
+            state.construction_grab_press = Some(state.cursor_pos);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// The machine under the cursor for a port DROP (v0.625): the nearest `machine_pick` hit that isn't
+    /// the drag's own source machine. Used to wire a dragged port to a target machine on release.
+    fn port_drop_target(state: &EngineState, exclude: &str) -> Option<String> {
+        let sz = state.window.inner_size();
+        let (origin, dir) =
+            state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<(String, f32)> = None;
+        for (id, center, radius) in &state.machine_pick {
+            if id == exclude {
+                continue;
+            }
+            let t = (*center - origin).dot(dir);
+            if t < 0.0 {
+                continue;
+            }
+            if (*center - (origin + dir * t)).length() < *radius && best.as_ref().map_or(true, |(_, bt)| t < *bt) {
+                best = Some((id.clone(), t));
+            }
+        }
+        best.map(|(id, _)| id)
+    }
+
+    /// Whether `target` machine has a port of `util` (v0.625) -- the compatibility gate for wiring a
+    /// dragged port to it (same utility; direction is oriented supply->demand by the caller).
+    fn machine_has_port(state: &EngineState, target: &str, util: crate::utilities::Utility) -> bool {
+        state
+            .gui_state
+            .home_machines
+            .as_ref()
+            .and_then(|h| {
+                let ty = h.all_instances().into_iter().find(|i| i.id == target)?.machine;
+                let def = h.catalog.get(&ty)?;
+                Some(def.derive_ports().iter().any(|p| p.utility == util))
+            })
+            .unwrap_or(false)
+    }
+
     /// Hit-test the cursor ray against the WALL SURFACES (v0.573). On a hit, SELECT that wall (its
     /// corners/openings show on the right panel) -- so clicking anywhere on a wall's face picks it,
     /// unambiguously, instead of having to click a shared corner orb at a multi-wall intersection.
@@ -2581,6 +2691,14 @@ mod native_app {
             }
             ObjectGrab::Machine(id) => {
                 if let Some(home) = state.gui_state.home_machines.as_mut() {
+                    // If this is an ARRAY cell (no direct instance), explode its array into instances so
+                    // it becomes individually movable -- the "I'm trying to move a grain tray but it
+                    // won't move" fix (array members were positioned procedurally, with no offset to
+                    // edit). Only here, past the tap-vs-drag threshold, so a mere SELECT never explodes
+                    // an array; only an actual drag does. Ids + positions are preserved. (v0.625)
+                    if !home.instances.iter().any(|m| m.id == id) {
+                        home.detach_array_member(&id);
+                    }
                     if let Some(inst) = home.instances.iter_mut().find(|m| m.id == id) {
                         inst.offset.0 = nx;
                         inst.offset.2 = nz; // offset.1 (height) preserved; box-mode offset is absolute
@@ -3882,6 +4000,11 @@ mod native_app {
         /// per placed machine. Rebuilt alongside machine_objects; the build-mode click ray-tests this
         /// to select a machine (its detail then shows on the right panel).
         machine_pick: Vec<(String, Vec3, f32)>,
+        /// Port pick volumes for viewport DRAG-TO-CONNECT (v0.625): (machine id, port index, the Port,
+        /// world gizmo position) for every machine's derived ports. Only the SELECTED machine's ports
+        /// render + are grab-able, but building all is cheap. Drag a port onto another machine to wire
+        /// them. Rebuilt with `machine_pick`.
+        port_pick: Vec<(String, usize, crate::utilities::Port, Vec3)>,
         /// Static wall/perimeter collision segments for the home (v0.556): the player (= the camera)
         /// is pushed out of these in first person so you can no longer walk through walls. Rebuilt
         /// from the home_structure on every structural edit + on world load. Doors collide live.
@@ -4020,6 +4143,11 @@ mod native_app {
         /// apply_object_drag past the tap-vs-drag threshold, cleared on release. Walls keep their own
         /// corner-orb drag; this is for the other object types the operator wanted movable.
         construction_object_grab: Option<ObjectGrab>,
+        /// Viewport DRAG-TO-CONNECT (v0.625): the machine port currently being dragged to make a wire --
+        /// (source machine id, utility, port direction, world start point). While Some, a rubber-band
+        /// line follows the cursor; releasing over a machine that has a compatible (same-utility) port
+        /// creates the connection. None when no port drag is in flight.
+        construction_port_drag: Option<(String, crate::utilities::Utility, crate::utilities::PortDir, Vec3)>,
         /// Alignment-snap guides (v0.613): while dragging an object, if its X (or Z) lines up with
         /// another object's, the drag snaps to it and we stash the snapped coord here so the overlay can
         /// draw a guide line along that axis. None = no snap this frame. Cleared when no drag is active.
@@ -4615,6 +4743,7 @@ mod native_app {
                 placeholder_objects: Vec::new(),
                 machine_objects: Vec::new(),
                 machine_pick: Vec::new(),
+                port_pick: Vec::new(),
                 wall_colliders: Vec::new(),
                 connection_objects: Vec::new(),
                 connection_flow_paths: Vec::new(),
@@ -4664,6 +4793,7 @@ mod native_app {
                 wall_tool_mat: None,
                 construction_node_grab: None,
                 construction_object_grab: None,
+                construction_port_drag: None,
                 construction_snap_x: None,
                 construction_snap_z: None,
                 construction_grab_press: None,
@@ -5027,6 +5157,7 @@ mod native_app {
                             // the wrong context. (v0.531)
                             state.gui_state.construction_place_type = None;
                             state.construction_ghost = None;
+                            state.construction_port_drag = None; // drop any in-flight wire drag (v0.625)
                             if state.gui_state.construction_active {
                                 // Force a structure rebuild on ENTRY so the machine PICK VOLUMES
                                 // (`machine_pick`) are rebuilt in the editor's coordinate space. Without
@@ -5178,6 +5309,9 @@ mod native_app {
                                 // the right panel, like a wall.
                             } else if !lock_struct && state.gui_state.home_structure.is_some() && try_pick_structure(state) {
                                 // Clicked a placed STRUCTURE (v0.583) -> its detail shows on the right.
+                            } else if !lock_machine && state.gui_state.home_structure.is_some() && try_pick_port(state) {
+                                // Grabbed a machine PORT (v0.625): drag onto another machine to WIRE
+                                // them. Runs before the machine pick so a port beats moving the body.
                             } else if !lock_machine && state.gui_state.home_structure.is_some() && try_pick_machine(state) {
                                 // Selected a machine in the viewport (v0.553) -> its detail shows on
                                 // the right panel. Click only; machines are not dragged here. Gated to
@@ -5207,6 +5341,24 @@ mod native_app {
                                 } else if let Some((wi, _)) = state.construction_opening_grab {
                                     state.gui_state.construction_wall_selected = Some(wi);
                                     state.gui_state.construction_machine_selected = None;
+                                }
+                            }
+                            // Port DRAG-TO-CONNECT release (v0.625): if we were dragging a machine port,
+                            // drop it on a machine that has a compatible (same-utility) port to wire them.
+                            // Orient supply->demand so `from` is the source (the data convention).
+                            if let Some((src_id, util, pdir, _)) = state.construction_port_drag.take() {
+                                if let Some(target) = port_drop_target(state, &src_id) {
+                                    if machine_has_port(state, &target, util) {
+                                        if let Some(home) = state.gui_state.home_machines.as_mut() {
+                                            let (from, to) = match pdir {
+                                                crate::utilities::PortDir::In => (target.clone(), src_id.clone()),
+                                                _ => (src_id.clone(), target.clone()),
+                                            };
+                                            if home.add_connection(&from, &to, util.id()) {
+                                                state.gui_state.construction_machines_dirty = true;
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             state.construction_grab = None; // release; keep the selection highlighted
@@ -7143,6 +7295,52 @@ mod native_app {
                                     crate::renderer::line::push_polyline(&mut ring_lines, &[[x0, y0, z0], [x1, y0, z1]], MB);
                                     crate::renderer::line::push_polyline(&mut ring_lines, &[[x0, y1, z0], [x1, y1, z1]], MB);
                                     crate::renderer::line::push_polyline(&mut ring_lines, &[[x0, y0, z0], [x0, y1, z0]], MB);
+                                }
+                            }
+
+                            // PORT gizmos + the DRAG-TO-CONNECT rubber band (v0.625). The SELECTED
+                            // machine's ports show as coloured handles above it (amber power, blue water,
+                            // violet data, ...); an OUT port gets an outer "target" ring. Drag a handle
+                            // and a line follows to the cursor / hovered machine -- utility-coloured when
+                            // it can wire, RED when the target has no matching port. Release to connect.
+                            {
+                                let sel = state.gui_state.construction_machine_selected.clone();
+                                if let Some(sel_id) = sel.as_deref() {
+                                    for (mid, _i, port, wp) in &state.port_pick {
+                                        if mid != sel_id {
+                                            continue;
+                                        }
+                                        let c = crate::machines::MachineHome::connection_color(port.utility.id());
+                                        let col = [c[0], c[1], c[2], 0.95];
+                                        let p = [wp.x, wp.y, wp.z];
+                                        crate::renderer::line::push_circle(&mut ring_lines, p, 0.12, col, 14);
+                                        if port.dir == crate::utilities::PortDir::Out {
+                                            crate::renderer::line::push_circle(&mut ring_lines, p, 0.18, col, 14);
+                                        }
+                                        // A short stalk down to the machine top so the handle reads as its.
+                                        crate::renderer::line::push_polyline(&mut ring_lines, &[[wp.x, wp.y - 0.3, wp.z], p], col);
+                                    }
+                                }
+                                if let Some((src_id, util, _pdir, wp)) = state.construction_port_drag.clone() {
+                                    let c = crate::machines::MachineHome::connection_color(util.id());
+                                    let target = port_drop_target(state, &src_id);
+                                    let center = target
+                                        .as_ref()
+                                        .and_then(|t| state.machine_pick.iter().find(|(id, ..)| id == t).map(|(_, c, _)| *c));
+                                    let ok = target.as_ref().map_or(false, |t| machine_has_port(state, t, util));
+                                    let end_pt = center
+                                        .map(|c| [c.x, c.y, c.z])
+                                        .or_else(|| cursor_floor_hit(state).map(|(_, hx, hz)| [hx, 0.05, hz]))
+                                        .unwrap_or([wp.x, wp.y, wp.z]);
+                                    let line_col = if target.is_some() && !ok {
+                                        [0.95, 0.3, 0.25, 0.95] // incompatible target -> red
+                                    } else {
+                                        [c[0], c[1], c[2], 0.95]
+                                    };
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[wp.x, wp.y, wp.z], end_pt], line_col);
+                                    if let Some(center) = center {
+                                        crate::renderer::line::push_circle(&mut ring_lines, [center.x, center.y, center.z], 0.5, line_col, 18);
+                                    }
                                 }
                             }
 
