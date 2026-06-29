@@ -1087,3 +1087,275 @@ Decisions rotated out of `data/coordination/orchestrator_state.json` (oldest fir
 
 **Why:** Operator: build the launcher pass to verify the GUI + add a dedicated game-admin page where character bans do NOT ban from chat. Reused the verified workflow plan (w7ehk4wdk) for the ban separation; built the launcher inline.
 
+
+## 2026-06-16
+
+**Decision:** SHIPPED v0.476.0 -- UNIFIED the character launcher + showroom into ONE two-pane screen (operator feedback: the v0.474 flat launcher + the old showroom were two separate character-selects, and Esc showed a stale Wanderer). Deleted GuiPage::Launcher + launcher.rs; folded the launcher list into showroom.rs draw_character_select (Your Homes / Open-Net / Closed-Net / Servers, Set-default toggle, server detail pane). ROOT-CAUSE FIX for the Esc ghost: load_world no longer auto-opens the showroom; Play opens it opt-in via launcher_open_select + a per-frame open_showroom(0) AFTER load_world (works first time + every later time). Also: scripts/archive-build.js maintains a stable root HumanityOS.exe (refreshed each build, rename-aside fallback, never purged) so the operator pins it to the taskbar once.
+
+**Why:** Operator directed: merge the two character-selects into one master-detail page (left list, right detail incl. showroom), fix the Esc duplicate, and stop the taskbar exe from being lost. Used a 5-agent investigation workflow to ground the exact wiring before implementing.
+
+
+## 2026-06-16
+
+**Decision:** SHIPPED v0.477.0 -- fixed the default-home DEAD-END (operator: once a default was set, Play skipped to FPS with no way back to the picker). Added a Characters nav item (always opens the picker, vs Play which honors the default skip; both page None, branched by label), made Esc cancel the picker cleanly (was leaving showroom_active set -> next Play would render the showroom not the world; picker returns to menu, in-world wardrobe returns to FPS), and added a visible < Back button in the picker left pane (showroom_cancel flag mirrors the Esc path).
+
+**Why:** Operator hit a dead-end verifying v0.476: liked the immediate-into-game default but had no way back to change homes/clear the default.
+
+
+## 2026-06-16
+
+**Decision:** SHIPPED v0.477.2 -- WEB Game Admin (dual-UI parity with the native Game Admin page). A dedicated admin-only overlay in the chat client (web/chat/chat-game-admin.js), reached from a new Game Admin command-palette item (data/commands.json Admin category + CMD_PALETTE_ACTIONS in chat-ui.js). Verbatim free-speech disclaimer ported from native; ban form + per-row Unban; 3 send helpers (sendGameBan/Unban/BannedListRequest) over the authenticated chat WS in app.js; decode arms for game_banned_list + game_admin_error in the existing system __game__ block. Game moderation kept structurally separate from chat moderation (separate overlay, not folded in). No relay work (handlers shipped v0.474). CSP-safe DOM (createElement+textContent, no inline handlers).
+
+**Why:** Operator picked up the spawned chip for web Game Admin parity (CLAUDE.md dual-UI rule: native added a page, web should match). Grounded the web patterns with a 5-agent investigation workflow before implementing.
+
+
+## 2026-06-17
+
+**Decision:** SHIPPED v0.478.0 -- launcher server detail: live GET /api/server-info fetch + admin-editable server description. Backend: server_settings.server_description column (CREATE TABLE + guarded ALTER), ServerSettingsUpdate WS Optional field (partial update, bounded 2000 chars), get_server_info prefers DB then server-config.json fallback, round-trip unit test. Frontend (showroom.rs): background ureq+mpsc fetch cached per server id (no 3D hitch), renders name/desc/version/members/online/channels/accord; admin-only inline description editor for the connected server sending a partial server_settings_update with optimistic local update.
+
+**Why:** Operator picked up the second chip (server-detail fetch + admin-edit description). Used the established native background-thread + mpsc::channel + drain pattern (mirrors drain_p2p_loaders) so the blocking ureq fetch never freezes the orbiting showroom.
+
+
+## 2026-06-17
+
+**Decision:** SHIPPED v0.479.0 -- moved the server-description EDITOR from the launcher detail pane to Server Settings > ADMIN > Server policy (operator looked there + did not find it; the launcher was a discoverability miss). Binds to the existing server_settings_draft + saves via the existing Save Changes button (the v0.478 relay WS field + column already accept it). Launcher detail pane now DISPLAYS the description read-only + a hint to edit in Server Settings. Removed the launcher inline editor + unused helpers + 3 server_desc_* GuiState fields.
+
+**Why:** Operator feedback on v0.478: could not find the description editor; expected it in the server admin panel, not the play launcher.
+
+
+## 2026-06-17
+
+**Decision:** SHIPPED v0.480.0 (Game Admin folded into a Server Settings>ADMIN subsection -- dedicated page+nav button removed; + server_name now editable in Server policy, get_server_info prefers DB) and v0.481.0 (voice channel PRESENCE: relay already broadcasts per-channel voice rosters, clients were discarding them. Native ChatChannel.voice_participants + render under voice channels; web lists participants + truthful in-voice indicator + repointed the dead on-row mic to real joinVoiceRoom/leaveVoiceRoom). Ran a 3-agent workflow auditing the server configurator (Plan A) + designing voice presence (Plan B, no relay change needed).
+
+**Why:** Operator feedback round: fold game admin (fewer pages), audit configurator for missing hardcoded props, add voice presence (who is in voice + indicator).
+
+
+## 2026-06-17
+
+**Decision:** SHIPPED v0.482.0 -- F-key diagnostics dev-HUD + F1 keymap mouse controls. Operator clarified they wanted diagnostic OVERLAYS (FPS/network/RAM), not page jumps. Added F2 Performance (FPS + frame-time sparkline + entity count), F3 Network (connection/server/members/msgs-in), F4 System (RAM via new native memory-stats dep + uptime + version); stacked top-right, sampled only while open. Fixed the F1 keymap: World context was missing mouse-look (added Look around = move the mouse); added the F2/F3/F4/F12 dev-HUD keys to every context block in data/keymaps.ron so they are discoverable.
+
+**Why:** Operator F1 feedback: missing mouse controls + unused F-keys. They framed F-keys as functions (fps counter/graph, network widget, ram) not page navigation.
+
+
+## 2026-06-17
+
+**Decision:** SHIPPED v0.483.0 -- A2 upload-cap fix: per-role max_upload_mb is now the real per-upload ceiling (was silently capped by a hardcoded 10/20MB wall: min(10/20MB, role_cap)). Now max_size = role_cap.min(1GB backstop); server-wide max_total_upload_mb disk cap still enforced so no exhaustion risk. Removed dead consts + is_media branch.
+
+**Why:** Audit Plan A item A2 (greenlit). Raising a role upload cap above 10/20MB previously did nothing.
+
+
+## 2026-06-18
+
+**Decision:** SHIPPED voice per-user controls inc 1+2. v0.484.0 (native+web): self-presence marker (your own roster entry accent+bold+(you)) + clickable roster rows opening the per-user modal (native draw_user_modal; web new modal). v0.484.1 (web-only): NEW chat-voice-modal.js, a 3-tier per-user control modal (standard red / mod green / admin blue) with per-peer Web Audio gain graph (volume 0-200%, local mute, squelch via shared analyser poll, localStorage prefs) + reused actions (profile/DM/follow/block/report, text mute/kick, ban/unban/game-ban/verify/mod/unmod). Server voice-mute + disconnect-from-voice are disabled placeholders pending relay handlers (inc 3).
+
+**Why:** Operator: see my own icon in voice + click users for a control modal with volume/mute/squelch in 3 role-tiered sections, comprehensive.
+
+
+## 2026-06-18
+
+**Decision:** SHIPPED v0.485.0 -- native voice PHASE A (audio I/O + Opus, mic test). Added pure-Rust audio stack: cpal 0.17 (WASAPI), unsafe-libopus 0.2 (transpiled libopus, NO C toolchain), rtrb 0.3 (wait-free ring buffer); all native-feature-only, relay build unaffected. New src/net/voice.rs: safe Opus Encoder/Decoder wrappers (48k mono 20ms frames) + a mic->Opus->speaker loopback. Settings>Audio>Test microphone button (mic_test_requested flag -> lib.rs -> voice::start_mic_test). The crates all built clean on Windows (the make-or-break risk for the whole feature).
+
+**Why:** Operator: get voice working in the native app (currently no audio transport at all). Phased build per the 5-agent design workflow (waz7seqiq).
+
+
+## 2026-06-18
+
+**Decision:** SHIPPED v0.486.0 -- mic test UX rebuild (operator: no sign it was running). Settings>Audio>Voice now: TOGGLE button (runs until stopped), animated RGB channeling border while active (escape_menu::channeling_color), live mic LEVEL METER (peak from the cpal callback via an atomic, decayed in lib.rs), STATUS line (Listening/Failed surfaced in-UI not just F12), and INPUT/OUTPUT device selectors (cpal enumeration cached + Refresh). voice.rs: loopback became a RUNNING-atomic toggle with device-by-name lookup + peak + status. Session-only device selection (no config persistence yet).
+
+**Why:** Operator could not tell the mic test was doing anything (and it may have been failing silently into the F12 console). Needed clear live feedback + device choice.
+
+
+## 2026-06-18
+
+**Decision:** SHIPPED v0.487.0 -- mic test now accepts any device format+rate (operator screenshot: Failed: does not support 48 kHz f32, status flickering). Root causes: (1) the audio path hardcoded 48 kHz f32; real WASAPI shared-mode mics are commonly 48 kHz i16 or 44.1 kHz. voice.rs now reads default_input_config/default_output_config, builds streams generic over the sample type (i16/u16/f32 via cpal from_sample), and resamples device-rate<->48 kHz with a streaming linear Resampler (exact passthrough at 48 kHz). (2) the toggle re-tried a failing start every frame, flickering Starting/Failed; lib.rs now starts/stops only on the toggle EDGE (GuiState.mic_test_prev) and flips the toggle off if the start fails so the Failed reason stays readable.
+
+**Why:** Operator could not test the mic at all -- their device is not 48 kHz f32, and the failure flickered too fast to read.
+
+
+## 2026-06-18
+
+**Decision:** SHIPPED v0.488.0 -- full native voice INPUT stack (operator: gain sliders + filter modes + open-mic/PTT/VAD/push-to-mute, accommodate all IO). Used a 4-agent Workflow (wf_7774e762) to research str0m audio API, pure-Rust DSP, web parity, native insertion points. Implemented: Mic gain 0-200%% (clip-protected); 3 filter modes Off/Light(85Hz biquad HPF+noise gate)/NoiseSuppression(RNNoise via nnnoiseless 0.5.2 -- VERIFIED pure Rust, rustfft only, no *-sys; removes keyboards/coughs DURING speech); 4 transmit modes OpenMic/PushToTalk/VoiceActivated/PushToMute with bindable push key + VAD threshold + live Transmitting/Silent indicator. All persisted to AppConfig (VoiceFilterMode+VoiceTransmitMode enums, device+gain+mode+key+threshold). voice.rs: live param atomics, Biquad, NoiseGate, Denoiser(RNNoise i16-range x32768 scaling, 480-frame chunking), InputProcessor, transmit_decision + 6 DSP unit tests. nnnoiseless is dep:nnnoiseless native-only (relay gate verified).
+
+**Why:** Operator confirmed Phase A loopback works and asked for the real input controls; this is the verifiable, high-value half they can test immediately.
+
+
+## 2026-06-18
+
+**Decision:** SHIPPED v0.489.0 -- Phase B native WebRTC Opus media (str0m), ADDITIVE + OPT-IN. Added to the EXISTING per-peer Rtc in webrtc.rs (agent-recommended single-transport design): PeerConn.audio_mid + voice_rtp_ts; Command::OfferTo gained wants_voice (all existing callers pass false -> no audio m-line -> P2P-group offers byte-identical, regression-tested); new offer_to_voice()/send_voice() handle methods; cmd_offer_to adds api.add_media(Audio,SendRecv) only when wants_voice (after add_channel so data m-line stays SDP index 0); cmd_send_voice writes via rtc.writer(mid).write(pt, Instant::now(), MediaTime::new(ts,FORTY_EIGHT_KHZ), opus) discovering pt from writer.payload_params() (Codec::Opus, not hardcoded 111), advancing voice_rtp_ts by 960/frame; handle_event gained Event::MediaAdded (answerer learns mid) + Event::MediaData -> WebrtcEvent::VoiceFrame{peer,opus}; lib.rs consumer arm drops it for now. All str0m 0.20 signatures cross-checked vs registry source. 2 pure-SDP negotiation tests (voice path offers+answers Opus m-line; data-only path has none).
+
+**Why:** Operator asked to work on Phase B (the voice transport). Built it safely: it cannot be live-verified solo (needs Phase C signaling + 2 peers), so it is opt-in + regression-guarded so it cannot affect the live P2P mesh, with the negotiation proven by deterministic tests.
+
+
+## 2026-06-18
+
+**Decision:** SHIPPED v0.490.0 -- voice defaults per operator: filter default=NoiseSuppression(RNNoise), transmit default=PushToTalk, push key default=CapsLock. Push key handling moved from egui to RAW winit input (egui has NO CapsLock variant + PTT must work in-game where egui is not focused): the winit key handler tracks the bound keys held state (voice_ptt_held) + captures new bindings (settings button just arms voice_binding_key, Esc cancels); keys stored as winit KeyCode debug name (CapsLock, KeyV) + prettified for display via config::pretty_ptt_key_name. CapsLock-as-PTT toggles caps each push -- UI hint notes this.
+
+**Why:** Operator chose these defaults and CapsLock specifically; egui could never read CapsLock so raw winit input was required.
+
+
+## 2026-06-18
+
+**Decision:** SHIPPED v0.491.0 (C1: native voice-room JOIN fixed -- was sending ignored voice_join; now voice_room action+numeric room_id, so native registers + appears in roster) + v0.492.0 (C2: native voice WebRTC SIGNALING+CONNECTION). C2: mapped relay+web+native protocol via 3-agent workflow (wf_26c280e4). Glare rule = web newcomer-offers-incumbents-wait (no key tiebreak). Native: on first post-join roster dials incumbents via offer_to_voice(peer,room_id); voice offer/answer/ice over voice_room_signal with data as OBJECT (browser RTCSessionDescription shape, NOT string like the webrtc_signal P2P path); str0m SdpOffer serde={type,sdp} matches browser, no SDP munging, Opus48k default matches. webrtc.rs: PeerConn.voice_room_id+voice_announced; cmd_offer_to gained voice_room param + bypasses key-rule for voice; cmd_voice_signal+on_voice_offer/answer/ice+emit_voice_signal+add_local_candidates helper; emit_ice_candidate branches voice->voice_room_signal; VoiceConnected event on ICE Connected. lib.rs: voice_room_signal->submit_voice_signal; roster-driven incumbent dial (voice_active_room+voice_incumbents_captured+me_present guard); VoiceConnected/VoiceFrame arms (frame counter diag). ADDITIVE+ISOLATED behind voice-join; P2P data mesh untouched (negotiation tests still pass).
+
+**Why:** Operator approved native<->web voice interop + said proceed. C2 de-risks the hard interop (signaling/ICE/transport) before the audio subsystem.
+
+
+## 2026-06-18
+
+**Decision:** SHIPPED v0.493.0 -- UNIFIED voice model to per-channel (operator clarified: each channel has voice via the admin voice_enabled toggle; clicking its mic joins THAT channels voice; roster shows under it). ROOT CAUSE of the reported bug: voice rooms were keyed to a SEPARATE voice_channels DB table, but the UI shows a mic on every voice_enabled TEXT channel -> clicking a normal channel mic sent a join the relay rejected (no matching voice channel) or with no room_id (web=nothing, native=green icon only). FIX: voice room IS the text channel, keyed by its string id. Relay: handle_voice_room join validates channel_voice_enabled(id) + channel_display_name(id) (new channels.rs helpers) instead of voice_channel_exists; build_voice_channel_list_msg built from all voice-enabled text channels (string id) + their voice_rooms rosters; VoiceChannelData.id i64->String. Web (chat-ui.js): mic data attr + join + roster all by channel id, no name lookup. Native (chat.rs join by ch.id; lib.rs voice_channel_list match by id, roster-offer block compares string id).
+
+**Why:** The dual model (separate voice_channels table vs per-channel voice_enabled flag) was disconnected; operator confirmed the intended model is per-channel voice.
+
+
+## 2026-06-18
+
+**Decision:** BUILT (committed locally, NOT pushed) v0.494.0 -- Phase D live voice AUDIO. Root cause of operators 'auto refresh every few minutes breaking voice' CONFIRMED = my own deploy cadence: each release restarts the live relay (clears in-memory voice_rooms + drops all WS) and the web force-reloads on server_version change (app.js peer_list handler). Relay version is otherwise STABLE between deploys (verified). So: stop deploying mid-test. Phase D is NATIVE-ONLY (web plays native audio via browser; relay just forwards Opus) so it needs NO deploy -- built a local exe (v0.494.1, HumanityOS.exe refreshed) WITHOUT pushing, so the live relay stays up during the operators test. voice.rs: start/stop_voice_session + run_voice_session (capture->DSP->transmit gate->Opus encode->VOICE_SEND queue; VOICE_REMOTE->per-peer Opus decode->mix->resample->speaker), drain_voice_send/push_remote_opus. lib.rs: edge-triggered session on voice_active_room; pump drain_voice_send->send_voice to each connected peer; VoiceFrame->push_remote_opus; track voice_connected_peers via VoiceConnected/Closed.
+
+**Why:** Operator: roster works (sees both users) but cannot hear anyone (Phase D was missing) + frequent refresh breaks voice (= my deploys).
+
+
+## 2026-06-21
+
+**Decision:** SHIPPED v0.495.0 (full deployment: Phase D live voice audio + static fix + headless UI snapshot tooling) AND did a comprehensive DOCS SYNC for the whole voice arc + tooling (operator: docs/roadmap are top priority so knowledge survives the session). NEW doc docs/network/native_voice.md = the keystone implementation reference (pipeline, phases A-D, DSP, str0m transport, the voice_room_signal protocol + newcomer-offers glare rule, per-channel model, key files, TODO). Updated FEATURES.md (Native Voice + Developer Tooling sections), STATUS.md (native voice rows + fixed the now-wrong observer-only/no-WebRTC-stack claims; v0.495 partial sync), ROADMAP.md (native voice [planned]->[done] + [next] polish) + regenerated data/roadmap.json, PRIORITIES.md (current voice state + the agreed NEXT: in-process WebRTC test harness, native per-peer controls, web transmit parity, graceful relay restart), docs/history/2026-06-21.md (session narrative). Stripped em dashes from the new docs. Doc-links 0 broken. Built #1 = headless egui UI snapshots (src/gui/ui_snapshots.rs, offscreen wgpu render to PNG; egui_kittest rejected due to accesskit/egui-winit 0.31.1 incompat) + just verify/lints/snapshots/preflight.
+
+**Why:** Operator cleared full deploy (no prod users, voice via Discord), confirmed #1 + #3, and emphasized docs/roadmap as top priority to not lose track if the chat session disappears.
+
+
+## 2026-06-21
+
+**Decision:** BUILT #3 (the agreed dev-infra): in-process WebRTC test harness. inproc_webrtc_tests::two_str0m_opus_roundtrip in src/net/webrtc.rs drives TWO str0m Rtc instances through a full ICE+DTLS handshake in ONE process (sans-IO: each one's Output::Transmit is fed into the other's handle_input(Receive), shared fake clock, no sockets, host candidates at fake addrs that ride in the SDP), then writes an Opus frame into A and asserts it arrives at B as Event::MediaData with the exact payload. Passed first try (0.19s). The voice MEDIA path is now CI-verifiable without a live native<->web call. Test-only (no app change), so committed+pushed without a version bump/release.
+
+**Why:** Operator confirmed #3. Closes the voice/net verification gap (changes were only verifiable by a live 2-client call before).
+
+
+## 2026-06-21
+
+**Decision:** SHIPPED v0.496.0 -- LAWS feature (location-aware rules + rights), operator-directed. Nested jurisdiction tree (Humanity->Earth->country->state->county->locality), two kinds: BASE (HumanityOS framework, distilled from the Humanity Accord) + REAL (plain-language summaries of real laws with a source, NOT legal advice). Philosophy = condense to a memorable set, not ingest millions of statutes. Data-driven (infinite-of-X): data/laws/laws.json (jurisdictions + rules, hot-reloadable, seeded with the operator example Silverdale->Kitsap->WA->USA->Earth->Humanity + Accord-derived base rights + a few real examples e.g. WA all-party recording consent RCW 9.73). Loader src/gui/laws.rs (path_to_root/applicable_rules/breadcrumb + 3 unit tests). Page src/gui/pages/laws.rs (GuiPage::Laws, reached from the Humanity hub Laws section): location picker, breadcrumb, kind filter, search, rules grouped by jurisdiction with BASE/REAL badges + sources. Verified by RENDERING the page headlessly (the new UI snapshot tool -- tests/snapshots/laws_page.png -- extended to ctx-level pages) and viewing it. Design doc docs/design/laws.md; FEATURES + PAGES updated.
+
+**Why:** Operator: providing access to the laws where people actually live, condensed to a memorable base set, is a core civic/educational + governance(#5) need. Real laws are millions + change; a curated nested set is the value.
+
+
+## 2026-06-21
+
+**Decision:** Laws content EXPANDED for the operator location (operator: focus on where I am so I can show people how HumanityOS ties to the real world, where-we-are vs where-we-want-to-be). data/laws/laws.json now has ~17 real laws across USA/WA/Kitsap/Silverdale (accurate + sourced + condensed: WA no income tax, WA min wage, WA paid leave, WA all-party recording RCW 9.73, WA cannabis 21+, WA hands-free driving, US 1st/4th/5th/6th Amend, civil rights, voting; Kitsap permits/burn/noise; Silverdale water/septic) + a richer base set (the 6 Accord rights + responsibility + a base-vision rule framing the contrast). All with the not-legal-advice disclaimer. PLUS: extended the UI snapshot tool to render full ctx-level pages (most pages) + added 14 page snapshot tests (#[ignore], run via just snapshots single-threaded to avoid GPU contention; the parallel-device-creation exhaustion was why they failed at first). REVIEWED 8 main pages via the tool (humanity/chat/inventory/tasks/market/library/crafting/profile) -- findings in docs/design/ui-review-2026-06-21.md.
+
+**Why:** Operator asked to build out Laws for their location + to review every page for improvements using the new snapshot tool.
+
+
+## 2026-06-21
+
+**Decision:** Laws content built out COMPREHENSIVELY via subagents (operator: dedicate a subagent to flesh out the whole set of categories for my location). A batched 10-agent workflow (one per category) produced 175 real sourced rules for Silverdale/Kitsap/WA/USA; merged with statute-aware dedup into data/laws/laws.json = 9 base (Accord) + 160 real = 169 total, spanning all 10 categories across federal(35)/WA(96)/Kitsap(29). Then a 3-agent web-search-backed ADVERSARIAL accuracy audit by jurisdiction found only 3 citation-precision issues (1 medium, 2 low; zero false legal claims) -- all fixed: 49 U.S.C. ch.301 vs sec.301 for NHTSA; the WA 21+ gun-purchase age applies to pistols/semiauto-assault-rifles only not all long guns (I-1639/RCW 9.41.240); public-intoxication recodified at RCW 71.24.565 not Title 71.05. Disclaimer (not legal advice, verify the source) stands on every rule.
+
+**Why:** Operator wants Laws as a real showcase for their location to show people how HumanityOS ties the real world to where-we-want-to-be. Legal content must be verified before shipping -> the adversarial audit gate.
+
+
+## 2026-06-21
+
+**Decision:** UI snapshots now render the LOADED app, not the empty first-run state (operator: in none of your screenshots did you see the main menu or content loaded). Added demo_state() in src/gui/ui_snapshots.rs -- a GuiState filled via the real data loaders (places/towers/equipment/recipes/market/library/quest-chains) plus sample vitals/crops/asteroids/skills/quests/chat/tasks/listings/notes/calendar/wallet/profile. render_page_png uses it. Also added a WARM-UP FRAME to the renderer (egui Windows/Areas settle layout on frame 2) which fixed the previously-BLANK main menu + any Window/modal page; added a main_menu snapshot. Inventory snapshot now mirrors the operator screenshot exactly.
+
+**Why:** Empty-state snapshots gave misleading UI reviews; the operator needs to see pages as users actually see them.
+
+
+## 2026-06-21
+
+**Decision:** Laws list REDESIGNED to one compact row per rule (operator: single row per rule, read the bulk fast; metadata columns left + summary fills the rest; click to expand inline, no modal). Uses the universal widgets::expandable_row + row_cell: [BASE/REAL badge 44px][category 150px][title 300px][summary truncated, fills remaining]; collapsed by default; click expands IN PLACE into full summary + source + tags, pushing rows below down. PLUS: all dev/debug CHEATS now behind ONE toggle theme.cheats_enabled (operator: specific toggle so we test everything then disable cheats for servers) -- gates the four Dev buttons (stock all materials/crafting, stock seeds + grow all/inventory, max skills/profile); toggle in Settings -> Animations -> Developer cheats, default ON for dev. Shipped v0.498.0.
+
+**Why:** Operator asked for a fast-scannable single-row laws list with inline expansion, and a single cheats toggle so the same build serves testing and clean demos/servers.
+
+
+## 2026-06-21
+
+**Decision:** Page-cleanup width pass STARTED (operator chose: responsive two-column-per-page for width, scannable redesign for the Humanity landing). v0.499.0: (1) Wallet -> responsive ui.columns(2): balance/address/send left, transaction history+tokens right, stacks below TWO_COL_MIN=820px; extracted into pane_balance_send + pane_history_tokens fns (two state-borrowing closures cannot coexist, so columns call them sequentially). (2) Humanity landing -> added a Start here action card under the hero (Get oriented/See your Laws/Fund the work/Shape the rules) + collapsed the 3 longest detail sections (Why its built this way / What it protects / Built for every situation) via widgets::collapsible_section default-closed, so the wall becomes scannable headers with all copy preserved one click away.
+
+**Why:** Operator: finish the page cleanup. Two-column uses the wasted right half; the landing was a text wall that needed a fast-scan entry + start-here.
+
+
+## 2026-06-22
+
+**Decision:** Width pass continued (v0.500.0): Quests -> responsive two-column (sim quests left, learn-by-doing chains right) via ui.columns(2) calling draw_game_quests + onboarding::draw_quests sequentially. Profile Body & Measurements -> two-column (General+Hair left, Clothing right) via extracted body_general_hair + body_clothing fns. Profiles single-card form sections (Identity, Network) left single-column on purpose -- two-columning a short form cramps it, not an improvement. demo_state now shows the Body section so the snapshot proves it.
+
+**Why:** Operator: finish the page cleanup with two-column-per-page where it helps.
+
+
+## 2026-06-22
+
+**Decision:** v0.501.0: (1) Laws rows fixed -- operator: the fixed-width cells clipped long titles + left gaps, the summary read as right-aligned. Switched to all left-aligned NATURAL FLOW: small BASE/REAL badge, category, title (bold, wrap_mode Extend so never clipped), then summary (truncate) filling the rest of the line. (2) Inventory Status REDESIGNED (operator: drastically improve the visual appeal) from thin text rows into a 3-column GRID OF VITAL TILES -- each tile a card with name + big colour-by-level value + a chunky rounded bar, using the page width. New vital_tile() helper. This is the first/centerpiece pass; the rest of the inventory (Equipment, the places/garden/mining trees) still uses the old style, pending operator direction on extending the same tile/card + width treatment to their core workflow sections.
+
+**Why:** Operator reported the Laws row execution (clipping/gaps) and that the inventory page presentation is not user-friendly + wants drastic visual improvement.
+
+
+## 2026-06-22
+
+**Decision:** Inventory GARDEN now shows ALL grow areas (operator: the garden doesnt include all the different grow areas + feels clunky). Root cause found: the section only loaded the 2 aeroponic tower DESIGNS (data/towers/aeroponic_configs.ron), but the homestead garden room in data/machines/home.ron has 74 grow machines across 11 kinds (24 variety towers, 18 potato beds, 10 oilseed beds, 8 grain trays, 6 mushroom racks, 2 apothecary towers, 2 aquaponic tanks, 4 field crops). Added a self-contained cached loader (garden_areas() in inventory.rs) that counts garden-room food machines (instances + expanded arrays) by type from home.ron, and a garden_area_tile() rendering them as a 4-col grid of tiles (swatch + name + xCount + food/day) at the top of the Garden section, with the plantable tower designs below. No GuiState/lib.rs plumbing -- OnceLock cache like laws/glossary.
+
+**Why:** Operator feedback that the garden was missing grow areas and felt clunky; the data existed in home.ron but was never surfaced in the inventory.
+
+
+## 2026-06-22
+
+**Decision:** v0.503.0 inventory: (1) MULTI-COLUMN item lists in the nested tree (operator: the single-column list gets too tall with tons of seeds). widgets::container_node now flows a container whose children are all leaves and number > 12 into 2-4 adaptive columns (by width) instead of one tall column; extracted leaf_row() shared by both paths; the selected item card renders full-width below the grid. Keeps the nesting (containers stay tree branches). (2) Per-medium GARDEN EDIT MODAL (operator: how do I edit them? a modal tailored to the grow medium). Garden tiles are now clickable -> a centered egui::Window whose body differs by GrowMedium (aeroponic tower = sun-lit note + the 50-slot planting list + mist-water/nutrient sliders; soil bed = crop + soil-moisture + compost-amendment; grain tray; mushroom rack = species + humidity; aquaponic tank = fish + feed; field = crop + irrigation). In-memory edit config per area via thread_local until garden persistence lands. Verified with 2 dedicated modal snapshots (soil + tower).
+
+**Why:** Operator feedback: tall single-column item lists are hard to navigate; grow areas needed an edit affordance tailored to each medium.
+
+
+## 2026-06-22
+
+**Decision:** v0.504.0: garden edit modal upgraded to a real egui::Modal (dimmed backdrop, closes on backdrop-click/Escape) + an adversarial 17-agent review workflow on the v0.500..503 inventory changes found 4 confirmed issues, all fixed: (1) MEDIUM garden grow-areas loaded home.ron via a hardcoded relative "data" path -> would silently vanish for installed builds launched from any other CWD. Fixed to the codebase standard: GardenArea + load_garden_areas moved to gui/mod.rs, loaded via the resolved data_dir in lib.rs, stored on GuiState.garden_areas (mirrors homestead_loops/tower_configs); page + modal read state. (2) LOW multi-column only triggered for nested containers, not flat ROOT lists -> lifted the >12-all-leaves flow into tree_list_ex too. (3) LOW OnceLock hot-reload staleness -> moot now (loaded at startup like the other catalogs, no OnceLock). (4) LOW test thread_local modal-open could leak into the plain inventory snapshot -> added test_close_garden_edit() reset.
+
+**Why:** Operator wanted budget used + the inventory is their primary page; an adversarial review caught a real installed-build regression the compile + snapshots could not.
+
+
+## 2026-06-22
+
+**Decision:** MINING OVERHAUL v0.505.0 (operator: limit mining to one asteroid at a time, loot bounded; update the mining UI; drone travels real distance). Core shipped: (1) ONE asteroid per run -- AsteroidBody gained id + position; Drone gained target + home_pos/target_pos + distance()/phase_duration()/current_pos() methods; the commission channel + pending_drone_manifest now carry (asteroid_id, manifest); the mining system targets ONE asteroid and pulls only from it, bounded by its stock; travel time scales with distance. (2) Mining UI redesigned to asteroid CARDS (class swatch + name + distance + ores) that open a per-asteroid mining MODAL (egui::Modal, like garden) where you allocate the drone hold from THAT asteroid ores (stepper bounded by each ore stock + 10-unit cap) and Launch targets it; the active-drone row now shows target + distance. (3) 5 mining tests incl loot_bounded_by_target_asteroid + mines_only_the_target_asteroid. REMAINING STRETCH: the map drone-travel visualization (positions/distance/drone.pos foundation is in; maps.rs has disabled solar-system projection to resurrect).
+
+**Why:** Operator wants mining gated to one asteroid with bounded loot + a tailored card/modal UI + the drone visibly traveling. Budget directive: 88% weekly to use in 3 days, work hard.
+
+
+## 2026-06-22
+
+**Decision:** MINING MAP v0.506.0 (operator vision: see their little drone going off to mine in the map). Added draw_mining_map() in inventory.rs -- a top-down 2D canvas in the Mining section: home at centre, each asteroid a dot at its (x,z) position labelled name + distance, the route line home->target, and the active drone a warning-coloured dot at its lerped current position (GuiDrone.pos) travelling along the route. All theme tokens / swatch_color (lint-clean). Verified with a focused snapshot_mining_map (draw_mining_map_for_test hook, since the map sits deep in the inventory where shared egui collapse-state makes a full-page snapshot unreliable). Completes the mining overhaul: one-asteroid-at-a-time + bounded loot (v0.505) + cards/modal (v0.505) + distance/travel (v0.505) + the map (v0.506).
+
+**Why:** Operator wanted the drone visibly travelling on a map; the position/distance/drone.pos foundation from v0.505 made it a small add.
+
+
+## 2026-06-22
+
+**Decision:** v0.507.0: applied the mining adversarial review (3 distinct LOW findings, no high/medium) + the data_dir correctness sweep. Mining fixes: (1) commission now only launches if the TARGET asteroid exists (was unwrap_or([0,0,0]) -> a stale/depleted id launched a dud drone that wasted the single slot ~9s for nothing); added missing_target_launches_nothing test. (2) the per-asteroid modal draft is now cleared on Cancel/backdrop/Escape (was persisted via the unconditional write-back -> a stale now-impossible allocation on reopen); write-back moved into the still-open branch. (3) removed the orphaned GuiState.drone_manifest_draft field + initializer + stale doc (dead since the global manifest builder was replaced by the modal). Data_dir sweep: added crate::DATA_DIR OnceLock + crate::data_dir() set once at startup from find_data_dir; laws::install + glossary::install now resolve via it instead of a bare Path::new("data") (was a silent installed-build empty-page bug, same class as the garden one the prior review caught). homes.rs hit was a test (repo-root cwd), left.
+
+**Why:** Adversarial review caught 3 real low-severity mining issues; the data_dir sweep hardens laws/glossary for distributed builds (the mission).
+
+
+## 2026-06-22
+
+**Decision:** AUTONOMOUS LOOP engaged (operator: keep going, loop mode, native focus). Increment 1 v0.508.0 = GARDEN PLOT-TYPES via the grow-media registry (also fixes an infinite-of-X violation in the garden edit modal). data/garden/grow_media.ron: each medium = match patterns (exact/prefix/suffix) + label + note + show_slots + controls (Slider/Crop/Toggle). GrowMedium/GrowControl structs + load_grow_media in gui/mod.rs; GuiState.grow_media via data_dir in lib.rs + demo_state. The modal now finds the medium by GrowMedium::matches() and renders from the registry; GardenEditConfig is HashMap-keyed by control key. Adding a plot-type is a DATA edit. Recorded in infinite-of-x.md. ALSO gave the operator X-reply feedback: the harvest-now-decrypt-later defense is Kyber768/ML-KEM (encryption), NOT Dilithium3 (identity/signature) -- a public crypto claim an academic would catch; P2P has an encrypted relay fallback (ciphertext-only); the sensor/VR homestead is vision-in-progress.
+
+**Why:** Operator engaged autonomous loop; the hardcoded grow_medium match violated the non-negotiable infinite-of-X rule and the plot-types arc was long-deferred.
+
+
+## 2026-06-22
+
+**Decision:** AUTONOMOUS LOOP, garden-sim depth (v0.508-0.510). The operator engaged 'loop mode' (native-first, use the weekly budget hard) on the garden/inventory arc. Shipped three verified increments: (1) v0.508.0 grow-media REGISTRY -- moved the hardcoded GrowMedium enum + per-medium edit form into data/garden/grow_media.ron (loader load_grow_media -> state.grow_media), so adding a plot-type is a data edit (closes the infinite-of-X violation + the long-deferred plot-types arc). (2) v0.509.0 per-area IRRIGATION -- the garden edit modal's water slider now drives crop survival: GUI publishes a neutral HashMap<tower_id,f32> 'garden_irrigation' (snapshot_garden_sim fans the aeroponic water level across all tower_config ids, since garden areas key by machine TYPE while crops carry a tower_id), lib.rs bridges it to the DataStore each frame, FarmingSystem tops matching crops up to the target after dehydration (high = healthy/grows, low = wilts). (3) v0.510.0 per-area NUTRIENT -- sibling slider scales growth speed via a 0.5x..1.5x multiplier folded into effective_progress alongside the health factor; same neutral-map pattern ('garden_nutrient'). Each shipped with native+relay green, 4 GUI lints green, lib tests green (466 -> 481), and a versioned exe archived via just build-game. Verification design: per_area_irrigation_keeps_configured_crops_watered + per_area_nutrient_speeds_growth prove the GUI->sim wiring deterministically (the FarmingSystem reads the neutral map, no GUI type leaks into the sim layer).
+
+**Why:** Operator directive: 'engage loop mode and see how ya do... all this stuff needs to get made... main focus native.' Chose to build VERIFIABLE sim DEPTH (the garden edit sliders were cosmetic -- the modal existed but nothing consumed its values) over visual-taste polish (which needs the operator's eye, not blind iteration). Picked irrigation+nutrient because they (a) make my just-built garden modal meaningful, (b) advance the operator's homestead-simulation vision from their X reply, (c) are doable in MENU mode with no 3D-world dependency, and (d) are fully unit-testable. DEFERRED the bigger LIVE HOME SIM (homes.rs live power numbers) to a focused pass: it needs a startup-ordering change (spawn machines + tick ElectricalSystem in menu mode) with real regression risk, so ramming it half-verified at a marathon tail would violate the operator's equal requirement to double-check. Kept the sim layer clean: the FarmingSystem reads a neutral HashMap<String,f32>, never a GUI type, so no coupling.
+
+**Files:** data/garden/grow_media.ron, src/gui/mod.rs, src/gui/pages/inventory.rs, src/lib.rs, src/systems/farming/mod.rs, docs/design/infinite-of-x.md
+
+
+## 2026-06-22
+
+**Decision:** AUTONOMOUS LOOP continued (v0.511-0.512). (1) v0.511.0 MINING MAP reads as a journey: fixed the 'Hom drone' label collision (home label now sits LEFT of the dot, out of an outbound drone's path), drew the home->target route in accent so the trip is visible, labelled the drone ABOVE its dot with phase + cargo ('drone . outbound'), and skip the drone dot when parked at home -- the 'see your little drone going off to mine, with real distance' view the operator asked for; re-rendered snapshot confirms. (2) INVENTORY REDESIGN, increment 1 (v0.512.0): the operator, asked for a direction on the 'haphazard' inventory, specified a spatial NESTED-CONTAINER TILE model (person -> shirt -> pocket -> {pen, keychain, wallet}; the wallet opens to its own contents; house -> rooms -> containers; MULTIPLE inventories visible to transfer + inspect). Built draw_container (recursive): each container is a card with a clickable header (open triangle + kind dot + label), its direct items render as evenly-sized item_tiles (live backpack at the kind:'backpack' node + leaf kind:'item' children by label + id-based Place.items), and sub-containers nest as their own cards; selecting a tile shows its card below (live = full actions, seeded = inspect-only via draw_item_card's now-Option acts). KEY DATA FINDING: data/places/seed.json ALREADY models the full Mt-Rainier kit as deeply nested containers with items as leaf kind:'item' children (by label, no id) -- so this is a new RENDERER over existing data, not a migration; the renderer partitions leaf items (tiles) from sub-containers (nested cards). Removed the dead place_to_tree. BEFORE this, tried + REVERTED a card-per-place tweak (added border clutter without clearly landing -- verify-before-ship); that empirical miss is what prompted asking the operator for the direction, which produced the much better nested-tile spec. Each shipped native+relay green, 4 lints green, 467 lib tests green, exe archived.
+
+**Why:** Operator in loop mode ('see how ya do', native-first, budget-hard). After shipping the garden-sim depth, reviewed the rendered pages: the mining map had a real label-collision bug (fixed, snapshot-verifiable, matches the explicit 'see the drone on the map' ask), and the inventory's visual dissatisfaction was a genuine taste fork I could not resolve blind (a card-per-place guess didn't land on re-render). Rather than thrash, surfaced the snapshot + asked the operator for the direction -- they gave a rich, specific spatial-container vision, which I built increment 1 of and verified by snapshot. Held item TRANSFER (their core ask) for a focused pass because it needs a LIVE per-container item model (today only the backpack has live items), an architectural decision better made with the operator + after they confirm increment 1's interactivity in `just launch` (egui clicks can't be snapshot-verified -- 'shows != works').
+
+**Files:** src/gui/pages/inventory.rs, src/gui/mod.rs, data/places/seed.json, tests/snapshots/mining_map.png, tests/snapshots/inventory.png
+
+
+## 2026-06-22
+
+**Decision:** INVENTORY REDESIGN increments 2-3 (v0.513-0.514). v0.513.0: container headers show a contents COUNT ('11 items', '4 containers') so a collapsed container is still informative, and the WHOLE header row is the click target (trailing allocate claims the width). v0.514.0 ITEM TRANSFER (organize layer -- the operator's explicit choice when asked how 'real' containers should be): added PlacedItem { key, name, qty, container-PATH } + GuiState.placed_items, seeded from the places spine at startup (flatten_placed_items: every leaf kind:'item' child + id-based items entry tagged with its container path; live backpack excluded -- stays ECS-driven). The renderer now sources non-backpack tiles from this pool (by path) instead of the static tree leaves, so a move is live; selecting a placed item shows its inspect card + a 'Move to' combo (collect_containers lists every container; picking one re-tags the item's container). PlacedItem is Serialize/Deserialize for a future save. Verified by a new inventory_transfer snapshot (selects an item, shows the card + 'Move to [Mountaineering pack (65 L)]'). KEY DATA NOTE: data/places/seed.json already modelled the full nested kit as leaf children, so the pool seeds from existing data, no migration. Caught + fixed an em-dash the emdash_lint flagged (a '-' fallback string). Each shipped native+relay green, 4 lints green, 467 lib tests green (24 snapshots), exe archived.
+
+**Why:** Operator chose 'organize layer first' (one pool, items tagged by container, capacity later) over the physical-container model -- the fastest path that grows into the physical model and avoids an ECS/persistence rewrite up front. Built transfer among the SEEDED containers (the bulk of the inventory -- the whole Mt-Rainier kit) without touching the ECS backpack, which keeps it self-contained + verifiable; the backpack<->container bridge (the ECS boundary) and persistence are deferred follow-ups, and persistence specifically waits until the model stabilizes after the backpack bridge to avoid save-migration churn. Surfacing to the operator for a `just launch` interactivity check before stacking more on the foundation, per their own documented 'shows != works' lesson (7 releases are now in-app-unverified).
+
+**Files:** src/gui/pages/inventory.rs, src/gui/mod.rs, src/lib.rs, src/gui/ui_snapshots.rs, tests/snapshots/inventory_transfer.png
+
