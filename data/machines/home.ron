@@ -78,6 +78,21 @@
             // water sim shows the consequence (the cistern's "days left" actually ticks down).
             ports: [(utility: Water, dir: In, label: "taps", flow_lpm: 0.17)],
         ),
+        "air_recycler": (
+            shape: "box", size: (0.5, 0.8, 0.4), color: (0.55, 0.78, 0.82),
+            label: "Air recycler (O2/CO2)",
+            category: "Power",
+            stats: [(kind: "power", value: "-0.6 kWh/d", status: "ok"), (kind: "air", value: "scrubs CO2, makes O2", status: "ok")],
+            // Life support (v0.618): draws power (priority 1 = critical, shed LAST) and, while powered,
+            // regenerates O2 + scrubs CO2 for the sealed home. Its Air OUT flow sets the scrub capacity
+            // (20 L/min covers the ~3-person household with margin). Cut the grid -> it sheds -> the air
+            // slowly suffocates (power -> air -> Vitals).
+            power: Some(Consumer(watts: 25.0, priority: 1)),
+            ports: [
+                (utility: Electricity, dir: In, label: "blower", watts: 25.0),
+                (utility: Air, dir: Out, label: "fresh air", flow_lpm: 20.0),
+            ],
+        ),
         "composter": (
             shape: "box", size: (0.7, 0.55, 0.7), color: (0.35, 0.25, 0.14),
             label: "Composter",
@@ -249,6 +264,7 @@
         (id: "pump_1", machine: "water_pump", room: "garage", offset: (7.6, 0.0, 28.4)),
         (id: "purifier_1", machine: "water_purifier", room: "garage", offset: (8.6, 0.0, 28.4)),
         (id: "household_1", machine: "home_water_use", room: "garage", offset: (6.6, 0.0, 29.2)),
+        (id: "air_recycler_1", machine: "air_recycler", room: "garage", offset: (12.6, 0.0, 26.8)),
 
         // ── Garage hull surface + utility (v0.438). The operator disabled the huge open
         //    ranch (a 233x233 m walk to its centre) and consolidated everything into the
@@ -344,6 +360,7 @@
         (from: "battery_6", to: "purifier_1", kind: "power"),
         (from: "battery_7", to: "irrigation_1", kind: "power"),
         (from: "battery_8", to: "turret_1", kind: "power"),
+        (from: "battery_8", to: "air_recycler_1", kind: "power"),
 
         // Water: cistern -> pump -> purifier -> irrigation + the household taps. All on ONE plumbing
         // island so the live PlumbingSystem actually fills + drains the cistern (v0.610).

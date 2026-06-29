@@ -229,7 +229,14 @@ mod native_app {
         };
         use crate::machines::MachinePower;
         let is_water = def.is_water_machine();
-        if def.power.is_none() && !is_water {
+        // Air OUT capacity (L/min) -- a scrubber/recycler that cleans the home air. (v0.618)
+        let air_out: f32 = def
+            .derive_ports()
+            .iter()
+            .filter(|p| p.utility == crate::utilities::Utility::Air && p.dir == crate::utilities::PortDir::Out)
+            .map(|p| p.flow_lpm)
+            .sum();
+        if def.power.is_none() && !is_water && air_out <= 0.0 {
             return;
         }
         let e = world.spawn((HomeMachine,));
@@ -284,6 +291,17 @@ mod native_app {
             if dem > 0.0 {
                 let _ = world.insert_one(e, WaterConsumer { lpm: dem, needs_power });
             }
+        }
+        // AIR handler (v0.618): a machine with an Air OUT port scrubs the home air while powered.
+        if air_out > 0.0 {
+            let _ = world.insert_one(
+                e,
+                crate::systems::atmosphere::AirScrubber {
+                    o2_regen_per_s: air_out * 0.001,
+                    co2_scrub_per_s: air_out * 0.0003,
+                    needs_power: matches!(&def.power, Some(MachinePower::Consumer { .. })),
+                },
+            );
         }
     }
 
@@ -5526,8 +5544,20 @@ mod native_app {
                                     && pos.y >= mn.y && pos.y <= mx.y
                                     && pos.z >= mn.z && pos.z <= mx.z =>
                             {
-                                // Inside the homestead — sealed, oxygenated, comfortable.
-                                crate::ecs::components::EnvironmentContext::default()
+                                // Inside the homestead -- sealed + comfortable, but OXYGENATED only while
+                                // the life-support air is breathable (v0.618): a power loss that sheds the
+                                // scrubbers lets occupancy drain O2 until it suffocates (power -> air ->
+                                // Vitals). Earth-like home air = breathable = normal.
+                                let breathable = state
+                                    .data_store
+                                    .get::<std::sync::Mutex<crate::systems::atmosphere::AirStatus>>("air_status")
+                                    .and_then(|m| m.lock().ok())
+                                    .map(|a| a.breathable)
+                                    .unwrap_or(true);
+                                crate::ecs::components::EnvironmentContext {
+                                    oxygenated: breathable,
+                                    ..Default::default()
+                                }
                             }
                             Some(_) => crate::ecs::components::EnvironmentContext {
                                 // Outside the hull — vacuum + deep cold.

@@ -1087,14 +1087,16 @@ the pump stops, the cistern drains. Shown on the Home page next to Live power.
 - Native: `src/systems/plumbing.rs` (`PlumbingSystem`, `WaterStatus`), `src/ecs/components.rs` (`WaterTank`, `WaterProducer`, `WaterConsumer`, `PlumbingCircuit`), `src/machines.rs` (`water_islands`, `MachineStorage`, `water_production_lpm`/`water_demand_lpm`/`water_capacity_l`), `src/gui/pages/homes.rs` (Live water card)
 - Data: `data/machines/home.ron` (cistern storage + rain inflow, pump water-out, tower/irrigation water-in)
 
-### Live Air / Atmosphere Sim, Stage 1 (v0.617)
-The 3rd life-support utility. The AtmosphereSystem is now REGISTERED and ticks the home's sealed air
-space (a HomeAir + HomeMachine tagged `EnclosedSpace`, spawned with the home), publishing a live
-`AirStatus` (O2/CO2 percent, pressure, temp, breathable) to a "Live air" Home-page card beside Live
-power + Live water. Stage 1 holds an Earth-like mix (no damage); Stage 2 adds occupancy O2-draw/CO2-rise
-+ powered scrubbers + the power -> air -> Vitals consequence (cut the power, the scrubbers stop, the air
-goes bad).
-- Native: `src/systems/atmosphere.rs` (`AtmosphereSystem` registered, `AirStatus`, `HomeAir`, the publish), `src/lib.rs` (`spawn_home_air_space` + the AirStatus bridge), `src/gui/pages/homes.rs` (Live air card)
+### Live Air / Atmosphere Sim + power -> air -> Vitals (v0.617 - v0.618)
+The 3rd life-support utility, with its consequence chain. The AtmosphereSystem (now REGISTERED) ticks the
+home's sealed air space (a HomeAir + HomeMachine tagged `EnclosedSpace`), publishing a live `AirStatus`
+(O2/CO2/pressure/temp/breathable) to a "Live air" Home-page card beside power + water. **Stage 2 (v0.618):**
+occupancy (a ~3-person household) steadily drains O2 + raises CO2; a powered `air_recycler` (an `AirScrubber`
+derived from an Air-OUT port, gated on its PowerConsumer) offsets it. Cut the grid -> the recycler sheds ->
+O2 falls -> unbreathable -> the inside-homestead `EnvironmentContext.oxygenated` flips off -> the FoodSystem
+drains the player's `Vitals.oxygen` -> hypoxia. So **power -> air -> Vitals** runs end to end.
+- Native: `src/systems/atmosphere.rs` (`AtmosphereSystem`, `AirStatus`, `HomeAir`, `AirScrubber`, the occupancy/scrubber dynamics), `src/lib.rs` (`spawn_home_air_space`, the AirScrubber spawn from an Air-OUT port, `EnvironmentContext.oxygenated = breathable`), `src/gui/pages/homes.rs` (Live air card)
+- Data: `data/machines/home.ron` (`air_recycler`: a critical-priority power consumer + an Air-OUT port, wired to the battery bus)
 
 ### Water to Food Coupling (v0.611)
 The downstream end of the power to water to food consequence chain. The `FarmingSystem` reads the live

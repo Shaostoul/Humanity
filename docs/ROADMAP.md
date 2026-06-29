@@ -305,6 +305,9 @@ Every operator gets the same sovereignty tools, not just the original.
 
 Newest first. For older history see `docs/history/` and `git log`.
 
+- `v0.618` Air life-support Stage 2: occupancy + a powered air recycler -- cut the power
+  and the scrubbers stop, O2 falls, and the player suffocates (power -> air -> Vitals).
+  All three life-support utilities (energy, water, air) now have real consequences.
 - `v0.612 to v0.617` Build-editor backlog (multi-select, snap guides, lock-per-type), the
   cable picker + superconductor bulk-upgrade, a CI-lint fix, and AIR life-support Stage 1
   (the AtmosphereSystem is live: a sealed home air space + a Live air Home-page card).
