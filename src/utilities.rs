@@ -74,6 +74,9 @@ pub struct Port {
     /// Flow for a fluid/air port in litres/min (0 if N/A).
     #[serde(default)]
     pub flow_lpm: f32,
+    /// Data throughput demand/supply for a DATA port in megabits/sec (0 if N/A). (v0.621)
+    #[serde(default)]
+    pub mbps: f32,
     /// Local anchor offset (metres, machine-local) -- where the cable/pipe attaches on the body.
     #[serde(default)]
     pub anchor: (f32, f32, f32),
@@ -82,23 +85,31 @@ pub struct Port {
 impl Port {
     /// An electrical IN port (a load) drawing `watts`.
     pub fn elec_in(watts: f32) -> Port {
-        Port { utility: Utility::Electricity, dir: PortDir::In, label: "power in".into(), watts, flow_lpm: 0.0, anchor: (0.0, 0.0, 0.0) }
+        Port { utility: Utility::Electricity, dir: PortDir::In, label: "power in".into(), watts, flow_lpm: 0.0, mbps: 0.0, anchor: (0.0, 0.0, 0.0) }
     }
     /// An electrical OUT port (a source) supplying `watts`.
     pub fn elec_out(watts: f32) -> Port {
-        Port { utility: Utility::Electricity, dir: PortDir::Out, label: "power out".into(), watts, flow_lpm: 0.0, anchor: (0.0, 0.0, 0.0) }
+        Port { utility: Utility::Electricity, dir: PortDir::Out, label: "power out".into(), watts, flow_lpm: 0.0, mbps: 0.0, anchor: (0.0, 0.0, 0.0) }
     }
     /// An electrical BIDIRECTIONAL port (a battery / bus terminal) rated to `watts`.
     pub fn elec_bidir(watts: f32) -> Port {
-        Port { utility: Utility::Electricity, dir: PortDir::Bidirectional, label: "power".into(), watts, flow_lpm: 0.0, anchor: (0.0, 0.0, 0.0) }
+        Port { utility: Utility::Electricity, dir: PortDir::Bidirectional, label: "power".into(), watts, flow_lpm: 0.0, mbps: 0.0, anchor: (0.0, 0.0, 0.0) }
     }
     /// A fluid/air IN port for `utility` at `flow_lpm` litres/min.
     pub fn fluid_in(utility: Utility, flow_lpm: f32) -> Port {
-        Port { utility, dir: PortDir::In, label: format!("{} in", utility.id()), watts: 0.0, flow_lpm, anchor: (0.0, 0.0, 0.0) }
+        Port { utility, dir: PortDir::In, label: format!("{} in", utility.id()), watts: 0.0, flow_lpm, mbps: 0.0, anchor: (0.0, 0.0, 0.0) }
     }
     /// A fluid/air OUT port for `utility` at `flow_lpm` litres/min.
     pub fn fluid_out(utility: Utility, flow_lpm: f32) -> Port {
-        Port { utility, dir: PortDir::Out, label: format!("{} out", utility.id()), watts: 0.0, flow_lpm, anchor: (0.0, 0.0, 0.0) }
+        Port { utility, dir: PortDir::Out, label: format!("{} out", utility.id()), watts: 0.0, flow_lpm, mbps: 0.0, anchor: (0.0, 0.0, 0.0) }
+    }
+    /// A DATA IN port (a device demanding `mbps` of throughput). (v0.621)
+    pub fn data_in(mbps: f32) -> Port {
+        Port { utility: Utility::Data, dir: PortDir::In, label: "data in".into(), watts: 0.0, flow_lpm: 0.0, mbps, anchor: (0.0, 0.0, 0.0) }
+    }
+    /// A DATA OUT port (an uplink supplying `mbps`). (v0.621)
+    pub fn data_out(mbps: f32) -> Port {
+        Port { utility: Utility::Data, dir: PortDir::Out, label: "data out".into(), watts: 0.0, flow_lpm: 0.0, mbps, anchor: (0.0, 0.0, 0.0) }
     }
 }
 

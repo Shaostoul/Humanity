@@ -1,6 +1,10 @@
 # Telecommunications -- data media (copper / WiFi / fiber / ...) with real specs + consequences
 
-> **Status:** Stage 1 SHIPPED (v0.619); Stages 2-4 are DESIGN. Stage 1 shipped a LEANER field set than
+> **Status:** Stages 1-3 SHIPPED (v0.619-0.621); Stage 4 (emissions-as-signature detection + pheromones)
+> is DESIGN. Stage 2 (v0.621): `Port.mbps` + Data IN/OUT ports, a "data" connection medium picker, +
+> a "Data links" buildability check (bandwidth + range + a wireless-RF caution). Stage 3 (v0.620): the
+> RF -> plant harm consequence (an `RfEmitter` from a `wifi_router`; the FarmingSystem drains crop health
+> by the home RF level). Stage 1 originally shipped a leaner field set than the fuller proposal below. Stage 1 shipped a LEANER field set than
 > the fuller proposal below -- `ConduitType` gained `bandwidth_mbps`, `range_m`, `latency_ms`, `wireless`,
 > `rf_emission` (all `#[serde(default)]`) + `ConductorMaterial::{Glass, Radio}`, plus `check_data_link` /
 > `cheapest_data_link_for` / `data_media` in `src/utilities.rs`, and three media in `conduits.ron`

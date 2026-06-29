@@ -1039,6 +1039,17 @@ plumbing with real limits (volts, watts, amps, AWG gauge, ampacity, shielded vs 
 declares physical IN/OUT ports by utility. Stages 1-3 shipped; the wire-A-to-B gizmo + the superconductor
 upgrade mission are the next stages.
 
+### Data Routing + Medium Picker (v0.621, telecom Stage 2)
+The telecom utility's primary function: wire devices to the internet via a chosen medium, validated like
+a power run. `Port` gained an `mbps` field; machines declare Data IN/OUT ports (a `home_server` demands
+100 Mbps, a `network_uplink` supplies it). A "data" connection carries a medium `spec`; the editor's
+utility-lines panel shows a per-data-run medium picker (auto / Cat6 / fibre / WiFi). A new "Data links"
+buildability check sizes each data run (bandwidth + range via `check_data_link`) and CAUTIONS when the
+medium is wireless (its RF can harm a grow -- the v0.620 consequence). The seed home wires its uplink to
+its server over Cat6 (clean); swap it to WiFi in the editor to see the RF warning fire.
+- Native: `src/utilities.rs` (`Port.mbps`, `Port::data_in`/`data_out`), `src/machines.rs` (`data_demand_mbps`, the "Data links" check), `src/gui/pages/construction.rs` (the "data" kind + the data-medium picker)
+- Data: `data/machines/home.ron` (`network_uplink`, `home_server`, a `data` connection on `eth_cat6`)
+
 ### Telecom RF -> Plant Harm (v0.620)
 The first telecom consequence, the operator's headline ("the user doesn't want a WiFi router because the
 frequencies harm a plant they're growing"). A machine with `rf_emission > 0` (a `wifi_router`) spawns an

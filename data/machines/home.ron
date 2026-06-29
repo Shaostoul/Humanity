@@ -109,6 +109,32 @@
                 (utility: Data, dir: Out, label: "wireless", flow_lpm: 0.0),
             ],
         ),
+        "network_uplink": (
+            shape: "box", size: (0.3, 0.2, 0.25), color: (0.30, 0.40, 0.50),
+            label: "Network uplink (ISP drop)",
+            category: "Data",
+            stats: [(kind: "power", value: "-0.1 kWh/d", status: "ok"), (kind: "air", value: "the internet feed", status: "ok")],
+            // Telecom (v0.621): the home's internet entry point -- supplies data downstream. Wired (no RF).
+            power: Some(Consumer(watts: 6.0, priority: 3)),
+            ports: [
+                (utility: Electricity, dir: In, label: "power", watts: 6.0),
+                (utility: Data, dir: Out, label: "uplink", mbps: 1000.0),
+            ],
+        ),
+        "home_server": (
+            shape: "box", size: (0.4, 0.6, 0.5), color: (0.22, 0.26, 0.30),
+            label: "Home server",
+            category: "Data",
+            stats: [(kind: "power", value: "-0.7 kWh/d", status: "ok"), (kind: "air", value: "needs 100 Mbps", status: "ok")],
+            // Telecom (v0.621): the device that DEMANDS internet (100 Mbps). Wire it to the uplink with a
+            // medium -- Cat6/fibre (clean) or WiFi (RF, harms grows). The Data-links buildability check
+            // validates bandwidth + range + warns on wireless.
+            power: Some(Consumer(watts: 30.0, priority: 2)),
+            ports: [
+                (utility: Electricity, dir: In, label: "power", watts: 30.0),
+                (utility: Data, dir: In, label: "internet", mbps: 100.0),
+            ],
+        ),
         "composter": (
             shape: "box", size: (0.7, 0.55, 0.7), color: (0.35, 0.25, 0.14),
             label: "Composter",
@@ -320,10 +346,12 @@
         (id: "oilseed_field_1", machine: "oilseed_field", room: "garden", offset: (30.5, 0.0, 61.5)),
         (id: "silo_1", machine: "grain_silo", room: "garden", offset: (34.0, 0.0, 63.0)),
 
-        // ── Study: fabrication ──
+        // ── Study: fabrication + the home network ──
         (id: "smelter_1", machine: "smelter", room: "study", offset: (39.6, 0.0, 24.6)),
         (id: "forge_1", machine: "forge", room: "study", offset: (41.2, 0.0, 24.6)),
         (id: "fuel_1", machine: "fuel_refinery", room: "study", offset: (43.2, 0.0, 24.6)),
+        (id: "uplink_1", machine: "network_uplink", room: "study", offset: (39.0, 0.0, 22.6)),
+        (id: "server_1", machine: "home_server", room: "study", offset: (40.0, 0.0, 22.6)),
     ],
 
     // Dense garden fill: grids expanded into instances at load (infinite-of-X, one line per
@@ -377,6 +405,11 @@
         (from: "battery_7", to: "irrigation_1", kind: "power"),
         (from: "battery_8", to: "turret_1", kind: "power"),
         (from: "battery_8", to: "air_recycler_1", kind: "power"),
+        (from: "battery_8", to: "uplink_1", kind: "power"),
+        (from: "battery_8", to: "server_1", kind: "power"),
+        // Data: the ISP uplink feeds the home server over a WIRED Cat6 link (clean -- no RF near the
+        // grow). Swap the medium to wifi_6 in the editor to see the Data-links check warn about RF. (v0.621)
+        (from: "uplink_1", to: "server_1", kind: "data", spec: Some("eth_cat6")),
 
         // Water: cistern -> pump -> purifier -> irrigation + the household taps. All on ONE plumbing
         // island so the live PlumbingSystem actually fills + drains the cistern (v0.610).

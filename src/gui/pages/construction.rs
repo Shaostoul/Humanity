@@ -2611,6 +2611,10 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         .filter(|c| c.utility == crate::utilities::Utility::Electricity)
         .map(|c| (c.id.clone(), c.label.clone()))
         .collect();
+    // The data-medium choices for the per-data-connection picker (v0.621): ethernet / fibre / WiFi.
+    let data_choices: Vec<(String, String)> = crate::utilities::data_media()
+        .map(|c| (c.id.clone(), c.label.clone()))
+        .collect();
     egui::CollapsingHeader::new(RichText::new(format!("Utility lines ({})", conns.len())).strong().color(theme.text_primary()))
         .id_salt("hs_conns_sec")
         .default_open(true)
@@ -2638,7 +2642,7 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                 });
                 ui.horizontal(|ui| {
                     egui::ComboBox::from_id_salt("hs_conn_kind").width(82.0).selected_text(state.home_conn_kind.clone()).show_ui(ui, |ui| {
-                        for k in ["water", "power", "greywater", "gas"] {
+                        for k in ["water", "power", "data", "greywater", "gas"] {
                             ui.selectable_value(&mut state.home_conn_kind, k.to_string(), k);
                         }
                     });
@@ -2720,6 +2724,27 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                                                     set_spec = Some((i, None));
                                                 }
                                                 for (cid, clabel) in &cable_choices {
+                                                    if ui.selectable_label(spec.as_deref() == Some(cid.as_str()), clabel).clicked() {
+                                                        set_spec = Some((i, Some(cid.clone())));
+                                                    }
+                                                }
+                                            });
+                                    } else if kind == "data" {
+                                        // Per-data-run MEDIUM picker (v0.621): ethernet / fibre / WiFi.
+                                        // WiFi is wireless -- the Data-links buildability check warns it
+                                        // emits RF (harms a nearby grow).
+                                        let cur = spec
+                                            .as_ref()
+                                            .and_then(|id| data_choices.iter().find(|(cid, _)| cid == id).map(|(_, l)| l.clone()))
+                                            .unwrap_or_else(|| "auto".to_string());
+                                        egui::ComboBox::from_id_salt(format!("data_{i}"))
+                                            .width(120.0)
+                                            .selected_text(cur)
+                                            .show_ui(ui, |ui| {
+                                                if ui.selectable_label(spec.is_none(), "auto (cheapest medium)").clicked() {
+                                                    set_spec = Some((i, None));
+                                                }
+                                                for (cid, clabel) in &data_choices {
                                                     if ui.selectable_label(spec.as_deref() == Some(cid.as_str()), clabel).clicked() {
                                                         set_spec = Some((i, Some(cid.clone())));
                                                     }

@@ -305,6 +305,9 @@ Every operator gets the same sovereignty tools, not just the original.
 
 Newest first. For older history see `docs/history/` and `git log`.
 
+- `v0.621` Telecom Stage 2: data routing -- machines demand internet (Mbps), a data
+  connection picks its medium (Cat6 / fibre / WiFi) in the editor, and a Data-links
+  buildability check sizes bandwidth + range + cautions when a wireless link's RF is near a grow.
 - `v0.620` Telecom consequence: a powered WiFi router's RF now HARMS the grow -- the
   FarmingSystem drains crop health by the home RF level, so you run wired (Cat6/fibre,
   zero RF) to protect a sensitive crop. The operator's "the tradeoffs bite" example.

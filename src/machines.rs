@@ -8,7 +8,10 @@
 //! `catalog` type, an `instance`, or a `connection` to the RON and it appears in the
 //! world, no Rust change.
 
-use crate::utilities::{check_cable, cheapest_cable_for, conduit_type, CableVerdict, Port, PortDir, Utility};
+use crate::utilities::{
+    check_cable, check_data_link, cheapest_cable_for, cheapest_data_link_for, conduit_type, data_medium,
+    CableVerdict, DataVerdict, Port, PortDir, Utility,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -178,6 +181,16 @@ impl MachineDef {
             .iter()
             .filter(|s| matches!(s.utility, Utility::Water | Utility::HotWater))
             .map(|s| s.capacity)
+            .sum()
+    }
+
+    /// Megabits/sec of data this machine DEMANDS -- the sum of its Data IN ports. Drives the data-link
+    /// sizing check (the chosen medium must carry this over the run). (v0.621)
+    pub fn data_demand_mbps(&self) -> f32 {
+        self.derive_ports()
+            .iter()
+            .filter(|p| p.utility == Utility::Data && p.dir == PortDir::In)
+            .map(|p| p.mbps)
             .sum()
     }
 }
@@ -803,6 +816,71 @@ impl MachineHome {
         //    on a battery-only or unwired circuit can't actually run. Union-find over the power graph.
         if let Some(circuit) = self.power_circuit_check(&all) {
             checks.push(circuit);
+        }
+
+        // 6. Data links (v0.621): every DATA run needs a medium (ethernet/fibre/WiFi) that carries the
+        //    destination's bandwidth demand over the run length. Auto-pick the cheapest, or validate a
+        //    pinned medium. A WIRELESS medium adds an RF caution (it can harm a nearby grow) -- the
+        //    telecom teaching moment. Length from the machines' world offsets (box-home coords).
+        let data_runs: Vec<&MachineConnection> = self.connections.iter().filter(|c| c.kind == "data").collect();
+        if !data_runs.is_empty() {
+            let by_id: std::collections::HashMap<&str, &MachineInstance> =
+                all.iter().map(|i| (i.id.as_str(), i)).collect();
+            let dist = |a: (f32, f32, f32), b: (f32, f32, f32)| {
+                ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt()
+            };
+            let mut worst = CheckStatus::Pass;
+            let mut sized = 0usize;
+            let mut notes: Vec<String> = Vec::new();
+            for c in &data_runs {
+                let (Some(from), Some(to)) = (by_id.get(c.from.as_str()), by_id.get(c.to.as_str())) else {
+                    continue; // a dangling run is flagged by the Wiring check
+                };
+                let demand = self.catalog.get(&to.machine).map(|d| d.data_demand_mbps()).unwrap_or(0.0);
+                if demand <= 0.0 {
+                    continue; // nothing demands data on this run
+                }
+                let len = dist(from.offset, to.offset).max(1.0);
+                let medium = match &c.spec {
+                    Some(id) => data_medium(id),
+                    None => cheapest_data_link_for(demand, len),
+                };
+                match medium {
+                    Some(m) => {
+                        match check_data_link(m, demand, len).verdict {
+                            DataVerdict::Pass => sized += 1,
+                            DataVerdict::Warn => {
+                                sized += 1;
+                                worst = worst.max(CheckStatus::Warn);
+                            }
+                            DataVerdict::Fail => {
+                                worst = CheckStatus::Fail;
+                                notes.push(format!("{}->{}: {} can't carry {demand:.0} Mbps over {len:.0} m", c.from, c.to, m.label));
+                            }
+                        }
+                        if m.wireless {
+                            // A wireless link emits RF -- caution near a grow (the operator's tradeoff).
+                            worst = worst.max(CheckStatus::Warn);
+                            notes.push(format!("{}->{}: {} is WIRELESS -- its RF can harm a nearby grow (run wired to stay clean)", c.from, c.to, m.label));
+                        }
+                    }
+                    None => {
+                        worst = CheckStatus::Fail;
+                        notes.push(match &c.spec {
+                            Some(id) => format!("{}->{}: unknown data medium '{id}'", c.from, c.to),
+                            None => format!("{}->{}: no medium carries {demand:.0} Mbps over {len:.0} m", c.from, c.to),
+                        });
+                    }
+                }
+            }
+            if sized > 0 || !notes.is_empty() {
+                let detail = if notes.is_empty() {
+                    format!("{sized} data run(s) sized OK (auto-picked the cheapest medium that carries the demand)")
+                } else {
+                    notes.join("; ")
+                };
+                checks.push(BuildabilityCheck { name: "Data links".into(), status: worst, detail });
+            }
         }
 
         BuildabilityReport { checks }
@@ -1717,6 +1795,49 @@ mod tests {
         let report = home.buildability_report(4.5);
         let conduit = report.checks.iter().find(|c| c.name == "Conduits").expect("a Conduits check exists");
         assert_eq!(conduit.status, CheckStatus::Fail, "unknown cable id fails: {}", conduit.detail);
+    }
+
+    /// v0.621 telecom Stage 2: a DATA run sized to a wired medium PASSES; the same run on WiFi WARNS
+    /// (its RF can harm a nearby grow). Builds the uplink -> server pair the Data-links check validates.
+    #[test]
+    fn buildability_data_links_wired_passes_wifi_warns_on_rf() {
+        let mut uplink = test_def("box");
+        uplink.ports = vec![crate::utilities::Port::data_out(1000.0)];
+        let mut server = test_def("box");
+        server.ports = vec![crate::utilities::Port::data_in(100.0)];
+        let mut catalog = BTreeMap::new();
+        catalog.insert("uplink".to_string(), uplink);
+        catalog.insert("server".to_string(), server);
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0) };
+        let mut home = MachineHome {
+            catalog,
+            instances: vec![inst("u", "uplink"), inst("s", "server")],
+            arrays: Vec::new(),
+            connections: vec![MachineConnection { from: "u".into(), to: "s".into(), kind: "data".into(), spec: Some("eth_cat6".into()) }],
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+        };
+        let wired = home.buildability_report(4.5);
+        let d = wired.checks.iter().find(|c| c.name == "Data links").expect("a Data links check");
+        assert_eq!(d.status, CheckStatus::Pass, "wired Cat6 carries 100 Mbps: {}", d.detail);
+
+        // Swap to WiFi: it still carries the bandwidth, but the wireless RF warning fires.
+        home.connections[0].spec = Some("wifi_6".to_string());
+        let wifi = home.buildability_report(4.5);
+        let d2 = wifi.checks.iter().find(|c| c.name == "Data links").unwrap();
+        assert_eq!(d2.status, CheckStatus::Warn, "wireless warns about RF near grows: {}", d2.detail);
+    }
+
+    /// The shipped seed home's data link (uplink -> server over Cat6) sizes OK (no FAIL).
+    #[test]
+    fn buildability_seed_home_data_links_are_sane() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
+        let home = MachineHome::load(&path).expect("home.ron parses");
+        let report = home.buildability_report(4.5);
+        if let Some(d) = report.checks.iter().find(|c| c.name == "Data links") {
+            assert_ne!(d.status, CheckStatus::Fail, "seed data links must size: {}", d.detail);
+        }
     }
 
     /// An electrical LOAD wired only to a battery (no generator on its circuit) FAILS the Power
