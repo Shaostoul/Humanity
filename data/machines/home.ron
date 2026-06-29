@@ -44,6 +44,11 @@
             category: "Water",
             stats: [(kind: "power", value: "-0.24 kWh/d", status: "ok"), (kind: "water", value: "12 L/min", status: "ok")],
             power: Some(Consumer(watts: 10.0, priority: 2)),
+            // Explicit ports (v0.605): draws electricity for its motor, pushes pressurised water out.
+            ports: [
+                (utility: Electricity, dir: In, label: "motor", watts: 10.0),
+                (utility: Water, dir: Out, label: "pressure out", flow_lpm: 12.0),
+            ],
         ),
         "water_purifier": (
             shape: "cylinder", size: (0.28, 0.7, 0.28), color: (0.35, 0.65, 0.78),
@@ -68,6 +73,12 @@
             label: "Variety tower",
             category: "Food",
             stats: [(kind: "food", value: "+92 kcal/d", status: "warn"), (kind: "nutrient", value: "vitamins + protein", status: "ok"), (kind: "power", value: "sun-lit, -15 W", status: "ok")],
+            // Explicit ports (v0.605): the operator's example -- an aeroponic tower needs BOTH water
+            // (the misting feed) AND electricity (pump + supplemental grow light).
+            ports: [
+                (utility: Electricity, dir: In, label: "pump + light", watts: 15.0),
+                (utility: Water, dir: In, label: "mist feed", flow_lpm: 0.5),
+            ],
         ),
         "aeroponic_tower_apothecary": (
             shape: "cylinder", size: (0.16, 1.9, 0.16), color: (0.45, 0.55, 0.30),

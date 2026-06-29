@@ -8,6 +8,7 @@
 //! `catalog` type, an `instance`, or a `connection` to the RON and it appears in the
 //! world, no Rust change.
 
+use crate::utilities::{check_cable, cheapest_cable_for, conduit_type, CableVerdict, Port, PortDir, Utility};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -71,6 +72,53 @@ pub struct MachineDef {
     /// Electrical role in the live sim (generator / consumer). None = not on the grid.
     #[serde(default)]
     pub power: Option<MachinePower>,
+    /// Physical IN/OUT connection PORTS by utility (v0.605, the wiring system -- docs/design/
+    /// utility-wiring.md). A teleporter declares an electricity IN; an aeroponic tower water + power
+    /// IN. Optional + `#[serde(default)]` so every existing `home.ron` parses unchanged: a def with no
+    /// declared ports falls back to `derive_ports()`, which infers electrical ports from `power`.
+    #[serde(default)]
+    pub ports: Vec<Port>,
+}
+
+impl MachineDef {
+    /// The machine's physical ports: the explicitly-declared `ports` if any, else inferred from the
+    /// electrical `power` role (the migration bridge so legacy machines still have real ports for the
+    /// buildability conduit check without hand-editing every catalog entry). Electrical inference is
+    /// reliable (direction + watts come straight from `MachinePower`); fluid ports must be declared
+    /// explicitly because a "water" stat can't tell supply from draw. (v0.605)
+    pub fn derive_ports(&self) -> Vec<Port> {
+        if !self.ports.is_empty() {
+            return self.ports.clone();
+        }
+        match &self.power {
+            Some(MachinePower::Solar { peak_watts }) => vec![Port::elec_out(*peak_watts)],
+            Some(MachinePower::Generator { watts }) => vec![Port::elec_out(*watts)],
+            Some(MachinePower::Consumer { watts, .. }) => vec![Port::elec_in(*watts)],
+            Some(MachinePower::Battery { max_discharge_w, .. }) => vec![Port::elec_bidir(*max_discharge_w)],
+            None => Vec::new(),
+        }
+    }
+
+    /// Total electrical load (watts) this machine DRAWS -- IN ports plus bidirectional terminals (a
+    /// battery being charged/discharged). This is the load a feeder cable must carry, the way NEC sizes
+    /// a conductor for the load it serves. (v0.605)
+    pub fn electrical_load_watts(&self) -> f32 {
+        self.derive_ports()
+            .iter()
+            .filter(|p| p.utility == Utility::Electricity && matches!(p.dir, PortDir::In | PortDir::Bidirectional))
+            .map(|p| p.watts)
+            .sum()
+    }
+
+    /// Total electrical supply (watts) this machine SOURCES -- the sum of its OUT electrical ports. Used
+    /// when a power run feeds something with no declared load (size the cable for the source). (v0.605)
+    pub fn electrical_supply_watts(&self) -> f32 {
+        self.derive_ports()
+            .iter()
+            .filter(|p| p.utility == Utility::Electricity && p.dir == PortDir::Out)
+            .map(|p| p.watts)
+            .sum()
+    }
 }
 
 /// One placed machine.
@@ -117,6 +165,10 @@ pub struct MachineConnection {
     pub to: String,
     /// "power" | "water" | "nutrient" | "fuel" (colors the tube).
     pub kind: String,
+    /// The chosen conduit/cable type id (v0.605, e.g. "cu_awg12"), or None to auto-pick the cheapest
+    /// copper that carries the load. `#[serde(default)]` so every existing connection parses unchanged.
+    #[serde(default)]
+    pub spec: Option<String>,
 }
 
 /// One self-sufficiency loop (energy / water / food / nutrients): whether it closes and
@@ -191,8 +243,9 @@ pub struct MachineHome {
     pub conduit_edges: Vec<ConduitEdge>,
 }
 
-/// Pass / warn / fail verdict for one buildability check.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Pass / warn / fail verdict for one buildability check. Ord follows declaration order
+/// (Pass < Warn < Fail), so `worst = worst.max(other)` escalates to the most severe. (v0.605)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CheckStatus {
     Pass,
     Warn,
@@ -475,6 +528,7 @@ impl MachineHome {
             from: from.to_string(),
             to: to.to_string(),
             kind: kind.to_string(),
+            spec: None,
         });
         true
     }
@@ -600,6 +654,86 @@ impl MachineHome {
                     status: CheckStatus::Pass,
                     detail: format!("{} connection(s), all endpoints valid", self.connections.len()),
                 });
+            }
+        }
+
+        // 4. Conduits (v0.605): every POWER run needs a real copper cable that carries the load it
+        //    serves over the run length, within ampacity + <=5% voltage drop. Auto-picks the cheapest
+        //    copper that passes (the teaching moment: a lamp run takes thin 14 AWG; an industrial feeder
+        //    needs 6 AWG). Run length comes from the machines' world offsets (box-home coords are
+        //    absolute world metres). A connection may pin a cable via `spec`; otherwise it's auto-sized.
+        let power_runs: Vec<&MachineConnection> =
+            self.connections.iter().filter(|c| c.kind == "power").collect();
+        if !power_runs.is_empty() {
+            const VOLTS: f32 = 120.0; // residential default; per-connection voltage is a later increment
+            let by_id: std::collections::HashMap<&str, &MachineInstance> =
+                all.iter().map(|i| (i.id.as_str(), i)).collect();
+            let dist = |a: (f32, f32, f32), b: (f32, f32, f32)| {
+                ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt()
+            };
+            let mut worst = CheckStatus::Pass;
+            let mut sized = 0usize; // runs we auto-sized or validated OK/marginal
+            let mut failing: Vec<String> = Vec::new();
+            for c in &power_runs {
+                let (Some(from), Some(to)) =
+                    (by_id.get(c.from.as_str()), by_id.get(c.to.as_str()))
+                else {
+                    continue; // a dangling run is already flagged by the Wiring check
+                };
+                // Load the cable must carry: the destination's draw, else the source's supply.
+                let dest_load = self.catalog.get(&to.machine).map(|d| d.electrical_load_watts()).unwrap_or(0.0);
+                let load = if dest_load > 0.0 {
+                    dest_load
+                } else {
+                    self.catalog.get(&from.machine).map(|d| d.electrical_supply_watts()).unwrap_or(0.0)
+                };
+                if load <= 0.0 {
+                    continue; // no real electrical load on this run -- nothing to size
+                }
+                let len = dist(from.offset, to.offset).max(1.0);
+                match &c.spec {
+                    // An explicitly pinned cable: validate it against the load.
+                    Some(id) => match conduit_type(id) {
+                        Some(cable) => {
+                            let chk = check_cable(cable, load, VOLTS, len);
+                            match chk.verdict {
+                                CableVerdict::Pass => sized += 1,
+                                CableVerdict::Warn => {
+                                    sized += 1;
+                                    worst = worst.max(CheckStatus::Warn);
+                                }
+                                CableVerdict::Fail => {
+                                    worst = CheckStatus::Fail;
+                                    failing.push(format!("{}->{}: {}", c.from, c.to, chk.reason));
+                                }
+                            }
+                        }
+                        None => {
+                            worst = CheckStatus::Fail;
+                            failing.push(format!("{}->{}: unknown cable '{id}'", c.from, c.to));
+                        }
+                    },
+                    // Auto-pick the cheapest copper that carries it.
+                    None => match cheapest_cable_for(load, VOLTS, len) {
+                        Some(_) => sized += 1,
+                        None => {
+                            worst = CheckStatus::Fail;
+                            failing.push(format!(
+                                "{}->{}: no copper carries {load:.0} W over {len:.0} m",
+                                c.from, c.to
+                            ));
+                        }
+                    },
+                }
+            }
+            let detail = if failing.is_empty() {
+                format!("{sized} power run(s) sized OK (auto-picked cheapest copper that carries the load)")
+            } else {
+                format!("{}", failing.join("; "))
+            };
+            // Only emit the check if at least one run had a real load to size (sized + failing > 0).
+            if sized > 0 || !failing.is_empty() {
+                checks.push(BuildabilityCheck { name: "Conduits".into(), status: worst, detail });
             }
         }
 
@@ -834,6 +968,7 @@ mod tests {
             category: "Machines".to_string(),
             stats: Vec::new(),
             power: None,
+            ports: Vec::new(),
         }
     }
 
@@ -885,6 +1020,7 @@ mod tests {
             from: from.to_string(),
             to: to.to_string(),
             kind: "water".to_string(),
+            spec: None,
         };
         let mut home = MachineHome {
             catalog,
@@ -931,6 +1067,7 @@ mod tests {
                 from: "g1".to_string(),
                 to: "k1".to_string(),
                 kind: "power".to_string(),
+                spec: None,
             }],
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
@@ -1055,7 +1192,7 @@ mod tests {
             catalog,
             instances: vec![MachineInstance { id: "a".into(), machine: "box".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0) }],
             arrays: Vec::new(),
-            connections: vec![MachineConnection { from: "a".into(), to: "ghost".into(), kind: "power".into() }],
+            connections: vec![MachineConnection { from: "a".into(), to: "ghost".into(), kind: "power".into(), spec: None }],
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
@@ -1260,5 +1397,108 @@ mod tests {
         let back = MachineHome::load(&tmp).expect("reload after re-save");
         assert_eq!(back.catalog.len(), home.catalog.len());
         let _ = std::fs::remove_file(&tmp);
+    }
+
+    // -- v0.605 wiring Stage 2: ports + the Conduits buildability check --------------------------
+
+    /// A two-machine home wired source -> load, machines `gap` metres apart on a single power run.
+    fn wired_pair(src: MachineDef, load: MachineDef, gap: f32, spec: Option<&str>) -> MachineHome {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("src".to_string(), src);
+        catalog.insert("load".to_string(), load);
+        MachineHome {
+            catalog,
+            instances: vec![
+                MachineInstance { id: "s1".into(), machine: "src".into(), room: "g".into(), offset: (0.0, 0.0, 0.0) },
+                MachineInstance { id: "l1".into(), machine: "load".into(), room: "g".into(), offset: (gap, 0.0, 0.0) },
+            ],
+            arrays: Vec::new(),
+            connections: vec![MachineConnection {
+                from: "s1".into(),
+                to: "l1".into(),
+                kind: "power".into(),
+                spec: spec.map(|s| s.to_string()),
+            }],
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+        }
+    }
+
+    /// derive_ports infers an electrical port from the `power` role, explicit ports override it, and
+    /// the load helper sums IN + bidirectional electrical ports.
+    #[test]
+    fn derive_ports_infers_from_power_and_explicit_wins() {
+        let consumer = def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1 }));
+        assert_eq!(consumer.derive_ports().len(), 1, "a consumer infers one IN port");
+        assert_eq!(consumer.electrical_load_watts(), 200.0);
+        let panel = def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 }));
+        assert_eq!(panel.electrical_supply_watts(), 1000.0, "a panel supplies, draws nothing");
+        assert_eq!(panel.electrical_load_watts(), 0.0);
+        // Explicit ports win over the power-role inference.
+        let mut explicit = test_def("box");
+        explicit.ports =
+            vec![crate::utilities::Port::fluid_in(crate::utilities::Utility::Water, 14.0), crate::utilities::Port::elec_in(50.0)];
+        assert_eq!(explicit.derive_ports().len(), 2, "explicit ports are used verbatim");
+        assert_eq!(explicit.electrical_load_watts(), 50.0, "only the electrical IN port counts as load");
+    }
+
+    /// A modest load over a short run auto-sizes to the cheapest copper and PASSES the Conduits check.
+    #[test]
+    fn buildability_conduits_autosize_passes() {
+        let home = wired_pair(
+            def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })),
+            def_with_power(Some(MachinePower::Consumer { watts: 120.0, priority: 1 })),
+            2.0,
+            None,
+        );
+        let report = home.buildability_report(4.5);
+        let conduit = report.checks.iter().find(|c| c.name == "Conduits").expect("a Conduits check exists");
+        assert_eq!(conduit.status, CheckStatus::Pass, "120 W over 2 m auto-sizes: {}", conduit.detail);
+    }
+
+    /// A pinned, undersized cable feeding a heavy load FAILS -- "not all cables can handle all power".
+    #[test]
+    fn buildability_conduits_undersized_pinned_cable_fails() {
+        let home = wired_pair(
+            def_with_power(Some(MachinePower::Generator { watts: 5000.0 })),
+            def_with_power(Some(MachinePower::Consumer { watts: 3000.0, priority: 1 })),
+            1.0,
+            Some("cu_awg14"), // 15 A cable; 3000 W @ 120 V = 25 A -> over ampacity
+        );
+        let report = home.buildability_report(4.5);
+        let conduit = report.checks.iter().find(|c| c.name == "Conduits").expect("a Conduits check exists");
+        assert_eq!(conduit.status, CheckStatus::Fail, "25 A on a 15 A cable fails: {}", conduit.detail);
+    }
+
+    /// A pinned cable id that isn't in the registry FAILS the check (an AI/hand edit can't reference a
+    /// nonexistent cable and have it silently pass).
+    #[test]
+    fn buildability_conduits_unknown_cable_id_fails() {
+        let home = wired_pair(
+            def_with_power(Some(MachinePower::Generator { watts: 500.0 })),
+            def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1 })),
+            1.0,
+            Some("unobtainium_42"),
+        );
+        let report = home.buildability_report(4.5);
+        let conduit = report.checks.iter().find(|c| c.name == "Conduits").expect("a Conduits check exists");
+        assert_eq!(conduit.status, CheckStatus::Fail, "unknown cable id fails: {}", conduit.detail);
+    }
+
+    /// The shipped seed home's power runs all size to a real copper cable (the reference design must be
+    /// buildable, not just internally consistent).
+    #[test]
+    fn buildability_seed_home_conduits_are_sane() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("machines")
+            .join("home.ron");
+        let home = MachineHome::load(&path).expect("home.ron parses");
+        let report = home.buildability_report(4.5);
+        // If the seed has power runs at all, the Conduits check must not FAIL (Pass or Warn is fine).
+        if let Some(conduit) = report.checks.iter().find(|c| c.name == "Conduits") {
+            assert_ne!(conduit.status, CheckStatus::Fail, "seed conduits must be sizable: {}", conduit.detail);
+        }
     }
 }

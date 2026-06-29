@@ -1233,29 +1233,47 @@ fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.label(RichText::new(format!("  {} : {}  ({})", st.kind, st.value, st.status)).size(theme.font_size_small).color(theme.text_muted()));
         }
     }
-    // Connection points: the utility kinds this machine ties into, coloured to match the pipes.
-    let mut kinds: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
-    for st in &def.stats {
-        if matches!(st.kind.as_str(), "power" | "water" | "nutrient" | "fuel" | "air" | "waste") {
-            kinds.insert(st.kind.as_str());
-        }
-    }
-    if def.power.is_some() {
-        kinds.insert("power");
-    }
+    // Connection points (v0.605): the machine's real declared PORTS -- which utility, which way it
+    // flows (in/out/both), and the load (W) or flow (L/min), coloured to match the pipes. Falls back
+    // to derive_ports() so a machine that only declares an electrical `power` role still shows a port.
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new("Connection points").strong().size(theme.font_size_small).color(theme.text_primary()));
-    if kinds.is_empty() {
+    let ports = def.derive_ports();
+    if ports.is_empty() {
         ui.label(RichText::new("  (standalone -- no utility hookups)").size(theme.font_size_small).color(theme.text_muted()));
     } else {
-        for k in &kinds {
-            let c = crate::machines::MachineHome::connection_color(k);
-            let col = egui::Color32::from_rgb((c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8); // theme-exempt: utility-kind colour matching the pipes
-            ui.label(RichText::new(format!("  {k}")).size(theme.font_size_small).color(col));
+        for p in &ports {
+            ui.label(RichText::new(format!("  {}", port_line(p))).size(theme.font_size_small).color(port_color(p)));
         }
     }
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new("Click the floor to place. Right-click cancels.").size(theme.font_size_small).color(theme.text_muted()));
+}
+
+/// One human-readable line for a machine port: direction arrow + utility + label + the load/flow.
+/// Arrows (U+2190..U+21FF) are confirmed-rendering glyphs in our font (icon_glyph_lint).
+fn port_line(p: &crate::utilities::Port) -> String {
+    use crate::utilities::{PortDir, Utility};
+    let arrow = match p.dir {
+        PortDir::In => "\u{2190}",            // <- consumes
+        PortDir::Out => "\u{2192}",           // -> supplies
+        PortDir::Bidirectional => "\u{2194}", // <-> either way
+    };
+    let detail = if p.utility == Utility::Electricity {
+        if p.watts > 0.0 { format!(" {:.0} W", p.watts) } else { String::new() }
+    } else if p.flow_lpm > 0.0 {
+        format!(" {:.1} L/min", p.flow_lpm)
+    } else {
+        String::new()
+    };
+    let label = if p.label.is_empty() { String::new() } else { format!("  ({})", p.label) };
+    format!("{arrow} {}{detail}{label}", p.utility.id())
+}
+
+/// Pipe colour for a port's utility, matching the in-world connection tubes.
+fn port_color(p: &crate::utilities::Port) -> egui::Color32 {
+    let c = crate::machines::MachineHome::connection_color(p.utility.id());
+    egui::Color32::from_rgb((c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8) // theme-exempt: utility-kind colour matching the pipes
 }
 
 /// Right-panel info for the STRUCTURE piece currently held for placement (v0.602): label, category,
@@ -1335,6 +1353,15 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.label(RichText::new("Stats").strong().color(theme.text_primary()));
             for s in &d.stats {
                 ui.label(RichText::new(format!("{}  {}", s.kind, s.value)).size(theme.font_size_small).color(theme.text_muted()));
+            }
+        }
+        // Ports (v0.605): the physical hookups this machine needs/provides, coloured to the pipes.
+        let ports = d.derive_ports();
+        if !ports.is_empty() {
+            ui.add_space(theme.spacing_xs);
+            ui.label(RichText::new("Ports").strong().color(theme.text_primary()));
+            for p in &ports {
+                ui.label(RichText::new(port_line(p)).size(theme.font_size_small).color(port_color(p)));
             }
         }
     }

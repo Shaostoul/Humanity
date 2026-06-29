@@ -79,6 +79,29 @@ pub struct Port {
     pub anchor: (f32, f32, f32),
 }
 
+impl Port {
+    /// An electrical IN port (a load) drawing `watts`.
+    pub fn elec_in(watts: f32) -> Port {
+        Port { utility: Utility::Electricity, dir: PortDir::In, label: "power in".into(), watts, flow_lpm: 0.0, anchor: (0.0, 0.0, 0.0) }
+    }
+    /// An electrical OUT port (a source) supplying `watts`.
+    pub fn elec_out(watts: f32) -> Port {
+        Port { utility: Utility::Electricity, dir: PortDir::Out, label: "power out".into(), watts, flow_lpm: 0.0, anchor: (0.0, 0.0, 0.0) }
+    }
+    /// An electrical BIDIRECTIONAL port (a battery / bus terminal) rated to `watts`.
+    pub fn elec_bidir(watts: f32) -> Port {
+        Port { utility: Utility::Electricity, dir: PortDir::Bidirectional, label: "power".into(), watts, flow_lpm: 0.0, anchor: (0.0, 0.0, 0.0) }
+    }
+    /// A fluid/air IN port for `utility` at `flow_lpm` litres/min.
+    pub fn fluid_in(utility: Utility, flow_lpm: f32) -> Port {
+        Port { utility, dir: PortDir::In, label: format!("{} in", utility.id()), watts: 0.0, flow_lpm, anchor: (0.0, 0.0, 0.0) }
+    }
+    /// A fluid/air OUT port for `utility` at `flow_lpm` litres/min.
+    pub fn fluid_out(utility: Utility, flow_lpm: f32) -> Port {
+        Port { utility, dir: PortDir::Out, label: format!("{} out", utility.id()), watts: 0.0, flow_lpm, anchor: (0.0, 0.0, 0.0) }
+    }
+}
+
 /// What a conductor is made of. Drives resistance + ampacity + the upgrade path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ConductorMaterial {
