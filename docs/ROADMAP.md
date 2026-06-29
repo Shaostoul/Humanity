@@ -305,6 +305,11 @@ Every operator gets the same sovereignty tools, not just the original.
 
 Newest first. For older history see `docs/history/` and `git log`.
 
+- `v0.611` Water to food: the FarmingSystem reads the live cistern level -- a dry cistern
+  stops auto-irrigation and the garden wilts, completing power to water to food (cut the
+  power, the pump stops, the cistern drains, then days later the crops die).
+- `v0.610` Water sim fix (adversarial review): the seed home now actually fills when
+  powered + drains when cut (the pump was over-modelled; the towers were inert islands).
 - `v0.608` Live water / plumbing sim coupled to power: cisterns store, powered pumps +
   purifiers fill them, fixtures draw, all per pipe island -- and cutting the power stops
   the water (the first power -> water consequence chain). Shown live on the Home page.

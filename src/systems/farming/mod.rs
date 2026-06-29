@@ -338,6 +338,18 @@ impl System for FarmingSystem {
             .map(|g| g.clone())
             .unwrap_or_default();
 
+        // Water -> FOOD coupling (v0.611): the downstream end of the power -> water -> food chain. If the
+        // home has a real water system (a cistern) and it has run DRY, automated irrigation can no longer
+        // top crops up -- so they dehydrate + wilt. (Cut the power -> the well pump sheds -> the cistern
+        // drains -> days later the garden starts to die.) Read from PlumbingSystem's live WaterStatus.
+        // Absent water_status (tests / a home with no plumbing) OR no cistern (capacity 0) = water
+        // available, so existing gardening behaviour + un-plumbed homes are unchanged.
+        let water_available = data
+            .get::<std::sync::Mutex<crate::systems::plumbing::WaterStatus>>("water_status")
+            .and_then(|m| m.lock().ok())
+            .map(|ws| ws.capacity_l <= 0.0 || ws.stored_l > ws.capacity_l * 0.02)
+            .unwrap_or(true);
+
         // Creative mode (default ON in early dev): planting + fertilizing skip the
         // inventory requirement + consumption. Absent flag (tests) = survival =
         // consume, so the existing gardening tests still hold.
@@ -657,9 +669,13 @@ impl System for FarmingSystem {
             // target, automated irrigation keeps it topped up to that level. A high
             // setting holds crops well-watered (healthy, fast growth); a low setting
             // lets them dehydrate and wilt -- so the garden edit slider is meaningful.
-            if let Some(tid) = &crop.tower_id {
-                if let Some(target) = irrigation.get(tid) {
-                    crop.water_level = crop.water_level.max(*target);
+            // GATED on the home's water sim (v0.611): a dry cistern can't feed the
+            // irrigation, so the top-up is suppressed and the crops dehydrate.
+            if water_available {
+                if let Some(tid) = &crop.tower_id {
+                    if let Some(target) = irrigation.get(tid) {
+                        crop.water_level = crop.water_level.max(*target);
+                    }
                 }
             }
 
@@ -1088,6 +1104,49 @@ mod gardening_tests {
             dry_c.health,
             irr_c.health
         );
+    }
+
+    /// Water -> FOOD coupling (v0.611): the SAME configured irrigation that keeps a crop topped up with
+    /// a full cistern FAILS when the cistern is dry, so the crop dehydrates + loses health. This is the
+    /// downstream end of power -> water -> food (a power cut drains the cistern, then the garden wilts).
+    #[test]
+    fn dry_cistern_stops_irrigation_and_wilts_crops() {
+        use crate::ecs::components::CropInstance;
+        use crate::systems::plumbing::WaterStatus;
+
+        let configured_crop = || CropInstance {
+            crop_def_id: "tomato".to_string(),
+            growth_stage: "sprout".to_string(),
+            planted_at: 0.0,
+            water_level: 0.15, // below WATER_STRESS_THRESHOLD
+            health: 80.0,
+            tower_id: Some("nutrition".to_string()),
+            tower_slot: Some(0),
+        };
+
+        // Control: a FULL cistern -> irrigation works -> the crop stays topped up.
+        let mut full = make_store();
+        let mut irr = std::collections::HashMap::new();
+        irr.insert("nutrition".to_string(), 1.0_f32);
+        full.insert("garden_irrigation", std::sync::Mutex::new(irr.clone()));
+        full.insert("water_status", std::sync::Mutex::new(WaterStatus { stored_l: 7000.0, capacity_l: 8000.0, ..Default::default() }));
+        let mut sys = FarmingSystem::new();
+        let mut w_full = hecs::World::new();
+        let c_full = w_full.spawn((configured_crop(),));
+        for _ in 0..5 { sys.tick(&mut w_full, 1.0, &full); }
+        let wet = w_full.get::<&CropInstance>(c_full).unwrap().water_level;
+        assert!(wet > 0.9, "full cistern -> irrigation tops the crop up, got {wet}");
+
+        // A DRY cistern (same capacity) -> irrigation can't deliver -> the crop dehydrates.
+        let mut empty = make_store();
+        empty.insert("garden_irrigation", std::sync::Mutex::new(irr));
+        empty.insert("water_status", std::sync::Mutex::new(WaterStatus { stored_l: 0.0, capacity_l: 8000.0, ..Default::default() }));
+        let mut w_dry = hecs::World::new();
+        let c_dry = w_dry.spawn((configured_crop(),));
+        for _ in 0..5 { sys.tick(&mut w_dry, 1.0, &empty); }
+        let dry = w_dry.get::<&CropInstance>(c_dry).unwrap();
+        assert!(dry.water_level < 0.15, "dry cistern -> the crop dehydrates (not topped up), got {}", dry.water_level);
+        assert!(dry.health < 80.0, "dry cistern -> the water-stressed crop loses health, got {}", dry.health);
     }
 
     /// Per-area nutrient strength (garden edit slider) scales growth speed: a

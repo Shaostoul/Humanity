@@ -1052,6 +1052,14 @@ the pump stops, the cistern drains. Shown on the Home page next to Live power.
 - Native: `src/systems/plumbing.rs` (`PlumbingSystem`, `WaterStatus`), `src/ecs/components.rs` (`WaterTank`, `WaterProducer`, `WaterConsumer`, `PlumbingCircuit`), `src/machines.rs` (`water_islands`, `MachineStorage`, `water_production_lpm`/`water_demand_lpm`/`water_capacity_l`), `src/gui/pages/homes.rs` (Live water card)
 - Data: `data/machines/home.ron` (cistern storage + rain inflow, pump water-out, tower/irrigation water-in)
 
+### Water to Food Coupling (v0.611)
+The downstream end of the power to water to food consequence chain. The `FarmingSystem` reads the live
+`WaterStatus`: if the home has a real cistern and it has run DRY, automated irrigation can no longer top
+crops up, so they dehydrate and lose health (existing crop water-stress logic). Cut the power, the well
+pump sheds, the cistern drains over days, then the garden starts to wilt. Absent water system / no
+cistern = water available (un-plumbed homes + tests unchanged).
+- Native: `src/systems/farming/mod.rs` (the `water_available` gate on the per-area irrigation top-up)
+
 ### Node-Based Conduits (v0.535, v0.581)
 Conduit junction nodes + auto-routed edges in the editor (draggable node gizmos), plus the
 Manhattan/service-height auto-router that runs pipes up to the ceiling and down to the fixture

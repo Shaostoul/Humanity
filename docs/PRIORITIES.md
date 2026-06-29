@@ -11,6 +11,26 @@
 
 ## Active focus
 
+> **UTILITY-WIRING + LIVE WATER SIM ARC COMPLETE (v0.604-610, operator "do the wiring; no magic
+> transmission; spin up subagents", 2026-06-29).** Power + water are now REAL at design-time AND runtime:
+> - **Power (v0.604-607):** `src/utilities.rs` cable physics + `conduits.ron` registry (real NEC copper,
+>   superconductor as the upgrade target); machine `ports` + `storage`; buildability **Conduits** check
+>   (auto-sizes cheapest copper per run) + **Power-circuit** connectivity check (union-find, every load
+>   must reach a generator); **runtime per-island power-flow gating** (`PowerCircuit`, ElectricalSystem
+>   sheds per island, no magic transmission).
+> - **Water (v0.608-610):** a live **PlumbingSystem** (`WaterTank`/`WaterProducer`/`WaterConsumer`/
+>   `PlumbingCircuit`) coupled to power -- the FIRST power->water consequence chain (cut the grid, the
+>   well pump stops, the cistern drains). A "Live water" Home-page card. An adversarial review caught the
+>   seed topology was inert; v0.610 fixed it (verified fill-when-powered / drain-when-cut).
+> - **Docs:** FEATURES.md (was stale since v0.496) + ROADMAP.md + utility-wiring.md brought current.
+>
+> > **NEXT (the consequence-chain thread, sim-realism-roadmap gap #2):** water->FOOD -- the FarmingSystem
+> > already models crop water + dehydration + a `garden_irrigation` top-up that is currently a FREE GUI
+> > slider; gate it on actual cistern availability (dry cistern -> crops stop being watered -> wilt) to
+> > complete power->water->food. Then: a data/internet utility, the superconductor upgrade mission, and
+> > the build-editor backlog (multi-select, rotation gizmo). (`register PlumbingSystem` is DONE -- it ticks
+> > against WaterTank/WaterProducer/WaterConsumer, not the old WaterFixture scaffold, which was deleted.)
+>
 > **STRUCTURAL BACKLOG WAVE FULLY COMPLETE (v0.583-592, operator "proceed until caught up" + "enable
 > loop mode", 2026-06-27).** The v0.582 "keep working" feedback wave's structural list AND its
 > deferrals, all cleared as one data-driven system (see `docs/design/structure-pieces.md`). The
