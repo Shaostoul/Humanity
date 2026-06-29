@@ -1536,6 +1536,10 @@ pub struct GuiState {
     /// keyed by a stable "tag:id" string (e.g. "Machine:tower_0", "Wall:3"). Drives group delete +
     /// group nudge. Empty = normal single-selection.
     pub construction_multi: std::collections::HashSet<String>,
+    /// LOCKED object-type tags (v0.614): a type in this set ("Wall"/"Struct"/"Machine"/"Light"/"Road"/
+    /// "Pipe") can't be selected or grabbed in the viewport -- so you can lock your walls while arranging
+    /// machines and never fat-finger them. Toggled per type-group in the object browser.
+    pub construction_locked_types: std::collections::HashSet<String>,
     /// Selected ROAD-graph node id (v0.597): its detail shows on the right; draggable in the viewport.
     pub construction_road_node_selected: Option<u32>,
     /// Selected CONDUIT-graph node id (v0.597): its detail shows on the right; draggable in the viewport.
@@ -2637,6 +2641,7 @@ impl Default for GuiState {
             construction_focus_request: None,
             construction_object_filter: String::new(),
             construction_multi: std::collections::HashSet::new(),
+            construction_locked_types: std::collections::HashSet::new(),
             construction_road_node_selected: None,
             construction_conduit_node_selected: None,
             construction_structure_yaw: 0.0,

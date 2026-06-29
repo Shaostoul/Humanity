@@ -2257,8 +2257,9 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             Key::ConduitNode(id) => format!("Pipe:{id}"),
         }
     }
-    // Snapshot the multi-set so the row loop can highlight members without holding a borrow on state.
+    // Snapshot the multi-set + locked-types so the row loop can read them without borrowing state.
     let multi = state.construction_multi.clone();
+    let locked_types = state.construction_locked_types.clone();
     enum Act {
         Select(Key),
         ToggleMulti(String),
@@ -2268,6 +2269,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         DeleteMulti,
         NudgeMulti(f32, f32),
         ClearMulti,
+        ToggleLock(String),
     }
     let mut act: Option<Act> = None;
     egui::CollapsingHeader::new(RichText::new(format!("Objects ({total})")).strong().color(theme.text_primary()))
@@ -2310,10 +2312,18 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     }
                     // Auto-open while filtering, or when the group is small enough to not dominate.
                     let open = !filter.is_empty() || group.len() <= 12;
-                    egui::CollapsingHeader::new(RichText::new(format!("{plural} ({})", group.len())).color(theme.text_secondary()))
+                    let is_locked = locked_types.contains(tag);
+                    let title = format!("{plural} ({}){}", group.len(), if is_locked { "  [locked]" } else { "" });
+                    egui::CollapsingHeader::new(RichText::new(title)
+                            .color(if is_locked { theme.warning() } else { theme.text_secondary() }))
                         .id_salt(tag)
                         .default_open(open)
                         .show(ui, |ui| {
+                            // Per-type LOCK toggle (v0.614): a locked type can't be picked/grabbed in the
+                            // viewport + shows no [x] here, so a busy build won't fat-finger it.
+                            if ui.small_button(if is_locked { "Unlock type" } else { "Lock type" }).clicked() {
+                                act = Some(Act::ToggleLock(tag.to_string()));
+                            }
                             for row in &group {
                                 ui.horizontal(|ui| {
                                     // A LIGHT row gets a dedicated on/off checkbox; clicking it toggles
@@ -2341,7 +2351,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                         act = Some(Act::Focus((row.pos.0, row.pos.1 + 0.5, row.pos.2)));
                                     }
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        if row.removable {
+                                        if row.removable && !is_locked {
                                             if ui.small_button("x").clicked() {
                                                 act = Some(Act::Remove(row.key.clone()));
                                             }
@@ -2381,6 +2391,11 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
         Some(Act::ClearMulti) => state.construction_multi.clear(),
+        Some(Act::ToggleLock(tag)) => {
+            if !state.construction_locked_types.remove(&tag) {
+                state.construction_locked_types.insert(tag);
+            }
+        }
         Some(Act::DeleteMulti) => {
             group_delete(state);
             clear_sel(state);

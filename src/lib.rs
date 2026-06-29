@@ -5010,6 +5010,17 @@ mod native_app {
                     // orbit cam, so we own it). Gated on !egui_consumed so panel clicks never
                     // start a grab. (v0.466)
                     if state.gui_state.construction_active && left && !egui_consumed {
+                        // Per-type LOCK (v0.614): a locked type can't be picked/grabbed in the viewport.
+                        // Precomputed as bools (no borrow held across the mutable try_pick_* calls below).
+                        let locked = &state.gui_state.construction_locked_types;
+                        let (lock_wall, lock_struct, lock_machine, lock_light, lock_road, lock_pipe) = (
+                            locked.contains("Wall"),
+                            locked.contains("Struct"),
+                            locked.contains("Machine"),
+                            locked.contains("Light"),
+                            locked.contains("Road"),
+                            locked.contains("Pipe"),
+                        );
                         if pressed {
                             // Wall-drawing mode owns the click first (v0.534): drop a corner node.
                             // Else holding a palette item -> drop it; else grab a room.
@@ -5032,18 +5043,18 @@ mod native_app {
                             } else if try_grab_char(state) {
                                 // Grabbed the build-mode avatar (v0.557): drag it across the floor; you
                                 // spawn right there when you leave build mode.
-                            } else if try_pick_node(state) {
+                            } else if (!lock_road || !lock_pipe) && try_pick_node(state) {
                                 // Clicked a ROAD / CONDUIT node orb (v0.599): select + drag it.
-                            } else if state.gui_state.home_structure.is_some() && try_pick_light(state) {
+                            } else if !lock_light && state.gui_state.home_structure.is_some() && try_pick_light(state) {
                                 // Clicked a placed-LIGHT diamond gizmo (v0.576) -> its detail shows on
                                 // the right panel, like a wall.
-                            } else if state.gui_state.home_structure.is_some() && try_pick_structure(state) {
+                            } else if !lock_struct && state.gui_state.home_structure.is_some() && try_pick_structure(state) {
                                 // Clicked a placed STRUCTURE (v0.583) -> its detail shows on the right.
-                            } else if state.gui_state.home_structure.is_some() && try_pick_machine(state) {
+                            } else if !lock_machine && state.gui_state.home_structure.is_some() && try_pick_machine(state) {
                                 // Selected a machine in the viewport (v0.553) -> its detail shows on
                                 // the right panel. Click only; machines are not dragged here. Gated to
                                 // the box-home path so it never shadows the legacy room-grab.
-                            } else if state.gui_state.home_structure.is_some() && try_pick_wall(state) {
+                            } else if !lock_wall && state.gui_state.home_structure.is_some() && try_pick_wall(state) {
                                 // Clicked a WALL SURFACE (v0.573): select that wall for editing --
                                 // unambiguous vs hunting for the right corner orb at an intersection.
                             } else {

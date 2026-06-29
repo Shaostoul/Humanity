@@ -849,6 +849,13 @@ with Ctrl+D. Grid-snap toggle (0.25 m). Constant-width "line circle" gizmo bound
 the active grabbed gizmo RGB-cycles.
 - Native: `src/lib.rs` (`construction_duplicate`, the `construction_*_grab` states), `src/gui/pages/construction.rs` (browser hints, grid-snap toggle)
 
+### Lock Per Object Type (v0.614)
+Each object-browser type-group has a "Lock type" toggle: a locked type (walls, structures, machines,
+lights, road/pipe nodes) can't be selected or grabbed in the viewport, and shows no `[x]` in the browser
+-- so on a busy build you lock your walls while arranging machines and never fat-finger them. The group
+title shows `[locked]` in the warning colour. (Viewport HIDE-per-type is a deferred follow-up.)
+- Native: `src/gui/mod.rs` (`construction_locked_types`), `src/gui/pages/construction.rs` (the per-group toggle), `src/lib.rs` (the pick dispatch gates each `try_pick_*` on the type not being locked)
+
 ### Alignment Snap Guides (v0.613)
 While dragging any object, its X and/or Z snaps to the nearest other object within 0.3 m (independent per
 axis, applied after grid-snap), and a faint amber guide line spans the box along the snapped axis so you
