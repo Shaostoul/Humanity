@@ -737,7 +737,117 @@ impl MachineHome {
             }
         }
 
+        // 5. Power circuit (v0.606): the operator's "no magic transmission". Every electrical LOAD
+        //    must trace through power cabling to a real generation source (panel/generator) -- a load
+        //    on a battery-only or unwired circuit can't actually run. Union-find over the power graph.
+        if let Some(circuit) = self.power_circuit_check(&all) {
+            checks.push(circuit);
+        }
+
         BuildabilityReport { checks }
+    }
+
+    /// The "Power circuit" buildability check (v0.606): build the electrical graph from power
+    /// connections + power conduit edges, find connected components (union-find), and verify every
+    /// electrical LOAD shares a component with a real generation source (solar/generator). A battery
+    /// is STORAGE, not generation -- a load wired only to an uncharged battery (or to nothing) fails,
+    /// because no cable carries power to it. Returns None if the home has no electrical machines.
+    fn power_circuit_check(&self, all: &[MachineInstance]) -> Option<BuildabilityCheck> {
+        // Classify each instance's electrical role from its catalog def.
+        #[derive(PartialEq)]
+        enum Role {
+            Source,  // solar / generator -- real generation
+            Load,    // consumer
+            Storage, // battery
+        }
+        let role_of = |inst: &MachineInstance| -> Option<Role> {
+            match self.catalog.get(&inst.machine).and_then(|d| d.power.as_ref()) {
+                Some(MachinePower::Solar { .. }) | Some(MachinePower::Generator { .. }) => Some(Role::Source),
+                Some(MachinePower::Consumer { .. }) => Some(Role::Load),
+                Some(MachinePower::Battery { .. }) => Some(Role::Storage),
+                None => None,
+            }
+        };
+        let electrical: Vec<(&MachineInstance, Role)> =
+            all.iter().filter_map(|i| role_of(i).map(|r| (i, r))).collect();
+        if electrical.is_empty() {
+            return None; // nothing electrical to check
+        }
+
+        // Union-find keyed by node string: a machine id, or "node:<id>" for a conduit junction.
+        use std::collections::HashMap;
+        let mut parent: HashMap<String, String> = HashMap::new();
+        fn find(parent: &mut HashMap<String, String>, x: &str) -> String {
+            let p = parent.entry(x.to_string()).or_insert_with(|| x.to_string()).clone();
+            if p == x {
+                return p;
+            }
+            let root = find(parent, &p);
+            parent.insert(x.to_string(), root.clone());
+            root
+        }
+        fn union(parent: &mut HashMap<String, String>, a: &str, b: &str) {
+            let ra = find(parent, a);
+            let rb = find(parent, b);
+            if ra != rb {
+                parent.insert(ra, rb);
+            }
+        }
+        // Seed every electrical machine as its own node (so an unwired load is its own component).
+        for (inst, _) in &electrical {
+            find(&mut parent, &inst.id);
+        }
+        // Union along power connections.
+        for c in self.connections.iter().filter(|c| c.kind == "power") {
+            union(&mut parent, &c.from, &c.to);
+        }
+        // Union along power conduit edges (machine + junction-node endpoints).
+        let end_key = |e: &ConduitEnd| match e {
+            ConduitEnd::Machine(id) => id.clone(),
+            ConduitEnd::Node(id) => format!("node:{id}"),
+        };
+        for e in self.conduit_edges.iter().filter(|e| e.kind == "power") {
+            union(&mut parent, &end_key(&e.from), &end_key(&e.to));
+        }
+
+        // Which components contain real generation?
+        let mut powered_roots: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for (inst, role) in &electrical {
+            if *role == Role::Source {
+                let r = find(&mut parent, &inst.id);
+                powered_roots.insert(r);
+            }
+        }
+        // Tally the problems.
+        let mut isolated_loads: Vec<String> = Vec::new();
+        let mut uncharged_batteries = 0usize;
+        for (inst, role) in &electrical {
+            let r = find(&mut parent, &inst.id);
+            let powered = powered_roots.contains(&r);
+            match role {
+                Role::Load if !powered => isolated_loads.push(inst.id.clone()),
+                Role::Storage if !powered => uncharged_batteries += 1,
+                _ => {}
+            }
+        }
+
+        let (status, detail) = if !isolated_loads.is_empty() {
+            let shown: Vec<&str> = isolated_loads.iter().take(4).map(|s| s.as_str()).collect();
+            let more = if isolated_loads.len() > 4 { format!(" (+{} more)", isolated_loads.len() - 4) } else { String::new() };
+            (
+                CheckStatus::Fail,
+                format!("{} load(s) not wired to any generator: {}{more}", isolated_loads.len(), shown.join(", ")),
+            )
+        } else if uncharged_batteries > 0 {
+            (
+                CheckStatus::Warn,
+                format!("all loads powered, but {uncharged_batteries} batter(y/ies) can't reach a generator to charge"),
+            )
+        } else {
+            let loads = electrical.iter().filter(|(_, r)| *r == Role::Load).count();
+            (CheckStatus::Pass, format!("{loads} load(s) all trace to a generator through the wiring"))
+        };
+        Some(BuildabilityCheck { name: "Power circuit".into(), status, detail })
     }
 
     /// Resolve every placed machine (explicit + array-expanded) to its world draw position +
@@ -1151,7 +1261,11 @@ mod tests {
             catalog,
             instances: vec![inst("p1", "panel"), inst("b1", "batt"), inst("l1", "load")],
             arrays: Vec::new(),
-            connections: Vec::new(),
+            // Wired panel -> battery -> load so the Power circuit check sees a complete circuit.
+            connections: vec![
+                MachineConnection { from: "p1".into(), to: "b1".into(), kind: "power".into(), spec: None },
+                MachineConnection { from: "b1".into(), to: "l1".into(), kind: "power".into(), spec: None },
+            ],
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
@@ -1174,7 +1288,11 @@ mod tests {
             catalog,
             instances: vec![inst("p1", "panel"), inst("b1", "batt"), inst("l1", "load")],
             arrays: Vec::new(),
-            connections: Vec::new(),
+            // Wired panel -> battery -> load so the Power circuit check sees a complete circuit.
+            connections: vec![
+                MachineConnection { from: "p1".into(), to: "b1".into(), kind: "power".into(), spec: None },
+                MachineConnection { from: "b1".into(), to: "l1".into(), kind: "power".into(), spec: None },
+            ],
             loops: Vec::new(),
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
@@ -1484,6 +1602,68 @@ mod tests {
         let report = home.buildability_report(4.5);
         let conduit = report.checks.iter().find(|c| c.name == "Conduits").expect("a Conduits check exists");
         assert_eq!(conduit.status, CheckStatus::Fail, "unknown cable id fails: {}", conduit.detail);
+    }
+
+    /// An electrical LOAD wired only to a battery (no generator on its circuit) FAILS the Power
+    /// circuit check -- the operator's "no magic transmission": a battery is storage, not generation.
+    #[test]
+    fn buildability_power_circuit_flags_an_isolated_load() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 1000.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0) };
+        let mut home = MachineHome {
+            catalog,
+            instances: vec![inst("b1", "batt"), inst("l1", "load")],
+            arrays: Vec::new(),
+            // load wired to a battery that itself reaches NO generator -> the load can't run.
+            connections: vec![MachineConnection { from: "b1".into(), to: "l1".into(), kind: "power".into(), spec: None }],
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+        };
+        let circuit = home.power_circuit_check(&home.all_instances()).expect("electrical machines -> a circuit check");
+        assert_eq!(circuit.status, CheckStatus::Fail, "battery-only load fails: {}", circuit.detail);
+        // Now wire a panel onto the same bus -> the load traces to generation -> Pass.
+        home.catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 800.0 })));
+        home.instances.push(inst("p1", "panel"));
+        home.connections.push(MachineConnection { from: "p1".into(), to: "b1".into(), kind: "power".into(), spec: None });
+        let circuit = home.power_circuit_check(&home.all_instances()).expect("a circuit check");
+        assert_eq!(circuit.status, CheckStatus::Pass, "panel->battery->load now traces: {}", circuit.detail);
+    }
+
+    /// A load that reaches a generator only through a junction NODE + power conduit edges still counts
+    /// as wired (the check traverses the conduit graph, not just machine-to-machine connections).
+    #[test]
+    fn buildability_power_circuit_traverses_conduit_nodes() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 500.0 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 80.0, priority: 1 })));
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0) };
+        let mut home = MachineHome {
+            catalog,
+            instances: vec![inst("p1", "panel"), inst("l1", "load")],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+        };
+        let nid = home.add_conduit_node((1.0, 1.0, 1.0), "power");
+        assert!(home.add_conduit_edge(ConduitEnd::Machine("p1".into()), ConduitEnd::Node(nid.clone()), "power"));
+        assert!(home.add_conduit_edge(ConduitEnd::Node(nid), ConduitEnd::Machine("l1".into()), "power"));
+        let circuit = home.power_circuit_check(&home.all_instances()).expect("a circuit check");
+        assert_eq!(circuit.status, CheckStatus::Pass, "panel->node->load is wired: {}", circuit.detail);
+    }
+
+    /// The shipped seed home is a fully-wired network: every load traces to a generator (no FAIL).
+    #[test]
+    fn buildability_seed_home_power_circuit_is_connected() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
+        let home = MachineHome::load(&path).expect("home.ron parses");
+        let report = home.buildability_report(4.5);
+        let circuit = report.checks.iter().find(|c| c.name == "Power circuit").expect("the seed has electrical machines");
+        assert_ne!(circuit.status, CheckStatus::Fail, "seed power must be fully wired: {}", circuit.detail);
     }
 
     /// The shipped seed home's power runs all size to a real copper cable (the reference design must be

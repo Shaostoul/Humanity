@@ -284,14 +284,35 @@
     // -> cistern -> pump -> purifier -> irrigation -> greenhouse; greywater + compost back
     // into the growing systems; field crops -> silo.
     connections: [
-        // Power: array + wind + generator -> battery; battery -> the loads.
-        (from: "solar_4", to: "battery_3", kind: "power"),
-        (from: "solar_5", to: "battery_4", kind: "power"),
-        (from: "wind_1", to: "battery_4", kind: "power"),
+        // Power (v0.606): a PHYSICALLY CONNECTED off-grid network -- every load traces through real
+        // cabling to generation (the "Power circuit" buildability check enforces it; no magic
+        // transmission). The PV array + wind + the fuel generator charge the battery BUS (the 8 banks
+        // tied together as one bus); the bus feeds the pump, purifier, and irrigation loads. The
+        // Conduits check auto-sizes each run to the cheapest copper that carries it.
+        // -- generation into the bus (each panel has its own home-run to a bank, real PV practice) --
+        (from: "solar_1", to: "battery_1", kind: "power"),
+        (from: "solar_2", to: "battery_1", kind: "power"),
+        (from: "solar_3", to: "battery_1", kind: "power"),
+        (from: "solar_4", to: "battery_1", kind: "power"),
+        (from: "solar_5", to: "battery_2", kind: "power"),
+        (from: "solar_6", to: "battery_2", kind: "power"),
+        (from: "solar_7", to: "battery_2", kind: "power"),
+        (from: "solar_8", to: "battery_2", kind: "power"),
+        (from: "wind_1", to: "battery_1", kind: "power"),
         (from: "gen_1", to: "battery_8", kind: "power"),
+        // -- the battery bus: all 8 banks tied together so they charge + discharge as one --
+        (from: "battery_1", to: "battery_2", kind: "power"),
+        (from: "battery_2", to: "battery_3", kind: "power"),
+        (from: "battery_3", to: "battery_4", kind: "power"),
+        (from: "battery_4", to: "battery_5", kind: "power"),
+        (from: "battery_5", to: "battery_6", kind: "power"),
+        (from: "battery_6", to: "battery_7", kind: "power"),
+        (from: "battery_7", to: "battery_8", kind: "power"),
+        // -- the bus feeds the loads (turret is a low-priority standby draw on the same bus) --
         (from: "battery_5", to: "pump_1", kind: "power"),
         (from: "battery_6", to: "purifier_1", kind: "power"),
         (from: "battery_7", to: "irrigation_1", kind: "power"),
+        (from: "battery_8", to: "turret_1", kind: "power"),
 
         // Water: cistern -> pump -> purifier -> irrigation -> greenhouse.
         (from: "cistern_1", to: "pump_1", kind: "water"),

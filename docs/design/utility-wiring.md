@@ -44,17 +44,22 @@ shielded industrial feeder for a lamp).
 
 - **Stage 1 (v0.604, SHIPPED):** the module above -- pure data + physics + the registry, fully
   unit-tested, NOT yet wired into machines. Zero risk to existing data/behaviour.
-- **Stage 2 (next):** `MachineDef` gets `#[serde(default)] ports: Vec<Port>` + a `derive_ports()`
-  fallback (so existing `home.ron` entries with no ports still work -- infer from `stats`/`power`).
-  `MachineConnection` gets `#[serde(default)] spec: Option<String>` (a chosen conduit id; None =
-  auto-pick). `buildability_report()` gains a **"Conduits"** check group: per connection, auto-pick
-  the cheapest copper that carries the destination port's load, measure the routed length via
-  `route_conduit().points`, and push a Pass/Warn/Fail line next to "Energy balance." Seed two machines
-  (a `solar_panel` Electricity-Out, a `water_pump` Electricity-In) with explicit ports to prove the
-  round-trip; everything else auto-derives.
-- **Stage 3:** runtime graph-gating -- `ElectricalSystem`/`PlumbingSystem` stop summing globally and
-  flow only through kind-matched, in-spec connections (sim-realism-roadmap gap #2). This is where the
-  rating actually *trips* under load, not just warns at design time.
+- **Stage 2 (v0.605, SHIPPED):** `MachineDef` gained `#[serde(default)] ports: Vec<Port>` + a
+  `derive_ports()` fallback (electrical ports inferred from `power`; fluid ports must be declared).
+  `MachineConnection` gained `#[serde(default)] spec: Option<String>` (a pinned conduit id; None =
+  auto-pick). `buildability_report()` gained a **"Conduits"** check: per power run, compute the load
+  the cable serves + the run length (from the machines' world offsets), then validate the pinned cable
+  or auto-pick the cheapest copper via `cheapest_cable_for()` -> Pass/Warn/Fail. The water pump +
+  aeroponic tower carry explicit ports in `home.ron`; the editor's info cards show every port.
+- **Stage 2b (v0.606, SHIPPED):** a **"Power circuit"** buildability check -- union-find over the
+  power graph (connections + power conduit edges, traversing junction nodes); every electrical LOAD
+  must share a component with real generation (a battery is storage, not a source). This is the
+  design-time half of "no magic transmission". The seed `home.ron` was rewired from a symbolic diagram
+  into a physically connected network (PV array + wind + generator -> battery bus -> loads).
+- **Stage 3 (next):** runtime graph-gating -- `ElectricalSystem`/`PlumbingSystem` stop summing globally
+  and flow only through kind-matched, in-spec components (sim-realism-roadmap gap #2). Needs the spawned
+  power entities to carry their instance id so the tick can group them by the union-find islands above.
+  This is where the rating actually *trips* under load, not just warns at design time.
 - **Stage 4:** editor UX -- wire port A -> port B with a gizmo, pick the cable type, per-port render
   anchors, and the **superconductor upgrade mission** (swap every copper run for `sc_room_temp`).
 
