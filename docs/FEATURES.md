@@ -873,13 +873,24 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
-### Build-editor lock / list footgun guards (v0.623)
-Two ways the editor could feel like "I can't click my machines": a locked object type silently blocks
-viewport picking, and a >12-row type group (e.g. 24 grow towers) collapses by default and egui then
-remembers it collapsed. Fixes: the object browser shows a loud "LOCKED (can't click in 3D): ..." banner
-with a one-click "Unlock all" whenever any type is locked, and the group that holds the current selection
-is forced open so a selected machine's row is always reachable.
-- Native: `src/gui/pages/construction.rs` (locked-types banner + `Act::UnlockAll`; `CollapsingHeader::open(Some(true))` for the selected group)
+### Build-editor click fix + lock/list footgun guards (v0.623 + v0.624)
+**v0.624 (the real root cause):** entering build mode never rebuilt the machine PICK VOLUMES
+(`machine_pick`), so machines were not clickable in the viewport until some *other* edit (e.g. nudging a
+light -> `construction_structure_dirty` -> `rebuild_homestead` -> `rebuild_machine_objects`) repopulated
+them -- the operator's "I have to drag a light first, then it updates and machines are clickable" repro.
+Fix: build-mode entry now sets `construction_structure_dirty` so the pick volumes rebuild immediately, in
+the editor's coordinate space. **v0.623 (partial mitigations, still useful):** a locked object type
+silently blocks viewport picking, and a >12-row type group (e.g. 24 grow towers) collapses and egui
+remembers it collapsed -- so the browser shows a loud "LOCKED (can't click in 3D): ..." banner with a
+one-click "Unlock all", and the group holding the current selection is forced open.
+- Native: `src/lib.rs` (force `construction_structure_dirty` on build-mode entry), `src/gui/pages/construction.rs` (locked-types banner + `Act::UnlockAll`; `CollapsingHeader::open(Some(true))` for the selected group)
+
+### Capped-cylinder mesh fix (v0.624)
+`Mesh::cylinder_capped` wound BOTH end caps inward (their front faces pointed into the cylinder), so under
+the renderer's CCW-front + back-cull convention the caps were culled and tanks/cisterns rendered open-
+topped. Flipped both caps to face outward (verified against the side-wall winding, which is the reference).
+Fixes the missing tops on the water cistern + every other cylinder-shaped machine (and the podium).
+- Native: `src/renderer/mesh.rs` (`cylinder_capped` cap winding)
 
 ### Multi-Select + Group Delete / Nudge (v0.612)
 Ctrl+click rows in the object browser to build a multi-select set (across every type -- walls, machines,

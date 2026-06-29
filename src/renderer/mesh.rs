@@ -222,7 +222,9 @@ impl Mesh {
         for i in 0..seg {
             idx.extend_from_slice(&[i, i + stride, i + 1, i + 1, i + stride, i + stride + 1]);
         }
-        // Bottom cap (normal -Y): center + ring, wound to face down.
+        // Bottom cap (normal -Y), wound CCW *as seen from below* so its front face points -Y under
+        // the renderer's CCW-front + back-cull convention -- else the cap is culled from outside and
+        // the bottom looks open. (winding fix v0.624; the side wall above is the reference winding.)
         let bc = v.len() as u32;
         v.push(Vertex { position: [0.0, 0.0, 0.0], normal: [0.0, -1.0, 0.0], uv: [0.5, 0.5] });
         for i in 0..=seg {
@@ -230,9 +232,11 @@ impl Mesh {
             v.push(Vertex { position: [radius * a.cos(), 0.0, radius * a.sin()], normal: [0.0, -1.0, 0.0], uv: [0.0, 0.0] });
         }
         for i in 0..seg {
-            idx.extend_from_slice(&[bc, bc + 1 + i + 1, bc + 1 + i]);
+            idx.extend_from_slice(&[bc, bc + 1 + i, bc + 1 + i + 1]);
         }
-        // Top cap (normal +Y): center + ring, wound to face up.
+        // Top cap (normal +Y), wound CCW *as seen from above* so its front face points +Y -- the v0.622
+        // bug was BOTH caps wound inward (fronts facing into the cylinder), so back-face culling ate
+        // them and tanks/cisterns rendered with no top. (winding fix v0.624.)
         let tc = v.len() as u32;
         v.push(Vertex { position: [0.0, height, 0.0], normal: [0.0, 1.0, 0.0], uv: [0.5, 0.5] });
         for i in 0..=seg {
@@ -240,7 +244,7 @@ impl Mesh {
             v.push(Vertex { position: [radius * a.cos(), height, radius * a.sin()], normal: [0.0, 1.0, 0.0], uv: [0.0, 0.0] });
         }
         for i in 0..seg {
-            idx.extend_from_slice(&[tc, tc + 1 + i, tc + 1 + i + 1]);
+            idx.extend_from_slice(&[tc, tc + 1 + i + 1, tc + 1 + i]);
         }
         Self::from_vertices(device, &v, &idx)
     }

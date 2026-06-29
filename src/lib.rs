@@ -5028,6 +5028,15 @@ mod native_app {
                             state.gui_state.construction_place_type = None;
                             state.construction_ghost = None;
                             if state.gui_state.construction_active {
+                                // Force a structure rebuild on ENTRY so the machine PICK VOLUMES
+                                // (`machine_pick`) are rebuilt in the editor's coordinate space. Without
+                                // this they held stale data from `load_world` (built before
+                                // `home_structure` existed -> a different placement space), so you could
+                                // NOT click a machine until some OTHER edit (e.g. nudging a light)
+                                // triggered a rebuild -- the operator's "I have to drag a light first"
+                                // repro. `construction_structure_dirty` routes through the exact same
+                                // rebuild_homestead -> rebuild_machine_objects path that workaround hit. (v0.624)
+                                state.gui_state.construction_structure_dirty = true;
                                 if let Some(layout) = &state.homestead_layout {
                                     // PIN EVERY room to its current resolved position on open, so
                                     // editing one room no longer reshuffles the auto-laid-out

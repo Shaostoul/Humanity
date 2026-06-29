@@ -15,9 +15,17 @@
 > air are real at design-time AND runtime with consequence chains (power->water->food->vitals,
 > power->air->vitals); the telecom/data utility teaches real media tradeoffs (Cat6 / fibre / WiFi, with
 > WiFi RF harming nearby grows); and the build editor now has colour-coded conduit flow visualization
-> (v0.622) refined in v0.623 (selected-machine-only rainbow flow, static per-utility pipe colours,
-> smaller readable beads, cistern tops, + a LOCKED banner / force-open-selected-group fix for the
-> "I can't click my machines" footgun). All verified (relay+native compile, 33 machines tests, 5 lints).
+> (v0.622) refined in v0.623/v0.624 (selected-machine-only rainbow flow, static per-utility pipe colours,
+> smaller readable beads). **v0.624 fixed the two bugs the operator caught on visual-verify at root:**
+> the missing CISTERN TOPS (Mesh::cylinder_capped wound both caps inward -> back-face-culled) and the
+> CAN'T-CLICK-MACHINES regression (build-mode entry never rebuilt `machine_pick`; now it does). All
+> verified (relay+native compile, 33 machines tests, 5 lints, snapshot).
+>
+> > **Build-editor NEXT = conduit TRUNK HIERARCHY (Stage 2 of `conduits-node-graph.md`).** The operator's
+> > "moveable main lines + machines branch to them, some paths look wrong" is the Stage-1 node-graph
+> > (shipped) limited by per-edge Manhattan routing; Stage 2 (tier 0/1/2 main/sub/subsub + routing that
+> > follows the parent line before dropping to the child) is the realism fix. No new data model -- `tier`
+> > already exists on `ConduitNode`.
 >
 > > **NEXT (open forks -- operator steer, or take the reasonable one):**
 > > 1. **detection-sensing implementation** (`docs/design/detection-sensing.md`) -- the big combat-adjacent

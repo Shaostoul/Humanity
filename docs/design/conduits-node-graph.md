@@ -84,6 +84,22 @@ This is the EXACT graph the operator asked for: nodes = junction positions the u
 
 11. DATA SEED (data/machines/home.ron): leave conduit_nodes/conduit_edges absent (serde default empty) so the shipped home is byte-unchanged and the existing connections render exactly as before -- prove the additive guarantee. Optionally add ONE example node + edge in a comment or a tiny demo to exercise the path in-world.
 
+## Operator feedback 2026-06-29 (Stage 2 is now the priority)
+Looking at the v0.623 build, the operator asked (paraphrased): *"what if the main conduit lines are
+moveable by the player and the machines connect to those main lines? Some of these paths look like they
+wouldn't work."* That is **exactly** the trunk/branch model this doc describes:
+- The **moveable main lines** already exist as Stage-1 `ConduitNode`s -- place a "Conduit node" from the
+  palette, drag its orb, and "Branch" a machine to it in the Machines panel. They show in the object
+  browser under **Pipe nodes**. So the capability is shipped; what is missing is the *hierarchy* that makes
+  machines naturally hang off a spine instead of each connection routing its own independent run.
+- The **"paths look wrong"** complaint is the Stage-1 limitation called out below: every edge routes its
+  own Manhattan up/across/down leg via `route_conduit`, so parallel runs do not bundle and a branch does
+  not follow its parent's line -- it can read as pipes taking implausible independent paths. **Stage 2
+  (tier 0/1/2 main/sub/subsub + routing that runs along the parent tier before dropping to the child)**
+  and **Stage 3 (auto-derived nearest-node edges + shared service-height legs)** are the fix, and are now
+  the build-editor priority once the operator picks it up. No new data model is needed -- `tier` already
+  exists on `ConduitNode`; Stage 2 is routing + editor-affordance work on the graph already in place.
+
 ## Later stages
 - STAGE 2 -- HIERARCHY: use ConduitNode.tier (0 main / 1 sub / 2 subsub). A main line runs the home spine at service height; sub lines branch off main nodes; subsub lines reach individual fixtures. Editor: placing a node picks its tier (or infers it from what you branched off). Routing prefers running along the parent tier's line before dropping to the child, so the auto-routed mesh reflects the trunk-and-branch topology instead of independent per-edge Manhattan runs.
 - STAGE 3 -- AUTO-ROUTING / IMPLICIT EDGES: the user edits NODES and the software auto-derives edges by connecting each machine to its nearest node of the matching utility kind, and each node to its parent-tier node, building a minimum-spanning trunk per kind. The explicit conduit_edges become an override/manual layer on top of the auto graph (like the existing connections are manual). route_conduit is extended (or wrapped) to route a whole multi-node polyline in one call rather than per-edge, sharing service-height legs between branches so parallel runs bundle along the ceiling.
