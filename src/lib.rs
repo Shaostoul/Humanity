@@ -252,8 +252,12 @@ mod native_app {
         }
         if is_water {
             let _ = world.insert_one(e, PlumbingCircuit { island: water_islands.get(&inst.id).copied().unwrap_or(0) });
-            // Does this machine need power to move/produce water? (a pump/purifier draws power)
-            let needs_power = def.draws_power();
+            // Does this machine need power to move/produce water? Only true when it has a power-CONSUMER
+            // role -- that is the only case where a `PowerConsumer` entity exists for the plumbing tick to
+            // gate on. A machine that declares an electrical PORT but no Consumer role (e.g. a sun-lit
+            // tower) has no PowerConsumer, so gating on it would silently freeze its water forever; treat
+            // that water as ungated instead. (v0.608 fix)
+            let needs_power = matches!(&def.power, Some(MachinePower::Consumer { .. }));
             let cap = def.water_capacity_l();
             if cap > 0.0 {
                 let _ = world.insert_one(e, WaterTank { liters: cap * 0.5, capacity_l: cap });

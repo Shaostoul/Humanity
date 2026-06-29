@@ -41,6 +41,12 @@ fn demo_state() -> GuiState {
     s.power_battery_wh = 9600.0;
     s.power_battery_capacity_wh = 16000.0;
     s.power_autonomy_hours = 5.2;
+    // Sample LIVE water so the Home page's "Live water" card renders (PlumbingSystem, v0.608).
+    s.water_production_lpm = 12.3;
+    s.water_demand_lpm = 1.2;
+    s.water_stored_l = 7400.0;
+    s.water_capacity_l = 8000.0;
+    s.water_days_autonomy = 4.3;
     s.tower_configs = crate::gui::load_tower_configs(data);
     s.equipment_slots = crate::gui::load_equipment_slots(data);
     s.crafting_category_groups = crate::gui::load_crafting_category_groups(data);
