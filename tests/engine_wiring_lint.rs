@@ -67,7 +67,8 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     ("MedicalSystem", "scaffold; needs health/injury entities"),
     ("TransportationSystem", "scaffold; needs a transit network"),
     ("HvacSystem", "scaffold; needs enclosed-space climate entities"),
-    ("PlumbingSystem", "scaffold; needs a fluid-network entity layer"),
+    // PlumbingSystem is now REGISTERED (v0.608): the live home water sim, coupled to power. It ticks
+    // against WaterTank/WaterProducer/WaterConsumer/PlumbingCircuit entities, so it left this allowlist.
 ];
 
 /// Systems wired through the multiplayer/net path rather than the single-player
