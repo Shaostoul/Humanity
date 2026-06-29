@@ -2656,6 +2656,31 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                 ui.label(RichText::new("Place at least two machines to wire them.").size(theme.font_size_small).color(theme.text_muted()));
             }
 
+            // Superconductor upgrade (v0.616): the late-game payoff -- swap every power run to the
+            // room-temperature superconductor in one click (near-zero loss, huge ampacity, so the
+            // Conduits check goes all-green). "Reset to auto" reverts to cheapest-copper auto-sizing.
+            // (A future quest gates earning it; the action itself is here now.)
+            let power_runs = conns.iter().filter(|(_, _, k, _)| k == "power").count();
+            let mut bulk_spec: Option<Option<String>> = None;
+            if power_runs > 0 {
+                ui.horizontal(|ui| {
+                    if ui.button(format!("Upgrade {power_runs} power run(s) to superconductor")).clicked() {
+                        bulk_spec = Some(Some("sc_room_temp".to_string()));
+                    }
+                    if ui.small_button("Reset to auto").clicked() {
+                        bulk_spec = Some(None);
+                    }
+                });
+                if let Some(sp) = bulk_spec {
+                    if let Some(h) = state.home_machines.as_mut() {
+                        for c in h.connections.iter_mut().filter(|c| c.kind == "power") {
+                            c.spec = sp.clone();
+                        }
+                    }
+                    state.construction_machines_dirty = true;
+                }
+            }
+
             // The existing lines, grouped under a sub-section per utility kind, each removable.
             if conns.is_empty() {
                 ui.label(RichText::new("No lines yet.").size(theme.font_size_small).color(theme.text_muted()));

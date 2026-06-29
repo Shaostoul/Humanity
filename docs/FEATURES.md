@@ -1049,6 +1049,13 @@ display.
 - Data: `data/utilities/conduits.ron` (copper 14/12/10 AWG home, 6 AWG industrial shielded, the `sc_room_temp` superconductor upgrade target, two water pipes)
 - Design: `docs/design/utility-wiring.md`
 
+### Superconductor Bulk-Upgrade (v0.616)
+The late-game wiring payoff: an "Upgrade all power runs to superconductor" button in the utility-lines
+editor sets every power connection's `spec` to the room-temperature superconductor (near-zero loss, huge
+ampacity, so the Conduits check goes all-green); "Reset to auto" reverts to cheapest-copper auto-sizing.
+The action ships now; a future quest gates earning it.
+- Native: `src/gui/pages/construction.rs` (the bulk-spec buttons in `draw_machines_and_connections`), `data/utilities/conduits.ron` (`sc_room_temp`)
+
 ### Per-Connection Cable Picker (v0.615)
 The utility-lines editor gives every POWER run a cable dropdown: "auto (cheapest copper)" or a pinned
 type from the registry (copper 14/12/10/6 AWG ... the room-temp superconductor). Picking sets the

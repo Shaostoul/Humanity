@@ -289,6 +289,15 @@ mod tests {
     }
 
     #[test]
+    fn superconductor_carries_a_load_that_copper_cant() {
+        // The upgrade payoff (v0.616): a big load over a long run -- 10 kW @ 240 V = 41.7 A over 100 m.
+        let awg14 = conduit_type("cu_awg14").unwrap();
+        let sc = conduit_type("sc_room_temp").unwrap();
+        assert_eq!(check_cable(awg14, 10000.0, 240.0, 100.0).verdict, CableVerdict::Fail, "thin copper fails the big run");
+        assert_eq!(check_cable(sc, 10000.0, 240.0, 100.0).verdict, CableVerdict::Pass, "the room-temp superconductor carries it");
+    }
+
+    #[test]
     fn a_pipe_is_not_an_electrical_cable() {
         // (Guards the utility-mismatch path even before pipes are wired.)
         for c in conduit_types().iter().filter(|c| c.utility != Utility::Electricity) {
