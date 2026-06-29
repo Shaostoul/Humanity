@@ -2270,6 +2270,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         NudgeMulti(f32, f32),
         ClearMulti,
         ToggleLock(String),
+        UnlockAll,
     }
     let mut act: Option<Act> = None;
     egui::CollapsingHeader::new(RichText::new(format!("Objects ({total})")).strong().color(theme.text_primary()))
@@ -2278,6 +2279,20 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .show(ui, |ui| {
             ui.label(RichText::new("Click a row to edit it; Ctrl+click to multi-select; double-click to fly there; Ctrl+D duplicates.")
                 .size(theme.font_size_small).color(theme.text_muted()));
+            // LOCKED-TYPES banner (v0.623): a locked type can't be picked in the viewport, which reads
+            // as "I can't click my machines any more" if you forgot a lock was on. Make it loud + one
+            // click to clear, so a stray lock is never an invisible footgun.
+            if !locked_types.is_empty() {
+                let mut names: Vec<&str> = locked_types.iter().map(|s| s.as_str()).collect();
+                names.sort_unstable();
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new(format!("LOCKED (can't click in 3D): {}", names.join(", ")))
+                        .size(theme.font_size_small).strong().color(theme.warning()));
+                    if ui.small_button("Unlock all").clicked() {
+                        act = Some(Act::UnlockAll);
+                    }
+                });
+            }
             // Group-action bar (v0.612): appears whenever the multi-select set is non-empty.
             if !multi.is_empty() {
                 ui.horizontal(|ui| {
@@ -2312,11 +2327,17 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     }
                     // Auto-open while filtering, or when the group is small enough to not dominate.
                     let open = !filter.is_empty() || group.len() <= 12;
+                    // FORCE the group open when it holds the current selection, so a selected machine's
+                    // row is always reachable -- v0.623, the "I can't click objects in the list" report:
+                    // a >12-row Machines group collapses by default and egui then REMEMBERS it collapsed
+                    // (id_salt persists), so default_open alone can't reopen it. Some(true) overrides.
+                    let force_open = if group.iter().any(|r| r.selected) { Some(true) } else { None };
                     let is_locked = locked_types.contains(tag);
                     let title = format!("{plural} ({}){}", group.len(), if is_locked { "  [locked]" } else { "" });
                     egui::CollapsingHeader::new(RichText::new(title)
                             .color(if is_locked { theme.warning() } else { theme.text_secondary() }))
                         .id_salt(tag)
+                        .open(force_open)
                         .default_open(open)
                         .show(ui, |ui| {
                             // Per-type LOCK toggle (v0.614): a locked type can't be picked/grabbed in the
@@ -2396,6 +2417,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.construction_locked_types.insert(tag);
             }
         }
+        Some(Act::UnlockAll) => state.construction_locked_types.clear(),
         Some(Act::DeleteMulti) => {
             group_delete(state);
             clear_sel(state);

@@ -11,6 +11,25 @@
 
 ## Active focus
 
+> **UTILITY TRIO + TELECOM + CONDUIT DEBUG-VIZ ALL SHIPPED (v0.604-623, 2026-06-29).** Power, water,
+> air are real at design-time AND runtime with consequence chains (power->water->food->vitals,
+> power->air->vitals); the telecom/data utility teaches real media tradeoffs (Cat6 / fibre / WiFi, with
+> WiFi RF harming nearby grows); and the build editor now has colour-coded conduit flow visualization
+> (v0.622) refined in v0.623 (selected-machine-only rainbow flow, static per-utility pipe colours,
+> smaller readable beads, cistern tops, + a LOCKED banner / force-open-selected-group fix for the
+> "I can't click my machines" footgun). All verified (relay+native compile, 33 machines tests, 5 lints).
+>
+> > **NEXT (open forks -- operator steer, or take the reasonable one):**
+> > 1. **detection-sensing implementation** (`docs/design/detection-sensing.md`) -- the big combat-adjacent
+> >    multi-modal stealth system (sight/light/RF/smell+wind/sound/seismic). BLOCKED on two operator calls:
+> >    the MMO **performance approach** (coarse tick + spatial buckets + analytic falloff vs per-frame
+> >    physics) and **HUD-first vs enemy-reactions** scope. The v0.620 `RfEmitter` is one ready channel.
+> > 2. **superconductor upgrade MISSION** -- the cable type + bulk-upgrade button exist (v0.616); gate the
+> >    room-temp superconductor behind a research/quest so it's earned, not free.
+> > 3. **sim-realism-roadmap primitives** (`docs/design/sim-realism-roadmap.md`) -- the remaining gaps from
+> >    the 12-agent realism audit.
+> > 4. The deferred build-editor polish (rotation gizmo for primitives, viewport hide-per-type).
+>
 > **BUILD-EDITOR BACKLOG CLEARED (v0.612-614, operator-picked after the wiring arc, 2026-06-29).** The
 > object-management trio: **multi-select** + group delete/nudge (Ctrl+click rows, v0.612), **alignment
 > snap guides** while dragging (v0.613), and **lock-per-type** (fat-finger protection, v0.614). Deferred

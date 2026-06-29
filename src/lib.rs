@@ -1081,7 +1081,8 @@ mod native_app {
     fn machine_mesh(device: &wgpu::Device, shape: &str, size: (f32, f32, f32)) -> Mesh {
         let (sx, sy, sz) = size;
         match shape {
-            "cylinder" => Mesh::cylinder(device, sx.max(0.02), sy.max(0.05), 16),
+            // Capped so tanks/cisterns have a visible top + bottom (v0.623: "the tops are missing").
+            "cylinder" => Mesh::cylinder_capped(device, sx.max(0.02), sy.max(0.05), 16),
             "sphere" => Mesh::sphere(device, sx.max(0.02), 10, 12),
             "pyramid" => Mesh::pyramid(device, sx.max(0.05), sy.max(0.05)),
             _ => Mesh::box_xyz(device, sx.max(0.02), sy.max(0.02), sz.max(0.02)),
@@ -1197,6 +1198,23 @@ mod native_app {
     /// + room_bounds): one colored cylinder per connection, between the two machines' low pipe
     /// anchors. Uses a cached unit cylinder + a material cached per kind, so a per-frame rebuild
     /// never leaks. Replaces the old static routed pipes -- connections now follow rooms. (v0.530)
+    /// HSV (h,s,v all 0..1) -> linear-ish RGB, for the selected line's rainbow flow markers. (v0.623)
+    fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
+        let i = (h * 6.0).floor();
+        let f = h * 6.0 - i;
+        let p = v * (1.0 - s);
+        let q = v * (1.0 - f * s);
+        let t = v * (1.0 - (1.0 - f) * s);
+        match (i as i32).rem_euclid(6) {
+            0 => (v, t, p),
+            1 => (q, v, p),
+            2 => (p, v, t),
+            3 => (p, q, v),
+            4 => (t, p, v),
+            _ => (v, p, q),
+        }
+    }
+
     fn rebuild_connection_objects(state: &mut EngineState) {
         use std::collections::HashMap;
         state.connection_objects.clear();
@@ -1238,22 +1256,42 @@ mod native_app {
         // Combined routing list (v0.581): both the legacy point-to-point connections AND the conduit
         // NODE GRAPH edges (machine/node -> machine/node) become (a, b, kind) routes, fed through the
         // SAME route_conduit + emit below. A node edge renders as a real routed pipe with zero new mesh.
-        let mut routes: Vec<(Vec3, Vec3, String)> = connections
+        // (a, b, kind, from_id, to_id) -- the ids let the flow markers light up only the SELECTED
+        // machine's connections (v0.623). A conduit-NODE endpoint is keyed "node:<id>".
+        let mut routes: Vec<(Vec3, Vec3, String, String, String)> = connections
             .iter()
-            .filter_map(|c| Some((*anchors.get(&c.from)?, *anchors.get(&c.to)?, c.kind.clone())))
+            .filter_map(|c| {
+                Some((*anchors.get(&c.from)?, *anchors.get(&c.to)?, c.kind.clone(), c.from.clone(), c.to.clone()))
+            })
             .collect();
         {
             let placement_tuples: Vec<(String, (f32, f32, f32), f32)> =
                 placements.iter().map(|p| (p.id.clone(), p.pos, p.floor_y)).collect();
+            let end_id = |e: &crate::machines::ConduitEnd| match e {
+                crate::machines::ConduitEnd::Machine(id) => id.clone(),
+                crate::machines::ConduitEnd::Node(id) => format!("node:{id}"),
+            };
             if let Some(home) = state.gui_state.home_machines.as_ref() {
                 for e in &home.conduit_edges {
                     if let (Some(a), Some(b)) = (
                         home.conduit_anchor(&e.from, &placement_tuples, box_dims),
                         home.conduit_anchor(&e.to, &placement_tuples, box_dims),
                     ) {
-                        routes.push((Vec3::new(a.0, a.1, a.2), Vec3::new(b.0, b.1, b.2), e.kind.clone()));
+                        routes.push((Vec3::new(a.0, a.1, a.2), Vec3::new(b.0, b.1, b.2), e.kind.clone(), end_id(&e.from), end_id(&e.to)));
                     }
                 }
+            }
+        }
+        // Rainbow emissive materials for the selected line's flow markers (v0.623), created once.
+        // Moderate emissive (1.4) + some roughness so the little beads still READ AS SPHERES (a
+        // gradient across the curve) instead of flat-bright discs -- the v0.622 markers were emissive
+        // 3.0, which washed out the shading and looked inside-out ("inverted normals", operator).
+        if state.flow_rgb_mats.is_empty() {
+            for k in 0..16u32 {
+                let h = k as f32 / 16.0;
+                let (r, g, b) = hsv_to_rgb(h, 0.85, 1.0);
+                let m = state.renderer.add_material_full([r, g, b, 1.0], 0.0, 0.55, 0.0, 1.4);
+                state.flow_rgb_mats.push(m);
             }
         }
         if routes.is_empty() {
@@ -1281,39 +1319,31 @@ mod native_app {
         };
         let service_y = (home_h - 0.3).max(0.6);
         const CYL_R: f32 = 0.05; // the unit cylinder's modeled radius
-        for (a, b, kind_str) in &routes {
+        for (a, b, kind_str, from_id, to_id) in &routes {
             let (a, b) = (*a, *b);
             let kind = crate::ship::conduits::ConduitKind::for_resource(kind_str);
             let route = crate::ship::conduits::route_conduit(a, b, kind, service_y, shell_mat, &walls);
-            // Stash the routed path + a bright EMISSIVE material in the utility colour, for the animated
-            // flow markers (v0.622). Emissive so the markers (and thus the connection's route + which
-            // utility it carries) are legible even in a dark room.
+            // Stash the routed path + the from/to ids, so the SELECTED machine's connections animate
+            // their flow markers (v0.623) while every other pipe stays a quiet static line.
             if route.points.len() >= 2 {
                 if state.connection_flow_sphere.is_none() {
-                    let s = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 0.11, 10, 10));
+                    let s = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 0.10, 10, 10));
                     state.connection_flow_sphere = Some(s);
                 }
-                let fkey = format!("flow:{kind_str}");
-                let flow_mat = match state.connection_mats.get(&fkey) {
-                    Some(&m) => m,
-                    None => {
-                        let c = crate::machines::MachineHome::connection_color(kind_str);
-                        // Emissive (3.0) so it glows; the colour IS the utility legend (yellow=power,
-                        // blue=water, cyan=air, ...). See MachineHome::connection_color.
-                        let m = state.renderer.add_material_full([c[0], c[1], c[2], 1.0], 0.0, 0.4, 0.0, 3.0);
-                        state.connection_mats.insert(fkey, m);
-                        m
-                    }
-                };
-                state.connection_flow_paths.push((route.points.clone(), flow_mat));
+                state.connection_flow_paths.push((route.points.clone(), from_id.clone(), to_id.clone()));
             }
-            // Pipe material cached per conduit kind (copper / rubber hose / black cord).
-            let pkey = format!("conduit:{kind:?}");
+            // Pipe material: a slightly-emissive UTILITY COLOUR (the connection_color legend) so each
+            // run reads as its own utility (yellow=power, blue=water, ...) instead of all-grey pipes
+            // (v0.623, the operator's "varied pipes"); rigid vs flexible still varies metal/roughness.
+            let pkey = format!("conduit:{kind_str}");
             let pipe_mat = match state.connection_mats.get(&pkey) {
                 Some(&m) => m,
                 None => {
-                    let (met, rough) = if kind.is_rigid() { (0.85, 0.25) } else { (0.0, 0.7) };
-                    let m = state.renderer.add_material_typed(kind.color(), met, rough, 0.0);
+                    let (met, rough) = if kind.is_rigid() { (0.6, 0.3) } else { (0.0, 0.7) };
+                    let c = crate::machines::MachineHome::connection_color(kind_str);
+                    // A touch of emissive (0.5) so the pipe is faintly visible in the dark, but far less
+                    // than the selected line's flow markers (so the selection still stands out).
+                    let m = state.renderer.add_material_full([c[0], c[1], c[2], 1.0], met, rough, 0.0, 0.5);
                     state.connection_mats.insert(pkey.clone(), m);
                     m
                 }
@@ -3864,14 +3894,16 @@ mod native_app {
         connection_objects: Vec<(usize, usize, Vec3, Quat, Vec3)>,
         connection_cyl: Option<usize>,
         connection_mats: std::collections::HashMap<String, usize>,
-        /// Conduit FLOW paths (v0.622): the routed polyline + a precreated EMISSIVE material handle (the
-        /// utility colour) for every connection, so the build editor can animate emissive flow markers
-        /// travelling along each pipe (showing direction + which utility, legible in the dark). Rebuilt
-        /// with `connection_objects`; the material handle is created at rebuild time so the per-frame
-        /// render loop borrows nothing mutable.
-        connection_flow_paths: Vec<(Vec<Vec3>, usize)>,
+        /// Conduit FLOW paths (v0.622, declutter v0.623): the routed polyline + the from/to machine ids
+        /// for every connection. Only the connection(s) touching the SELECTED machine animate (RGB flow
+        /// markers); the rest are just their static pipe -- so a busy home is not a sphere-soup. Rebuilt
+        /// with `connection_objects`.
+        connection_flow_paths: Vec<(Vec<Vec3>, String, String)>,
         /// Cached small sphere mesh for the flow markers.
         connection_flow_sphere: Option<usize>,
+        /// Rainbow emissive materials (v0.623) cycled along the SELECTED connection's flow markers, so
+        /// the active line reads as highlighted/animated. Created once on the first rebuild.
+        flow_rgb_mats: Vec<usize>,
         /// Door + window panels (v0.537): each opening's world placement + its current open fraction
         /// (0 closed, 1 open). Doors animate open on the player's approach by their data-driven style
         /// (systems::door_anim); windows are fixed glass. One cached unit-box mesh + a slab + a glass
@@ -4587,6 +4619,7 @@ mod native_app {
                 connection_objects: Vec::new(),
                 connection_flow_paths: Vec::new(),
                 connection_flow_sphere: None,
+                flow_rgb_mats: Vec::new(),
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
                 door_panels: Vec::new(),
@@ -6517,19 +6550,29 @@ mod native_app {
                                 material: mat_idx,
                             });
                         }
-                        // Animated FLOW markers (v0.622): emissive spheres travel along each conduit in
-                        // its flow direction, so in a dark room you can read WHERE a connection goes +
-                        // WHICH utility it carries (the colour: yellow=power, blue=water, cyan=air, ...).
-                        // Build mode + the "Helper gizmos" toggle. Cheap: a few spheres per pipe, placed
-                        // from start_time (no per-frame allocation, materials/mesh pre-created on rebuild).
+                        // Animated FLOW markers (v0.623): rainbow spheres travel along ONLY the SELECTED
+                        // machine's connections, so it's obvious which runs go to/from the thing you're
+                        // looking at. Every other pipe stays a quiet static line (drawn above). The
+                        // colour cycles through flow_rgb_mats by (marker index + time) for the moving-
+                        // rainbow look the operator asked for. Build mode + "Helper gizmos" toggle.
+                        // Cheap: a handful of spheres on one machine's pipes, no per-frame allocation.
                         if state.gui_state.construction_active
                             && state.gui_state.construction_show_helpers
+                            && state.gui_state.construction_machine_selected.is_some()
+                            && !state.flow_rgb_mats.is_empty()
                         {
                             if let Some(sphere) = state.connection_flow_sphere {
+                                let sel = state.gui_state.construction_machine_selected.clone();
+                                let sel = sel.as_deref();
                                 let t = state.start_time.elapsed().as_secs_f32();
                                 const FLOW_SPEED: f32 = 1.5; // m/s the markers travel along the pipe
-                                const SPACING: f32 = 2.5; // m between markers on a pipe
-                                for (path, mat) in &state.connection_flow_paths {
+                                const SPACING: f32 = 2.0; // m between markers on a pipe
+                                let nmat = state.flow_rgb_mats.len();
+                                for (path, from_id, to_id) in &state.connection_flow_paths {
+                                    // Only the selected machine's runs animate.
+                                    if sel != Some(from_id.as_str()) && sel != Some(to_id.as_str()) {
+                                        continue;
+                                    }
                                     let total: f32 = path.windows(2).map(|w| (w[1] - w[0]).length()).sum();
                                     if total < 0.1 {
                                         continue;
@@ -6552,12 +6595,14 @@ mod native_app {
                                             }
                                             d -= l;
                                         }
+                                        // Cycle the rainbow by marker index + time so the colour flows.
+                                        let ci = ((k as f32 + t * 2.0) as usize) % nmat;
                                         all_objects.push(RenderObject {
                                             position: pos,
                                             rotation: Quat::IDENTITY,
                                             scale: Vec3::ONE,
                                             mesh: sphere,
-                                            material: *mat,
+                                            material: state.flow_rgb_mats[ci],
                                         });
                                     }
                                 }

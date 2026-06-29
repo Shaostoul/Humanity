@@ -862,14 +862,24 @@ axis, applied after grid-snap), and a faint amber guide line spans the box along
 see what you are lining up with. Walls contribute both corners; the dragged object is excluded.
 - Native: `src/lib.rs` (`snap_to_alignment` pure helper + `gather_other_positions`, wired into `apply_object_drag`; the guide line drawn into the construction overlay's `ring_lines`)
 
-### Conduit Flow Visualization (v0.622)
-Makes connections legible in a dark room. Each conduit/pipe gets animated EMISSIVE marker spheres
-travelling along its routed path in the flow direction, coloured by utility (the `connection_color`
-legend: yellow=power, blue=water, red=hot water, cyan=air, violet=data, ...), so you can see WHERE a
-connection goes + WHICH utility it carries. Build-mode only, gated on the "Helper gizmos" toggle. Cheap:
-a few spheres per pipe, positioned from `start_time` (no per-frame allocation; materials/mesh pre-created
-on rebuild). The `connection_color` legend gained distinct hues for hot_water / gas / data / greywater.
-- Native: `src/lib.rs` (`connection_flow_paths` built in `rebuild_connection_objects`, animated in the render loop), `src/machines.rs` (`connection_color` legend)
+### Conduit Flow Visualization (v0.622, refined v0.623)
+Makes connections legible in a dark room. Every pipe is drawn as a STATIC line in its utility colour
+(the `connection_color` legend: yellow=power, blue=water, red=hot water, cyan=air, violet=data, olive=fuel,
+brown=nutrient, ...), faintly emissive so the run reads even in the dark. The SELECTED machine's
+connections additionally get animated rainbow marker spheres travelling along their routed path in the
+flow direction, so it's obvious which runs go to/from the thing you're inspecting (v0.623: selected-only,
+where v0.622 animated every pipe -- the change both declutters the view and keeps the render loop cheap
+no matter how many conduits the home has). Build-mode only, gated on the "Helper gizmos" toggle; the
+markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
+- Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
+
+### Build-editor lock / list footgun guards (v0.623)
+Two ways the editor could feel like "I can't click my machines": a locked object type silently blocks
+viewport picking, and a >12-row type group (e.g. 24 grow towers) collapses by default and egui then
+remembers it collapsed. Fixes: the object browser shows a loud "LOCKED (can't click in 3D): ..." banner
+with a one-click "Unlock all" whenever any type is locked, and the group that holds the current selection
+is forced open so a selected machine's row is always reachable.
+- Native: `src/gui/pages/construction.rs` (locked-types banner + `Act::UnlockAll`; `CollapsingHeader::open(Some(true))` for the selected group)
 
 ### Multi-Select + Group Delete / Nudge (v0.612)
 Ctrl+click rows in the object browser to build a multi-select set (across every type -- walls, machines,
