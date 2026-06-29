@@ -619,6 +619,16 @@ pub struct Battery {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct HomeMachine;
 
+/// The electrical ISLAND (connected power component) a power entity belongs to (v0.607). Attached to
+/// every spawned generator/consumer/battery from `MachineHome::electrical_islands`, so the
+/// `ElectricalSystem` balances + sheds PER ISLAND instead of summing the whole world -- power flows
+/// only along real cabling, no magic transmission across unconnected circuits. Entities WITHOUT this
+/// component (legacy / test spawns) fall into one shared bucket, preserving the old global behaviour.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct PowerCircuit {
+    pub island: u32,
+}
+
 /// The player's visual appearance (v0.440, the avatar foundation). Drives the blockman
 /// avatar mesh and, later, the character-select showroom + the wetroom mirror editor + the
 /// bedroom wardrobe. `body_type` / `hair_style` are ids into future data/appearance/*.ron;

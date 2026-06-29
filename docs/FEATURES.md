@@ -1,6 +1,6 @@
 # HumanityOS Features Directory
 
-Complete inventory of every feature, where it lives, and what it does. Updated v0.109.x.
+Complete inventory of every feature, where it lives, and what it does. Updated v0.607.x.
 
 ## How to Read This
 
@@ -822,6 +822,235 @@ Cargo transport and shipping routes. **⚠️ Support module, not wired into the
 
 ---
 
+## Construction and Build Editor (v0.455 - v0.606)
+
+The in-app homestead builder. An overlay editor (gated by the `construction_active` flag in
+`src/gui/mod.rs`, NOT a `GuiPage` variant) over the 3D viewport: a left object browser + 3D astral
+camera + a right details pane + a bottom placement palette. The panel UI lives in `construction.rs`;
+the input/gizmo/grab/duplicate/snapshot logic lives in `src/lib.rs`.
+
+### Build Editor Shell
+Three-zone editor: resizable left `SidePanel` (search box at top + collapsible sections), center orbit
+viewport, right detail pane that routes to the selected object's editor, and a bottom placement palette.
+Save/Close pinned to the bottom of the left panel so "Save home" is never off-screen.
+- Native: `src/gui/pages/construction.rs` (`draw`, `draw_wall_editor`)
+- Flag: `src/gui/mod.rs` (`GuiState.construction_active`)
+
+### Unified Object Browser (v0.596 - v0.598)
+One single-line row per object across every type (walls, structures, machines, lights, roads, conduit
+nodes), grouped into collapsible per-type sub-headers with counts. A filter box and per-type collapse.
+Double-click a row to fly the camera to that object.
+- Native: `src/gui/pages/construction.rs` (`draw_object_browser`); filter via `construction_object_filter`; focus via `construction_focus_request` (consumed in `src/lib.rs`)
+
+### Move / Select / Duplicate Gizmos (v0.549 - v0.600)
+Tap-to-select vs hold-to-move on every object; drag corner-nodes, machines, openings, lights,
+road/conduit nodes, and the player-spawn avatar. Double-click-to-focus. Duplicate the selected object
+with Ctrl+D. Grid-snap toggle (0.25 m). Constant-width "line circle" gizmo bounds visible through walls;
+the active grabbed gizmo RGB-cycles.
+- Native: `src/lib.rs` (`construction_duplicate`, the `construction_*_grab` states), `src/gui/pages/construction.rs` (browser hints, grid-snap toggle)
+
+### Construction Console (AI / dev act surface) (v0.578 - v0.580)
+A text-command console, the discoverable act surface for both a human and an AI. Verbs: `help`, `list`,
+`add_wall`, `rm_wall`, `set_material`, `add_door`, `add_window`, `set_style`, `add_lock`, `add_light`,
+`rm_light`, `add_structure`, `rm_structure`, `add_layer`, `rm_layer`, `add_road_node`, `rm_road_node`,
+`add_road`, `rm_road`.
+- Native: `src/gui/pages/construction.rs` (`exec_construction_command`, `CONSOLE_VERBS`)
+
+### Live Home JSON Introspection (AI read surface) (v0.576)
+Every rebuild writes a machine-readable snapshot of the live home so an AI can READ what the operator is
+building, to `debug/home_snapshot.json`.
+- Native: `src/ship/home_structure.rs` (`HomeStructure::to_introspection_json`), written by `src/lib.rs` (`rebuild_homestead`)
+
+### CAD Dimension Overlay and Wall Wireframe (v0.545, v0.594)
+A live measurement overlay: wall lengths, corner angles, and the angle where a custom wall meets the box
+hull; per-wall length labels; a wall-wireframe (layout outline) debug toggle. Master "Helper gizmos" +
+dimension-overlay toggles in the "Options / Dev" section.
+- Native: `src/gui/pages/construction.rs` ("Options / Dev" header, `construction_dimension_overlay`, `construction_show_helpers`); overlay lines drawn engine-side in `src/lib.rs`
+
+### Footer Placement Palette and Building Info (v0.527, v0.602, v0.605)
+Bottom palette with a "Structure" tab plus per-category machine tabs, a 10-column grid, held-item
+highlight, expand/collapse. Holding a building shows its info card: category, size, power role, stat
+readouts, and its connection points (ports) with direction arrows and per-utility colors.
+- Native: `src/gui/pages/construction.rs` (`draw_palette`, `draw_building_info`, `draw_held_structure_info`, `port_line`/`port_color`)
+
+---
+
+## Home Structure (fixed box + interior walls) (v0.532 - v0.591)
+
+The home-construction data model (replaced the old rooms-as-sliding-AABBs approach): a FIXED outer box
+(the mothership allotment, default 55x89x3 m steel, glass roof) plus freely-placed INTERIOR WALLS; rooms
+EMERGE from the walls via grid flood-fill rather than being placed as boxes.
+
+### HomeStructure Model
+The serialized home: box dims + shell/roof material, interior walls, placed lights, placed structures, a
+road graph (nodes + edges), and the player spawn point. Loaded at runtime from RON (save preserves the
+file's `//` design header); meshes regenerate on edit; rooms detected by flood-fill.
+- Native: `src/ship/home_structure.rs` (`HomeStructure`, `load`/`save`, `generate_meshes`, `detect_rooms`)
+- Data: `data/blueprints/home_structure.ron` (the authored seed home)
+
+### Interior Walls + Wall Materials (v0.552, v0.585)
+Walls are corner-node segment chains with per-wall material, per-wall thickness (down to a 1 mm screen),
+and stackable surface LAYERS. The wall material picker shows real engineering values (density, tensile
+strength, cost/kg, renewable) while you build.
+- Native: `src/ship/home_structure.rs` (`InteriorWall`, `SurfaceLayer`, `WallMaterial`, `wall_materials`)
+- Data: `data/blueprints/wall_materials.ron` (8 materials: Steel, Concrete, Oak, Tempered glass, Aluminum, Pine, Granite, HDPE)
+
+### Mitred Corners and Wall Joins (v0.549, v0.558, v0.566, v0.574)
+Clean mitred corners where walls meet; round corner columns at 3+-wall joins; mid-span T-junction
+clipping so a thick wall doesn't spear through another; corner-node snapping to a shared 5 cm grid.
+- Native: `src/ship/home_structure.rs` (`wall_end_miter`, `clip_end_to_walls`, `corner_column`, `quantize_corner`, `CORNER_GRID`)
+
+### Doors and Windows (openings) (v0.533 - v0.578)
+Doors and windows are openings placed on still-solid walls, each with a position/width/sill/height,
+draggable opening gizmos + edge resize handles, and a data-driven animation STYLE: swing, slide, iris,
+rotate, fold, energy, nanowall, fixed. Doors carry auto-open vs manual states + an interaction distance,
+and an optional control panel.
+- Native: `src/ship/home_structure.rs` (`Opening`, `OpeningKind`; `style` is a data-driven String), `src/systems/door_anim.rs` (style to `PanelMotion`), `src/ship/door_panels.rs` (`panel_placements`, `PanelPlacement`)
+- Editor: `src/gui/pages/construction.rs` (`OPENING_STYLES` const)
+
+### Door Control Panels (v0.567)
+Walk up to a manual door and press E at its control panel to open it; the panel mounts beside the door at
+hand height.
+- Native: `src/ship/door_panels.rs` (`control_panel_pos`), `src/systems/interaction.rs`
+
+### Door Locks (v0.570)
+Data-driven locks on a door; a door is passable only when every lock is Unlocked or Broken. Lock
+interactions: KeyItem, Code (keypad), Knob, Crank (emergency no-power override), Biometric, Panel. Defeat
+methods: Lockpick, HackPanel, ShootOut, BlowOpen, CutPower. Power-dependent flag per lock.
+- Native: `src/ship/lock_types.rs` (`LockType`, `LockInteraction`, `DefeatMethod`, `LockState`), `src/ship/home_structure.rs` (`LockInstance`)
+- Data: `data/blueprints/lock_types.ron` (metal_key, keypad, knob, crank, biometric)
+
+### Per-Home Lights (v0.571 - v0.576)
+Data-driven placeable lights; the renderer evaluates up to 8 point lights. Add lights from a picker,
+click a light to edit it, drag light gizmos (RGB range sphere + diamond). Energy doors emit light
+(emissive-as-light). Sun/global-illumination off toggle.
+- Native: `src/ship/home_structure.rs` (`PlacedLight`), `src/renderer/light.rs` (loads the registry), editor in `src/gui/pages/construction.rs` (`draw_lights_editor`, `draw_light_detail`)
+- Data: `data/lighting/light_types.ron` (ceiling_panel, warm_lamp, cool_panel, spotlight, strip; kinds Point/Spot/Bar)
+
+### Wall and Door Collision (v0.556)
+Geometric first-person collision against walls (substepped so a sprinter can't tunnel a thin wall); door
+apertures are walk-through gaps, window spans stay solid (glass blocks).
+- Native: `src/ship/wall_collision.rs` (`WallSegment`, `wall_segments`, `resolve`)
+
+---
+
+## Structural Pieces (v0.583 - v0.592)
+
+A data-driven registry of buildable structural pieces, rendered by the construction "Structure" palette.
+Add a buildable by adding one `.ron` line; no code.
+
+### Structure Registry
+Each piece has an id/label/category, a `kind` (drives behaviour) and a `shape` (placeholder geometry),
+size, color, and step count. Kinds: Wall, Stairs (also Ramp via shape), Ladder, Elevator, Teleporter,
+Train, Road, Deck. Shapes: Box, Steps, Ramp, Ladder, Frame, Slab.
+- Native: `src/ship/structure.rs` (`StructureType`, `StructureKind`, `MeshShape`, `structure_types`, `structure_mesh`, `walk_surface`)
+- Data: `data/blueprints/structure_types.ron`
+
+### Walkable Stairs / Ramps / Decks (v0.584, v0.588 - v0.589)
+Walk UP stairs and ramps (a ground-height sampler lifts you step to step); a floor/deck piece for
+multi-level builds; "place at height" so a deck sits at the top of a staircase.
+- Native: `src/ship/structure.rs` (`walk_surface`, `in_footprint`), placement in `src/lib.rs`
+
+### Ladder Climb (v0.589)
+Stand at a ladder and hold Space to climb (Shift to descend), step off onto a deck.
+- Native: `src/lib.rs` (ladder-climb state), `src/ship/structure.rs` (`StructureKind::Ladder`)
+
+### Elevator Ride (v0.590)
+A moving car that carries the player between levels; wait in the shaft to recall it.
+- Native: `src/lib.rs` (elevator-car state), `src/ship/structure.rs` (`StructureKind::Elevator`)
+
+### Teleporters (v0.584)
+Step through a teleport arch to jump to its paired pad (pair set in the detail panel).
+- Native: `src/ship/structure.rs` (`StructureKind::Teleporter`), pairing via `PlacedStructure.pair`
+
+### Train / Rail Line (v0.592)
+Pair two train platforms and a rail track connects them.
+- Native: `src/ship/structure.rs` (`StructureKind::Train`)
+
+### Roads as a Node Graph (v0.585 - v0.591)
+Roads are a node graph (nodes + edges); each edge is a road-class ribbon with a fixed top-to-bottom
+material STACK (wearing course down to subgrade). Edge centerlines curve through the graph via
+Catmull-Rom splines. Draggable road-node gizmos + per-node detail panels.
+- Native: `src/ship/home_structure.rs` (`RoadNode`, `RoadEdge`, `road_edge_centerline`), `src/ship/structure.rs` (`RoadType`, `road_types`)
+- Editor: `src/gui/pages/construction.rs` (`draw_roads_editor`, `draw_road_node_detail`)
+- Data: `data/blueprints/road_types.ron` (footpath, residential, highway, runway)
+
+---
+
+## Home Power and Electrical Sim (v0.437 - v0.606)
+
+The live electrical simulation for the home, plus the data-driven machine layout it runs on. Both
+`ElectricalSystem` and `SolarSystem` ARE registered and tick the live home power sim (`src/lib.rs`).
+
+### Live Electrical System
+Each tick: sum active generators, sum enabled consumers, shed load by priority on a deficit, and
+integrate the surplus/deficit into battery banks (charge/discharge with the day/night solar swing). As of
+v0.607 the flow is PER ISLAND (a generator only feeds loads on its own wired circuit). Publishes a live
+`PowerStatus` (generation, consumption, balance, battery Wh, autonomy hours) to the DataStore for the GUI.
+- Native: `src/systems/electrical.rs` (`ElectricalSystem`, `integrate_battery`, `PowerStatus`), `src/systems/solar.rs` (`SolarSystem`)
+- Data: `data/electrical.ron`
+- ECS: `PowerGenerator`, `PowerConsumer`, `Battery`, `PowerCircuit` (island) components
+
+### Home Machine Layout
+The data-driven machine layout for the 3D home: a catalog of machine types, placed instances + arrays
+(row x col grids), connections, conduit nodes/edges, and self-sufficiency loops. Machines carry a power
+role (Solar / Generator / Consumer / Battery) and stat readouts; positioned by absolute box-home
+coordinates. Editable live in the construction editor (place / move / wire / inspect).
+- Native: `src/machines.rs` (`MachineHome`, `MachineDef`, `MachineInstance`, `MachineArray`, `MachineConnection`, `MachinePower`, `HomeLoop`, `placements`)
+- Data: `data/machines/home.ron`
+- Editor: `src/gui/pages/construction.rs` (`draw_machine_detail`)
+
+### Buildability Report (v0.524, v0.605 - v0.606)
+A design-time validator surfaced in the editor with check marks. Checks: Power source (a consumer needs a
+generator/solar), Energy balance (kWh/day generated vs consumed + overnight battery sizing), Wiring (no
+connection dangles to a missing machine), Conduits (per power run, validate the pinned cable or auto-pick
+the cheapest copper against the load + run length: ampacity + voltage drop), and Power circuit (union-find
+over the power graph: every electrical LOAD must share a wired component with real generation; a battery
+is storage, not a source).
+- Native: `src/machines.rs` (`buildability_report`, `power_circuit_check`, `electrical_islands`, `BuildabilityReport`, `CheckStatus`), `src/gui/pages/construction.rs` (`draw_buildability`)
+
+---
+
+## Utility Wiring (v0.604 - v0.607)
+
+Power, water, air, and data do NOT magically transmit through the air; they travel through cables and
+plumbing with real limits (volts, watts, amps, AWG gauge, ampacity, shielded vs unshielded). A machine
+declares physical IN/OUT ports by utility. Stages 1-3 shipped; the wire-A-to-B gizmo + the superconductor
+upgrade mission are the next stages.
+
+### Conduit / Cable Data Model + Physics
+A closed `Utility` enum (Electricity, Water, HotWater, Air, Data, Fuel, Nutrient, Waste);
+`Port { utility, dir: In/Out/Bidirectional, label, watts, flow_lpm, anchor }`; a cable registry with real
+NEC-ish copper specs (AWG, ampacity, voltage rating, ohm/m, cost/m, grade). `check_cable` computes amps +
+round-trip voltage drop into Pass/Warn/Fail; `cheapest_cable_for` is the auto-picker; `awg_to_mm2` for
+display.
+- Native: `src/utilities.rs` (`Utility`, `Port`, `ConduitType`, `ConductorMaterial`, `Grade`, `check_cable`, `cheapest_cable_for`, `conduit_types`)
+- Data: `data/utilities/conduits.ron` (copper 14/12/10 AWG home, 6 AWG industrial shielded, the `sc_room_temp` superconductor upgrade target, two water pipes)
+- Design: `docs/design/utility-wiring.md`
+
+### Machine Ports + Conduit Checks (v0.605 - v0.606)
+`MachineDef` gained `ports: Vec<Port>` + a `derive_ports()` fallback (electrical ports inferred from the
+power role; fluid ports declared); `MachineConnection` gained `spec: Option<String>` (a pinned cable id,
+else auto-pick). The Conduits + Power circuit buildability checks consume these. The seed `home.ron` is a
+physically connected network (PV + wind + generator to battery bus to loads).
+- Native: `src/machines.rs` (`MachineDef::derive_ports`, `MachineConnection.spec`), `src/utilities.rs`
+
+### Runtime Power-Flow Gating (v0.607)
+Each spawned power entity carries a `PowerCircuit { island }` from `MachineHome::electrical_islands`, so
+`ElectricalSystem` balances + sheds PER ISLAND instead of summing the whole world. A load on an
+unconnected circuit is shed (no magic transmission). Entities without the component fall into one shared
+bucket (the old global behaviour, for tests/legacy).
+- Native: `src/ecs/components.rs` (`PowerCircuit`), `src/machines.rs` (`electrical_islands`, `power_component_roots`), `src/systems/electrical.rs`
+
+### Node-Based Conduits (v0.535, v0.581)
+Conduit junction nodes + auto-routed edges in the editor (draggable node gizmos), plus the
+Manhattan/service-height auto-router that runs pipes up to the ceiling and down to the fixture
+(auto-placing brackets, elbows, and wall-passthrough gaskets).
+- Native: `src/machines.rs` (`ConduitNode`, `ConduitEdge`, `ConduitEnd`), `src/ship/conduits.rs` (`ConduitKind`, `ConduitRoute`, `route_conduit`)
+- Editor: `src/gui/pages/construction.rs` (`draw_conduit_node_detail`)
+
+---
+
 ## Game Data
 
 ### Chemistry Database
@@ -967,6 +1196,13 @@ First-run orientation plus permanent reference. Four core concepts, core-pages o
 - Web: `web/pages/onboarding.html`
 - Route: `/onboarding` (web), "Onboarding" nav tab (native)
 
+### Universal Spreadsheet / Nested-Row Widgets (v0.400 - v0.517)
+The one-panel inventory redesign's reusable primitives: a nested expandable row, a fixed-width row cell,
+a collapsible section disclosure, item swatch tiles, and the recursive nested-container renderer (person
+to shirt to pocket to wallet spatial inventory) with cross-container item transfer that persists across
+restart.
+- Native: `src/gui/widgets/mod.rs` (`expandable_row`, `row_cell`, `section_disclosure`), `src/gui/pages/inventory.rs` (`draw_container`, `item_tile`), `src/gui/mod.rs` (`Place`, `PlacedItem`)
+
 ---
 
 ## Developer Tooling
@@ -980,3 +1216,10 @@ Renders native egui pages to PNGs via an offscreen egui-wgpu + wgpu pipeline (no
 ### Build / Verify Recipes
 Convenience recipes for the pre-push gate. `just verify` runs both feature builds (native + relay) plus lib tests and lints; `just lints` runs the four `src/gui` file-scanner lints via standalone rustc (Windows-PDB-safe, dodges the LNK1318 limit); `just snapshots` renders the UI PNGs; `just preflight` checks untracked source + doc links then runs verify.
 - Recipes: `Justfile` (`verify`, `lints`, `snapshots`, `preflight`)
+
+### Crash-Safe Logging (v0.601)
+A file logger that tees every log line to disk (flushed per line) plus a panic hook, so a windowed exe
+that crashes leaves the cause on disk even with no console. Truncated `run.log` per launch + an appended
+persistent `crash.log`, under `%APPDATA%/HumanityOS/logs` (Windows) / `~/.local/share/HumanityOS/logs`
+(Linux).
+- Native: `src/lib.rs` (`init_logging`, the `std::panic::set_hook` panic hook, `log_dir`)

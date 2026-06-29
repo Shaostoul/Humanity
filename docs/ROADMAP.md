@@ -201,6 +201,28 @@ The game teaches the homestead; the homestead is real.
 - `[done]` Structural de-risk spike: a pure node-beam solver (load routing, cascade
   failure, disconnected-island detection) so the structural-integrity pass is proven
   before it is wired to geometry (v0.471).
+- `[done]` Construction editor v2, the homestead-builder rebuild (v0.532 to v0.603): a
+  fixed outer box plus freely-placed interior walls (rooms emerge by flood-fill),
+  data-driven wall materials / thickness / surface layers, mitred corners, doors and
+  windows with animated styles (swing / slide / iris / rotate / fold / energy / nanowall
+  / fixed) plus locks and control panels, per-home lights, a unified single-line object
+  browser, move / duplicate gizmos, undo / redo, a CAD dimension overlay, a construction
+  console (the AI act surface) + live JSON home introspection (the AI read surface), and
+  first-person wall / door collision.
+- `[done]` Structural pieces (v0.583 to v0.592): a data-driven registry of buildable
+  stairs, ramps, ladders (climb), elevators (ride), teleporters, train rail, decks, and
+  roads as a curved node graph; walk on them in first person.
+- `[done]` Home power sim + buildability (v0.437 to v0.606): machines are live ECS power
+  entities (generators / consumers / batteries) that load-shed by priority and charge /
+  discharge with the solar swing; a design-time buildability validator (power source,
+  energy balance, wiring, conduits, power circuit).
+- `[building]` Utility wiring, no magic transmission (v0.604 to v0.607): power, water,
+  air, and data travel through rated cables and pipes (real AWG / ampacity / voltage-drop
+  physics); machines declare IN / OUT ports by utility. SHIPPED: the data model + cable
+  registry + physics, machine ports + the Conduits buildability check, the Power-circuit
+  connectivity check, and runtime per-island power-flow gating. Next: a wire-A-to-B gizmo
+  and the room-temperature superconductor upgrade mission. Design in
+  `docs/design/utility-wiring.md`.
 - `[next]` Multiplayer co-presence + the character / server model: two players in one
   world on the VPS; self-custodial local characters vs server-authoritative ones (open
   vs closed Battle.net); the Play launcher with character select, homes, and a default.
@@ -282,6 +304,18 @@ Every operator gets the same sovereignty tools, not just the original.
 
 Newest first. For older history see `docs/history/` and `git log`.
 
+- `v0.604 to v0.607` Utility wiring: real copper-cable physics + a conduit registry,
+  machine IN / OUT ports, the Conduits + Power-circuit buildability checks, a physically
+  wired seed home, and runtime per-island power-flow gating (no magic transmission).
+- `v0.583 to v0.603` Structural pieces (stairs, ramps, ladders, elevators, teleporters,
+  train rail, decks, roads as a curved node graph) plus build-editor polish: a unified
+  object browser, move / duplicate gizmos, a wall wireframe + dimension overlay.
+- `v0.532 to v0.582` The home-construction rebuild: a fixed box plus interior walls
+  (rooms emerge by flood-fill), wall materials / thickness / layers, mitred corners,
+  doors / windows / locks / lights, the construction console, and live JSON introspection.
+- `v0.512 to v0.517` The nested-container spatial inventory (person to pocket to wallet).
+- `v0.601` Crash-safe logging: every log line tees to disk plus a panic hook, so a
+  windowed crash leaves its cause in the app data logs folder.
 - `v0.473` Battery state-of-charge: the home's battery banks now charge and discharge
   with the day/night solar swing, with a live HUD readout (so "autonomy" is a draining
   number, not a static string).

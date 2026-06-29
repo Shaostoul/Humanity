@@ -112,55 +112,98 @@ impl System for ElectricalSystem {
     fn name(&self) -> &str { "ElectricalSystem" }
 
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
-        // Sum supply.
-        let total_gen: f32 = world.query::<&PowerGenerator>().iter()
-            .filter_map(|(_, g)| if g.active { Some(g.output_watts) } else { None })
-            .sum();
+        use crate::ecs::components::{Battery, PowerCircuit};
+        use std::collections::HashMap;
 
-        // Collect consumers (entity, draw, priority) sorted by priority desc.
-        let mut consumers: Vec<(hecs::Entity, f32, u8)> = world.query::<&PowerConsumer>().iter()
-            .map(|(e, c)| (e, if c.enabled { c.draw_watts } else { 0.0 }, c.priority))
-            .collect();
-        // Sort priority desc — highest priority is shed first (counter-intuitive,
-        // but matches the convention "priority 5 = optional, 1 = critical": shed
-        // optionals first by sorting descending).
-        consumers.sort_by(|a, b| b.2.cmp(&a.2));
+        // Power flows PER ISLAND (v0.607): generation, loads, and batteries are grouped by their
+        // PowerCircuit.island, so a generator only feeds loads on its own wired circuit -- no magic
+        // transmission across unconnected wiring. Entities WITHOUT a PowerCircuit (legacy/test spawns)
+        // all share the `None` bucket, which reproduces the old whole-world summing exactly.
+        // The published PowerStatus aggregates across islands so the Home card still shows the home.
 
-        let total_demand: f32 = consumers.iter().map(|(_, w, _)| *w).sum();
+        // 1. Gather per-island aggregates (Entity is Copy, so the query borrows release after collect).
+        let mut gen_by: HashMap<Option<u32>, f32> = HashMap::new();
+        for (_, (g, pc)) in world.query::<(&PowerGenerator, Option<&PowerCircuit>)>().iter() {
+            if g.active {
+                *gen_by.entry(pc.map(|p| p.island)).or_default() += g.output_watts;
+            }
+        }
+        let mut cons_by: HashMap<Option<u32>, Vec<(hecs::Entity, f32, u8)>> = HashMap::new();
+        for (e, (c, pc)) in world.query::<(&PowerConsumer, Option<&PowerCircuit>)>().iter() {
+            cons_by
+                .entry(pc.map(|p| p.island))
+                .or_default()
+                .push((e, if c.enabled { c.draw_watts } else { 0.0 }, c.priority));
+        }
+        let mut batt_by: HashMap<Option<u32>, Vec<hecs::Entity>> = HashMap::new();
+        for (e, (_b, pc)) in world.query::<(&Battery, Option<&PowerCircuit>)>().iter() {
+            batt_by.entry(pc.map(|p| p.island)).or_default().push(e);
+        }
 
-        // Decide who's enabled this frame.
+        // Every island that has anything electrical.
+        let mut keys: std::collections::BTreeSet<Option<u32>> = std::collections::BTreeSet::new();
+        keys.extend(gen_by.keys().copied());
+        keys.extend(cons_by.keys().copied());
+        keys.extend(batt_by.keys().copied());
+
         let mut to_disable: Vec<hecs::Entity> = Vec::new();
         let mut to_enable: Vec<hecs::Entity> = Vec::new();
-        let mut remaining_supply = total_gen;
-        let mut consumed = 0.0_f32;
+        let (mut total_gen_all, mut consumed_all, mut demand_all) = (0.0_f32, 0.0_f32, 0.0_f32);
+        let (mut battery_wh, mut battery_cap) = (0.0_f32, 0.0_f32);
 
-        if total_demand <= total_gen {
-            // Plenty of supply — make sure all consumers are enabled.
-            for (entity, draw, _) in &consumers {
-                let was_enabled = world.get::<&PowerConsumer>(*entity).map(|c| c.enabled).unwrap_or(true);
-                if !was_enabled {
-                    to_enable.push(*entity);
-                }
-                consumed += *draw;
-            }
-        } else {
-            // Deficit — go through consumers shedding load.
-            // We sorted with HIGHEST priority first; those get shed first.
-            for (entity, draw, _) in &consumers {
-                if remaining_supply >= *draw && *draw > 0.0 {
-                    remaining_supply -= *draw;
-                    consumed += *draw;
-                    let was_enabled = world.get::<&PowerConsumer>(*entity).map(|c| c.enabled).unwrap_or(true);
-                    if !was_enabled {
-                        to_enable.push(*entity);
+        // 2. Balance + shed + integrate batteries, ONE ISLAND AT A TIME.
+        for key in keys {
+            let total_gen = gen_by.get(&key).copied().unwrap_or(0.0);
+            let mut consumers = cons_by.remove(&key).unwrap_or_default();
+            // Highest priority shed FIRST (convention: priority 5 = optional, 1 = critical).
+            consumers.sort_by(|a, b| b.2.cmp(&a.2));
+            let total_demand: f32 = consumers.iter().map(|(_, w, _)| *w).sum();
+            demand_all += total_demand;
+
+            let mut remaining = total_gen;
+            let mut consumed = 0.0_f32;
+            if total_demand <= total_gen {
+                for (e, draw, _) in &consumers {
+                    if world.get::<&PowerConsumer>(*e).map(|c| !c.enabled).unwrap_or(false) {
+                        to_enable.push(*e);
                     }
-                } else {
-                    to_disable.push(*entity);
+                    consumed += *draw;
+                }
+            } else {
+                for (e, draw, _) in &consumers {
+                    if remaining >= *draw && *draw > 0.0 {
+                        remaining -= *draw;
+                        consumed += *draw;
+                        if world.get::<&PowerConsumer>(*e).map(|c| !c.enabled).unwrap_or(false) {
+                            to_enable.push(*e);
+                        }
+                    } else {
+                        to_disable.push(*e);
+                    }
+                }
+            }
+            total_gen_all += total_gen;
+            consumed_all += consumed;
+
+            // Batteries on THIS island buffer this island's surplus/deficit (sequential bite, no
+            // double counting). Discharge tracks state; it does not yet prevent the shed above.
+            let mut grid_balance = total_gen - total_demand;
+            if let Some(batts) = batt_by.remove(&key) {
+                for e in batts {
+                    if let Ok(mut b) = world.get::<&mut Battery>(e) {
+                        let (new_charge, applied_w) = integrate_battery(
+                            b.charge_wh, b.capacity_wh, b.max_charge_w, b.max_discharge_w, grid_balance, dt,
+                        );
+                        b.charge_wh = new_charge;
+                        grid_balance -= applied_w;
+                        battery_wh += b.charge_wh;
+                        battery_cap += b.capacity_wh;
+                    }
                 }
             }
         }
 
-        // Apply enabled changes.
+        // 3. Apply the enabled/disabled changes (deferred so the borrows above stay short).
         for entity in to_disable {
             if let Ok(mut c) = world.get::<&mut PowerConsumer>(entity) { c.enabled = false; }
         }
@@ -168,38 +211,16 @@ impl System for ElectricalSystem {
             if let Ok(mut c) = world.get::<&mut PowerConsumer>(entity) { c.enabled = true; }
         }
 
-        self.total_generation = total_gen;
-        self.total_consumption = consumed;
-        self.power_balance = total_gen - consumed;
+        self.total_generation = total_gen_all;
+        self.total_consumption = consumed_all;
+        self.power_balance = total_gen_all - consumed_all;
+        let autonomy_hours = if demand_all > 1.0 { battery_wh / demand_all } else { 0.0 };
 
-        // Battery banks (v0.473): integrate the grid surplus/deficit into each bank so the day/night
-        // solar swing actually drains + refills storage. Processed sequentially: each bank takes a
-        // bite of the remaining balance (so N banks share one surplus/deficit, no double counting).
-        // (A future increment lets battery discharge PREVENT the load-shedding above; today it tracks
-        // state against the true generation-vs-demand balance.)
-        let mut grid_balance = total_gen - total_demand;
-        let battery_ents: Vec<hecs::Entity> =
-            world.query::<&crate::ecs::components::Battery>().iter().map(|(e, _)| e).collect();
-        let (mut battery_wh, mut battery_cap) = (0.0_f32, 0.0_f32);
-        for e in battery_ents {
-            if let Ok(mut b) = world.get::<&mut crate::ecs::components::Battery>(e) {
-                let (new_charge, applied_w) = integrate_battery(
-                    b.charge_wh, b.capacity_wh, b.max_charge_w, b.max_discharge_w, grid_balance, dt,
-                );
-                b.charge_wh = new_charge;
-                grid_balance -= applied_w; // charging consumes surplus; discharging fills the deficit
-                battery_wh += b.charge_wh;
-                battery_cap += b.capacity_wh;
-            }
-        }
-        let autonomy_hours = if total_demand > 1.0 { battery_wh / total_demand } else { 0.0 };
-
-        // Publish the live readout to the DataStore for the GUI (same Mutex pattern as
-        // game_time). The home's electrical balance is now a running number, not a string.
+        // 4. Publish the aggregated live readout to the DataStore for the GUI.
         if let Some(status) = data.get::<std::sync::Mutex<PowerStatus>>("power_status") {
             if let Ok(mut s) = status.lock() {
-                s.generation = total_gen;
-                s.consumption = consumed;
+                s.generation = total_gen_all;
+                s.consumption = consumed_all;
                 s.balance = self.power_balance;
                 s.battery_wh = battery_wh;
                 s.battery_capacity_wh = battery_cap;
@@ -207,16 +228,16 @@ impl System for ElectricalSystem {
             }
         }
 
-        // Throttle log output.
+        // Throttle log output (whole-home aggregate).
         self.log_cooldown -= dt;
         if self.log_cooldown <= 0.0 {
             self.log_cooldown = 5.0;
-            if total_demand > total_gen && total_gen > 0.0 {
+            if demand_all > total_gen_all && total_gen_all > 0.0 {
                 log::warn!(
                     "Power deficit: shedding {:.0}W (demand {:.0}W, supply {:.0}W)",
-                    total_demand - total_gen, total_demand, total_gen
+                    demand_all - total_gen_all, demand_all, total_gen_all
                 );
-            } else if total_gen > 0.0 {
+            } else if total_gen_all > 0.0 {
                 log::debug!(
                     "Power OK: surplus {:.0}W (gen {:.0}W, draw {:.0}W)",
                     self.power_balance, self.total_generation, self.total_consumption
@@ -292,5 +313,34 @@ mod tests {
         assert!((ps.generation - 3000.0).abs() < 1.0, "generation {}", ps.generation);
         assert!((ps.consumption - 1800.0).abs() < 1.0, "consumption {}", ps.consumption);
         assert!((ps.balance - 1200.0).abs() < 1.0, "balance {}", ps.balance);
+    }
+
+    /// v0.607: power flows PER ISLAND. Island 0 has a generator + a load (the load runs). Island 1 has
+    /// a load but NO generator (it is shed -- no magic transmission from island 0). The published
+    /// PowerStatus aggregates: generation = island 0's, consumption = only the powered load.
+    #[test]
+    fn tick_gates_power_per_island() {
+        use super::{ElectricalSystem, PowerStatus};
+        use crate::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
+        use crate::ecs::systems::System;
+        use crate::hot_reload::data_store::DataStore;
+
+        let mut data = DataStore::new();
+        data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+        let mut world = hecs::World::new();
+        // Island 0: 1000 W generator + a 200 W load -> powered.
+        world.spawn((PowerGenerator { output_watts: 1000.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 0 }));
+        let powered = world.spawn((PowerConsumer { draw_watts: 200.0, priority: 1, enabled: true }, PowerCircuit { island: 0 }));
+        // Island 1: a 200 W load with NO generator on its circuit -> must be shed.
+        let isolated = world.spawn((PowerConsumer { draw_watts: 200.0, priority: 1, enabled: true }, PowerCircuit { island: 1 }));
+
+        let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
+        sys.tick(&mut world, 1.0, &data);
+
+        assert!(world.get::<&PowerConsumer>(powered).unwrap().enabled, "island-0 load stays powered");
+        assert!(!world.get::<&PowerConsumer>(isolated).unwrap().enabled, "island-1 load is shed (no generator on its circuit)");
+        let ps = data.get::<std::sync::Mutex<PowerStatus>>("power_status").unwrap().lock().unwrap();
+        assert!((ps.generation - 1000.0).abs() < 1.0, "generation {}", ps.generation);
+        assert!((ps.consumption - 200.0).abs() < 1.0, "only the powered load draws: {}", ps.consumption);
     }
 }

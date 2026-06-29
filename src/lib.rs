@@ -181,13 +181,15 @@ mod native_app {
     /// strings). load_world re-spawns these WITH meshes on Enter World after despawning
     /// every HomeMachine, so there is no double-spawn. Silent no-op if home.ron is absent.
     fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std::path::Path) {
-        use crate::ecs::components::{Battery, HomeMachine, PowerConsumer, PowerGenerator, SolarPanel};
+        use crate::ecs::components::{Battery, HomeMachine, PowerCircuit, PowerConsumer, PowerGenerator, SolarPanel};
         use crate::machines::MachinePower;
         let path = data_dir.join("machines").join("home.ron");
         let Some(home) = crate::machines::MachineHome::load(&path) else {
             return;
         };
         let all = home.all_instances();
+        // Each power entity carries its electrical ISLAND so ElectricalSystem flows per circuit. (v0.607)
+        let islands = home.electrical_islands(&all);
         for inst in &all {
             let Some(def) = home.catalog.get(&inst.machine) else {
                 continue;
@@ -195,24 +197,28 @@ mod native_app {
             let Some(power) = &def.power else {
                 continue;
             };
+            let pc = PowerCircuit { island: islands.get(&inst.id).copied().unwrap_or(0) };
             match power {
                 MachinePower::Solar { peak_watts } => {
                     world.spawn((
                         HomeMachine,
                         PowerGenerator { output_watts: *peak_watts, fuel_per_second: 0.0, active: true },
                         SolarPanel { peak_watts: *peak_watts },
+                        pc,
                     ));
                 }
                 MachinePower::Generator { watts } => {
                     world.spawn((
                         HomeMachine,
                         PowerGenerator { output_watts: *watts, fuel_per_second: 0.0, active: true },
+                        pc,
                     ));
                 }
                 MachinePower::Consumer { watts, priority } => {
                     world.spawn((
                         HomeMachine,
                         PowerConsumer { draw_watts: *watts, priority: *priority, enabled: true },
+                        pc,
                     ));
                 }
                 MachinePower::Battery { capacity_wh, max_charge_w, max_discharge_w } => {
@@ -224,6 +230,7 @@ mod native_app {
                             max_charge_w: *max_charge_w,
                             max_discharge_w: *max_discharge_w,
                         },
+                        pc,
                     ));
                 }
             }
@@ -3022,6 +3029,8 @@ mod native_app {
                 };
                 // Explicit instances + every `arrays` grid expanded (dense garden towers).
                 let all_instances = home.all_instances();
+                // Electrical island per machine, so each spawned power entity flows on its circuit. (v0.607)
+                let islands = home.electrical_islands(&all_instances);
                 for inst in &all_instances {
                     let Some(def) = home.catalog.get(&inst.machine) else { continue };
                     // Position formula mirrored by the tested MachineHome::placements (the editor's
@@ -3068,26 +3077,30 @@ mod native_app {
                     // Spawn the machine's electrical role as a LIVE ECS entity so the
                     // SolarSystem + ElectricalSystem tick against the real home (v0.437).
                     if let Some(power) = &def.power {
-                        use crate::ecs::components::{HomeMachine, PowerConsumer, PowerGenerator, SolarPanel};
+                        use crate::ecs::components::{HomeMachine, PowerCircuit, PowerConsumer, PowerGenerator, SolarPanel};
                         use crate::machines::MachinePower;
+                        let pc = PowerCircuit { island: islands.get(&inst.id).copied().unwrap_or(0) };
                         match power {
                             MachinePower::Solar { peak_watts } => {
                                 state.game_world.world.spawn((
                                     HomeMachine,
                                     PowerGenerator { output_watts: *peak_watts, fuel_per_second: 0.0, active: true },
                                     SolarPanel { peak_watts: *peak_watts },
+                                    pc,
                                 ));
                             }
                             MachinePower::Generator { watts } => {
                                 state.game_world.world.spawn((
                                     HomeMachine,
                                     PowerGenerator { output_watts: *watts, fuel_per_second: 0.0, active: true },
+                                    pc,
                                 ));
                             }
                             MachinePower::Consumer { watts, priority } => {
                                 state.game_world.world.spawn((
                                     HomeMachine,
                                     PowerConsumer { draw_watts: *watts, priority: *priority, enabled: true },
+                                    pc,
                                 ));
                             }
                             MachinePower::Battery { capacity_wh, max_charge_w, max_discharge_w } => {
@@ -3100,6 +3113,7 @@ mod native_app {
                                         max_charge_w: *max_charge_w,
                                         max_discharge_w: *max_discharge_w,
                                     },
+                                    pc,
                                 ));
                             }
                         }

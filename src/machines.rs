@@ -747,6 +747,69 @@ impl MachineHome {
         BuildabilityReport { checks }
     }
 
+    /// Union-find over the POWER graph (power connections + power conduit edges, traversing junction
+    /// nodes), returning each ELECTRICAL machine id -> its component ROOT id (a stable representative).
+    /// Shared by `power_circuit_check` (design-time) + `electrical_islands` (runtime gating). An unwired
+    /// machine is its own component. Node endpoints are keyed "node:<id>" so they can't collide with a
+    /// machine id. (v0.607)
+    fn power_component_roots(&self, all: &[MachineInstance]) -> std::collections::HashMap<String, String> {
+        use std::collections::HashMap;
+        let mut parent: HashMap<String, String> = HashMap::new();
+        fn find(parent: &mut HashMap<String, String>, x: &str) -> String {
+            let p = parent.entry(x.to_string()).or_insert_with(|| x.to_string()).clone();
+            if p == x {
+                return p;
+            }
+            let root = find(parent, &p);
+            parent.insert(x.to_string(), root.clone());
+            root
+        }
+        fn union(parent: &mut HashMap<String, String>, a: &str, b: &str) {
+            let ra = find(parent, a);
+            let rb = find(parent, b);
+            if ra != rb {
+                parent.insert(ra, rb);
+            }
+        }
+        let is_electrical =
+            |inst: &MachineInstance| self.catalog.get(&inst.machine).and_then(|d| d.power.as_ref()).is_some();
+        // Seed every electrical machine as its own node (so an unwired load is its own component).
+        for inst in all.iter().filter(|i| is_electrical(i)) {
+            find(&mut parent, &inst.id);
+        }
+        for c in self.connections.iter().filter(|c| c.kind == "power") {
+            union(&mut parent, &c.from, &c.to);
+        }
+        let end_key = |e: &ConduitEnd| match e {
+            ConduitEnd::Machine(id) => id.clone(),
+            ConduitEnd::Node(id) => format!("node:{id}"),
+        };
+        for e in self.conduit_edges.iter().filter(|e| e.kind == "power") {
+            union(&mut parent, &end_key(&e.from), &end_key(&e.to));
+        }
+        let mut roots = HashMap::new();
+        for inst in all.iter().filter(|i| is_electrical(i)) {
+            let r = find(&mut parent, &inst.id);
+            roots.insert(inst.id.clone(), r);
+        }
+        roots
+    }
+
+    /// Map each ELECTRICAL machine id -> a 0-based ISLAND index (its connected power component), for the
+    /// runtime `ElectricalSystem` to flow power per island instead of summing globally (sim-realism gap
+    /// #2 -- no magic transmission). Stable, deterministic island ids (assigned in sorted root order).
+    /// (v0.607)
+    pub fn electrical_islands(&self, all: &[MachineInstance]) -> std::collections::HashMap<String, u32> {
+        let roots = self.power_component_roots(all);
+        // Assign island indices in sorted-root order so the mapping is deterministic across runs.
+        let mut distinct: Vec<&String> = roots.values().collect();
+        distinct.sort();
+        distinct.dedup();
+        let index: std::collections::HashMap<&String, u32> =
+            distinct.iter().enumerate().map(|(i, r)| (*r, i as u32)).collect();
+        roots.iter().map(|(id, r)| (id.clone(), index[r])).collect()
+    }
+
     /// The "Power circuit" buildability check (v0.606): build the electrical graph from power
     /// connections + power conduit edges, find connected components (union-find), and verify every
     /// electrical LOAD shares a component with a real generation source (solar/generator). A battery
@@ -774,56 +837,22 @@ impl MachineHome {
             return None; // nothing electrical to check
         }
 
-        // Union-find keyed by node string: a machine id, or "node:<id>" for a conduit junction.
-        use std::collections::HashMap;
-        let mut parent: HashMap<String, String> = HashMap::new();
-        fn find(parent: &mut HashMap<String, String>, x: &str) -> String {
-            let p = parent.entry(x.to_string()).or_insert_with(|| x.to_string()).clone();
-            if p == x {
-                return p;
-            }
-            let root = find(parent, &p);
-            parent.insert(x.to_string(), root.clone());
-            root
-        }
-        fn union(parent: &mut HashMap<String, String>, a: &str, b: &str) {
-            let ra = find(parent, a);
-            let rb = find(parent, b);
-            if ra != rb {
-                parent.insert(ra, rb);
-            }
-        }
-        // Seed every electrical machine as its own node (so an unwired load is its own component).
-        for (inst, _) in &electrical {
-            find(&mut parent, &inst.id);
-        }
-        // Union along power connections.
-        for c in self.connections.iter().filter(|c| c.kind == "power") {
-            union(&mut parent, &c.from, &c.to);
-        }
-        // Union along power conduit edges (machine + junction-node endpoints).
-        let end_key = |e: &ConduitEnd| match e {
-            ConduitEnd::Machine(id) => id.clone(),
-            ConduitEnd::Node(id) => format!("node:{id}"),
-        };
-        for e in self.conduit_edges.iter().filter(|e| e.kind == "power") {
-            union(&mut parent, &end_key(&e.from), &end_key(&e.to));
-        }
-
-        // Which components contain real generation?
-        let mut powered_roots: std::collections::HashSet<String> = std::collections::HashSet::new();
+        // Connected components from the shared power-graph union-find.
+        let roots = self.power_component_roots(all);
+        // Which components contain real generation (a Source)?
+        let mut powered_roots: std::collections::HashSet<&String> = std::collections::HashSet::new();
         for (inst, role) in &electrical {
             if *role == Role::Source {
-                let r = find(&mut parent, &inst.id);
-                powered_roots.insert(r);
+                if let Some(r) = roots.get(&inst.id) {
+                    powered_roots.insert(r);
+                }
             }
         }
         // Tally the problems.
         let mut isolated_loads: Vec<String> = Vec::new();
         let mut uncharged_batteries = 0usize;
         for (inst, role) in &electrical {
-            let r = find(&mut parent, &inst.id);
-            let powered = powered_roots.contains(&r);
+            let powered = roots.get(&inst.id).map(|r| powered_roots.contains(r)).unwrap_or(false);
             match role {
                 Role::Load if !powered => isolated_loads.push(inst.id.clone()),
                 Role::Storage if !powered => uncharged_batteries += 1,
