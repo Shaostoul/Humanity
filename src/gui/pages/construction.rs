@@ -518,6 +518,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                         machine: mtype,
                                         room: room_id.clone(),
                                         offset: (0.0, 0.0, 0.0),
+                                        rotation: 0.0,
                                     });
                                     machines_changed = true;
                                 }
@@ -1345,6 +1346,30 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(RichText::new(format!("Room  {}", inst.room)).size(theme.font_size_small).color(theme.text_muted()));
     ui.label(RichText::new(format!("Position  {:.1}, {:.1}, {:.1} m", inst.offset.0, inst.offset.1, inst.offset.2))
         .size(theme.font_size_small).color(theme.text_muted()));
+
+    // ROTATION (v0.633): yaw the machine about its vertical axis. Direct instances only (an array
+    // member has no individual offset/rotation -- it is synthesized from its MachineArray).
+    if is_direct {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Rotation").size(theme.font_size_small).color(theme.text_muted()));
+            let mut rot = inst.rotation;
+            let mut apply: Option<f32> = None;
+            if ui.add(egui::DragValue::new(&mut rot).speed(1.0).suffix(" deg").range(0.0..=360.0)).changed() {
+                apply = Some(rot.rem_euclid(360.0));
+            }
+            if ui.small_button("+90").clicked() {
+                apply = Some((inst.rotation + 90.0).rem_euclid(360.0));
+            }
+            if let Some(r) = apply {
+                if let Some(home) = state.home_machines.as_mut() {
+                    if let Some(m) = home.instances.iter_mut().find(|m| m.id == id) {
+                        m.rotation = r;
+                    }
+                }
+                state.construction_machines_dirty = true;
+            }
+        });
+    }
 
     if let Some(d) = &def {
         if let Some(power) = &d.power {
@@ -3259,7 +3284,7 @@ mod multi_select_tests {
     fn home_abc() -> MachineHome {
         let mut catalog = BTreeMap::new();
         catalog.insert("box".to_string(), box_def());
-        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0) };
+        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
         MachineHome {
             catalog,
             instances: vec![inst("a"), inst("b"), inst("c")],

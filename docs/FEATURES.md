@@ -873,6 +873,15 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Machine rotation (yaw) (v0.633)
+A placed machine can now be ROTATED about its vertical axis -- so a box-shaped machine (a teleporter, a
+server, a battery bank) can face a chosen direction instead of always being axis-aligned. `MachineInstance`
+gained a `rotation` yaw field (degrees, serde-default 0, so every existing home + array cell is unchanged);
+it flows through `PlacedMachine` into the renderer (`Quat::from_rotation_y`). The machine detail panel has
+a Rotation control (a degree DragValue + a "+90" button); direct instances only (an array member has no
+individual pose). Persists with Save.
+- Native: `src/machines.rs` (`MachineInstance.rotation` + `PlacedMachine.rotation` + placements carry it), `src/lib.rs` (yaw threaded through `machine_objects` + applied in the machine RenderObject), `src/gui/pages/construction.rs` (Rotation control in `draw_machine_detail`)
+
 ### Conduit node TIERS + service-entrance grid-tie (v0.632)
 The conduit pipe-graph gained its trunk-hierarchy controls (`conduits-node-graph.md` Stage 2 foundation +
 `grid-hierarchy.md`). A selected conduit node's detail panel now sets its TIER -- Main (0) / Sub (1) /

@@ -1173,6 +1173,7 @@ mod native_app {
         {
             for (i, p) in placements.iter().enumerate() {
                 state.machine_objects[i].2 = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
+                state.machine_objects[i].3 = p.rotation; // keep the yaw in sync on a position-only update
                 state.gui_state.machine_labels[i].pos = Vec3::new(p.pos.0, p.top_y + 0.4, p.pos.2);
                 // Keep the pick volume in sync (v0.553) -- else a move WITHOUT a count change (a room
                 // drag, a clamp-on-resize) leaves the click ray-test + the highlight ring at the OLD
@@ -1200,14 +1201,14 @@ mod native_app {
             let mesh = machine_mesh(&state.renderer.device, &p.shape, p.size);
             let color = [p.color.0, p.color.1, p.color.2, 1.0];
             let pos = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
-            if let Some(&(mi, ma, _)) = prior.get(i) {
+            if let Some(&(mi, ma, _, _)) = prior.get(i) {
                 state.renderer.replace_mesh(mi, mesh);
                 state.renderer.update_material_typed(ma, color, 0.1, 0.7, 0.0);
-                objs.push((mi, ma, pos));
+                objs.push((mi, ma, pos, p.rotation));
             } else {
                 let mi = state.renderer.add_mesh(mesh);
                 let ma = state.renderer.add_material_typed(color, 0.1, 0.7, 0.0);
-                objs.push((mi, ma, pos));
+                objs.push((mi, ma, pos, p.rotation));
             }
             state.gui_state.machine_labels.push(crate::gui::MachineLabel {
                 pos: Vec3::new(p.pos.0, p.top_y + 0.4, p.pos.2),
@@ -1915,6 +1916,7 @@ mod native_app {
                     machine: mtype,
                     room: room_id,
                     offset,
+                    rotation: 0.0,
                 });
                 state.gui_state.construction_machines_dirty = true;
             }
@@ -3498,7 +3500,7 @@ mod native_app {
                     } else {
                         pos
                     };
-                    state.machine_objects.push((mesh_idx, mat, draw_pos));
+                    state.machine_objects.push((mesh_idx, mat, draw_pos, inst.rotation));
                     // Floating label anchor: just above the machine's top.
                     let top_y = if def.shape == "sphere" { pos.y + 2.0 * sx } else { pos.y + sy };
                     let name = if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() };
@@ -4095,7 +4097,7 @@ mod native_app {
         /// pipes, or the avatar. Built by load_world on entry + rebuild_machine_objects on edit;
         /// positions come from the tested `MachineHome::placements`. Drawn when not in the showroom.
         /// (v0.525, the live-edit preview that makes the build mode feel real.)
-        machine_objects: Vec<(usize, usize, Vec3)>,
+        machine_objects: Vec<(usize, usize, Vec3, f32)>,
         /// Pick volumes for viewport machine SELECTION (v0.553): (id, world center, bounding radius)
         /// per placed machine. Rebuilt alongside machine_objects; the build-mode click ray-tests this
         /// to select a machine (its detail then shows on the right panel).
@@ -6826,10 +6828,10 @@ mod native_app {
                     // Home machines: a separate list so the construction editor can rebuild just
                     // them on an edit. Hidden in the showroom (avatar-only). (v0.525)
                     if !showroom {
-                        for &(mesh_idx, mat_idx, pos) in &state.machine_objects {
+                        for &(mesh_idx, mat_idx, pos, yaw) in &state.machine_objects {
                             all_objects.push(RenderObject {
                                 position: pos,
-                                rotation: Quat::IDENTITY,
+                                rotation: Quat::from_rotation_y(yaw.to_radians()), // v0.633 machine yaw
                                 scale: Vec3::ONE,
                                 mesh: mesh_idx,
                                 material: mat_idx,
