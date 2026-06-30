@@ -156,7 +156,7 @@ mod tests {
             height: 3.0,
             shell_material: 1,
             roof_material: 4,
-            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(),
+            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
             walls: vec![InteriorWall {
                 a: (0.0, 5.0),
                 b: (10.0, 5.0),

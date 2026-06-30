@@ -750,6 +750,9 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // Zones (v0.631, superstructure M1): labelled macro VOLUMES the structure is carved into.
                 draw_zones_editor(ui, theme, state);
 
+                // Rail graph (v0.635, superstructure M2): a multi-stop rail line as nodes + edges.
+                draw_rail_editor(ui, theme, state);
+
                 // Console (v0.578): a text-command ACT surface for an AI + a human -- the same struct
                 // edits the gizmos make, driven by typed verbs. `help` lists them.
                 egui::CollapsingHeader::new(RichText::new("Console (AI / dev)").strong().color(theme.text_primary()))
@@ -2113,6 +2116,87 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
 
 /// The road-graph editor (v0.586): nodes + edges. Each edge is a ribbon of a fixed road CLASS (its
 /// material stack). Add nodes, wire edges between them with a class + width; the mesh rebuilds live.
+/// RAIL-graph editor (v0.635, superstructure M2): drop rail stops + wire straight edges into a multi-stop
+/// line. Mirrors the road editor (simpler -- no class/width). Renders as a gizmo (lib.rs); cars are M2b.
+fn draw_rail_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let (nn, ne) = state.home_structure.as_ref().map_or((0, 0), |h| (h.rail_nodes.len(), h.rail_edges.len()));
+    egui::CollapsingHeader::new(RichText::new(format!("Rail ({nn} nodes, {ne} edges)")).strong().color(theme.text_primary()))
+        .id_salt("hs_rail_sec")
+        .default_open(false)
+        .show(ui, |ui| {
+            ui.label(RichText::new("Lay a rail line as a graph: drop stops, wire edges. Cars run it (M2b).")
+                .size(theme.font_size_small).color(theme.text_muted()));
+            if ui.button("+ Rail node").clicked() {
+                if let Some(h) = state.home_structure.as_mut() {
+                    let pos = (h.width * 0.5, h.depth * 0.5);
+                    h.add_rail_node(pos);
+                }
+            }
+            let mut rm_node: Option<u32> = None;
+            for i in 0..nn {
+                let id = state.home_structure.as_ref().unwrap().rail_nodes[i].id;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("N{id}")).size(theme.font_size_small).color(theme.text_secondary()));
+                    if let Some(h) = state.home_structure.as_mut() {
+                        let p = &mut h.rail_nodes[i].pos;
+                        ui.add(egui::DragValue::new(&mut p.0).speed(0.25).prefix("x ").suffix(" m"));
+                        ui.add(egui::DragValue::new(&mut p.1).speed(0.25).prefix("z ").suffix(" m"));
+                    }
+                    if ui.small_button("x").clicked() {
+                        rm_node = Some(id);
+                    }
+                });
+            }
+            if let Some(id) = rm_node {
+                if let Some(h) = state.home_structure.as_mut() {
+                    h.remove_rail_node(id);
+                }
+            }
+            if nn >= 2 {
+                ui.separator();
+                let ids: Vec<u32> = state.home_structure.as_ref().unwrap().rail_nodes.iter().map(|n| n.id).collect();
+                if !ids.contains(&state.rail_edge_from) {
+                    state.rail_edge_from = ids[0];
+                }
+                if !ids.contains(&state.rail_edge_to) {
+                    state.rail_edge_to = ids[1];
+                }
+                ui.horizontal(|ui| {
+                    egui::ComboBox::from_id_salt("rail_from").width(54.0).selected_text(format!("N{}", state.rail_edge_from)).show_ui(ui, |ui| {
+                        for id in &ids { ui.selectable_value(&mut state.rail_edge_from, *id, format!("N{id}")); }
+                    });
+                    ui.label("->");
+                    egui::ComboBox::from_id_salt("rail_to").width(54.0).selected_text(format!("N{}", state.rail_edge_to)).show_ui(ui, |ui| {
+                        for id in &ids { ui.selectable_value(&mut state.rail_edge_to, *id, format!("N{id}")); }
+                    });
+                    if ui.button("Add rail").clicked() {
+                        if let Some(h) = state.home_structure.as_mut() {
+                            h.add_rail_edge(state.rail_edge_from, state.rail_edge_to);
+                        }
+                    }
+                });
+            }
+            let mut rm_edge: Option<usize> = None;
+            let ne_now = state.home_structure.as_ref().map_or(0, |h| h.rail_edges.len());
+            for i in 0..ne_now {
+                let Some((f, t)) = state.home_structure.as_ref().and_then(|h| h.rail_edges.get(i)).map(|e| (e.from, e.to)) else {
+                    break;
+                };
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("N{f} -> N{t}")).size(theme.font_size_small).color(theme.text_secondary()));
+                    if ui.small_button("x").clicked() {
+                        rm_edge = Some(i);
+                    }
+                });
+            }
+            if let Some(i) = rm_edge {
+                if let Some(h) = state.home_structure.as_mut() {
+                    h.remove_rail_edge(i);
+                }
+            }
+        });
+}
+
 fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let (nn, ne) = state.home_structure.as_ref().map_or((0, 0), |h| (h.road_nodes.len(), h.road_edges.len()));
     let mut changed = false;

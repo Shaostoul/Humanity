@@ -7501,6 +7501,19 @@ mod native_app {
                                     crate::renderer::line::push_polyline(&mut ring_lines, &pts, RE);
                                 }
                             }
+                            // RAIL-GRAPH gizmo (v0.635, superstructure M2): a ring at each rail stop + a
+                            // straight track line per edge, so the transit line reads at a glance (cars
+                            // run it in M2b). Mirrors the road-graph gizmo.
+                            const RAILN: [f32; 4] = [0.88, 0.86, 0.45, 0.95]; // pale-gold stop ring
+                            const RAILE: [f32; 4] = [0.92, 0.80, 0.35, 0.9]; // track line
+                            for n in &hs.rail_nodes {
+                                crate::renderer::line::push_circle(&mut ring_lines, [n.pos.0, 0.15, n.pos.1], 0.5, RAILN, 18);
+                            }
+                            for e in &hs.rail_edges {
+                                if let (Some(a), Some(b)) = (hs.rail_node_pos(e.from), hs.rail_node_pos(e.to)) {
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[a.0, 0.18, a.1], [b.0, 0.18, b.1]], RAILE);
+                                }
+                            }
                             // ZONE wireframe boxes (v0.631, superstructure M1): each macro district
                             // (residential / industrial / hangar / the civic mall / ...) drawn as a
                             // coloured wire box from its origin to origin+size, so the mothership layout

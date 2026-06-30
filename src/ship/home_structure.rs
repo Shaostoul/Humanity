@@ -256,6 +256,28 @@ pub struct HomeStructure {
     /// resizes them as wireframe boxes; later stages add transit + zone-scoped sub-structures.
     #[serde(default)]
     pub zones: Vec<Zone>,
+    /// RAIL GRAPH (v0.635, superstructure M2 -- transit): rail transit as a NODE + EDGE graph (a
+    /// multi-stop line), generalising the v0.592 paired-platform link. Mirrors the road graph. Empty by
+    /// default. Cars + multi-stop routing are a later stage (M2b); this is the editable topology.
+    #[serde(default)]
+    pub rail_nodes: Vec<RailNode>,
+    #[serde(default)]
+    pub rail_edges: Vec<RailEdge>,
+}
+
+/// A rail-graph stop/junction (v0.635): a point a rail line routes through. Mirrors RoadNode.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RailNode {
+    pub id: u32,
+    /// Home-local ground position (x, z).
+    pub pos: (f32, f32),
+}
+
+/// A rail segment (v0.635): a straight track between two RailNodes (cars run it in M2b).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RailEdge {
+    pub from: u32,
+    pub to: u32,
 }
 
 /// A labelled bounded VOLUME inside a structure (v0.631): the macro building block of a mothership.
@@ -818,6 +840,55 @@ impl HomeStructure {
         self.road_edges.retain(|e| e.from != id && e.to != id);
     }
 
+    // --- RAIL graph (v0.635, M2). Mirrors the road graph; straight edges (no spline). ---
+
+    /// A fresh rail-node id (max existing + 1, or 1).
+    pub fn unique_rail_node_id(&self) -> u32 {
+        self.rail_nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1
+    }
+
+    /// A rail node's position by id (None if unknown).
+    pub fn rail_node_pos(&self, id: u32) -> Option<(f32, f32)> {
+        self.rail_nodes.iter().find(|n| n.id == id).map(|n| n.pos)
+    }
+
+    /// Add a rail node at `pos`; returns its new id.
+    pub fn add_rail_node(&mut self, pos: (f32, f32)) -> u32 {
+        let id = self.unique_rail_node_id();
+        self.rail_nodes.push(RailNode { id, pos });
+        id
+    }
+
+    /// Remove a rail node + every edge touching it -- keeps the graph consistent.
+    pub fn remove_rail_node(&mut self, id: u32) {
+        self.rail_nodes.retain(|n| n.id != id);
+        self.rail_edges.retain(|e| e.from != id && e.to != id);
+    }
+
+    /// Add a rail edge between two existing nodes. Refuses a self-loop, an unknown endpoint, or an exact
+    /// duplicate (either direction). Returns true if added.
+    pub fn add_rail_edge(&mut self, from: u32, to: u32) -> bool {
+        if from == to
+            || self.rail_node_pos(from).is_none()
+            || self.rail_node_pos(to).is_none()
+            || self.rail_edges.iter().any(|e| (e.from == from && e.to == to) || (e.from == to && e.to == from))
+        {
+            return false;
+        }
+        self.rail_edges.push(RailEdge { from, to });
+        true
+    }
+
+    /// Remove the rail edge at `idx`. Returns true if removed.
+    pub fn remove_rail_edge(&mut self, idx: usize) -> bool {
+        if idx < self.rail_edges.len() {
+            self.rail_edges.remove(idx);
+            true
+        } else {
+            false
+        }
+    }
+
     /// The sampled CENTERLINE (x, z) of a road edge as a smooth CURVE (v0.591). A Catmull-Rom spline
     /// through the edge's two nodes, with the off-curve control points taken from each node's SINGLE
     /// other neighbour -- so a road bends smoothly through a degree-2 "through" node. At a junction
@@ -1290,7 +1361,7 @@ mod tests {
     use super::*;
 
     fn box_only() -> HomeStructure {
-        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new() }
+        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new() }
     }
 
     /// v0.631 superstructure M1: zones add/remove with unique ids, the zone_types registry parses, and a
@@ -1328,6 +1399,34 @@ mod tests {
         assert!(!hs.remove_zone("nope"));
         assert_eq!(hs.zones.len(), 2);
         assert!(hs.zones.iter().any(|z| z.id == b));
+    }
+
+    /// v0.635 superstructure M2: the RAIL graph -- unique node ids, edge validation (self-loop / unknown /
+    /// duplicate refused), node removal prunes its edges, and the graph survives a RON round-trip.
+    #[test]
+    fn rail_graph_nodes_edges_and_round_trip() {
+        let mut hs = box_only();
+        let a = hs.add_rail_node((1.0, 2.0));
+        let b = hs.add_rail_node((10.0, 2.0));
+        let c = hs.add_rail_node((20.0, 2.0));
+        assert!(a != b && b != c, "minted ids are unique");
+        assert!(hs.add_rail_edge(a, b), "valid edge added");
+        assert!(hs.add_rail_edge(b, c), "valid multi-stop edge added");
+        assert!(!hs.add_rail_edge(a, b), "exact duplicate refused");
+        assert!(!hs.add_rail_edge(b, a), "reverse duplicate refused");
+        assert!(!hs.add_rail_edge(a, a), "self-loop refused");
+        assert!(!hs.add_rail_edge(a, 999), "unknown endpoint refused");
+        assert_eq!(hs.rail_edges.len(), 2);
+        // RON round-trip preserves the rail graph.
+        let ron = ron::ser::to_string(&hs).expect("serialize");
+        let back: HomeStructure = ron::from_str(&ron).expect("deserialize");
+        assert_eq!(back.rail_nodes.len(), 3);
+        assert_eq!(back.rail_edges.len(), 2);
+        // Removing a node prunes its edges.
+        hs.remove_rail_node(b);
+        assert_eq!(hs.rail_nodes.len(), 2);
+        assert!(hs.rail_edges.is_empty(), "both edges touched b -> pruned");
+        assert!(hs.remove_rail_edge(0) == false, "no edges left to remove by index");
     }
 
     /// Total wall vertices across BOTH the legacy `walls` family and the per-material `material_walls`
@@ -1369,7 +1468,7 @@ mod tests {
         let mut h = HomeStructure {
             width: 30.0, depth: 30.0, height: 3.0, shell_material: 1, roof_material: 4,
             walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
-            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(),
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         // A right-angle chain A(0,0) - B(10,0) - C(10,10): B is a degree-2 through-node.
         h.road_nodes.push(RoadNode { id: 1, pos: (0.0, 0.0) });
@@ -1398,7 +1497,7 @@ mod tests {
         let mut h = HomeStructure {
             width: 40.0, depth: 40.0, height: 3.0, shell_material: 1, roof_material: 4,
             walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
-            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(),
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         let base = wall_vcount(&h.generate_meshes());
         // Two train platforms; unpaired -> no track yet.
@@ -1420,7 +1519,7 @@ mod tests {
         let mut h = HomeStructure {
             width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4,
             walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
-            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(),
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         let n1 = h.unique_road_node_id();
         h.road_nodes.push(RoadNode { id: n1, pos: (2.0, 2.0) });
@@ -1567,7 +1666,7 @@ mod tests {
                     Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() },
                 ],
             )],
-            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(),
+            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         let tmp = std::env::temp_dir().join("humanity_home_structure_rt.ron");
         h.save(&tmp).expect("save");
@@ -1605,7 +1704,7 @@ mod tests {
     fn locks_round_trip_through_save() {
         use crate::ship::lock_types::LockState;
         let h = HomeStructure {
-            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(),
+            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
             walls: vec![wall((2.0, 2.0), (2.0, 12.0), vec![
                 Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true,
                     locks: vec![

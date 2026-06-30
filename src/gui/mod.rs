@@ -1540,6 +1540,9 @@ pub struct GuiState {
     /// Selected ZONE id (v0.634): picked in the 3D view -> its detail shows on the right + it highlights;
     /// draggable on the floor. Not serialized (a pure selection). None when no zone is selected.
     pub construction_zone_selected: Option<String>,
+    /// Rail-graph add-edge picker endpoints (v0.635, superstructure M2).
+    pub rail_edge_from: u32,
+    pub rail_edge_to: u32,
     /// Index of the placed structure selected in the editor (its detail shows on the right). (v0.583)
     pub construction_structure_selected: Option<usize>,
     /// Camera FOCUS request (v0.593): set to a world (x,y,z) when a left-list row is double-clicked;
@@ -2665,6 +2668,8 @@ impl Default for GuiState {
             construction_place_conduit_node: false,
             zone_add_type: String::new(),
             construction_zone_selected: None,
+            rail_edge_from: 0,
+            rail_edge_to: 0,
             construction_structure_selected: None,
             construction_focus_request: None,
             construction_object_filter: String::new(),

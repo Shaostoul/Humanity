@@ -873,6 +873,16 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Mothership rail graph (M2 transit) (v0.635)
+The first transit network of superstructure M2 (`docs/design/mothership-superstructure.md`): a RAIL line as
+a NODE + EDGE graph, generalising the v0.592 paired-train-platform link into a multi-stop line. Mirrors the
+road graph exactly. `HomeStructure` gained `rail_nodes` + `rail_edges` (serde-default; `RailNode` = id +
+(x,z) like `RoadNode`, `RailEdge` = from/to) with `add_rail_node` / `remove_rail_node` (prunes touching
+edges) / `add_rail_edge` (refuses self-loop, unknown endpoint, or either-direction duplicate). A "Rail"
+editor panel drops stops + wires edges (from/to pickers); a gizmo renders each stop as a pale-gold ring
+and each edge as a straight track line. Cars + multi-stop routing are M2b.
+- Native: `src/ship/home_structure.rs` (`RailNode`/`RailEdge` + the rail-graph methods + tests), `src/gui/pages/construction.rs` (`draw_rail_editor`), `src/lib.rs` (rail-graph gizmo render), `src/gui/mod.rs` (`rail_edge_from`/`rail_edge_to`)
+
 ### Zone interactivity -- click / drag / duplicate (v0.634)
 Zones (the macro districts from M1) became first-class gizmo objects, like machines/nodes. Click a zone
 box in the 3D view to SELECT it (ray-vs-AABB pick, runs last so it never steals a click from anything in
