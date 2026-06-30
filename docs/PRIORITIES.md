@@ -11,6 +11,25 @@
 
 ## Active focus
 
+> **>>> AUTONOMOUS BULK RUN PAUSED (v0.637, 2026-06-29 night) -- AWAITING OPERATOR BULK-TEST + STEER. <<<**
+> Loop mode shipped **9 verified construction/superstructure releases** (all compile relay+native, lib
+> tests, 5 lints, snapshots; exes archived): **v0.629** in-view conduit-node placement + drag-port-to-node;
+> **v0.630** per-utility usage meters + home self-sufficiency (non-punitive); **v0.631** mothership ZONES
+> (M1) -- zone_types registry + wireframe district boxes; **v0.632** conduit node TIERS + service-entrance
+> grid-tie; **v0.633** machine ROTATION (yaw); **v0.634** zone interactivity (click/drag/duplicate);
+> **v0.635** mothership RAIL node graph (M2); **v0.636** viewport HIDE-per-type (declutter); **v0.637** RAIL
+> CARS (animated). The loop then **stopped adding features by design** -- the contained editor backlog had
+> thinned to padding (more transit graphs = the same pattern repeated; toggles = trivial), and the genuinely
+> valuable next work needs YOUR steer. **Three open forks for the operator:**
+> 1. **M1 zone-editor architecture** -- one editor with a zoom/scale switch (mothership <-> zone <-> room)
+>    vs separate editors? (`docs/design/mothership-superstructure.md`). Blocks growing the zone editor.
+> 2. **M3 civic MALL / meeting zone** -- the social heart: shop stalls (owner + market listing), plaza,
+>    transit-hub access. Needs a design pass (ties the market + guild systems).
+> 3. **grid S3 multi-home tiers** -- substations aggregating homes -> the fleet grid + zone-level metering
+>    (`docs/design/grid-hierarchy.md`). Needs the home->fleet aggregation model decided.
+> **Bulk-test the 9 releases when you launch; your feedback (visual tweaks + which fork to take) sets the
+> next direction.** The loop is on a long heartbeat (30 min) until you steer; interrupt anytime to redirect.
+
 > **UTILITY TRIO + TELECOM + CONDUIT DEBUG-VIZ ALL SHIPPED (v0.604-623, 2026-06-29).** Power, water,
 > air are real at design-time AND runtime with consequence chains (power->water->food->vitals,
 > power->air->vitals); the telecom/data utility teaches real media tradeoffs (Cat6 / fibre / WiFi, with
