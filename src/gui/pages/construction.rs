@@ -2259,6 +2259,24 @@ fn draw_conduit_node_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                 changed |= ui.add(egui::DragValue::new(&mut cn.pos.1).speed(0.2).prefix("y ").suffix(" m")).changed();
                 changed |= ui.add(egui::DragValue::new(&mut cn.pos.2).speed(0.2).prefix("z ").suffix(" m")).changed();
             });
+            // TIER (v0.632): main / sub / subsub -- the trunk hierarchy. A main line is the spine a
+            // residential block ties into; subs branch off it; subsubs reach fixtures.
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("tier").size(theme.font_size_small).color(theme.text_muted()));
+                for (t, lbl) in [(0u8, "Main"), (1, "Sub"), (2, "Subsub")] {
+                    if ui.selectable_label(cn.tier == t, lbl).clicked() {
+                        cn.tier = t;
+                        changed = true;
+                    }
+                }
+            });
+            // SERVICE ENTRANCE / GRID TIE (v0.632): mark this node as the home's connection to the
+            // external mothership/fleet grid (rendered distinctly; foundation for the grid hierarchy).
+            let mut gt = cn.grid_tie;
+            if ui.checkbox(&mut gt, "Grid tie (connects to the external grid)").changed() {
+                cn.grid_tie = gt;
+                changed = true;
+            }
             ui.add_space(theme.spacing_sm);
             if ui.button(RichText::new("Remove").color(theme.danger())).clicked() {
                 h.remove_conduit_node(&id);

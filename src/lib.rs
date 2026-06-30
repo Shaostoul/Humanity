@@ -7581,14 +7581,24 @@ mod native_app {
                             if let Some(hm) = state.gui_state.home_machines.as_ref() {
                                 const CN: [f32; 4] = [0.4, 0.85, 0.95, 0.85];
                                 const CN_SEL: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+                                const GRID_TIE: [f32; 4] = [1.0, 0.55, 0.15, 0.95]; // amber service-entrance
                                 let sel_pipe = state.gui_state.construction_conduit_node_selected.as_deref();
                                 for n in &hm.conduit_nodes {
                                     let c = [n.pos.0, n.pos.1, n.pos.2];
+                                    // TIER sizes the node (v0.632): tier 0 main = a big ring, subs smaller,
+                                    // so the trunk-and-branch hierarchy reads at a glance.
+                                    let r = 0.30 - (n.tier as f32) * 0.07; // 0.30 / 0.23 / 0.16
                                     if sel_pipe == Some(n.id.as_str()) {
-                                        crate::renderer::line::push_circle(&mut ring_lines, c, 0.18, CN_SEL, 18);
-                                        crate::renderer::line::push_circle(&mut ring_lines, c, 0.3, CN_SEL, 18);
+                                        crate::renderer::line::push_circle(&mut ring_lines, c, r, CN_SEL, 18);
+                                        crate::renderer::line::push_circle(&mut ring_lines, c, r + 0.12, CN_SEL, 18);
                                     } else {
-                                        crate::renderer::line::push_circle(&mut ring_lines, c, 0.18, CN, 14);
+                                        crate::renderer::line::push_circle(&mut ring_lines, c, r, CN, 14);
+                                    }
+                                    // GRID TIE (v0.632): an amber double ring marks the external-grid
+                                    // connection (the service entrance) distinctly from interior junctions.
+                                    if n.grid_tie {
+                                        crate::renderer::line::push_circle(&mut ring_lines, c, r + 0.18, GRID_TIE, 20);
+                                        crate::renderer::line::push_circle(&mut ring_lines, c, r + 0.26, GRID_TIE, 20);
                                     }
                                 }
                             }

@@ -282,6 +282,11 @@ pub struct ConduitNode {
     /// Utility-kind hint for colour when an edge doesn't override ("water"|"power"|"gas"|...).
     #[serde(default)]
     pub kind: String,
+    /// SERVICE ENTRANCE / GRID TIE (v0.632, grid-hierarchy.md): this node is where the home/zone meets
+    /// the EXTERNAL grid (the mothership/fleet main line). Rendered distinctly; the foundation for tying
+    /// a home's island into the higher grid tiers. Default false (a plain interior junction).
+    #[serde(default)]
+    pub grid_tie: bool,
 }
 
 /// One endpoint of a conduit edge: a placed MACHINE id or a conduit NODE id. (v0.581)
@@ -563,7 +568,7 @@ impl MachineHome {
     /// Add a conduit junction node at `pos`; returns its new id. (v0.581)
     pub fn add_conduit_node(&mut self, pos: (f32, f32, f32), kind: &str) -> String {
         let id = self.unique_node_id();
-        self.conduit_nodes.push(ConduitNode { id: id.clone(), pos, tier: 0, kind: kind.to_string() });
+        self.conduit_nodes.push(ConduitNode { id: id.clone(), pos, tier: 0, kind: kind.to_string(), grid_tie: false });
         id
     }
 
@@ -1628,6 +1633,39 @@ mod tests {
         assert!(!home.remove_connection_between("a", "c"), "absent pair is a no-op");
         assert!(home.remove_connection_between("c", "b"), "the forward-or-reverse remaining wire removes");
         assert!(home.connections.is_empty());
+    }
+
+    /// v0.632: a conduit node defaults to tier 0 (main) + not a grid tie; both edits survive a RON
+    /// round-trip (the trunk hierarchy + service-entrance markers persist with the home).
+    #[test]
+    fn conduit_node_tier_and_grid_tie_round_trip() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("box".to_string(), test_def("box"));
+        let mut home = MachineHome {
+            catalog,
+            instances: Vec::new(),
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+        };
+        let id = home.add_conduit_node((1.0, 0.5, 2.0), "power");
+        {
+            let n = home.conduit_nodes.iter().find(|n| n.id == id).unwrap();
+            assert_eq!(n.tier, 0, "a new node defaults to the main tier");
+            assert!(!n.grid_tie, "a new node is not a grid tie");
+        }
+        {
+            let n = home.conduit_nodes.iter_mut().find(|n| n.id == id).unwrap();
+            n.tier = 2;
+            n.grid_tie = true;
+        }
+        let ron = ron::ser::to_string(&home).expect("serialize");
+        let back: MachineHome = ron::from_str(&ron).expect("deserialize");
+        let n = back.conduit_nodes.iter().find(|n| n.id == id).unwrap();
+        assert_eq!(n.tier, 2, "tier survives the round-trip");
+        assert!(n.grid_tie, "grid_tie survives the round-trip");
     }
 
     /// A machine def carrying a specific electrical role, for buildability tests.

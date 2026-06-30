@@ -39,8 +39,10 @@
 > > industrial+cargo -> M5 hangar/mech bays. **OPEN FORK (operator):** M1 used a panel+wireframe; the
 > > "one editor with a zoom/scale switch vs separate mothership/zone/room editors" question
 > > (mothership-superstructure.md) is deferred for your steer before the zone editor grows. (3) **Phase 3
-> > trunk hierarchy** -- `ConduitNode.tier` routing (`conduits-node-graph.md` Stage 2). (4) BULK
-> > nice-to-haves: conduit tier editing, machine rotation, viewport hide-per-type, a service-entrance node.
+> > trunk hierarchy** -- `ConduitNode.tier` ROUTING (`conduits-node-graph.md` Stage 2; tier EDITING +
+> > grid-tie node shipped v0.632, routing still TODO). (4) BULK nice-to-haves: ~~conduit tier editing~~ +
+> > ~~service-entrance node~~ DONE (v0.632); machine rotation (deferred -- ~25 MachineInstance positional
+> > literals, do carefully); viewport hide-per-type; zone select/drag gizmo.
 > >
 > > **VIEWPORT DRAG-TO-CONNECT shipped (v0.625):** wiring is now a 3D gesture -- select a machine, drag
 > > one of its coloured port handles onto another machine to wire them (the confusing from/to dropdowns

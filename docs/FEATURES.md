@@ -873,6 +873,15 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Conduit node TIERS + service-entrance grid-tie (v0.632)
+The conduit pipe-graph gained its trunk-hierarchy controls (`conduits-node-graph.md` Stage 2 foundation +
+`grid-hierarchy.md`). A selected conduit node's detail panel now sets its TIER -- Main (0) / Sub (1) /
+Subsub (2) -- and the node renders sized by tier (a main line is a big ring, subs smaller) so the trunk-
+and-branch reads at a glance. And a node can be flagged a GRID TIE / service entrance (where the home or
+zone meets the external mothership/fleet grid), rendered as a distinct amber double ring. `ConduitNode`
+gained a `grid_tie` bool (serde-default); both tier + grid_tie persist with the home.
+- Native: `src/machines.rs` (`ConduitNode.grid_tie`), `src/gui/pages/construction.rs` (tier selector + grid-tie checkbox in `draw_conduit_node_detail`), `src/lib.rs` (tier-sized + grid-tie node rendering)
+
 ### Mothership ZONES, M1 -- the macro layout primitive (v0.631)
 The first piece of the mothership superstructure (`docs/design/mothership-superstructure.md`): a ZONE is a
 labelled, bounded VOLUME -- the macro analogue of a room. A `zone_types.ron` registry (infinite-of-X)
