@@ -1559,6 +1559,10 @@ pub struct GuiState {
     /// "Pipe") can't be selected or grabbed in the viewport -- so you can lock your walls while arranging
     /// machines and never fat-finger them. Toggled per type-group in the object browser.
     pub construction_locked_types: std::collections::HashSet<String>,
+    /// Per-type HIDE set (v0.636): object types ("Machine"/"Wall"/"Pipe"/"Zone"/...) whose meshes +
+    /// gizmos are skipped in the 3D view (and can't be picked), to declutter a busy build. Mirrors the
+    /// lock set; not serialized (a pure view toggle).
+    pub construction_hidden_types: std::collections::HashSet<String>,
     /// Selected ROAD-graph node id (v0.597): its detail shows on the right; draggable in the viewport.
     pub construction_road_node_selected: Option<u32>,
     /// Selected CONDUIT-graph node id (v0.597): its detail shows on the right; draggable in the viewport.
@@ -2675,6 +2679,7 @@ impl Default for GuiState {
             construction_object_filter: String::new(),
             construction_multi: std::collections::HashSet::new(),
             construction_locked_types: std::collections::HashSet::new(),
+            construction_hidden_types: std::collections::HashSet::new(),
             construction_road_node_selected: None,
             construction_conduit_node_selected: None,
             construction_connection_selected: None,

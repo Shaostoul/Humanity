@@ -5437,14 +5437,18 @@ mod native_app {
                     if state.gui_state.construction_active && left && !egui_consumed {
                         // Per-type LOCK (v0.614): a locked type can't be picked/grabbed in the viewport.
                         // Precomputed as bools (no borrow held across the mutable try_pick_* calls below).
+                        // A type that's LOCKED or HIDDEN (v0.636) can't be picked/grabbed in the viewport.
                         let locked = &state.gui_state.construction_locked_types;
-                        let (lock_wall, lock_struct, lock_machine, lock_light, lock_road, lock_pipe) = (
-                            locked.contains("Wall"),
-                            locked.contains("Struct"),
-                            locked.contains("Machine"),
-                            locked.contains("Light"),
-                            locked.contains("Road"),
-                            locked.contains("Pipe"),
+                        let hidden = &state.gui_state.construction_hidden_types;
+                        let blocked = |t: &str| locked.contains(t) || hidden.contains(t);
+                        let (lock_wall, lock_struct, lock_machine, lock_light, lock_road, lock_pipe, hide_zone) = (
+                            blocked("Wall"),
+                            blocked("Struct"),
+                            blocked("Machine"),
+                            blocked("Light"),
+                            blocked("Road"),
+                            blocked("Pipe"),
+                            blocked("Zone"),
                         );
                         if pressed {
                             // Any viewport press re-decides the selection, so drop a stale PIPE / ZONE
@@ -5504,7 +5508,7 @@ mod native_app {
                             } else if !lock_wall && state.gui_state.home_structure.is_some() && try_pick_wall(state) {
                                 // Clicked a WALL SURFACE (v0.573): select that wall for editing --
                                 // unambiguous vs hunting for the right corner orb at an intersection.
-                            } else if state.gui_state.home_structure.is_some() && try_pick_zone(state) {
+                            } else if !hide_zone && state.gui_state.home_structure.is_some() && try_pick_zone(state) {
                                 // Clicked a ZONE box (v0.634): select + drag it. LAST before the room grab
                                 // so the big macro volumes never steal a click from anything in front.
                             } else {
@@ -6890,7 +6894,11 @@ mod native_app {
                     }
                     // Home machines: a separate list so the construction editor can rebuild just
                     // them on an edit. Hidden in the showroom (avatar-only). (v0.525)
+                    // v0.636: the per-type HIDE set skips a type's meshes to declutter a busy build.
+                    let hide_machines = state.gui_state.construction_hidden_types.contains("Machine");
+                    let hide_pipes = state.gui_state.construction_hidden_types.contains("Pipe");
                     if !showroom {
+                        if !hide_machines {
                         for &(mesh_idx, mat_idx, pos, yaw) in &state.machine_objects {
                             all_objects.push(RenderObject {
                                 position: pos,
@@ -6900,7 +6908,9 @@ mod native_app {
                                 material: mat_idx,
                             });
                         }
+                        }
                         // Connection cylinders (live, colored by kind; follow rooms). (v0.530)
+                        if !hide_pipes {
                         for &(mesh_idx, mat_idx, pos, rot, scale) in &state.connection_objects {
                             all_objects.push(RenderObject {
                                 position: pos,
@@ -6910,6 +6920,7 @@ mod native_app {
                                 material: mat_idx,
                             });
                         }
+                        } // end !hide_pipes
                         // Animated FLOW markers (v0.623): rainbow spheres travel along ONLY the SELECTED
                         // machine's connections, so it's obvious which runs go to/from the thing you're
                         // looking at. Every other pipe stays a quiet static line (drawn above). The
@@ -6974,6 +6985,7 @@ mod native_app {
                         // toward eventually plugging into a 3D model with real ports.
                         if state.gui_state.construction_active
                             && state.gui_state.construction_machine_selected.is_some()
+                            && !hide_machines
                         {
                             let sel = state.gui_state.construction_machine_selected.clone().unwrap_or_default();
                             let ports: Vec<(Vec3, String)> = state
@@ -7481,7 +7493,8 @@ mod native_app {
                             const RN_SEL: [f32; 4] = [1.0, 1.0, 1.0, 1.0]; // selected node (white, double ring)
                             const RE: [f32; 4] = [0.5, 0.8, 1.0, 0.8]; // edge centerline (cyan)
                             let sel_road = state.gui_state.construction_road_node_selected;
-                            for n in &hs.road_nodes {
+                            let hide_road = state.gui_state.construction_hidden_types.contains("Road"); // v0.636
+                            for n in hs.road_nodes.iter().filter(|_| !hide_road) {
                                 // Grabbable handle: a ring at the node (white double-ring when selected,
                                 // so you see which you're dragging). Click + hold to drag it. (v0.599)
                                 let c = [n.pos.0, 0.06, n.pos.1];
@@ -7492,7 +7505,7 @@ mod native_app {
                                     crate::renderer::line::push_circle(&mut ring_lines, c, 0.4, RN, 20);
                                 }
                             }
-                            for e in &hs.road_edges {
+                            for e in hs.road_edges.iter().filter(|_| !hide_road) {
                                 // Draw the CURVED centerline (v0.591) so the gizmo matches the rendered
                                 // road -- a polyline through the Catmull-Rom samples.
                                 let center = hs.road_edge_centerline(e);
@@ -7555,9 +7568,10 @@ mod native_app {
 
                             // MACHINE bounds gizmos (v0.587): a wireframe cube around each placed machine
                             // (from its pick volume centre+radius), so every machine has a helper widget
-                            // like the structures. Trims the click margin so the cube ~ the body.
+                            // like the structures. Trims the click margin so the cube ~ the body. (v0.636:
+                            // skipped when the Machine type is hidden.)
                             const MB: [f32; 4] = [0.55, 0.8, 0.95, 0.5];
-                            for (_id, center, radius) in &state.machine_pick {
+                            for (_id, center, radius) in state.machine_pick.iter().filter(|_| !state.gui_state.construction_hidden_types.contains("Machine")) {
                                 let r = (radius - 0.3).max(0.2);
                                 let c = *center;
                                 let fc = [(c.x - r, c.z - r), (c.x + r, c.z - r), (c.x + r, c.z + r), (c.x - r, c.z + r)];
@@ -7663,7 +7677,8 @@ mod native_app {
                                 const CN_SEL: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
                                 const GRID_TIE: [f32; 4] = [1.0, 0.55, 0.15, 0.95]; // amber service-entrance
                                 let sel_pipe = state.gui_state.construction_conduit_node_selected.as_deref();
-                                for n in &hm.conduit_nodes {
+                                let hide_pipe_nodes = state.gui_state.construction_hidden_types.contains("Pipe"); // v0.636
+                                for n in hm.conduit_nodes.iter().filter(|_| !hide_pipe_nodes) {
                                     let c = [n.pos.0, n.pos.1, n.pos.2];
                                     // TIER sizes the node (v0.632): tier 0 main = a big ring, subs smaller,
                                     // so the trunk-and-branch hierarchy reads at a glance.

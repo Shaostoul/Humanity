@@ -873,6 +873,15 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Viewport hide-per-type (declutter) (v0.636)
+A per-type HIDE toggle in the object browser, beside the existing Lock toggle, for each type group
+(Walls / Structures / Machines / Lights / Road nodes / Pipe nodes). Hiding a type skips its meshes +
+gizmos in the 3D view and makes it un-pickable -- so a busy build can be decluttered to focus on one
+system at a time. Machines hides the machine bodies + bounds cubes + port nodes; Pipe hides the routed
+pipes + conduit-node rings; Road hides the road-graph gizmo; all six disable picking (like Lock). The
+group header shows a `[hidden]` badge. Not serialized (a pure view toggle), mirroring lock-per-type.
+- Native: `src/gui/mod.rs` (`construction_hidden_types`), `src/gui/pages/construction.rs` (Hide/Show toggle + `Act::ToggleHidden`), `src/lib.rs` (render + pick gating on the hidden set)
+
 ### Mothership rail graph (M2 transit) (v0.635)
 The first transit network of superstructure M2 (`docs/design/mothership-superstructure.md`): a RAIL line as
 a NODE + EDGE graph, generalising the v0.592 paired-train-platform link into a multi-stop line. Mirrors the

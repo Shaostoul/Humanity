@@ -2614,9 +2614,10 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             Key::ConduitNode(id) => format!("Pipe:{id}"),
         }
     }
-    // Snapshot the multi-set + locked-types so the row loop can read them without borrowing state.
+    // Snapshot the multi-set + locked/hidden-types so the row loop can read them without borrowing state.
     let multi = state.construction_multi.clone();
     let locked_types = state.construction_locked_types.clone();
+    let hidden_types = state.construction_hidden_types.clone();
     enum Act {
         Select(Key),
         ToggleMulti(String),
@@ -2628,6 +2629,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ClearMulti,
         ToggleLock(String),
         UnlockAll,
+        ToggleHidden(String),
     }
     let mut act: Option<Act> = None;
     egui::CollapsingHeader::new(RichText::new(format!("Objects ({total})")).strong().color(theme.text_primary()))
@@ -2690,18 +2692,30 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // (id_salt persists), so default_open alone can't reopen it. Some(true) overrides.
                     let force_open = if group.iter().any(|r| r.selected) { Some(true) } else { None };
                     let is_locked = locked_types.contains(tag);
-                    let title = format!("{plural} ({}){}", group.len(), if is_locked { "  [locked]" } else { "" });
+                    let is_hidden = hidden_types.contains(tag);
+                    let badge = match (is_locked, is_hidden) {
+                        (true, true) => "  [locked, hidden]",
+                        (true, false) => "  [locked]",
+                        (false, true) => "  [hidden]",
+                        (false, false) => "",
+                    };
+                    let title = format!("{plural} ({}){badge}", group.len());
                     egui::CollapsingHeader::new(RichText::new(title)
-                            .color(if is_locked { theme.warning() } else { theme.text_secondary() }))
+                            .color(if is_locked || is_hidden { theme.warning() } else { theme.text_secondary() }))
                         .id_salt(tag)
                         .open(force_open)
                         .default_open(open)
                         .show(ui, |ui| {
-                            // Per-type LOCK toggle (v0.614): a locked type can't be picked/grabbed in the
-                            // viewport + shows no [x] here, so a busy build won't fat-finger it.
-                            if ui.small_button(if is_locked { "Unlock type" } else { "Lock type" }).clicked() {
-                                act = Some(Act::ToggleLock(tag.to_string()));
-                            }
+                            // Per-type LOCK + HIDE toggles (v0.614/v0.636): a locked type can't be picked
+                            // in the viewport; a hidden type's meshes + gizmos are skipped (declutter).
+                            ui.horizontal(|ui| {
+                                if ui.small_button(if is_locked { "Unlock type" } else { "Lock type" }).clicked() {
+                                    act = Some(Act::ToggleLock(tag.to_string()));
+                                }
+                                if ui.small_button(if is_hidden { "Show" } else { "Hide" }).clicked() {
+                                    act = Some(Act::ToggleHidden(tag.to_string()));
+                                }
+                            });
                             for row in &group {
                                 ui.horizontal(|ui| {
                                     // A LIGHT row gets a dedicated on/off checkbox; clicking it toggles
@@ -2774,6 +2788,11 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Some(Act::ToggleLock(tag)) => {
             if !state.construction_locked_types.remove(&tag) {
                 state.construction_locked_types.insert(tag);
+            }
+        }
+        Some(Act::ToggleHidden(tag)) => {
+            if !state.construction_hidden_types.remove(&tag) {
+                state.construction_hidden_types.insert(tag);
             }
         }
         Some(Act::UnlockAll) => state.construction_locked_types.clear(),
