@@ -2350,6 +2350,54 @@ mod native_app {
         }
     }
 
+    /// Hit-test the cursor ray against the ZONE boxes (v0.634): ray-vs-AABB (slab method), nearest box
+    /// entered. On a hit, SELECT the zone (its detail shows on the right + it highlights) and arm a floor
+    /// drag. Runs LAST in the pick chain (before the room grab) so a zone -- a big background volume --
+    /// never steals a click from a machine / wall / node in front of it. Returns true on a hit.
+    fn try_pick_zone(state: &mut EngineState) -> bool {
+        let zones: Vec<(String, (f32, f32, f32), (f32, f32, f32))> = match state.gui_state.home_structure.as_ref() {
+            Some(hs) => hs.zones.iter().map(|z| (z.id.clone(), z.origin, z.size)).collect(),
+            None => return false,
+        };
+        if zones.is_empty() {
+            return false;
+        }
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let inv = Vec3::new(1.0 / dir.x, 1.0 / dir.y, 1.0 / dir.z); // 0 component -> inf, slab-safe
+        let mut best: Option<(String, f32)> = None;
+        for (id, o, s) in &zones {
+            let mn = Vec3::new(o.0, o.1, o.2);
+            let mx = Vec3::new(o.0 + s.0, o.1 + s.1, o.2 + s.2);
+            let t1 = (mn - origin) * inv;
+            let t2 = (mx - origin) * inv;
+            let entry = t1.min(t2).max_element();
+            let exit = t1.max(t2).min_element();
+            if exit >= entry.max(0.0) {
+                let t = entry.max(0.0);
+                if best.as_ref().map_or(true, |(_, bt)| t < *bt) {
+                    best = Some((id.clone(), t));
+                }
+            }
+        }
+        if let Some((id, _)) = best {
+            let g = &mut state.gui_state;
+            g.construction_zone_selected = Some(id.clone());
+            g.construction_machine_selected = None;
+            g.construction_wall_selected = None;
+            g.construction_light_selected = None;
+            g.construction_structure_selected = None;
+            g.construction_road_node_selected = None;
+            g.construction_conduit_node_selected = None;
+            g.construction_connection_selected = None;
+            state.construction_object_grab = Some(ObjectGrab::Zone(id));
+            state.construction_grab_press = Some(state.cursor_pos);
+            true
+        } else {
+            false
+        }
+    }
+
     /// Hit-test the cursor ray against the WALL SURFACES (v0.573). On a hit, SELECT that wall (its
     /// corners/openings show on the right panel) -- so clicking anywhere on a wall's face picks it,
     /// unambiguously, instead of having to click a shared corner orb at a multi-wall intersection.
@@ -2825,6 +2873,16 @@ mod native_app {
                     }
                 }
                 state.gui_state.construction_machines_dirty = true;
+            }
+            ObjectGrab::Zone(id) => {
+                // Drag a zone on the floor so its CENTRE follows the cursor (keeps y + size). Zones
+                // render live from home_structure.zones, so no rebuild flag is needed. (v0.634)
+                if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                    if let Some(z) = hs.zones.iter_mut().find(|z| z.id == id) {
+                        z.origin.0 = nx - z.size.0 * 0.5;
+                        z.origin.2 = nz - z.size.2 * 0.5;
+                    }
+                }
             }
         }
     }
@@ -4022,6 +4080,7 @@ mod native_app {
         Structure(usize),
         RoadNode(u32),
         ConduitNode(String),
+        Zone(String),
     }
 
     /// Construction opening-gizmo drag (v0.468, rebuilt v0.469): which room+opening is grabbed,
@@ -5388,10 +5447,11 @@ mod native_app {
                             locked.contains("Pipe"),
                         );
                         if pressed {
-                            // Any viewport press re-decides the selection, so drop a stale PIPE selection
-                            // up front (v0.626); try_pick_connection below re-sets it if a pipe is hit.
+                            // Any viewport press re-decides the selection, so drop a stale PIPE / ZONE
+                            // selection up front (v0.626/v0.634); the try_pick_* below re-set them on a hit.
                             // GUI clicks (egui_consumed) never reach here, so the right-panel Remove is safe.
                             state.gui_state.construction_connection_selected = None;
+                            state.gui_state.construction_zone_selected = None;
                             // Wall-drawing mode owns the click first (v0.534): drop a corner node.
                             // Else holding a palette item -> drop it; else grab a room.
                             if state.gui_state.construction_place_conduit_node {
@@ -5444,6 +5504,9 @@ mod native_app {
                             } else if !lock_wall && state.gui_state.home_structure.is_some() && try_pick_wall(state) {
                                 // Clicked a WALL SURFACE (v0.573): select that wall for editing --
                                 // unambiguous vs hunting for the right corner orb at an intersection.
+                            } else if state.gui_state.home_structure.is_some() && try_pick_zone(state) {
+                                // Clicked a ZONE box (v0.634): select + drag it. LAST before the room grab
+                                // so the big macro volumes never steal a click from anything in front.
                             } else {
                                 try_begin_room_grab(state);
                             }
@@ -7442,11 +7505,13 @@ mod native_app {
                             // (residential / industrial / hangar / the civic mall / ...) drawn as a
                             // coloured wire box from its origin to origin+size, so the mothership layout
                             // reads at a glance. Edited in the Zones panel.
+                            let sel_zone = state.gui_state.construction_zone_selected.as_deref();
                             for z in &hs.zones {
                                 let (ox, oy, oz) = z.origin;
                                 let (sw, sh, sd) = z.size;
                                 let c = crate::ship::structure::zone_type(&z.type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
-                                let col = [c.0, c.1, c.2, 0.9];
+                                // The SELECTED zone draws bright white so you see which the panel edits. (v0.634)
+                                let col = if sel_zone == Some(z.id.as_str()) { [1.0, 1.0, 1.0, 1.0] } else { [c.0, c.1, c.2, 0.9] };
                                 let (x1, y1, z1) = (ox + sw, oy + sh, oz + sd);
                                 let bot = [[ox, oy, oz], [x1, oy, oz], [x1, oy, z1], [ox, oy, z1]];
                                 let top = [[ox, y1, oz], [x1, y1, oz], [x1, y1, z1], [ox, y1, z1]];

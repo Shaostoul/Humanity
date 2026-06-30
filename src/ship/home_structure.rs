@@ -408,6 +408,18 @@ impl HomeStructure {
         self.zones.len() != before
     }
 
+    /// Duplicate the zone with this id (v0.634): a copy with a fresh id, nudged +2 m in x/z so it's
+    /// visible. Returns the new id (None if the source id is unknown).
+    pub fn duplicate_zone(&mut self, id: &str) -> Option<String> {
+        let mut z = self.zones.iter().find(|z| z.id == id)?.clone();
+        let new_id = self.unique_zone_id();
+        z.id = new_id.clone();
+        z.origin.0 += 2.0;
+        z.origin.2 += 2.0;
+        self.zones.push(z);
+        Some(new_id)
+    }
+
     /// Load from a RON file; None (with a warning) on a missing/invalid file.
     pub fn load(path: &Path) -> Option<Self> {
         let text = std::fs::read_to_string(path).ok()?;
@@ -1302,11 +1314,20 @@ mod tests {
         assert_eq!(back.zones.len(), 2, "zones survive the round-trip");
         assert_eq!(back.zones[1].type_id, "industrial");
         assert_eq!(back.zones[1].size, (40.0, 8.0, 30.0));
+        // Duplicate a zone -> a fresh id, same type, nudged +2 m so it's visible (v0.634).
+        let c = hs.duplicate_zone(&b).expect("duplicate an existing zone");
+        assert_ne!(c, b);
+        assert_eq!(hs.zones.len(), 3);
+        let dup = hs.zones.iter().find(|z| z.id == c).unwrap();
+        let orig = hs.zones.iter().find(|z| z.id == b).unwrap();
+        assert_eq!(dup.type_id, orig.type_id);
+        assert!((dup.origin.0 - orig.origin.0 - 2.0).abs() < 1e-6, "duplicate is nudged +2 m in x");
+        assert!(hs.duplicate_zone("nope").is_none(), "duplicating an unknown id is None");
         // Remove by id.
         assert!(hs.remove_zone(&a));
         assert!(!hs.remove_zone("nope"));
-        assert_eq!(hs.zones.len(), 1);
-        assert_eq!(hs.zones[0].id, b);
+        assert_eq!(hs.zones.len(), 2);
+        assert!(hs.zones.iter().any(|z| z.id == b));
     }
 
     /// Total wall vertices across BOTH the legacy `walls` family and the per-material `material_walls`

@@ -41,9 +41,10 @@
 > > (mothership-superstructure.md) is deferred for your steer before the zone editor grows. (3) **Phase 3
 > > trunk hierarchy** -- `ConduitNode.tier` ROUTING (`conduits-node-graph.md` Stage 2; tier EDITING +
 > > grid-tie node shipped v0.632, routing still TODO). (4) BULK nice-to-haves: ~~conduit tier editing~~ +
-> > ~~service-entrance node~~ (v0.632) + ~~machine rotation~~ (v0.633) DONE; viewport hide-per-type; zone
-> > select/drag gizmo. **NEXT loop item: superstructure M2 transit graphs** (rail multi-stop / elevator /
-> > teleporter / cargo) OR zone select+drag gizmo.
+> > ~~service-entrance node~~ (v0.632) + ~~machine rotation~~ (v0.633) + ~~zone
+> > select/drag/duplicate gizmo~~ (v0.634) DONE; viewport hide-per-type. **NEXT loop item: superstructure
+> > M2 transit graphs** (rail multi-stop / elevator / teleporter / cargo -- watch the ~8 HomeStructure
+> > positional literals when adding serde-default vec fields).
 > >
 > > **VIEWPORT DRAG-TO-CONNECT shipped (v0.625):** wiring is now a 3D gesture -- select a machine, drag
 > > one of its coloured port handles onto another machine to wire them (the confusing from/to dropdowns

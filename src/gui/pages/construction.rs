@@ -814,6 +814,11 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 draw_connection_detail(ui, theme, state);
                 return;
             }
+            // A selected ZONE takes the panel (v0.634): clicked its box in the 3D view.
+            if !other_selected && state.construction_zone_selected.is_some() {
+                draw_zone_detail(ui, theme, state);
+                return;
+            }
             // A selected STRUCTURE takes the panel (v0.583): clicked its gizmo or list row.
             if state.construction_structure_selected.is_some() {
                 draw_structure_detail(ui, theme, state);
@@ -2258,6 +2263,78 @@ fn draw_road_node_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     }
 }
 
+/// Right-panel detail for a ZONE selected by clicking its box in the 3D view (v0.634): type + purpose,
+/// editable origin/size, Duplicate, Remove, Deselect. Zones render live, so edits show immediately.
+fn draw_zone_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let id = match &state.construction_zone_selected {
+        Some(i) => i.clone(),
+        None => return,
+    };
+    let z = state.home_structure.as_ref().and_then(|hs| hs.zones.iter().find(|z| z.id == id).cloned());
+    let z = match z {
+        Some(z) => z,
+        None => {
+            state.construction_zone_selected = None; // the zone was removed out from under the selection
+            return;
+        }
+    };
+    let c = crate::ship::structure::zone_type(&z.type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
+    let col = egui::Color32::from_rgb((c.0 * 255.0) as u8, (c.1 * 255.0) as u8, (c.2 * 255.0) as u8);
+    ui.label(RichText::new(zone_label(&z.type_id)).strong().size(theme.font_size_body).color(col));
+    ui.label(RichText::new(format!("zone {id}")).size(theme.font_size_small).color(theme.text_muted()));
+    if let Some(zt) = crate::ship::structure::zone_type(&z.type_id) {
+        ui.label(RichText::new(&zt.purpose).size(theme.font_size_small).color(theme.text_muted()));
+    }
+    let (mut o, mut s, mut ch) = (z.origin, z.size, false);
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("at").size(theme.font_size_small).color(theme.text_muted()));
+        ch |= ui.add(egui::DragValue::new(&mut o.0).speed(0.5).prefix("x ").suffix(" m")).changed();
+        ch |= ui.add(egui::DragValue::new(&mut o.1).speed(0.5).prefix("y ").suffix(" m")).changed();
+        ch |= ui.add(egui::DragValue::new(&mut o.2).speed(0.5).prefix("z ").suffix(" m")).changed();
+    });
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("size").size(theme.font_size_small).color(theme.text_muted()));
+        ch |= ui.add(egui::DragValue::new(&mut s.0).speed(0.5).prefix("w ").range(1.0..=400.0)).changed();
+        ch |= ui.add(egui::DragValue::new(&mut s.1).speed(0.5).prefix("h ").range(1.0..=100.0)).changed();
+        ch |= ui.add(egui::DragValue::new(&mut s.2).speed(0.5).prefix("d ").range(1.0..=400.0)).changed();
+    });
+    ui.add_space(theme.spacing_xs);
+    let (mut dup, mut rem, mut deselect) = (false, false, false);
+    ui.horizontal(|ui| {
+        if ui.small_button("Duplicate").clicked() {
+            dup = true;
+        }
+        if ui.button(RichText::new("Remove").color(theme.danger())).clicked() {
+            rem = true;
+        }
+        if ui.small_button("Deselect").clicked() {
+            deselect = true;
+        }
+    });
+    let mut new_sel: Option<Option<String>> = None;
+    if let Some(hs) = state.home_structure.as_mut() {
+        if ch {
+            if let Some(zz) = hs.zones.iter_mut().find(|z| z.id == id) {
+                zz.origin = o;
+                zz.size = s;
+            }
+        }
+        if dup {
+            new_sel = Some(hs.duplicate_zone(&id));
+        }
+        if rem {
+            hs.remove_zone(&id);
+            new_sel = Some(None);
+        }
+    }
+    if let Some(sel) = new_sel {
+        state.construction_zone_selected = sel;
+    }
+    if deselect {
+        state.construction_zone_selected = None;
+    }
+}
+
 /// Right-panel detail for a selected CONDUIT-graph (pipe) node (v0.597): id, editable x/y/z, kind,
 /// connected-edge count, Remove. Edits flag the machines dirty so the routing rebuilds.
 fn draw_conduit_node_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
@@ -2589,6 +2666,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         s.construction_road_node_selected = None;
         s.construction_conduit_node_selected = None;
         s.construction_connection_selected = None; // v0.626: a list select drops the pipe highlight
+        s.construction_zone_selected = None; // v0.634: ... and the zone highlight
     };
     match act {
         Some(Act::Select(k)) => {

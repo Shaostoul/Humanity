@@ -873,6 +873,15 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Zone interactivity -- click / drag / duplicate (v0.634)
+Zones (the macro districts from M1) became first-class gizmo objects, like machines/nodes. Click a zone
+box in the 3D view to SELECT it (ray-vs-AABB pick, runs last so it never steals a click from anything in
+front); the selected box highlights bright white and its detail shows on the right -- type + purpose,
+editable origin/size, and Duplicate / Remove / Deselect. Drag a selected zone on the floor (its centre
+follows the cursor). `duplicate_zone` clones a zone with a fresh id nudged +2 m. No new persisted field
+(`construction_zone_selected` is a pure selection); zones render live so edits show immediately.
+- Native: `src/lib.rs` (`try_pick_zone` + `ObjectGrab::Zone` drag + selected-zone highlight), `src/ship/home_structure.rs` (`duplicate_zone`), `src/gui/pages/construction.rs` (`draw_zone_detail` + dispatch), `src/gui/mod.rs` (`construction_zone_selected`)
+
 ### Machine rotation (yaw) (v0.633)
 A placed machine can now be ROTATED about its vertical axis -- so a box-shaped machine (a teleporter, a
 server, a battery bank) can face a chosen direction instead of always being axis-aligned. `MachineInstance`
