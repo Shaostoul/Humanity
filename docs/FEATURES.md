@@ -873,6 +873,18 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Mothership ZONES, M1 -- the macro layout primitive (v0.631)
+The first piece of the mothership superstructure (`docs/design/mothership-superstructure.md`): a ZONE is a
+labelled, bounded VOLUME -- the macro analogue of a room. A `zone_types.ron` registry (infinite-of-X)
+defines the districts the operator named -- residential, civic mall / meeting zone, industrial / factory,
+hangar bay, mech bay, cargo, storage, agriculture, power, medical, transit hub -- each with a colour,
+purpose, and default size. The Construction editor's "Zones" panel adds them (type picker -> drops one
+centred in the footprint), lists them, and edits their origin/size; each renders as a colour-coded
+wireframe box in build mode so the layout reads at a glance. Zones live on `HomeStructure` (serde-default,
+so every existing home parses unchanged) and persist with Save. Data model only this stage -- transit
+graphs (M2), the civic mall (M3), industrial+cargo (M4), hangar/mech (M5) build on it.
+- Native: `src/ship/structure.rs` (`ZoneType` + `zone_types()`), `src/ship/home_structure.rs` (`Zone` + `zones` + `add_zone`/`remove_zone`), `data/blueprints/zone_types.ron`, `src/gui/pages/construction.rs` (`draw_zones_editor`), `src/lib.rs` (zone wireframe render)
+
 ### Usage meters + home self-sufficiency (grid S2, v0.630)
 The Buildability panel now shows per-utility USAGE METERS: for power (kWh/day), water (L/day), and data
 (Mbps) it reports the home's daily GENERATION vs DEMAND and a self-sufficiency fraction. Framed to TEACH,

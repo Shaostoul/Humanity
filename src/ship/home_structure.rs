@@ -249,6 +249,29 @@ pub struct HomeStructure {
     pub road_nodes: Vec<RoadNode>,
     #[serde(default)]
     pub road_edges: Vec<RoadEdge>,
+    /// ZONES (v0.631, superstructure M1 -- docs/design/mothership-superstructure.md): labelled bounded
+    /// VOLUMES with a type (residential / industrial / hangar / mech-bay / cargo / storage / civic-mall
+    /// / ...), the macro analogue of a room. A mothership is a big structure carved into zones tied by
+    /// transit. Empty by default (every existing home + test parses unchanged). The editor places +
+    /// resizes them as wireframe boxes; later stages add transit + zone-scoped sub-structures.
+    #[serde(default)]
+    pub zones: Vec<Zone>,
+}
+
+/// A labelled bounded VOLUME inside a structure (v0.631): the macro building block of a mothership.
+/// `origin` is the min corner (home-local metres), `size` the extent. `type_id` -> `zone_types.ron`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Zone {
+    pub id: String,
+    /// -> `zone_types.ron` id (e.g. "residential", "industrial", "civic_mall").
+    pub type_id: String,
+    /// Min corner in home-local metres (x, y, z).
+    pub origin: (f32, f32, f32),
+    /// Extent in metres (width X, height Y, depth Z).
+    pub size: (f32, f32, f32),
+    /// Optional human label (falls back to the type label).
+    #[serde(default)]
+    pub label: String,
 }
 
 /// A road-graph junction (v0.586): a point on the ground the road network routes through.
@@ -359,6 +382,32 @@ pub fn wall_material(id: u32) -> Option<&'static WallMaterial> {
 }
 
 impl HomeStructure {
+    /// Mint a unique zone id (v0.631), e.g. "zone_3".
+    pub fn unique_zone_id(&self) -> String {
+        let mut n = self.zones.len();
+        loop {
+            let id = format!("zone_{n}");
+            if !self.zones.iter().any(|z| z.id == id) {
+                return id;
+            }
+            n += 1;
+        }
+    }
+
+    /// Add a zone of `type_id` at `origin` with `size`; returns its new id. (v0.631, superstructure M1)
+    pub fn add_zone(&mut self, type_id: &str, origin: (f32, f32, f32), size: (f32, f32, f32)) -> String {
+        let id = self.unique_zone_id();
+        self.zones.push(Zone { id: id.clone(), type_id: type_id.to_string(), origin, size, label: String::new() });
+        id
+    }
+
+    /// Remove the zone with this id. Returns true if one was removed. (v0.631)
+    pub fn remove_zone(&mut self, id: &str) -> bool {
+        let before = self.zones.len();
+        self.zones.retain(|z| z.id != id);
+        self.zones.len() != before
+    }
+
     /// Load from a RON file; None (with a warning) on a missing/invalid file.
     pub fn load(path: &Path) -> Option<Self> {
         let text = std::fs::read_to_string(path).ok()?;
@@ -1229,7 +1278,35 @@ mod tests {
     use super::*;
 
     fn box_only() -> HomeStructure {
-        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new() }
+        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new() }
+    }
+
+    /// v0.631 superstructure M1: zones add/remove with unique ids, the zone_types registry parses, and a
+    /// home with zones survives a RON round-trip (the macro layout persists with the structure).
+    #[test]
+    fn zones_add_remove_and_round_trip() {
+        // The registry parses + carries the operator's named districts.
+        let zt = crate::ship::structure::zone_types();
+        assert!(zt.len() >= 8, "zone_types.ron parses the district registry");
+        assert!(zt.iter().any(|t| t.id == "civic_mall"), "the public mall/meeting zone is a type");
+        assert!(crate::ship::structure::zone_type("hangar").is_some());
+
+        let mut hs = box_only();
+        let a = hs.add_zone("residential", (1.0, 0.0, 2.0), (20.0, 4.0, 20.0));
+        let b = hs.add_zone("industrial", (30.0, 0.0, 2.0), (40.0, 8.0, 30.0));
+        assert_ne!(a, b, "minted ids are unique");
+        assert_eq!(hs.zones.len(), 2);
+        // RON round-trip preserves the zones.
+        let ron = ron::ser::to_string(&hs).expect("serialize");
+        let back: HomeStructure = ron::from_str(&ron).expect("deserialize");
+        assert_eq!(back.zones.len(), 2, "zones survive the round-trip");
+        assert_eq!(back.zones[1].type_id, "industrial");
+        assert_eq!(back.zones[1].size, (40.0, 8.0, 30.0));
+        // Remove by id.
+        assert!(hs.remove_zone(&a));
+        assert!(!hs.remove_zone("nope"));
+        assert_eq!(hs.zones.len(), 1);
+        assert_eq!(hs.zones[0].id, b);
     }
 
     /// Total wall vertices across BOTH the legacy `walls` family and the per-material `material_walls`
@@ -1271,7 +1348,7 @@ mod tests {
         let mut h = HomeStructure {
             width: 30.0, depth: 30.0, height: 3.0, shell_material: 1, roof_material: 4,
             walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
-            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(),
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(),
         };
         // A right-angle chain A(0,0) - B(10,0) - C(10,10): B is a degree-2 through-node.
         h.road_nodes.push(RoadNode { id: 1, pos: (0.0, 0.0) });
@@ -1300,7 +1377,7 @@ mod tests {
         let mut h = HomeStructure {
             width: 40.0, depth: 40.0, height: 3.0, shell_material: 1, roof_material: 4,
             walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
-            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(),
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(),
         };
         let base = wall_vcount(&h.generate_meshes());
         // Two train platforms; unpaired -> no track yet.
@@ -1322,7 +1399,7 @@ mod tests {
         let mut h = HomeStructure {
             width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4,
             walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
-            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(),
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(),
         };
         let n1 = h.unique_road_node_id();
         h.road_nodes.push(RoadNode { id: n1, pos: (2.0, 2.0) });
@@ -1469,7 +1546,7 @@ mod tests {
                     Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() },
                 ],
             )],
-            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(),
+            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(),
         };
         let tmp = std::env::temp_dir().join("humanity_home_structure_rt.ron");
         h.save(&tmp).expect("save");
@@ -1507,7 +1584,7 @@ mod tests {
     fn locks_round_trip_through_save() {
         use crate::ship::lock_types::LockState;
         let h = HomeStructure {
-            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(),
+            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(),
             walls: vec![wall((2.0, 2.0), (2.0, 12.0), vec![
                 Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true,
                     locks: vec![

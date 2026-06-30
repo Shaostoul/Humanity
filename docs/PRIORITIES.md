@@ -32,12 +32,15 @@
 > > view" drops a conduit node on a floor click, and a dragged machine port can land ON a node (branches
 > > onto the main line). **LOOP MODE ENGAGED (operator, 2026-06-29 eve):** keep shipping the backlog
 > > autonomously. **Backlog order:** (1) ~~grid S2 metering~~ DONE (v0.630: `utility_meters` per-utility
-> > generation/demand/self-sufficiency in the Buildability panel, non-punitive). (2) **Phase 3 / trunk
-> > hierarchy (NEXT)** -- `ConduitNode.tier` routing so pipes bundle along a spine (`conduits-node-graph.md`
-> > Stage 2). (3) **MOTHERSHIP SUPERSTRUCTURE** (`docs/design/mothership-superstructure.md`): M1 Zone
-> > primitive -> M2 transit node graphs (rail multi-stop / elevator shafts / teleporter / cargo tunnels)
-> > -> M3 civic MALL/meeting zone -> M4 industrial+cargo -> M5 hangar/mech bays. (4) nice-to-haves:
-> > rotation gizmo for machines, viewport hide-per-type, a home service-entrance grid-tie node.
+> > generation/demand/self-sufficiency in the Buildability panel, non-punitive). (2) **MOTHERSHIP SUPERSTRUCTURE**
+> > (`docs/design/mothership-superstructure.md`): ~~M1 Zone primitive~~ DONE (v0.631: zone_types registry +
+> > Zone on HomeStructure + editor + wireframe render) -> **M2 transit node graphs (NEXT)** (rail multi-
+> > stop / elevator shafts / teleporter / cargo tunnels) -> M3 civic MALL/meeting zone -> M4
+> > industrial+cargo -> M5 hangar/mech bays. **OPEN FORK (operator):** M1 used a panel+wireframe; the
+> > "one editor with a zoom/scale switch vs separate mothership/zone/room editors" question
+> > (mothership-superstructure.md) is deferred for your steer before the zone editor grows. (3) **Phase 3
+> > trunk hierarchy** -- `ConduitNode.tier` routing (`conduits-node-graph.md` Stage 2). (4) BULK
+> > nice-to-haves: conduit tier editing, machine rotation, viewport hide-per-type, a service-entrance node.
 > >
 > > **VIEWPORT DRAG-TO-CONNECT shipped (v0.625):** wiring is now a 3D gesture -- select a machine, drag
 > > one of its coloured port handles onto another machine to wire them (the confusing from/to dropdowns

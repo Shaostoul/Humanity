@@ -1,0 +1,85 @@
+// Zone types (v0.631, superstructure M1 -- docs/design/mothership-superstructure.md).
+// A ZONE is a labelled, bounded macro VOLUME a mothership is carved into -- the macro analogue of a
+// room. Infinite-of-X: add a district kind by adding one entry here, no code. color is the wireframe +
+// label tint; default_size (w X, h Y, d Z) seeds a freshly placed zone. These cover the districts the
+// operator named (hangar / mech bays, cargo tunnels, storage, industrial factory, the civic mall) plus
+// the obvious civic ones; extend freely.
+[
+    (
+        id: "residential",
+        label: "Residential",
+        color: (0.45, 0.70, 0.95),
+        purpose: "Homes + dwellings; where people live. Ties to the home build editor.",
+        default_size: (20.0, 4.0, 20.0),
+    ),
+    (
+        id: "civic_mall",
+        label: "Public mall / meeting zone",
+        color: (0.95, 0.80, 0.35),
+        purpose: "The social heart: a concourse with shop stalls, a gathering plaza, transit access.",
+        default_size: (40.0, 6.0, 40.0),
+    ),
+    (
+        id: "industrial",
+        label: "Industrial / factory",
+        color: (0.85, 0.55, 0.25),
+        purpose: "Massive machine-array production fed by the grid; the manufacturing backbone.",
+        default_size: (40.0, 8.0, 30.0),
+    ),
+    (
+        id: "hangar",
+        label: "Hangar bay",
+        color: (0.60, 0.65, 0.72),
+        purpose: "Ship cradles + a launch/recovery lane; big doors to vacuum (airlock boundary).",
+        default_size: (50.0, 12.0, 40.0),
+    ),
+    (
+        id: "mech_bay",
+        label: "Mech bay",
+        color: (0.70, 0.45, 0.55),
+        purpose: "Maintenance cells for mechs/vehicles: cradles + tool/power/fluid hookups.",
+        default_size: (16.0, 8.0, 16.0),
+    ),
+    (
+        id: "cargo",
+        label: "Cargo / freight",
+        color: (0.55, 0.50, 0.30),
+        purpose: "Freight arteries + transfer: cargo tunnels move inventory between districts.",
+        default_size: (24.0, 5.0, 24.0),
+    ),
+    (
+        id: "storage",
+        label: "Storage",
+        color: (0.50, 0.52, 0.56),
+        purpose: "Dense racking; an inventory volume (ties to the nested-container inventory).",
+        default_size: (20.0, 5.0, 20.0),
+    ),
+    (
+        id: "agriculture",
+        label: "Agriculture",
+        color: (0.40, 0.75, 0.40),
+        purpose: "Food production at scale: grow towers, fields, aquaponics feeding the population.",
+        default_size: (30.0, 5.0, 30.0),
+    ),
+    (
+        id: "power",
+        label: "Power / generation",
+        color: (0.95, 0.75, 0.20),
+        purpose: "The mothership's generators + grid backbone (grid-hierarchy.md top tier).",
+        default_size: (24.0, 8.0, 24.0),
+    ),
+    (
+        id: "medical",
+        label: "Medical",
+        color: (0.90, 0.40, 0.40),
+        purpose: "Clinics + life support for the population.",
+        default_size: (18.0, 4.0, 18.0),
+    ),
+    (
+        id: "transit_hub",
+        label: "Transit hub",
+        color: (0.55, 0.80, 0.90),
+        purpose: "Where rail / elevator / teleporter networks meet; moves people between districts.",
+        default_size: (24.0, 6.0, 24.0),
+    ),
+]

@@ -7436,6 +7436,24 @@ mod native_app {
                                     crate::renderer::line::push_polyline(&mut ring_lines, &pts, RE);
                                 }
                             }
+                            // ZONE wireframe boxes (v0.631, superstructure M1): each macro district
+                            // (residential / industrial / hangar / the civic mall / ...) drawn as a
+                            // coloured wire box from its origin to origin+size, so the mothership layout
+                            // reads at a glance. Edited in the Zones panel.
+                            for z in &hs.zones {
+                                let (ox, oy, oz) = z.origin;
+                                let (sw, sh, sd) = z.size;
+                                let c = crate::ship::structure::zone_type(&z.type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
+                                let col = [c.0, c.1, c.2, 0.9];
+                                let (x1, y1, z1) = (ox + sw, oy + sh, oz + sd);
+                                let bot = [[ox, oy, oz], [x1, oy, oz], [x1, oy, z1], [ox, oy, z1]];
+                                let top = [[ox, y1, oz], [x1, y1, oz], [x1, y1, z1], [ox, y1, z1]];
+                                for k in 0..4 {
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[bot[k], bot[(k + 1) % 4]], col);
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[top[k], top[(k + 1) % 4]], col);
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[bot[k], top[k]], col);
+                                }
+                            }
                             // Rail-link gizmo (v0.592): a line between PAIRED train platforms (j>i dedup).
                             for (i, ps) in hs.structures.iter().enumerate() {
                                 let is_train = crate::ship::structure::structure_type(&ps.type_id)

@@ -746,6 +746,9 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // Road graph (v0.586): nodes + edges; each edge a ribbon of a fixed road-class stack.
                 draw_roads_editor(ui, theme, state);
 
+                // Zones (v0.631, superstructure M1): labelled macro VOLUMES the structure is carved into.
+                draw_zones_editor(ui, theme, state);
+
                 // Console (v0.578): a text-command ACT surface for an AI + a human -- the same struct
                 // edits the gizmos make, driven by typed verbs. `help` lists them.
                 egui::CollapsingHeader::new(RichText::new("Console (AI / dev)").strong().color(theme.text_primary()))
@@ -1728,6 +1731,95 @@ fn conduit_parse_end(k: &str) -> Option<crate::machines::ConduitEnd> {
         Some(crate::machines::ConduitEnd::Machine(id.to_string()))
     } else {
         k.strip_prefix("n:").map(|id| crate::machines::ConduitEnd::Node(id.to_string()))
+    }
+}
+
+/// Human label for a zone type id (v0.631), falling back to the raw id.
+fn zone_label(type_id: &str) -> String {
+    crate::ship::structure::zone_type(type_id).map(|t| t.label.clone()).unwrap_or_else(|| type_id.to_string())
+}
+
+/// ZONES editor (v0.631, superstructure M1): add/list/resize the macro VOLUMES the structure is carved
+/// into (residential, industrial, hangar, the civic mall, ...). Render is a wireframe box per zone in
+/// build mode (lib.rs). Deferred actions so it never holds a home_structure borrow across the closures.
+fn draw_zones_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let zones: Vec<(String, String, (f32, f32, f32), (f32, f32, f32))> = match state.home_structure.as_ref() {
+        Some(h) => h.zones.iter().map(|z| (z.id.clone(), z.type_id.clone(), z.origin, z.size)).collect(),
+        None => return,
+    };
+    let types = crate::ship::structure::zone_types();
+    if types.is_empty() {
+        return;
+    }
+    let mut add_type: Option<String> = None;
+    let mut remove: Option<String> = None;
+    let mut set: Option<(String, (f32, f32, f32), (f32, f32, f32))> = None;
+    egui::CollapsingHeader::new(RichText::new(format!("Zones ({})", zones.len())).strong().color(theme.text_primary()))
+        .id_salt("hs_zones")
+        .default_open(false)
+        .show(ui, |ui| {
+            ui.label(RichText::new("Macro districts: residential, industrial, hangar, the mall... (M1)")
+                .size(theme.font_size_small).color(theme.text_muted()));
+            if state.zone_add_type.is_empty() {
+                state.zone_add_type = types[0].id.clone();
+            }
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt("zone_add").width(160.0)
+                    .selected_text(zone_label(&state.zone_add_type))
+                    .show_ui(ui, |ui| {
+                        for t in types {
+                            ui.selectable_value(&mut state.zone_add_type, t.id.clone(), &t.label);
+                        }
+                    });
+                if ui.button("Add zone").clicked() {
+                    add_type = Some(state.zone_add_type.clone());
+                }
+            });
+            for (id, type_id, origin, size) in &zones {
+                let c = crate::ship::structure::zone_type(type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
+                let col = egui::Color32::from_rgb((c.0 * 255.0) as u8, (c.1 * 255.0) as u8, (c.2 * 255.0) as u8);
+                ui.add_space(theme.spacing_xs);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(zone_label(type_id)).size(theme.font_size_small).strong().color(col));
+                    ui.label(RichText::new(id).size(theme.font_size_small).color(theme.text_muted()));
+                    if ui.small_button("x").clicked() {
+                        remove = Some(id.clone());
+                    }
+                });
+                let (mut o, mut s, mut ch) = (*origin, *size, false);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("at").size(theme.font_size_small).color(theme.text_muted()));
+                    ch |= ui.add(egui::DragValue::new(&mut o.0).speed(0.5).prefix("x ").suffix(" m")).changed();
+                    ch |= ui.add(egui::DragValue::new(&mut o.1).speed(0.5).prefix("y ").suffix(" m")).changed();
+                    ch |= ui.add(egui::DragValue::new(&mut o.2).speed(0.5).prefix("z ").suffix(" m")).changed();
+                });
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("size").size(theme.font_size_small).color(theme.text_muted()));
+                    ch |= ui.add(egui::DragValue::new(&mut s.0).speed(0.5).prefix("w ").range(1.0..=400.0)).changed();
+                    ch |= ui.add(egui::DragValue::new(&mut s.1).speed(0.5).prefix("h ").range(1.0..=100.0)).changed();
+                    ch |= ui.add(egui::DragValue::new(&mut s.2).speed(0.5).prefix("d ").range(1.0..=400.0)).changed();
+                });
+                if ch {
+                    set = Some((id.clone(), o, s));
+                }
+            }
+        });
+    if let Some(hs) = state.home_structure.as_mut() {
+        if let Some(t) = add_type {
+            let sz = crate::ship::structure::zone_type(&t).map(|zt| zt.default_size).unwrap_or((20.0, 4.0, 20.0));
+            // Seed the new zone centred in the structure footprint.
+            let origin = ((hs.width * 0.5 - sz.0 * 0.5).max(0.0), 0.0, (hs.depth * 0.5 - sz.2 * 0.5).max(0.0));
+            hs.add_zone(&t, origin, sz);
+        }
+        if let Some(id) = remove {
+            hs.remove_zone(&id);
+        }
+        if let Some((id, o, s)) = set {
+            if let Some(z) = hs.zones.iter_mut().find(|z| z.id == id) {
+                z.origin = o;
+                z.size = s;
+            }
+        }
     }
 }
 

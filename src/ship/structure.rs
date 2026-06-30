@@ -102,6 +102,42 @@ pub fn structure_type(id: &str) -> Option<&'static StructureType> {
     structure_types().iter().find(|t| t.id == id)
 }
 
+/// A ZONE TYPE (v0.631, superstructure M1): a labelled kind of macro VOLUME a mothership is carved into
+/// -- residential, industrial, hangar, mech bay, cargo, storage, the civic mall, ... Data-driven
+/// (infinite-of-X): add a kind by adding one line to `zone_types.ron`, no code. `default_size` seeds a
+/// freshly-placed zone's extent.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ZoneType {
+    pub id: String,
+    pub label: String,
+    /// rgb tint for the zone's wireframe + label.
+    pub color: (f32, f32, f32),
+    /// What happens in this zone (shown in the editor; teaches what each district is for).
+    pub purpose: String,
+    /// Default (width X, height Y, depth Z) metres for a newly placed zone of this type.
+    pub default_size: (f32, f32, f32),
+}
+
+/// The zone-type registry, parsed once + embedded (same pattern as structure_types).
+pub fn zone_types() -> &'static [ZoneType] {
+    static REG: std::sync::OnceLock<Vec<ZoneType>> = std::sync::OnceLock::new();
+    REG.get_or_init(|| {
+        const SRC: &str = include_str!("../../data/blueprints/zone_types.ron");
+        match ron::from_str::<Vec<ZoneType>>(SRC) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("zone_types.ron parse error: {e}");
+                Vec::new()
+            }
+        }
+    })
+}
+
+/// Look up a zone type by id (None if unknown).
+pub fn zone_type(id: &str) -> Option<&'static ZoneType> {
+    zone_types().iter().find(|t| t.id == id)
+}
+
 /// A ROAD CLASS (v0.585): a named, FIXED top-to-bottom material stack -- "an airplane runway has
 /// different needs than a residential side road" (operator). The stack reuses `SurfaceLayer` (the
 /// same model walls layer with), so road materials teach the same density/strength/cost. Used when a

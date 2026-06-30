@@ -1535,6 +1535,8 @@ pub struct GuiState {
     /// junction node there (a "main line" point you then drag machine ports onto). Toggled from the Conduit
     /// nodes panel; right-click cancels. Mutually exclusive with the other place modes.
     pub construction_place_conduit_node: bool,
+    /// Zone-type id selected in the "Add zone" picker (v0.631, superstructure M1).
+    pub zone_add_type: String,
     /// Index of the placed structure selected in the editor (its detail shows on the right). (v0.583)
     pub construction_structure_selected: Option<usize>,
     /// Camera FOCUS request (v0.593): set to a world (x,y,z) when a left-list row is double-clicked;
@@ -2658,6 +2660,7 @@ impl Default for GuiState {
             construction_place_type: None,
             construction_structure_type: None,
             construction_place_conduit_node: false,
+            zone_add_type: String::new(),
             construction_structure_selected: None,
             construction_focus_request: None,
             construction_object_filter: String::new(),
