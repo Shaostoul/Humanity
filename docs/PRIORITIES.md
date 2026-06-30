@@ -24,11 +24,13 @@
 > > **CONSTRUCTION VIEWPORT-FIRST PUSH (operator: "every object needs a proper gizmo; do it in the view;
 > > fix the conduit overlap"). Phase 1 shipped (v0.626):** pipes/wires are now CLICKABLE (select a routed
 > > connection -> it highlights + the panel gives Remove); conduit support brackets are DEDUPED by
-> > position (fixes the overlapping-bracket polygon waste); port handles are bolder/double-ring. **Phase 2
-> > (NEXT):** a viewport "drop a conduit node" tool + let a dragged machine port land on a node ("drag to
-> > the main line"), so the pipe graph is built in-view, not via panel dropdowns. **Phase 3:** trunk
-> > hierarchy (Stage 2 of `conduits-node-graph.md`) so pipes bundle along a spine instead of each routing
-> > its own overlapping run.
+> > position (fixes the overlapping-bracket polygon waste); port handles are bolder. **v0.627: port NODE
+> > gizmo redesign** -- the in/out rings became a solid sphere + 4 cardinal arrows (in=input, out=output),
+> > and the GRID HIERARCHY vision is captured in `docs/design/grid-hierarchy.md` (home->substation->
+> > generator->fleet, non-punitive metering to teach supply/demand). **NEXT (grid S1 + build Phase 2):**
+> > pipes TERMINATE at the port nodes (not the floor anchor) + a home "service-entrance" grid-tie node;
+> > a viewport "drop a conduit node" tool + let a dragged port land on a node ("drag to the main line").
+> > **Phase 3:** trunk hierarchy (Stage 2 of `conduits-node-graph.md`) so pipes bundle along a spine.
 > >
 > > **VIEWPORT DRAG-TO-CONNECT shipped (v0.625):** wiring is now a 3D gesture -- select a machine, drag
 > > one of its coloured port handles onto another machine to wire them (the confusing from/to dropdowns

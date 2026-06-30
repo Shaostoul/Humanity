@@ -4087,6 +4087,9 @@ mod native_app {
         connection_flow_paths: Vec<(Vec<Vec3>, String, String)>,
         /// Cached small sphere mesh for the flow markers.
         connection_flow_sphere: Option<usize>,
+        /// Cached small sphere mesh (~0.05 r) for the central node of a machine PORT gizmo (v0.627) --
+        /// the solid "node" the 4 in/out arrows radiate from. Created on first build-mode render.
+        port_node_mesh: Option<usize>,
         /// Rainbow emissive materials (v0.623) cycled along the SELECTED connection's flow markers, so
         /// the active line reads as highlighted/animated. Created once on the first rebuild.
         flow_rgb_mats: Vec<usize>,
@@ -4811,6 +4814,7 @@ mod native_app {
                 connection_objects: Vec::new(),
                 connection_flow_paths: Vec::new(),
                 connection_flow_sphere: None,
+                port_node_mesh: None,
                 flow_rgb_mats: Vec::new(),
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
@@ -6840,6 +6844,47 @@ mod native_app {
                                 }
                             }
                         }
+                        // PORT node gizmo -- central sphere (v0.627): a solid ~10cm node at each of the
+                        // SELECTED machine's ports, coloured by utility; the 4 in/out arrows (drawn in the
+                        // line overlay below) radiate from it. A real "node object" the operator wanted,
+                        // toward eventually plugging into a 3D model with real ports.
+                        if state.gui_state.construction_active
+                            && state.gui_state.construction_machine_selected.is_some()
+                        {
+                            let sel = state.gui_state.construction_machine_selected.clone().unwrap_or_default();
+                            let ports: Vec<(Vec3, String)> = state
+                                .port_pick
+                                .iter()
+                                .filter(|(mid, ..)| mid == &sel)
+                                .map(|(_, _, port, wp)| (*wp, port.utility.id().to_string()))
+                                .collect();
+                            if !ports.is_empty() {
+                                if state.port_node_mesh.is_none() {
+                                    let m = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 0.05, 10, 12));
+                                    state.port_node_mesh = Some(m);
+                                }
+                                let mesh = state.port_node_mesh.unwrap();
+                                for (wp, kind) in ports {
+                                    let key = format!("portnode:{kind}");
+                                    let mat = match state.connection_mats.get(&key) {
+                                        Some(&m) => m,
+                                        None => {
+                                            let c = crate::machines::MachineHome::connection_color(&kind);
+                                            let m = state.renderer.add_material_full([c[0], c[1], c[2], 1.0], 0.0, 0.4, 0.0, 2.0);
+                                            state.connection_mats.insert(key, m);
+                                            m
+                                        }
+                                    };
+                                    all_objects.push(RenderObject {
+                                        position: wp,
+                                        rotation: Quat::IDENTITY,
+                                        scale: Vec3::ONE,
+                                        mesh,
+                                        material: mat,
+                                    });
+                                }
+                            }
+                        }
                         // Door + window panels: doors ease open as the player nears (by style);
                         // windows are fixed glass (transparent pass). (v0.537)
                         render_door_panels(state, &mut all_objects, &mut transparent_objects, &mut ring_lines, dt);
@@ -7383,17 +7428,33 @@ mod native_app {
                                         }
                                         let c = crate::machines::MachineHome::connection_color(port.utility.id());
                                         let col = [c[0], c[1], c[2], 1.0];
-                                        let p = [wp.x, wp.y, wp.z];
-                                        // A bold DOUBLE ring so the handle reads as an obvious grab target
-                                        // (v0.626: the v0.625 single thin ring was easy to miss); an OUT
-                                        // port gets a third, wider ring so supply vs draw is legible.
-                                        crate::renderer::line::push_circle(&mut ring_lines, p, 0.16, col, 16);
-                                        crate::renderer::line::push_circle(&mut ring_lines, p, 0.24, col, 16);
-                                        if port.dir == crate::utilities::PortDir::Out {
-                                            crate::renderer::line::push_circle(&mut ring_lines, p, 0.32, col, 16);
+                                        // 4 CARDINAL ARROWS around the central node sphere (v0.627): arrows
+                                        // pointing IN (heads near the sphere) = an INPUT/draw port; pointing
+                                        // OUT = an OUTPUT/supply port; both heads = bidirectional. Far more
+                                        // legible at a glance than the old in/out rings.
+                                        let (head_in, head_out) = match port.dir {
+                                            crate::utilities::PortDir::In => (true, false),
+                                            crate::utilities::PortDir::Out => (false, true),
+                                            crate::utilities::PortDir::Bidirectional => (true, true),
+                                        };
+                                        for (dx, dz) in [(1.0f32, 0.0f32), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
+                                            let (px, pz) = (-dz, dx); // perpendicular in XZ for the barbs
+                                            let inner = [wp.x + dx * 0.09, wp.y, wp.z + dz * 0.09];
+                                            let outer = [wp.x + dx * 0.28, wp.y, wp.z + dz * 0.28];
+                                            crate::renderer::line::push_polyline(&mut ring_lines, &[inner, outer], col);
+                                            if head_out {
+                                                // V-head at the OUTER tip, pointing away from the node.
+                                                let b = [outer[0] - dx * 0.08, wp.y, outer[2] - dz * 0.08];
+                                                crate::renderer::line::push_polyline(&mut ring_lines, &[outer, [b[0] + px * 0.06, wp.y, b[2] + pz * 0.06]], col);
+                                                crate::renderer::line::push_polyline(&mut ring_lines, &[outer, [b[0] - px * 0.06, wp.y, b[2] - pz * 0.06]], col);
+                                            }
+                                            if head_in {
+                                                // V-head at the INNER end, pointing toward the node centre.
+                                                let b = [inner[0] + dx * 0.08, wp.y, inner[2] + dz * 0.08];
+                                                crate::renderer::line::push_polyline(&mut ring_lines, &[inner, [b[0] + px * 0.06, wp.y, b[2] + pz * 0.06]], col);
+                                                crate::renderer::line::push_polyline(&mut ring_lines, &[inner, [b[0] - px * 0.06, wp.y, b[2] - pz * 0.06]], col);
+                                            }
                                         }
-                                        // A short stalk down to the machine top so the handle reads as its.
-                                        crate::renderer::line::push_polyline(&mut ring_lines, &[[wp.x, wp.y - 0.3, wp.z], p], col);
                                     }
                                 }
                                 if let Some((src_id, util, _pdir, wp)) = state.construction_port_drag.clone() {

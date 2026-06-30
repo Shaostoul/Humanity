@@ -873,6 +873,18 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Port NODE gizmo: central sphere + in/out arrows (v0.627)
+The v0.625/626 in/out rings weren't legible at a glance, so a machine port is now drawn as a real NODE: a
+solid ~10cm sphere (coloured by utility) with 4 CARDINAL ARROWS radiating from it. Arrows pointing IN
+(heads near the sphere) mark an INPUT/draw port; pointing OUT mark an OUTPUT/supply port; both heads =
+bidirectional (a battery terminal). Far clearer than the rings, and the sphere is a real object (toward
+the operator's "eventually plug into a 3D model with real ports"). Shown for the selected machine; still
+the drag-to-connect grab target. Captured alongside it: the GRID HIERARCHY vision (`docs/design/grid-
+hierarchy.md`) -- home breakers -> residential substations -> generators -> the mothership/fleet grid,
+with non-punitive consumption METERING to teach supply/demand + community self-sufficiency (the
+civilization-on-a-mothership goal).
+- Native: `src/lib.rs` (`port_node_mesh` central sphere in the all-objects pass; the 4-arrow in/out gizmo in the line overlay)
+
 ### Clickable pipes/wires + bracket dedup + bolder port handles (v0.626)
 Pipes/wires became first-class clickable objects (they had no viewport interaction before). Click a
 routed connection in the 3D view and it's selected (`try_pick_connection` ray-samples each route's
