@@ -873,6 +873,14 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Rail cars -- the rail line comes alive (M2b, v0.637)
+A small car now animates along each rail edge in build mode, so the rail graph (v0.635) reads as a living
+transit line rather than static topology. Render-only (no state, no new field): mirrors the conduit flow-
+marker pattern -- a box `RenderObject` slides from rail-node A to B by a `start_time`-driven phase, looping,
+oriented along the track, one per edge (staggered). Confirms the rail graph at a glance; full passenger/
+cargo routing + stops is later M2b.
+- Native: `src/lib.rs` (`rail_car_mesh`/`rail_car_mat` + the per-edge animated car in the render loop)
+
 ### Viewport hide-per-type (declutter) (v0.636)
 A per-type HIDE toggle in the object browser, beside the existing Lock toggle, for each type group
 (Walls / Structures / Machines / Lights / Road nodes / Pipe nodes). Hiding a type skips its meshes +

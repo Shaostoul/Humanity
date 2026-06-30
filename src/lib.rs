@@ -4188,6 +4188,10 @@ mod native_app {
         /// Cached small sphere mesh (~0.05 r) for the central node of a machine PORT gizmo (v0.627) --
         /// the solid "node" the 4 in/out arrows radiate from. Created on first build-mode render.
         port_node_mesh: Option<usize>,
+        /// Cached rail-car mesh + material (v0.637, M2b): a small box that animates along each rail edge
+        /// in build mode so the rail line reads as ALIVE. Created on first render.
+        rail_car_mesh: Option<usize>,
+        rail_car_mat: Option<usize>,
         /// Rainbow emissive materials (v0.623) cycled along the SELECTED connection's flow markers, so
         /// the active line reads as highlighted/animated. Created once on the first rebuild.
         flow_rgb_mats: Vec<usize>,
@@ -4913,6 +4917,8 @@ mod native_app {
                 connection_flow_paths: Vec::new(),
                 connection_flow_sphere: None,
                 port_node_mesh: None,
+                rail_car_mesh: None,
+                rail_car_mat: None,
                 flow_rgb_mats: Vec::new(),
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
@@ -7018,6 +7024,51 @@ mod native_app {
                                         mesh,
                                         material: mat,
                                     });
+                                }
+                            }
+                        }
+                        // RAIL CARS (v0.637, superstructure M2b): a small car animates along each rail
+                        // edge in build mode so the line reads as ALIVE -- the visual payoff that the rail
+                        // graph works. Render-only (no state); mirrors the conduit flow-marker pattern.
+                        if state.gui_state.construction_active {
+                            // Collect the edge endpoints first so the home_structure borrow ends before we
+                            // mutate the renderer (lazy mesh/material) + push.
+                            let rail_edges: Vec<(Vec3, Vec3)> = match state.gui_state.home_structure.as_ref() {
+                                Some(hs) => hs
+                                    .rail_edges
+                                    .iter()
+                                    .filter_map(|e| {
+                                        let a = hs.rail_node_pos(e.from)?;
+                                        let b = hs.rail_node_pos(e.to)?;
+                                        Some((Vec3::new(a.0, 0.15, a.1), Vec3::new(b.0, 0.15, b.1)))
+                                    })
+                                    .collect(),
+                                None => Vec::new(),
+                            };
+                            if !rail_edges.is_empty() {
+                                if state.rail_car_mesh.is_none() {
+                                    let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.6, 0.7, 0.7));
+                                    state.rail_car_mesh = Some(m);
+                                }
+                                if state.rail_car_mat.is_none() {
+                                    let m = state.renderer.add_material_full([0.95, 0.85, 0.4, 1.0], 0.3, 0.4, 0.0, 1.2);
+                                    state.rail_car_mat = Some(m);
+                                }
+                                let mesh = state.rail_car_mesh.unwrap();
+                                let mat = state.rail_car_mat.unwrap();
+                                let t = state.start_time.elapsed().as_secs_f32();
+                                const SPEED: f32 = 0.12; // fraction of an edge per second
+                                for (i, (a, b)) in rail_edges.iter().enumerate() {
+                                    let phase = (t * SPEED + i as f32 * 0.17).rem_euclid(1.0);
+                                    let pos = *a + (*b - *a) * phase;
+                                    let diff = *b - *a;
+                                    let len = diff.length();
+                                    let rot = if len > 1e-4 {
+                                        Quat::from_rotation_arc(Vec3::X, diff / len)
+                                    } else {
+                                        Quat::IDENTITY
+                                    };
+                                    all_objects.push(RenderObject { position: pos, rotation: rot, scale: Vec3::ONE, mesh, material: mat });
                                 }
                             }
                         }

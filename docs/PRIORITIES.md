@@ -44,9 +44,10 @@
 > > ~~service-entrance node~~ (v0.632) + ~~machine rotation~~ (v0.633) + ~~zone
 > > select/drag/duplicate gizmo~~ (v0.634) DONE; ~~viewport hide-per-type~~ DONE (v0.636).
 > > **Superstructure M2: rail NODE GRAPH shipped (v0.635)** -- topology + editor + gizmo (cars/routing =
-> > M2b). **NEXT loop:** M2b rail cars + multi-stop routing, OR more M2 transit (elevator-shaft node /
-> > teleporter edge / cargo tunnel), OR a zone Hide toggle in the Zones panel. Watch the ~8 HomeStructure
-> > positional literals on any new serde-default vec field (done 3x now: zones, rail).
+> > M2b). **M2b rail CARS shipped (v0.637)** -- animated cars along rail
+> > edges. **NEXT loop:** more M2 transit (elevator-shaft node / teleporter edge / cargo tunnel), a zone
+> > Hide toggle in the Zones panel, OR M3 civic-mall prototype. Watch the ~8 HomeStructure positional
+> > literals on any new serde-default vec field (done 3x: zones, rail). Journal ~134 KB -- rotate near 150.
 > >
 > > **VIEWPORT DRAG-TO-CONNECT shipped (v0.625):** wiring is now a 3D gesture -- select a machine, drag
 > > one of its coloured port handles onto another machine to wire them (the confusing from/to dropdowns
