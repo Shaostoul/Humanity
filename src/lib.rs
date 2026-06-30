@@ -1293,12 +1293,28 @@ mod native_app {
         // SAME route_conduit + emit below. A node edge renders as a real routed pipe with zero new mesh.
         // (a, b, kind, from_id, to_id) -- the ids let the flow markers light up only the SELECTED
         // machine's connections (v0.623). A conduit-NODE endpoint is keyed "node:<id>".
-        let mut routes: Vec<(Vec3, Vec3, String, String, String)> = connections
-            .iter()
-            .filter_map(|c| {
-                Some((*anchors.get(&c.from)?, *anchors.get(&c.to)?, c.kind.clone(), c.from.clone(), c.to.clone()))
-            })
-            .collect();
+        let mut routes: Vec<(Vec3, Vec3, String, String, String)> = {
+            // v0.627 (grid S1): a wire TERMINATES at the matching-utility PORT NODE (the sphere+arrow
+            // gizmo above the machine) instead of the generic floor anchor, so a cable visibly plugs
+            // into its node -- a water pipe to the water node, the power wire to the power node, so the
+            // two also leave the machine at different points (less overlap). Falls back to the floor
+            // anchor if the machine declares no port of that utility.
+            let port_pick = &state.port_pick;
+            let port_pos = |id: &str, kind: &str| -> Option<Vec3> {
+                port_pick
+                    .iter()
+                    .find(|(mid, _, port, _)| mid == id && port.utility.id() == kind)
+                    .map(|(_, _, _, wp)| *wp)
+            };
+            connections
+                .iter()
+                .filter_map(|c| {
+                    let a = port_pos(&c.from, &c.kind).or_else(|| anchors.get(&c.from).copied())?;
+                    let b = port_pos(&c.to, &c.kind).or_else(|| anchors.get(&c.to).copied())?;
+                    Some((a, b, c.kind.clone(), c.from.clone(), c.to.clone()))
+                })
+                .collect()
+        };
         {
             let placement_tuples: Vec<(String, (f32, f32, f32), f32)> =
                 placements.iter().map(|p| (p.id.clone(), p.pos, p.floor_y)).collect();

@@ -27,10 +27,11 @@
 > > position (fixes the overlapping-bracket polygon waste); port handles are bolder. **v0.627: port NODE
 > > gizmo redesign** -- the in/out rings became a solid sphere + 4 cardinal arrows (in=input, out=output),
 > > and the GRID HIERARCHY vision is captured in `docs/design/grid-hierarchy.md` (home->substation->
-> > generator->fleet, non-punitive metering to teach supply/demand). **NEXT (grid S1 + build Phase 2):**
-> > pipes TERMINATE at the port nodes (not the floor anchor) + a home "service-entrance" grid-tie node;
-> > a viewport "drop a conduit node" tool + let a dragged port land on a node ("drag to the main line").
-> > **Phase 3:** trunk hierarchy (Stage 2 of `conduits-node-graph.md`) so pipes bundle along a spine.
+> > generator->fleet, non-punitive metering to teach supply/demand). **v0.628: pipes now TERMINATE at
+> > the matching-utility port nodes** (fallback to floor anchor) -- grid S1 first step done. **NEXT (build
+> > Phase 2 + grid S1 tail):** a viewport "drop a conduit node" tool + let a dragged port land on a node
+> > ("drag to the main line"); a home "service-entrance" grid-tie node. **Phase 3:** trunk hierarchy
+> > (Stage 2 of `conduits-node-graph.md`) so pipes bundle along a spine instead of overlapping runs.
 > >
 > > **VIEWPORT DRAG-TO-CONNECT shipped (v0.625):** wiring is now a 3D gesture -- select a machine, drag
 > > one of its coloured port handles onto another machine to wire them (the confusing from/to dropdowns

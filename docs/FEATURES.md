@@ -873,6 +873,15 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Pipes terminate at port nodes (grid S1, v0.628)
+A wire/pipe now ROUTES TO the matching-utility port NODE (the v0.627 sphere+arrow gizmo above the machine)
+instead of a generic floor anchor -- a water pipe plugs into the water node, the power wire into the power
+node, so the two also leave the machine at different points (less overlap). Resolved from `port_pick` by
+matching `port.utility.id()` to the connection's kind, falling back to the floor anchor if the machine
+declares no port of that utility. First concrete step of the grid-hierarchy staging (`docs/design/grid-
+hierarchy.md` S1: "cables/pipes go to the input/output nodes").
+- Native: `src/lib.rs` (`rebuild_connection_objects` route building resolves each machine endpoint to its port-node position)
+
 ### Port NODE gizmo: central sphere + in/out arrows (v0.627)
 The v0.625/626 in/out rings weren't legible at a glance, so a machine port is now drawn as a real NODE: a
 solid ~10cm sphere (coloured by utility) with 4 CARDINAL ARROWS radiating from it. Arrows pointing IN
