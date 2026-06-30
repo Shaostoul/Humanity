@@ -1531,6 +1531,10 @@ pub struct GuiState {
     /// palette category, dropped where you click the floor. Mutually exclusive with
     /// construction_place_type (a machine) + wall_mode. None = not placing a structure.
     pub construction_structure_type: Option<String>,
+    /// Place-a-CONDUIT-NODE mode (v0.629): when true, clicking the floor in the 3D view drops a pipe-graph
+    /// junction node there (a "main line" point you then drag machine ports onto). Toggled from the Conduit
+    /// nodes panel; right-click cancels. Mutually exclusive with the other place modes.
+    pub construction_place_conduit_node: bool,
     /// Index of the placed structure selected in the editor (its detail shows on the right). (v0.583)
     pub construction_structure_selected: Option<usize>,
     /// Camera FOCUS request (v0.593): set to a world (x,y,z) when a left-list row is double-clicked;
@@ -2653,6 +2657,7 @@ impl Default for GuiState {
             construction_palette_expanded: false,
             construction_place_type: None,
             construction_structure_type: None,
+            construction_place_conduit_node: false,
             construction_structure_selected: None,
             construction_focus_request: None,
             construction_object_filter: String::new(),

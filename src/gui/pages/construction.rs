@@ -1750,9 +1750,18 @@ fn draw_conduit_nodes(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .default_open(false)
         .show(ui, |ui| {
             ui.label(RichText::new("Junction nodes; pipes auto-route through them. (Stage 1)").size(theme.font_size_small).color(theme.text_muted()));
-            if ui.button("Add node (box centre)").clicked() {
-                add_node = true;
-            }
+            ui.horizontal(|ui| {
+                if ui.button("Add node (box centre)").clicked() {
+                    add_node = true;
+                }
+                // v0.629: place nodes by CLICKING the floor in the 3D view (a "main line" you then drag
+                // machine ports onto). Toggles a place mode; right-click in the view cancels it.
+                let placing = state.construction_place_conduit_node;
+                let label = if placing { "Placing... (right-click to stop)" } else { "Place in view" };
+                if ui.button(RichText::new(label).color(if placing { theme.accent() } else { theme.text_secondary() })).clicked() {
+                    state.construction_place_conduit_node = !placing;
+                }
+            });
             for (id, pos) in &nodes {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(id).size(theme.font_size_small).color(theme.text_primary()));

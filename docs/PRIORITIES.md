@@ -27,11 +27,17 @@
 > > position (fixes the overlapping-bracket polygon waste); port handles are bolder. **v0.627: port NODE
 > > gizmo redesign** -- the in/out rings became a solid sphere + 4 cardinal arrows (in=input, out=output),
 > > and the GRID HIERARCHY vision is captured in `docs/design/grid-hierarchy.md` (home->substation->
-> > generator->fleet, non-punitive metering to teach supply/demand). **v0.628: pipes now TERMINATE at
-> > the matching-utility port nodes** (fallback to floor anchor) -- grid S1 first step done. **NEXT (build
-> > Phase 2 + grid S1 tail):** a viewport "drop a conduit node" tool + let a dragged port land on a node
-> > ("drag to the main line"); a home "service-entrance" grid-tie node. **Phase 3:** trunk hierarchy
-> > (Stage 2 of `conduits-node-graph.md`) so pipes bundle along a spine instead of overlapping runs.
+> > generator->fleet, non-punitive metering to teach supply/demand). **v0.628: pipes TERMINATE at the
+> > matching-utility port nodes.** **v0.629 (build Phase 2):** the pipe GRAPH is built in-view -- "Place in
+> > view" drops a conduit node on a floor click, and a dragged machine port can land ON a node (branches
+> > onto the main line). **LOOP MODE ENGAGED (operator, 2026-06-29 eve):** keep shipping the backlog
+> > autonomously. **Backlog order:** (1) **grid S2** -- consumption METERING + a home self-sufficiency
+> > readout (record + surface the existing ECS balance tick; non-punitive). (2) **Phase 3 / trunk
+> > hierarchy** -- `ConduitNode.tier` routing so pipes bundle along a spine (`conduits-node-graph.md`
+> > Stage 2). (3) **MOTHERSHIP SUPERSTRUCTURE** (`docs/design/mothership-superstructure.md`): M1 Zone
+> > primitive -> M2 transit node graphs (rail multi-stop / elevator shafts / teleporter / cargo tunnels)
+> > -> M3 civic MALL/meeting zone -> M4 industrial+cargo -> M5 hangar/mech bays. (4) nice-to-haves:
+> > rotation gizmo for machines, viewport hide-per-type, a home service-entrance grid-tie node.
 > >
 > > **VIEWPORT DRAG-TO-CONNECT shipped (v0.625):** wiring is now a 3D gesture -- select a machine, drag
 > > one of its coloured port handles onto another machine to wire them (the confusing from/to dropdowns

@@ -873,6 +873,16 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Viewport conduit-node placement + drag-a-port-to-a-node (build Phase 2, v0.629)
+The pipe GRAPH is now built in the view, not via panel dropdowns. The Conduit-nodes panel has a "Place in
+view" toggle: while active, clicking the floor drops a junction node there (a "main line" point); right-
+click cancels. And a dragged machine PORT can now land on a conduit NODE (not just another machine) -- it
+branches the machine onto the main line as a graph edge (`add_conduit_edge`, machine -> node), routed as a
+real pipe. The drag preview snaps to a hovered node and rings it. Together this is the operator's "drag the
+node to the main power line." Nodes already had drag + remove gizmos (v0.599); this adds in-view creation +
+port-to-node wiring.
+- Native: `src/lib.rs` (`construction_place_conduit_node` mode in the press chain; `port_drop_node_target`; the release-handler node branch; the preview snap-to-node), `src/gui/mod.rs` (the place flag), `src/gui/pages/construction.rs` ("Place in view" toggle)
+
 ### Pipes terminate at port nodes (grid S1, v0.628)
 A wire/pipe now ROUTES TO the matching-utility port NODE (the v0.627 sphere+arrow gizmo above the machine)
 instead of a generic floor anchor -- a water pipe plugs into the water node, the power wire into the power

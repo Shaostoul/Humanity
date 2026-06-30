@@ -2259,6 +2259,27 @@ mod native_app {
         best.map(|(id, _)| id)
     }
 
+    /// The conduit NODE under the cursor for a port drop (v0.629): nearest conduit-node orb the ray hits.
+    /// Lets a dragged machine port land on a "main line" node, branching the machine onto the pipe graph.
+    fn port_drop_node_target(state: &EngineState) -> Option<String> {
+        let home = state.gui_state.home_machines.as_ref()?;
+        let sz = state.window.inner_size();
+        let (origin, dir) =
+            state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<(String, f32)> = None;
+        for cn in &home.conduit_nodes {
+            let p = Vec3::new(cn.pos.0, cn.pos.1, cn.pos.2);
+            let t = (p - origin).dot(dir);
+            if t < 0.0 {
+                continue;
+            }
+            if (p - (origin + dir * t)).length() < 0.5 && best.as_ref().map_or(true, |(_, bt)| t < *bt) {
+                best = Some((cn.id.clone(), t));
+            }
+        }
+        best.map(|(id, _)| id)
+    }
+
     /// Whether `target` machine has a port of `util` (v0.625) -- the compatibility gate for wiring a
     /// dragged port to it (same utility; direction is oriented supply->demand by the caller).
     fn machine_has_port(state: &EngineState, target: &str, util: crate::utilities::Utility) -> bool {
@@ -5239,6 +5260,7 @@ mod native_app {
                             // stale held type can't make the next viewport click drop a machine in
                             // the wrong context. (v0.531)
                             state.gui_state.construction_place_type = None;
+                            state.gui_state.construction_place_conduit_node = false; // v0.629
                             state.construction_ghost = None;
                             state.construction_port_drag = None; // drop any in-flight wire drag (v0.625)
                             if state.gui_state.construction_active {
@@ -5370,7 +5392,17 @@ mod native_app {
                             state.gui_state.construction_connection_selected = None;
                             // Wall-drawing mode owns the click first (v0.534): drop a corner node.
                             // Else holding a palette item -> drop it; else grab a room.
-                            if state.gui_state.construction_wall_mode {
+                            if state.gui_state.construction_place_conduit_node {
+                                // Place-a-conduit-node mode (v0.629): drop a pipe-graph junction at the
+                                // cursor floor point -- a "main line" node you then drag ports onto. The
+                                // tool stays held (place several); right-click cancels.
+                                if let Some((_, hx, hz)) = cursor_floor_hit(state) {
+                                    if let Some(home) = state.gui_state.home_machines.as_mut() {
+                                        home.add_conduit_node((hx, 0.35, hz), "power");
+                                    }
+                                    state.gui_state.construction_machines_dirty = true;
+                                }
+                            } else if state.gui_state.construction_wall_mode {
                                 try_place_wall_node(state);
                             } else if state.gui_state.construction_place_type.is_some() {
                                 try_place_held_machine(state);
@@ -5438,7 +5470,16 @@ mod native_app {
                             // drop it on a machine that has a compatible (same-utility) port to wire them.
                             // Orient supply->demand so `from` is the source (the data convention).
                             if let Some((src_id, util, pdir, _)) = state.construction_port_drag.take() {
-                                if let Some(target) = port_drop_target(state, &src_id) {
+                                if let Some(node_id) = port_drop_node_target(state) {
+                                    // Dropped on a CONDUIT NODE (v0.629): branch this machine onto the
+                                    // main-line node (a graph edge machine -> node, routed as a real pipe).
+                                    if let Some(home) = state.gui_state.home_machines.as_mut() {
+                                        use crate::machines::ConduitEnd;
+                                        if home.add_conduit_edge(ConduitEnd::Machine(src_id.clone()), ConduitEnd::Node(node_id), util.id()) {
+                                            state.gui_state.construction_machines_dirty = true;
+                                        }
+                                    }
+                                } else if let Some(target) = port_drop_target(state, &src_id) {
                                     if machine_has_port(state, &target, util) {
                                         if let Some(home) = state.gui_state.home_machines.as_mut() {
                                             let (from, to) = match pdir {
@@ -5466,12 +5507,14 @@ mod native_app {
                         && pressed
                         && (state.gui_state.construction_place_type.is_some()
                             || state.gui_state.construction_structure_type.is_some()
+                            || state.gui_state.construction_place_conduit_node
                             || state.gui_state.construction_wall_mode)
                     {
-                        // Right-click cancels the held placement item / structure OR exits
-                        // wall-drawing and clears the pending corner (v0.529/v0.534/v0.583).
+                        // Right-click cancels the held placement item / structure / conduit-node tool OR
+                        // exits wall-drawing and clears the pending corner (v0.529/v0.534/v0.583/v0.629).
                         state.gui_state.construction_place_type = None;
                         state.gui_state.construction_structure_type = None;
+                        state.gui_state.construction_place_conduit_node = false;
                         state.gui_state.construction_wall_mode = false;
                         state.gui_state.construction_wall_start = None;
                     } else if !egui_consumed && state.gui_state.active_page == GuiPage::None {
@@ -7475,11 +7518,19 @@ mod native_app {
                                 }
                                 if let Some((src_id, util, _pdir, wp)) = state.construction_port_drag.clone() {
                                     let c = crate::machines::MachineHome::connection_color(util.id());
-                                    let target = port_drop_target(state, &src_id);
-                                    let center = target
+                                    // A conduit NODE under the cursor takes precedence (v0.629): dropping
+                                    // there branches the machine onto the main line, always valid.
+                                    let node_center = port_drop_node_target(state).and_then(|nid| {
+                                        state.gui_state.home_machines.as_ref().and_then(|h| {
+                                            h.conduit_nodes.iter().find(|n| n.id == nid).map(|n| Vec3::new(n.pos.0, n.pos.1, n.pos.2))
+                                        })
+                                    });
+                                    let target = if node_center.is_none() { port_drop_target(state, &src_id) } else { None };
+                                    let mach_center = target
                                         .as_ref()
                                         .and_then(|t| state.machine_pick.iter().find(|(id, ..)| id == t).map(|(_, c, _)| *c));
-                                    let ok = target.as_ref().map_or(false, |t| machine_has_port(state, t, util));
+                                    let center = node_center.or(mach_center);
+                                    let ok = node_center.is_some() || target.as_ref().map_or(false, |t| machine_has_port(state, t, util));
                                     let end_pt = center
                                         .map(|c| [c.x, c.y, c.z])
                                         .or_else(|| cursor_floor_hit(state).map(|(_, hx, hz)| [hx, 0.05, hz]))
