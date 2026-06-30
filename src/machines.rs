@@ -193,6 +193,15 @@ impl MachineDef {
             .map(|p| p.mbps)
             .sum()
     }
+
+    /// Megabits/sec of data this machine SUPPLIES -- the sum of its Data OUT ports (an uplink). (v0.630)
+    pub fn data_supply_mbps(&self) -> f32 {
+        self.derive_ports()
+            .iter()
+            .filter(|p| p.utility == Utility::Data && p.dir == PortDir::Out)
+            .map(|p| p.mbps)
+            .sum()
+    }
 }
 
 /// One placed machine.
@@ -340,6 +349,42 @@ pub struct BuildabilityCheck {
 #[derive(Debug, Clone)]
 pub struct BuildabilityReport {
     pub checks: Vec<BuildabilityCheck>,
+}
+
+/// A non-punitive USAGE METER for one utility (v0.630, grid S2 -- docs/design/grid-hierarchy.md): the
+/// home's daily generation vs demand and how self-sufficient it is. The teaching framing: understand
+/// what you actually use + how much of it you make yourself, never a penalty for consuming.
+/// `generation`/`demand` are in `unit` (kWh/day for power, L/day for water, Mbps for data).
+#[derive(Debug, Clone)]
+pub struct UtilityMeter {
+    pub utility: String,
+    pub generation: f32,
+    pub demand: f32,
+    /// 0.0..1.0; 1.0 = the home makes at least as much as it uses (self-sufficient).
+    pub self_sufficiency: f32,
+    pub unit: String,
+    pub summary: String,
+}
+
+/// Build one meter from a utility's daily generation + demand, with a plain-language, NON-PUNITIVE
+/// summary (self-sufficient / surplus to share / amount imported -- never "over budget"). (v0.630)
+fn make_utility_meter(utility: &str, generation: f32, demand: f32, unit: &str) -> UtilityMeter {
+    let ss = if demand <= 0.0 { 1.0 } else { (generation / demand).min(1.0) };
+    let summary = if demand <= 0.0 {
+        format!("makes {generation:.1} {unit}; nothing using it yet")
+    } else if generation >= demand {
+        format!(
+            "makes {generation:.1}, uses {demand:.1} {unit} -- fully self-sufficient (+{:.1} to share with the community)",
+            generation - demand
+        )
+    } else {
+        format!(
+            "makes {generation:.1}, uses {demand:.1} {unit} -- {:.0}% self-sufficient ({:.1} imported from the grid)",
+            ss * 100.0,
+            demand - generation
+        )
+    };
+    UtilityMeter { utility: utility.to_string(), generation, demand, self_sufficiency: ss, unit: unit.to_string(), summary }
 }
 
 /// The geometry of a room the machine placer needs: the floor-plane center (x, z), and the floor
@@ -662,6 +707,49 @@ impl MachineHome {
         self.connections
             .retain(|c| !((c.from == a && c.to == b) || (c.from == b && c.to == a)));
         self.connections.len() != before
+    }
+
+    /// Per-utility USAGE METERS for the home (v0.630, grid S2): daily generation vs demand + a self-
+    /// sufficiency fraction for power (kWh/day), water (L/day), and data (Mbps). Pure + world-free
+    /// (computed from the placed machines' catalog defs), so it runs in the editor + an AI can read it.
+    /// Non-punitive: it tells you what you make + use, never penalises consuming. `sun_hours` ~ 4.5.
+    pub fn utility_meters(&self, sun_hours: f32) -> Vec<UtilityMeter> {
+        let sun = sun_hours.clamp(0.0, 24.0);
+        let (mut solar_peak, mut gen_watts, mut consumer_watts) = (0.0f32, 0.0f32, 0.0f32);
+        let (mut water_prod, mut water_dem) = (0.0f32, 0.0f32);
+        let (mut data_sup, mut data_dem) = (0.0f32, 0.0f32);
+        for inst in self.all_instances() {
+            if let Some(def) = self.catalog.get(&inst.machine) {
+                match &def.power {
+                    Some(MachinePower::Solar { peak_watts }) => solar_peak += peak_watts,
+                    Some(MachinePower::Generator { watts }) => gen_watts += watts,
+                    _ => {}
+                }
+                consumer_watts += def.electrical_load_watts();
+                water_prod += def.water_production_lpm();
+                water_dem += def.water_demand_lpm();
+                data_sup += def.data_supply_mbps();
+                data_dem += def.data_demand_mbps();
+            }
+        }
+        let mut meters = Vec::new();
+        // POWER: kWh/day. Solar earns sun_hours of peak; steady generators run 24 h.
+        let p_gen = (solar_peak * sun + gen_watts * 24.0) / 1000.0;
+        let p_dem = consumer_watts * 24.0 / 1000.0;
+        if p_gen > 0.0 || p_dem > 0.0 {
+            meters.push(make_utility_meter("power", p_gen, p_dem, "kWh/day"));
+        }
+        // WATER: L/day (lpm over 1440 min).
+        let w_gen = water_prod * 1440.0;
+        let w_dem = water_dem * 1440.0;
+        if w_gen > 0.0 || w_dem > 0.0 {
+            meters.push(make_utility_meter("water", w_gen, w_dem, "L/day"));
+        }
+        // DATA: Mbps (instantaneous link rate, not a daily total).
+        if data_sup > 0.0 || data_dem > 0.0 {
+            meters.push(make_utility_meter("data", data_sup, data_dem, "Mbps"));
+        }
+        meters
     }
 
     /// A design-time buildability check over the placed machines: is there a power source for the
@@ -1564,6 +1652,36 @@ mod tests {
         let report = home.buildability_report(4.5);
         assert_eq!(report.worst(), CheckStatus::Fail);
         assert!(report.checks.iter().any(|c| c.name == "Power source" && c.status == CheckStatus::Fail));
+    }
+
+    /// v0.630 grid S2: utility_meters reports per-utility daily generation vs demand + a self-sufficiency
+    /// fraction, non-punitively. A 1000 W panel + a 100 W load: 4.5 kWh/day made vs 2.4 used -> self-suff.
+    #[test]
+    fn utility_meters_report_generation_demand_and_self_sufficiency() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0) };
+        let home = MachineHome {
+            catalog,
+            instances: vec![inst("p1", "panel"), inst("l1", "load")],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+        };
+        let meters = home.utility_meters(4.5);
+        let power = meters.iter().find(|m| m.utility == "power").expect("a power meter exists");
+        // gen = 1000 W * 4.5 h / 1000 = 4.5 kWh/day; demand = 100 W * 24 h / 1000 = 2.4 kWh/day.
+        assert!((power.generation - 4.5).abs() < 1e-3, "gen {}", power.generation);
+        assert!((power.demand - 2.4).abs() < 1e-3, "demand {}", power.demand);
+        assert!((power.self_sufficiency - 1.0).abs() < 1e-6, "generation covers demand -> 100% self-sufficient");
+        assert!(power.summary.contains("self-sufficient"), "summary frames it non-punitively: {}", power.summary);
+        // A pure consumer with no generation reports partial self-sufficiency, never a penalty.
+        let m = make_utility_meter("power", 1.0, 4.0, "kWh/day");
+        assert!((m.self_sufficiency - 0.25).abs() < 1e-6);
+        assert!(m.summary.contains("imported"), "{}", m.summary);
     }
 
     /// v0.524 Stage 3: panel + battery sized for the night + a modest load passes every check.

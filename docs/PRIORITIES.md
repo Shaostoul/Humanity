@@ -31,9 +31,9 @@
 > > matching-utility port nodes.** **v0.629 (build Phase 2):** the pipe GRAPH is built in-view -- "Place in
 > > view" drops a conduit node on a floor click, and a dragged machine port can land ON a node (branches
 > > onto the main line). **LOOP MODE ENGAGED (operator, 2026-06-29 eve):** keep shipping the backlog
-> > autonomously. **Backlog order:** (1) **grid S2** -- consumption METERING + a home self-sufficiency
-> > readout (record + surface the existing ECS balance tick; non-punitive). (2) **Phase 3 / trunk
-> > hierarchy** -- `ConduitNode.tier` routing so pipes bundle along a spine (`conduits-node-graph.md`
+> > autonomously. **Backlog order:** (1) ~~grid S2 metering~~ DONE (v0.630: `utility_meters` per-utility
+> > generation/demand/self-sufficiency in the Buildability panel, non-punitive). (2) **Phase 3 / trunk
+> > hierarchy (NEXT)** -- `ConduitNode.tier` routing so pipes bundle along a spine (`conduits-node-graph.md`
 > > Stage 2). (3) **MOTHERSHIP SUPERSTRUCTURE** (`docs/design/mothership-superstructure.md`): M1 Zone
 > > primitive -> M2 transit node graphs (rail multi-stop / elevator shafts / teleporter / cargo tunnels)
 > > -> M3 civic MALL/meeting zone -> M4 industrial+cargo -> M5 hangar/mech bays. (4) nice-to-haves:

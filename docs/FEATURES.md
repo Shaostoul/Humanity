@@ -873,6 +873,15 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Usage meters + home self-sufficiency (grid S2, v0.630)
+The Buildability panel now shows per-utility USAGE METERS: for power (kWh/day), water (L/day), and data
+(Mbps) it reports the home's daily GENERATION vs DEMAND and a self-sufficiency fraction. Framed to TEACH,
+non-punitively (grid-hierarchy.md): "makes 4.5, uses 2.4 kWh/day -- fully self-sufficient (+2.1 to share
+with the community)" or "... 60% self-sufficient (X imported from the grid)". Pure + world-free
+(`MachineHome::utility_meters`, computed from the placed machines' catalog roles), so it runs in the
+editor and an AI can read it; no penalty for consuming, just understanding what you use + make.
+- Native: `src/machines.rs` (`UtilityMeter` + `utility_meters` + `data_supply_mbps`), `src/gui/pages/construction.rs` (`draw_buildability` usage section)
+
 ### Viewport conduit-node placement + drag-a-port-to-a-node (build Phase 2, v0.629)
 The pipe GRAPH is now built in the view, not via panel dropdowns. The Conduit-nodes panel has a "Place in
 view" toggle: while active, clicking the floor drops a junction node there (a "main line" point); right-

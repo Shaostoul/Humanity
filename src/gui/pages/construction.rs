@@ -3010,6 +3010,21 @@ fn draw_buildability(ui: &mut egui::Ui, theme: &Theme, home: &crate::machines::M
             ui.label(RichText::new(&c.detail).size(theme.font_size_small).color(theme.text_muted()));
         });
     }
+    // Usage / self-sufficiency METERS (v0.630, grid S2): per-utility daily generation vs demand, framed
+    // to TEACH (how much you make + use, how self-sufficient you are) -- never a penalty for consuming.
+    let meters = home.utility_meters(4.5);
+    if !meters.is_empty() {
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new("Usage + self-sufficiency").strong().color(theme.text_primary()));
+        for m in &meters {
+            let c = crate::machines::MachineHome::connection_color(&m.utility);
+            let col = egui::Color32::from_rgb((c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8);
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new(format!("{}:", m.utility)).size(theme.font_size_small).strong().color(col));
+                ui.label(RichText::new(&m.summary).size(theme.font_size_small).color(theme.text_muted()));
+            });
+        }
+    }
 }
 
 /// Draw the top-down floor plan: every room as a rectangle seen from above (world X -> right,
