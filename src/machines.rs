@@ -654,6 +654,16 @@ impl MachineHome {
         }
     }
 
+    /// Remove the connection between two machines, in EITHER direction (v0.626). Lets the viewport
+    /// "click a pipe -> Remove" gizmo drop a wire by its endpoints without knowing its list index.
+    /// Returns true if a connection was removed.
+    pub fn remove_connection_between(&mut self, a: &str, b: &str) -> bool {
+        let before = self.connections.len();
+        self.connections
+            .retain(|c| !((c.from == a && c.to == b) || (c.from == b && c.to == a)));
+        self.connections.len() != before
+    }
+
     /// A design-time buildability check over the placed machines: is there a power source for the
     /// load, does energy balance over a representative day (with the battery carrying the solar-off
     /// window), and is the wiring intact. Pure + world-free so it runs in the construction editor
@@ -1502,6 +1512,34 @@ mod tests {
         // It is now movable (the editor would write a new offset here).
         // A second detach of the same id is a no-op (it's a direct instance now).
         assert!(!home.detach_array_member("tray_4"), "already-direct cell does not re-detach");
+    }
+
+    /// v0.626: remove_connection_between drops a wire by its endpoints in either direction (the
+    /// viewport "click a pipe -> Remove" gizmo), and is a no-op for an absent pair.
+    #[test]
+    fn remove_connection_between_drops_either_direction() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("box".to_string(), test_def("box"));
+        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0) };
+        let mut home = MachineHome {
+            catalog,
+            instances: vec![inst("a"), inst("b"), inst("c")],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+        };
+        assert!(home.add_connection("a", "b", "power"));
+        assert!(home.add_connection("b", "c", "water"));
+        // Remove a->b by the REVERSED endpoints -> still found.
+        assert!(home.remove_connection_between("b", "a"), "either-direction match removes");
+        assert_eq!(home.connections.len(), 1, "only b->c remains");
+        assert_eq!(home.connections[0].from, "b");
+        // An absent pair is a no-op.
+        assert!(!home.remove_connection_between("a", "c"), "absent pair is a no-op");
+        assert!(home.remove_connection_between("c", "b"), "the forward-or-reverse remaining wire removes");
+        assert!(home.connections.is_empty());
     }
 
     /// A machine def carrying a specific electrical role, for buildability tests.

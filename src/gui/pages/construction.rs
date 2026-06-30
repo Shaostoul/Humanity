@@ -804,6 +804,12 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 draw_conduit_node_detail(ui, theme, state);
                 return;
             }
+            // A selected PIPE/WIRE takes the panel (v0.626): clicked the connection in the 3D view.
+            // try_pick_connection clears every other selection when it fires, so this is unambiguous.
+            if !other_selected && state.construction_connection_selected.is_some() {
+                draw_connection_detail(ui, theme, state);
+                return;
+            }
             // A selected STRUCTURE takes the panel (v0.583): clicked its gizmo or list row.
             if state.construction_structure_selected.is_some() {
                 draw_structure_detail(ui, theme, state);
@@ -2170,6 +2176,48 @@ fn draw_conduit_node_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
     }
 }
 
+/// Right-panel detail for a PIPE/WIRE selected by clicking it in the 3D view (v0.626). Shows the wire's
+/// utility + endpoints and a Remove button, so a connection is a first-class editable object like a wall.
+fn draw_connection_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let Some((from, to)) = state.construction_connection_selected.clone() else {
+        return;
+    };
+    let kind = state
+        .home_machines
+        .as_ref()
+        .and_then(|h| {
+            h.connections
+                .iter()
+                .find(|c| (c.from == from && c.to == to) || (c.from == to && c.to == from))
+                .map(|c| c.kind.clone())
+        })
+        .unwrap_or_default();
+    if kind.is_empty() {
+        // The connection vanished (e.g. an endpoint was deleted) -- drop the stale selection.
+        state.construction_connection_selected = None;
+        return;
+    }
+    let c = crate::machines::MachineHome::connection_color(&kind);
+    let col = egui::Color32::from_rgb((c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8);
+    ui.label(RichText::new("Wire / pipe").strong().size(theme.font_size_body).color(theme.text_primary()));
+    ui.add_space(theme.spacing_xs);
+    ui.label(RichText::new(kind.to_uppercase()).strong().color(col));
+    ui.label(RichText::new(format!("{from}  ->  {to}")).size(theme.font_size_small).color(theme.text_secondary()));
+    ui.add_space(theme.spacing_sm);
+    ui.horizontal(|ui| {
+        if ui.button(RichText::new("Remove").color(theme.danger())).clicked() {
+            if let Some(h) = state.home_machines.as_mut() {
+                h.remove_connection_between(&from, &to);
+            }
+            state.construction_connection_selected = None;
+            state.construction_machines_dirty = true;
+        }
+        if ui.button("Deselect").clicked() {
+            state.construction_connection_selected = None;
+        }
+    });
+}
+
 /// Unified single-line OBJECT BROWSER (v0.596): every placed object -- walls, structures, machines,
 /// lights -- as ONE consistent row "[type] name (x,z) [x]". Click selects it (its full detail shows
 /// on the RIGHT panel, where the editing lives); double-click snaps the camera to it; [x] removes it.
@@ -2396,6 +2444,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         s.construction_machine_selected = None;
         s.construction_road_node_selected = None;
         s.construction_conduit_node_selected = None;
+        s.construction_connection_selected = None; // v0.626: a list select drops the pipe highlight
     };
     match act {
         Some(Act::Select(k)) => {

@@ -1354,6 +1354,11 @@ mod native_app {
         };
         let service_y = (home_h - 0.3).max(0.6);
         const CYL_R: f32 = 0.05; // the unit cylinder's modeled radius
+        // Dedup the support fittings ACROSS all connections (v0.626): many pipes share the same service-
+        // height run, so without this their ceiling hangers + wall gaskets stack at the SAME spot --
+        // invisible overlap that still costs polygons (the operator's "brackets overlap, more polys than
+        // we should"). Key by rounded position so one bracket serves all pipes passing that point.
+        let mut placed_fittings: HashMap<(i32, i32, i32), ()> = HashMap::new();
         for (a, b, kind_str, from_id, to_id) in &routes {
             let (a, b) = (*a, *b);
             let kind = crate::ship::conduits::ConduitKind::for_resource(kind_str);
@@ -1401,6 +1406,11 @@ mod native_app {
             // material-aware gasket collar at each wall passthrough. The fitting colour comes from the
             // material it attaches to, so a steel vs wood wall reads differently.
             for f in &route.fittings {
+                // Skip a fitting whose spot is already bracketed by another pipe's run (v0.626 dedup).
+                let pos_key = ((f.at.x * 5.0) as i32, (f.at.y * 5.0) as i32, (f.at.z * 5.0) as i32);
+                if placed_fittings.insert(pos_key, ()).is_some() {
+                    continue;
+                }
                 let fkey = format!("fitting:{}", f.material);
                 let fmat = match state.connection_mats.get(&fkey) {
                     Some(&m) => m,
@@ -2246,6 +2256,59 @@ mod native_app {
                 Some(def.derive_ports().iter().any(|p| p.utility == util))
             })
             .unwrap_or(false)
+    }
+
+    /// Hit-test the cursor ray against the routed PIPES (v0.626): samples each machine-machine
+    /// connection's polyline (from `connection_flow_paths`) and selects the nearest within a small
+    /// radius, so a pipe is a clickable object like a wall -- its detail + a Remove button then show on
+    /// the right panel. Machine-machine wires only for now (conduit-node edges come with the node tool).
+    /// Returns true on a hit so the click doesn't fall through to a wall pick / room grab.
+    fn try_pick_connection(state: &mut EngineState) -> bool {
+        if state.connection_flow_paths.is_empty() {
+            return false;
+        }
+        let sz = state.window.inner_size();
+        let (origin, dir) =
+            state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<(f32, String, String)> = None; // (t, from, to)
+        for (path, from_id, to_id) in &state.connection_flow_paths {
+            if from_id.starts_with("node:") || to_id.starts_with("node:") {
+                continue; // machine-machine wires only (v0.626)
+            }
+            let mut hit_t = f32::INFINITY;
+            for seg in path.windows(2) {
+                let (p, q) = (seg[0], seg[1]);
+                let len = (q - p).length();
+                let steps = (len / 0.35).ceil().max(1.0) as usize;
+                for s in 0..=steps {
+                    let pt = p + (q - p) * (s as f32 / steps as f32);
+                    let t = (pt - origin).dot(dir);
+                    if t < 0.0 {
+                        continue;
+                    }
+                    let d = (pt - (origin + dir * t)).length();
+                    if d < 0.28 && t < hit_t {
+                        hit_t = t;
+                    }
+                }
+            }
+            if hit_t.is_finite() && best.as_ref().map_or(true, |(bt, ..)| hit_t < *bt) {
+                best = Some((hit_t, from_id.clone(), to_id.clone()));
+            }
+        }
+        if let Some((_, from, to)) = best {
+            let g = &mut state.gui_state;
+            g.construction_connection_selected = Some((from, to));
+            g.construction_machine_selected = None;
+            g.construction_wall_selected = None;
+            g.construction_light_selected = None;
+            g.construction_structure_selected = None;
+            g.construction_road_node_selected = None;
+            g.construction_conduit_node_selected = None;
+            true
+        } else {
+            false
+        }
     }
 
     /// Hit-test the cursor ray against the WALL SURFACES (v0.573). On a hit, SELECT that wall (its
@@ -5281,6 +5344,10 @@ mod native_app {
                             locked.contains("Pipe"),
                         );
                         if pressed {
+                            // Any viewport press re-decides the selection, so drop a stale PIPE selection
+                            // up front (v0.626); try_pick_connection below re-sets it if a pipe is hit.
+                            // GUI clicks (egui_consumed) never reach here, so the right-panel Remove is safe.
+                            state.gui_state.construction_connection_selected = None;
                             // Wall-drawing mode owns the click first (v0.534): drop a corner node.
                             // Else holding a palette item -> drop it; else grab a room.
                             if state.gui_state.construction_wall_mode {
@@ -5316,6 +5383,10 @@ mod native_app {
                                 // Selected a machine in the viewport (v0.553) -> its detail shows on
                                 // the right panel. Click only; machines are not dragged here. Gated to
                                 // the box-home path so it never shadows the legacy room-grab.
+                            } else if state.gui_state.home_structure.is_some() && try_pick_connection(state) {
+                                // Clicked a PIPE/WIRE (v0.626): select that connection -> its detail +
+                                // a Remove button show on the right panel. After machines (so a machine
+                                // under the cursor wins) but before walls (pipes are in the foreground).
                             } else if !lock_wall && state.gui_state.home_structure.is_some() && try_pick_wall(state) {
                                 // Clicked a WALL SURFACE (v0.573): select that wall for editing --
                                 // unambiguous vs hunting for the right corner orb at an intersection.
@@ -7311,11 +7382,15 @@ mod native_app {
                                             continue;
                                         }
                                         let c = crate::machines::MachineHome::connection_color(port.utility.id());
-                                        let col = [c[0], c[1], c[2], 0.95];
+                                        let col = [c[0], c[1], c[2], 1.0];
                                         let p = [wp.x, wp.y, wp.z];
-                                        crate::renderer::line::push_circle(&mut ring_lines, p, 0.12, col, 14);
+                                        // A bold DOUBLE ring so the handle reads as an obvious grab target
+                                        // (v0.626: the v0.625 single thin ring was easy to miss); an OUT
+                                        // port gets a third, wider ring so supply vs draw is legible.
+                                        crate::renderer::line::push_circle(&mut ring_lines, p, 0.16, col, 16);
+                                        crate::renderer::line::push_circle(&mut ring_lines, p, 0.24, col, 16);
                                         if port.dir == crate::utilities::PortDir::Out {
-                                            crate::renderer::line::push_circle(&mut ring_lines, p, 0.18, col, 14);
+                                            crate::renderer::line::push_circle(&mut ring_lines, p, 0.32, col, 16);
                                         }
                                         // A short stalk down to the machine top so the handle reads as its.
                                         crate::renderer::line::push_polyline(&mut ring_lines, &[[wp.x, wp.y - 0.3, wp.z], p], col);
@@ -7340,6 +7415,16 @@ mod native_app {
                                     crate::renderer::line::push_polyline(&mut ring_lines, &[[wp.x, wp.y, wp.z], end_pt], line_col);
                                     if let Some(center) = center {
                                         crate::renderer::line::push_circle(&mut ring_lines, [center.x, center.y, center.z], 0.5, line_col, 18);
+                                    }
+                                }
+                                // Highlight the SELECTED pipe/wire (v0.626): trace its routed polyline in
+                                // bright white so you see exactly which connection the panel Remove acts on.
+                                if let Some((fa, fb)) = state.gui_state.construction_connection_selected.clone() {
+                                    for (path, from_id, to_id) in &state.connection_flow_paths {
+                                        if ((from_id == &fa && to_id == &fb) || (from_id == &fb && to_id == &fa)) && path.len() >= 2 {
+                                            let pts: Vec<[f32; 3]> = path.iter().map(|p| [p.x, p.y, p.z]).collect();
+                                            crate::renderer::line::push_polyline(&mut ring_lines, &pts, [1.0, 1.0, 1.0, 1.0]);
+                                        }
                                     }
                                 }
                             }

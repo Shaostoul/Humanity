@@ -1551,6 +1551,10 @@ pub struct GuiState {
     pub construction_road_node_selected: Option<u32>,
     /// Selected CONDUIT-graph node id (v0.597): its detail shows on the right; draggable in the viewport.
     pub construction_conduit_node_selected: Option<String>,
+    /// Selected machine-machine CONNECTION (v0.626): (from id, to id) of the pipe/wire picked in the 3D
+    /// view, so a connection is a first-class clickable object (detail + Remove on the right panel) like
+    /// walls/doors. None when no pipe is selected.
+    pub construction_connection_selected: Option<(String, String)>,
     /// Yaw (degrees) applied to the next placed structure -- rotate the held piece with [ and ].
     pub construction_structure_yaw: f32,
     /// Height above the room floor (metres) the next placed structure drops at (v0.588): 0 = on the
@@ -2656,6 +2660,7 @@ impl Default for GuiState {
             construction_locked_types: std::collections::HashSet::new(),
             construction_road_node_selected: None,
             construction_conduit_node_selected: None,
+            construction_connection_selected: None,
             construction_structure_yaw: 0.0,
             construction_structure_place_y: 0.0,
             construction_road_from: 0,

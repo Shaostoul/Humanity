@@ -21,10 +21,19 @@
 > CAN'T-CLICK-MACHINES regression (build-mode entry never rebuilt `machine_pick`; now it does). All
 > verified (relay+native compile, 33 machines tests, 5 lints, snapshot).
 >
+> > **CONSTRUCTION VIEWPORT-FIRST PUSH (operator: "every object needs a proper gizmo; do it in the view;
+> > fix the conduit overlap"). Phase 1 shipped (v0.626):** pipes/wires are now CLICKABLE (select a routed
+> > connection -> it highlights + the panel gives Remove); conduit support brackets are DEDUPED by
+> > position (fixes the overlapping-bracket polygon waste); port handles are bolder/double-ring. **Phase 2
+> > (NEXT):** a viewport "drop a conduit node" tool + let a dragged machine port land on a node ("drag to
+> > the main line"), so the pipe graph is built in-view, not via panel dropdowns. **Phase 3:** trunk
+> > hierarchy (Stage 2 of `conduits-node-graph.md`) so pipes bundle along a spine instead of each routing
+> > its own overlapping run.
+> >
 > > **VIEWPORT DRAG-TO-CONNECT shipped (v0.625):** wiring is now a 3D gesture -- select a machine, drag
 > > one of its coloured port handles onto another machine to wire them (the confusing from/to dropdowns
 > > are now just a fallback). Array-member machines (e.g. a grain tray) are now movable too (first drag
-> > explodes the array into instances). AWAITING operator visual verify of the handles + rubber-band.
+> > explodes the array into instances).
 > >
 > > **Build-editor NEXT = conduit TRUNK HIERARCHY (Stage 2 of `conduits-node-graph.md`).** The operator's
 > > "moveable main lines + machines branch to them, some paths look wrong" is the Stage-1 node-graph

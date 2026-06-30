@@ -873,6 +873,17 @@ no matter how many conduits the home has). Build-mode only, gated on the "Helper
 markers are small (0.10 m) beads with moderate emissive so they read as spheres, not flat discs.
 - Native: `src/lib.rs` (`connection_flow_paths` carries `(path, from_id, to_id)` from `rebuild_connection_objects`; the render loop animates only `from_id`/`to_id == construction_machine_selected` via the `flow_rgb_mats` rainbow), `src/machines.rs` (`connection_color` legend -- now also the pipe material so each run is its own utility colour)
 
+### Clickable pipes/wires + bracket dedup + bolder port handles (v0.626)
+Pipes/wires became first-class clickable objects (they had no viewport interaction before). Click a
+routed connection in the 3D view and it's selected (`try_pick_connection` ray-samples each route's
+polyline): the pipe traces bright white and the right panel shows "Wire / pipe" with its utility,
+endpoints, and a **Remove** button (`remove_connection_between`, either direction). Also: the conduit
+support FITTINGS (ceiling hangers + wall gaskets) are now DEDUPED by position across all connections --
+many pipes share a service-height run, so their brackets used to stack invisibly at the same spot,
+wasting polygons; one bracket now serves every pipe through that point. And the v0.625 port handles got
+a bolder double/triple ring so the drag-to-connect targets are obvious.
+- Native: `src/lib.rs` (`try_pick_connection` + press-chain wiring + the selected-pipe highlight + the fitting dedup `HashMap` in `rebuild_connection_objects` + bigger port rings), `src/machines.rs` (`remove_connection_between`), `src/gui/mod.rs` (`construction_connection_selected`), `src/gui/pages/construction.rs` (`draw_connection_detail` + dispatch + `clear_sel`)
+
 ### Viewport drag-to-connect (machine ports) + array-member move (v0.625)
 The panel dropdowns ("pick from, pick to, Connect") were a confusing way to wire machines, so wiring is
 now a VIEWPORT gesture. Select a machine and its declared ports (`derive_ports()`) show as coloured
